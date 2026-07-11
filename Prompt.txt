@@ -1,0 +1,861 @@
+เพิ่มเติม: School Calendar / Import Safety / Trash Recovery / Data Health / Onboarding / Simple Mode / Message Templates
+
+ระบบ ClassCare 360 ต้องเพิ่มระบบสนับสนุนการใช้งานจริง เพื่อให้ครูใช้ง่าย ข้อมูลไม่พัง และเหมาะกับบริบทโรงเรียนแต่ละแห่ง ได้แก่:
+
+1. ปฏิทินโรงเรียนแบบยืดหยุ่น
+2. ระบบป้องกันข้อมูลซ้ำตอน Import
+3. ระบบ Undo / ถังขยะ / กู้คืนข้อมูล
+4. ระบบแจ้งเตือนข้อมูลผิดปกติขั้นสูง
+5. คู่มือเริ่มต้นแบบทีละขั้น
+6. โหมดใช้งานง่าย / โหมดขั้นสูง
+7. เทมเพลตข้อความแจ้งผู้ปกครอง
+
+==================================================
+
+1. ระบบปฏิทินโรงเรียนแบบยืดหยุ่น
+   ==================================================
+
+ชื่อโมดูล:
+School Calendar & Flexible Academic Schedule
+
+ชื่อเมนู:
+ปฏิทินโรงเรียน
+
+ตำแหน่งเมนู:
+ตั้งค่า
+├── ปีการศึกษา
+├── ภาคเรียน
+├── ปฏิทินโรงเรียน
+└── วันเรียน / วันหยุด / กิจกรรมพิเศษ
+
+แนวคิด:
+ระบบต้องมีปฏิทินโรงเรียนเพื่อช่วยจัดการวันเรียน วันหยุด วันกิจกรรม วันสอบ วันเปิด/ปิดภาคเรียน และวันเรียนชดเชย แต่ต้องไม่บังคับว่าทุกโรงเรียนต้องเช็คชื่อตามปฏิทินแบบตายตัว เพราะแต่ละโรงเรียนมีบริบทต่างกัน
+
+หลักสำคัญ:
+
+* โรงเรียนเป็นผู้ตั้งค่าเอง
+* ระบบไม่ควรบังคับเช็คชื่อแบบแข็ง ๆ
+* ปฏิทินมีไว้ช่วยแนะนำ/ช่วยกรอง/ช่วยรายงาน
+* โรงเรียนสามารถกำหนดเสาร์-อาทิตย์ให้เป็นวันเรียนได้
+* โรงเรียนสามารถกำหนดวันธรรมดาให้เป็นวันหยุดได้
+* โรงเรียนสามารถกำหนดวันกิจกรรมพิเศษได้
+* โรงเรียนสามารถเช็คชื่อในวันใดก็ได้ หากมีสิทธิ์และตั้งค่าอนุญาต
+* ต้องมี override ได้เสมอ
+
+ประเภทวันในปฏิทิน:
+
+* school_day = วันเรียนปกติ
+* holiday = วันหยุด
+* public_holiday = วันหยุดราชการ
+* makeup_day = วันเรียนชดเชย
+* activity_day = วันกิจกรรมพิเศษ
+* exam_day = วันสอบ
+* semester_start = วันเปิดภาคเรียน
+* semester_end = วันปิดภาคเรียน
+* custom = กำหนดเอง
+
+ตัวอย่าง:
+
+* วันเสาร์ที่ 15 มิถุนายน 2569 = วันเรียนชดเชย
+* วันจันทร์ที่ 22 กรกฎาคม 2569 = วันหยุดโรงเรียน
+* วันศุกร์ที่ 30 สิงหาคม 2569 = วันกิจกรรมวันแม่
+* วันที่ 1-5 กันยายน 2569 = วันสอบกลางภาค
+
+ฟังก์ชัน:
+
+* เพิ่มวันเรียน
+* เพิ่มวันหยุด
+* เพิ่มวันกิจกรรม
+* เพิ่มวันสอบ
+* เพิ่มวันเรียนชดเชย
+* เพิ่มช่วงเปิด/ปิดภาคเรียน
+* ตั้งค่าทั้งปีการศึกษา
+* import ปฏิทินจาก Excel
+* คัดลอกปฏิทินจากปีที่แล้ว
+* แสดงปฏิทินรายเดือน
+* ใช้สีแยกประเภทวัน
+* เพิ่มหมายเหตุรายวัน
+* เปิด/ปิดผลต่อระบบเช็คชื่อได้
+
+การเชื่อมกับระบบเช็คชื่อ:
+ระบบต้องมีตัวเลือก:
+
+1. ใช้ปฏิทินเพื่อแนะนำเท่านั้น
+2. ใช้ปฏิทินเพื่อแจ้งเตือนว่าวันนี้ควร/ไม่ควรเช็คชื่อ
+3. ใช้ปฏิทินเพื่อกรองรายงาน
+4. ไม่บังคับเช็คชื่อจากปฏิทิน
+
+ตัวอย่างข้อความ:
+
+* “วันนี้ถูกตั้งเป็นวันหยุด แต่ครูยังสามารถเช็คชื่อได้หากเป็นวันเรียนชดเชยหรือกิจกรรมพิเศษ”
+* “วันนี้เป็นวันเรียนชดเชย ระบบอนุญาตให้เช็คชื่อได้”
+* “วันนี้เป็นวันกิจกรรมพิเศษ ครูสามารถบันทึกสถานะกิจกรรมแทนการมาเรียนปกติได้”
+
+ตารางฐานข้อมูล:
+
+school_calendar_days
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* academic_year_id TEXT NOT NULL
+* term_id TEXT
+* calendar_date TEXT NOT NULL
+* day_type TEXT NOT NULL
+* title TEXT
+* description TEXT
+* is_attendance_expected INTEGER DEFAULT 0
+* allow_attendance_override INTEGER DEFAULT 1
+* color TEXT
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+* created_by TEXT
+* updated_by TEXT
+* deleted_at TEXT
+* is_sample INTEGER DEFAULT 0
+
+school_calendar_settings
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* academic_year_id TEXT NOT NULL
+* use_calendar_for_attendance_hint INTEGER DEFAULT 1
+* block_attendance_on_holiday INTEGER DEFAULT 0
+* allow_weekend_makeup_days INTEGER DEFAULT 1
+* allow_manual_attendance_any_day INTEGER DEFAULT 1
+* show_calendar_warning INTEGER DEFAULT 1
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+
+==================================================
+2. ระบบป้องกันข้อมูลซ้ำตอน Import
+=================================
+
+ชื่อโมดูล:
+Import Preview & Duplicate Protection
+
+ชื่อเมนู:
+ตรวจสอบก่อนนำเข้า
+
+เป้าหมาย:
+
+* ป้องกันข้อมูลพังจาก Excel
+* ตรวจข้อมูลซ้ำก่อนนำเข้าจริง
+* ให้ครูเห็น preview ก่อน confirm
+* แสดง error/warning รายแถว
+* รองรับปี พ.ศ.
+* รองรับการอัปเดตข้อมูลเดิมแบบ upsert
+
+Flow Import:
+
+1. ครูอัปโหลดไฟล์ Excel/CSV
+2. ระบบอ่านข้อมูลแบบ preview
+3. ตรวจหัวคอลัมน์
+4. ตรวจชนิดข้อมูล
+5. ตรวจข้อมูลจำเป็น
+6. ตรวจข้อมูลซ้ำในไฟล์
+7. ตรวจข้อมูลซ้ำกับฐานข้อมูลเดิม
+8. แสดงรายการ error/warning
+9. ให้ครูเลือกวิธีจัดการ:
+
+   * เพิ่มเฉพาะข้อมูลใหม่
+   * อัปเดตข้อมูลเดิม
+   * ข้ามแถวที่ผิด
+   * ยกเลิก
+10. ครูกดยืนยัน
+11. ระบบนำเข้าจริง
+12. สร้าง import_job และ import_rows log
+
+ข้อมูลที่ต้องตรวจ:
+
+* เลขประจำตัวนักเรียนซ้ำ
+* เลขบัตรประชาชนซ้ำ
+* ชื่อ-นามสกุลซ้ำ
+* วันเกิดผิดรูปแบบ
+* ปี พ.ศ. แปลงผิด
+* ห้องเรียนไม่ตรงกับระบบ
+* เลขที่ซ้ำในห้อง
+* ข้อมูลผู้ปกครองว่าง
+* เบอร์โทรผิดรูปแบบ
+* ยอดเงินออมไม่ใช่ตัวเลข
+* คะแนนเกินคะแนนเต็ม
+* รหัสวิชาไม่ตรง
+* วันที่เป็นอนาคต/ผิดรูปแบบ
+
+ระดับผลตรวจ:
+
+* error = ต้องแก้ก่อนนำเข้า
+* warning = นำเข้าได้แต่ควรตรวจ
+* info = ข้อมูลแจ้งให้ทราบ
+
+ตัวอย่าง:
+
+* ERROR: เลขบัตรประชาชนไม่ครบ 13 หลัก
+* ERROR: วันเกิด 31/02/2558 ไม่มีอยู่จริง
+* WARNING: พบชื่อ-นามสกุลซ้ำกับนักเรียนเดิม
+* WARNING: ไม่มีเบอร์โทรผู้ปกครอง
+* INFO: นักเรียนรหัส 001 มีอยู่แล้ว ระบบจะอัปเดตข้อมูล
+
+ตาราง:
+import_jobs
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* import_type TEXT NOT NULL
+* file_asset_id TEXT
+* status TEXT
+* total_rows INTEGER DEFAULT 0
+* valid_rows INTEGER DEFAULT 0
+* error_rows INTEGER DEFAULT 0
+* warning_rows INTEGER DEFAULT 0
+* import_mode TEXT
+* created_by TEXT
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+* completed_at TEXT
+
+import_rows
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* import_job_id TEXT NOT NULL
+* row_number INTEGER NOT NULL
+* raw_data TEXT
+* normalized_data TEXT
+* validation_status TEXT
+* error_messages TEXT
+* warning_messages TEXT
+* action TEXT
+* target_record_id TEXT
+* created_at TEXT NOT NULL
+
+import_errors
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* import_job_id TEXT NOT NULL
+* import_row_id TEXT
+* severity TEXT
+* error_code TEXT
+* message TEXT
+* field_name TEXT
+* created_at TEXT NOT NULL
+
+==================================================
+3. ระบบ Undo / ถังขยะ / กู้คืนข้อมูล
+====================================
+
+ชื่อโมดูล:
+Trash, Undo & Restore Center
+
+ชื่อเมนู:
+ถังขยะ / กู้คืนข้อมูล
+
+ตำแหน่งเมนู:
+เครื่องมือระบบ
+├── ถังขยะ
+├── กู้คืนข้อมูล
+└── ประวัติการลบ
+
+เป้าหมาย:
+
+* ป้องกันการลบข้อมูลผิดพลาด
+* ให้ครูกู้คืนข้อมูลได้ตามสิทธิ์
+* ลดความกลัวในการใช้งานระบบ
+* มี audit log ทุกครั้ง
+* ลบถาวรได้เฉพาะ admin/owner/superadmin
+
+หลักการ:
+
+* ใช้ soft delete ด้วย deleted_at
+* ข้อมูลที่ลบจะเข้า Trash
+* กู้คืนได้ภายในระยะเวลาที่กำหนด เช่น 30 วัน
+* ลบถาวรได้เฉพาะผู้มีสิทธิ์
+* ไฟล์ใน R2 ยังไม่ลบทันที ให้ mark deleted ก่อน
+* ถ้าลบถาวรแล้วจึง cleanup ไฟล์จริง
+
+รายการที่ควรกู้คืนได้:
+
+* นักเรียน
+* ห้องเรียน
+* คะแนน
+* งาน/ใบงาน
+* งานค้าง
+* เงินออม transaction
+* บันทึกเวลาเรียน
+* พฤติกรรม
+* บันทึกครูประจำชั้น
+* นัดหมายผู้ปกครอง
+* แบบฟอร์ม
+* ตารางเวร
+* ผลการทำเวร
+* ไฟล์แนบ
+* รายงาน
+
+ฟังก์ชัน:
+
+* ดูรายการที่ถูกลบ
+* filter ตามประเภทข้อมูล
+* filter ตามผู้ลบ
+* filter ตามวันที่ลบ
+* ดูรายละเอียดก่อนกู้คืน
+* กู้คืนรายการเดียว
+* กู้คืนหลายรายการ
+* ลบถาวร
+* ลบถาวรอัตโนมัติหลังครบ retention
+* บันทึกเหตุผลเมื่อลบถาวร
+
+ตาราง:
+trash_items
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* entity_type TEXT NOT NULL
+* entity_id TEXT NOT NULL
+* display_name TEXT
+* deleted_by TEXT
+* deleted_at TEXT NOT NULL
+* restore_deadline TEXT
+* restored_by TEXT
+* restored_at TEXT
+* permanently_deleted_by TEXT
+* permanently_deleted_at TEXT
+* status TEXT DEFAULT 'deleted'
+* metadata TEXT
+
+restore_logs
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* trash_item_id TEXT NOT NULL
+* entity_type TEXT NOT NULL
+* entity_id TEXT NOT NULL
+* action TEXT
+* reason TEXT
+* performed_by TEXT
+* performed_at TEXT NOT NULL
+
+ข้อควรระวัง:
+
+* ถ้ากู้คืนนักเรียน ต้องตรวจห้องเรียนเดิมยังอยู่หรือไม่
+* ถ้ากู้คืนคะแนน ต้องตรวจ task/subject ยังอยู่หรือไม่
+* ถ้ากู้คืนไฟล์ ต้องตรวจ R2 object ยังไม่ถูกลบถาวร
+* ถ้าข้อมูลเกี่ยวพันถูกลบไปแล้ว ต้องแจ้ง warning
+
+==================================================
+4. ระบบแจ้งเตือนข้อมูลผิดปกติขั้นสูง
+====================================
+
+ชื่อโมดูล:
+Advanced Data Health Check
+
+ชื่อเมนู:
+ตรวจสุขภาพข้อมูล
+
+เป้าหมาย:
+
+* ตรวจข้อมูลผิดปกติอัตโนมัติ
+* ช่วยครูแก้ก่อนสร้างรายงาน
+* ป้องกันข้อมูลพัง
+* เตือนก่อนเปิด Public Portal
+* เตือนก่อนปิดงวด/ปิดปี
+
+รายการตรวจ:
+ข้อมูลนักเรียน:
+
+* นักเรียนไม่มีห้อง
+* นักเรียนไม่มีเลขที่
+* นักเรียนไม่มีวันเกิด
+* นักเรียนไม่มีเลขบัตรประชาชน
+* เลขบัตรประชาชนไม่ครบ 13 หลัก
+* เลขบัตรประชาชนซ้ำ
+* วันเกิดผิดรูปแบบ
+* นักเรียนซ้ำจากชื่อ-นามสกุล
+
+Public Portal:
+
+* เปิด Public Portal แต่ข้อมูลยืนยันไม่ครบ
+* นักเรียนไม่มี birth_date
+* นักเรียนไม่มี citizen_id_hash
+* ตั้งค่า school_code ซ้ำ
+* มีการกรอกผิดหลายครั้งผิดปกติ
+
+เงินออม:
+
+* ยอดเงินออมติดลบ
+* current_balance ไม่ตรงกับ transaction
+* opening_balance ซ้ำ
+* transaction วันที่ผิดปีการศึกษา
+* ฝาก/ถอนเป็นค่าติดลบผิดประเภท
+
+คะแนน:
+
+* คะแนนเกินคะแนนเต็ม
+* คะแนนติดลบ
+* งานไม่มีคะแนนเต็ม
+* งานไม่มีตัวชี้วัด
+* คะแนนซ้ำ
+* ตัวชี้วัดไม่ผูกงาน
+
+เวลาเรียน:
+
+* เช็คชื่อซ้ำ
+* นักเรียนไม่มี record ในวันที่ควรมี
+* วันที่เช็คชื่ออยู่นอกปีการศึกษา
+* สถานะไม่ถูกต้อง
+
+เวร:
+
+* เวรวันนี้มีนักเรียนขาดแต่ยังไม่มีคนแทน
+* ตารางเวรซ้ำ
+* นักเรียนได้เวรหนักซ้ำเกินเงื่อนไข
+* ยังไม่ได้บันทึกผลการทำเวร
+* duty_rule ไม่มีวันทำเวร
+* duty_rule จำนวนคนมากกว่านักเรียนที่มี
+
+ไฟล์:
+
+* file_assets มี metadata แต่ R2 object หาย
+* ไฟล์หมดอายุแต่ยังไม่ cleanup
+* สลิปชำระเงินเกิน retention
+* backup หมดอายุ
+
+ระบบ:
+
+* subscription หมดอายุแต่ยัง active
+* refunded แล้วแต่ยังเปิด VIP
+* referral credit ผิด
+* notification ส่งไม่สำเร็จจำนวนมาก
+
+ตาราง:
+data_health_checks
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* check_type TEXT NOT NULL
+* title TEXT NOT NULL
+* description TEXT
+* severity TEXT
+* status TEXT
+* affected_count INTEGER DEFAULT 0
+* last_run_at TEXT
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+
+data_health_issues
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* check_id TEXT NOT NULL
+* entity_type TEXT
+* entity_id TEXT
+* severity TEXT
+* issue_code TEXT
+* message TEXT
+* suggested_action TEXT
+* status TEXT DEFAULT 'open'
+* resolved_by TEXT
+* resolved_at TEXT
+* created_at TEXT NOT NULL
+
+UI:
+
+* แสดงจำนวนปัญหา critical/warning/info
+* ปุ่ม “ตรวจตอนนี้”
+* ปุ่ม “ไปแก้ไข”
+* ปุ่ม “ละเว้นปัญหานี้”
+* ปุ่ม “ตรวจอีกครั้ง”
+* filter ตามหมวด
+* แสดงก่อนสร้างรายงาน/ปิดงวด/เปิด Public Portal
+
+==================================================
+5. คู่มือเริ่มต้นแบบทีละขั้น
+============================
+
+ชื่อโมดูล:
+Guided Onboarding Checklist
+
+ชื่อเมนู:
+เริ่มต้นใช้งาน
+
+เป้าหมาย:
+
+* ช่วยครูเริ่มใช้ระบบได้ง่าย
+* ลดความงงจากระบบที่มีฟังก์ชันเยอะ
+* แนะนำทีละขั้น
+* แสดง progress
+* เปิดดูตัวอย่างได้
+* ข้ามขั้นตอนได้
+
+Checklist เริ่มต้น:
+
+1. ตั้งค่าข้อมูลโรงเรียน
+2. ตั้งปีการศึกษา
+3. ตั้งภาคเรียน
+4. เพิ่มห้องเรียน
+5. นำเข้านักเรียน
+6. ตรวจข้อมูลนักเรียน
+7. ตั้งค่าการเช็คชื่อ
+8. ตั้งค่าเงินออม
+9. ตั้งค่าหน้าที่เวร
+10. ตั้งค่า Public Portal
+11. ตั้งค่าข้อมูลที่ผู้ปกครองเห็น
+12. ทดลองเช็คชื่อ
+13. ทดลองบันทึกเงินออม
+14. ทดลองสร้างรายงาน
+15. ทดลองติดตั้งแอป
+
+UI:
+
+* Progress เช่น 4/15
+* แถบความคืบหน้า
+* ปุ่ม “เริ่มทำ”
+* ปุ่ม “ข้าม”
+* ปุ่ม “ดูคู่มือ”
+* ปุ่ม “ดูวิดีโอ” ถ้ามี
+* ปุ่ม “สร้างข้อมูลตัวอย่าง”
+* แสดงสถานะ completed/pending/skipped
+
+ตาราง:
+onboarding_steps
+
+* id TEXT PRIMARY KEY
+* step_key TEXT UNIQUE NOT NULL
+* title TEXT NOT NULL
+* description TEXT
+* order_no INTEGER
+* target_url TEXT
+* required_for_basic_mode INTEGER DEFAULT 1
+* required_for_advanced_mode INTEGER DEFAULT 0
+* status TEXT DEFAULT 'active'
+
+workspace_onboarding_progress
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* step_key TEXT NOT NULL
+* status TEXT DEFAULT 'pending'
+* completed_by TEXT
+* completed_at TEXT
+* skipped_by TEXT
+* skipped_at TEXT
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+
+==================================================
+6. โหมดใช้งานง่าย / โหมดขั้นสูง
+===============================
+
+ชื่อโมดูล:
+Simple Mode / Advanced Mode
+
+ชื่อเมนู:
+โหมดการใช้งาน
+
+เป้าหมาย:
+
+* ลดความซับซ้อนสำหรับครูใหม่
+* ให้ครูเริ่มจากเมนูจำเป็นก่อน
+* ซ่อนฟีเจอร์ขั้นสูงไว้จนกว่าจะต้องใช้
+* ครูสามารถสลับโหมดได้
+* workspace owner ตั้งค่าโหมดเริ่มต้นได้
+
+โหมดใช้งานง่าย:
+เหมาะสำหรับเริ่มต้นใช้งาน
+แสดงเมนูหลัก:
+
+* Dashboard
+* นักเรียน
+* เช็คชื่อ
+* เงินออม
+* งานค้าง
+* รายงาน
+* Public Portal
+* ประกาศ
+* สำรองข้อมูลของฉัน
+* ตั้งค่าพื้นฐาน
+
+ซ่อนหรือย้ายไปเมนูขั้นสูง:
+
+* คะแนนรายตัวชี้วัด
+* หน่วยการเรียนรู้
+* เวรอัจฉริยะ
+* Google Map
+* Google Drive
+* API/Developer
+* Backup ขั้นสูง
+* Data Health ขั้นสูง
+* Permission ขั้นสูง
+* Rule Engine
+
+โหมดขั้นสูง:
+แสดงทุกเมนู:
+
+* คะแนน
+* ตัวชี้วัด
+* ระบบเวรแบบมีเงื่อนไข
+* Google Maps
+* Backup/Restore
+* Import ขั้นสูง
+* Data Health
+* Public Portal Visibility
+* Permission
+* System Logs
+
+ตาราง:
+workspace_ui_settings
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* default_mode TEXT DEFAULT 'simple'
+* allow_user_switch_mode INTEGER DEFAULT 1
+* show_advanced_menu_badge INTEGER DEFAULT 1
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+
+user_ui_preferences:
+
+* preferred_mode TEXT DEFAULT 'simple'
+* sidebar_collapsed INTEGER DEFAULT 0
+* show_onboarding INTEGER DEFAULT 1
+
+UI:
+
+* มี toggle “โหมดใช้งานง่าย / โหมดขั้นสูง”
+* ถ้าอยู่ Simple Mode ให้ซ่อนเมนูขั้นสูง
+* มีข้อความ “ฟีเจอร์นี้อยู่ในโหมดขั้นสูง”
+* ปุ่ม “เปิดโหมดขั้นสูง”
+* ถ้ากดครั้งแรกให้มีคำอธิบายสั้น ๆ
+
+==================================================
+7. ระบบข้อความตัวอย่าง / เทมเพลตข้อความ
+=======================================
+
+ชื่อโมดูล:
+Parent Message Templates
+
+ชื่อเมนู:
+เทมเพลตข้อความ
+
+ตำแหน่งเมนู:
+ตั้งค่า
+├── เทมเพลตข้อความ
+
+หรือ:
+ดูแลนักเรียน
+├── ข้อความถึงผู้ปกครอง
+├── เทมเพลตข้อความ
+
+เป้าหมาย:
+
+* ให้ครูส่งข้อความถึงผู้ปกครองได้เร็ว
+* ลดเวลาพิมพ์ข้อความซ้ำ
+* ใช้กับ LINE/Telegram/In-App/คัดลอกข้อความ
+* รองรับตัวแปรอัตโนมัติ
+* ครูแก้ไขก่อนส่งได้
+
+ประเภทเทมเพลต:
+
+* แจ้งงานค้าง
+* แจ้งขาดเรียน
+* แจ้งมาสาย
+* แจ้งเงินออม
+* แจ้งนัดหมาย
+* แจ้งประชุมผู้ปกครอง
+* แจ้งตอบแบบฟอร์ม
+* แจ้งพฤติกรรมดี
+* แจ้งพฤติกรรมที่ต้องติดตาม
+* แจ้งเวร
+* แจ้งกิจกรรมโรงเรียน
+* แจ้งรายงานประจำเดือน
+
+ตัวแปรที่รองรับ:
+
+* {{student_name}}
+* {{classroom_name}}
+* {{teacher_name}}
+* {{school_name}}
+* {{date_th}}
+* {{missing_work_count}}
+* {{attendance_status}}
+* {{savings_balance}}
+* {{appointment_date}}
+* {{form_due_date}}
+* {{duty_name}}
+* {{portal_link}}
+
+ตัวอย่างเทมเพลต:
+
+แจ้งงานค้าง:
+เรียนผู้ปกครองของ {{student_name}} ขณะนี้มีงานค้างจำนวน {{missing_work_count}} งาน กรุณาตรวจสอบรายละเอียดในระบบ ClassCare 360 หรือติดต่อครูประจำชั้น ขอบคุณค่ะ/ครับ
+
+แจ้งขาดเรียน:
+เรียนผู้ปกครองของ {{student_name}} วันนี้ {{date_th}} ระบบบันทึกสถานะการมาเรียนเป็น “{{attendance_status}}” หากมีข้อผิดพลาด กรุณาติดต่อครูประจำชั้น
+
+แจ้งเงินออม:
+เรียนผู้ปกครองของ {{student_name}} ยอดเงินออมคงเหลือล่าสุดคือ {{savings_balance}} บาท สามารถตรวจสอบข้อมูลสรุปได้ผ่านระบบ ClassCare 360
+
+แจ้งนัดหมาย:
+เรียนผู้ปกครองของ {{student_name}} โรงเรียนขอนัดหมายเพื่อพูดคุยในวันที่ {{appointment_date}} กรุณายืนยันหรือติดต่อครูประจำชั้นหากต้องการเลื่อนนัด
+
+แจ้งตอบแบบฟอร์ม:
+เรียนผู้ปกครองของ {{student_name}} มีแบบฟอร์มที่ต้องตอบภายในวันที่ {{form_due_date}} กรุณาตรวจสอบและตอบกลับผ่านระบบ ClassCare 360
+
+ฟังก์ชัน:
+
+* สร้างเทมเพลตใหม่
+* แก้ไขเทมเพลต
+* ใช้เทมเพลตจากค่าเริ่มต้นของระบบ
+* คัดลอกเทมเพลต
+* แทรกตัวแปร
+* preview ข้อความก่อนส่ง
+* ส่งผ่านช่องทางที่เปิดใช้งาน
+* คัดลอกข้อความไปใช้เอง
+* บันทึกประวัติการส่ง
+
+ตาราง:
+message_templates
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT
+* template_key TEXT
+* category TEXT
+* title TEXT NOT NULL
+* body TEXT NOT NULL
+* variables TEXT
+* channel TEXT
+* is_system_template INTEGER DEFAULT 0
+* status TEXT DEFAULT 'active'
+* created_at TEXT NOT NULL
+* updated_at TEXT NOT NULL
+* created_by TEXT
+* updated_by TEXT
+
+message_send_logs
+
+* id TEXT PRIMARY KEY
+* workspace_id TEXT NOT NULL
+* template_id TEXT
+* student_id TEXT
+* guardian_id TEXT
+* channel TEXT
+* rendered_message TEXT
+* send_status TEXT
+* sent_by TEXT
+* sent_at TEXT
+* error_message TEXT
+* created_at TEXT NOT NULL
+
+Security:
+
+* ก่อนส่งข้อความต้อง preview
+* ห้ามส่งข้อมูลอ่อนไหวเกินจำเป็น
+* ห้ามส่งเลขบัตรประชาชน
+* ห้ามส่งพิกัดบ้าน
+* ห้ามส่งข้อมูลสุขภาพละเอียด
+* ต้อง log การส่งข้อความ
+* parent/student เห็นเฉพาะข้อความของตัวเอง
+
+==================================================
+8. เพิ่มใน Menu Structure
+=========================
+
+เพิ่มเมนู:
+
+ตั้งค่า
+├── ปฏิทินโรงเรียน
+├── โหมดการใช้งาน
+├── เทมเพลตข้อความ
+
+เครื่องมือระบบ
+├── ถังขยะ / กู้คืนข้อมูล
+├── ตรวจสุขภาพข้อมูล
+├── Import Preview
+├── Onboarding Checklist
+
+นำเข้า/ส่งออก
+├── ตรวจสอบก่อนนำเข้า
+├── ประวัติการนำเข้า
+
+==================================================
+9. เพิ่มใน Database Schema Groups
+=================================
+
+กลุ่มปฏิทิน:
+
+* school_calendar_days
+* school_calendar_settings
+
+กลุ่ม Import Safety:
+
+* import_jobs
+* import_rows
+* import_errors
+
+กลุ่ม Trash / Restore:
+
+* trash_items
+* restore_logs
+
+กลุ่ม Data Health:
+
+* data_health_checks
+* data_health_issues
+
+กลุ่ม Onboarding:
+
+* onboarding_steps
+* workspace_onboarding_progress
+
+กลุ่ม UI Mode:
+
+* workspace_ui_settings
+* user_ui_preferences
+
+กลุ่ม Message Templates:
+
+* message_templates
+* message_send_logs
+
+==================================================
+10. เพิ่มใน Worker Functions
+============================
+
+ต้องมี functions เพิ่ม:
+
+* create-school-calendar-day
+* update-school-calendar-day
+* import-school-calendar
+* get-attendance-calendar-hint
+* import-preview
+* import-validate-row
+* import-confirm
+* detect-duplicate-students
+* move-to-trash
+* restore-trash-item
+* permanently-delete-trash-item
+* cleanup-trash-expired
+* run-data-health-check
+* resolve-data-health-issue
+* get-onboarding-progress
+* complete-onboarding-step
+* skip-onboarding-step
+* update-ui-mode
+* create-message-template
+* render-message-template
+* send-template-message
+
+==================================================
+11. เพิ่มใน Output หลัก
+=======================
+
+ให้เพิ่มหัวข้อต่อไปนี้:
+
+ส่วนที่ 83: Flexible School Calendar / Holiday / Makeup Day Design
+ส่วนที่ 84: Attendance Calendar Hint Without Forced Attendance
+ส่วนที่ 85: Import Preview & Duplicate Protection
+ส่วนที่ 86: Trash / Undo / Restore Center
+ส่วนที่ 87: Advanced Data Health Check
+ส่วนที่ 88: Guided Onboarding Checklist
+ส่วนที่ 89: Simple Mode / Advanced Mode
+ส่วนที่ 90: Parent Message Templates
+ส่วนที่ 91: Template Variables / Message Preview / Send Logs

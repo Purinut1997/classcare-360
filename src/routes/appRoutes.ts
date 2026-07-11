@@ -1,0 +1,176 @@
+import {
+  Archive,
+  Bell,
+  Building2,
+  ClipboardList,
+  Dice5,
+  FileSpreadsheet,
+  GraduationCap,
+  History,
+  Heart,
+  Home,
+  PiggyBank,
+  ServerCog,
+  School,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
+
+import type { ModuleKey } from '../types/core';
+
+export interface AppNavItem {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  moduleKey: ModuleKey;
+  path: string;
+}
+
+export const appNavItems: AppNavItem[] = [
+  { key: 'overview', label: 'ภาพรวม', icon: Home, moduleKey: 'dashboard', path: '/app/dashboard' },
+  { key: 'students', label: 'นักเรียน', icon: Users, moduleKey: 'students', path: '/app/dashboard?view=students' },
+  {
+    key: 'teacher-work',
+    label: 'งานครู',
+    icon: ClipboardList,
+    moduleKey: 'attendance',
+    path: '/app/dashboard?view=teacher-work',
+  },
+  { key: 'scores', label: 'คะแนน', icon: GraduationCap, moduleKey: 'scores', path: '/app/dashboard?view=scores' },
+  { key: 'savings', label: 'เงินออม', icon: PiggyBank, moduleKey: 'savings', path: '/app/dashboard?view=savings' },
+  { key: 'behavior', label: 'พฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
+  {
+    key: 'randomizer',
+    label: 'สุ่ม',
+    icon: Dice5,
+    moduleKey: 'classroom_randomizer',
+    path: '/app/dashboard?view=randomizer',
+  },
+  { key: 'reports', label: 'รายงาน', icon: FileSpreadsheet, moduleKey: 'reports', path: '/app/dashboard?view=reports' },
+  {
+    key: 'import-export',
+    label: 'นำเข้า/สำรอง',
+    icon: Archive,
+    moduleKey: 'import_export',
+    path: '/app/dashboard?view=import-export',
+  },
+  {
+    key: 'notifications',
+    label: 'แจ้งเตือน',
+    icon: Bell,
+    moduleKey: 'notifications',
+    path: '/app/dashboard?view=notifications',
+  },
+  {
+    key: 'workspace-settings',
+    label: 'ตั้งค่าโรงเรียน',
+    icon: School,
+    moduleKey: 'support',
+    path: '/app/dashboard?view=workspace-settings',
+  },
+  {
+    key: 'workspace-switch',
+    label: 'เปลี่ยน workspace',
+    icon: Building2,
+    moduleKey: 'support',
+    path: '/app/select-workspace',
+  },
+  {
+    key: 'setup',
+    label: 'ตั้งค่าระบบ',
+    icon: ServerCog,
+    moduleKey: 'support',
+    path: '/app/dashboard?view=setup',
+  },
+  {
+    key: 'audit',
+    label: 'ประวัติระบบ',
+    icon: History,
+    moduleKey: 'support',
+    path: '/app/dashboard?view=audit',
+  },
+  { key: 'package', label: 'แพ็กเกจ', icon: Sparkles, moduleKey: 'payment', path: '/app/package' },
+];
+
+export const superadminNavItem: AppNavItem = {
+  key: 'superadmin-dashboard',
+  label: 'Superadmin',
+  icon: ShieldCheck,
+  moduleKey: 'support',
+  path: '/app/dashboard?view=superadmin-dashboard',
+};
+
+export const appViewCopy: Record<string, { eyebrow: string; title: string; body: string }> = {
+  overview: {
+    eyebrow: 'ระบบผู้ช่วยครูและดูแลนักเรียนครบวงจร',
+    title: 'แดชบอร์ดสำหรับครูที่ต้องเห็นภาพทั้งห้องในหน้าเดียว',
+    body: 'วางฐานสำหรับ Login, Student 360, งานครู, คะแนน, เงินออม, พฤติกรรม, เครื่องมือสุ่ม, รายงาน, แพ็กเกจ และ Superadmin โดยยึด RLS และ workspace isolation เป็นแกนหลัก',
+  },
+  students: {
+    eyebrow: 'Student 360',
+    title: 'มองเห็นข้อมูลนักเรียนรายคนแบบไม่หลุดบริบท',
+    body: 'เตรียมพื้นที่สำหรับเวลาเรียน คะแนน งานค้าง เงินออม พฤติกรรม เคสดูแลช่วยเหลือ และข้อมูลผู้ปกครอง โดยทุก query ต้องผูก workspace และสิทธิ์ผู้ใช้',
+  },
+  'teacher-work': {
+    eyebrow: 'Teacher Workspace',
+    title: 'รวมงานครูประจำวันให้กดทำได้เร็วขึ้น',
+    body: 'พร้อมต่อเช็คเวลาเรียน ตารางสอน To-do ธุรการชั้นเรียน สมุดบันทึกครู แผนการสอน และเครื่องมือสุ่มในชั้นเรียน',
+  },
+  scores: {
+    eyebrow: 'Score Center',
+    title: 'บันทึกคะแนนรายวิชาและเห็นสัญญาณติดตามได้ทันที',
+    body: 'สร้างชุดคะแนน กรอกคะแนนรายนักเรียน ดูค่าเฉลี่ย ความครบถ้วน นักเรียนที่ควรติดตาม และ export CSV โดยยังคงผูก workspace_id และสิทธิ์ผู้ใช้ตาม RLS',
+  },
+  savings: {
+    eyebrow: 'Savings Center',
+    title: 'จัดการเงินออมนักเรียนแบบแยกบัญชีรายคน',
+    body: 'ฝาก ถอน ดูยอดคงเหลือทั้งห้อง ตรวจประวัติธุรกรรม และ export รายการเงินออม โดยไม่เก็บข้อมูลสำคัญนอก workspace',
+  },
+  behavior: {
+    eyebrow: 'Behavior Center',
+    title: 'บันทึกพฤติกรรมและงานติดตามที่ครูต้องไม่พลาด',
+    body: 'บันทึกเชิงบวก ข้อห่วงใย คะแนนพฤติกรรม และสถานะติดตาม เพื่อเชื่อมต่อไปยัง Student Care Case และการแจ้งผู้ปกครองในเฟสถัดไป',
+  },
+  randomizer: {
+    eyebrow: 'Classroom Randomizer',
+    title: 'สุ่มรายชื่อ แบ่งกลุ่ม และจัดลำดับนำเสนอจากรายชื่อนักเรียนจริง',
+    body: 'ใช้รายชื่อนักเรียนใน workspace เพื่อสุ่มกิจกรรมในห้องเรียน บันทึกประวัติ และ export ผลลัพธ์โดยไม่ต้องพึ่งบริการภายนอก',
+  },
+  reports: {
+    eyebrow: 'Report Center',
+    title: 'รายงานพร้อม export และตรวจข้อมูลก่อนพิมพ์',
+    body: 'เตรียมฐานสำหรับ PDF/XLSX, report footer, pre-report validation, import template และ backup/export log โดยต้องรักษาเครดิต Created by MIKPURINUT',
+  },
+  'import-export': {
+    eyebrow: 'Import Export Backup',
+    title: 'นำเข้า ส่งออก และสำรองข้อมูลโดยไม่ทำข้อมูลพัง',
+    body: 'รองรับ template import, preview row errors, duplicate check, export และ backup manifest โดยทุกงานต้องผูก workspace_id และมี metadata ตรวจสอบย้อนหลัง',
+  },
+  'workspace-settings': {
+    eyebrow: 'Workspace Settings',
+    title: 'ตั้งค่าโรงเรียน ปีการศึกษา และห้องเรียนให้พร้อมใช้งาน',
+    body: 'จัดข้อมูล workspace, ห้องหลัก และรายการห้องเรียน พร้อม export settings snapshot และบันทึก audit log เมื่อแก้ข้อมูลสำคัญ',
+  },
+  notifications: {
+    eyebrow: 'Notification Center',
+    title: 'รวมแจ้งเตือนสำคัญจากงานครูและช่องทางผู้ปกครอง',
+    body: 'อ่าน notification ตาม workspace, แยก unread, เตรียม metadata สำหรับ In-App, Telegram และ LINE โดยให้ backend/Edge Function เป็นจุดส่งข้อความจริง',
+  },
+  setup: {
+    eyebrow: 'System Readiness',
+    title: 'ตรวจความพร้อมก่อนใช้งานจริงและย้ายเครื่อง',
+    body: 'รวม checklist สำหรับ Supabase env, migrations, storage bucket, RLS, Edge Functions และ secret ที่ต้องตั้งฝั่ง server ก่อน deploy จริง',
+  },
+  audit: {
+    eyebrow: 'Audit Center',
+    title: 'ค้นหาและส่งออกประวัติการใช้งานระบบ',
+    body: 'ดู audit log ของ workspace สำหรับตรวจย้อนหลังหลังแก้ข้อมูลนักเรียน เคสดูแล แบบเยี่ยมบ้าน และ workflow สำคัญอื่น ๆ',
+  },
+  package: {
+    eyebrow: 'Premium Package',
+    title: 'จัดการแพ็กเกจและสิทธิ์แบบไม่สับสนกับชื่อระบบหลัก',
+    body: 'พื้นที่นี้ใช้กับ ClassCare 360 VIP เท่านั้น เช่น สมัคร ต่ออายุ แนบสลิป ตรวจสิทธิ์ คืนเงิน และเครดิตแนะนำเพื่อน',
+  },
+};

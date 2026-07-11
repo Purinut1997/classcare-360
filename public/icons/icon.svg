@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ClassCare 360</title>
+  <desc id="desc">ClassCare 360 app icon</desc>
+  <rect width="512" height="512" rx="96" fill="#0f766e"/>
+  <path fill="#ffffff" d="M126 154c0-20 16-36 36-36h188c20 0 36 16 36 36v224c0 9-7 16-16 16H162c-20 0-36-16-36-36V154Z"/>
+  <path fill="#ccfbf1" d="M166 158h180v178H166z"/>
+  <path fill="#0f766e" d="M194 198h124v24H194zm0 52h124v24H194zm0 52h82v24h-82z"/>
+  <circle cx="358" cy="358" r="72" fill="#14b8a6"/>
+  <path fill="#ffffff" d="M326 357l22 22 44-54 20 16-62 76-44-44 20-16Z"/>
+</svg>
