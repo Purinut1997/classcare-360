@@ -3,6 +3,16 @@
 อัปเดตล่าสุด: 2026-07-11  
 Timezone: Asia/Bangkok  
 
+## อัปเดตล่าสุด 2026-07-12
+
+- เพิ่มหน้าแรก public landing page ที่ `/` สำหรับอธิบาย/โปรโมตระบบ ClassCare 360 แล้ว
+- เพิ่ม deployment ชั่วคราวผ่าน Sites เพื่อให้มี URL ภายนอกสำหรับทดสอบเร็ว แต่ target production ตาม requirement คือ Cloudflare Pages
+- เพิ่ม GitHub + Cloudflare Pages workflow document ที่ `docs/05-github-cloudflare-pages.md`
+- เพิ่ม GitHub Actions CI ที่ `.github/workflows/ci.yml` เพื่อรัน `npm run lint`, `npm run build`, `npm run check:deploy` ทุกครั้งที่ push/PR เข้า `main`
+- เพิ่ม npm script `deploy:cloudflare` สำหรับ manual deploy ไป Cloudflare Pages ผ่าน Wrangler เมื่อเครื่องมี `wrangler`/Cloudflare login พร้อม
+- ตรวจเครื่องล่าสุด: local git remote ยังชี้ไปที่ Sites source repository ไม่ใช่ GitHub, และเครื่องนี้ยังไม่มี `gh`/`wrangler` ใน PATH
+- เส้นทาง production ที่ควรทำต่อ: สร้าง GitHub repository จริง, push source ไป GitHub, แล้วเชื่อม Cloudflare Pages กับ GitHub repo ให้ deploy อัตโนมัติจาก branch `main`
+
 ## อัปเดตล่าสุด 2026-07-11
 
 - เชื่อม Supabase Auth/Profile/Workspace flow ใช้งานจริงแล้ว
