@@ -16,7 +16,7 @@
   }
 
   body {
-    @apply min-h-screen bg-slate-50 text-slate-950 antialiased;
+    @apply min-h-screen bg-[#fff8ef] text-[#2f241b] antialiased;
     font-family:
       'Anuphan',
       'Noto Sans Thai',
@@ -36,12 +36,12 @@
 @layer components {
   .classcare-grid-bg {
     background:
-      radial-gradient(circle at 92% 16%, rgb(14 165 233 / 0.22), transparent 25rem),
-      radial-gradient(circle at 4% 20%, rgb(34 211 238 / 0.22), transparent 22rem),
-      radial-gradient(circle at 50% 70%, rgb(59 130 246 / 0.12), transparent 28rem),
-      linear-gradient(rgb(14 165 233 / 0.09) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(14 165 233 / 0.09) 1px, transparent 1px),
-      linear-gradient(180deg, #e0f7ff 0%, #f8fcff 45%, #eef9ff 100%);
+      radial-gradient(circle at 92% 16%, rgb(251 191 36 / 0.24), transparent 25rem),
+      radial-gradient(circle at 4% 20%, rgb(254 243 199 / 0.58), transparent 22rem),
+      radial-gradient(circle at 50% 70%, rgb(245 158 11 / 0.10), transparent 28rem),
+      linear-gradient(rgb(180 123 62 / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(180 123 62 / 0.07) 1px, transparent 1px),
+      linear-gradient(180deg, #fff8ef 0%, #fffaf3 45%, #f7ead8 100%);
     background-size:
       auto,
       auto,
@@ -52,43 +52,43 @@
   }
 
   .glass-panel {
-    @apply border border-white/75 bg-white/80 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-xl;
+    @apply border border-[#ead8bd] bg-white/[0.82] shadow-[0_20px_60px_rgba(122,79,38,0.10)] backdrop-blur-xl;
   }
 
   .nexus-card {
-    @apply glass-panel rounded-[28px];
+    @apply glass-panel rounded-[24px];
   }
 
   .nexus-kicker {
-    @apply inline-flex h-10 items-center gap-2 rounded-full bg-cyan-50/90 px-4 text-xs font-black text-cyan-700 ring-1 ring-cyan-100;
+    @apply inline-flex h-10 items-center gap-2 rounded-full bg-[#fff4d6] px-4 text-xs font-black text-[#9a5a00] ring-1 ring-[#f1d18c];
   }
 
   .nexus-field {
-    @apply rounded-2xl border border-slate-200/80 bg-white/90 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100;
+    @apply rounded-2xl border border-[#ead8bd] bg-white/[0.92] text-sm font-bold text-[#2f241b] outline-none transition focus:border-[#d89333] focus:ring-4 focus:ring-[#f7dfad];
   }
 
   .nexus-muted-box {
-    @apply rounded-2xl border border-white/70 bg-slate-50/70;
+    @apply rounded-2xl border border-[#ead8bd] bg-[#fff8ef]/75;
   }
 
   .nexus-icon-button {
-    @apply inline-flex items-center justify-center rounded-2xl border border-slate-200/80 bg-white/85 text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-950;
+    @apply inline-flex items-center justify-center rounded-2xl border border-[#ead8bd] bg-white/85 text-[#6f5434] shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-[#2f241b];
   }
 
   .nexus-pill {
-    @apply rounded-full border border-slate-200/80 bg-white/90 shadow-[0_10px_28px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+    @apply rounded-full border border-[#ead8bd] bg-white/90 shadow-[0_10px_28px_rgba(122,79,38,0.08)] backdrop-blur-xl;
   }
 
   .blue-action {
-    @apply bg-gradient-to-br from-sky-400 via-blue-500 to-blue-700 text-white shadow-[0_16px_34px_rgba(37,99,235,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(37,99,235,0.34)];
+    @apply bg-gradient-to-br from-[#f7d68c] via-[#efb04a] to-[#c7771b] text-[#2f241b] shadow-[0_16px_34px_rgba(188,117,32,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(188,117,32,0.30)];
   }
 
   .dark-action {
-    @apply bg-slate-950 text-white shadow-[0_16px_34px_rgba(2,6,23,0.22)] transition hover:-translate-y-0.5 hover:bg-slate-900;
+    @apply bg-[#3a2817] text-white shadow-[0_16px_34px_rgba(88,52,20,0.22)] transition hover:-translate-y-0.5 hover:bg-[#4d3520];
   }
 
   .amber-action {
-    @apply bg-gradient-to-br from-amber-300 via-orange-400 to-orange-600 text-white shadow-[0_16px_34px_rgba(234,88,12,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(234,88,12,0.30)];
+    @apply bg-gradient-to-br from-[#fde68a] via-[#f6c76d] to-[#d68a2d] text-[#2f241b] shadow-[0_16px_34px_rgba(188,117,32,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(188,117,32,0.28)];
   }
 
   .float-soft {
