@@ -18,9 +18,12 @@ Production branch: main
 Build command: npm run build
 Build output directory: dist
 Root directory: /
+Deploy command: leave blank / ไม่ต้องใส่
 ```
 
 โปรเจกต์นี้มี `public/_redirects` แล้ว เพื่อให้ Cloudflare Pages ส่งทุก route ของ React Router กลับไปที่ `index.html` เช่น `/login`, `/app/dashboard`, `/auth/complete-profile`
+
+ถ้า build log ขึ้นว่า `Executing user deploy command: npx wrangler deploy` แปลว่าตั้งค่าผิดทาง ให้ลบ Deploy command ออก หรือสร้างโปรเจกต์ใหม่แบบ Pages > Import an existing Git repository ไม่ใช่ Workers deploy เพราะ Wrangler Workers จะตีความ `_redirects` ต่างจาก Cloudflare Pages และอาจ error เรื่อง infinite loop
 
 Environment variables ฝั่ง Cloudflare Pages ต้องตั้งเฉพาะค่า public browser-safe:
 
@@ -70,8 +73,9 @@ git push -u origin main
 5. Import an existing Git repository
 6. เลือก GitHub repo `classcare-360`
 7. ตั้งค่า build ตามหัวข้อด้านบน
-8. เพิ่ม Environment variables
-9. Save and Deploy
+8. ปล่อยช่อง Deploy command ให้ว่าง
+9. เพิ่ม Environment variables
+10. Save and Deploy
 
 ## Supabase Auth redirects
 
