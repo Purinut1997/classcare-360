@@ -20,6 +20,8 @@ Build output directory: dist
 Root directory: /
 ```
 
+โปรเจกต์นี้มี `public/_redirects` แล้ว เพื่อให้ Cloudflare Pages ส่งทุก route ของ React Router กลับไปที่ `index.html` เช่น `/login`, `/app/dashboard`, `/auth/complete-profile`
+
 Environment variables ฝั่ง Cloudflare Pages ต้องตั้งเฉพาะค่า public browser-safe:
 
 ```text
