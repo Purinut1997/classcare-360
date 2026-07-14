@@ -8,7 +8,7 @@ create table if not exists public.score_assessments (
   title text not null,
   subject_name text not null,
   category text not null default 'quiz'
-    check (category in ('quiz', 'assignment', 'exam', 'project', 'reading', 'other')),
+    check (category in ('quiz', 'assignment', 'midterm', 'final', 'exam', 'project', 'reading', 'other')),
   max_score numeric(8,2) not null default 100
     check (max_score > 0),
   weight numeric(8,2) not null default 10

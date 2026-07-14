@@ -26,9 +26,10 @@ interface ScoresPageProps {
   session: AppSessionContext;
 }
 
-type AssessmentCategory = 'quiz' | 'assignment' | 'exam' | 'project' | 'reading' | 'other';
+type AssessmentCategory = 'quiz' | 'assignment' | 'midterm' | 'final' | 'exam' | 'project' | 'reading' | 'other';
 type AssessmentStatus = 'draft' | 'published' | 'archived';
-type ScoreView = 'overview' | 'entry' | 'reports';
+type ScoreBand = 'coursework' | 'midterm' | 'final';
+type ScoreView = 'overview' | 'entry' | 'gradebook' | 'reports';
 
 interface ClassroomRow {
   academic_year: string | null;
@@ -123,6 +124,32 @@ const demoAssessments: ScoreAssessmentRow[] = [
     weight: 15,
     workspace_id: 'demo-workspace',
   },
+  {
+    assessment_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 9).toISOString().slice(0, 10),
+    category: 'midterm',
+    classroom_id: 'demo-classroom',
+    created_by: 'demo-teacher',
+    id: 'demo-assessment-3',
+    max_score: 20,
+    status: 'draft',
+    subject_name: 'คณิตศาสตร์',
+    title: 'สอบกลางภาค',
+    weight: 20,
+    workspace_id: 'demo-workspace',
+  },
+  {
+    assessment_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString().slice(0, 10),
+    category: 'final',
+    classroom_id: 'demo-classroom',
+    created_by: 'demo-teacher',
+    id: 'demo-assessment-4',
+    max_score: 30,
+    status: 'draft',
+    subject_name: 'คณิตศาสตร์',
+    title: 'สอบปลายภาค',
+    weight: 30,
+    workspace_id: 'demo-workspace',
+  },
 ];
 
 const demoEntries: ScoreEntryRow[] = [
@@ -132,11 +159,16 @@ const demoEntries: ScoreEntryRow[] = [
   { assessment_id: 'demo-assessment-2', id: 'demo-entry-4', note: null, score: 27, student_id: 'demo-student-1' },
   { assessment_id: 'demo-assessment-2', id: 'demo-entry-5', note: null, score: 24, student_id: 'demo-student-2' },
   { assessment_id: 'demo-assessment-2', id: 'demo-entry-6', note: 'ส่งช้า', score: 21, student_id: 'demo-student-3' },
+  { assessment_id: 'demo-assessment-3', id: 'demo-entry-7', note: null, score: 17, student_id: 'demo-student-1' },
+  { assessment_id: 'demo-assessment-3', id: 'demo-entry-8', note: null, score: 13, student_id: 'demo-student-2' },
+  { assessment_id: 'demo-assessment-3', id: 'demo-entry-9', note: null, score: 15, student_id: 'demo-student-3' },
 ];
 
 const categoryOptions: Array<{ label: string; value: AssessmentCategory }> = [
   { label: 'แบบทดสอบ', value: 'quiz' },
   { label: 'งาน/ใบงาน', value: 'assignment' },
+  { label: 'กลางภาค', value: 'midterm' },
+  { label: 'ปลายภาค', value: 'final' },
   { label: 'สอบ', value: 'exam' },
   { label: 'โครงงาน', value: 'project' },
   { label: 'อ่านเขียน', value: 'reading' },
@@ -147,6 +179,27 @@ const categoryLabels = Object.fromEntries(categoryOptions.map((option) => [optio
   AssessmentCategory,
   string
 >;
+
+const scoreBandConfigs: Array<{
+  description: string;
+  key: ScoreBand;
+  label: string;
+  recommendedWeight: number;
+}> = [
+  { description: 'เก็บคะแนนย่อย ใบงาน โครงงาน และกิจกรรมระหว่างเรียน', key: 'coursework', label: 'ระหว่างเรียน', recommendedWeight: 50 },
+  { description: 'คะแนนสอบกลางภาคของรายวิชานี้', key: 'midterm', label: 'กลางภาค', recommendedWeight: 20 },
+  { description: 'คะแนนสอบปลายภาคของรายวิชานี้', key: 'final', label: 'ปลายภาค', recommendedWeight: 30 },
+];
+
+function getScoreBand(category: AssessmentCategory): ScoreBand {
+  if (category === 'midterm') return 'midterm';
+  if (category === 'final') return 'final';
+  return 'coursework';
+}
+
+function formatScore(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -424,6 +477,89 @@ export function ScoresPage({ session }: ScoresPageProps) {
       contextCount: scoreContexts.length,
     };
   }, [assessments, entries, scoreContexts.length, students]);
+
+  const scoreBandSummaries = useMemo(
+    () =>
+      scoreBandConfigs.map((band) => {
+        const bandAssessments = contextAssessments.filter((assessment) => getScoreBand(assessment.category) === band.key);
+        const plannedWeight = bandAssessments.reduce((sum, assessment) => sum + assessment.weight, 0);
+        const expectedEntries = bandAssessments.length * classroomStudents.length;
+        const scoredEntries = bandAssessments.reduce(
+          (sum, assessment) =>
+            sum + (entriesByAssessment.get(assessment.id) || []).filter((entry) => entry.score !== null).length,
+          0,
+        );
+        const averagePercent =
+          bandAssessments.length > 0
+            ? bandAssessments.reduce((sum, assessment) => {
+                const assessmentEntries = (entriesByAssessment.get(assessment.id) || []).filter(
+                  (entry) => entry.score !== null,
+                );
+                if (assessmentEntries.length === 0) return sum;
+                return (
+                  sum +
+                  assessmentEntries.reduce((entrySum, entry) => entrySum + ((entry.score || 0) / assessment.max_score) * 100, 0) /
+                    assessmentEntries.length
+                );
+              }, 0) / bandAssessments.length
+            : 0;
+
+        return {
+          ...band,
+          assessmentCount: bandAssessments.length,
+          averagePercent,
+          completePercent: expectedEntries > 0 ? Math.round((scoredEntries / expectedEntries) * 100) : 0,
+          plannedWeight,
+        };
+      }),
+    [classroomStudents.length, contextAssessments, entriesByAssessment],
+  );
+
+  const plannedTotalWeight = useMemo(
+    () => contextAssessments.reduce((sum, assessment) => sum + assessment.weight, 0),
+    [contextAssessments],
+  );
+
+  const studentGradebookRows = useMemo(
+    () =>
+      classroomStudents.map((student) => {
+        const bandScores = Object.fromEntries(
+          scoreBandConfigs.map((band) => [
+            band.key,
+            {
+              earnedWeight: 0,
+              enteredWeight: 0,
+              plannedWeight: 0,
+            },
+          ]),
+        ) as Record<ScoreBand, { earnedWeight: number; enteredWeight: number; plannedWeight: number }>;
+
+        contextAssessments.forEach((assessment) => {
+          const band = getScoreBand(assessment.category);
+          const entry = (entriesByAssessment.get(assessment.id) || []).find((row) => row.student_id === student.id);
+          bandScores[band].plannedWeight += assessment.weight;
+
+          if (entry?.score !== null && entry?.score !== undefined) {
+            bandScores[band].enteredWeight += assessment.weight;
+            bandScores[band].earnedWeight += (entry.score / assessment.max_score) * assessment.weight;
+          }
+        });
+
+        const earnedTotal = scoreBandConfigs.reduce((sum, band) => sum + bandScores[band.key].earnedWeight, 0);
+        const enteredWeight = scoreBandConfigs.reduce((sum, band) => sum + bandScores[band.key].enteredWeight, 0);
+        const plannedWeight = scoreBandConfigs.reduce((sum, band) => sum + bandScores[band.key].plannedWeight, 0);
+
+        return {
+          bandScores,
+          completionPercent: plannedWeight > 0 ? Math.round((enteredWeight / plannedWeight) * 100) : 0,
+          earnedTotal,
+          finalPercent: plannedWeight > 0 ? (earnedTotal / plannedWeight) * 100 : 0,
+          plannedWeight,
+          student,
+        };
+      }),
+    [classroomStudents, contextAssessments, entriesByAssessment],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -875,10 +1011,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </select>
           </label>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               { icon: Layers, label: 'ภาพรวม', value: 'overview' as ScoreView },
               { icon: ClipboardList, label: 'กรอก', value: 'entry' as ScoreView },
+              { icon: FileSpreadsheet, label: 'สมุดรวม', value: 'gradebook' as ScoreView },
               { icon: BarChart3, label: 'รายงาน', value: 'reports' as ScoreView },
             ].map((item) => {
               const Icon = item.icon;
@@ -1036,6 +1173,35 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     value={form.weight}
                   />
                 </label>
+              </div>
+
+              <div className="rounded-3xl border border-[#ead8bd] bg-[#fff8ef]/75 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9a5a00]">โครงคะแนนเร็ว</p>
+                <div className="mt-3 grid gap-2">
+                  {[
+                    { category: 'assignment' as AssessmentCategory, maxScore: '10', title: 'คะแนนระหว่างเรียน', weight: '10' },
+                    { category: 'midterm' as AssessmentCategory, maxScore: '20', title: 'สอบกลางภาค', weight: '20' },
+                    { category: 'final' as AssessmentCategory, maxScore: '30', title: 'สอบปลายภาค', weight: '30' },
+                  ].map((preset) => (
+                    <button
+                      className="flex min-h-10 items-center justify-between gap-3 rounded-2xl bg-white px-3 text-left text-xs font-black text-slate-700 ring-1 ring-[#ead8bd] transition hover:bg-[#fff4d6]"
+                      key={preset.category}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          category: preset.category,
+                          maxScore: preset.maxScore,
+                          title: preset.title,
+                          weight: preset.weight,
+                        }))
+                      }
+                      type="button"
+                    >
+                      <span>{preset.title}</span>
+                      <span className="rounded-full bg-[#fff4d6] px-2 py-1 text-[#9a5a00]">น้ำหนัก {preset.weight}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1261,6 +1427,118 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   </div>
                 ) : null}
               </div>
+            </div>
+          ) : null}
+
+          {scoreView === 'gradebook' ? (
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-cyan-700">Master Gradebook</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    สมุดคะแนนรวม {subjectFilter || ''} {activeClassroom ? `| ${activeClassroom.name}` : ''}
+                  </h2>
+                  <p className="mt-2 text-sm font-bold text-slate-500">
+                    รวมคะแนนถ่วงน้ำหนักจากระหว่างเรียน กลางภาค และปลายภาค เพื่อเห็นภาพคะแนนรายคนทั้งรายวิชา
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#fff4d6] px-4 py-2 text-xs font-black text-[#9a5a00] ring-1 ring-[#f1d18c]">
+                  แผนปัจจุบัน {formatScore(plannedTotalWeight)} คะแนน
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                {scoreBandSummaries.map((band) => (
+                  <div className="rounded-3xl border border-[#ead8bd] bg-white/80 p-4 shadow-sm" key={band.key}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-black text-slate-950">{band.label}</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{band.description}</p>
+                      </div>
+                      <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                        {formatScore(band.plannedWeight)}/{band.recommendedWeight}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{band.assessmentCount}</p>
+                        <p className="text-[11px] font-black text-slate-500">ชุด</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{band.completePercent}%</p>
+                        <p className="text-[11px] font-black text-slate-500">ครบ</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{band.averagePercent.toFixed(0)}%</p>
+                        <p className="text-[11px] font-black text-slate-500">เฉลี่ย</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 overflow-x-auto rounded-3xl border border-[#ead8bd] bg-white/80">
+                <table className="min-w-[920px] w-full divide-y divide-slate-100 text-left">
+                  <thead>
+                    <tr className="bg-[#fff8ef] text-xs font-black uppercase text-slate-500">
+                      <th className="px-4 py-3">รหัส</th>
+                      <th className="px-4 py-3">นักเรียน</th>
+                      <th className="px-4 py-3">ระหว่างเรียน</th>
+                      <th className="px-4 py-3">กลางภาค</th>
+                      <th className="px-4 py-3">ปลายภาค</th>
+                      <th className="px-4 py-3">รวมถ่วงน้ำหนัก</th>
+                      <th className="px-4 py-3">สถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {studentGradebookRows.map((row) => (
+                      <tr className="hover:bg-[#fff8ef]/70" key={row.student.id}>
+                        <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-600">
+                          {row.student.student_code || '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-black text-slate-950">
+                            {row.student.first_name} {row.student.last_name}
+                          </p>
+                          <p className="text-xs font-bold text-slate-500">{row.student.nickname || 'ไม่มีชื่อเล่น'}</p>
+                        </td>
+                        {scoreBandConfigs.map((band) => {
+                          const score = row.bandScores[band.key];
+                          return (
+                            <td className="whitespace-nowrap px-4 py-3 font-black text-slate-700" key={band.key}>
+                              {formatScore(score.earnedWeight)} / {formatScore(score.plannedWeight)}
+                            </td>
+                          );
+                        })}
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                            {formatScore(row.earnedTotal)} / {formatScore(row.plannedWeight)}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
+                              row.completionPercent < 100
+                                ? 'bg-amber-50 text-amber-700 ring-amber-100'
+                                : row.finalPercent < 50
+                                  ? 'bg-rose-50 text-rose-700 ring-rose-100'
+                                  : 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                            }`}
+                          >
+                            {row.completionPercent < 100 ? `ยังไม่ครบ ${row.completionPercent}%` : `${row.finalPercent.toFixed(0)}%`}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {studentGradebookRows.length === 0 ? (
+                <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">
+                  ยังไม่มีนักเรียนในห้องนี้ ให้เพิ่มหรือนำเข้ารายชื่อก่อนจึงจะเห็นสมุดคะแนนรวม
+                </div>
+              ) : null}
             </div>
           ) : null}
 
