@@ -13,12 +13,13 @@ interface SidebarProps {
 
 const sidebarSections = [
   { key: 'primary', label: 'ใช้งานประจำ', itemKeys: ['overview'] },
+  { key: 'students', label: 'ข้อมูลนักเรียน', itemKeys: ['students'] },
   {
-    key: 'classroom',
-    label: 'งานห้องเรียน',
-    itemKeys: ['students', 'teacher-work', 'scores', 'savings', 'behavior', 'randomizer'],
+    key: 'teacher-work',
+    label: 'งานครู',
+    itemKeys: ['teacher-work', 'scores', 'savings', 'behavior', 'randomizer'],
   },
-  { key: 'data', label: 'ข้อมูลและรายงาน', itemKeys: ['reports', 'import-export', 'notifications'] },
+  { key: 'data', label: 'รายงานและข้อมูล', itemKeys: ['reports', 'import-export', 'notifications'] },
   { key: 'workspace', label: 'จัดการโรงเรียน', itemKeys: ['workspace-settings', 'workspace-switch'] },
   { key: 'system', label: 'ระบบผู้ดูแล', itemKeys: ['setup', 'audit', 'superadmin-dashboard'] },
 ];
@@ -33,6 +34,13 @@ const studentSubNavItems = [
   { label: 'ประวัติการทำงาน', value: 'timeline' },
 ];
 
+const scoreSubNavItems = [
+  { label: 'ภาพรวมคะแนน', value: 'overview' },
+  { label: 'สร้างชุดคะแนน', value: 'setup' },
+  { label: 'กรอกคะแนน', value: 'entry' },
+  { label: 'สมุดรวมคะแนน', value: 'gradebook' },
+];
+
 export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const location = useLocation();
   const isSuperadmin = session?.profile.role === 'superadmin';
@@ -40,6 +48,10 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const activeStudentSubView = studentSubNavItems.some((item) => item.value === requestedStudentSubView)
     ? requestedStudentSubView
     : 'roster';
+  const requestedScoreSubView = new URLSearchParams(location.search).get('scoreView') || 'entry';
+  const activeScoreSubView = scoreSubNavItems.some((item) => item.value === requestedScoreSubView)
+    ? requestedScoreSubView
+    : 'entry';
   const renderedKeys = new Set<string>();
   const sections = sidebarSections
     .map((section) => {
@@ -117,6 +129,28 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                               }`}
                               key={subItem.value}
                               to={`/app/dashboard?view=students&studentView=${subItem.value}`}
+                            >
+                              <span className="truncate">{subItem.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    {item.key === 'scores' && isActive ? (
+                      <div className="ml-5 grid gap-1 border-l border-amber-200/80 pl-3">
+                        {scoreSubNavItems.map((subItem) => {
+                          const isSubActive = activeScoreSubView === subItem.value;
+
+                          return (
+                            <Link
+                              className={`flex min-h-9 items-center rounded-2xl px-3 text-xs font-black transition ${
+                                isSubActive
+                                  ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200'
+                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
+                              }`}
+                              key={subItem.value}
+                              to={`/app/dashboard?view=scores&scoreView=${subItem.value}`}
                             >
                               <span className="truncate">{subItem.label}</span>
                             </Link>

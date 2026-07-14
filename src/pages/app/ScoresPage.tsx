@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
@@ -29,7 +29,13 @@ interface ScoresPageProps {
 type AssessmentCategory = 'quiz' | 'assignment' | 'midterm' | 'final' | 'exam' | 'project' | 'reading' | 'other';
 type AssessmentStatus = 'draft' | 'published' | 'archived';
 type ScoreBand = 'coursework' | 'midterm' | 'final';
-type ScoreView = 'overview' | 'entry' | 'gradebook' | 'reports';
+type ScoreView = 'overview' | 'setup' | 'entry' | 'gradebook';
+
+const scoreViewValues = ['overview', 'setup', 'entry', 'gradebook'] as const;
+
+function isScoreView(value: string | null): value is ScoreView {
+  return Boolean(value && scoreViewValues.includes(value as ScoreView));
+}
 
 interface ClassroomRow {
   academic_year: string | null;
@@ -242,6 +248,10 @@ function getClassroomWithRoster(
 }
 
 export function ScoresPage({ session }: ScoresPageProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const requestedScoreView = new URLSearchParams(location.search).get('scoreView');
+  const initialScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'entry';
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [assessments, setAssessments] = useState<ScoreAssessmentRow[]>(demoAssessments);
@@ -249,7 +259,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState(demoAssessments[0].id);
   const [subjectFilter, setSubjectFilter] = useState(demoAssessments[0].subject_name);
-  const [scoreView, setScoreView] = useState<ScoreView>('entry');
+  const [scoreView, setScoreView] = useState<ScoreView>(initialScoreView);
   const [searchTerm, setSearchTerm] = useState('');
   const [scores, setScores] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -266,6 +276,18 @@ export function ScoresPage({ session }: ScoresPageProps) {
     title: '',
     weight: '10',
   });
+
+  useEffect(() => {
+    const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'entry';
+    if (nextScoreView !== scoreView) {
+      setScoreView(nextScoreView);
+    }
+  }, [requestedScoreView, scoreView]);
+
+  function handleScoreViewChange(nextScoreView: ScoreView) {
+    setScoreView(nextScoreView);
+    navigate(`/app/dashboard?view=scores&scoreView=${nextScoreView}`, { replace: true });
+  }
 
   const classroomStudents = useMemo(
     () => students.filter((student) => student.classroom_id === classroomId),
@@ -1014,9 +1036,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               { icon: Layers, label: 'ภาพรวม', value: 'overview' as ScoreView },
-              { icon: ClipboardList, label: 'กรอก', value: 'entry' as ScoreView },
+              { icon: Plus, label: 'สร้างชุด', value: 'setup' as ScoreView },
+              { icon: ClipboardList, label: 'กรอกคะแนน', value: 'entry' as ScoreView },
               { icon: FileSpreadsheet, label: 'สมุดรวม', value: 'gradebook' as ScoreView },
-              { icon: BarChart3, label: 'รายงาน', value: 'reports' as ScoreView },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -1027,7 +1049,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       : 'bg-white text-slate-600 ring-1 ring-[#ead8bd] hover:bg-[#fff8ef]'
                   }`}
                   key={item.value}
-                  onClick={() => setScoreView(item.value)}
+                  onClick={() => handleScoreViewChange(item.value)}
                   type="button"
                 >
                   <Icon size={15} aria-hidden="true" />
@@ -1324,7 +1346,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <BarChart3 size={16} aria-hidden="true" />
-              รายงานบริบทปัจจุบัน
+              สรุปบริบทปัจจุบัน
             </div>
             <div className="mt-4 grid gap-3">
               {[
@@ -1383,7 +1405,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     onClick={() => {
                       setClassroomId(context.classroomId);
                       setSubjectFilter(context.subjectName);
-                      setScoreView('entry');
+                      handleScoreViewChange('entry');
                       setSelectedAssessmentId(
                         assessments.find(
                           (assessment) =>
@@ -1426,6 +1448,98 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     ยังไม่มีข้อมูลคะแนน ให้เลือกห้องและสร้างชุดคะแนนแรกก่อน
                   </div>
                 ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {scoreView === 'setup' ? (
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-cyan-700">Score Setup</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    สร้างชุดคะแนนของ {subjectFilter || form.subjectName} {activeClassroom ? `| ${activeClassroom.name}` : ''}
+                  </h2>
+                  <p className="mt-2 text-sm font-bold text-slate-500">
+                    ใช้ฟอร์มด้านซ้ายเพื่อสร้างคะแนนระหว่างเรียน กลางภาค และปลายภาค แล้วค่อยไปกรอกคะแนนหรือดูสมุดรวม
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-700 ring-1 ring-[#ead8bd] hover:bg-[#fff8ef]"
+                  to="/app/dashboard?view=reports"
+                >
+                  รายงานทั้งหมดอยู่ที่เมนูรายงาน
+                  <FileSpreadsheet size={17} aria-hidden="true" />
+                </Link>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                {scoreBandSummaries.map((band) => (
+                  <div className="rounded-3xl border border-[#ead8bd] bg-white/80 p-4 shadow-sm" key={band.key}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-black text-slate-950">{band.label}</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{band.description}</p>
+                      </div>
+                      <span className="rounded-full bg-[#fff4d6] px-3 py-1 text-xs font-black text-[#9a5a00] ring-1 ring-[#f1d18c]">
+                        แนะนำ {band.recommendedWeight}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{band.assessmentCount}</p>
+                        <p className="text-[11px] font-black text-slate-500">ชุด</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{formatScore(band.plannedWeight)}</p>
+                        <p className="text-[11px] font-black text-slate-500">น้ำหนัก</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{band.completePercent}%</p>
+                        <p className="text-[11px] font-black text-slate-500">กรอกครบ</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-3xl border border-[#ead8bd] bg-white/80 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-black text-slate-950">ชุดคะแนนในบริบทนี้</h3>
+                  <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                    {contextAssessments.length} ชุด
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {contextAssessments.map((assessment) => (
+                    <button
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-[#ead8bd] bg-[#fff8ef] px-4 py-3 text-left transition hover:bg-white"
+                      key={`${assessment.id}-setup`}
+                      onClick={() => {
+                        setSelectedAssessmentId(assessment.id);
+                        handleScoreViewChange('entry');
+                      }}
+                      type="button"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-950">{assessment.title}</p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {assessment.subject_name} | {categoryLabels[assessment.category]} | เต็ม {assessment.max_score} | น้ำหนัก{' '}
+                          {assessment.weight}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-100">
+                        {assessment.status}
+                      </span>
+                    </button>
+                  ))}
+
+                  {contextAssessments.length === 0 ? (
+                    <div className="rounded-2xl bg-[#fff8ef] p-4 text-sm font-bold text-slate-600">
+                      ยังไม่มีชุดคะแนนในห้องและวิชานี้ ให้สร้างจากฟอร์มด้านซ้ายก่อน
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : null}
@@ -1542,80 +1656,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </div>
           ) : null}
 
-          {scoreView === 'reports' ? (
+          {scoreView === 'entry' ? (
             <div className="nexus-card p-4 sm:p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-black text-cyan-700">Report Preview</p>
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    รายงานคะแนน {subjectFilter || ''} {activeClassroom ? `| ${activeClassroom.name}` : ''}
-                  </h2>
-                  <p className="mt-2 text-sm font-bold text-slate-500">
-                    สรุปจากชุดคะแนนที่เลือกตอนนี้ ก่อนต่อยอดเป็น PDF/XLSX แบบรายงานโรงเรียน
-                  </p>
-                </div>
-                <button
-                  className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={!selectedAssessment}
-                  onClick={exportAssessmentCsv}
-                  type="button"
-                >
-                  <Download size={17} aria-hidden="true" />
-                  Export CSV
-                </button>
-              </div>
-
-              <div className="mt-5 grid gap-3 lg:grid-cols-4">
-                {[
-                  { label: 'ชุดคะแนน', value: selectedAssessment?.title || '-' },
-                  { label: 'กรอกครบ', value: `${scoreStats.complete}/${classroomStudents.length}` },
-                  { label: 'ค่าเฉลี่ย', value: scoreStats.average.toFixed(2) },
-                  { label: 'ต่ำกว่า 50%', value: lowScoreStudents.length },
-                ].map((item) => (
-                  <div className="nexus-muted-box p-4" key={item.label}>
-                    <p className="text-xs font-black uppercase text-slate-500">{item.label}</p>
-                    <p className="mt-2 truncate text-xl font-black text-slate-950">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 rounded-3xl border border-[#ead8bd] bg-white/80 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-black text-slate-950">นักเรียนที่ต้องติดตาม</h3>
-                  <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
-                    {lowScoreStudents.length} คน
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {lowScoreStudents.map((row) => (
-                    <div
-                      className="flex items-center justify-between gap-3 rounded-2xl bg-[#fff8ef] px-4 py-3"
-                      key={row.student.id}
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-black text-slate-950">
-                          {row.student.first_name} {row.student.last_name}
-                        </p>
-                        <p className="text-xs font-bold text-slate-500">{row.student.student_code || 'ไม่มีรหัส'}</p>
-                      </div>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
-                        {row.percent?.toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
-
-                  {lowScoreStudents.length === 0 ? (
-                    <div className="rounded-2xl bg-[#fff8ef] p-4 text-sm font-bold text-slate-600">
-                      ยังไม่มีนักเรียนต่ำกว่า 50% ในชุดคะแนนนี้
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <p className="text-sm font-black text-cyan-700">3. Scorebook</p>
                 <h2 className="mt-1 text-2xl font-black text-slate-950">
@@ -1792,7 +1835,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 ) : null}
               </div>
             ) : null}
-          </div>
+            </div>
+          ) : null}
         </section>
       </section>
 

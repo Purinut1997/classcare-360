@@ -33,14 +33,14 @@ export const appNavItems: AppNavItem[] = [
   { key: 'students', label: 'นักเรียน', icon: Users, moduleKey: 'students', path: '/app/dashboard?view=students' },
   {
     key: 'teacher-work',
-    label: 'งานครู',
+    label: 'บันทึกการมาเรียน',
     icon: ClipboardList,
     moduleKey: 'attendance',
     path: '/app/dashboard?view=teacher-work',
   },
-  { key: 'scores', label: 'คะแนน', icon: GraduationCap, moduleKey: 'scores', path: '/app/dashboard?view=scores' },
-  { key: 'savings', label: 'เงินออม', icon: PiggyBank, moduleKey: 'savings', path: '/app/dashboard?view=savings' },
-  { key: 'behavior', label: 'พฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
+  { key: 'scores', label: 'ระบบคะแนน', icon: GraduationCap, moduleKey: 'scores', path: '/app/dashboard?view=scores' },
+  { key: 'savings', label: 'บันทึกเงินออม', icon: PiggyBank, moduleKey: 'savings', path: '/app/dashboard?view=savings' },
+  { key: 'behavior', label: 'บันทึกพฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
   {
     key: 'randomizer',
     label: 'สุ่ม',
@@ -114,9 +114,9 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     body: 'เตรียมพื้นที่สำหรับเวลาเรียน คะแนน งานค้าง เงินออม พฤติกรรม เคสดูแลช่วยเหลือ และข้อมูลผู้ปกครอง โดยทุก query ต้องผูก workspace และสิทธิ์ผู้ใช้',
   },
   'teacher-work': {
-    eyebrow: 'Teacher Workspace',
-    title: 'รวมงานครูประจำวันให้กดทำได้เร็วขึ้น',
-    body: 'พร้อมต่อเช็คเวลาเรียน ตารางสอน To-do ธุรการชั้นเรียน สมุดบันทึกครู แผนการสอน และเครื่องมือสุ่มในชั้นเรียน',
+    eyebrow: 'Attendance',
+    title: 'บันทึกการมาเรียนรายวันให้จบในหน้าห้องเรียน',
+    body: 'เปิดรอบเช็กชื่อ เลือกห้อง/วันที่/ช่วงเวลา แล้วบันทึกสถานะ มา ขาด สาย ลา ป่วย หรือกิจกรรม โดยข้อมูลผูกกับ workspace และรายชื่อนักเรียนจริง',
   },
   scores: {
     eyebrow: 'Score Center',
