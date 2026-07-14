@@ -136,6 +136,14 @@ function getToneClass(tone: BehaviorTone) {
   return 'bg-rose-50 text-rose-700 ring-rose-100';
 }
 
+function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentRow[]) {
+  const classroomWithStudents = classrooms.find((classroom) =>
+    students.some((student) => student.classroom_id === classroom.id),
+  );
+
+  return classroomWithStudents?.id || classrooms[0]?.id || '';
+}
+
 export function BehaviorPage({ session }: BehaviorPageProps) {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
@@ -164,8 +172,8 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
   );
 
   const selectedStudent = useMemo(
-    () => students.find((student) => student.id === selectedStudentId) || classroomStudents[0] || null,
-    [classroomStudents, selectedStudentId, students],
+    () => classroomStudents.find((student) => student.id === selectedStudentId) || classroomStudents[0] || null,
+    [classroomStudents, selectedStudentId],
   );
 
   const filteredStudents = useMemo(() => {
@@ -257,11 +265,14 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
+      const nextClassroomId = getClassroomWithStudents(nextClassrooms, nextStudents);
+      const nextSelectedStudentId =
+        nextStudents.find((student) => student.classroom_id === nextClassroomId)?.id || nextStudents[0]?.id || '';
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);
       setRecords((behaviorRows || []) as BehaviorRecordRow[]);
-      setClassroomId(nextClassrooms[0]?.id || '');
-      setSelectedStudentId(nextStudents[0]?.id || '');
+      setClassroomId(nextClassroomId);
+      setSelectedStudentId(nextSelectedStudentId);
       setIsLoading(false);
     }
 
@@ -273,8 +284,9 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
   }, [session.workspace]);
 
   useEffect(() => {
-    if (!selectedStudent && classroomStudents[0]) setSelectedStudentId(classroomStudents[0].id);
-  }, [classroomStudents, selectedStudent]);
+    const selectedStudentInClassroom = classroomStudents.some((student) => student.id === selectedStudentId);
+    if (!selectedStudentInClassroom && classroomStudents[0]) setSelectedStudentId(classroomStudents[0].id);
+  }, [classroomStudents, selectedStudentId]);
 
   function applyTone(value: BehaviorTone) {
     const option = toneOptions.find((item) => item.value === value);

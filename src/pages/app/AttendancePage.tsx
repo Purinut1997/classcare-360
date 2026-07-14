@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BellRing, CalendarDays, Check, ClipboardCheck, Clock3, Save, Send, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -79,6 +80,21 @@ function getTodayDate() {
 
 function createDefaultMarks(students: StudentRow[]) {
   return Object.fromEntries(students.map((student) => [student.id, 'present' as AttendanceStatus]));
+}
+
+function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentRow[], preferredClassroomId?: string) {
+  const classroomIds = new Set(classrooms.map((classroom) => classroom.id));
+  const preferredHasStudents = students.some((student) => student.classroom_id === preferredClassroomId);
+
+  if (preferredClassroomId && classroomIds.has(preferredClassroomId) && preferredHasStudents) {
+    return preferredClassroomId;
+  }
+
+  const classroomWithStudents = classrooms.find((classroom) =>
+    students.some((student) => student.classroom_id === classroom.id),
+  );
+
+  return classroomWithStudents?.id || classrooms[0]?.id || '';
 }
 
 export function AttendancePage({ session }: AttendancePageProps) {
@@ -163,9 +179,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
+      const nextClassroomId = getClassroomWithStudents(nextClassrooms, nextStudents);
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);
-      setClassroomId(nextClassrooms[0]?.id || '');
+      setClassroomId(nextClassroomId);
       setMarks(createDefaultMarks(nextStudents));
       setIsLoading(false);
     }
@@ -575,8 +592,22 @@ export function AttendancePage({ session }: AttendancePageProps) {
             ))}
 
             {!isLoading && classroomStudents.length === 0 ? (
-              <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ยังไม่มีนักเรียนในห้องนี้ ให้เพิ่มนักเรียนในเมนู Student 360 ก่อน
+              <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">
+                ยังไม่มีนักเรียนในห้องนี้ ให้เพิ่มหรือนำเข้ารายชื่อนักเรียนก่อน จึงจะเช็คเวลาเรียนได้
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 text-xs font-black text-white transition hover:-translate-y-0.5"
+                    to="/app/dashboard?view=students"
+                  >
+                    เพิ่มนักเรียน
+                  </Link>
+                  <Link
+                    className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black text-amber-900 ring-1 ring-amber-200 transition hover:-translate-y-0.5"
+                    to="/app/dashboard?view=import-export"
+                  >
+                    นำเข้ารายชื่อ
+                  </Link>
+                </div>
               </div>
             ) : null}
           </div>

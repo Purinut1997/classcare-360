@@ -1,5 +1,6 @@
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Eye,
@@ -12,8 +13,11 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { AppLogo } from '../../components/brand/AppLogo';
+import { getPostAuthRouteForSession } from '../../lib/auth';
 import { appEnv } from '../../lib/env';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import type { AppSessionContext } from '../../types/core';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -46,7 +50,11 @@ function getModeFromQuery(mode: string | null): AuthMode {
   return 'login';
 }
 
-export function LoginPage() {
+interface LoginPageProps {
+  session?: AppSessionContext | null;
+}
+
+export function LoginPage({ session }: LoginPageProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getModeFromQuery(searchParams.get('mode'));
@@ -66,9 +74,15 @@ export function LoginPage() {
   const nextSearch = useMemo(() => {
     const next = new URLSearchParams(searchParams);
     next.delete('mode');
+    next.delete('redirect');
     const value = next.toString();
     return value ? `?${value}` : '';
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!session) return;
+    navigate(getPostAuthRouteForSession(session, searchParams.get('redirect')), { replace: true });
+  }, [navigate, searchParams, session]);
 
   function switchMode(nextMode: AuthMode) {
     const next = new URLSearchParams(searchParams);
@@ -127,7 +141,7 @@ export function LoginPage() {
       );
 
       if (mode === 'login') {
-        navigate('/auth/complete-profile');
+        setNotice('เข้าสู่ระบบสำเร็จ กำลังตรวจสิทธิ์และส่งต่อไปหน้าที่เหมาะสม');
       }
     }
 
@@ -160,9 +174,19 @@ export function LoginPage() {
           <div className="pulse-glow absolute right-16 top-16 h-2 w-2 rounded-full bg-cyan-200 shadow-[0_0_28px_10px_rgba(103,232,249,0.35)]" />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:34px_34px]" />
           <div>
-            <div className="relative inline-flex h-11 items-center gap-2 rounded-full bg-cyan-300/15 px-4 text-sm font-black text-cyan-100 ring-1 ring-cyan-200/20">
-              <ShieldCheck size={18} aria-hidden="true" />
-              {currentCopy.eyebrow}
+            <div className="relative flex flex-wrap items-center gap-3">
+              <AppLogo className="h-12 w-12 rounded-2xl bg-white ring-1 ring-white/15" />
+              <Link
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-black text-cyan-50 ring-1 ring-white/15 transition hover:-translate-y-0.5 hover:bg-white/15"
+                to="/"
+              >
+                <ArrowLeft size={17} aria-hidden="true" />
+                หน้าแรก
+              </Link>
+              <div className="inline-flex h-11 items-center gap-2 rounded-full bg-cyan-300/15 px-4 text-sm font-black text-cyan-100 ring-1 ring-cyan-200/20">
+                <ShieldCheck size={18} aria-hidden="true" />
+                {currentCopy.eyebrow}
+              </div>
             </div>
             <h1 className="relative mt-6 max-w-2xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">
               {currentCopy.title}
@@ -187,6 +211,15 @@ export function LoginPage() {
         </div>
 
         <div className="glass-panel rounded-[2rem] p-5 sm:p-6">
+          <div className="mb-4 flex justify-end">
+            <Link
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 text-xs font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 hover:shadow-md"
+              to="/"
+            >
+              <ArrowLeft size={15} aria-hidden="true" />
+              กลับหน้าแรก
+            </Link>
+          </div>
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white/60 p-1.5 shadow-inner ring-1 ring-slate-200/70">
             {authModes.map((item) => {
               const Icon = item.icon;

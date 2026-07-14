@@ -2,14 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  Cloud,
   ClipboardCheck,
   Database,
   Download,
   ExternalLink,
   FileCode2,
+  Globe2,
   KeyRound,
+  ListChecks,
+  Lock,
+  LogIn,
+  School,
   ServerCog,
   ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 
 import { appEnv, hasSupabaseConfig } from '../../lib/env';
@@ -90,6 +97,54 @@ const deployCommandChecklist = [
   'supabase functions deploy accept-portal-invitation',
   'supabase functions deploy dispatch-notification',
   'supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...',
+];
+
+const productionLaunchChecklist = [
+  {
+    detail: 'ต้องได้ URL จาก Cloudflare Pages ก่อน เช่น https://classcare-360.pages.dev หรือโดเมนจริง',
+    icon: Globe2,
+    label: 'Cloudflare Pages live URL',
+    status: 'ต้องทำก่อน',
+  },
+  {
+    detail: 'เพิ่ม Site URL และ Redirect URLs ใน Supabase Auth ให้ชี้กลับมาที่โดเมน Cloudflare',
+    icon: Cloud,
+    label: 'Supabase Auth redirects',
+    status: 'หลังได้ URL',
+  },
+  {
+    detail: 'สมัคร/ล็อกอินด้วยอีเมลจริงและ Google OAuth แล้วกลับเข้า /auth/complete-profile ได้',
+    icon: LogIn,
+    label: 'Login smoke test',
+    status: 'ทดสอบจริง',
+  },
+  {
+    detail: 'สร้าง workspace โรงเรียนหนึ่งชุด เลือกห้องเรียน แล้วข้อมูลทุกหน้าอ่านจาก workspace เดียวกัน',
+    icon: School,
+    label: 'Workspace smoke test',
+    status: 'ทดสอบจริง',
+  },
+  {
+    detail: 'ครูอีกบัญชีขอเข้าโรงเรียนเดียวกัน และ owner กดอนุมัติก่อนถึงเห็นข้อมูลห้องเรียน',
+    icon: UserCheck,
+    label: 'Teacher approval flow',
+    status: 'ทดสอบจริง',
+  },
+  {
+    detail: 'สร้างอีก workspace เพื่อยืนยันว่า user โรงเรียน A ไม่เห็นข้อมูลโรงเรียน B ผ่านหน้าเว็บและ RLS',
+    icon: Lock,
+    label: 'RLS isolation check',
+    status: 'ห้ามข้าม',
+  },
+];
+
+const mvpSmokeChecklist = [
+  'เพิ่มนักเรียนจริง 3 คนหรือ import จากไฟล์ตัวอย่าง',
+  'บันทึกเช็กชื่อ/งานครูอย่างน้อย 1 รอบ',
+  'กรอกคะแนนหรือเงินออมอย่างน้อย 1 รายการ',
+  'เปิดรายงานและ export ไฟล์ทดสอบ',
+  'ตรวจ Superadmin เห็น workspace และเข้าใช้ภาพรวมโรงเรียนได้',
+  'ยืนยันว่าเมนูระบบเงินยังไม่ถูกใช้เป็นเงื่อนไขหลักของ MVP',
 ];
 
 const statusStyles: Record<CheckStatus, string> = {
@@ -266,6 +321,12 @@ export function SystemSetupPage({ session }: SystemSetupPageProps) {
       deployCommands: deployCommandChecklist,
       edgeFunctions: edgeFunctionChecklist,
       migrations: migrationChecklist,
+      mvpSmokeChecklist,
+      productionLaunchChecklist: productionLaunchChecklist.map((item) => ({
+        detail: item.detail,
+        label: item.label,
+        status: item.status,
+      })),
       readinessPercent,
       serverSecrets: serverSecretChecklist,
       session: {
@@ -335,6 +396,78 @@ export function SystemSetupPage({ session }: SystemSetupPageProps) {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+        <div className="nexus-card p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800 ring-1 ring-amber-100">
+                <ListChecks size={15} aria-hidden="true" />
+                Production Launch
+              </div>
+              <h2 className="mt-3 text-2xl font-black text-slate-950">ลำดับปิดงานก่อนเปิดให้คนอื่นใช้งาน</h2>
+              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-500">
+                ใช้ส่วนนี้ไล่ตรวจหลัง Cloudflare deploy สำเร็จ เพื่อยืนยันว่าเว็บ, auth, workspace และ RLS พร้อมก่อนกลับไปต่อระบบเงินหรือ integration ภายนอก
+              </p>
+            </div>
+            <a
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-amber-50"
+              href="/app/dashboard"
+            >
+              กลับหน้าภาพรวม
+              <ExternalLink size={16} aria-hidden="true" />
+            </a>
+          </div>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {productionLaunchChecklist.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={item.label}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-cyan-100 shadow-[0_16px_35px_rgba(15,23,42,0.12)]">
+                      <Icon size={19} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">
+                          ขั้นที่ {index + 1}
+                        </span>
+                        <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                          {item.status}
+                        </span>
+                      </div>
+                      <h3 className="mt-2 text-base font-black text-slate-950">{item.label}</h3>
+                      <p className="mt-2 text-sm font-bold leading-6 text-slate-500">{item.detail}</p>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside className="nexus-card p-4 sm:p-5">
+          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+            <ShieldCheck size={15} aria-hidden="true" />
+            MVP Smoke Test
+          </div>
+          <h2 className="mt-3 text-2xl font-black text-slate-950">รอบทดสอบที่ควรผ่านก่อนเพิ่มฟีเจอร์ใหม่</h2>
+          <div className="mt-4 grid gap-3">
+            {mvpSmokeChecklist.map((item, index) => (
+              <div className="flex items-start gap-3 rounded-3xl bg-white/85 p-3 ring-1 ring-slate-100" key={item}>
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+                  {index + 1}
+                </div>
+                <p className="text-sm font-bold leading-6 text-slate-600">{item}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 rounded-3xl bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900 ring-1 ring-amber-100">
+            ถ้าขั้นใดล้ม ให้แก้ขั้นนั้นก่อน แล้วค่อยทดสอบซ้ำ ไม่ควรเพิ่มระบบเงิน, LINE, Google Drive หรือ Maps จนกว่า smoke test นี้ผ่านครบ
+          </p>
+        </aside>
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">

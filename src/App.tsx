@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } 
 
 import {
   getInitialRouteForSession,
+  getPostAuthRouteForSession,
   getRouteGuardPreview,
 } from './lib/auth';
 import { appEnv } from './lib/env';
@@ -10,6 +11,7 @@ import { canUseModule, getEntitlementSummary } from './lib/entitlements';
 import { canManageWorkspace, roleLabels } from './lib/roles';
 import { useAppSession } from './lib/session';
 import { isSupabaseReady } from './lib/supabaseClient';
+import { AppLogo } from './components/brand/AppLogo';
 import { AppShell } from './layouts/AppShell';
 import { appNavItems, appViewCopy, superadminNavItem } from './routes/appRoutes';
 import { RequireRouteAccess } from './routes/RouteGuards';
@@ -86,7 +88,8 @@ const SuperadminDashboard = lazy(() =>
   import('./pages/superadmin/SuperadminDashboard').then((module) => ({ default: module.SuperadminDashboard })),
 );
 
-const adminWorkspaceRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member'];
+const workspaceSelectionRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member', 'viewer'];
+const classroomUserRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member'];
 const reportViewerRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member', 'viewer'];
 
 function getAppShellNavItems(session: AppSessionContext | null) {
@@ -150,21 +153,19 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'reports') return reportViewerRoles;
   if (key === 'audit') return ['superadmin'] as WorkspaceRole[];
   if (key === 'setup' || key === 'superadmin-dashboard') return ['superadmin'] as WorkspaceRole[];
-  if (key === 'workspace-switch') return adminWorkspaceRoles;
+  if (key === 'workspace-switch') return workspaceSelectionRoles;
   if (key === 'workspace-settings' || key === 'import-export' || key === 'package') {
     return ['superadmin', 'teacher_owner'] as WorkspaceRole[];
   }
 
-  return adminWorkspaceRoles;
+  return classroomUserRoles;
 }
 
 function SessionStateScreen({ detail, title }: { detail: string; title: string }) {
   return (
     <main className="classcare-grid-bg flex min-h-screen items-center px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
       <section className="nexus-card mx-auto max-w-3xl p-6 text-center sm:p-8">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-cyan-200 shadow-[0_18px_42px_rgba(2,6,23,0.22)]">
-          C
-        </div>
+        <AppLogo className="mx-auto h-16 w-16 rounded-2xl bg-white shadow-[0_18px_42px_rgba(2,6,23,0.12)] ring-1 ring-slate-200" />
         <h1 className="mt-5 text-3xl font-black text-slate-950">{title}</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-600">{detail}</p>
         <p className="mt-6 text-xs font-bold text-slate-500">Created by MIKPURINUT</p>
@@ -452,7 +453,7 @@ function WorkspaceSetupRoute({ session }: { session: AppSessionContext | null })
   if (!session) {
     return (
       <RequireRouteAccess
-        allowedRoles={adminWorkspaceRoles}
+        allowedRoles={workspaceSelectionRoles}
         featureName="เลือกหรือสร้าง workspace"
         requireWorkspace={false}
         session={session}
@@ -464,7 +465,7 @@ function WorkspaceSetupRoute({ session }: { session: AppSessionContext | null })
 
   return (
     <RequireRouteAccess
-      allowedRoles={adminWorkspaceRoles}
+      allowedRoles={workspaceSelectionRoles}
       featureName="เลือกหรือสร้าง workspace"
       requireWorkspace={false}
       session={session}
@@ -546,17 +547,19 @@ function AppRoutes() {
     );
   }
 
-  if (
-    session?.profile.role === 'superadmin' &&
-    ['/auth/complete-profile', '/login'].includes(location.pathname)
-  ) {
-    return <Navigate replace to={session.workspace ? '/app/dashboard' : '/app/select-workspace'} />;
+  if (session?.profile.needsProfile && location.pathname !== '/auth/complete-profile') {
+    return <Navigate replace to="/auth/complete-profile" />;
+  }
+
+  if (session && location.pathname === '/login') {
+    const redirectTo = new URLSearchParams(location.search).get('redirect');
+    return <Navigate replace to={getPostAuthRouteForSession(session, redirectTo)} />;
   }
 
   return (
     <Routes>
       <Route element={<LandingPage session={session} />} path="/" />
-      <Route element={<LoginPage />} path="/login" />
+      <Route element={<LoginPage session={session} />} path="/login" />
       <Route element={<CompleteProfilePage />} path="/auth/complete-profile" />
       <Route element={<PricingPage />} path="/pricing" />
       <Route element={<AppDashboardRoute session={session} />} path="/app/dashboard" />

@@ -1,7 +1,20 @@
 # ClassCare 360 - PROJECT STATUS
 
-อัปเดตล่าสุด: 2026-07-11  
-Timezone: Asia/Bangkok  
+อัปเดตล่าสุด: 2026-07-13
+Timezone: Asia/Bangkok
+
+## อัปเดตล่าสุด 2026-07-13
+
+- ปรับ UX/logic หลังตรวจ workflow จริง: Sidebar เปลี่ยนเป็นหมวดใหญ่แบบพับ/ขยาย, Student 360 เพิ่มเมนูย่อยสำหรับรายชื่อ/เยี่ยมบ้าน/โปรไฟล์/เคสดูแล/Portal/ประวัติ, และหน้า Score Center เพิ่มแถบขั้นตอนเลือกห้อง -> เลือก/สร้างชุดคะแนน -> กรอกคะแนน
+- แก้ปัญหา import รายชื่อนักเรียนแล้วเหมือนไม่แสดงในบางเมนู โดยให้ Attendance, Scores, Savings, Behavior และ Randomizer เลือกห้องเรียนที่มีนักเรียนจริงก่อนแทนการเลือกห้องแรกที่อาจว่าง และ sync นักเรียนที่เลือกให้ตรงกับห้องปัจจุบัน
+- ตรวจสาเหตุเว็บเหมือนปิดเอง: Vite dev server ยังรันอยู่ที่ `127.0.0.1:5173`, port ยัง listen, `vite-dev.err.log` ไม่มี error; อาการที่เห็นน่าจะเป็น Route Guard/session หลุดหรือแอป Codex/browser reload ระหว่างงานยาว ไม่ใช่ frontend build crash
+- เปลี่ยนทิศทางงานถัดไปเป็น production/MVP hardening ก่อนเพิ่มฟีเจอร์ใหม่ ตามแนวทาง scrutinize: ปิดเส้นทางใช้งานจริงให้ครบก่อนต่อ payment, LINE, Google Drive หรือ Maps
+- เพิ่ม Production Launch checklist ในหน้า `ตั้งค่าระบบ` สำหรับไล่ตรวจ Cloudflare Pages URL, Supabase Auth redirects, login smoke test, workspace smoke test, teacher approval flow และ RLS isolation
+- เพิ่ม MVP Smoke Test checklist ในหน้า `ตั้งค่าระบบ` เพื่อบังคับทดสอบเส้นหลัก: เพิ่มนักเรียน, เช็กชื่อ/งานครู, คะแนนหรือเงินออม, รายงาน/export, Superadmin เข้า workspace และยืนยันว่าระบบเงินยังไม่เป็น blocker ของ MVP
+- ปรับ login/role routing ใหม่ให้มี post-auth decision กลาง: บัญชีที่ยังไม่มี profile ไป Complete Profile, ครู/superadmin/viewer ไป workspace/app ตามสิทธิ์, parent/student ไป Portal Invitations หรือ Portal ของตัวเอง, และหน้า login จำ `redirect` จาก route guard ได้
+- ปรับ Workspace Setup ไม่ให้ viewer เห็นฟอร์มสร้าง workspace เอง และให้บทบาทที่ไม่ได้เป็น owner เห็นข้อความรอรับสิทธิ์จากเจ้าของ workspace แทน
+- ตรวจ encoding ของไฟล์ UI หลักด้วย Node แล้วพบว่าไฟล์เก็บข้อความไทยเป็น UTF-8 ปกติ ไม่มี mojibake ใน source; อาการที่เห็นจาก PowerShell เป็น console encoding และอาการบนเว็บควรแก้ด้วยการ reload/deploy build ล่าสุด
+- ตรวจล่าสุด: `npm.cmd run check:deploy` ผ่าน 31/31 required checks โดยเหลือ warning เฉพาะ Supabase CLI และ Deno ยังไม่อยู่ใน PATH ของเครื่องนี้
 
 ## อัปเดตล่าสุด 2026-07-12
 

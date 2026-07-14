@@ -91,6 +91,24 @@ https://<cloudflare-pages-domain>/app/select-workspace
 https://<cloudflare-pages-domain>/app/dashboard
 ```
 
+## Production smoke test
+
+หลัง Cloudflare Pages deploy สำเร็จ ให้ทดสอบจาก URL จริงตามลำดับนี้ก่อนถือว่าพร้อมใช้งาน:
+
+1. เปิดหน้าแรก `/` แล้วกดเข้าสู่ระบบได้
+2. สมัคร/ล็อกอินด้วยอีเมลจริง และ Google OAuth กลับมาที่ `/auth/complete-profile`
+3. กรอก profile โดยใช้ชื่อโรงเรียนรูปแบบเดียวกัน เช่น `โรงเรียนตัวอย่าง ClassCare`
+4. สร้างหรือเลือก workspace ของโรงเรียนตัวเอง
+5. เพิ่มนักเรียนจริง 3 คน หรือ import จากไฟล์ตัวอย่าง
+6. บันทึกงานครู/เช็กชื่ออย่างน้อย 1 รอบ
+7. กรอกคะแนนหรือเงินออมอย่างน้อย 1 รายการ
+8. เปิดรายงานและ export ไฟล์ทดสอบ
+9. ใช้บัญชีครูอีกคนขอเข้า workspace แล้วให้ owner อนุมัติก่อนเห็นข้อมูล
+10. สร้าง workspace อีกโรงเรียนเพื่อยืนยันว่า user โรงเรียน A ไม่เห็นข้อมูลโรงเรียน B
+11. ใช้บัญชี Superadmin เข้า `/app/dashboard?view=superadmin-dashboard` และเข้า workspace ภาพรวมได้
+
+ถ้าขั้นใดล้ม ให้แก้ขั้นนั้นก่อนเพิ่มฟีเจอร์ใหม่ ระบบเงิน, LINE/Telegram, Google Drive และ Maps ควรเริ่มหลัง smoke test นี้ผ่านครบ
+
 ## วิธีอัปเดทระบบหลังจากนี้
 
 ```bash

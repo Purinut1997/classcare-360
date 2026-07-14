@@ -146,6 +146,17 @@ function downloadTextFile(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentRow[], history: RandomizerSessionRow[] = []) {
+  const classroomWithStudents = classrooms.find((classroom) =>
+    students.some((student) => student.classroom_id === classroom.id),
+  );
+  const classroomWithHistory = classrooms.find((classroom) =>
+    history.some((item) => item.classroom_id === classroom.id),
+  );
+
+  return classroomWithStudents?.id || classroomWithHistory?.id || classrooms[0]?.id || '';
+}
+
 export function RandomizerPage({ session }: RandomizerPageProps) {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
@@ -224,12 +235,14 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
       }
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
+      const nextStudents = (studentRows || []) as StudentRow[];
       const nextHistory = (historyRows || []) as RandomizerSessionRow[];
+      const nextClassroomId = getClassroomWithStudents(nextClassrooms, nextStudents, nextHistory);
       setClassrooms(nextClassrooms);
-      setStudents((studentRows || []) as StudentRow[]);
+      setStudents(nextStudents);
       setHistory(nextHistory);
-      setClassroomId(nextClassrooms[0]?.id || '');
-      setCurrentResult(nextHistory[0]?.result || null);
+      setClassroomId(nextClassroomId);
+      setCurrentResult(nextHistory.find((item) => item.classroom_id === nextClassroomId)?.result || null);
       setIsLoading(false);
     }
 

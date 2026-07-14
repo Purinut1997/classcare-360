@@ -21,6 +21,11 @@ const roleOptions: Array<{ description: string; label: string; value: Exclude<Wo
   { description: 'ดูรายงานได้ตามสิทธิ์ แต่ไม่แก้ไขข้อมูลห้องเรียน', label: 'ผู้ดูรายงาน', value: 'viewer' },
 ];
 
+function getNextRouteAfterProfile(role: Exclude<WorkspaceRole, 'superadmin'>) {
+  if (role === 'parent' || role === 'student') return '/portal/invitations';
+  return '/app/select-workspace';
+}
+
 export function CompleteProfilePage() {
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('ครูประจำชั้น');
@@ -74,9 +79,13 @@ export function CompleteProfilePage() {
       return;
     }
 
-    setNotice('บันทึก profile สำเร็จ กำลังไปเลือกหรือสร้าง workspace');
+    setNotice(
+      role === 'parent' || role === 'student'
+        ? 'บันทึก profile สำเร็จ กำลังไปหน้าคำเชิญ Portal'
+        : 'บันทึก profile สำเร็จ กำลังไปเลือกหรือสร้าง workspace',
+    );
     setIsSubmitting(false);
-    navigate('/app/select-workspace');
+    navigate(getNextRouteAfterProfile(role));
   }
 
   return (

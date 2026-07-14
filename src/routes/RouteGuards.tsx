@@ -106,8 +106,11 @@ function getReasonIcon(reason?: RouteGuardReason) {
   return ShieldAlert;
 }
 
-function getPrimaryAction(reason?: RouteGuardReason, currentSearch = '') {
-  if (reason === 'signed-out') return { label: 'ไปหน้าเข้าสู่ระบบ', to: `/login${currentSearch}` };
+function getPrimaryAction(reason?: RouteGuardReason, currentPath = '', currentSearch = '') {
+  if (reason === 'signed-out') {
+    const redirectTarget = encodeURIComponent(`${currentPath}${currentSearch}`);
+    return { label: 'ไปหน้าเข้าสู่ระบบ', to: `/login?redirect=${redirectTarget}` };
+  }
   if (reason === 'workspace-required') return { label: 'เลือก workspace', to: `/app/select-workspace${currentSearch}` };
   if (reason === 'module-denied') return { label: 'ตรวจระบบ', to: '/app/dashboard?view=setup' };
   return { label: 'กลับแดชบอร์ด', to: `/app/dashboard${currentSearch}` };
@@ -126,7 +129,7 @@ export function RouteGuardNotice({
 }) {
   const location = useLocation();
   const Icon = getReasonIcon(result.reason);
-  const primaryAction = getPrimaryAction(result.reason, location.search);
+  const primaryAction = getPrimaryAction(result.reason, location.pathname, location.search);
 
   return (
     <main className="classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8">

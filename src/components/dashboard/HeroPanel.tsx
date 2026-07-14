@@ -1,5 +1,7 @@
-import { BookOpenCheck, CheckCircle2, GraduationCap, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
+import { BookOpenCheck, CheckCircle2, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+import { AppLogo } from '../brand/AppLogo';
 
 interface HeroPanelProps {
   canManageBilling: boolean;
@@ -59,9 +61,7 @@ export function HeroPanel({ canManageBilling, copy, activeModules, initialRoute,
 
           <div className="relative z-10 flex h-full min-h-[390px] flex-col justify-between">
             <div className="ml-auto flex w-fit items-center gap-3 rounded-3xl border border-white/30 bg-white/20 px-4 py-3 shadow-[0_16px_36px_rgba(8,47,73,0.18)] backdrop-blur-xl">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-950 text-cyan-200">
-                <GraduationCap size={23} aria-hidden="true" />
-              </div>
+              <AppLogo className="h-11 w-11 rounded-2xl bg-white" />
               <div>
                 <p className="text-sm font-black leading-4">AI Classroom</p>
                 <p className="text-xs font-bold text-cyan-50/80">Future-ready school hub</p>

@@ -51,6 +51,7 @@ export interface AppProfile {
   displayName: string;
   accountStatus: AccountStatus;
   role: WorkspaceRole;
+  needsProfile?: boolean;
   schoolName?: string | null;
 }
 

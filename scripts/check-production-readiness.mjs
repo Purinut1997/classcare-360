@@ -20,6 +20,8 @@ const requiredMigrations = [
   '0012_workspace_member_admin.sql',
   '0013_payment_qr_storage.sql',
   '0014_workspace_join_requests.sql',
+  '0015_student_delete_owner_policy.sql',
+  '0016_workspace_classroom_delete_policy.sql',
 ];
 
 const requiredFunctions = [

@@ -27,6 +27,7 @@ interface ProfileRow {
   email: string;
   id: string;
   metadata: {
+    preferred_role?: WorkspaceRole;
     school_name?: string;
   } | null;
 }
@@ -90,6 +91,21 @@ function getProfileSchoolName(metadata: ProfileRow['metadata']) {
   return typeof schoolName === 'string' && schoolName.trim() ? schoolName.trim() : null;
 }
 
+function getPreferredRole(metadata: ProfileRow['metadata']): WorkspaceRole {
+  const preferredRole = metadata?.preferred_role;
+  if (
+    preferredRole === 'teacher_owner' ||
+    preferredRole === 'teacher_member' ||
+    preferredRole === 'parent' ||
+    preferredRole === 'student' ||
+    preferredRole === 'viewer'
+  ) {
+    return preferredRole;
+  }
+
+  return 'teacher_owner';
+}
+
 async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
   if (!supabase) return null;
 
@@ -117,6 +133,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
     email: profile?.email || user.email || '',
     displayName: profile?.display_name || fallbackName,
     accountStatus: profile?.account_status || ('registered' as const),
+    needsProfile: !profile,
     schoolName: getProfileSchoolName(profile?.metadata || null),
   };
 
@@ -193,18 +210,22 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
     null;
 
   if (!membership?.workspaces) {
+    const preferredRole = getPreferredRole(profile?.metadata || null);
     setStoredActiveWorkspaceId(null);
     return {
       profile: {
         ...baseProfile,
-        role: 'teacher_owner',
+        role: preferredRole,
       },
       workspace: null,
-      subscription: {
-        planCode: 'TRIAL_30',
-        status: 'trial',
-        endsAt: null,
-      },
+      subscription:
+        preferredRole === 'parent' || preferredRole === 'student' || preferredRole === 'viewer'
+          ? defaultSubscription
+          : {
+              planCode: 'TRIAL_30',
+              status: 'trial',
+              endsAt: null,
+            },
     };
   }
 

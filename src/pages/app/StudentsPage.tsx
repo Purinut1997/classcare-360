@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Archive,
@@ -17,6 +18,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Trash2,
   Upload,
   UserPlus,
   UserRound,
@@ -121,18 +123,29 @@ interface HomeVisitFormState {
   drinkingWater: string;
   electricity: string;
   farmingLand: string;
+  familyStatus: string;
   floorMaterial: string;
+  googleMapUrl: string;
+  guardianCitizenId: string;
+  guardianEducation: string;
   guardianName: string;
+  guardianOccupation: string;
+  guardianPhone: string;
   householdIncome: string;
   householdMembers: string;
   housePhotoNote: string;
   housingType: string;
   indoorPhotoFileId: string | null;
   indoorPhotoLabel: string;
+  latitude: string;
+  livingWith: string;
+  longitude: string;
+  mapPlaceName: string;
   outdoorPhotoFileId: string | null;
   outdoorPhotoLabel: string;
   photoSource: string;
   photoType: string;
+  rentPerMonth: string;
   relationship: string;
   roofMaterial: string;
   status: HomeVisitStatus;
@@ -143,6 +156,7 @@ interface HomeVisitFormState {
   vehicles: string;
   visitDate: string;
   wallMaterial: string;
+  welfareSupport: string;
 }
 
 interface StudentHomeVisitRow {
@@ -173,18 +187,29 @@ const defaultHomeVisitForm: HomeVisitFormState = {
   drinkingWater: 'น้ำประปา',
   electricity: 'ไฟบ้านหรือมิเตอร์',
   farmingLand: 'ไม่ทำเกษตร',
+  familyStatus: 'พ่อแม่อยู่ด้วยกัน',
   floorMaterial: 'ซีเมนต์เปลือย',
+  googleMapUrl: '',
+  guardianCitizenId: '',
+  guardianEducation: 'ประถมศึกษา',
   guardianName: '',
+  guardianOccupation: '',
+  guardianPhone: '',
   householdIncome: '',
   householdMembers: '',
   housePhotoNote: '',
   housingType: 'อยู่บ้านตนเอง/เจ้าของบ้าน',
   indoorPhotoFileId: null,
   indoorPhotoLabel: '',
+  latitude: '',
+  livingWith: 'พ่อ/แม่',
+  longitude: '',
+  mapPlaceName: '',
   outdoorPhotoFileId: null,
   outdoorPhotoLabel: '',
   photoSource: 'คุณครูลงเยี่ยมบ้านด้วยตนเอง',
   photoType: 'ภาพถ่ายที่พักอาศัย/หอพักของนักเรียน',
+  rentPerMonth: '',
   relationship: '',
   roofMaterial: 'โลหะ',
   status: 'draft',
@@ -195,6 +220,7 @@ const defaultHomeVisitForm: HomeVisitFormState = {
   vehicles: 'รถมอเตอร์ไซต์/เรือประมงพื้นบ้าน',
   visitDate: new Date().toISOString().slice(0, 10),
   wallMaterial: 'ไม้กระดาน',
+  welfareSupport: 'ไม่ได้รับสวัสดิการแห่งรัฐ',
 };
 
 const demoClassrooms: ClassroomRow[] = [
@@ -219,12 +245,21 @@ const demoStudents: StudentRow[] = [
         dailyAllowance: '30',
         dependencyNotes: 'ผู้ปกครองรับจ้างรายวัน รายได้ไม่แน่นอน',
         distanceKm: '3.5',
+        familyStatus: 'พ่อแม่อยู่ด้วยกัน',
+        googleMapUrl: 'https://www.google.com/maps?q=18.788343,98.985300',
+        guardianEducation: 'มัธยมศึกษาตอนต้น',
         guardianName: 'คุณแม่ณัฐวุฒิ',
+        guardianOccupation: 'รับจ้างรายวัน',
+        guardianPhone: '08x-xxx-1122',
         householdIncome: '9200',
         householdMembers: '4',
         housePhotoNote: 'ต้องแนบภาพภายนอกและภายในที่พักอาศัยก่อนส่งรับรอง',
         indoorPhotoFileId: 'demo-home-visit-photo-indoor',
         indoorPhotoLabel: 'inside-home-demo.jpg',
+        latitude: '18.788343',
+        livingWith: 'พ่อ/แม่',
+        longitude: '98.985300',
+        mapPlaceName: 'บ้านนักเรียนตัวอย่าง',
         outdoorPhotoFileId: 'demo-home-visit-photo-outdoor',
         outdoorPhotoLabel: 'outside-home-demo.jpg',
         relationship: 'มารดา',
@@ -355,12 +390,21 @@ const demoHomeVisits: StudentHomeVisitRow[] = [
       dailyAllowance: '30',
       dependencyNotes: 'ผู้ปกครองรับจ้างรายวัน รายได้ไม่แน่นอน',
       distanceKm: '3.5',
+      familyStatus: 'พ่อแม่อยู่ด้วยกัน',
+      googleMapUrl: 'https://www.google.com/maps?q=18.788343,98.985300',
+      guardianEducation: 'มัธยมศึกษาตอนต้น',
       guardianName: 'คุณแม่ณัฐวุฒิ',
+      guardianOccupation: 'รับจ้างรายวัน',
+      guardianPhone: '08x-xxx-1122',
       householdIncome: '9200',
       householdMembers: '4',
       housePhotoNote: 'ต้องแนบภาพภายนอกและภายในที่พักอาศัยก่อนส่งรับรอง',
       indoorPhotoFileId: 'demo-home-visit-photo-indoor',
       indoorPhotoLabel: 'inside-home-demo.jpg',
+      latitude: '18.788343',
+      livingWith: 'พ่อ/แม่',
+      longitude: '98.985300',
+      mapPlaceName: 'บ้านนักเรียนตัวอย่าง',
       outdoorPhotoFileId: 'demo-home-visit-photo-outdoor',
       outdoorPhotoLabel: 'outside-home-demo.jpg',
       relationship: 'มารดา',
@@ -426,6 +470,51 @@ const demoAuditLogs: AuditLogRow[] = [
       to_status: 'active',
     },
     risk_level: 'low',
+  },
+];
+
+const studentTaskLinks = [
+  {
+    description: 'เพิ่ม แก้ไข ค้นหา และจัดห้องเรียน โดยข้อมูลทุกแถวต้องผูก workspace_id',
+    label: 'รายชื่อและห้องเรียน',
+    title: 'จัดการรายชื่อนักเรียน',
+    value: 'roster',
+  },
+  {
+    description: 'ตรวจรายชื่อซ้ำ นักเรียนไม่มีห้อง ชื่อหรือรหัสว่าง และตัวกรองที่ทำให้รายชื่อไม่โผล่หลัง import',
+    label: 'Data Quality',
+    title: 'ตรวจคุณภาพข้อมูลนักเรียน',
+    value: 'quality',
+  },
+  {
+    description: 'บันทึกแบบเยี่ยมบ้าน กสศ.01 แยกจากงานรายชื่อเพื่อลดหน้าจอยาว',
+    label: 'แบบเยี่ยมบ้าน กสศ.',
+    title: 'แบบเยี่ยมบ้านนักเรียน',
+    value: 'home-visit',
+  },
+  {
+    description: 'ดูข้อมูลพื้นฐาน ผู้ปกครอง บัญชี portal และสถานะดูแลของนักเรียนรายคน',
+    label: 'โปรไฟล์รายคน',
+    title: 'โปรไฟล์นักเรียนรายคน',
+    value: 'profile',
+  },
+  {
+    description: 'บันทึกเคสดูแล ระดับติดตาม ประเภทเคส บันทึกครู และสิ่งที่ต้องทำต่อ',
+    label: 'เคสดูแล',
+    title: 'เคสดูแลนักเรียน',
+    value: 'care',
+  },
+  {
+    description: 'จัดการคำเชิญ Portal ผู้ปกครอง บัญชีนักเรียน และ consent ในจุดเดียว',
+    label: 'Portal และผู้ปกครอง',
+    title: 'Portal และผู้ปกครอง',
+    value: 'portal',
+  },
+  {
+    description: 'ดูร่องรอยการทำงานจาก Student 360 เคสดูแล และแบบเยี่ยมบ้านย้อนหลัง',
+    label: 'ประวัติการทำงาน',
+    title: 'ประวัติการทำงานนักเรียน',
+    value: 'timeline',
   },
 ];
 
@@ -508,6 +597,83 @@ function getAuditRiskTone(riskLevel: AuditRiskLevel) {
   return 'bg-cyan-50 text-cyan-700 ring-cyan-100';
 }
 
+function QualityList({
+  classrooms,
+  emptyLabel,
+  onArchive,
+  onDelete,
+  onSelect,
+  students,
+  title,
+}: {
+  classrooms: ClassroomRow[];
+  emptyLabel: string;
+  onArchive: (student: StudentRow) => void;
+  onDelete: (student: StudentRow) => void;
+  onSelect: (studentId: string) => void;
+  students: StudentRow[];
+  title: string;
+}) {
+  return (
+    <div className="nexus-card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-black text-slate-950">{title}</h3>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-100">
+          {students.length} รายการ
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {students.map((student) => {
+          const classroom = classrooms.find((item) => item.id === student.classroom_id);
+
+          return (
+            <div className="rounded-[20px] border border-slate-200 bg-white/86 p-3" key={student.id}>
+              <button
+                className="block text-left text-sm font-black text-slate-950"
+                onClick={() => onSelect(student.id)}
+                type="button"
+              >
+                {student.student_code || 'ไม่มีรหัส'} | {student.first_name || '-'} {student.last_name || '-'}
+              </button>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                {classroom?.name || 'ยังไม่ผูกห้อง'} | {statusLabels[student.status]} | {student.nickname || 'ไม่มีชื่อเล่น'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5"
+                  onClick={() => onSelect(student.id)}
+                  type="button"
+                >
+                  เลือกคนนี้
+                </button>
+                <button
+                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5"
+                  onClick={() => onArchive(student)}
+                  type="button"
+                >
+                  {student.status === 'archived' ? 'กู้คืน' : 'เก็บถาวร'}
+                </button>
+                <button
+                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5"
+                  onClick={() => onDelete(student)}
+                  type="button"
+                >
+                  ลบถาวร
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {students.length === 0 ? (
+          <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">{emptyLabel}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function getAuditSummary(log: AuditLogRow) {
   const parts = [
     typeof log.metadata.status === 'string' ? `status: ${log.metadata.status}` : null,
@@ -561,6 +727,9 @@ function getHomeVisitCompletion(form: HomeVisitFormState) {
   const requiredValues = [
     form.guardianName,
     form.relationship,
+    form.guardianPhone,
+    form.familyStatus,
+    form.livingWith,
     form.householdMembers,
     form.householdIncome,
     form.housingType,
@@ -571,6 +740,7 @@ function getHomeVisitCompletion(form: HomeVisitFormState) {
     form.distanceKm,
     form.travelMinutes,
     form.address,
+    form.googleMapUrl || (form.latitude && form.longitude ? `${form.latitude},${form.longitude}` : ''),
     form.photoSource,
     form.photoType,
     form.outdoorPhotoFileId || form.outdoorPhotoLabel,
@@ -579,6 +749,52 @@ function getHomeVisitCompletion(form: HomeVisitFormState) {
   const filled = requiredValues.filter((value) => value.trim().length > 0).length + (form.consentAccepted ? 1 : 0);
   const total = requiredValues.length + 1;
   return Math.round((filled / total) * 100);
+}
+
+function extractGoogleMapCoordinates(value: string) {
+  let decodedValue = value;
+  try {
+    decodedValue = decodeURIComponent(value);
+  } catch {
+    decodedValue = value;
+  }
+  const patterns = [
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /(-?\d{1,2}\.\d{4,}),\s*(-?\d{1,3}\.\d{4,})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = decodedValue.match(pattern);
+    if (match) {
+      return { latitude: match[1], longitude: match[2] };
+    }
+  }
+
+  return null;
+}
+
+function getGoogleMapsHref(form: HomeVisitFormState) {
+  if (form.googleMapUrl.trim()) return form.googleMapUrl.trim();
+  if (form.latitude.trim() && form.longitude.trim()) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(`${form.latitude},${form.longitude}`)}`;
+  }
+  if (form.address.trim()) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.address)}`;
+  }
+  return 'https://www.google.com/maps';
+}
+
+function getGoogleMapsPinHref(form: HomeVisitFormState) {
+  const placeLabel = form.mapPlaceName.trim() || form.address.trim() || 'ตำแหน่งที่พักอาศัยนักเรียน';
+  if (form.latitude.trim() && form.longitude.trim()) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${form.latitude},${form.longitude}`)}`;
+  }
+  if (form.address.trim()) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeLabel)}`;
+  }
+  return 'https://www.google.com/maps';
 }
 
 function getHomeVisitPhotoStatus(form: HomeVisitFormState): StudentHomeVisitRow['photo_status'] {
@@ -593,6 +809,66 @@ function getHomeVisitPhotoStatus(form: HomeVisitFormState): StudentHomeVisitRow[
 function getHomeVisitStoragePath(workspaceId: string, studentId: string, photoKind: 'indoor' | 'outdoor', file: File) {
   const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
   return `${workspaceId}/home-visits/${studentId}/${photoKind}-${Date.now()}.${extension}`;
+}
+
+const HOME_VISIT_PHOTO_MAX_EDGE = 1600;
+const HOME_VISIT_PHOTO_QUALITY = 0.78;
+const HOME_VISIT_PHOTO_SKIP_BYTES = 650 * 1024;
+
+function getOptimizedPhotoName(fileName: string) {
+  const cleanName = fileName.replace(/\.[^.]+$/, '');
+  return `${cleanName || 'home-visit-photo'}-optimized.jpg`;
+}
+
+async function optimizeHomeVisitPhoto(file: File) {
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
+    return file;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error('อ่านรูปภาพไม่สำเร็จ'));
+      nextImage.src = objectUrl;
+    });
+
+    const longestEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    if (longestEdge <= HOME_VISIT_PHOTO_MAX_EDGE && file.size <= HOME_VISIT_PHOTO_SKIP_BYTES) {
+      return file;
+    }
+
+    const scale = longestEdge > HOME_VISIT_PHOTO_MAX_EDGE ? HOME_VISIT_PHOTO_MAX_EDGE / longestEdge : 1;
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', HOME_VISIT_PHOTO_QUALITY);
+    });
+
+    if (!blob || blob.size >= file.size) return file;
+
+    return new File([blob], getOptimizedPhotoName(file.name), {
+      lastModified: Date.now(),
+      type: 'image/jpeg',
+    });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 function escapeHtml(value: unknown) {
@@ -624,10 +900,22 @@ function renderHomeVisitPrintHtml({
   const rows = [
     ['ผู้ปกครอง', form.guardianName || guardian?.display_name || '-'],
     ['ความสัมพันธ์', form.relationship || guardian?.relation || '-'],
+    ['เบอร์ติดต่อผู้ปกครอง', form.guardianPhone || guardian?.phone || '-'],
+    ['เลขประจำตัวประชาชนผู้ปกครอง', form.guardianCitizenId || '-'],
+    ['การศึกษาสูงสุดผู้ปกครอง', form.guardianEducation || '-'],
+    ['อาชีพผู้ปกครอง', form.guardianOccupation || '-'],
+    ['สถานภาพครอบครัว', form.familyStatus || '-'],
+    ['นักเรียนอาศัยอยู่กับ', form.livingWith || '-'],
+    ['สวัสดิการแห่งรัฐ', form.welfareSupport || '-'],
     ['สมาชิกในครัวเรือน', form.householdMembers ? `${form.householdMembers} คน` : '-'],
     ['รายได้รวมครัวเรือน', form.householdIncome ? `${form.householdIncome} บาท/เดือน` : '-'],
     ['ภาระพึ่งพิง', form.dependencyNotes || '-'],
     ['การอยู่อาศัย', form.housingType || '-'],
+    ['ค่าเช่า', form.rentPerMonth ? `${form.rentPerMonth} บาท/เดือน` : '-'],
+    ['ที่อยู่ปัจจุบัน', form.address || '-'],
+    ['ชื่อหมุดแผนที่', form.mapPlaceName || '-'],
+    ['Google Map', form.googleMapUrl || '-'],
+    ['พิกัด', form.latitude && form.longitude ? `${form.latitude}, ${form.longitude}` : '-'],
     ['พื้นบ้าน', form.floorMaterial || '-'],
     ['ฝาบ้าน', form.wallMaterial || '-'],
     ['หลังคา', form.roofMaterial || '-'],
@@ -768,6 +1056,7 @@ function emptyStudentForm(classroomId: string) {
 }
 
 export function StudentsPage({ session }: StudentsPageProps) {
+  const [searchParams] = useSearchParams();
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [guardians, setGuardians] = useState<GuardianRow[]>(demoGuardians);
@@ -777,6 +1066,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [homeVisits, setHomeVisits] = useState<StudentHomeVisitRow[]>(demoHomeVisits);
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>(demoAuditLogs);
   const [query, setQuery] = useState('');
+  const [rosterClassroomFilter, setRosterClassroomFilter] = useState('all');
+  const [rosterStatusFilter, setRosterStatusFilter] = useState<StudentStatus | 'all'>('active');
   const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [studentForm, setStudentForm] = useState(() => emptyStudentForm(demoClassrooms[0].id));
@@ -812,6 +1103,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อบันทึกนักเรียนลง Supabase จริง',
   );
+  const requestedStudentView = searchParams.get('studentView') || 'roster';
+  const activeStudentView = studentTaskLinks.some((item) => item.value === requestedStudentView)
+    ? requestedStudentView
+    : 'roster';
+  const activeStudentTask =
+    studentTaskLinks.find((item) => item.value === activeStudentView) || studentTaskLinks[0];
 
   const selectedStudent = useMemo(
     () => students.find((student) => student.id === selectedStudentId) || students[0] || null,
@@ -911,9 +1208,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return students;
 
     return students.filter((student) => {
+      if (rosterStatusFilter !== 'all' && student.status !== rosterStatusFilter) return false;
+      if (rosterClassroomFilter !== 'all' && student.classroom_id !== rosterClassroomFilter) return false;
+      if (!normalizedQuery) return true;
+
       const classroom = classrooms.find((item) => item.id === student.classroom_id);
       const haystack = [
         student.student_code,
@@ -930,7 +1230,66 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
       return haystack.includes(normalizedQuery);
     });
-  }, [classrooms, query, students]);
+  }, [classrooms, query, rosterClassroomFilter, rosterStatusFilter, students]);
+
+  const studentsWithoutClassroom = useMemo(
+    () => students.filter((student) => !student.classroom_id || !classrooms.some((classroom) => classroom.id === student.classroom_id)),
+    [classrooms, students],
+  );
+
+  const studentsWithBlankIdentity = useMemo(
+    () =>
+      students.filter(
+        (student) =>
+          !student.student_code?.trim() ||
+          !student.first_name?.trim() ||
+          !student.last_name?.trim(),
+      ),
+    [students],
+  );
+
+  const archivedOrInactiveStudents = useMemo(
+    () => students.filter((student) => ['archived', 'inactive', 'transferred', 'graduated'].includes(student.status)),
+    [students],
+  );
+
+  const duplicateStudentGroups = useMemo(() => {
+    const grouped = new Map<string, StudentRow[]>();
+
+    students.forEach((student) => {
+      const codeKey = student.student_code?.trim()
+        ? `code:${student.student_code.trim().toLowerCase()}`
+        : '';
+      const nameKey = `${student.first_name.trim().toLowerCase()}|${student.last_name.trim().toLowerCase()}|${student.classroom_id || 'no-room'}`;
+      const key = codeKey || `name:${nameKey}`;
+      const current = grouped.get(key) || [];
+      grouped.set(key, [...current, student]);
+    });
+
+    return [...grouped.entries()]
+      .map(([key, group]) => ({ group, key }))
+      .filter((item) => item.group.length > 1)
+      .sort((left, right) => right.group.length - left.group.length);
+  }, [students]);
+
+  const qualityIssueCount =
+    studentsWithoutClassroom.length +
+    studentsWithBlankIdentity.length +
+    archivedOrInactiveStudents.length +
+    duplicateStudentGroups.reduce((sum, item) => sum + item.group.length, 0);
+
+  const studentSwitcherOptions = useMemo(
+    () =>
+      [...students].sort((left, right) => {
+        const leftClassroom = classrooms.find((classroom) => classroom.id === left.classroom_id)?.name || '';
+        const rightClassroom = classrooms.find((classroom) => classroom.id === right.classroom_id)?.name || '';
+        return `${leftClassroom} ${left.student_code || ''} ${left.first_name}`.localeCompare(
+          `${rightClassroom} ${right.student_code || ''} ${right.first_name}`,
+          'th',
+        );
+      }),
+    [classrooms, students],
+  );
 
   useEffect(() => {
     if (!selectedStudent || selectedCareCases.length === 0) {
@@ -1330,6 +1689,102 @@ export function StudentsPage({ session }: StudentsPageProps) {
     setIsSubmitting(false);
   }
 
+  async function createDemoStudentsForCurrentWorkspace() {
+    setIsSubmitting(true);
+    setNotice(null);
+
+    const targetClassroomId =
+      rosterClassroomFilter !== 'all'
+        ? rosterClassroomFilter
+        : studentForm.classroomId || classrooms.find((classroom) => classroom.status === 'active')?.id || classrooms[0]?.id || '';
+
+    if (!targetClassroomId) {
+      setNotice('กรุณาสร้างห้องเรียนก่อนเพิ่มรายชื่อนักเรียนทดลอง');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const nowSuffix = Date.now().toString().slice(-6);
+    const demoRoster = [
+      ['เด็กชาย', 'ก้องภพ', 'ใจดี', 'ก้อง'],
+      ['เด็กหญิง', 'ณัฐธิดา', 'แสงทอง', 'นัท'],
+      ['เด็กชาย', 'ปกรณ์', 'เรียนดี', 'ปอ'],
+      ['เด็กหญิง', 'พิชชาพร', 'สุขใจ', 'พิม'],
+      ['เด็กชาย', 'ธนวัฒน์', 'กล้าหาญ', 'ต้น'],
+      ['เด็กหญิง', 'วรัญญา', 'ทองสุข', 'แอน'],
+      ['เด็กชาย', 'ภาคิน', 'มีสุข', 'คิน'],
+      ['เด็กหญิง', 'สุพิชชา', 'บ้านโคกสูง', 'ฟ้า'],
+      ['เด็กชาย', 'อนุชา', 'รักเรียน', 'นุ'],
+      ['เด็กหญิง', 'กมลชนก', 'เพียรดี', 'เมย์'],
+    ];
+
+    const rows = demoRoster.map(([prefix, firstName, lastName, nickname], index) => ({
+      care_flags: index % 4 === 0 ? { priority: 'watch', tags: ['ทดลองติดตาม'] } : {},
+      classroom_id: targetClassroomId,
+      first_name: `${prefix}${firstName}`,
+      gender: prefix === 'เด็กหญิง' ? 'female' : 'male',
+      health_flags: {},
+      last_name: lastName,
+      metadata: {
+        seed_source: 'student_360_demo_button',
+      },
+      nickname,
+      status: 'active',
+      student_code: `TEST-${nowSuffix}-${String(index + 1).padStart(2, '0')}`,
+      workspace_id: session.workspace?.id || 'demo-workspace',
+    }));
+
+    if (!supabase || !session.workspace) {
+      const nextStudents = rows.map((row, index) => ({
+        care_flags: row.care_flags,
+        classroom_id: row.classroom_id,
+        first_name: row.first_name,
+        id: `demo-seed-student-${Date.now()}-${index}`,
+        last_name: row.last_name,
+        nickname: row.nickname,
+        status: 'active' as const,
+        student_code: row.student_code,
+      }));
+      setStudents((current) => [...nextStudents, ...current]);
+      setRosterClassroomFilter(targetClassroomId);
+      setRosterStatusFilter('active');
+      setSelectedStudentId(nextStudents[0]?.id || selectedStudentId);
+      setNotice(`เพิ่มนักเรียนทดลอง ${nextStudents.length} คนในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('students')
+      .insert(rows)
+      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id');
+
+    if (error) {
+      setNotice(`เพิ่มข้อมูลทดลองไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const nextStudents = (data || []) as StudentRow[];
+    setStudents((current) => [...nextStudents, ...current]);
+    setRosterClassroomFilter(targetClassroomId);
+    setRosterStatusFilter('active');
+    setSelectedStudentId(nextStudents[0]?.id || selectedStudentId);
+    await writeAuditLog({
+      action: 'student.demo_seeded',
+      entityId: session.workspace.id,
+      entityTable: 'students',
+      metadata: {
+        classroom_id: targetClassroomId,
+        count: nextStudents.length,
+        source: 'student_360',
+      },
+      riskLevel: 'normal',
+    });
+    setNotice(`เพิ่มนักเรียนทดลอง ${nextStudents.length} คนแล้ว ตอนนี้สามารถทดลองเช็กชื่อ/คะแนน/เยี่ยมบ้านได้`);
+    setIsSubmitting(false);
+  }
+
   async function updateStudentStatus(student: StudentRow, status: StudentStatus) {
     setNotice(null);
 
@@ -1365,6 +1820,60 @@ export function StudentsPage({ session }: StudentsPageProps) {
       riskLevel: status === 'archived' ? 'normal' : 'low',
     });
     setNotice(`เปลี่ยนสถานะเป็น ${statusLabels[status]} สำเร็จ`);
+  }
+
+  async function deleteStudentPermanently(student: StudentRow) {
+    const studentName = `${student.first_name} ${student.last_name}`.trim();
+    const confirmed = window.confirm(
+      `ลบนักเรียน "${studentName}" ถาวรหรือไม่?\n\nเหมาะสำหรับกรณีนำเข้าซ้ำหรือนำเข้าผิดเท่านั้น ข้อมูลที่ผูกกับนักเรียนคนนี้อาจถูกลบตาม policy ของฐานข้อมูล`,
+    );
+    if (!confirmed) return;
+
+    setNotice(null);
+
+    if (!supabase || !session.workspace) {
+      setStudents((current) => current.filter((item) => item.id !== student.id));
+      if (selectedStudentId === student.id) {
+        const nextStudent = students.find((item) => item.id !== student.id);
+        setSelectedStudentId(nextStudent?.id || '');
+      }
+      setNotice('ลบนักเรียนออกจากโหมดตัวอย่างแล้ว');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', student.id)
+      .eq('workspace_id', session.workspace.id)
+      .select('id');
+
+    if (error) {
+      setNotice(`ลบถาวรไม่สำเร็จ: ${error.message} | ใช้ปุ่มเก็บถาวรก่อนได้ถ้า RLS ยังไม่เปิด delete`);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setNotice('ลบนักเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0015_student_delete_owner_policy.sql หรือบัญชีนี้ไม่มีสิทธิ์ลบนักเรียน');
+      return;
+    }
+
+    setStudents((current) => current.filter((item) => item.id !== student.id));
+    if (selectedStudentId === student.id) {
+      const nextStudent = students.find((item) => item.id !== student.id);
+      setSelectedStudentId(nextStudent?.id || '');
+    }
+    await writeAuditLog({
+      action: 'student.deleted',
+      entityId: student.id,
+      entityTable: 'students',
+      metadata: {
+        classroom_id: student.classroom_id,
+        student_code: student.student_code,
+      },
+      riskLevel: 'high',
+    });
+    setNotice(`ลบนักเรียน ${studentName} ถาวรแล้ว`);
   }
 
   async function handleCareSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1624,13 +2133,54 @@ export function StudentsPage({ session }: StudentsPageProps) {
     }));
   }
 
+  function handleGoogleMapUrlChange(value: string) {
+    const coordinates = extractGoogleMapCoordinates(value);
+    setHomeVisitForm((current) => ({
+      ...current,
+      googleMapUrl: value,
+      latitude: coordinates?.latitude || current.latitude,
+      longitude: coordinates?.longitude || current.longitude,
+    }));
+    if (coordinates) {
+      setNotice('ดึงพิกัดจากลิงก์ Google Maps แล้ว');
+    }
+  }
+
+  function useCurrentHomeVisitLocation() {
+    if (!navigator.geolocation) {
+      setNotice('Browser นี้ยังไม่รองรับการดึงพิกัดอัตโนมัติ กรุณาวางลิงก์ Google Maps หรือกรอกพิกัดเอง');
+      return;
+    }
+
+    setNotice('กำลังขอพิกัดจากอุปกรณ์...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude.toFixed(6);
+        const longitude = position.coords.longitude.toFixed(6);
+        setHomeVisitForm((current) => ({
+          ...current,
+          googleMapUrl: `https://www.google.com/maps?q=${latitude},${longitude}`,
+          latitude,
+          longitude,
+          mapPlaceName: current.mapPlaceName || 'ตำแหน่งที่พักอาศัยจากอุปกรณ์',
+        }));
+        setNotice('ปักหมุดตำแหน่งจากอุปกรณ์เรียบร้อยแล้ว');
+      },
+      () => {
+        setNotice('ไม่สามารถดึงพิกัดได้ กรุณาอนุญาต Location หรือวางลิงก์ Google Maps แทน');
+      },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 },
+    );
+  }
+
   async function uploadHomeVisitPhoto(file: File, photoKind: 'indoor' | 'outdoor') {
     if (!supabase || !session.workspace || !selectedStudent) return null;
 
+    const optimizedFile = await optimizeHomeVisitPhoto(file);
     const bucket = 'home-visit-photos';
-    const storagePath = getHomeVisitStoragePath(session.workspace.id, selectedStudent.id, photoKind, file);
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file, {
-      contentType: file.type || 'application/octet-stream',
+    const storagePath = getHomeVisitStoragePath(session.workspace.id, selectedStudent.id, photoKind, optimizedFile);
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, optimizedFile, {
+      contentType: optimizedFile.type || 'application/octet-stream',
       upsert: false,
     });
 
@@ -1642,14 +2192,19 @@ export function StudentsPage({ session }: StudentsPageProps) {
         bucket,
         content_type: file.type || 'application/octet-stream',
         metadata: {
+          optimized_content_type: optimizedFile.type || null,
+          optimized_filename: optimizedFile.name,
+          optimized_size_bytes: optimizedFile.size,
+          original_size_bytes: file.size,
           photo_kind: photoKind,
           purpose: 'home_visit_photo',
+          resized_for_storage: optimizedFile !== file,
           student_id: selectedStudent.id,
         },
         original_filename: file.name,
         owner_profile_id: session.profile.id,
         privacy_level: 'sensitive',
-        size_bytes: file.size,
+        size_bytes: optimizedFile.size,
         storage_path: storagePath,
         workspace_id: session.workspace.id,
       })
@@ -2159,10 +2714,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
             Student 360
           </div>
           <h1 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
-            จัดการรายชื่อนักเรียน
+            {activeStudentTask.title}
           </h1>
           <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            {session.workspace?.schoolName || 'Demo Workspace'} | {session.workspace?.classroomName || 'ป.5/2'} | ข้อมูลทุกแถวต้องผูก workspace_id
+            {session.workspace?.schoolName || 'Demo Workspace'} | {session.workspace?.classroomName || 'ป.5/2'} | {activeStudentTask.description}
           </p>
         </div>
 
@@ -2180,10 +2735,222 @@ export function StudentsPage({ session }: StudentsPageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <nav
+        aria-label="เมนูย่อย Student 360"
+        className="mt-5 flex gap-2 overflow-x-auto rounded-3xl border border-amber-200/70 bg-white/80 p-2 shadow-sm lg:hidden"
+      >
+        {studentTaskLinks.map((item) => (
+          <Link
+            className={`inline-flex h-10 shrink-0 items-center justify-center rounded-2xl px-4 text-xs font-black ring-1 transition hover:-translate-y-0.5 ${
+              activeStudentView === item.value
+                ? 'bg-slate-950 text-white ring-slate-950'
+                : 'text-slate-600 ring-slate-200 hover:bg-slate-950 hover:text-white hover:ring-slate-950'
+            }`}
+            key={item.value}
+            to={`/app/dashboard?view=students&studentView=${item.value}`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      {!['roster', 'quality'].includes(activeStudentView) ? (
+        <section className="mt-5 rounded-[28px] border border-amber-200/70 bg-white/90 p-4 shadow-sm sm:p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)] lg:items-center">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800 ring-1 ring-amber-100">
+                <UserRound size={15} aria-hidden="true" />
+                เลือกนักเรียน
+              </div>
+              <h2 className="mt-3 truncate text-2xl font-black text-slate-950">
+                {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}
+              </h2>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                {selectedStudent
+                  ? `${selectedStudent.student_code || 'ไม่มีรหัส'} | ${selectedClassroom?.name || 'ยังไม่ระบุห้อง'} | ${statusLabels[selectedStudent.status]}`
+                  : 'เลือกนักเรียนจากช่องด้านขวาเพื่อทำงานในหน้านี้'}
+              </p>
+            </div>
+
+            <label className="grid gap-2 text-sm font-black text-slate-700">
+              เปลี่ยนนักเรียนในหน้านี้
+              <select
+                className="nexus-field h-12 w-full px-3"
+                disabled={studentSwitcherOptions.length === 0}
+                onChange={(event) => setSelectedStudentId(event.target.value)}
+                value={selectedStudent?.id || ''}
+              >
+                {studentSwitcherOptions.length === 0 ? <option value="">ยังไม่มีรายชื่อนักเรียน</option> : null}
+                {studentSwitcherOptions.map((student) => {
+                  const classroom = classrooms.find((item) => item.id === student.classroom_id);
+
+                  return (
+                    <option key={student.id} value={student.id}>
+                      {student.student_code ? `${student.student_code} - ` : ''}
+                      {student.first_name} {student.last_name}
+                      {classroom ? ` | ${classroom.name}` : ' | ยังไม่ผูกห้อง'}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          </div>
+        </section>
+      ) : null}
+
+      {activeStudentView === 'quality' ? (
+        <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="nexus-card p-4 sm:p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="nexus-kicker">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  Data Quality Center
+                </div>
+                <h2 className="mt-4 text-2xl font-black text-slate-950">ตรวจว่าทำไมรายชื่อนักเรียนไม่โผล่</h2>
+                <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
+                  ใช้หน้านี้หลัง import ทุกครั้ง เพื่อตรวจข้อมูลซ้ำ นักเรียนไม่มีห้อง ชื่อ/รหัสว่าง และสถานะที่ถูกซ่อนจากตัวกรองปกติ
+                </p>
+              </div>
+              <div className={`rounded-3xl px-5 py-4 text-center ring-1 ${
+                qualityIssueCount === 0
+                  ? 'bg-emerald-50 text-emerald-800 ring-emerald-100'
+                  : 'bg-amber-50 text-amber-800 ring-amber-100'
+              }`}>
+                <p className="text-3xl font-black">{qualityIssueCount}</p>
+                <p className="text-xs font-black">จุดที่ควรตรวจ</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                { label: 'ไม่มีห้อง', value: studentsWithoutClassroom.length, tone: 'amber' },
+                { label: 'ชื่อ/รหัสว่าง', value: studentsWithBlankIdentity.length, tone: 'rose' },
+                { label: 'ซ้ำ', value: duplicateStudentGroups.reduce((sum, item) => sum + item.group.length, 0), tone: 'cyan' },
+                { label: 'ถูกซ่อนด้วยสถานะ', value: archivedOrInactiveStudents.length, tone: 'slate' },
+              ].map((item) => (
+                <div className="rounded-[24px] border border-slate-200 bg-white/88 p-4 shadow-sm" key={item.label}>
+                  <p className="text-3xl font-black text-slate-950">{item.value}</p>
+                  <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <div className="rounded-[24px] border border-amber-200 bg-amber-50/70 p-4">
+                <h3 className="text-lg font-black text-amber-950">เช็กลำดับนี้เมื่อ import แล้วรายชื่อไม่ขึ้น</h3>
+                <div className="mt-3 grid gap-2 text-sm font-bold leading-6 text-amber-900">
+                  {[
+                    'เปิดตัวกรองเป็นทุกห้องเรียนและทุกสถานะก่อน',
+                    'ดูว่ารายชื่อถูก import เข้าห้องผิด หรือไม่มี classroom_id หรือไม่',
+                    'ตรวจว่ามี workspace ซ้ำและ import เข้า workspace คนละอันหรือไม่',
+                    'ถ้านำเข้าผิดไฟล์ ให้ไปหน้า นำเข้า/สำรอง แล้วใช้จัดการข้อมูลนำเข้าหรือลบรายชื่อที่ผิด',
+                  ].map((item) => (
+                    <div className="flex gap-2" key={item}>
+                      <CheckCircle2 className="mt-0.5 shrink-0" size={16} aria-hidden="true" />
+                      <p>{item}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5"
+                    onClick={() => {
+                      setQuery('');
+                      setRosterClassroomFilter('all');
+                      setRosterStatusFilter('all');
+                    }}
+                    type="button"
+                  >
+                    ล้างตัวกรองรายชื่อ
+                  </button>
+                  <Link
+                    className="blue-action inline-flex h-10 items-center justify-center rounded-2xl px-4 text-xs font-black"
+                    to="/app/dashboard?view=import-export"
+                  >
+                    ไปหน้า Import / Backup
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <QualityList
+                  classrooms={classrooms}
+                  emptyLabel="ไม่พบนักเรียนที่ไม่มีห้อง"
+                  onArchive={(student) => void updateStudentStatus(student, 'archived')}
+                  onDelete={(student) => void deleteStudentPermanently(student)}
+                  onSelect={setSelectedStudentId}
+                  students={studentsWithoutClassroom}
+                  title="นักเรียนไม่มีห้องหรือห้องถูกลบ"
+                />
+                <QualityList
+                  classrooms={classrooms}
+                  emptyLabel="ไม่พบข้อมูลชื่อ/รหัสว่าง"
+                  onArchive={(student) => void updateStudentStatus(student, 'archived')}
+                  onDelete={(student) => void deleteStudentPermanently(student)}
+                  onSelect={setSelectedStudentId}
+                  students={studentsWithBlankIdentity}
+                  title="ชื่อ รหัส หรือข้อมูลหลักว่าง"
+                />
+              </div>
+            </div>
+          </div>
+
+          <aside className="grid gap-5">
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="nexus-kicker">
+                <Users size={18} aria-hidden="true" />
+                รายชื่อซ้ำ
+              </div>
+              <h2 className="mt-4 text-2xl font-black text-slate-950">{duplicateStudentGroups.length} กลุ่มซ้ำ</h2>
+              <div className="mt-4 grid gap-3">
+                {duplicateStudentGroups.map((item) => (
+                  <div className="rounded-[24px] border border-cyan-100 bg-cyan-50/55 p-3" key={item.key}>
+                    <p className="text-xs font-black text-cyan-700">{item.group.length} รายการในกลุ่มนี้</p>
+                    <div className="mt-2 grid gap-2">
+                      {item.group.map((student) => {
+                        const classroom = classrooms.find((classroomItem) => classroomItem.id === student.classroom_id);
+
+                        return (
+                          <div className="rounded-2xl bg-white/90 p-3 ring-1 ring-cyan-100" key={student.id}>
+                            <button
+                              className="text-left text-sm font-black text-slate-950"
+                              onClick={() => setSelectedStudentId(student.id)}
+                              type="button"
+                            >
+                              {student.student_code || 'ไม่มีรหัส'} | {student.first_name} {student.last_name}
+                            </button>
+                            <p className="mt-1 text-xs font-bold text-slate-500">{classroom?.name || 'ยังไม่ผูกห้อง'} | {statusLabels[student.status]}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {duplicateStudentGroups.length === 0 ? (
+                  <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">ไม่พบรายชื่อนักเรียนซ้ำ</div>
+                ) : null}
+              </div>
+            </div>
+
+            <QualityList
+              classrooms={classrooms}
+              emptyLabel="ไม่มีนักเรียนที่ถูกซ่อนด้วยสถานะ"
+              onArchive={(student) => void updateStudentStatus(student, 'active')}
+              onDelete={(student) => void deleteStudentPermanently(student)}
+              onSelect={setSelectedStudentId}
+              students={archivedOrInactiveStudents}
+              title="นักเรียนที่ไม่แสดงในตัวกรองกำลังเรียน"
+            />
+          </aside>
+        </section>
+      ) : null}
+
+      {activeStudentView === 'roster' ? (
+      <section id="student-roster" className="mt-5 scroll-mt-24 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="nexus-card p-4 sm:p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <label className="relative block md:w-[360px]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_220px_180px_auto] xl:items-center">
+            <label className="relative block min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
               <input
                 className="nexus-field h-11 w-full pl-10 pr-3"
@@ -2193,9 +2960,36 @@ export function StudentsPage({ session }: StudentsPageProps) {
               />
             </label>
 
-            <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
+            <select
+              className="nexus-field h-11 px-3"
+              onChange={(event) => setRosterClassroomFilter(event.target.value)}
+              value={rosterClassroomFilter}
+            >
+              <option value="all">ทุกห้องเรียน</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                </option>
+              ))}
+              <option value="">ยังไม่ผูกห้อง</option>
+            </select>
+
+            <select
+              className="nexus-field h-11 px-3"
+              onChange={(event) => setRosterStatusFilter(event.target.value as StudentStatus | 'all')}
+              value={rosterStatusFilter}
+            >
+              <option value="active">กำลังเรียน</option>
+              <option value="all">ทุกสถานะ</option>
+              <option value="archived">เก็บถาวร</option>
+              <option value="inactive">พักใช้งาน</option>
+              <option value="transferred">ย้ายออก</option>
+              <option value="graduated">จบแล้ว</option>
+            </select>
+
+            <div className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-3 text-xs font-black text-slate-600">
               <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
-              RLS workspace isolation
+              แสดง {filteredStudents.length}/{students.length}
             </div>
           </div>
 
@@ -2260,6 +3054,14 @@ export function StudentsPage({ session }: StudentsPageProps) {
                           >
                             <Archive size={16} aria-hidden="true" />
                           </button>
+                          <button
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100"
+                            onClick={() => void deleteStudentPermanently(student)}
+                            type="button"
+                            title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2271,7 +3073,34 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
           {!isLoading && filteredStudents.length === 0 ? (
             <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
-              ยังไม่พบนักเรียนตามเงื่อนไขค้นหา
+              <p>
+                {students.length === 0
+                  ? 'workspace นี้ยังไม่มีนักเรียนในฐานข้อมูล จึงยังทดลองเช็กชื่อ/คะแนน/เยี่ยมบ้านไม่ได้'
+                  : 'ยังไม่พบนักเรียนตามตัวกรองนี้ ลองเปลี่ยนเป็น “ทุกห้องเรียน” และ “ทุกสถานะ” เพื่อตรวจว่ารายชื่อถูกนำเข้าไปอยู่ห้อง/สถานะอื่นหรือไม่'}
+              </p>
+              {students.length === 0 ? (
+                <button
+                  className="blue-action mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={isSubmitting || classrooms.length === 0}
+                  onClick={() => void createDemoStudentsForCurrentWorkspace()}
+                  type="button"
+                >
+                  <UserPlus size={17} aria-hidden="true" />
+                  เพิ่มนักเรียนทดลอง 10 คน
+                </button>
+              ) : (
+                <button
+                  className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 text-sm font-black text-amber-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-50"
+                  onClick={() => {
+                    setQuery('');
+                    setRosterClassroomFilter('all');
+                    setRosterStatusFilter('all');
+                  }}
+                  type="button"
+                >
+                  ล้างตัวกรองและแสดงนักเรียนทั้งหมด
+                </button>
+              )}
             </div>
           ) : null}
         </div>
@@ -2405,8 +3234,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </form>
         </div>
       </section>
+      ) : null}
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+      {activeStudentView === 'home-visit' ? (
+      <section id="student-home-visit" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card overflow-hidden p-0">
           <div className="bg-slate-950 p-5 text-white">
             <div className="flex items-start justify-between gap-4">
@@ -2447,6 +3278,17 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
                   {selectedHomeVisit.address || 'ยังไม่มีที่อยู่เยี่ยมบ้าน'}
                 </p>
+                <a
+                  className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white transition hover:-translate-y-0.5"
+                  href={getGoogleMapsHref(selectedHomeVisit)}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {selectedHomeVisit.googleMapUrl || (selectedHomeVisit.latitude && selectedHomeVisit.longitude)
+                    ? 'เปิดหมุด Google Map'
+                    : 'ค้นหาจากที่อยู่'}
+                  <MapPin size={14} aria-hidden="true" />
+                </a>
               </div>
               <div className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100">
                 <div className="flex items-center gap-2 text-sm font-black text-slate-950">
@@ -2461,7 +3303,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
         </div>
 
-        <form className="nexus-card p-4 sm:p-5" data-testid="home-visit-form" onSubmit={handleHomeVisitSubmit}>
+        <form className="nexus-card p-4 sm:p-6 xl:p-8" data-testid="home-visit-form" onSubmit={handleHomeVisitSubmit}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-black text-cyan-700">Home Visit Form</p>
@@ -2473,195 +3315,469 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
 
           <div className="mt-4 grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                วันที่เยี่ยมบ้าน
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('visitDate', event.target.value)}
-                  type="date"
-                  value={homeVisitForm.visitDate}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ผู้ปกครอง
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('guardianName', event.target.value)}
-                  value={homeVisitForm.guardianName}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ความสัมพันธ์
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('relationship', event.target.value)}
-                  value={homeVisitForm.relationship}
-                />
-              </label>
-            </div>
+            <section className="home-visit-section border-amber-200/70">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">01 Student & Guardian</p>
+                  <h3 className="mt-1 text-lg font-black text-slate-950">ข้อมูลนักเรียนและผู้ปกครอง</h3>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-100">นร.01</span>
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                สมาชิกครัวเรือน
-                <input
-                  className="nexus-field h-11 px-3"
-                  inputMode="numeric"
-                  onChange={(event) => updateHomeVisitField('householdMembers', event.target.value)}
-                  placeholder="รวมตัวนักเรียน"
-                  value={homeVisitForm.householdMembers}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                รายได้รวม/เดือน
-                <input
-                  className="nexus-field h-11 px-3"
-                  inputMode="decimal"
-                  onChange={(event) => updateHomeVisitField('householdIncome', event.target.value)}
-                  placeholder="บาท"
-                  value={homeVisitForm.householdIncome}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ภาระพึ่งพิง
+              <div className="home-visit-grid mt-4">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  วันที่เยี่ยมบ้าน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('visitDate', event.target.value)}
+                    type="date"
+                    value={homeVisitForm.visitDate}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ผู้ปกครอง
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('guardianName', event.target.value)}
+                    value={homeVisitForm.guardianName}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ความสัมพันธ์
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('relationship', event.target.value)}
+                    value={homeVisitForm.relationship}
+                  />
+                </label>
+              </div>
+
+              <div className="home-visit-grid mt-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  เบอร์ติดต่อ
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="tel"
+                    onChange={(event) => updateHomeVisitField('guardianPhone', event.target.value)}
+                    placeholder="08x-xxx-xxxx"
+                    value={homeVisitForm.guardianPhone}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  การศึกษาสูงสุด
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('guardianEducation', event.target.value)}
+                    value={homeVisitForm.guardianEducation}
+                  >
+                    <option>ไม่ได้ศึกษา</option>
+                    <option>ประถมศึกษา</option>
+                    <option>มัธยมศึกษาตอนต้น</option>
+                    <option>มัธยมศึกษาตอนปลาย/ปวช.</option>
+                    <option>ปวส./อนุปริญญา</option>
+                    <option>ปริญญาตรีขึ้นไป</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  อาชีพ
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('guardianOccupation', event.target.value)}
+                    placeholder="เช่น เกษตรกร รับจ้าง ค้าขาย"
+                    value={homeVisitForm.guardianOccupation}
+                  />
+                </label>
+              </div>
+
+              <div className="home-visit-grid mt-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  สถานภาพครอบครัว
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('familyStatus', event.target.value)}
+                    value={homeVisitForm.familyStatus}
+                  >
+                    <option>พ่อแม่อยู่ด้วยกัน</option>
+                    <option>พ่อแม่แยกกันอยู่</option>
+                    <option>พ่อแม่หย่าร้าง</option>
+                    <option>พ่อเสียชีวิต/สาบสูญ</option>
+                    <option>แม่เสียชีวิต/สาบสูญ</option>
+                    <option>เสียชีวิตทั้งคู่/สาบสูญ</option>
+                    <option>พ่อ/แม่ทอดทิ้ง</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  นักเรียนอาศัยอยู่กับ
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('livingWith', event.target.value)}
+                    value={homeVisitForm.livingWith}
+                  >
+                    <option>พ่อ/แม่</option>
+                    <option>ญาติ</option>
+                    <option>อยู่ลำพัง</option>
+                    <option>ผู้อุปการะ/นายจ้าง</option>
+                    <option>ครัวเรือนสถาบัน</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  เลขบัตรผู้ปกครอง
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="numeric"
+                    onChange={(event) => updateHomeVisitField('guardianCitizenId', event.target.value)}
+                    placeholder="13 หลัก หรือเว้นว่าง"
+                    value={homeVisitForm.guardianCitizenId}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="home-visit-section border-cyan-200/70">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">02 Household</p>
+                  <h3 className="mt-1 text-lg font-black text-slate-950">สมาชิกครัวเรือนและรายได้</h3>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">รวมทั้งบ้าน</span>
+              </div>
+
+              <div className="home-visit-grid mt-4">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  สมาชิกครัวเรือน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="numeric"
+                    onChange={(event) => updateHomeVisitField('householdMembers', event.target.value)}
+                    placeholder="รวมตัวนักเรียน"
+                    value={homeVisitForm.householdMembers}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  รายได้รวม/เดือน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('householdIncome', event.target.value)}
+                    placeholder="บาท"
+                    value={homeVisitForm.householdIncome}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  เงินมาโรงเรียน/วัน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('dailyAllowance', event.target.value)}
+                    placeholder="บาท"
+                    value={homeVisitForm.dailyAllowance}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  สวัสดิการแห่งรัฐ
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('welfareSupport', event.target.value)}
+                    value={homeVisitForm.welfareSupport}
+                  >
+                    <option>ไม่ได้รับสวัสดิการแห่งรัฐ</option>
+                    <option>ได้สวัสดิการแห่งรัฐ</option>
+                    <option>ไม่ทราบ/รอตรวจสอบ</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="mt-3 grid gap-2 text-sm font-black text-slate-700">
+                ภาระพึ่งพิง / หมายเหตุครัวเรือน
                 <input
                   className="nexus-field h-11 px-3"
                   onChange={(event) => updateHomeVisitField('dependencyNotes', event.target.value)}
+                  placeholder="เช่น ผู้สูงอายุ ผู้พิการ ว่างงาน เลี้ยงเดี่ยว"
                   value={homeVisitForm.dependencyNotes}
                 />
               </label>
-            </div>
+            </section>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                การอยู่อาศัย
-                <select
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('housingType', event.target.value)}
-                  value={homeVisitForm.housingType}
-                >
-                  <option>อยู่บ้านตนเอง/เจ้าของบ้าน</option>
-                  <option>อยู่บ้านเช่า</option>
-                  <option>อยู่กับผู้อื่น/อยู่ฟรี</option>
-                  <option>หอพัก</option>
-                  <option>ครัวเรือนสถาบัน</option>
-                </select>
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ที่อยู่ปัจจุบัน
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('address', event.target.value)}
-                  placeholder="บ้านเลขที่ หมู่ ซอย ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
-                  value={homeVisitForm.address}
-                />
-              </label>
-            </div>
+            <section className="home-visit-section border-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">03 House & Map</p>
+                  <h3 className="mt-1 text-lg font-black text-slate-950">ที่พักอาศัยและปักหมุด Google Map</h3>
+                </div>
+                <MapPin className="text-cyan-600" size={24} aria-hidden="true" />
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                { key: 'floorMaterial', label: 'พื้นบ้าน', options: ['กระเบื้อง/เซรามิค', 'ซีเมนต์เปลือย', 'ไม้กระดาน', 'ดิน/ทราย', 'อื่น ๆ'] },
-                { key: 'wallMaterial', label: 'ฝาบ้าน', options: ['ฉาบซีเมนต์', 'สังกะสี', 'ไม้กระดาน', 'ไม้อัด', 'ไม้ไผ่/เศษไม้', 'อื่น ๆ'] },
-                { key: 'roofMaterial', label: 'หลังคา', options: ['โลหะ', 'กระเบื้อง/เซรามิค', 'ไม้กระดาน', 'ใบไม้/วัสดุธรรมชาติ', 'อื่น ๆ'] },
-              ].map((field) => (
-                <label className="grid gap-2 text-sm font-black text-slate-700" key={field.key}>
-                  {field.label}
+              <div className="home-visit-grid-wide mt-4">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ที่อยู่ปัจจุบัน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('address', event.target.value)}
+                    placeholder="บ้านเลขที่ หมู่ ซอย ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+                    value={homeVisitForm.address}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  การอยู่อาศัย
                   <select
                     className="nexus-field h-11 px-3"
-                    onChange={(event) => updateHomeVisitField(field.key as keyof HomeVisitFormState, event.target.value)}
-                    value={String(homeVisitForm[field.key as keyof HomeVisitFormState])}
+                    onChange={(event) => updateHomeVisitField('housingType', event.target.value)}
+                    value={homeVisitForm.housingType}
                   >
-                    {field.options.map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
+                    <option>อยู่บ้านตนเอง/เจ้าของบ้าน</option>
+                    <option>อยู่บ้านเช่า</option>
+                    <option>อยู่กับผู้อื่น/อยู่ฟรี</option>
+                    <option>หอพัก</option>
+                    <option>ครัวเรือนสถาบัน</option>
                   </select>
                 </label>
-              ))}
-            </div>
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-4">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ห้องส้วม
-                <select
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('toilet', event.target.value)}
-                  value={homeVisitForm.toilet}
-                >
-                  <option>มี</option>
-                  <option>ไม่มี</option>
-                </select>
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                แหล่งน้ำดื่ม
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('drinkingWater', event.target.value)}
-                  value={homeVisitForm.drinkingWater}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ไฟฟ้า
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('electricity', event.target.value)}
-                  value={homeVisitForm.electricity}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ที่ดินเกษตร
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('farmingLand', event.target.value)}
-                  value={homeVisitForm.farmingLand}
-                />
-              </label>
-            </div>
+              <div className="mt-4 rounded-[24px] border border-sky-200 bg-sky-50/65 p-3 sm:p-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+                  <label className="grid min-w-0 flex-1 gap-2 text-sm font-black text-slate-700">
+                    ลิงก์ Google Maps / หมุดบ้าน
+                    <input
+                      className="nexus-field h-12 w-full px-3"
+                      onChange={(event) => handleGoogleMapUrlChange(event.target.value)}
+                      placeholder="วางลิงก์ Google Maps หลังเลือกหมุด เช่น https://maps.app.goo.gl/..."
+                      value={homeVisitForm.googleMapUrl}
+                    />
+                  </label>
+                  <a
+                    className="sky-action inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                    href={getGoogleMapsPinHref(homeVisitForm)}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    เปิด Google Maps เพื่อปักหมุด
+                    <MapPin size={17} aria-hidden="true" />
+                  </a>
+                </div>
+                <p className="mt-3 text-xs font-bold leading-5 text-sky-800">
+                  วิธีใช้: กดเปิด Google Maps เพื่อค้นหาหรือเลือกตำแหน่งบ้าน จากนั้นคัดลอกลิงก์มาใส่ช่องนี้ ระบบจะดึงพิกัดจากลิงก์ให้เมื่อพบ lat/lng
+                </p>
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-4">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                วิธีเดินทางหลัก
-                <select
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateHomeVisitField('travelMethod', event.target.value)}
-                  value={homeVisitForm.travelMethod}
+              <div className="home-visit-grid mt-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ชื่อหมุด / จุดสังเกต
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('mapPlaceName', event.target.value)}
+                    placeholder="เช่น บ้านนักเรียน หลังวัด"
+                    value={homeVisitForm.mapPlaceName}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  Latitude
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('latitude', event.target.value)}
+                    placeholder="เช่น 14.970000"
+                    value={homeVisitForm.latitude}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  Longitude
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('longitude', event.target.value)}
+                    placeholder="เช่น 104.070000"
+                    value={homeVisitForm.longitude}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ค่าเช่า/เดือน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('rentPerMonth', event.target.value)}
+                    placeholder="บาท"
+                    value={homeVisitForm.rentPerMonth}
+                  />
+                </label>
+              </div>
+
+              <div className="home-visit-grid-wide mt-3">
+                <button
+                  className="sky-action inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                  onClick={useCurrentHomeVisitLocation}
+                  type="button"
                 >
-                  <option>เดิน</option>
-                  <option>จักรยาน</option>
-                  <option>รถโรงเรียน</option>
-                  <option>จักรยานยนต์ส่วนตัว</option>
-                  <option>รถส่วนตัว</option>
-                  <option>รถโดยสารประจำทาง/รับจ้าง</option>
-                  <option>เรือโดยสารประจำทาง/รับจ้าง</option>
-                </select>
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ระยะทาง กม.
-                <input
-                  className="nexus-field h-11 px-3"
-                  inputMode="decimal"
-                  onChange={(event) => updateHomeVisitField('distanceKm', event.target.value)}
-                  value={homeVisitForm.distanceKm}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                เวลา นาที
-                <input
-                  className="nexus-field h-11 px-3"
-                  inputMode="numeric"
-                  onChange={(event) => updateHomeVisitField('travelMinutes', event.target.value)}
-                  value={homeVisitForm.travelMinutes}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ค่าเดินทาง/เดือน
-                <input
-                  className="nexus-field h-11 px-3"
-                  inputMode="decimal"
-                  onChange={(event) => updateHomeVisitField('travelCost', event.target.value)}
-                  value={homeVisitForm.travelCost}
-                />
-              </label>
-            </div>
+                  ใช้พิกัดจากอุปกรณ์
+                  <MapPin size={17} aria-hidden="true" />
+                </button>
+                <a
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-800 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-slate-950 hover:text-white"
+                  href={getGoogleMapsHref(homeVisitForm)}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  เปิดหมุดที่บันทึกไว้
+                  <MapPin size={17} aria-hidden="true" />
+                </a>
+              </div>
+            </section>
+
+            <section className="home-visit-section border-emerald-200/70">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">04 Living Condition</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">สภาพที่อยู่อาศัยและทรัพย์สิน</h3>
+              </div>
+
+              <div className="home-visit-grid mt-4">
+                {[
+                  { key: 'floorMaterial', label: 'พื้นบ้าน', options: ['กระเบื้อง/เซรามิค', 'ปาเก้/ไม้ขัดเงา', 'ซีเมนต์เปลือย', 'ไม้กระดาน', 'ไวนิล/กระเบื้องยาง', 'ไม้ไผ่', 'ดิน/ทราย', 'อื่น ๆ'] },
+                  { key: 'wallMaterial', label: 'ฝาบ้าน', options: ['ฉาบซีเมนต์', 'อิฐ/ก้อนปูน/อิฐบล็อค', 'สังกะสี', 'ไม้กระดาน', 'ไม้อัด', 'สมาร์ทบอร์ด/ไฟเบอร์', 'ไม้ไผ่/เศษไม้', 'ดิน', 'ไวนิล', 'อื่น ๆ'] },
+                  { key: 'roofMaterial', label: 'หลังคา', options: ['โลหะ', 'กระเบื้อง/เซรามิค', 'ไม้กระดาน', 'ใบไม้/วัสดุธรรมชาติ', 'ไวนิล/กระดาษ/แผ่นพลาสติก', 'อื่น ๆ'] },
+                ].map((field) => (
+                  <label className="grid gap-2 text-sm font-black text-slate-700" key={field.key}>
+                    {field.label}
+                    <select
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => updateHomeVisitField(field.key as keyof HomeVisitFormState, event.target.value)}
+                      value={String(homeVisitForm[field.key as keyof HomeVisitFormState])}
+                    >
+                      {field.options.map((option) => (
+                        <option key={option}>{option}</option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+
+              <div className="home-visit-grid mt-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ห้องส้วม
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('toilet', event.target.value)}
+                    value={homeVisitForm.toilet}
+                  >
+                    <option>มี</option>
+                    <option>ไม่มี</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  แหล่งน้ำดื่ม
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('drinkingWater', event.target.value)}
+                    value={homeVisitForm.drinkingWater}
+                  >
+                    <option>น้ำดื่มบรรจุขวด/ตู้หยอดน้ำ</option>
+                    <option>น้ำประปา</option>
+                    <option>น้ำบ่อ/น้ำบาดาล</option>
+                    <option>น้ำฝน/น้ำประปาภูเขา/ลำธาร</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  แหล่งไฟฟ้า
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('electricity', event.target.value)}
+                    value={homeVisitForm.electricity}
+                  >
+                    <option>ไม่มีไฟฟ้า</option>
+                    <option>เครื่องปั่นไฟ/โซลาเซลล์</option>
+                    <option>ไฟต่อพ่วง/แบตเตอรี่</option>
+                    <option>ไฟบ้านหรือมิเตอร์</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="home-visit-grid mt-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ที่ดินเกษตร
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('farmingLand', event.target.value)}
+                    value={homeVisitForm.farmingLand}
+                  >
+                    <option>ไม่ทำเกษตร</option>
+                    <option>ทำเกษตร มีที่ดินน้อยกว่า 1 ไร่</option>
+                    <option>ทำเกษตร มีที่ดิน 1 ถึง 5 ไร่</option>
+                    <option>ทำเกษตร มีที่ดินมากกว่า 5 ไร่</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ยานพาหนะที่ใช้งานได้
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('vehicles', event.target.value)}
+                    placeholder="เช่น ไม่มี, รถมอเตอร์ไซค์, รถปิกอัพ"
+                    value={homeVisitForm.vehicles}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ของใช้ในครัวเรือน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('appliances', event.target.value)}
+                    placeholder="เช่น ตู้เย็น ทีวี เครื่องซักผ้า"
+                    value={homeVisitForm.appliances}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="home-visit-section border-orange-200/70">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">05 Travel</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">การเดินทางจากที่พักไปโรงเรียน</h3>
+              </div>
+
+              <div className="home-visit-grid mt-4">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  วิธีเดินทางหลัก
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => updateHomeVisitField('travelMethod', event.target.value)}
+                    value={homeVisitForm.travelMethod}
+                  >
+                    <option>เดิน</option>
+                    <option>จักรยาน</option>
+                    <option>รถโรงเรียน</option>
+                    <option>จักรยานยนต์ส่วนตัว</option>
+                    <option>รถส่วนตัว</option>
+                    <option>เรือส่วนตัว</option>
+                    <option>จักรยานยนต์รับจ้าง</option>
+                    <option>รถโดยสารประจำทาง/รับจ้าง</option>
+                    <option>เรือโดยสารประจำทาง/รับจ้าง</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ระยะทาง กม.
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('distanceKm', event.target.value)}
+                    value={homeVisitForm.distanceKm}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  เวลา นาที
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="numeric"
+                    onChange={(event) => updateHomeVisitField('travelMinutes', event.target.value)}
+                    value={homeVisitForm.travelMinutes}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ค่าเดินทาง/เดือน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    inputMode="decimal"
+                    onChange={(event) => updateHomeVisitField('travelCost', event.target.value)}
+                    value={homeVisitForm.travelCost}
+                  />
+                </label>
+              </div>
+            </section>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -2733,6 +3849,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
               ))}
             </div>
 
+            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-bold leading-5 text-emerald-800">
+              ระบบจะย่อรูปอัตโนมัติก่อนอัปโหลด: ด้านยาวไม่เกิน {HOME_VISIT_PHOTO_MAX_EDGE}px และบีบอัดเป็น JPEG เพื่อประหยัดพื้นที่จัดเก็บ
+            </div>
+
             <label className="grid gap-2 text-sm font-black text-slate-700">
               หมายเหตุภาพถ่าย/ข้อจำกัด
               <textarea
@@ -2775,8 +3895,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
         </form>
       </section>
+      ) : null}
 
-      <section className="nexus-card mt-5 p-4 sm:p-5">
+      {activeStudentView === 'timeline' ? (
+      <section id="student-timeline" className="nexus-card mt-5 scroll-mt-24 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="nexus-kicker">
@@ -2840,8 +3962,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
         )}
       </section>
+      ) : null}
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      {activeStudentView === 'profile' ? (
+      <section id="student-profile" className="mt-5 scroll-mt-24 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -2989,8 +4113,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
         </div>
       </section>
+      ) : null}
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      {activeStudentView === 'care' ? (
+      <section id="student-care" className="mt-5 scroll-mt-24 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -3324,8 +4450,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </button>
         </form>
       </section>
+      ) : null}
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      {activeStudentView === 'portal' ? (
+      <>
+      <section id="student-portal" className="mt-5 scroll-mt-24 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -3619,6 +4748,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </button>
         </form>
       </section>
+      </>
+      ) : null}
 
       {notice ? (
         <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">

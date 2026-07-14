@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  Archive,
   Banknote,
   Building2,
   CheckCircle2,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   School,
   ShieldCheck,
+  Trash2,
   UserPlus,
   Users,
   XCircle,
@@ -26,6 +28,45 @@ type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'suspended' | 'cancel
 type AdminLevel = 'admin' | 'superadmin';
 type PromptPayIdentifierType = 'national_id' | 'phone';
 type WorkspaceDirectoryFilter = 'active' | 'all' | 'archived';
+
+const controlCenterSections = [
+  {
+    body: 'จำนวน workspace active, นักเรียน, สมาชิก, admin และคำขอสำคัญล่าสุด',
+    href: '#superadmin-overview',
+    icon: ShieldCheck,
+    label: 'ภาพรวมระบบ',
+  },
+  {
+    body: 'ค้นหาโรงเรียน เข้าใช้งานแทน เก็บถาวร ลบ และเตรียม flow รวม workspace ซ้ำ',
+    href: '#superadmin-workspaces',
+    icon: Building2,
+    label: 'โรงเรียน / Workspace',
+  },
+  {
+    body: 'ค้นหาอีเมล เพิ่ม Admin/Superadmin ปิดสิทธิ์ และมองเห็นผู้ดูแลทั้งหมด',
+    href: '#superadmin-users',
+    icon: Users,
+    label: 'ผู้ใช้และสิทธิ์',
+  },
+  {
+    body: 'ดู subscription, payment pending, QR และเตรียม override VIP ราย workspace',
+    href: '#superadmin-billing',
+    icon: Banknote,
+    label: 'แพ็กเกจ / VIP',
+  },
+  {
+    body: 'ตรวจ env, migrations, RLS, storage, Edge Functions และ Cloudflare readiness',
+    href: '#superadmin-health',
+    icon: AlertTriangle,
+    label: 'System Health',
+  },
+  {
+    body: 'ดู log สำคัญ ใครลบอะไร ใครอนุมัติใคร และ export ข้อมูลเพื่อ debug',
+    href: '#superadmin-audit',
+    icon: FileUp,
+    label: 'Audit & Support',
+  },
+];
 
 interface PaymentReviewRow {
   baseAmountThb: number;
@@ -363,6 +404,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [isLoading, setIsLoading] = useState(Boolean(supabase));
   const [isQrSubmitting, setIsQrSubmitting] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [workspaceActionId, setWorkspaceActionId] = useState<string | null>(null);
 
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
   const totalStudentCount = workspaces.reduce((sum, workspace) => sum + workspace.studentCount, 0);
@@ -910,6 +952,97 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     window.location.href = '/app/dashboard';
   }
 
+  async function setWorkspaceArchived(workspace: WorkspaceAdminRow, shouldArchive: boolean) {
+    setWorkspaceActionId(workspace.id);
+    setNotice(null);
+
+    if (!supabase) {
+      setWorkspaces((current) =>
+        current.map((item) =>
+          item.id === workspace.id
+            ? { ...item, archivedAt: shouldArchive ? new Date().toISOString() : null }
+            : item,
+        ),
+      );
+      setNotice(shouldArchive ? 'โหมดตัวอย่าง: เก็บถาวร workspace แล้ว' : 'โหมดตัวอย่าง: กู้คืน workspace แล้ว');
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('workspaces')
+      .update({ archived_at: shouldArchive ? new Date().toISOString() : null })
+      .eq('id', workspace.id)
+      .select('id, archived_at');
+
+    if (error) {
+      setNotice(error.message);
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setNotice('ปรับสถานะ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้อัปเดตแถวจริง โปรดตรวจ RLS/policy ของตาราง workspaces');
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    setWorkspaces((current) =>
+      current.map((item) =>
+        item.id === workspace.id
+          ? { ...item, archivedAt: shouldArchive ? new Date().toISOString() : null }
+          : item,
+      ),
+    );
+    setNotice(shouldArchive ? `เก็บถาวร ${workspace.name} แล้ว` : `กู้คืน ${workspace.name} แล้ว`);
+    setWorkspaceActionId(null);
+  }
+
+  async function deleteWorkspacePermanently(workspace: WorkspaceAdminRow) {
+    const confirmed = window.confirm(
+      `ลบ workspace "${workspace.name}" ถาวรหรือไม่?\n\nข้อมูลห้องเรียน นักเรียน คะแนน เช็กชื่อ เงินออม และข้อมูลที่ผูกกับ workspace นี้จะถูกลบตาม cascade ของฐานข้อมูล`,
+    );
+    if (!confirmed) return;
+
+    const typed = window.prompt('พิมพ์ DELETE เพื่อยืนยันการลบ workspace ถาวร');
+    if (typed !== 'DELETE') {
+      setNotice('ยกเลิกการลบ workspace เพราะไม่ได้พิมพ์ DELETE');
+      return;
+    }
+
+    setWorkspaceActionId(workspace.id);
+    setNotice(null);
+
+    if (!supabase) {
+      setWorkspaces((current) => current.filter((item) => item.id !== workspace.id));
+      setNotice('โหมดตัวอย่าง: ลบ workspace ออกจากรายการแล้ว');
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('workspaces')
+      .delete()
+      .eq('id', workspace.id)
+      .select('id');
+
+    if (error) {
+      setNotice(`ลบ workspace ไม่สำเร็จ: ${error.message}`);
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0016_workspace_classroom_delete_policy.sql หรือสิทธิ์ RLS ยังไม่อนุญาตให้ลบ');
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    setWorkspaces((current) => current.filter((item) => item.id !== workspace.id));
+    setNotice(`ลบ workspace ${workspace.name} ถาวรแล้ว`);
+    setWorkspaceActionId(null);
+  }
+
   return (
     <main className={embedded ? 'min-w-0 px-4 pb-24 pt-4 text-slate-950 sm:px-6 lg:px-8 lg:pb-10' : 'classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8'}>
       {!embedded ? (
@@ -985,7 +1118,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div id="superadmin-overview" className="mt-5 grid scroll-mt-24 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { icon: Building2, label: 'workspace active', value: activeWorkspaceCount },
             { icon: GraduationCap, label: 'นักเรียนทั้งหมด', value: totalStudentCount },
@@ -1018,6 +1151,51 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         ) : null}
 
         <section className="mt-5 nexus-card p-4 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="nexus-kicker">
+                <ShieldCheck size={18} aria-hidden="true" />
+                Superadmin Control Center
+              </div>
+              <h2 className="mt-4 text-2xl font-black text-slate-950">ศูนย์ควบคุมระบบหลัก</h2>
+              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
+                ใช้เมนูย่อยนี้แทนการเลื่อนหายาว ๆ: เริ่มจากภาพรวม แล้วเจาะไป workspace, ผู้ใช้, VIP, สุขภาพระบบ และ audit/debug
+              </p>
+            </div>
+            <Link
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+              to="/app/dashboard?view=setup"
+            >
+              เปิด System Readiness
+            </Link>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {controlCenterSections.map((section) => {
+              const Icon = section.icon;
+
+              return (
+                <a
+                  className="group rounded-[24px] border border-slate-200 bg-white/86 p-4 shadow-sm transition hover:-translate-y-1 hover:border-cyan-200 hover:shadow-[0_20px_48px_rgba(14,165,233,0.12)]"
+                  href={section.href}
+                  key={section.href}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-950 text-cyan-200 transition group-hover:bg-cyan-600 group-hover:text-white">
+                      <Icon size={20} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-black text-slate-950">{section.label}</h3>
+                      <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{section.body}</p>
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+
+        <section id="superadmin-workspaces" className="mt-5 scroll-mt-24 nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="nexus-kicker">
@@ -1105,6 +1283,27 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   </button>
                 </div>
 
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 text-xs font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={workspaceActionId === workspace.id}
+                    onClick={() => void setWorkspaceArchived(workspace, !workspace.archivedAt)}
+                    type="button"
+                  >
+                    <Archive size={16} aria-hidden="true" />
+                    {workspace.archivedAt ? 'กู้คืน workspace' : 'เก็บถาวร workspace'}
+                  </button>
+                  <button
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={workspaceActionId === workspace.id}
+                    onClick={() => void deleteWorkspacePermanently(workspace)}
+                    type="button"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    ลบ workspace ถาวร
+                  </button>
+                </div>
+
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   {[
                     { label: 'ห้อง', value: workspace.classroomCount },
@@ -1128,7 +1327,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <section id="superadmin-users" className="mt-5 grid scroll-mt-24 gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <UserPlus size={18} aria-hidden="true" />
@@ -1236,7 +1435,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section id="superadmin-billing" className="mt-5 grid scroll-mt-24 gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -1531,6 +1730,91 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               </div>
             </div>
           </aside>
+        </section>
+
+        <section className="mt-5 grid gap-5 xl:grid-cols-2">
+          <div id="superadmin-health" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+            <div className="nexus-kicker">
+              <AlertTriangle size={18} aria-hidden="true" />
+              System Health
+            </div>
+            <h2 className="mt-4 text-2xl font-black text-slate-950">ตรวจสุขภาพระบบก่อนเปิดใช้จริง</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+              ส่วนนี้เป็นแผงควบคุมสำหรับ Superadmin เพื่อดูว่า Supabase, RLS, Storage, Edge Functions และ Cloudflare deploy พร้อมหรือยัง
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              {[
+                { label: 'Supabase frontend env', value: isSupabaseReady ? 'พร้อมใช้งาน' : 'ยังไม่พร้อม', tone: isSupabaseReady ? 'ready' : 'warn' },
+                { label: 'Workspace isolation / RLS', value: 'ตรวจผ่านหน้า System Readiness', tone: 'ready' },
+                { label: 'Storage home-visit-photos', value: 'ต้องเปิด policy ก่อนใช้งานจริง', tone: 'warn' },
+                { label: 'Edge Functions payment/admin', value: 'ใช้สำหรับ action สำคัญ ห้ามใส่ service role ใน frontend', tone: 'warn' },
+              ].map((item) => (
+                <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white/86 p-3" key={item.label}>
+                  <div>
+                    <p className="text-sm font-black text-slate-950">{item.label}</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.value}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ring-1 ${
+                    item.tone === 'ready'
+                      ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                      : 'bg-amber-50 text-amber-700 ring-amber-100'
+                  }`}>
+                    {item.tone === 'ready' ? 'ready' : 'ต้องตรวจ'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <Link
+              className="blue-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+              to="/app/dashboard?view=setup"
+            >
+              เปิดหน้า System Readiness
+              <ArrowLeft className="rotate-180" size={17} aria-hidden="true" />
+            </Link>
+          </div>
+
+          <div id="superadmin-audit" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+            <div className="nexus-kicker">
+              <FileUp size={18} aria-hidden="true" />
+              Audit & Support
+            </div>
+            <h2 className="mt-4 text-2xl font-black text-slate-950">ศูนย์ช่วย debug และตรวจย้อนหลัง</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+              ใช้ตรวจว่าใครลบ/เก็บถาวร/อนุมัติ/แก้สิทธิ์อะไร และเป็นจุดส่งออก log เมื่อผู้ใช้แจ้งปัญหา “ข้อมูลไม่โผล่”
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              {[
+                'ใครลบหรือเก็บถาวร workspace/classroom/student',
+                'ใครอนุมัติครูเข้า workspace และให้สิทธิ์อะไร',
+                'คำขอ payment/subscription ล่าสุดและผลอนุมัติ',
+                'error ล่าสุดจาก Edge Function หรือ RLS policy',
+              ].map((item) => (
+                <div className="flex gap-3 rounded-2xl border border-slate-200 bg-white/86 p-3" key={item}>
+                  <CheckCircle2 className="mt-0.5 shrink-0 text-cyan-600" size={17} aria-hidden="true" />
+                  <p className="text-sm font-bold leading-6 text-slate-700">{item}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                to="/app/dashboard?view=audit"
+              >
+                เปิด Audit Center
+              </Link>
+              <button
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 shadow-sm"
+                onClick={() => setNotice('Export log จะผูกกับ Edge Function ในรอบถัดไป เพื่อรวม audit_logs, payment_requests และ workspace action แบบปลอดภัย')}
+                type="button"
+              >
+                เตรียม Export Debug Pack
+              </button>
+            </div>
+          </div>
         </section>
 
         <footer className="mt-6 text-center text-xs font-bold text-slate-500">

@@ -65,7 +65,7 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'workspace-settings',
-    label: 'ตั้งค่าโรงเรียน',
+    label: 'ศูนย์จัดการโรงเรียน',
     icon: School,
     moduleKey: 'support',
     path: '/app/dashboard?view=workspace-settings',
@@ -96,7 +96,7 @@ export const appNavItems: AppNavItem[] = [
 
 export const superadminNavItem: AppNavItem = {
   key: 'superadmin-dashboard',
-  label: 'Superadmin',
+  label: 'Superadmin Center',
   icon: ShieldCheck,
   moduleKey: 'support',
   path: '/app/dashboard?view=superadmin-dashboard',
@@ -149,9 +149,9 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     body: 'รองรับ template import, preview row errors, duplicate check, export และ backup manifest โดยทุกงานต้องผูก workspace_id และมี metadata ตรวจสอบย้อนหลัง',
   },
   'workspace-settings': {
-    eyebrow: 'Workspace Settings',
-    title: 'ตั้งค่าโรงเรียน ปีการศึกษา และห้องเรียนให้พร้อมใช้งาน',
-    body: 'จัดข้อมูล workspace, ห้องหลัก และรายการห้องเรียน พร้อม export settings snapshot และบันทึก audit log เมื่อแก้ข้อมูลสำคัญ',
+    eyebrow: 'Owner Workspace Center',
+    title: 'ศูนย์จัดการโรงเรียนสำหรับเจ้าของ workspace',
+    body: 'รวมอนุมัติครู จัดสิทธิ์สมาชิก เพิ่ม/ลบ/เก็บถาวรห้องเรียน ตั้งค่าข้อมูลโรงเรียน สำรองข้อมูล และเตรียมแผนเลื่อนชั้นปีถัดไปในหน้าเดียว',
   },
   notifications: {
     eyebrow: 'Notification Center',
@@ -160,8 +160,8 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
   },
   setup: {
     eyebrow: 'System Readiness',
-    title: 'ตรวจความพร้อมก่อนใช้งานจริงและย้ายเครื่อง',
-    body: 'รวม checklist สำหรับ Supabase env, migrations, storage bucket, RLS, Edge Functions และ secret ที่ต้องตั้งฝั่ง server ก่อน deploy จริง',
+    title: 'ปิดงาน production launch ก่อนเปิดให้ใช้งานจริง',
+    body: 'รวม checklist สำหรับ Cloudflare Pages, Supabase Auth redirect, workspace smoke test, RLS isolation, migrations, storage bucket, Edge Functions และ secret ที่ต้องตั้งฝั่ง server',
   },
   audit: {
     eyebrow: 'Audit Center',

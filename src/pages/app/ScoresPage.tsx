@@ -12,6 +12,7 @@ import {
   Search,
   ShieldCheck,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
@@ -167,6 +168,21 @@ function parseNumericInput(value: string, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function getClassroomWithRoster(
+  classrooms: ClassroomRow[],
+  students: StudentRow[],
+  assessments: ScoreAssessmentRow[] = [],
+) {
+  const classroomWithStudents = classrooms.find((classroom) =>
+    students.some((student) => student.classroom_id === classroom.id),
+  );
+  const classroomWithAssessment = classrooms.find((classroom) =>
+    assessments.some((assessment) => assessment.classroom_id === classroom.id && assessment.status !== 'archived'),
+  );
+
+  return classroomWithStudents?.id || classroomWithAssessment?.id || classrooms[0]?.id || '';
+}
+
 export function ScoresPage({ session }: ScoresPageProps) {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
@@ -205,8 +221,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
   );
 
   const selectedAssessment = useMemo(
-    () => assessments.find((assessment) => assessment.id === selectedAssessmentId) || classroomAssessments[0] || null,
-    [assessments, classroomAssessments, selectedAssessmentId],
+    () => classroomAssessments.find((assessment) => assessment.id === selectedAssessmentId) || classroomAssessments[0] || null,
+    [classroomAssessments, selectedAssessmentId],
   );
 
   const selectedEntries = useMemo(
@@ -343,6 +359,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
       const nextStudents = (studentRows || []) as StudentRow[];
       const nextAssessments = (assessmentRows || []) as ScoreAssessmentRow[];
       const nextAssessmentIds = nextAssessments.map((assessment) => assessment.id);
+      const nextClassroomId = getClassroomWithRoster(nextClassrooms, nextStudents, nextAssessments);
+      const nextSelectedAssessmentId =
+        nextAssessments.find((assessment) => assessment.classroom_id === nextClassroomId && assessment.status !== 'archived')?.id ||
+        nextAssessments.find((assessment) => assessment.status !== 'archived')?.id ||
+        '';
 
       let nextEntries: ScoreEntryRow[] = [];
       if (nextAssessmentIds.length > 0) {
@@ -366,8 +387,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
       setStudents(nextStudents);
       setAssessments(nextAssessments);
       setEntries(nextEntries);
-      setClassroomId(nextClassrooms[0]?.id || '');
-      setSelectedAssessmentId(nextAssessments[0]?.id || '');
+      setClassroomId(nextClassroomId);
+      setSelectedAssessmentId(nextSelectedAssessmentId);
       setIsLoading(false);
     }
 
@@ -692,12 +713,34 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       </div>
 
+      <section className="mt-5 grid gap-3 lg:grid-cols-3" aria-label="ลำดับการกรอกคะแนน">
+        {[
+          {
+            label: '1. เลือกห้อง',
+            text: classrooms.find((classroom) => classroom.id === classroomId)?.name || 'ยังไม่มีห้องเรียน',
+          },
+          {
+            label: '2. เลือก/สร้างชุดคะแนน',
+            text: selectedAssessment ? selectedAssessment.title : 'สร้างชุดคะแนนก่อนกรอก',
+          },
+          {
+            label: '3. กรอกและบันทึก',
+            text: classroomStudents.length > 0 ? `${classroomStudents.length} คนในห้องนี้` : 'ยังไม่มีรายชื่อนักเรียน',
+          },
+        ].map((step) => (
+          <div className="rounded-3xl border border-amber-200/80 bg-white/80 p-4 shadow-sm" key={step.label}>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">{step.label}</p>
+            <p className="mt-2 truncate text-sm font-black text-slate-950">{step.text}</p>
+          </div>
+        ))}
+      </section>
+
       <section className="mt-5 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="grid gap-5">
           <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void handleCreateAssessment(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <Plus size={16} aria-hidden="true" />
-              สร้างชุดคะแนน
+              1. สร้างชุดคะแนน
             </div>
 
             <div className="mt-4 grid gap-3">
@@ -800,7 +843,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-black text-teal-700">
               <FileSpreadsheet size={16} aria-hidden="true" />
-              ชุดคะแนนในห้องนี้
+              2. ชุดคะแนนในห้องนี้
             </div>
             <div className="mt-4 grid gap-2">
               {classroomAssessments.map((assessment) => (
@@ -886,7 +929,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div>
-                <p className="text-sm font-black text-cyan-700">Scorebook</p>
+                <p className="text-sm font-black text-cyan-700">3. Scorebook</p>
                 <h2 className="mt-1 text-2xl font-black text-slate-950">
                   {selectedAssessment ? selectedAssessment.title : 'ยังไม่ได้เลือกชุดคะแนน'}
                 </h2>
@@ -1039,8 +1082,26 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </div>
 
             {filteredStudents.length === 0 ? (
-              <div className="mt-5 nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ไม่พบนักเรียนตามคำค้นนี้
+              <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">
+                {classroomStudents.length === 0
+                  ? 'ห้องนี้ยังไม่มีรายชื่อนักเรียน ให้เพิ่มหรือนำเข้ารายชื่อก่อนจึงจะกรอกคะแนนได้'
+                  : 'ไม่พบนักเรียนตามคำค้นนี้'}
+                {classroomStudents.length === 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 text-xs font-black text-white transition hover:-translate-y-0.5"
+                      to="/app/dashboard?view=students"
+                    >
+                      เพิ่มนักเรียน
+                    </Link>
+                    <Link
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black text-amber-900 ring-1 ring-amber-200 transition hover:-translate-y-0.5"
+                      to="/app/dashboard?view=import-export"
+                    >
+                      นำเข้ารายชื่อ
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>

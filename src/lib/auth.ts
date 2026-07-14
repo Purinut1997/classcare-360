@@ -209,10 +209,32 @@ export function getDemoModeSearch(currentSearch: string, mode: DemoSessionMode) 
 }
 
 export function getInitialRouteForSession(session: AppSessionContext) {
+  if (session.profile.needsProfile) return '/auth/complete-profile';
+  if (session.profile.role === 'parent') return session.workspace ? '/portal/parent' : '/portal/invitations';
+  if (session.profile.role === 'student') return session.workspace ? '/portal/student' : '/portal/invitations';
+  if (session.profile.role === 'viewer') return session.workspace ? '/app/dashboard?view=reports' : '/app/select-workspace';
   if (session.profile.role === 'superadmin') return session.workspace ? '/app/dashboard' : '/app/select-workspace';
   if (!session.workspace) return '/app/select-workspace';
   if (!canUseModule(session.subscription, 'dashboard')) return '/app/package';
   return '/app/dashboard';
+}
+
+export function getSafeInternalRedirect(value: string | null) {
+  if (!value) return null;
+
+  try {
+    const decoded = decodeURIComponent(value);
+    if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
+    if (decoded.startsWith('/login') || decoded.startsWith('/auth/complete-profile')) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+export function getPostAuthRouteForSession(session: AppSessionContext, requestedRedirect: string | null) {
+  if (session.profile.needsProfile) return '/auth/complete-profile';
+  return getSafeInternalRedirect(requestedRedirect) || getInitialRouteForSession(session);
 }
 
 export function getRouteGuardPreview(session: AppSessionContext, moduleKey: ModuleKey) {

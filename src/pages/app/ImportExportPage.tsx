@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Download, FileUp, Save, ShieldCheck, Upload } from 'lucide-react';
+import { AlertTriangle, Archive, Download, FileUp, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
 
 import { writeAuditLog } from '../../lib/auditLog';
@@ -21,6 +21,7 @@ interface StudentExportRow {
   id: string;
   last_name: string;
   nickname: string | null;
+  status?: 'active' | 'transferred' | 'graduated' | 'inactive' | 'archived';
   student_code: string | null;
 }
 
@@ -109,6 +110,13 @@ interface StudentInsertRow {
 }
 
 const templateHeaders = ['student_code', 'first_name', 'last_name', 'nickname', 'classroom_name'];
+const studentStatusLabels: Record<NonNullable<StudentExportRow['status']>, string> = {
+  active: 'กำลังเรียน',
+  archived: 'เก็บถาวร',
+  graduated: 'จบแล้ว',
+  inactive: 'พักใช้งาน',
+  transferred: 'ย้ายออก',
+};
 const guardianTemplateHeaders = [
   'student_code',
   'relation',
@@ -509,13 +517,51 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อ import/export/backup กับ Supabase จริง',
   );
+  const [studentManageQuery, setStudentManageQuery] = useState('');
+  const [studentManageClassroomId, setStudentManageClassroomId] = useState('all');
+  const [studentManageStatus, setStudentManageStatus] = useState<StudentExportRow['status'] | 'all'>('all');
+  const [selectedManagedStudentIds, setSelectedManagedStudentIds] = useState<string[]>([]);
 
+  const classroomNameById = useMemo(
+    () => Object.fromEntries(classrooms.map((classroom) => [classroom.id, classroom.name])),
+    [classrooms],
+  );
   const existingCodes = useMemo(
-    () => new Set(students.map((student) => student.student_code).filter(Boolean) as string[]),
+    () =>
+      new Set(
+        students
+          .filter((student) => (student.status || 'active') !== 'archived')
+          .map((student) => student.student_code)
+          .filter(Boolean) as string[],
+      ),
     [students],
   );
   const validPreviewRows = previewRows.filter((row) => row.errors.length === 0 && row.warnings.length === 0);
   const invalidPreviewRows = previewRows.filter((row) => row.errors.length > 0 || row.warnings.length > 0);
+  const managedStudents = useMemo(() => {
+    const normalizedQuery = studentManageQuery.trim().toLowerCase();
+
+    return students.filter((student) => {
+      const status = student.status || 'active';
+      if (studentManageStatus !== 'all' && status !== studentManageStatus) return false;
+      if (studentManageClassroomId !== 'all' && student.classroom_id !== studentManageClassroomId) return false;
+      if (!normalizedQuery) return true;
+
+      const haystack = [
+        student.student_code,
+        student.first_name,
+        student.last_name,
+        student.nickname,
+        classroomNameById[student.classroom_id || ''],
+        studentStatusLabels[status],
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedQuery);
+    });
+  }, [classroomNameById, studentManageClassroomId, studentManageQuery, studentManageStatus, students]);
   const studentsByCode = useMemo(
     () =>
       new Map(
@@ -555,7 +601,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,student_code,first_name,last_name,nickname,classroom_id')
+          .select('id,student_code,first_name,last_name,nickname,status,classroom_id')
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false }),
         supabase
@@ -602,7 +648,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   }
 
   function exportStudents() {
-    const classroomNameById = Object.fromEntries(classrooms.map((classroom) => [classroom.id, classroom.name]));
     const lines = [
       templateHeaders.join(','),
       ...students.map((student) =>
@@ -746,6 +791,116 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     return nextClassroom.id;
   }
 
+  function toggleManagedStudentSelection(studentId: string) {
+    setSelectedManagedStudentIds((current) =>
+      current.includes(studentId) ? current.filter((id) => id !== studentId) : [...current, studentId],
+    );
+  }
+
+  function selectAllManagedStudents() {
+    setSelectedManagedStudentIds(managedStudents.map((student) => student.id));
+  }
+
+  async function updateManagedStudentStatus(studentIds: string[], status: NonNullable<StudentExportRow['status']>) {
+    if (studentIds.length === 0) {
+      setNotice('กรุณาเลือกรายชื่อก่อนจัดการ');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase || !session.workspace) {
+      setStudents((current) => current.map((student) => (studentIds.includes(student.id) ? { ...student, status } : student)));
+      setSelectedManagedStudentIds([]);
+      setNotice(`เปลี่ยนสถานะ ${studentIds.length} รายชื่อเป็น ${studentStatusLabels[status]} ในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('students')
+      .update({ status })
+      .in('id', studentIds)
+      .eq('workspace_id', session.workspace.id)
+      .select('id,student_code,first_name,last_name,nickname,status,classroom_id');
+
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const updatedById = new Map(((data || []) as StudentExportRow[]).map((student) => [student.id, student]));
+    setStudents((current) => current.map((student) => updatedById.get(student.id) || student));
+    setSelectedManagedStudentIds([]);
+    await writeAuditLog(session, {
+      action: 'import_job.students_status_changed',
+      entityId: session.workspace.id,
+      entityTable: 'students',
+      metadata: {
+        count: studentIds.length,
+        status,
+        student_ids: studentIds,
+      },
+      riskLevel: status === 'archived' ? 'normal' : 'low',
+      source: 'import_export',
+    });
+    setNotice(`เปลี่ยนสถานะ ${studentIds.length} รายชื่อเป็น ${studentStatusLabels[status]} แล้ว`);
+    setIsSubmitting(false);
+  }
+
+  async function deleteManagedStudents(studentIds: string[]) {
+    if (studentIds.length === 0) {
+      setNotice('กรุณาเลือกรายชื่อก่อนลบ');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ลบนักเรียน ${studentIds.length} รายชื่อถาวรหรือไม่?\n\nใช้เฉพาะกรณีนำเข้าซ้ำหรือนำเข้าผิด ถ้าไม่แน่ใจให้ใช้ “เก็บถาวร” ก่อน`,
+    );
+    if (!confirmed) return;
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase || !session.workspace) {
+      setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
+      setSelectedManagedStudentIds([]);
+      setNotice(`ลบ ${studentIds.length} รายชื่อออกจากโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .in('id', studentIds)
+      .eq('workspace_id', session.workspace.id);
+
+    if (error) {
+      setNotice(`ลบถาวรไม่สำเร็จ: ${error.message} | ใช้เก็บถาวรได้ทันทีถ้า RLS ยังไม่อนุญาต delete`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
+    setSelectedManagedStudentIds([]);
+    await writeAuditLog(session, {
+      action: 'import_job.students_deleted',
+      entityId: session.workspace.id,
+      entityTable: 'students',
+      metadata: {
+        count: studentIds.length,
+        student_ids: studentIds,
+      },
+      riskLevel: 'high',
+      source: 'import_export',
+    });
+    setNotice(`ลบ ${studentIds.length} รายชื่อถาวรแล้ว`);
+    setIsSubmitting(false);
+  }
+
   async function importValidRows() {
     setIsSubmitting(true);
     setNotice(null);
@@ -787,6 +942,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             id: `demo-imported-student-${Date.now()}-${index}`,
             last_name: row.last_name,
             nickname: row.nickname,
+            status: 'active' as const,
             student_code: row.student_code,
           })),
           ...current,
@@ -800,7 +956,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const { data: insertedStudents, error: studentError } = await supabase
         .from('students')
         .insert(rowsToInsert)
-        .select('id,student_code,first_name,last_name,nickname,classroom_id');
+        .select('id,student_code,first_name,last_name,nickname,status,classroom_id');
       if (studentError) throw studentError;
 
       const { error: jobError } = await supabase.from('import_jobs').insert({
@@ -1327,6 +1483,173 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </aside>
 
         <section className="grid gap-5">
+          <div className="nexus-card p-4 sm:p-5">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <p className="text-sm font-black text-amber-700">Imported Students</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  จัดการรายชื่อที่นำเข้าแล้ว {managedStudents.length} รายการ
+                </h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                  ใช้ตรวจรายชื่อซ้ำ ผิดห้อง หรือ import ผิดไฟล์ ก่อนซ่อนด้วยเก็บถาวรหรือลบถาวรเฉพาะรายการที่แน่ใจ
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="nexus-pill inline-flex h-10 items-center justify-center px-3 text-xs font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={managedStudents.length === 0}
+                  onClick={selectAllManagedStudents}
+                  type="button"
+                >
+                  เลือกผลลัพธ์ทั้งหมด
+                </button>
+                <button
+                  className="nexus-pill inline-flex h-10 items-center justify-center gap-2 px-3 text-xs font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
+                  onClick={() => void updateManagedStudentStatus(selectedManagedStudentIds, 'archived')}
+                  type="button"
+                >
+                  <Archive size={15} aria-hidden="true" />
+                  เก็บถาวร
+                </button>
+                <button
+                  className="nexus-pill inline-flex h-10 items-center justify-center gap-2 px-3 text-xs font-black text-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
+                  onClick={() => void updateManagedStudentStatus(selectedManagedStudentIds, 'active')}
+                  type="button"
+                >
+                  <RotateCcw size={15} aria-hidden="true" />
+                  กู้คืน
+                </button>
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
+                  onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
+                  type="button"
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                  ลบถาวร
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_220px_180px_auto] lg:items-center">
+              <label className="relative block min-w-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
+                <input
+                  className="nexus-field h-11 w-full pl-10 pr-3"
+                  onChange={(event) => setStudentManageQuery(event.target.value)}
+                  placeholder="ค้นหาชื่อ รหัส หรือห้องเรียน"
+                  value={studentManageQuery}
+                />
+              </label>
+              <select
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setStudentManageClassroomId(event.target.value)}
+                value={studentManageClassroomId}
+              >
+                <option value="all">ทุกห้องเรียน</option>
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.name}
+                  </option>
+                ))}
+                <option value="">ยังไม่ผูกห้อง</option>
+              </select>
+              <select
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setStudentManageStatus(event.target.value as StudentExportRow['status'] | 'all')}
+                value={studentManageStatus}
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="active">กำลังเรียน</option>
+                <option value="archived">เก็บถาวร</option>
+                <option value="inactive">พักใช้งาน</option>
+                <option value="transferred">ย้ายออก</option>
+                <option value="graduated">จบแล้ว</option>
+              </select>
+              <div className="nexus-pill inline-flex h-11 items-center justify-center px-3 text-xs font-black text-slate-600">
+                เลือกแล้ว {selectedManagedStudentIds.length} คน
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-left">
+                <thead>
+                  <tr className="text-xs font-black uppercase text-slate-500">
+                    <th className="px-3 py-3">เลือก</th>
+                    <th className="px-3 py-3">รหัส</th>
+                    <th className="px-3 py-3">นักเรียน</th>
+                    <th className="px-3 py-3">ห้องเรียน</th>
+                    <th className="px-3 py-3">สถานะ</th>
+                    <th className="px-3 py-3 text-right">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {managedStudents.map((student) => {
+                    const status = student.status || 'active';
+                    const checked = selectedManagedStudentIds.includes(student.id);
+
+                    return (
+                      <tr className={checked ? 'bg-amber-50/80' : 'hover:bg-amber-50/40'} key={student.id}>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <input
+                            checked={checked}
+                            className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                            onChange={() => toggleManagedStudentSelection(student.id)}
+                            type="checkbox"
+                          />
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{student.student_code || '-'}</td>
+                        <td className="px-3 py-3">
+                          <p className="font-black text-slate-950">
+                            {student.first_name} {student.last_name}
+                          </p>
+                          <p className="text-xs font-bold text-slate-500">{student.nickname || 'ไม่มีชื่อเล่น'}</p>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
+                          {classroomNameById[student.classroom_id || ''] || 'ยังไม่ผูกห้อง'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200">
+                            {studentStatusLabels[status]}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              className="nexus-icon-button h-9 w-9"
+                              onClick={() => void updateManagedStudentStatus([student.id], status === 'archived' ? 'active' : 'archived')}
+                              title={status === 'archived' ? 'กู้คืนเป็นกำลังเรียน' : 'เก็บถาวร'}
+                              type="button"
+                            >
+                              {status === 'archived' ? <RotateCcw size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}
+                            </button>
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100"
+                              onClick={() => void deleteManagedStudents([student.id])}
+                              title="ลบถาวร"
+                              type="button"
+                            >
+                              <Trash2 size={16} aria-hidden="true" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {managedStudents.length === 0 ? (
+              <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
+                ไม่พบรายชื่อตามตัวกรองนี้ ถ้านำเข้าแล้วไม่เห็นในเมนูนักเรียน ให้ลองเลือกทุกห้องเรียนและทุกสถานะเพื่อตรวจว่าข้อมูลไปอยู่ผิดห้องหรือถูกเก็บถาวรหรือไม่
+              </div>
+            ) : null}
+          </div>
+
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>

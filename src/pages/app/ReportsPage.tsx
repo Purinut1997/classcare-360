@@ -113,6 +113,22 @@ const statusLabels: Record<AttendanceStatus, string> = {
 
 const statusOrder: AttendanceStatus[] = ['present', 'absent', 'late', 'leave', 'sick', 'activity'];
 
+const monthlyStatusLabels: Record<'absent' | 'late' | 'leave' | 'present', string> = {
+  present: 'มา',
+  late: 'สาย',
+  leave: 'ลา',
+  absent: 'ขาด',
+};
+
+const monthlyStatusAbbreviations: Record<AttendanceStatus, string> = {
+  present: 'มา',
+  late: 'ส',
+  leave: 'ล',
+  sick: 'ป',
+  absent: 'ข',
+  activity: 'ก',
+};
+
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -145,6 +161,42 @@ function round(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
+}
+
+function formatDateKey(year: number, monthIndex: number, day: number) {
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function getReportMonthContext(dateValue: string) {
+  const monthDate = parseLocalDate(dateValue);
+  const year = monthDate.getFullYear();
+  const monthIndex = monthDate.getMonth();
+  const days = Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, index) => {
+    const day = index + 1;
+    const date = new Date(year, monthIndex, day);
+
+    return {
+      day,
+      dateKey: formatDateKey(year, monthIndex, day),
+      isWeekend: date.getDay() === 0 || date.getDay() === 6,
+    };
+  });
+
+  return {
+    days,
+    monthLabel: new Intl.DateTimeFormat('th-TH', {
+      month: 'long',
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+    }).format(monthDate),
+    year,
+  };
+}
+
 function buildReportRows(
   classrooms: ClassroomRow[],
   students: StudentRow[],
@@ -169,158 +221,294 @@ function buildReportRows(
   });
 }
 
-interface ReportSummaryRow {
-  count: number;
-  label: string;
-  status: AttendanceStatus;
-}
-
-interface ReportDetailRow {
-  classroomName: string;
-  date: string;
-  note: string;
-  periodLabel: string;
-  status: AttendanceStatus;
+interface MonthlyAttendanceRow {
+  dailyStatuses: Record<string, AttendanceStatus | null>;
   studentCode: string;
   studentName: string;
-  subjectName: string;
+  totals: Record<'absent' | 'late' | 'leave' | 'present', number>;
+}
+
+interface MonthlyAttendanceGrid {
+  classroom: ClassroomRow | null;
+  dayTotals: Record<number, number>;
+  rows: MonthlyAttendanceRow[];
+  summary: Record<'absent' | 'late' | 'leave' | 'present', number>;
+}
+
+function toMonthlySummaryStatus(status: AttendanceStatus | null): 'absent' | 'late' | 'leave' | 'present' | null {
+  if (!status) return null;
+  if (status === 'present' || status === 'activity') return 'present';
+  if (status === 'late') return 'late';
+  if (status === 'leave' || status === 'sick') return 'leave';
+  return 'absent';
+}
+
+function buildMonthlyAttendanceGrid({
+  attendanceRecords,
+  attendanceSessions,
+  classroomId,
+  classrooms,
+  dateFrom,
+  students,
+}: {
+  attendanceRecords: AttendanceRecordRow[];
+  attendanceSessions: AttendanceSessionRow[];
+  classroomId: string;
+  classrooms: ClassroomRow[];
+  dateFrom: string;
+  students: StudentRow[];
+}): MonthlyAttendanceGrid {
+  const { days } = getReportMonthContext(dateFrom);
+  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null;
+  const selectedClassroomId = selectedClassroom?.id || classroomId;
+  const classroomStudents = students.filter((student) => !selectedClassroomId || student.classroom_id === selectedClassroomId);
+  const sessionsByDate = new Map(
+    attendanceSessions
+      .filter((session) => !selectedClassroomId || session.classroom_id === selectedClassroomId)
+      .map((session) => [session.attendance_date, session]),
+  );
+  const recordsBySessionStudent = new Map(
+    attendanceRecords.map((record) => [`${record.session_id}:${record.student_id}`, record]),
+  );
+  const summary: MonthlyAttendanceGrid['summary'] = {
+    present: 0,
+    late: 0,
+    leave: 0,
+    absent: 0,
+  };
+  const dayTotals: MonthlyAttendanceGrid['dayTotals'] = {};
+
+  const rows = classroomStudents.map((student) => {
+    const dailyStatuses: MonthlyAttendanceRow['dailyStatuses'] = {};
+    const totals: MonthlyAttendanceRow['totals'] = {
+      present: 0,
+      late: 0,
+      leave: 0,
+      absent: 0,
+    };
+
+    days.forEach((day) => {
+      const session = sessionsByDate.get(day.dateKey);
+      const record = session ? recordsBySessionStudent.get(`${session.id}:${student.id}`) : null;
+      const status = record?.status || null;
+      const summaryStatus = toMonthlySummaryStatus(status);
+      dailyStatuses[day.dateKey] = status;
+
+      if (summaryStatus) {
+        totals[summaryStatus] += 1;
+        summary[summaryStatus] += 1;
+        dayTotals[day.day] = (dayTotals[day.day] || 0) + 1;
+      }
+    });
+
+    return {
+      dailyStatuses,
+      studentCode: student.student_code || '-',
+      studentName: `${student.first_name} ${student.last_name}`,
+      totals,
+    };
+  });
+
+  return {
+    classroom: selectedClassroom,
+    dayTotals,
+    rows,
+    summary,
+  };
 }
 
 function buildPrintableReportHtml({
+  attendanceGrid,
   dateFrom,
-  dateTo,
-  reportRows,
+  teacherName,
   schoolName,
-  summary,
+  workspaceName,
 }: {
+  attendanceGrid: MonthlyAttendanceGrid;
   dateFrom: string;
-  dateTo: string;
-  reportRows: ReportDetailRow[];
+  teacherName: string;
   schoolName: string;
-  summary: ReportSummaryRow[];
+  workspaceName: string;
 }) {
-  const summaryRows = summary
+  const { days, monthLabel } = getReportMonthContext(dateFrom);
+  const dayHeaders = days
     .map(
-      (item) => `
-        <tr>
-          <td>${escapeHtml(item.label)}</td>
-          <td class="number">${item.count}</td>
-        </tr>
+      (day) => `
+        <th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>
       `,
     )
     .join('');
-  const detailRows = reportRows
-    .map(
-      (row, index) => `
+  const studentRows = attendanceGrid.rows
+    .map((row, index) => {
+      const dayCells = days
+        .map((day) => {
+          const status = row.dailyStatuses[day.dateKey];
+          return `<td class="day ${day.isWeekend ? 'weekend' : ''}">${status ? escapeHtml(monthlyStatusAbbreviations[status]) : ''}</td>`;
+        })
+        .join('');
+
+      return `
         <tr>
           <td class="number">${index + 1}</td>
-          <td>${escapeHtml(row.date)}</td>
-          <td>${escapeHtml(row.periodLabel)}</td>
-          <td>${escapeHtml(row.classroomName)}</td>
-          <td>${escapeHtml(row.studentCode)}</td>
-          <td>${escapeHtml(row.studentName)}</td>
-          <td>${escapeHtml(statusLabels[row.status])}</td>
-          <td>${escapeHtml(row.subjectName)}</td>
-          <td>${escapeHtml(row.note || '-')}</td>
+          <td class="name">${escapeHtml(row.studentName)}</td>
+          ${dayCells}
+          <td class="sum present">${row.totals.present}</td>
+          <td class="sum late">${row.totals.late}</td>
+          <td class="sum leave">${row.totals.leave}</td>
+          <td class="sum absent">${row.totals.absent}</td>
         </tr>
+      `;
+    })
+    .join('');
+  const totalCells = days
+    .map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${attendanceGrid.dayTotals[day.day] || ''}</td>`)
+    .join('');
+  const summaryCards = (['present', 'late', 'leave', 'absent'] as const)
+    .map(
+      (key) => `
+        <div class="summary-card">
+          <span>${monthlyStatusLabels[key]}</span>
+          <strong>${attendanceGrid.summary[key].toLocaleString('th-TH')}</strong>
+        </div>
       `,
     )
     .join('');
+  const classroomName = attendanceGrid.classroom?.name || workspaceName || '-';
+  const academicYear = attendanceGrid.classroom?.academic_year || '-';
 
   return `<!doctype html>
     <html lang="th">
       <head>
         <meta charset="utf-8" />
-        <title>ClassCare 360 - รายงานเวลาเรียน</title>
+        <title>ClassCare 360 - รายงานเวลาเรียนรายเดือน</title>
         <style>
-          @page { margin: 14mm; size: A4 landscape; }
+          @page { margin: 8mm; size: A4 landscape; }
           * { box-sizing: border-box; }
           body {
-            color: #0f172a;
-            font-family: "Anuphan", "Noto Sans Thai", Arial, sans-serif;
-            line-height: 1.5;
+            color: #07111f;
+            font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, Arial, sans-serif;
+            line-height: 1.25;
             margin: 0;
           }
           header {
-            border-bottom: 2px solid #0ea5e9;
+            border-bottom: 3px solid #2458ff;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 74px minmax(0,1fr) 74px;
+            padding: 10px 0 8px;
+            text-align: center;
+          }
+          .logo {
+            align-items: center;
+            border: 1px solid #bfdbfe;
+            border-radius: 18px;
+            color: #0369a1;
             display: flex;
-            justify-content: space-between;
-            gap: 24px;
-            padding-bottom: 12px;
+            font-size: 14px;
+            font-weight: 900;
+            height: 56px;
+            justify-content: center;
+            width: 56px;
           }
           h1 { font-size: 24px; margin: 0; }
-          h2 { font-size: 16px; margin: 20px 0 8px; }
-          p { margin: 4px 0; }
-          .meta { color: #475569; font-size: 12px; font-weight: 700; text-align: right; }
-          .credit { color: #0369a1; font-size: 11px; font-weight: 800; }
-          table { border-collapse: collapse; page-break-inside: auto; width: 100%; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          th {
-            background: #e0f2fe;
-            color: #0f172a;
-            font-size: 11px;
-            font-weight: 900;
+          .subtitle { font-size: 15px; font-weight: 700; margin: 2px 0; }
+          .classline { font-size: 14px; font-weight: 700; margin: 8px 0 6px; }
+          .summary-grid {
+            display: grid;
+            gap: 6px;
+            grid-template-columns: repeat(4, 1fr);
+            margin: 8px 0;
           }
+          .summary-card {
+            background: #eff6ff;
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+          }
+          .summary-card span { display: block; font-size: 13px; font-weight: 800; }
+          .summary-card strong { color: #1d4ed8; display: block; font-size: 20px; margin-top: 2px; }
+          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
           th, td {
-            border: 1px solid #cbd5e1;
+            border: 1px solid #111827;
             font-size: 11px;
-            padding: 7px 8px;
-            text-align: left;
-            vertical-align: top;
+            height: 18px;
+            padding: 2px 3px;
+            text-align: center;
+            vertical-align: middle;
           }
-          .number { text-align: center; white-space: nowrap; }
-          .summary { max-width: 360px; }
-          footer {
-            border-top: 1px solid #cbd5e1;
-            color: #64748b;
-            font-size: 10px;
-            font-weight: 700;
-            margin-top: 18px;
-            padding-top: 8px;
-            text-align: right;
+          th { background: #f4a3cf; font-weight: 900; }
+          th.name, td.name { text-align: left; width: 190px; }
+          th.number, td.number { width: 34px; }
+          .day { width: 22px; }
+          .weekend { background: #cfd6df !important; }
+          .present { color: #047857; font-weight: 900; }
+          .late { color: #b45309; font-weight: 900; }
+          .leave { color: #075985; font-weight: 900; }
+          .absent { color: #be123c; font-weight: 900; }
+          .sum { background: #fff7cc; width: 38px; }
+          .total { background: #ffe4e6; font-weight: 900; }
+          tfoot td { background: #ffe4e6; font-weight: 900; }
+          .signatures {
+            display: grid;
+            gap: 100px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 28px;
+            text-align: center;
           }
+          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 230px; }
+          .role { font-weight: 800; margin-top: 5px; }
         </style>
       </head>
       <body>
         <header>
+          <div class="logo">C360</div>
           <div>
-            <h1>ClassCare 360 - รายงานเวลาเรียน</h1>
-            <p>${escapeHtml(schoolName)}</p>
-            <p class="credit">Created by MIKPURINUT</p>
+            <h1>รายงานเวลาเรียนระดับชั้น ${escapeHtml(classroomName)} ประจำเดือน ${escapeHtml(monthLabel)}</h1>
+            <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
+            <p class="subtitle">เดือน${escapeHtml(monthLabel)}</p>
           </div>
-          <div class="meta">
-            <p>ช่วงวันที่ ${escapeHtml(dateFrom)} ถึง ${escapeHtml(dateTo)}</p>
-            <p>จำนวนรายการ ${reportRows.length}</p>
-            <p>สร้างเมื่อ ${new Intl.DateTimeFormat('th-TH', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
-              timeZone: 'Asia/Bangkok',
-            }).format(new Date())}</p>
-          </div>
+          <div></div>
         </header>
-        <h2>สรุปสถานะ</h2>
-        <table class="summary">
-          <thead><tr><th>สถานะ</th><th>จำนวน</th></tr></thead>
-          <tbody>${summaryRows}</tbody>
-        </table>
-        <h2>รายละเอียด</h2>
+        <p class="classline">ระดับชั้น: ${escapeHtml(classroomName)}</p>
+        <section class="summary-grid">${summaryCards}</section>
         <table>
           <thead>
             <tr>
-              <th>#</th>
-              <th>วันที่</th>
-              <th>ช่วงเวลา</th>
-              <th>ห้องเรียน</th>
-              <th>รหัส</th>
-              <th>นักเรียน</th>
-              <th>สถานะ</th>
-              <th>วิชา/กิจกรรม</th>
-              <th>หมายเหตุ</th>
+              <th class="number">เลขที่</th>
+              <th class="name">ชื่อ-นามสกุล</th>
+              ${dayHeaders}
+              <th>มา</th>
+              <th>สาย</th>
+              <th>ลา</th>
+              <th>ขาด</th>
             </tr>
           </thead>
-          <tbody>${detailRows}</tbody>
+          <tbody>${studentRows}</tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              <td class="name">รวม</td>
+              ${totalCells}
+              <td>${attendanceGrid.summary.present}</td>
+              <td>${attendanceGrid.summary.late}</td>
+              <td>${attendanceGrid.summary.leave}</td>
+              <td>${attendanceGrid.summary.absent}</td>
+            </tr>
+          </tfoot>
         </table>
-        <footer>ClassCare 360 | Created by MIKPURINUT</footer>
+        <section class="signatures">
+          <div>
+            <span>ลงชื่อ</span><span class="signature-line"></span>
+            <div>(${escapeHtml(teacherName)})</div>
+            <div class="role">ครูประจำชั้น</div>
+          </div>
+          <div>
+            <span>ลงชื่อ</span><span class="signature-line"></span>
+            <div>(................................................)</div>
+            <div class="role">ผู้อำนวยการโรงเรียน</div>
+          </div>
+        </section>
       </body>
     </html>`;
 }
@@ -542,6 +730,19 @@ export function ReportsPage({ session }: ReportsPageProps) {
     [reportRows],
   );
 
+  const monthlyAttendanceGrid = useMemo(
+    () =>
+      buildMonthlyAttendanceGrid({
+        attendanceRecords,
+        attendanceSessions,
+        classroomId,
+        classrooms,
+        dateFrom,
+        students,
+      }),
+    [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, students],
+  );
+
   function exportCsv() {
     const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'เครดิต'];
     const lines = [
@@ -568,72 +769,15 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportExcel() {
-    const summaryRows = summary
-      .map((item) => `
-        <tr>
-          <td>${escapeHtml(item.label)}</td>
-          <td>${item.count}</td>
-        </tr>
-      `)
-      .join('');
-    const detailRows = reportRows
-      .map((row) => `
-        <tr>
-          <td>${escapeHtml(row.date)}</td>
-          <td>${escapeHtml(row.periodLabel)}</td>
-          <td>${escapeHtml(row.classroomName)}</td>
-          <td>${escapeHtml(row.studentCode)}</td>
-          <td>${escapeHtml(row.studentName)}</td>
-          <td>${escapeHtml(statusLabels[row.status])}</td>
-          <td>${escapeHtml(row.subjectName)}</td>
-          <td>${escapeHtml(row.note || '-')}</td>
-        </tr>
-      `)
-      .join('');
-    const html = `
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            body { font-family: Arial, sans-serif; }
-            h1, h2, p { margin: 0 0 10px; }
-            table { border-collapse: collapse; margin: 12px 0 24px; width: 100%; }
-            th { background: #e0f2fe; color: #0f172a; font-weight: 700; }
-            th, td { border: 1px solid #cbd5e1; padding: 8px; mso-number-format:"\\@"; }
-          </style>
-        </head>
-        <body>
-          <h1>ClassCare 360 - รายงานเวลาเรียน</h1>
-          <p>${escapeHtml(session.workspace?.schoolName || 'Demo Workspace')} | ${escapeHtml(dateFrom)} ถึง ${escapeHtml(dateTo)}</p>
-          <p>Created by MIKPURINUT</p>
-          <h2>สรุปสถานะ</h2>
-          <table>
-            <thead>
-              <tr><th>สถานะ</th><th>จำนวน</th></tr>
-            </thead>
-            <tbody>${summaryRows}</tbody>
-          </table>
-          <h2>รายละเอียด</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>วันที่</th>
-                <th>ช่วงเวลา</th>
-                <th>ห้องเรียน</th>
-                <th>รหัส</th>
-                <th>นักเรียน</th>
-                <th>สถานะ</th>
-                <th>วิชา/กิจกรรม</th>
-                <th>หมายเหตุ</th>
-              </tr>
-            </thead>
-            <tbody>${detailRows}</tbody>
-          </table>
-        </body>
-      </html>
-    `;
+    const html = buildPrintableReportHtml({
+      attendanceGrid: monthlyAttendanceGrid,
+      dateFrom,
+      schoolName: session.workspace?.schoolName || 'Demo Workspace',
+      teacherName: session.profile.displayName,
+      workspaceName: session.workspace?.name || 'Demo Workspace',
+    });
     downloadBlob(
-      `classcare-attendance-${dateFrom}-${dateTo}.xls`,
+      `classcare-attendance-monthly-${dateFrom.slice(0, 7)}.xls`,
       new Blob([`\uFEFF${html}`], { type: 'application/vnd.ms-excel;charset=utf-8' }),
     );
   }
@@ -676,11 +820,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
     printWindow.document.open();
     printWindow.document.write(
       buildPrintableReportHtml({
+        attendanceGrid: monthlyAttendanceGrid,
         dateFrom,
-        dateTo,
-        reportRows,
         schoolName: session.workspace?.schoolName || 'Demo Workspace',
-        summary,
+        teacherName: session.profile.displayName,
+        workspaceName: session.workspace?.name || 'Demo Workspace',
       }),
     );
     printWindow.document.close();
@@ -712,7 +856,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             type="button"
           >
             <Printer size={17} aria-hidden="true" />
-            PDF/พิมพ์
+            PDF/พิมพ์แบบรายเดือน
           </button>
           <button
             className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
@@ -730,7 +874,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             type="button"
           >
             <Download size={17} aria-hidden="true" />
-            Excel
+            Excel แบบรายเดือน
           </button>
           <button
             className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"

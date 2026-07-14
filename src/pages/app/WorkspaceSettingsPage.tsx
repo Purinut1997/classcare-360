@@ -1,8 +1,8 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Download, Plus, Save, School, ShieldCheck, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Download, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
-import { roleLabels } from '../../lib/roles';
+import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
 
@@ -59,6 +59,34 @@ const memberRoleOptions: Array<{ label: string; value: ManageableMemberRole }> =
   { label: 'ผู้ดูรายงาน', value: 'viewer' },
 ];
 
+const workspaceControlSections = [
+  {
+    body: 'ตรวจคำขอครูเข้า workspace และอนุมัติก่อนให้เห็นข้อมูลนักเรียน',
+    href: '#workspace-members',
+    label: 'อนุมัติครู',
+  },
+  {
+    body: 'เพิ่ม เก็บถาวร หรือลบห้องเรียน โดยนักเรียนจะไม่ถูกลบตามห้อง',
+    href: '#workspace-classrooms',
+    label: 'ห้องเรียน',
+  },
+  {
+    body: 'ตั้งชื่อโรงเรียน ปีการศึกษา ห้องหลัก และข้อมูลพื้นฐานของ workspace',
+    href: '#workspace-profile',
+    label: 'ข้อมูลโรงเรียน',
+  },
+  {
+    body: 'สำรอง snapshot การตั้งค่าและเตรียมส่งออก debug ให้ผู้ดูแลระบบ',
+    href: '#workspace-backup',
+    label: 'สำรองข้อมูล',
+  },
+  {
+    body: 'เตรียมแผนเลื่อนชั้น เช่น ป.5/1 ไป ป.6/1 สำหรับปีการศึกษาถัดไป',
+    href: '#workspace-rollover',
+    label: 'เลื่อนชั้น',
+  },
+];
+
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -71,6 +99,7 @@ function downloadJson(filename: string, payload: unknown) {
 
 export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
+  const [classroomStudentCounts, setClassroomStudentCounts] = useState<Record<string, number>>({});
   const [members, setMembers] = useState<WorkspaceMemberRow[]>(demoMembers);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,6 +121,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     gradeLevel: 'ป.5',
     name: session.workspace?.classroomName || 'ป.5/2',
   });
+  const [rolloverForm, setRolloverForm] = useState({
+    fromYear: session.workspace?.academicYear || '2569',
+    toYear: String(Number(session.workspace?.academicYear || '2569') + 1),
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -99,6 +132,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     async function loadSettings() {
       if (!supabase || !session.workspace) {
         setClassrooms(demoClassrooms);
+        setClassroomStudentCounts({ [demoClassrooms[0].id]: 0 });
         setMembers(demoMembers);
         setIsLoading(false);
         return;
@@ -110,6 +144,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       const [
         { data: workspaceRow, error: workspaceError },
         { data: classroomRows, error: classroomError },
+        { data: studentRows, error: studentError },
         { data: memberRows, error: memberError },
       ] = await Promise.all([
         supabase
@@ -123,6 +158,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           .eq('workspace_id', session.workspace.id)
           .order('status', { ascending: true })
           .order('name', { ascending: true }),
+        supabase
+          .from('students')
+          .select('classroom_id')
+          .eq('workspace_id', session.workspace.id),
         supabase.rpc('get_workspace_members', {
           target_workspace_id: session.workspace.id,
         }),
@@ -130,8 +169,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
       if (!isMounted) return;
 
-      if (workspaceError || classroomError) {
-        setNotice(workspaceError?.message || classroomError?.message || 'โหลดข้อมูลตั้งค่าโรงเรียนไม่สำเร็จ');
+      if (workspaceError || classroomError || studentError) {
+        setNotice(workspaceError?.message || classroomError?.message || studentError?.message || 'โหลดข้อมูลตั้งค่าโรงเรียนไม่สำเร็จ');
         setIsLoading(false);
         return;
       }
@@ -157,6 +196,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         name: settings.classroom_name || session.workspace?.classroomName || current.name,
       }));
       setClassrooms((classroomRows || []) as ClassroomRow[]);
+      const nextCounts = ((studentRows || []) as Array<{ classroom_id: string | null }>).reduce<Record<string, number>>((counts, student) => {
+        if (!student.classroom_id) return counts;
+        counts[student.classroom_id] = (counts[student.classroom_id] || 0) + 1;
+        return counts;
+      }, {});
+      setClassroomStudentCounts(nextCounts);
       setIsLoading(false);
     }
 
@@ -183,6 +228,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     () => members.filter((member) => member.status !== 'invited'),
     [members],
   );
+  const canUseDestructiveActions = canManageWorkspace(session.profile.role);
 
   async function saveWorkspaceSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -301,6 +347,222 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setClassrooms((current) => [classroom, ...current]);
     setClassroomForm((current) => ({ ...current, name: '' }));
     setNotice('เพิ่มห้องเรียนแล้ว');
+    setIsSubmitting(false);
+  }
+
+  async function setClassroomStatus(classroom: ClassroomRow, status: ClassroomRow['status']) {
+    if (!canUseDestructiveActions) {
+      setNotice('เฉพาะ Superadmin หรือเจ้าของ workspace เท่านั้นที่จัดการสถานะห้องเรียนได้');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase || !session.workspace) {
+      setClassrooms((current) => current.map((item) => (item.id === classroom.id ? { ...item, status } : item)));
+      setNotice(`เปลี่ยนสถานะห้องเรียนเป็น ${status === 'active' ? 'active' : 'archived'} ในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('classrooms')
+      .update({ status })
+      .eq('id', classroom.id)
+      .eq('workspace_id', session.workspace.id)
+      .select('id,name,grade_level,academic_year,status')
+      .single();
+
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const nextClassroom = data as ClassroomRow;
+    setClassrooms((current) => current.map((item) => (item.id === nextClassroom.id ? nextClassroom : item)));
+    await writeAuditLog(session, {
+      action: `classroom.${status}`,
+      entityId: classroom.id,
+      entityTable: 'classrooms',
+      metadata: {
+        name: classroom.name,
+        status,
+      },
+      riskLevel: status === 'archived' ? 'normal' : 'low',
+      source: 'workspace_settings',
+    });
+    setNotice(`เปลี่ยนสถานะห้องเรียน ${classroom.name} เป็น ${status === 'active' ? 'active' : 'archived'} แล้ว`);
+    setIsSubmitting(false);
+  }
+
+  async function deleteClassroomPermanently(classroom: ClassroomRow) {
+    if (!canUseDestructiveActions) {
+      setNotice('เฉพาะ Superadmin หรือเจ้าของ workspace เท่านั้นที่ลบห้องเรียนได้');
+      return;
+    }
+
+    const studentCount = classroomStudentCounts[classroom.id] || 0;
+    const confirmed = window.confirm(
+      `ลบห้องเรียน "${classroom.name}" ถาวรหรือไม่?\n\nนักเรียน ${studentCount} คนในห้องนี้จะไม่ถูกลบ แต่จะถูกปลดออกจากห้องเรียนนี้และไปอยู่สถานะ “ยังไม่ผูกห้อง”`,
+    );
+    if (!confirmed) return;
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase || !session.workspace) {
+      setClassrooms((current) => current.filter((item) => item.id !== classroom.id));
+      setClassroomStudentCounts((current) => {
+        const next = { ...current };
+        delete next[classroom.id];
+        return next;
+      });
+      setNotice('ลบห้องเรียนออกจากโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('classrooms')
+      .delete()
+      .eq('id', classroom.id)
+      .eq('workspace_id', session.workspace.id)
+      .select('id');
+
+    if (error) {
+      setNotice(`ลบห้องเรียนไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setNotice('ลบห้องเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0016_workspace_classroom_delete_policy.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
+      setIsSubmitting(false);
+      return;
+    }
+
+    setClassrooms((current) => current.filter((item) => item.id !== classroom.id));
+    setClassroomStudentCounts((current) => {
+      const next = { ...current };
+      delete next[classroom.id];
+      return next;
+    });
+    await writeAuditLog(session, {
+      action: 'classroom.deleted',
+      entityId: classroom.id,
+      entityTable: 'classrooms',
+      metadata: {
+        name: classroom.name,
+        student_count: studentCount,
+      },
+      riskLevel: 'high',
+      source: 'workspace_settings',
+    });
+    setNotice(`ลบห้องเรียน ${classroom.name} ถาวรแล้ว`);
+    setIsSubmitting(false);
+  }
+
+  async function archiveCurrentWorkspace() {
+    if (!session.workspace) return;
+    if (!canUseDestructiveActions) {
+      setNotice('เฉพาะ Superadmin หรือเจ้าของ workspace เท่านั้นที่เก็บถาวร workspace ได้');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `เก็บถาวร workspace "${workspaceForm.name}" หรือไม่?\n\nผู้ใช้จะไม่ควรใช้งาน workspace นี้ต่อ แต่ข้อมูลยังอยู่ในฐานข้อมูล`,
+    );
+    if (!confirmed) return;
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase) {
+      setNotice('เก็บถาวร workspace ในโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('workspaces')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', session.workspace.id);
+
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    await writeAuditLog(session, {
+      action: 'workspace.archived',
+      entityId: session.workspace.id,
+      entityTable: 'workspaces',
+      metadata: {
+        name: workspaceForm.name,
+        school_name: workspaceForm.schoolName,
+      },
+      riskLevel: 'high',
+      source: 'workspace_settings',
+    });
+    setNotice('เก็บถาวร workspace แล้ว กำลังพาไปหน้าเลือก/สร้าง workspace');
+    setTimeout(() => {
+      window.location.href = '/app/select-workspace';
+    }, 800);
+    setIsSubmitting(false);
+  }
+
+  async function deleteCurrentWorkspacePermanently() {
+    if (!session.workspace) return;
+    if (!canUseDestructiveActions) {
+      setNotice('เฉพาะ Superadmin หรือเจ้าของ workspace เท่านั้นที่ลบ workspace ได้');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ลบ workspace "${workspaceForm.name}" ถาวรหรือไม่?\n\nการลบนี้จะลบข้อมูลที่ผูกกับ workspace นี้ทั้งหมด เช่น ห้องเรียน นักเรียน เช็กชื่อ คะแนน เงินออม และไฟล์ที่อ้างอิงในฐานข้อมูล`,
+    );
+    if (!confirmed) return;
+
+    const typed = window.prompt('พิมพ์ DELETE เพื่อยืนยันการลบ workspace ถาวร');
+    if (typed !== 'DELETE') {
+      setNotice('ยกเลิกการลบ workspace เพราะไม่ได้พิมพ์ DELETE');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase) {
+      setNotice('ลบ workspace ในโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('workspaces')
+      .delete()
+      .eq('id', session.workspace.id)
+      .select('id');
+
+    if (error) {
+      setNotice(`ลบ workspace ไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0016_workspace_classroom_delete_policy.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
+      setIsSubmitting(false);
+      return;
+    }
+
+    setNotice('ลบ workspace ถาวรแล้ว กำลังพาไปหน้าเลือก/สร้าง workspace');
+    setTimeout(() => {
+      window.location.href = '/app/select-workspace';
+    }, 800);
     setIsSubmitting(false);
   }
 
@@ -430,7 +692,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     downloadJson(`classcare-workspace-settings-${new Date().toISOString().slice(0, 10)}.json`, {
       app: 'ClassCare 360',
       classrooms,
+      classroomStudentCounts,
       exportedAt: new Date().toISOString(),
+      members,
       ownerRole: session.profile.role,
       schemaVersion: 'classcare-workspace-settings-v1',
       workspace: {
@@ -438,6 +702,34 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         id: session.workspace?.id || null,
       },
     });
+  }
+
+  function exportRolloverPlan() {
+    const fromYear = rolloverForm.fromYear.trim();
+    const toYear = rolloverForm.toYear.trim();
+    const plan = activeClassrooms.map((classroom) => ({
+      currentAcademicYear: classroom.academic_year || fromYear,
+      currentClassroomId: classroom.id,
+      currentClassroomName: classroom.name,
+      currentGradeLevel: classroom.grade_level,
+      nextAcademicYear: toYear,
+      nextClassroomName: classroom.name,
+      nextGradeLevel: classroom.grade_level,
+      studentCount: classroomStudentCounts[classroom.id] || 0,
+    }));
+
+    downloadJson(`classcare-rollover-plan-${fromYear}-to-${toYear}.json`, {
+      app: 'ClassCare 360',
+      exportedAt: new Date().toISOString(),
+      note: 'ไฟล์นี้เป็นแผนเลื่อนชั้นแบบ preview ยังไม่ย้ายข้อมูลจริง ควรตรวจชื่อห้อง/ปีการศึกษาก่อนสร้างข้อมูลปีใหม่',
+      plan,
+      workspace: {
+        id: session.workspace?.id || null,
+        name: workspaceForm.name,
+        schoolName: workspaceForm.schoolName,
+      },
+    });
+    setNotice(`สร้างแผนเลื่อนชั้น ${fromYear} -> ${toYear} แล้ว ยังไม่ย้ายข้อมูลจริง`);
   }
 
   return (
@@ -481,9 +773,40 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </div>
       </section>
 
+      <section className="nexus-card mt-5 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+              <ShieldCheck size={17} aria-hidden="true" />
+              Owner Workspace Control Center
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">ศูนย์จัดการโรงเรียน</h2>
+            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-500">
+              รวมงานของเจ้าของ workspace ไว้ในหน้าเดียว: อนุมัติครู จัดสิทธิ์ ห้องเรียน ตั้งค่าโรงเรียน สำรองข้อมูล และเตรียมเลื่อนชั้นปีถัดไป
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+            เจ้าของ workspace ใช้งานห้องเรียนได้ด้วย
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {workspaceControlSections.map((section) => (
+            <a
+              className="rounded-[24px] border border-slate-200 bg-white/86 p-4 shadow-sm transition hover:-translate-y-1 hover:border-cyan-200 hover:shadow-[0_18px_42px_rgba(14,165,233,0.12)]"
+              href={section.href}
+              key={section.href}
+            >
+              <p className="text-base font-black text-slate-950">{section.label}</p>
+              <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{section.body}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
       <section className="mt-5 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="grid gap-5">
-          <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void saveWorkspaceSettings(event)}>
+          <form id="workspace-profile" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <ShieldCheck size={16} aria-hidden="true" />
               ข้อมูล workspace
@@ -624,7 +947,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </form>
         </div>
 
-        <section className="nexus-card p-4 sm:p-5">
+        <section id="workspace-classrooms" className="scroll-mt-24 nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-black text-cyan-700">Classrooms</p>
@@ -644,16 +967,39 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                     <p className="mt-1 text-sm font-bold text-slate-500">
                       {classroom.grade_level || 'ไม่ระบุระดับ'} | ปีการศึกษา {classroom.academic_year || '-'}
                     </p>
+                    <p className="mt-1 text-xs font-black text-slate-400">
+                      นักเรียน {classroomStudentCounts[classroom.id] || 0} คน
+                    </p>
                   </div>
-                  <span
-                    className={`w-fit rounded-full px-3 py-1 text-xs font-black ring-1 ${
-                      classroom.status === 'active'
-                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
-                        : 'bg-slate-100 text-slate-500 ring-slate-200'
-                    }`}
-                  >
-                    {classroom.status === 'active' ? 'active' : 'archived'}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`w-fit rounded-full px-3 py-1 text-xs font-black ring-1 ${
+                        classroom.status === 'active'
+                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                          : 'bg-slate-100 text-slate-500 ring-slate-200'
+                      }`}
+                    >
+                      {classroom.status === 'active' ? 'active' : 'archived'}
+                    </span>
+                    <button
+                      className="nexus-icon-button h-10 w-10"
+                      disabled={isSubmitting || !canUseDestructiveActions}
+                      onClick={() => void setClassroomStatus(classroom, classroom.status === 'active' ? 'archived' : 'active')}
+                      title={classroom.status === 'active' ? 'เก็บถาวรห้องเรียน' : 'กู้คืนห้องเรียน'}
+                      type="button"
+                    >
+                      {classroom.status === 'active' ? <Archive size={16} aria-hidden="true" /> : <RotateCcw size={16} aria-hidden="true" />}
+                    </button>
+                    <button
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isSubmitting || !canUseDestructiveActions}
+                      onClick={() => void deleteClassroomPermanently(classroom)}
+                      title="ลบห้องเรียนถาวร"
+                      type="button"
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
@@ -666,7 +1012,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </section>
       </section>
 
-      <section className="nexus-card mt-5 p-4 sm:p-5">
+      <section id="workspace-members" className="scroll-mt-24 nexus-card mt-5 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
@@ -812,6 +1158,101 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           <Users className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
           <p>{memberNotice}</p>
         </div>
+      ) : null}
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div id="workspace-backup" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+            <Download size={17} aria-hidden="true" />
+            Backup & Debug Snapshot
+          </div>
+          <h2 className="mt-2 text-2xl font-black text-slate-950">สำรองข้อมูลตั้งค่า workspace</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+            ดาวน์โหลด snapshot สำหรับตรวจโรงเรียน ห้องเรียน สมาชิก และจำนวนเด็กต่อห้อง ใช้ส่ง debug ได้เมื่อเจอปัญหาข้อมูลไม่โผล่หรือ workspace ซ้ำ
+          </p>
+          <button
+            className="blue-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+            onClick={exportSettingsSnapshot}
+            type="button"
+          >
+            Export settings snapshot
+            <Download size={17} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div id="workspace-rollover" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+            <RotateCcw size={17} aria-hidden="true" />
+            Academic Year Rollover
+          </div>
+          <h2 className="mt-2 text-2xl font-black text-slate-950">เตรียมเลื่อนชั้นปีถัดไป</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+            รอบนี้ทำเป็น preview/export ก่อน เพื่อกันการย้ายข้อมูลผิดปี เมื่อพร้อมค่อยผูก Edge Function ให้สร้างห้องปีใหม่และย้ายนักเรียนแบบมี audit log
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-2 text-sm font-black text-slate-700">
+              ปีเดิม
+              <input
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setRolloverForm((current) => ({ ...current, fromYear: event.target.value }))}
+                value={rolloverForm.fromYear}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-black text-slate-700">
+              ปีถัดไป
+              <input
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setRolloverForm((current) => ({ ...current, toYear: event.target.value }))}
+                value={rolloverForm.toYear}
+              />
+            </label>
+          </div>
+          <button
+            className="dark-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+            onClick={exportRolloverPlan}
+            type="button"
+          >
+            สร้างแผนเลื่อนชั้น
+            <Download size={17} aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+
+      {canUseDestructiveActions ? (
+      <section className="mt-5 rounded-[28px] border border-rose-200 bg-rose-50/45 p-4 shadow-sm sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
+              <AlertTriangle size={15} aria-hidden="true" />
+              Danger Zone
+            </div>
+            <h2 className="mt-3 text-2xl font-black text-slate-950">จัดการ workspace นี้</h2>
+            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
+              เก็บถาวรเหมาะกับ workspace ที่ไม่ใช้งานแล้ว ส่วนลบถาวรใช้เฉพาะ workspace ที่สร้างซ้ำหรือผิดเท่านั้น เพราะข้อมูลที่ผูกกับ workspace จะถูกลบตาม cascade ของฐานข้อมูล
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting || !session.workspace}
+              onClick={() => void archiveCurrentWorkspace()}
+              type="button"
+            >
+              <Archive size={17} aria-hidden="true" />
+              เก็บถาวร workspace
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-rose-700 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting || !session.workspace}
+              onClick={() => void deleteCurrentWorkspacePermanently()}
+              type="button"
+            >
+              <Trash2 size={17} aria-hidden="true" />
+              ลบ workspace ถาวร
+            </button>
+          </div>
+        </div>
+      </section>
       ) : null}
 
       {notice ? (

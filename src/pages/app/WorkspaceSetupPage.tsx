@@ -91,6 +91,8 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
 
   const demoQuery = searchParams.get('demo');
   const dashboardTarget = demoQuery && !supabase ? `/app/dashboard?demo=${demoQuery}` : '/app/dashboard';
+  const canCreateWorkspace = session.profile.role === 'teacher_owner' || session.profile.role === 'superadmin';
+  const canRequestWorkspaceAccess = session.profile.role === 'teacher_owner' || session.profile.role === 'teacher_member';
 
   useEffect(() => {
     if (preferredSchoolName) {
@@ -368,7 +370,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
           </Link>
         </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_410px]">
+        <div className={`mt-6 grid gap-5 ${canCreateWorkspace ? 'lg:grid-cols-[minmax(0,1fr)_410px]' : ''}`}>
           <div className="grid gap-3">
             {isLoadingWorkspaces ? (
               <div className="glass-panel rounded-[2rem] p-5 text-sm font-black text-slate-600">
@@ -417,7 +419,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
               </article>
             ))}
 
-            {!isLoadingWorkspaces && joinableWorkspaces.length > 0 ? (
+            {!isLoadingWorkspaces && canRequestWorkspaceAccess && joinableWorkspaces.length > 0 ? (
               <section className="glass-panel rounded-[2rem] p-5">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
@@ -475,6 +477,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
             ) : null}
           </div>
 
+          {canCreateWorkspace ? (
           <form className="glass-panel rounded-[2rem] p-5" onSubmit={handleSubmit}>
             <div className="inline-flex h-10 items-center gap-2 rounded-full bg-slate-950 px-3 text-xs font-black text-cyan-100">
               <Plus size={16} aria-hidden="true" />
@@ -557,6 +560,24 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
               <ArrowRight size={18} aria-hidden="true" />
             </button>
           </form>
+          ) : (
+            <aside className="glass-panel rounded-[2rem] p-5">
+              <div className="inline-flex h-10 items-center gap-2 rounded-full bg-slate-950 px-3 text-xs font-black text-cyan-100">
+                <Building2 size={16} aria-hidden="true" />
+                Workspace Access
+              </div>
+              <h2 className="mt-4 text-2xl font-black text-slate-950">บัญชีนี้รอรับสิทธิ์จากเจ้าของ workspace</h2>
+              <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+                บทบาท {roleLabels[session.profile.role]} ไม่สามารถสร้าง workspace เองได้ ต้องให้เจ้าของ workspace หรือผู้ดูแลระบบเพิ่มสิทธิ์ก่อน ระบบจึงจะแสดงห้องเรียนหรือรายงานที่เกี่ยวข้อง
+              </p>
+              <Link
+                className="mt-5 inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                to="/auth/complete-profile"
+              >
+                กลับไปตรวจ profile
+              </Link>
+            </aside>
+          )}
         </div>
       </section>
     </main>
