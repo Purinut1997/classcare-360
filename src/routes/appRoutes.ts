@@ -48,7 +48,7 @@ export const appNavItems: AppNavItem[] = [
     moduleKey: 'classroom_randomizer',
     path: '/app/dashboard?view=randomizer',
   },
-  { key: 'reports', label: 'รายงาน', icon: FileSpreadsheet, moduleKey: 'reports', path: '/app/dashboard?view=reports' },
+  { key: 'reports', label: 'รายงาน', icon: FileSpreadsheet, moduleKey: 'reports', path: '/app/dashboard?view=reports&reportView=attendance' },
   {
     key: 'import-export',
     label: 'นำเข้า/สำรอง',
@@ -140,8 +140,8 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
   },
   reports: {
     eyebrow: 'Report Center',
-    title: 'รายงานพร้อม export และตรวจข้อมูลก่อนพิมพ์',
-    body: 'เตรียมฐานสำหรับ PDF/XLSX, report footer, pre-report validation, import template และ backup/export log โดยต้องรักษาเครดิต Created by MIKPURINUT',
+    title: 'ศูนย์รายงานแยกตามงานครูและช่วงเวลา',
+    body: 'รวมรายงานเวลาเรียน เงินออม คะแนนรวมห้อง รายบุคคล และเคสดูแล โดยเลือกช่วงเดือน เทอม หรือปีการศึกษาได้จากจุดเดียว',
   },
   'import-export': {
     eyebrow: 'Import Export Backup',

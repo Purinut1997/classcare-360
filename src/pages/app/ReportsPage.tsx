@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Download, FileSpreadsheet, Printer, Search, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, Printer, Search, ShieldCheck } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -9,6 +10,9 @@ interface ReportsPageProps {
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'activity';
+type ReportView = 'attendance' | 'savings' | 'scores' | 'individual' | 'behavior' | 'settings';
+type ReportPeriod = 'month' | 'term' | 'year';
+type TermKey = 'term1' | 'term2';
 
 interface ClassroomRow {
   academic_year: string | null;
@@ -113,6 +117,21 @@ const statusLabels: Record<AttendanceStatus, string> = {
 
 const statusOrder: AttendanceStatus[] = ['present', 'absent', 'late', 'leave', 'sick', 'activity'];
 
+const reportViews: Array<{ description: string; label: string; value: ReportView }> = [
+  { description: 'รายเดือน / เทอม / ปีการศึกษา', label: 'เวลาเรียน', value: 'attendance' },
+  { description: 'เงินฝาก ถอน และยอดคงเหลือ', label: 'เงินออม', value: 'savings' },
+  { description: 'สรุปคะแนนรวมห้องและรายชั้น', label: 'คะแนนรวมห้อง', value: 'scores' },
+  { description: 'รวมเวลาเรียน คะแนน เงินออม พฤติกรรม', label: 'รายบุคคล', value: 'individual' },
+  { description: 'เคสดูแลและพฤติกรรมที่ต้องติดตาม', label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
+  { description: 'ห้วงเวลาเทอม โลโก้ ลายเซ็น template', label: 'ตั้งค่ารายงาน', value: 'settings' },
+];
+
+const reportPeriods: Array<{ label: string; value: ReportPeriod }> = [
+  { label: 'เดือน', value: 'month' },
+  { label: 'เทอม', value: 'term' },
+  { label: 'ปีการศึกษา', value: 'year' },
+];
+
 const monthlyStatusLabels: Record<'absent' | 'late' | 'leave' | 'present', string> = {
   present: 'มา',
   late: 'สาย',
@@ -195,6 +214,32 @@ function getReportMonthContext(dateValue: string) {
     }).format(monthDate),
     year,
   };
+}
+
+function getMonthDateRange(monthValue: string) {
+  const [year, month] = monthValue.split('-').map(Number);
+  const safeDate = year && month ? new Date(year, month - 1, 1) : new Date();
+  const safeYear = safeDate.getFullYear();
+  const safeMonth = safeDate.getMonth();
+
+  return {
+    from: formatDateKey(safeYear, safeMonth, 1),
+    to: formatDateKey(safeYear, safeMonth, new Date(safeYear, safeMonth + 1, 0).getDate()),
+  };
+}
+
+function academicYearToGregorianStart(academicYear: string | null | undefined) {
+  const numericYear = Number(String(academicYear || '').replace(/\D/g, ''));
+  if (!numericYear) return new Date().getFullYear();
+  return numericYear > 2400 ? numericYear - 543 : numericYear;
+}
+
+function isReportView(value: string | null): value is ReportView {
+  return reportViews.some((item) => item.value === value);
+}
+
+function isReportPeriod(value: string | null): value is ReportPeriod {
+  return reportPeriods.some((item) => item.value === value);
 }
 
 function buildReportRows(
@@ -514,11 +559,27 @@ function buildPrintableReportHtml({
 }
 
 export function ReportsPage({ session }: ReportsPageProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const reportViewParam = searchParams.get('reportView');
+  const reportPeriodParam = searchParams.get('reportPeriod');
+  const initialReportView: ReportView = isReportView(reportViewParam) ? reportViewParam : 'attendance';
+  const initialReportPeriod: ReportPeriod = isReportPeriod(reportPeriodParam) ? reportPeriodParam : 'month';
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSessionRow[]>(demoSessions);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecordRow[]>(demoRecords);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
+  const [reportView, setReportView] = useState<ReportView>(initialReportView);
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(initialReportPeriod);
+  const [reportMonth, setReportMonth] = useState(getTodayDate().slice(0, 7));
+  const [selectedTerm, setSelectedTerm] = useState<TermKey>('term1');
+  const [termRanges, setTermRanges] = useState<Record<TermKey, { end: string; start: string }>>({
+    term1: { end: '2026-10-10', start: '2026-05-16' },
+    term2: { end: '2027-03-31', start: '2026-11-01' },
+  });
+  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [dateFrom, setDateFrom] = useState(getTodayDate());
   const [dateTo, setDateTo] = useState(getTodayDate());
   const [query, setQuery] = useState('');
@@ -527,6 +588,47 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อออกรายงานจาก Supabase จริง',
   );
+
+  useEffect(() => {
+    const nextView = searchParams.get('reportView');
+    const nextPeriod = searchParams.get('reportPeriod');
+    if (isReportView(nextView)) setReportView(nextView);
+    if (isReportPeriod(nextPeriod)) setReportPeriod(nextPeriod);
+  }, [searchParams]);
+
+  function updateReportSearch(next: Partial<{ reportPeriod: ReportPeriod; reportView: ReportView }>) {
+    const params = new URLSearchParams(location.search);
+    if (next.reportView) {
+      params.set('view', 'reports');
+      params.set('reportView', next.reportView);
+      setReportView(next.reportView);
+    }
+    if (next.reportPeriod) {
+      params.set('reportPeriod', next.reportPeriod);
+      setReportPeriod(next.reportPeriod);
+    }
+    navigate(`/app/dashboard?${params.toString()}`, { replace: false });
+  }
+
+  useEffect(() => {
+    if (reportPeriod === 'month') {
+      const range = getMonthDateRange(reportMonth);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+      return;
+    }
+
+    if (reportPeriod === 'term') {
+      setDateFrom(termRanges[selectedTerm].start);
+      setDateTo(termRanges[selectedTerm].end);
+      return;
+    }
+
+    const academicYear = classrooms.find((classroom) => classroom.id === classroomId)?.academic_year || session.workspace?.academicYear;
+    const startYear = academicYearToGregorianStart(academicYear);
+    setDateFrom(`${startYear}-05-01`);
+    setDateTo(`${startYear + 1}-04-30`);
+  }, [classroomId, classrooms, reportMonth, reportPeriod, selectedTerm, session.workspace?.academicYear, termRanges]);
 
   useEffect(() => {
     let isMounted = true;
@@ -743,6 +845,38 @@ export function ReportsPage({ session }: ReportsPageProps) {
     [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, students],
   );
 
+  const selectedClassroom = useMemo(
+    () => classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null,
+    [classroomId, classrooms],
+  );
+  const classroomStudents = useMemo(
+    () => students.filter((student) => !selectedClassroom || student.classroom_id === selectedClassroom.id),
+    [selectedClassroom, students],
+  );
+  const selectedStudent = useMemo(
+    () => students.find((student) => student.id === selectedStudentId) || classroomStudents[0] || students[0] || null,
+    [classroomStudents, selectedStudentId, students],
+  );
+  const activeReportConfig = reportViews.find((item) => item.value === reportView) || reportViews[0];
+  const periodLabel = reportPeriods.find((item) => item.value === reportPeriod)?.label || 'เดือน';
+  const exportableAttendance = reportView === 'attendance' && reportRows.length > 0;
+  const readinessItems = [
+    { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
+    { label: 'เลือกห้อง/ช่วงข้อมูล', ready: Boolean(classroomId && dateFrom && dateTo) },
+    { label: 'มีรายชื่อนักเรียนในห้อง', ready: classroomStudents.length > 0 },
+    { label: 'มีข้อมูลรายงานช่วงนี้', ready: reportRows.length > 0 || reportView !== 'attendance' },
+  ];
+
+  useEffect(() => {
+    if (!selectedStudentId && students[0]) {
+      setSelectedStudentId(students[0].id);
+      return;
+    }
+    if (selectedStudentId && !students.some((student) => student.id === selectedStudentId)) {
+      setSelectedStudentId(students[0]?.id || '');
+    }
+  }, [selectedStudentId, students]);
+
   function exportCsv() {
     const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'เครดิต'];
     const lines = [
@@ -841,26 +975,26 @@ export function ReportsPage({ session }: ReportsPageProps) {
             Report Center
           </div>
           <h1 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
-            รายงานเวลาเรียน
+            ศูนย์รายงานโรงเรียน
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            {session.workspace?.schoolName || 'Demo Workspace'} | สรุปจาก attendance session และ record ที่ถูกกรองด้วย RLS
+          <p className="mt-3 max-w-4xl text-sm font-bold leading-7 text-slate-600">
+            {session.workspace?.schoolName || 'Demo Workspace'} | เลือกรายงานหลัก แยกช่วงเดือน/เทอม/ปีการศึกษา และเตรียม export จากข้อมูลจริงใน workspace เดียวกัน
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button
-            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5"
-            disabled={reportRows.length === 0}
+            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!exportableAttendance}
             onClick={printReport}
             type="button"
           >
             <Printer size={17} aria-hidden="true" />
-            PDF/พิมพ์แบบรายเดือน
+            PDF/พิมพ์
           </button>
           <button
             className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={reportRows.length === 0}
+            disabled={!exportableAttendance}
             onClick={exportCsv}
             type="button"
           >
@@ -869,16 +1003,16 @@ export function ReportsPage({ session }: ReportsPageProps) {
           </button>
           <button
             className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={reportRows.length === 0}
+            disabled={!exportableAttendance}
             onClick={exportExcel}
             type="button"
           >
             <Download size={17} aria-hidden="true" />
-            Excel แบบรายเดือน
+            Excel
           </button>
           <button
             className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={reportRows.length === 0}
+            disabled={!exportableAttendance}
             onClick={exportJsonPackage}
             type="button"
           >
@@ -890,26 +1024,10 @@ export function ReportsPage({ session }: ReportsPageProps) {
 
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          {
-            detail: `${coreMetrics.attendance.riskCount} รายการต้องติดตาม`,
-            label: 'เวลาเรียน',
-            value: `${coreMetrics.attendance.presentRate}%`,
-          },
-          {
-            detail: `${coreMetrics.scores.assessmentCount} ชุดคะแนน | ต่ำกว่า 50% ${coreMetrics.scores.belowHalfCount} รายการ`,
-            label: 'คะแนนเฉลี่ย',
-            value: `${coreMetrics.scores.averagePercent}%`,
-          },
-          {
-            detail: `${coreMetrics.savings.accountCount} บัญชี active`,
-            label: 'เงินออมรวม',
-            value: coreMetrics.savings.totalBalance.toLocaleString('th-TH'),
-          },
-          {
-            detail: `ติดตามต่อ ${coreMetrics.behavior.followUps} รายการ | เชิงบวก ${coreMetrics.behavior.positiveCount}`,
-            label: 'พฤติกรรม',
-            value: coreMetrics.behavior.totalPoints.toLocaleString('th-TH'),
-          },
+          { detail: `${coreMetrics.attendance.riskCount} รายการต้องติดตาม`, label: 'เวลาเรียน', value: `${coreMetrics.attendance.presentRate}%` },
+          { detail: `${coreMetrics.scores.assessmentCount} ชุดคะแนน | ต่ำกว่า 50% ${coreMetrics.scores.belowHalfCount}`, label: 'คะแนนเฉลี่ย', value: `${coreMetrics.scores.averagePercent}%` },
+          { detail: `${coreMetrics.savings.accountCount} บัญชี active`, label: 'เงินออมรวม', value: coreMetrics.savings.totalBalance.toLocaleString('th-TH') },
+          { detail: `ติดตามต่อ ${coreMetrics.behavior.followUps} | เชิงบวก ${coreMetrics.behavior.positiveCount}`, label: 'พฤติกรรม', value: coreMetrics.behavior.totalPoints.toLocaleString('th-TH') },
         ].map((item) => (
           <article className="nexus-card p-4 transition hover:-translate-y-1" key={item.label}>
             <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
@@ -919,120 +1037,348 @@ export function ReportsPage({ session }: ReportsPageProps) {
         ))}
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="nexus-card p-4 sm:p-5">
-          <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
-            <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
-            Report guard + RLS
-          </div>
+      <section className="nexus-card mt-5 p-3 sm:p-4">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {reportViews.map((item) => {
+            const isActive = item.value === reportView;
 
-          <div className="mt-4 grid gap-3">
-            <label className="grid gap-2 text-sm font-black text-slate-700">
-              ห้องเรียน
-              <select
-                className="nexus-field h-11 px-3"
-                onChange={(event) => setClassroomId(event.target.value)}
-                value={classroomId}
+            return (
+              <button
+                className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${
+                  isActive
+                    ? 'border-amber-300 bg-amber-100 text-amber-950 shadow-[0_14px_28px_rgba(217,119,6,0.12)]'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-amber-200'
+                }`}
+                key={item.value}
+                onClick={() => updateReportSearch({ reportView: item.value })}
+                type="button"
               >
-                {classrooms.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id}>
-                    {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <span className="text-sm font-black">{item.label}</span>
+                <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">{item.description}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                จากวันที่
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setDateFrom(event.target.value)}
-                  type="date"
-                  value={dateFrom}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ถึงวันที่
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setDateTo(event.target.value)}
-                  type="date"
-                  value={dateTo}
-                />
-              </label>
+      <section className="mt-5 grid gap-5 xl:grid-cols-[410px_minmax(0,1fr)]">
+        <aside className="grid gap-5">
+          <section className="nexus-card p-4 sm:p-5">
+            <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
+              <CalendarRange size={16} className="text-amber-600" aria-hidden="true" />
+              ตัวกรองรายงาน
             </div>
 
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
-              <input
-                className="nexus-field h-11 w-full pl-10 pr-3"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="ค้นหาชื่อ รหัส สถานะ"
-                value={query}
-              />
-            </label>
-          </div>
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-2 text-sm font-black text-slate-700">
+                ประเภทรายงาน
+                <select
+                  className="nexus-field h-11 px-3"
+                  onChange={(event) => updateReportSearch({ reportView: event.target.value as ReportView })}
+                  value={reportView}
+                >
+                  {reportViews.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
 
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            {summary.map((item) => (
-              <div className="nexus-muted-box p-3 text-center transition hover:-translate-y-1" key={item.status}>
-                <p className="text-2xl font-black text-slate-950">{item.count}</p>
-                <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {reportPeriods.map((period) => (
+                  <button
+                    className={`h-11 rounded-2xl px-3 text-sm font-black transition ${
+                      reportPeriod === period.value ? 'bg-slate-950 text-white shadow-lg' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950'
+                    }`}
+                    key={period.value}
+                    onClick={() => updateReportSearch({ reportPeriod: period.value })}
+                    type="button"
+                  >
+                    {period.label}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+
+              {reportPeriod === 'month' ? (
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  เดือนรายงาน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setReportMonth(event.target.value)}
+                    type="month"
+                    value={reportMonth}
+                  />
+                </label>
+              ) : null}
+
+              {reportPeriod === 'term' ? (
+                <div className="grid gap-3 rounded-3xl border border-amber-200 bg-amber-50/60 p-3">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ภาคเรียน
+                    <select
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => setSelectedTerm(event.target.value as TermKey)}
+                      value={selectedTerm}
+                    >
+                      <option value="term1">ภาคเรียนที่ 1</option>
+                      <option value="term2">ภาคเรียนที่ 2</option>
+                    </select>
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      เริ่มเทอม
+                      <input
+                        className="nexus-field h-11 px-3"
+                        onChange={(event) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], start: event.target.value } }))}
+                        type="date"
+                        value={termRanges[selectedTerm].start}
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      สิ้นสุดเทอม
+                      <input
+                        className="nexus-field h-11 px-3"
+                        onChange={(event) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], end: event.target.value } }))}
+                        type="date"
+                        value={termRanges[selectedTerm].end}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+
+              <label className="grid gap-2 text-sm font-black text-slate-700">
+                ห้องเรียน
+                <select className="nexus-field h-11 px-3" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
+                  {classrooms.map((classroom) => (
+                    <option key={classroom.id} value={classroom.id}>
+                      {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {reportView === 'individual' || reportView === 'behavior' ? (
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  นักเรียน
+                  <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedStudentId(event.target.value)} value={selectedStudent?.id || ''}>
+                    {classroomStudents.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.student_code || '-'} {student.first_name} {student.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  จากวันที่
+                  <input className="nexus-field h-11 px-3" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ถึงวันที่
+                  <input className="nexus-field h-11 px-3" onChange={(event) => setDateTo(event.target.value)} type="date" value={dateTo} />
+                </label>
+              </div>
+
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
+                <input className="nexus-field h-11 w-full pl-10 pr-3" onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อ รหัส สถานะ" value={query} />
+              </label>
+            </div>
+          </section>
+
+          <section className="nexus-card p-4 sm:p-5">
+            <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
+              <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
+              Report readiness
+            </div>
+            <div className="mt-4 grid gap-2">
+              {readinessItems.map((item) => (
+                <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2 text-sm font-bold" key={item.label}>
+                  <span className="text-slate-600">{item.label}</span>
+                  <span className={`rounded-full px-2 py-1 text-xs font-black ${item.ready ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                    {item.ready ? 'พร้อม' : 'ต้องตั้งค่า'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
         </aside>
 
         <section className="nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-black text-teal-700">Attendance Summary</p>
+              <p className="text-sm font-black text-teal-700">{activeReportConfig.label} / {periodLabel}</p>
               <h2 className="mt-1 text-2xl font-black text-slate-950">
-                รายละเอียด {reportRows.length} รายการ
+                {activeReportConfig.description}
               </h2>
+              <p className="mt-2 text-sm font-bold text-slate-500">
+                {selectedClassroom?.name || '-'} | {dateFrom} ถึง {dateTo}
+              </p>
             </div>
             <p className="text-xs font-bold text-slate-500">Created by MIKPURINUT</p>
           </div>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-left">
-              <thead>
-                <tr className="text-xs font-black uppercase text-slate-500">
-                  <th className="px-3 py-3">วันที่</th>
-                  <th className="px-3 py-3">ห้อง</th>
-                  <th className="px-3 py-3">นักเรียน</th>
-                  <th className="px-3 py-3">สถานะ</th>
-                  <th className="px-3 py-3">หมายเหตุ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {reportRows.map((row, index) => (
-                  <tr className="hover:bg-sky-50/50" key={`${row.date}-${row.studentCode}-${index}`}>
-                    <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
-                      {row.date}
-                      <span className="block text-xs text-slate-400">{row.periodLabel}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName}</td>
-                    <td className="px-3 py-3">
-                      <p className="font-black text-slate-950">{row.studentName}</p>
-                      <p className="text-xs font-bold text-slate-500">{row.studentCode}</p>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                        {statusLabels[row.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 font-bold text-slate-600">{row.note || '-'}</td>
-                  </tr>
+          {reportView === 'attendance' ? (
+            <>
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                {summary.map((item) => (
+                  <div className="nexus-muted-box p-3 text-center transition hover:-translate-y-1" key={item.status}>
+                    <p className="text-2xl font-black text-slate-950">{item.count}</p>
+                    <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
 
-          {!isLoading && reportRows.length === 0 ? (
-            <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
-              ยังไม่มีข้อมูลรายงานตามช่วงวันที่และตัวกรองนี้
+              <div className="mt-5 overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-100 text-left">
+                  <thead>
+                    <tr className="text-xs font-black uppercase text-slate-500">
+                      <th className="px-3 py-3">วันที่</th>
+                      <th className="px-3 py-3">ห้อง</th>
+                      <th className="px-3 py-3">นักเรียน</th>
+                      <th className="px-3 py-3">สถานะ</th>
+                      <th className="px-3 py-3">หมายเหตุ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {reportRows.map((row, index) => (
+                      <tr className="hover:bg-amber-50/50" key={`${row.date}-${row.studentCode}-${index}`}>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
+                          {row.date}
+                          <span className="block text-xs text-slate-400">{row.periodLabel}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName}</td>
+                        <td className="px-3 py-3">
+                          <p className="font-black text-slate-950">{row.studentName}</p>
+                          <p className="text-xs font-bold text-slate-500">{row.studentCode}</p>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                            {statusLabels[row.status]}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 font-bold text-slate-600">{row.note || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isLoading && reportRows.length === 0 ? (
+                <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
+                  ยังไม่มีข้อมูลเวลาเรียนตามช่วงวันที่และตัวกรองนี้
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {reportView === 'savings' ? (
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              <article className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-black uppercase text-amber-700">ยอดรวม</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.savings.totalBalance.toLocaleString('th-TH')}</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">บาท จาก {coreMetrics.savings.accountCount} บัญชี</p>
+              </article>
+              <article className="rounded-3xl border border-slate-200 bg-white p-4 lg:col-span-2">
+                <h3 className="text-lg font-black text-slate-950">โครงรายงานเงินออม</h3>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                  รองรับรายเดือน เทอม และปี โดยควรรวมฝาก ถอน ยอดยกมา ยอดคงเหลือ และช่องลงชื่อครูประจำชั้น/ผอ. ใน export PDF/XLSX
+                </p>
+              </article>
+            </div>
+          ) : null}
+
+          {reportView === 'scores' ? (
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-black uppercase text-slate-400">ชุดคะแนน</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.scores.assessmentCount}</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">ชุดใน workspace</p>
+              </article>
+              <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-black uppercase text-slate-400">เฉลี่ย</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.scores.averagePercent}%</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">รวมทุกวิชาที่โหลดได้</p>
+              </article>
+              <article className="rounded-3xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-xs font-black uppercase text-rose-700">ต้องติดตาม</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.scores.belowHalfCount}</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">รายการต่ำกว่า 50%</p>
+              </article>
+              <div className="nexus-muted-box p-4 text-sm font-bold leading-6 text-slate-600 lg:col-span-3">
+                รายงานคะแนนควรแยก export เป็น “สรุปรายชั้น”, “สรุปรายห้อง”, “รายวิชา”, และ “รายบุคคล” โดยดึงชุดคะแนนกลางภาค/ปลายภาค/ระหว่างเรียนจากระบบคะแนนหลัก
+              </div>
+            </div>
+          ) : null}
+
+          {reportView === 'individual' ? (
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-black text-teal-700">Student Report</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">
+                  {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}
+                </h3>
+                <p className="mt-2 text-sm font-bold text-slate-500">{selectedStudent?.student_code || '-'} | {selectedClassroom?.name || '-'}</p>
+              </article>
+              <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                <h3 className="text-lg font-black text-slate-950">ข้อมูลที่จะรวมในรายงานรายบุคคล</h3>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                  เวลาเรียน คะแนน เงินออม พฤติกรรม เคสดูแล แบบเยี่ยมบ้าน และประวัติการติดต่อผู้ปกครอง แยกช่วงเดือน/เทอม/ปี
+                </p>
+              </article>
+            </div>
+          ) : null}
+
+          {reportView === 'behavior' ? (
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              {[
+                { label: 'เคสติดตาม', value: coreMetrics.behavior.followUps },
+                { label: 'เชิงบวก', value: coreMetrics.behavior.positiveCount },
+                { label: 'คะแนนพฤติกรรม', value: coreMetrics.behavior.totalPoints },
+              ].map((item) => (
+                <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
+                  <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
+                  <p className="mt-2 text-4xl font-black text-slate-950">{item.value.toLocaleString('th-TH')}</p>
+                </article>
+              ))}
+            </div>
+          ) : null}
+
+          {reportView === 'settings' ? (
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              {(['term1', 'term2'] as TermKey[]).map((term) => (
+                <article className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4" key={term}>
+                  <h3 className="text-lg font-black text-slate-950">{term === 'term1' ? 'ภาคเรียนที่ 1' : 'ภาคเรียนที่ 2'}</h3>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      เริ่ม
+                      <input
+                        className="nexus-field h-11 px-3"
+                        onChange={(event) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], start: event.target.value } }))}
+                        type="date"
+                        value={termRanges[term].start}
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      สิ้นสุด
+                      <input
+                        className="nexus-field h-11 px-3"
+                        onChange={(event) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], end: event.target.value } }))}
+                        type="date"
+                        value={termRanges[term].end}
+                      />
+                    </label>
+                  </div>
+                </article>
+              ))}
+              <article className="rounded-3xl border border-slate-200 bg-white p-4 lg:col-span-2">
+                <h3 className="text-lg font-black text-slate-950">Template รายงานที่ควรตั้งค่าต่อ</h3>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                  โลโก้โรงเรียน ชื่อครูประจำชั้น ชื่อผู้อำนวยการ ลายเซ็น ขนาดกระดาษ A4 แนวตั้ง/แนวนอน และ footer Created by MIKPURINUT
+                </p>
+              </article>
             </div>
           ) : null}
         </section>

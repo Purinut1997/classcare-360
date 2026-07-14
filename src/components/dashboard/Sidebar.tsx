@@ -41,6 +41,15 @@ const scoreSubNavItems = [
   { label: 'สมุดรวมคะแนน', value: 'gradebook' },
 ];
 
+const reportSubNavItems = [
+  { label: 'เวลาเรียน', value: 'attendance' },
+  { label: 'เงินออม', value: 'savings' },
+  { label: 'คะแนนรวมห้อง', value: 'scores' },
+  { label: 'รายบุคคล', value: 'individual' },
+  { label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
+  { label: 'ตั้งค่ารายงาน', value: 'settings' },
+];
+
 export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const location = useLocation();
   const isSuperadmin = session?.profile.role === 'superadmin';
@@ -52,6 +61,10 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const activeScoreSubView = scoreSubNavItems.some((item) => item.value === requestedScoreSubView)
     ? requestedScoreSubView
     : 'entry';
+  const requestedReportSubView = new URLSearchParams(location.search).get('reportView') || 'attendance';
+  const activeReportSubView = reportSubNavItems.some((item) => item.value === requestedReportSubView)
+    ? requestedReportSubView
+    : 'attendance';
   const renderedKeys = new Set<string>();
   const sections = sidebarSections
     .map((section) => {
@@ -151,6 +164,28 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                               }`}
                               key={subItem.value}
                               to={`/app/dashboard?view=scores&scoreView=${subItem.value}`}
+                            >
+                              <span className="truncate">{subItem.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    {item.key === 'reports' && isActive ? (
+                      <div className="ml-5 grid gap-1 border-l border-amber-200/80 pl-3">
+                        {reportSubNavItems.map((subItem) => {
+                          const isSubActive = activeReportSubView === subItem.value;
+
+                          return (
+                            <Link
+                              className={`flex min-h-9 items-center rounded-2xl px-3 text-xs font-black transition ${
+                                isSubActive
+                                  ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200'
+                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
+                              }`}
+                              key={subItem.value}
+                              to={`/app/dashboard?view=reports&reportView=${subItem.value}`}
                             >
                               <span className="truncate">{subItem.label}</span>
                             </Link>
