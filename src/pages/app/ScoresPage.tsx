@@ -1094,8 +1094,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <section
+        className={`mt-5 grid gap-5 ${
+          scoreView === 'setup' || scoreView === 'entry' ? 'xl:grid-cols-[360px_minmax(0,1fr)]' : ''
+        }`}
+      >
+        {scoreView === 'setup' || scoreView === 'entry' ? (
         <aside className="grid gap-5">
+          {scoreView === 'setup' ? (
           <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void handleCreateAssessment(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <Plus size={16} aria-hidden="true" />
@@ -1236,7 +1242,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
               สร้างชุดคะแนน
             </button>
           </form>
+          ) : null}
 
+          {scoreView === 'entry' ? (
+          <>
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-black text-teal-700">
               <FileSpreadsheet size={16} aria-hidden="true" />
@@ -1379,7 +1388,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
               โดยไม่ส่ง secret หรือ token ออกจาก frontend
             </p>
           </div>
+          </>
+          ) : null}
         </aside>
+        ) : null}
 
         <section className="grid gap-5">
           {scoreView === 'overview' ? (
