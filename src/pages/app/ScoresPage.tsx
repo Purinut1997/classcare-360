@@ -3,14 +3,18 @@ import {
   AlertTriangle,
   Award,
   BarChart3,
+  BookOpen,
   CheckCircle2,
+  ClipboardList,
   Download,
   FileSpreadsheet,
   Gauge,
+  Layers,
   Plus,
   Save,
   Search,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -24,6 +28,7 @@ interface ScoresPageProps {
 
 type AssessmentCategory = 'quiz' | 'assignment' | 'exam' | 'project' | 'reading' | 'other';
 type AssessmentStatus = 'draft' | 'published' | 'archived';
+type ScoreView = 'overview' | 'entry' | 'reports';
 
 interface ClassroomRow {
   academic_year: string | null;
@@ -190,6 +195,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [entries, setEntries] = useState<ScoreEntryRow[]>(demoEntries);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState(demoAssessments[0].id);
+  const [subjectFilter, setSubjectFilter] = useState(demoAssessments[0].subject_name);
+  const [scoreView, setScoreView] = useState<ScoreView>('entry');
   const [searchTerm, setSearchTerm] = useState('');
   const [scores, setScores] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -212,6 +219,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
     [classroomId, students],
   );
 
+  const classroomById = useMemo(() => new Map(classrooms.map((classroom) => [classroom.id, classroom])), [classrooms]);
+
+  const activeClassroom = useMemo(() => classroomById.get(classroomId) || classrooms[0] || null, [
+    classroomById,
+    classroomId,
+    classrooms,
+  ]);
+
   const classroomAssessments = useMemo(
     () =>
       assessments
@@ -220,9 +235,24 @@ export function ScoresPage({ session }: ScoresPageProps) {
     [assessments, classroomId],
   );
 
+  const subjectOptions = useMemo(() => {
+    const subjects = classroomAssessments.map((assessment) => assessment.subject_name.trim()).filter(Boolean);
+    const currentSubject = form.subjectName.trim();
+    if (currentSubject) subjects.push(currentSubject);
+    return Array.from(new Set(subjects)).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [classroomAssessments, form.subjectName]);
+
+  const contextAssessments = useMemo(
+    () =>
+      classroomAssessments.filter(
+        (assessment) => !subjectFilter || assessment.subject_name.trim() === subjectFilter.trim(),
+      ),
+    [classroomAssessments, subjectFilter],
+  );
+
   const selectedAssessment = useMemo(
-    () => classroomAssessments.find((assessment) => assessment.id === selectedAssessmentId) || classroomAssessments[0] || null,
-    [classroomAssessments, selectedAssessmentId],
+    () => contextAssessments.find((assessment) => assessment.id === selectedAssessmentId) || contextAssessments[0] || null,
+    [contextAssessments, selectedAssessmentId],
   );
 
   const selectedEntries = useMemo(
@@ -281,29 +311,119 @@ export function ScoresPage({ session }: ScoresPageProps) {
     };
   }, [classroomStudents, scores, selectedAssessment, selectedEntryByStudent]);
 
-  const subjectSummary = useMemo(() => {
-    const subjectMap = new Map<string, { count: number; totalPercent: number }>();
-
-    assessments.forEach((assessment) => {
-      const assessmentEntries = entries.filter((entry) => entry.assessment_id === assessment.id && entry.score !== null);
-      if (assessmentEntries.length === 0) return;
-
-      const averagePercent =
-        assessmentEntries.reduce((sum, entry) => sum + ((entry.score || 0) / assessment.max_score) * 100, 0) /
-        assessmentEntries.length;
-      const current = subjectMap.get(assessment.subject_name) || { count: 0, totalPercent: 0 };
-      subjectMap.set(assessment.subject_name, {
-        count: current.count + 1,
-        totalPercent: current.totalPercent + averagePercent,
-      });
+  const entriesByAssessment = useMemo(() => {
+    const entryMap = new Map<string, ScoreEntryRow[]>();
+    entries.forEach((entry) => {
+      const current = entryMap.get(entry.assessment_id) || [];
+      current.push(entry);
+      entryMap.set(entry.assessment_id, current);
     });
+    return entryMap;
+  }, [entries]);
 
-    return Array.from(subjectMap.entries()).map(([subjectName, summary]) => ({
-      assessmentCount: summary.count,
-      averagePercent: summary.count > 0 ? summary.totalPercent / summary.count : 0,
-      subjectName,
-    }));
-  }, [assessments, entries]);
+  const scoreContexts = useMemo(() => {
+    const contextMap = new Map<
+      string,
+      {
+        assessmentCount: number;
+        classroomId: string;
+        classroomName: string;
+        latestDate: string;
+        scoredEntries: number;
+        studentCount: number;
+        subjectName: string;
+        totalPercent: number;
+      }
+    >();
+
+    assessments
+      .filter((assessment) => assessment.status !== 'archived')
+      .forEach((assessment) => {
+        const key = `${assessment.classroom_id}::${assessment.subject_name}`;
+        const assessmentEntries = (entriesByAssessment.get(assessment.id) || []).filter((entry) => entry.score !== null);
+        const averagePercent =
+          assessmentEntries.length > 0
+            ? assessmentEntries.reduce((sum, entry) => sum + ((entry.score || 0) / assessment.max_score) * 100, 0) /
+              assessmentEntries.length
+            : 0;
+        const studentCount = students.filter((student) => student.classroom_id === assessment.classroom_id).length;
+        const current =
+          contextMap.get(key) || {
+            assessmentCount: 0,
+            classroomId: assessment.classroom_id,
+            classroomName: classroomById.get(assessment.classroom_id)?.name || 'ไม่ทราบห้อง',
+            latestDate: assessment.assessment_date,
+            scoredEntries: 0,
+            studentCount,
+            subjectName: assessment.subject_name,
+            totalPercent: 0,
+          };
+
+        contextMap.set(key, {
+          ...current,
+          assessmentCount: current.assessmentCount + 1,
+          latestDate:
+            assessment.assessment_date.localeCompare(current.latestDate) > 0 ? assessment.assessment_date : current.latestDate,
+          scoredEntries: current.scoredEntries + assessmentEntries.length,
+          totalPercent: current.totalPercent + averagePercent,
+        });
+      });
+
+    return Array.from(contextMap.values())
+      .map((context) => {
+        const expectedEntries = context.assessmentCount * context.studentCount;
+        return {
+          ...context,
+          averagePercent: context.assessmentCount > 0 ? context.totalPercent / context.assessmentCount : 0,
+          completePercent: expectedEntries > 0 ? Math.round((context.scoredEntries / expectedEntries) * 100) : 0,
+          expectedEntries,
+        };
+      })
+      .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
+  }, [assessments, classroomById, entriesByAssessment, students]);
+
+  const currentContext = useMemo(
+    () =>
+      scoreContexts.find(
+        (context) => context.classroomId === classroomId && (!subjectFilter || context.subjectName === subjectFilter),
+      ) || null,
+    [classroomId, scoreContexts, subjectFilter],
+  );
+
+  const lowScoreStudents = useMemo(() => {
+    if (!selectedAssessment) return [];
+
+    return classroomStudents
+      .map((student) => {
+        const entry = selectedEntryByStudent.get(student.id);
+        const rawScore = scores[student.id];
+        const score = rawScore === undefined || rawScore === '' ? entry?.score ?? null : Number(rawScore);
+        const percent =
+          score === null || !Number.isFinite(score)
+            ? null
+            : Math.round((score / selectedAssessment.max_score) * 10000) / 100;
+        return { percent, score, student };
+      })
+      .filter((row) => row.percent !== null && row.percent < 50)
+      .sort((a, b) => (a.percent || 0) - (b.percent || 0));
+  }, [classroomStudents, scores, selectedAssessment, selectedEntryByStudent]);
+
+  const overallStats = useMemo(() => {
+    const activeAssessments = assessments.filter((assessment) => assessment.status !== 'archived');
+    const filledEntries = entries.filter((entry) => entry.score !== null).length;
+    const expectedEntries = activeAssessments.reduce(
+      (sum, assessment) => sum + students.filter((student) => student.classroom_id === assessment.classroom_id).length,
+      0,
+    );
+    const activeSubjects = new Set(activeAssessments.map((assessment) => assessment.subject_name)).size;
+
+    return {
+      activeSubjects,
+      assessmentCount: activeAssessments.length,
+      completePercent: expectedEntries > 0 ? Math.round((filledEntries / expectedEntries) * 100) : 0,
+      contextCount: scoreContexts.length,
+    };
+  }, [assessments, entries, scoreContexts.length, students]);
 
   useEffect(() => {
     let isMounted = true;
@@ -315,6 +435,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         setAssessments(demoAssessments);
         setEntries(demoEntries);
         setClassroomId(demoClassrooms[0].id);
+        setSubjectFilter(demoAssessments[0].subject_name);
         setSelectedAssessmentId(demoAssessments[0].id);
         setIsLoading(false);
         return;
@@ -388,6 +509,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       setAssessments(nextAssessments);
       setEntries(nextEntries);
       setClassroomId(nextClassroomId);
+      setSubjectFilter(nextAssessments.find((assessment) => assessment.id === nextSelectedAssessmentId)?.subject_name || '');
       setSelectedAssessmentId(nextSelectedAssessmentId);
       setIsLoading(false);
     }
@@ -400,10 +522,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
   }, [session.profile.id, session.workspace]);
 
   useEffect(() => {
-    if (!selectedAssessment && classroomAssessments[0]) {
-      setSelectedAssessmentId(classroomAssessments[0].id);
+    if (subjectOptions.length > 0 && (!subjectFilter || !subjectOptions.includes(subjectFilter))) {
+      setSubjectFilter(subjectOptions[0]);
+      return;
     }
-  }, [classroomAssessments, selectedAssessment]);
+
+    if (!selectedAssessment && contextAssessments[0]) {
+      setSelectedAssessmentId(contextAssessments[0].id);
+    }
+  }, [contextAssessments, selectedAssessment, subjectFilter, subjectOptions]);
 
   useEffect(() => {
     if (!selectedAssessment) {
@@ -458,6 +585,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       };
 
       setAssessments((current) => [assessment, ...current]);
+      setSubjectFilter(subjectName);
       setSelectedAssessmentId(assessment.id);
       setForm((current) => ({ ...current, title: '' }));
       setNotice('สร้างชุดคะแนนในโหมดตัวอย่างแล้ว');
@@ -504,6 +632,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       source: 'score_center',
     });
     setAssessments((current) => [assessment, ...current]);
+    setSubjectFilter(assessment.subject_name);
     setSelectedAssessmentId(assessment.id);
     setForm((current) => ({ ...current, title: '' }));
     setNotice('สร้างชุดคะแนนแล้ว');
@@ -690,20 +819,20 @@ export function ScoresPage({ session }: ScoresPageProps) {
             Score Center
           </div>
           <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
-            ศูนย์คะแนนรายวิชา เห็นทั้งห้องและรายคนในหน้าจอเดียว
+            ศูนย์คะแนนหลายห้อง หลายวิชา สำหรับครูประจำวิชา
           </h1>
           <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            สร้างชุดคะแนน บันทึกคะแนนรายนักเรียน ดูค่าเฉลี่ย ความครบถ้วน และ export CSV สำหรับส่งต่อรายงาน
-            โดยทุกข้อมูลผูกกับ workspace และ RLS ฝั่ง Supabase
+            เลือกปี ห้องเรียน วิชา และชุดคะแนนได้จากจุดเดียว เหมาะกับครูที่สอนหลายห้องหรือสอนหลายวิชา
+            โดยข้อมูลยังผูก workspace_id, classroom_id และ RLS ฝั่ง Supabase เหมือนเดิม
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:min-w-[520px] sm:grid-cols-4">
           {[
-            { label: 'ชุดคะแนน', value: classroomAssessments.length },
-            { label: 'กรอกแล้ว', value: `${scoreStats.percentComplete}%` },
-            { label: 'เฉลี่ย', value: scoreStats.average.toFixed(1) },
-            { label: 'ต่ำกว่า 50%', value: scoreStats.belowHalf },
+            { label: 'บริบทสอน', value: overallStats.contextCount },
+            { label: 'วิชา active', value: overallStats.activeSubjects },
+            { label: 'ชุดคะแนน', value: overallStats.assessmentCount },
+            { label: 'กรอกครบ', value: `${overallStats.completePercent}%` },
           ].map((item) => (
             <div className="nexus-card p-3 text-center" key={item.label}>
               <p className="text-2xl font-black text-slate-950">{item.value}</p>
@@ -713,26 +842,97 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-3 lg:grid-cols-3" aria-label="ลำดับการกรอกคะแนน">
-        {[
-          {
-            label: '1. เลือกห้อง',
-            text: classrooms.find((classroom) => classroom.id === classroomId)?.name || 'ยังไม่มีห้องเรียน',
-          },
-          {
-            label: '2. เลือก/สร้างชุดคะแนน',
-            text: selectedAssessment ? selectedAssessment.title : 'สร้างชุดคะแนนก่อนกรอก',
-          },
-          {
-            label: '3. กรอกและบันทึก',
-            text: classroomStudents.length > 0 ? `${classroomStudents.length} คนในห้องนี้` : 'ยังไม่มีรายชื่อนักเรียน',
-          },
-        ].map((step) => (
-          <div className="rounded-3xl border border-amber-200/80 bg-white/80 p-4 shadow-sm" key={step.label}>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">{step.label}</p>
-            <p className="mt-2 truncate text-sm font-black text-slate-950">{step.text}</p>
+      <section className="nexus-card mt-5 p-4 sm:p-5" aria-label="ตัวควบคุมคะแนน">
+        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+          <label className="block">
+            <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
+            <select
+              className="nexus-field mt-2 h-11 px-3"
+              onChange={(event) => setClassroomId(event.target.value)}
+              value={classroomId}
+            >
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-black uppercase text-slate-500">วิชาในห้องนี้</span>
+            <select
+              className="nexus-field mt-2 h-11 px-3"
+              onChange={(event) => setSubjectFilter(event.target.value)}
+              value={subjectFilter}
+            >
+              {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
+              {subjectOptions.map((subject) => (
+                <option key={subject} value={subject}>
+                  {subject}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { icon: Layers, label: 'ภาพรวม', value: 'overview' as ScoreView },
+              { icon: ClipboardList, label: 'กรอก', value: 'entry' as ScoreView },
+              { icon: BarChart3, label: 'รายงาน', value: 'reports' as ScoreView },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-3 text-xs font-black transition ${
+                    scoreView === item.value
+                      ? 'bg-[#3a2817] text-white shadow-[0_14px_30px_rgba(88,52,20,0.20)]'
+                      : 'bg-white text-slate-600 ring-1 ring-[#ead8bd] hover:bg-[#fff8ef]'
+                  }`}
+                  key={item.value}
+                  onClick={() => setScoreView(item.value)}
+                  type="button"
+                >
+                  <Icon size={15} aria-hidden="true" />
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
-        ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-3" aria-label="บริบทคะแนนปัจจุบัน">
+          {[
+            {
+              icon: Users,
+              label: 'ห้องที่กำลังทำงาน',
+              text: activeClassroom
+                ? `${activeClassroom.name}${activeClassroom.academic_year ? ` | ปี ${activeClassroom.academic_year}` : ''}`
+                : 'ยังไม่มีห้องเรียน',
+            },
+            {
+              icon: BookOpen,
+              label: 'รายวิชา',
+              text: subjectFilter || form.subjectName || 'ยังไม่มีรายวิชา',
+            },
+            {
+              icon: FileSpreadsheet,
+              label: 'ชุดคะแนนในบริบทนี้',
+              text: `${contextAssessments.length} ชุด | กรอกครบ ${currentContext?.completePercent ?? 0}%`,
+            },
+          ].map((step) => {
+            const Icon = step.icon;
+            return (
+              <div className="rounded-3xl border border-amber-200/80 bg-white/80 p-4 shadow-sm" key={step.label}>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-amber-700">
+                  <Icon size={15} aria-hidden="true" />
+                  {step.label}
+                </div>
+                <p className="mt-2 truncate text-sm font-black text-slate-950">{step.text}</p>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -747,7 +947,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <label className="block">
                 <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
                 <select
-                  className="nexus-field mt-2"
+                  className="nexus-field mt-2 h-11 px-3"
                   onChange={(event) => setClassroomId(event.target.value)}
                   value={classroomId}
                 >
@@ -762,16 +962,25 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <label className="block">
                 <span className="text-xs font-black uppercase text-slate-500">วิชา</span>
                 <input
-                  className="nexus-field mt-2"
-                  onChange={(event) => setForm((current) => ({ ...current, subjectName: event.target.value }))}
+                  className="nexus-field mt-2 h-11 px-3"
+                  list="score-subject-options"
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, subjectName: event.target.value }));
+                    setSubjectFilter(event.target.value);
+                  }}
                   value={form.subjectName}
                 />
+                <datalist id="score-subject-options">
+                  {subjectOptions.map((subject) => (
+                    <option key={subject} value={subject} />
+                  ))}
+                </datalist>
               </label>
 
               <label className="block">
                 <span className="text-xs font-black uppercase text-slate-500">ชื่อชุดคะแนน</span>
                 <input
-                  className="nexus-field mt-2"
+                  className="nexus-field mt-2 h-11 px-3"
                   onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
                   placeholder="เช่น แบบทดสอบบทที่ 3"
                   value={form.title}
@@ -782,7 +991,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">วันที่</span>
                   <input
-                    className="nexus-field mt-2"
+                    className="nexus-field mt-2 h-11 px-3"
                     onChange={(event) => setForm((current) => ({ ...current, assessmentDate: event.target.value }))}
                     type="date"
                     value={form.assessmentDate}
@@ -791,7 +1000,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">ประเภท</span>
                   <select
-                    className="nexus-field mt-2"
+                    className="nexus-field mt-2 h-11 px-3"
                     onChange={(event) =>
                       setForm((current) => ({ ...current, category: event.target.value as AssessmentCategory }))
                     }
@@ -810,7 +1019,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">คะแนนเต็ม</span>
                   <input
-                    className="nexus-field mt-2"
+                    className="nexus-field mt-2 h-11 px-3"
                     min="1"
                     onChange={(event) => setForm((current) => ({ ...current, maxScore: event.target.value }))}
                     type="number"
@@ -820,7 +1029,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">น้ำหนัก</span>
                   <input
-                    className="nexus-field mt-2"
+                    className="nexus-field mt-2 h-11 px-3"
                     min="1"
                     onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
                     type="number"
@@ -843,10 +1052,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-black text-teal-700">
               <FileSpreadsheet size={16} aria-hidden="true" />
-              2. ชุดคะแนนในห้องนี้
+              2. ชุดคะแนนในวิชานี้
             </div>
             <div className="mt-4 grid gap-2">
-              {classroomAssessments.map((assessment) => (
+              {contextAssessments.map((assessment) => (
                 <button
                   className={`rounded-3xl p-3 text-left transition ${
                     assessment.id === selectedAssessment?.id
@@ -854,7 +1063,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       : 'bg-white/80 text-slate-700 ring-1 ring-slate-200 hover:bg-white'
                   }`}
                   key={assessment.id}
-                  onClick={() => setSelectedAssessmentId(assessment.id)}
+                  onClick={() => {
+                    setClassroomId(assessment.classroom_id);
+                    setSubjectFilter(assessment.subject_name);
+                    setSelectedAssessmentId(assessment.id);
+                  }}
                   type="button"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -877,9 +1090,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </button>
               ))}
 
-              {classroomAssessments.length === 0 ? (
+              {contextAssessments.length === 0 ? (
                 <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีชุดคะแนนของห้องนี้
+                  ยังไม่มีชุดคะแนนของวิชานี้ ให้สร้างชุดแรกก่อน
                 </div>
               ) : null}
             </div>
@@ -888,28 +1101,83 @@ export function ScoresPage({ session }: ScoresPageProps) {
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <BarChart3 size={16} aria-hidden="true" />
-              สรุปรายวิชา
+              บริบทการสอน
             </div>
             <div className="mt-4 grid gap-3">
-              {subjectSummary.map((subject) => (
-                <div className="nexus-muted-box p-3" key={subject.subjectName}>
+              {scoreContexts.slice(0, 8).map((context) => {
+                const isActive = context.classroomId === classroomId && context.subjectName === subjectFilter;
+                return (
+                  <button
+                    className={`rounded-2xl border p-3 text-left transition ${
+                      isActive
+                        ? 'border-[#3a2817] bg-[#3a2817] text-white shadow-[0_14px_30px_rgba(88,52,20,0.18)]'
+                        : 'border-[#ead8bd] bg-[#fff8ef]/75 text-slate-700 hover:bg-white'
+                    }`}
+                    key={`${context.classroomId}-${context.subjectName}`}
+                    onClick={() => {
+                      setClassroomId(context.classroomId);
+                      setSubjectFilter(context.subjectName);
+                      setSelectedAssessmentId(
+                        assessments.find(
+                          (assessment) =>
+                            assessment.classroom_id === context.classroomId &&
+                            assessment.subject_name === context.subjectName &&
+                            assessment.status !== 'archived',
+                        )?.id || '',
+                      );
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-black">{context.subjectName}</p>
+                        <p className={`mt-1 text-xs font-bold ${isActive ? 'text-white/70' : 'text-slate-500'}`}>
+                          {context.classroomName} | {context.assessmentCount} ชุด | {context.studentCount} คน
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${
+                          isActive ? 'bg-white/15 text-white' : 'bg-white text-cyan-700 ring-1 ring-cyan-100'
+                        }`}
+                      >
+                        {context.completePercent}%
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {scoreContexts.length === 0 ? (
+                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
+                  ยังไม่มีบริบทคะแนน ให้สร้างชุดคะแนนแรกจากห้องและวิชาที่ต้องการ
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="nexus-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+              <BarChart3 size={16} aria-hidden="true" />
+              รายงานบริบทปัจจุบัน
+            </div>
+            <div className="mt-4 grid gap-3">
+              {[
+                { label: 'ค่าเฉลี่ย', value: `${(currentContext?.averagePercent ?? 0).toFixed(0)}%` },
+                { label: 'กรอกครบ', value: `${currentContext?.completePercent ?? 0}%` },
+                { label: 'ต้องติดตาม', value: lowScoreStudents.length },
+              ].map((item) => (
+                <div className="nexus-muted-box p-3" key={item.label}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-black text-slate-950">{subject.subjectName}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{subject.assessmentCount} ชุดคะแนน</p>
+                      <p className="font-black text-slate-950">{item.label}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{subjectFilter || 'รายวิชาปัจจุบัน'}</p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                      {subject.averagePercent.toFixed(0)}%
+                      {item.value}
                     </span>
                   </div>
                 </div>
               ))}
-
-              {subjectSummary.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีคะแนนสำหรับสรุปรายวิชา
-                </div>
-              ) : null}
             </div>
           </div>
 
@@ -926,6 +1194,148 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </aside>
 
         <section className="grid gap-5">
+          {scoreView === 'overview' ? (
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-cyan-700">Teaching Matrix</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">ภาพรวมหลายห้องและหลายวิชา</h2>
+                  <p className="mt-2 text-sm font-bold text-slate-500">
+                    ใช้ตรวจว่าห้อง/วิชาไหนยังกรอกคะแนนไม่ครบก่อนส่งรายงาน
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#fff4d6] px-4 py-2 text-xs font-black text-[#9a5a00] ring-1 ring-[#f1d18c]">
+                  {scoreContexts.length} บริบท
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {scoreContexts.map((context) => (
+                  <button
+                    className="rounded-3xl border border-[#ead8bd] bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                    key={`${context.classroomId}-${context.subjectName}-overview`}
+                    onClick={() => {
+                      setClassroomId(context.classroomId);
+                      setSubjectFilter(context.subjectName);
+                      setScoreView('entry');
+                      setSelectedAssessmentId(
+                        assessments.find(
+                          (assessment) =>
+                            assessment.classroom_id === context.classroomId &&
+                            assessment.subject_name === context.subjectName &&
+                            assessment.status !== 'archived',
+                        )?.id || '',
+                      );
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-black text-slate-950">{context.subjectName}</p>
+                        <p className="mt-1 text-sm font-bold text-slate-500">{context.classroomName}</p>
+                      </div>
+                      <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                        {context.completePercent}% ครบ
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{context.assessmentCount}</p>
+                        <p className="text-[11px] font-black text-slate-500">ชุด</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{context.studentCount}</p>
+                        <p className="text-[11px] font-black text-slate-500">คน</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#fff8ef] p-3">
+                        <p className="text-lg font-black text-slate-950">{context.averagePercent.toFixed(0)}%</p>
+                        <p className="text-[11px] font-black text-slate-500">เฉลี่ย</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+
+                {scoreContexts.length === 0 ? (
+                  <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">
+                    ยังไม่มีข้อมูลคะแนน ให้เลือกห้องและสร้างชุดคะแนนแรกก่อน
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {scoreView === 'reports' ? (
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-cyan-700">Report Preview</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    รายงานคะแนน {subjectFilter || ''} {activeClassroom ? `| ${activeClassroom.name}` : ''}
+                  </h2>
+                  <p className="mt-2 text-sm font-bold text-slate-500">
+                    สรุปจากชุดคะแนนที่เลือกตอนนี้ ก่อนต่อยอดเป็น PDF/XLSX แบบรายงานโรงเรียน
+                  </p>
+                </div>
+                <button
+                  className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={!selectedAssessment}
+                  onClick={exportAssessmentCsv}
+                  type="button"
+                >
+                  <Download size={17} aria-hidden="true" />
+                  Export CSV
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-4">
+                {[
+                  { label: 'ชุดคะแนน', value: selectedAssessment?.title || '-' },
+                  { label: 'กรอกครบ', value: `${scoreStats.complete}/${classroomStudents.length}` },
+                  { label: 'ค่าเฉลี่ย', value: scoreStats.average.toFixed(2) },
+                  { label: 'ต่ำกว่า 50%', value: lowScoreStudents.length },
+                ].map((item) => (
+                  <div className="nexus-muted-box p-4" key={item.label}>
+                    <p className="text-xs font-black uppercase text-slate-500">{item.label}</p>
+                    <p className="mt-2 truncate text-xl font-black text-slate-950">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-3xl border border-[#ead8bd] bg-white/80 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-black text-slate-950">นักเรียนที่ต้องติดตาม</h3>
+                  <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
+                    {lowScoreStudents.length} คน
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {lowScoreStudents.map((row) => (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-2xl bg-[#fff8ef] px-4 py-3"
+                      key={row.student.id}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-950">
+                          {row.student.first_name} {row.student.last_name}
+                        </p>
+                        <p className="text-xs font-bold text-slate-500">{row.student.student_code || 'ไม่มีรหัส'}</p>
+                      </div>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
+                        {row.percent?.toFixed(0)}%
+                      </span>
+                    </div>
+                  ))}
+
+                  {lowScoreStudents.length === 0 ? (
+                    <div className="rounded-2xl bg-[#fff8ef] p-4 text-sm font-bold text-slate-600">
+                      ยังไม่มีนักเรียนต่ำกว่า 50% ในชุดคะแนนนี้
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div>
