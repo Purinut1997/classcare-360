@@ -31,6 +31,16 @@ interface WorkspaceMemberRow {
   status: MemberStatus;
 }
 
+interface SafeDeleteResult {
+  deleted?: boolean;
+  reason?: string;
+}
+
+function isMissingRpcFunction(error: { code?: string; message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() || '';
+  return error?.code === 'PGRST202' || message.includes('could not find the function') || message.includes('schema cache');
+}
+
 const demoClassrooms: ClassroomRow[] = [
   { academic_year: '2569', grade_level: 'ป.5', id: 'demo-classroom', name: 'ป.5/2', status: 'active' },
 ];
@@ -424,12 +434,29 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('classrooms')
-      .delete()
-      .eq('id', classroom.id)
-      .eq('workspace_id', session.workspace.id)
-      .select('id');
+    const rpcResult = await supabase.rpc('delete_classroom_safely', {
+      target_classroom_id: classroom.id,
+    });
+
+    let data: Array<{ id: string }> | null = null;
+    let error = rpcResult.error;
+
+    if (rpcResult.data) {
+      const result = rpcResult.data as SafeDeleteResult;
+      data = result.deleted ? [{ id: classroom.id }] : [];
+    }
+
+    if (error && isMissingRpcFunction(error)) {
+      const fallbackResult = await supabase
+        .from('classrooms')
+        .delete()
+        .eq('id', classroom.id)
+        .eq('workspace_id', session.workspace.id)
+        .select('id');
+
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) {
       setNotice(`ลบห้องเรียนไม่สำเร็จ: ${error.message}`);
@@ -438,7 +465,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     }
 
     if (!data || data.length === 0) {
-      setNotice('ลบห้องเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0016_workspace_classroom_delete_policy.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
+      setNotice('ลบห้องเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0018_safe_delete_rpc.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
       setIsSubmitting(false);
       return;
     }
@@ -541,11 +568,28 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('workspaces')
-      .delete()
-      .eq('id', session.workspace.id)
-      .select('id');
+    const rpcResult = await supabase.rpc('delete_workspace_safely', {
+      target_workspace_id: session.workspace.id,
+    });
+
+    let data: Array<{ id: string }> | null = null;
+    let error = rpcResult.error;
+
+    if (rpcResult.data) {
+      const result = rpcResult.data as SafeDeleteResult;
+      data = result.deleted ? [{ id: session.workspace.id }] : [];
+    }
+
+    if (error && isMissingRpcFunction(error)) {
+      const fallbackResult = await supabase
+        .from('workspaces')
+        .delete()
+        .eq('id', session.workspace.id)
+        .select('id');
+
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) {
       setNotice(`ลบ workspace ไม่สำเร็จ: ${error.message}`);
@@ -554,7 +598,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     }
 
     if (!data || data.length === 0) {
-      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0016_workspace_classroom_delete_policy.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
+      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0018_safe_delete_rpc.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
       setIsSubmitting(false);
       return;
     }

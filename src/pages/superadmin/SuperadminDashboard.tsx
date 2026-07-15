@@ -29,6 +29,16 @@ type AdminLevel = 'admin' | 'superadmin';
 type PromptPayIdentifierType = 'national_id' | 'phone';
 type WorkspaceDirectoryFilter = 'active' | 'all' | 'archived';
 
+interface SafeDeleteResult {
+  deleted?: boolean;
+  reason?: string;
+}
+
+function isMissingRpcFunction(error: { code?: string; message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() || '';
+  return error?.code === 'PGRST202' || message.includes('could not find the function') || message.includes('schema cache');
+}
+
 const controlCenterSections = [
   {
     body: 'จำนวน workspace active, นักเรียน, สมาชิก, admin และคำขอสำคัญล่าสุด',
@@ -1020,11 +1030,28 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       return;
     }
 
-    const { data, error } = await supabase
-      .from('workspaces')
-      .delete()
-      .eq('id', workspace.id)
-      .select('id');
+    const rpcResult = await supabase.rpc('delete_workspace_safely', {
+      target_workspace_id: workspace.id,
+    });
+
+    let data: Array<{ id: string }> | null = null;
+    let error = rpcResult.error;
+
+    if (rpcResult.data) {
+      const result = rpcResult.data as SafeDeleteResult;
+      data = result.deleted ? [{ id: workspace.id }] : [];
+    }
+
+    if (error && isMissingRpcFunction(error)) {
+      const fallbackResult = await supabase
+        .from('workspaces')
+        .delete()
+        .eq('id', workspace.id)
+        .select('id');
+
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) {
       setNotice(`ลบ workspace ไม่สำเร็จ: ${error.message}`);
@@ -1033,7 +1060,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     }
 
     if (!data || data.length === 0) {
-      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0016_workspace_classroom_delete_policy.sql หรือสิทธิ์ RLS ยังไม่อนุญาตให้ลบ');
+      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0018_safe_delete_rpc.sql หรือสิทธิ์ RLS ยังไม่อนุญาตให้ลบ');
       setWorkspaceActionId(null);
       return;
     }
