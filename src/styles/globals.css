@@ -112,8 +112,8 @@
     position: relative;
     overflow: hidden;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-    align-items: end;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    align-items: stretch;
     gap: 1rem;
   }
 
@@ -126,61 +126,10 @@
     opacity: 0.9;
   }
 
-  .app-workbench > :first-child > .nexus-card,
-  .app-workbench > :first-child > .app-panel-pad,
-  .app-workbench > :first-child > form.nexus-card,
-  .app-workbench > :first-child > form.app-panel-pad {
-    @apply rounded-none border-0 bg-transparent p-0 shadow-none;
+  .app-workbench > :first-child > * {
+    min-width: 0;
     position: relative;
     z-index: 1;
-  }
-
-  .app-workbench > :first-child > * > .nexus-kicker,
-  .app-workbench > :first-child > * > .nexus-pill,
-  .app-workbench > :first-child > * > div:first-child.flex.items-center {
-    @apply mb-1;
-  }
-
-  .app-workbench > :first-child > * > .mt-4,
-  .app-workbench > :first-child > * > .mt-3 {
-    margin-top: 0.75rem;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
-    align-items: end;
-    row-gap: 0.75rem;
-  }
-
-  .app-workbench > :first-child > * > .mt-4 > div,
-  .app-workbench > :first-child > * > .mt-3 > div {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  }
-
-  .app-workbench > :first-child .nexus-field {
-    border-radius: 0.95rem;
-    min-height: 2.75rem;
-    padding-left: 0.85rem;
-    padding-right: 0.85rem;
-  }
-
-  .app-workbench > :first-child select.nexus-field,
-  .app-workbench > :first-child input.nexus-field {
-    height: 2.75rem;
-  }
-
-  .app-workbench > :first-child button.w-full {
-    width: auto;
-  }
-
-  .app-workbench > :first-child button.mt-4,
-  .app-workbench > :first-child .mt-4.inline-flex {
-    margin-top: 0.75rem;
-  }
-
-  .app-workbench > :first-child button {
-    white-space: nowrap;
-  }
-
-  .app-workbench > :first-child .nexus-muted-box {
-    @apply bg-white/70;
   }
 
   .app-workbench > :not(:first-child) {

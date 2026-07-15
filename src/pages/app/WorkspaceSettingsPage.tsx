@@ -804,7 +804,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+      <section className="mt-5 grid gap-5 2xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="grid gap-5">
           <form id="workspace-profile" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
@@ -1220,7 +1220,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
       {canUseDestructiveActions ? (
       <section className="mt-5 rounded-[28px] border border-rose-200 bg-rose-50/45 p-4 shadow-sm sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
               <AlertTriangle size={15} aria-hidden="true" />

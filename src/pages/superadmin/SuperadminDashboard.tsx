@@ -1056,7 +1056,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       ) : null}
       <section className="mx-auto max-w-7xl">
         <div className="nexus-card overflow-hidden">
-          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-0 2xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="p-6 sm:p-8">
               <div className="nexus-kicker">
                 <ShieldCheck size={18} aria-hidden="true" />
@@ -1327,7 +1327,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </section>
 
-        <section id="superadmin-users" className="mt-5 grid scroll-mt-24 gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <section id="superadmin-users" className="mt-5 grid scroll-mt-24 gap-5 2xl:grid-cols-[420px_minmax(0,1fr)]">
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <UserPlus size={18} aria-hidden="true" />

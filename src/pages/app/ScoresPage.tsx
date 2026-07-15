@@ -1001,7 +1001,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       </div>
 
       <section className="nexus-card mt-5 p-4 sm:p-5" aria-label="ตัวควบคุมคะแนน">
-        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+        <div className="grid gap-3 2xl:grid-cols-[1fr_1fr_auto] 2xl:items-end">
           <label className="block">
             <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
             <select

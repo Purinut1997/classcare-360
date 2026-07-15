@@ -315,7 +315,7 @@ export function PortalHome({ portalRole, session }: PortalHomeProps) {
           </div>
         ) : null}
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <section className="mt-5 grid gap-5 2xl:grid-cols-[420px_minmax(0,1fr)]">
           <aside className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <UserRound size={16} aria-hidden="true" />

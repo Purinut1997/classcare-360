@@ -207,12 +207,12 @@ export function DashboardPage({
         </section>
       ) : null}
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         <QuickActionsPanel actions={quickActions} />
         <StudentWatchlist students={studentWatchlist} />
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <SecurityPanel
           activeLabel={activeLabel}
           entitlementLabel={entitlementLabel}

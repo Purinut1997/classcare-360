@@ -302,7 +302,7 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
       </section>
 
       <section className="nexus-card mt-5 p-4 sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+        <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_220px_180px]">
           <label className="grid gap-2 text-sm font-black text-slate-700">
             ค้นหา
             <span className="relative">

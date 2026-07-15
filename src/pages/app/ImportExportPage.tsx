@@ -1283,7 +1283,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+      <section className="mt-5 grid gap-5 2xl:grid-cols-[420px_minmax(0,1fr)]">
         <aside className="grid gap-5">
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
@@ -1534,7 +1534,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_220px_180px_auto] lg:items-center">
+            <div className="mt-4 grid gap-3 2xl:grid-cols-[minmax(220px,1fr)_220px_180px_auto] 2xl:items-center">
               <label className="relative block min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
                 <input
