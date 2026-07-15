@@ -36,11 +36,6 @@ interface SafeDeleteResult {
   reason?: string;
 }
 
-function isMissingRpcFunction(error: { code?: string; message?: string } | null | undefined) {
-  const message = error?.message?.toLowerCase() || '';
-  return error?.code === 'PGRST202' || message.includes('could not find the function') || message.includes('schema cache');
-}
-
 const demoClassrooms: ClassroomRow[] = [
   { academic_year: '2569', grade_level: 'ป.5', id: 'demo-classroom', name: 'ป.5/2', status: 'active' },
 ];
@@ -439,23 +434,11 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     });
 
     let data: Array<{ id: string }> | null = null;
-    let error = rpcResult.error;
+    const error = rpcResult.error;
 
     if (rpcResult.data) {
       const result = rpcResult.data as SafeDeleteResult;
       data = result.deleted ? [{ id: classroom.id }] : [];
-    }
-
-    if (error && isMissingRpcFunction(error)) {
-      const fallbackResult = await supabase
-        .from('classrooms')
-        .delete()
-        .eq('id', classroom.id)
-        .eq('workspace_id', session.workspace.id)
-        .select('id');
-
-      data = fallbackResult.data;
-      error = fallbackResult.error;
     }
 
     if (error) {
@@ -573,22 +556,11 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     });
 
     let data: Array<{ id: string }> | null = null;
-    let error = rpcResult.error;
+    const error = rpcResult.error;
 
     if (rpcResult.data) {
       const result = rpcResult.data as SafeDeleteResult;
       data = result.deleted ? [{ id: session.workspace.id }] : [];
-    }
-
-    if (error && isMissingRpcFunction(error)) {
-      const fallbackResult = await supabase
-        .from('workspaces')
-        .delete()
-        .eq('id', session.workspace.id)
-        .select('id');
-
-      data = fallbackResult.data;
-      error = fallbackResult.error;
     }
 
     if (error) {

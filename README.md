@@ -127,7 +127,7 @@ npm run build
 npm.cmd run check:deploy
 ```
 
-ผลตรวจล่าสุดผ่าน 25/28 checks โดยเหลือ `.env.local`, Supabase CLI และ Deno ที่ต้องตั้งค่าบนเครื่อง deploy จริง
+ผลตรวจล่าสุดผ่าน 35/35 required checks โดยเหลือ warning เฉพาะ Supabase CLI และ Deno ที่ต้องตั้งค่าบนเครื่อง deploy จริง
 
 ## UI Foundation
 

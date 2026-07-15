@@ -112,9 +112,9 @@
     position: relative;
     overflow: hidden;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
-    align-items: stretch;
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    align-items: start;
+    gap: 0.875rem;
   }
 
   .app-workbench > :first-child::before {
@@ -130,6 +130,18 @@
     min-width: 0;
     position: relative;
     z-index: 1;
+  }
+
+  .app-workbench > :first-child label,
+  .app-workbench > :first-child .nexus-field,
+  .app-action-bar label,
+  .app-action-bar .nexus-field {
+    min-width: 0;
+  }
+
+  .app-workbench > :first-child button,
+  .app-action-bar button {
+    white-space: nowrap;
   }
 
   .app-workbench > :not(:first-child) {

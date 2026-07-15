@@ -23,6 +23,8 @@ const requiredMigrations = [
   '0014_workspace_join_requests.sql',
   '0015_student_delete_owner_policy.sql',
   '0016_workspace_classroom_delete_policy.sql',
+  '0017_score_assessment_exam_terms.sql',
+  '0018_safe_delete_rpc.sql',
 ];
 
 const requiredFunctions = [

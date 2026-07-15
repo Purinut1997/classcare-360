@@ -3,6 +3,14 @@
 อัปเดตล่าสุด: 2026-07-13
 Timezone: Asia/Bangkok
 
+## อัปเดตล่าสุด 2026-07-15
+
+- ปิดช่องว่าง readiness/deploy: `npm run check:deploy` ตรวจ migration ครบถึง `0017_score_assessment_exam_terms.sql` และ `0018_safe_delete_rpc.sql` แล้ว เพื่อไม่ให้ระบบรายงานว่าพร้อมทั้งที่ RPC ลบห้องเรียน/workspace ยังไม่ได้อยู่ในชุด deploy
+- ปรับ logic ลบห้องเรียนและลบ workspace ให้พึ่ง RPC ฝั่ง database (`delete_classroom_safely`, `delete_workspace_safely`) โดยตรง ไม่ fallback เป็น delete จาก frontend แบบกำกวมแล้ว ถ้า Supabase ยังไม่มี RPC จะเห็น error ชัดว่าต้องรัน migration ล่าสุดก่อน
+- ปรับ layout system กลางของหน้า app ให้ control/filter ใน `app-workbench` เป็น grid ด้านบนที่ยืดหยุ่นกว่าเดิม ลดปัญหา form panel ข้างยาว ช่องกรอกแคบ และปุ่มล้นในหลายเมนู
+- ตรวจล่าสุด: `npm run check:deploy` ผ่าน 35/35 required checks โดย warning เหลือเฉพาะ Supabase CLI และ Deno ยังไม่อยู่ใน PATH ของเครื่องนี้
+- งานที่ยังต้องทำบนระบบจริง: รัน migration ล่าสุดใน Supabase project จริง โดยเฉพาะ `0018_safe_delete_rpc.sql` แล้วทดสอบปุ่มลบห้องเรียน/workspace บน Cloudflare Pages production อีกครั้ง
+
 ## อัปเดตล่าสุด 2026-07-13
 
 - ปรับ UX/logic หลังตรวจ workflow จริง: Sidebar เปลี่ยนเป็นหมวดใหญ่แบบพับ/ขยาย, Student 360 เพิ่มเมนูย่อยสำหรับรายชื่อ/เยี่ยมบ้าน/โปรไฟล์/เคสดูแล/Portal/ประวัติ, และหน้า Score Center เพิ่มแถบขั้นตอนเลือกห้อง -> เลือก/สร้างชุดคะแนน -> กรอกคะแนน
