@@ -44,6 +44,65 @@ interface AttendanceRecordRow {
   student_id: string;
 }
 
+interface SavingsAccountRow {
+  balance: number | string;
+  id: string;
+  status: 'active' | 'frozen' | 'closed';
+  student_id: string;
+}
+
+interface SavingsTransactionRow {
+  amount: number | string;
+  created_at: string;
+  id: string;
+  note: string | null;
+  student_id: string;
+  transaction_date: string;
+  transaction_type: 'deposit' | 'withdrawal' | 'adjustment';
+}
+
+interface ScoreAssessmentRow {
+  assessment_date: string;
+  category: 'quiz' | 'assignment' | 'midterm' | 'final' | 'exam' | 'project' | 'reading' | 'other';
+  classroom_id: string;
+  id: string;
+  max_score: number | string;
+  status: 'draft' | 'published' | 'archived';
+  subject_name: string;
+  title: string;
+  weight: number | string;
+}
+
+interface ScoreEntryRow {
+  assessment_id: string;
+  id: string;
+  note: string | null;
+  score: number | string | null;
+  student_id: string;
+}
+
+interface BehaviorRecordRow {
+  behavior_date: string;
+  category: string;
+  created_at: string;
+  description: string;
+  follow_up_status: 'none' | 'watch' | 'contact_guardian' | 'referred' | 'resolved';
+  id: string;
+  points: number | string;
+  student_id: string;
+  tone: 'positive' | 'concern' | 'support' | 'discipline';
+}
+
+interface HomeVisitReportRow {
+  academic_year: string | null;
+  completion_percent: number | null;
+  id: string;
+  status: 'draft' | 'ready' | 'submitted' | 'certified' | 'archived';
+  student_id: string;
+  term: string | null;
+  visited_at: string | null;
+}
+
 interface CoreReportMetrics {
   attendance: {
     presentRate: number;
@@ -82,6 +141,37 @@ const demoRecords: AttendanceRecordRow[] = [
   { note: null, session_id: 'demo-session-1', status: 'present', student_id: 'demo-student-1' },
   { note: 'มาสาย 10 นาที', session_id: 'demo-session-1', status: 'late', student_id: 'demo-student-2' },
   { note: 'ผู้ปกครองแจ้งลา', session_id: 'demo-session-1', status: 'leave', student_id: 'demo-student-3' },
+];
+
+const demoSavingsAccounts: SavingsAccountRow[] = [
+  { balance: 420, id: 'demo-saving-account-1', status: 'active', student_id: 'demo-student-1' },
+  { balance: 260, id: 'demo-saving-account-2', status: 'active', student_id: 'demo-student-2' },
+  { balance: 315, id: 'demo-saving-account-3', status: 'active', student_id: 'demo-student-3' },
+];
+
+const demoSavingsTransactions: SavingsTransactionRow[] = [
+  { amount: 20, created_at: new Date().toISOString(), id: 'demo-saving-tx-1', note: 'ฝากประจำวัน', student_id: 'demo-student-1', transaction_date: getTodayDate(), transaction_type: 'deposit' },
+  { amount: 10, created_at: new Date().toISOString(), id: 'demo-saving-tx-2', note: 'ถอนซื้ออุปกรณ์', student_id: 'demo-student-2', transaction_date: getTodayDate(), transaction_type: 'withdrawal' },
+];
+
+const demoScoreAssessments: ScoreAssessmentRow[] = [
+  { assessment_date: getTodayDate(), category: 'midterm', classroom_id: 'demo-classroom', id: 'demo-score-1', max_score: 20, status: 'published', subject_name: 'คณิตศาสตร์', title: 'กลางภาค', weight: 30 },
+  { assessment_date: getTodayDate(), category: 'final', classroom_id: 'demo-classroom', id: 'demo-score-2', max_score: 30, status: 'published', subject_name: 'คณิตศาสตร์', title: 'ปลายภาค', weight: 30 },
+];
+
+const demoScoreEntries: ScoreEntryRow[] = [
+  { assessment_id: 'demo-score-1', id: 'demo-entry-1', note: null, score: 16, student_id: 'demo-student-1' },
+  { assessment_id: 'demo-score-1', id: 'demo-entry-2', note: null, score: 14, student_id: 'demo-student-2' },
+  { assessment_id: 'demo-score-2', id: 'demo-entry-3', note: null, score: 25, student_id: 'demo-student-1' },
+];
+
+const demoBehaviorRecords: BehaviorRecordRow[] = [
+  { behavior_date: getTodayDate(), category: 'ช่วยเหลือเพื่อน', created_at: new Date().toISOString(), description: 'ช่วยเพื่อนเก็บอุปกรณ์หลังเลิกเรียน', follow_up_status: 'none', id: 'demo-behavior-1', points: 3, student_id: 'demo-student-1', tone: 'positive' },
+  { behavior_date: getTodayDate(), category: 'งานไม่ครบ', created_at: new Date().toISOString(), description: 'ค้างใบงาน นัดติดตามในคาบโฮมรูม', follow_up_status: 'watch', id: 'demo-behavior-2', points: -2, student_id: 'demo-student-2', tone: 'concern' },
+];
+
+const demoHomeVisits: HomeVisitReportRow[] = [
+  { academic_year: '2569', completion_percent: 43, id: 'demo-home-visit-1', status: 'draft', student_id: 'demo-student-1', term: '1', visited_at: getTodayDate() },
 ];
 
 const emptyCoreMetrics: CoreReportMetrics = {
@@ -132,6 +222,38 @@ const reportPeriods: Array<{ label: string; value: ReportPeriod }> = [
   { label: 'ปีการศึกษา', value: 'year' },
 ];
 
+const scoreCategoryLabels: Record<ScoreAssessmentRow['category'], string> = {
+  assignment: 'งาน/ใบงาน',
+  exam: 'สอบ',
+  final: 'ปลายภาค',
+  midterm: 'กลางภาค',
+  other: 'อื่น ๆ',
+  project: 'โครงงาน',
+  quiz: 'แบบทดสอบ',
+  reading: 'อ่านเขียน',
+};
+
+const savingsTransactionLabels: Record<SavingsTransactionRow['transaction_type'], string> = {
+  adjustment: 'ปรับยอด',
+  deposit: 'ฝาก',
+  withdrawal: 'ถอน',
+};
+
+const toneLabels: Record<BehaviorRecordRow['tone'], string> = {
+  concern: 'ต้องดูแล',
+  discipline: 'วินัย',
+  positive: 'เชิงบวก',
+  support: 'สนับสนุน',
+};
+
+const followUpLabels: Record<BehaviorRecordRow['follow_up_status'], string> = {
+  contact_guardian: 'ติดต่อผู้ปกครอง',
+  none: 'ไม่ต้องติดตาม',
+  referred: 'ส่งต่อ',
+  resolved: 'ปิดเคสแล้ว',
+  watch: 'เฝ้าดู',
+};
+
 const monthlyStatusLabels: Record<'absent' | 'late' | 'leave' | 'present', string> = {
   present: 'มา',
   late: 'สาย',
@@ -178,6 +300,10 @@ function downloadBlob(filename: string, blob: Blob) {
 
 function round(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function formatBaht(value: number) {
+  return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(value);
 }
 
 function parseLocalDate(value: string) {
@@ -570,6 +696,12 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSessionRow[]>(demoSessions);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecordRow[]>(demoRecords);
+  const [savingsAccounts, setSavingsAccounts] = useState<SavingsAccountRow[]>(demoSavingsAccounts);
+  const [savingsTransactions, setSavingsTransactions] = useState<SavingsTransactionRow[]>(demoSavingsTransactions);
+  const [scoreAssessments, setScoreAssessments] = useState<ScoreAssessmentRow[]>(demoScoreAssessments);
+  const [scoreEntries, setScoreEntries] = useState<ScoreEntryRow[]>(demoScoreEntries);
+  const [behaviorRecords, setBehaviorRecords] = useState<BehaviorRecordRow[]>(demoBehaviorRecords);
+  const [homeVisits, setHomeVisits] = useState<HomeVisitReportRow[]>(demoHomeVisits);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
   const [reportView, setReportView] = useState<ReportView>(initialReportView);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(initialReportPeriod);
@@ -639,6 +771,12 @@ export function ReportsPage({ session }: ReportsPageProps) {
         setStudents(demoStudents);
         setAttendanceSessions(demoSessions);
         setAttendanceRecords(demoRecords);
+        setSavingsAccounts(demoSavingsAccounts);
+        setSavingsTransactions(demoSavingsTransactions);
+        setScoreAssessments(demoScoreAssessments);
+        setScoreEntries(demoScoreEntries);
+        setBehaviorRecords(demoBehaviorRecords);
+        setHomeVisits(demoHomeVisits);
         setCoreMetrics({
           attendance: {
             presentRate: 67,
@@ -647,17 +785,17 @@ export function ReportsPage({ session }: ReportsPageProps) {
           },
           behavior: {
             followUps: 1,
-            positiveCount: 3,
-            totalPoints: 12,
+            positiveCount: demoBehaviorRecords.filter((record) => record.tone === 'positive').length,
+            totalPoints: demoBehaviorRecords.reduce((sum, record) => sum + Number(record.points || 0), 0),
           },
           savings: {
-            accountCount: demoStudents.length,
-            totalBalance: 1250,
+            accountCount: demoSavingsAccounts.length,
+            totalBalance: demoSavingsAccounts.reduce((sum, account) => sum + Number(account.balance || 0), 0),
           },
           scores: {
-            assessmentCount: 2,
-            averagePercent: 82,
-            belowHalfCount: 1,
+            assessmentCount: demoScoreAssessments.length,
+            averagePercent: 80,
+            belowHalfCount: 0,
           },
         });
         setClassroomId(demoClassrooms[0].id);
@@ -730,49 +868,98 @@ export function ReportsPage({ session }: ReportsPageProps) {
       setClassroomId((current) => current || nextClassrooms[0]?.id || '');
 
       const [
-        { data: scoreRows },
-        { data: savingsRows },
-        { data: behaviorRows },
+        { data: assessmentRows, error: assessmentError },
+        { data: accountRows, error: accountError },
+        { data: transactionRows, error: transactionError },
+        { data: behaviorRows, error: behaviorError },
+        { data: homeVisitRows, error: homeVisitError },
       ] = await Promise.all([
         supabase
-          .from('score_entries')
-          .select('assessment_id,score,score_assessments(max_score,status)')
+          .from('score_assessments')
+          .select('id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status')
           .eq('workspace_id', session.workspace.id)
-          .not('score', 'is', null)
+          .gte('assessment_date', dateFrom)
+          .lte('assessment_date', dateTo)
+          .order('assessment_date', { ascending: false })
           .limit(1000),
         supabase
           .from('savings_accounts')
-          .select('balance,status')
+          .select('id,student_id,balance,status')
           .eq('workspace_id', session.workspace.id)
-          .eq('status', 'active')
+          .limit(1000),
+        supabase
+          .from('savings_transactions')
+          .select('id,student_id,transaction_type,amount,transaction_date,note,created_at')
+          .eq('workspace_id', session.workspace.id)
+          .gte('transaction_date', dateFrom)
+          .lte('transaction_date', dateTo)
+          .order('transaction_date', { ascending: false })
           .limit(1000),
         supabase
           .from('behavior_records')
-          .select('tone,points,follow_up_status,behavior_date')
+          .select('id,student_id,tone,category,description,points,follow_up_status,behavior_date,created_at')
           .eq('workspace_id', session.workspace.id)
           .gte('behavior_date', dateFrom)
           .lte('behavior_date', dateTo)
+          .order('behavior_date', { ascending: false })
+          .limit(1000),
+        supabase
+          .from('student_home_visits')
+          .select('id,student_id,academic_year,term,status,completion_percent,visited_at')
+          .eq('workspace_id', session.workspace.id)
           .limit(1000),
       ]);
 
-      const scoreData = (scoreRows || []) as Array<{
-        assessment_id: string | null;
-        score: number | null;
-        score_assessments?: { max_score?: number | null; status?: string | null } | null;
-      }>;
-      const scorePercents = scoreData
+      if (assessmentError || accountError || transactionError || behaviorError || homeVisitError) {
+        setNotice(
+          assessmentError?.message ||
+            accountError?.message ||
+            transactionError?.message ||
+            behaviorError?.message ||
+            homeVisitError?.message ||
+            'โหลดข้อมูลรายงานบางส่วนไม่สำเร็จ',
+        );
+      }
+
+      const nextAssessments = (assessmentRows || []) as ScoreAssessmentRow[];
+      const nextAssessmentIds = nextAssessments.map((assessment) => assessment.id);
+      let nextScoreEntries: ScoreEntryRow[] = [];
+
+      if (nextAssessmentIds.length > 0) {
+        const { data: entryRows, error: entryError } = await supabase
+          .from('score_entries')
+          .select('id,assessment_id,student_id,score,note')
+          .eq('workspace_id', session.workspace.id)
+          .in('assessment_id', nextAssessmentIds);
+
+        if (!isMounted) return;
+
+        if (entryError) {
+          setNotice(entryError.message);
+        } else {
+          nextScoreEntries = (entryRows || []) as ScoreEntryRow[];
+        }
+      }
+
+      const nextSavingsAccounts = (accountRows || []) as SavingsAccountRow[];
+      const nextSavingsTransactions = (transactionRows || []) as SavingsTransactionRow[];
+      const nextBehaviorRecords = (behaviorRows || []) as BehaviorRecordRow[];
+      const nextHomeVisits = (homeVisitRows || []) as HomeVisitReportRow[];
+      setScoreAssessments(nextAssessments);
+      setScoreEntries(nextScoreEntries);
+      setSavingsAccounts(nextSavingsAccounts);
+      setSavingsTransactions(nextSavingsTransactions);
+      setBehaviorRecords(nextBehaviorRecords);
+      setHomeVisits(nextHomeVisits);
+
+      const scorePercents = nextScoreEntries
         .map((row) => {
-          const maxScore = Number(row.score_assessments?.max_score || 0);
+          const assessment = nextAssessments.find((item) => item.id === row.assessment_id);
+          const maxScore = Number(assessment?.max_score || 0);
           const score = Number(row.score || 0);
           return maxScore > 0 ? (score / maxScore) * 100 : null;
         })
         .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-      const savingsData = (savingsRows || []) as Array<{ balance: number | string | null }>;
-      const behaviorData = (behaviorRows || []) as Array<{
-        follow_up_status: string | null;
-        points: number | null;
-        tone: string | null;
-      }>;
       const presentCount = nextRecords.filter((record) => record.status === 'present').length;
       const riskCount = nextRecords.filter((record) => ['absent', 'late', 'leave', 'sick'].includes(record.status)).length;
 
@@ -783,16 +970,16 @@ export function ReportsPage({ session }: ReportsPageProps) {
           total: nextRecords.length,
         },
         behavior: {
-          followUps: behaviorData.filter((row) => row.follow_up_status && !['none', 'resolved'].includes(row.follow_up_status)).length,
-          positiveCount: behaviorData.filter((row) => row.tone === 'positive').length,
-          totalPoints: behaviorData.reduce((sum, row) => sum + Number(row.points || 0), 0),
+          followUps: nextBehaviorRecords.filter((row) => row.follow_up_status && !['none', 'resolved'].includes(row.follow_up_status)).length,
+          positiveCount: nextBehaviorRecords.filter((row) => row.tone === 'positive').length,
+          totalPoints: nextBehaviorRecords.reduce((sum, row) => sum + Number(row.points || 0), 0),
         },
         savings: {
-          accountCount: savingsData.length,
-          totalBalance: round(savingsData.reduce((sum, row) => sum + Number(row.balance || 0), 0)),
+          accountCount: nextSavingsAccounts.filter((row) => row.status === 'active').length,
+          totalBalance: round(nextSavingsAccounts.reduce((sum, row) => sum + Number(row.balance || 0), 0)),
         },
         scores: {
-          assessmentCount: new Set(scoreData.map((row) => row.assessment_id).filter(Boolean)).size,
+          assessmentCount: nextAssessments.length,
           averagePercent: scorePercents.length > 0 ? round(scorePercents.reduce((sum, value) => sum + value, 0) / scorePercents.length) : 0,
           belowHalfCount: scorePercents.filter((value) => value < 50).length,
         },
@@ -857,14 +1044,154 @@ export function ReportsPage({ session }: ReportsPageProps) {
     () => students.find((student) => student.id === selectedStudentId) || classroomStudents[0] || students[0] || null,
     [classroomStudents, selectedStudentId, students],
   );
+  const classroomStudentIds = useMemo(() => new Set(classroomStudents.map((student) => student.id)), [classroomStudents]);
+  const studentById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
+  const savingsAccountByStudent = useMemo(
+    () => new Map(savingsAccounts.map((account) => [account.student_id, account])),
+    [savingsAccounts],
+  );
+  const classroomSavingsTransactions = useMemo(
+    () => savingsTransactions.filter((transaction) => classroomStudentIds.has(transaction.student_id)),
+    [classroomStudentIds, savingsTransactions],
+  );
+  const savingsReportRows = useMemo(
+    () =>
+      classroomStudents.map((student) => {
+        const account = savingsAccountByStudent.get(student.id);
+        const transactions = classroomSavingsTransactions.filter((transaction) => transaction.student_id === student.id);
+        const deposits = transactions
+          .filter((transaction) => transaction.transaction_type === 'deposit')
+          .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+        const withdrawals = transactions
+          .filter((transaction) => transaction.transaction_type === 'withdrawal')
+          .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+        return {
+          balance: Number(account?.balance || 0),
+          deposits,
+          latestDate: transactions[0]?.transaction_date || '-',
+          student,
+          transactionCount: transactions.length,
+          withdrawals,
+        };
+      }),
+    [classroomSavingsTransactions, classroomStudents, savingsAccountByStudent],
+  );
+  const classroomScoreAssessments = useMemo(
+    () =>
+      scoreAssessments.filter(
+        (assessment) =>
+          (!selectedClassroom || assessment.classroom_id === selectedClassroom.id) &&
+          assessment.status !== 'archived',
+      ),
+    [scoreAssessments, selectedClassroom],
+  );
+  const scoreEntriesByAssessment = useMemo(() => {
+    const map = new Map<string, ScoreEntryRow[]>();
+    scoreEntries.forEach((entry) => {
+      const rows = map.get(entry.assessment_id) || [];
+      rows.push(entry);
+      map.set(entry.assessment_id, rows);
+    });
+    return map;
+  }, [scoreEntries]);
+  const scoreAssessmentRows = useMemo(
+    () =>
+      classroomScoreAssessments.map((assessment) => {
+        const entries = (scoreEntriesByAssessment.get(assessment.id) || []).filter((entry) => classroomStudentIds.has(entry.student_id));
+        const enteredEntries = entries.filter((entry) => entry.score !== null && entry.score !== undefined);
+        const maxScore = Number(assessment.max_score || 0);
+        const averageScore =
+          enteredEntries.length > 0
+            ? enteredEntries.reduce((sum, entry) => sum + Number(entry.score || 0), 0) / enteredEntries.length
+            : 0;
+
+        return {
+          assessment,
+          averagePercent: maxScore > 0 ? round((averageScore / maxScore) * 100) : 0,
+          averageScore: round(averageScore),
+          enteredCount: enteredEntries.length,
+          missingCount: Math.max(classroomStudents.length - enteredEntries.length, 0),
+        };
+      }),
+    [classroomScoreAssessments, classroomStudentIds, classroomStudents.length, scoreEntriesByAssessment],
+  );
+  const scoreSubjectRows = useMemo(() => {
+    const map = new Map<string, { assessmentCount: number; averagePercent: number; enteredCount: number; subject: string }>();
+    scoreAssessmentRows.forEach((row) => {
+      const current = map.get(row.assessment.subject_name) || {
+        assessmentCount: 0,
+        averagePercent: 0,
+        enteredCount: 0,
+        subject: row.assessment.subject_name,
+      };
+      current.assessmentCount += 1;
+      current.enteredCount += row.enteredCount;
+      current.averagePercent += row.averagePercent;
+      map.set(row.assessment.subject_name, current);
+    });
+
+    return Array.from(map.values()).map((row) => ({
+      ...row,
+      averagePercent: row.assessmentCount > 0 ? round(row.averagePercent / row.assessmentCount) : 0,
+    }));
+  }, [scoreAssessmentRows]);
+  const behaviorReportRows = useMemo(
+    () => behaviorRecords.filter((record) => classroomStudentIds.has(record.student_id)),
+    [behaviorRecords, classroomStudentIds],
+  );
+  const selectedStudentAttendanceRecords = useMemo(
+    () => (selectedStudent ? attendanceRecords.filter((record) => record.student_id === selectedStudent.id) : []),
+    [attendanceRecords, selectedStudent],
+  );
+  const selectedStudentScoreEntries = useMemo(() => {
+    if (!selectedStudent) return [];
+    const assessmentById = new Map(classroomScoreAssessments.map((assessment) => [assessment.id, assessment]));
+    return scoreEntries
+      .filter((entry) => entry.student_id === selectedStudent.id && assessmentById.has(entry.assessment_id))
+      .map((entry) => ({ assessment: assessmentById.get(entry.assessment_id), entry }));
+  }, [classroomScoreAssessments, scoreEntries, selectedStudent]);
+  const selectedStudentSavingsTransactions = useMemo(
+    () => (selectedStudent ? classroomSavingsTransactions.filter((transaction) => transaction.student_id === selectedStudent.id) : []),
+    [classroomSavingsTransactions, selectedStudent],
+  );
+  const selectedStudentBehaviorRecords = useMemo(
+    () => (selectedStudent ? behaviorReportRows.filter((record) => record.student_id === selectedStudent.id) : []),
+    [behaviorReportRows, selectedStudent],
+  );
+  const selectedHomeVisit = useMemo(
+    () => (selectedStudent ? homeVisits.find((visit) => visit.student_id === selectedStudent.id && visit.status !== 'archived') || null : null),
+    [homeVisits, selectedStudent],
+  );
+  const selectedStudentScoreAverage = useMemo(() => {
+    const percents = selectedStudentScoreEntries
+      .map(({ assessment, entry }) => {
+        const maxScore = Number(assessment?.max_score || 0);
+        return maxScore > 0 && entry.score !== null && entry.score !== undefined ? (Number(entry.score || 0) / maxScore) * 100 : null;
+      })
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    return percents.length > 0 ? round(percents.reduce((sum, value) => sum + value, 0) / percents.length) : 0;
+  }, [selectedStudentScoreEntries]);
   const activeReportConfig = reportViews.find((item) => item.value === reportView) || reportViews[0];
   const periodLabel = reportPeriods.find((item) => item.value === reportPeriod)?.label || 'เดือน';
+  const activeReportRowCount =
+    reportView === 'attendance'
+      ? reportRows.length
+      : reportView === 'savings'
+        ? classroomSavingsTransactions.length
+        : reportView === 'scores'
+          ? scoreAssessmentRows.length
+          : reportView === 'behavior'
+            ? behaviorReportRows.length
+            : reportView === 'individual' && selectedStudent
+              ? 1
+              : 0;
   const exportableAttendance = reportView === 'attendance' && reportRows.length > 0;
   const readinessItems = [
     { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
     { label: 'เลือกห้อง/ช่วงข้อมูล', ready: Boolean(classroomId && dateFrom && dateTo) },
     { label: 'มีรายชื่อนักเรียนในห้อง', ready: classroomStudents.length > 0 },
-    { label: 'มีข้อมูลรายงานช่วงนี้', ready: reportRows.length > 0 || reportView !== 'attendance' },
+    { label: 'มีข้อมูลรายงานช่วงนี้', ready: activeReportRowCount > 0 || reportView === 'settings' },
   ];
 
   useEffect(() => {
@@ -917,6 +1244,59 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportJsonPackage() {
+    const activeRows =
+      reportView === 'attendance'
+        ? reportRows.map((row) => ({ ...row, statusLabel: statusLabels[row.status] }))
+        : reportView === 'savings'
+          ? savingsReportRows.map((row) => ({
+              balance: row.balance,
+              deposits: row.deposits,
+              latestDate: row.latestDate,
+              studentCode: row.student.student_code,
+              studentName: `${row.student.first_name} ${row.student.last_name}`,
+              transactionCount: row.transactionCount,
+              withdrawals: row.withdrawals,
+            }))
+          : reportView === 'scores'
+            ? scoreAssessmentRows.map((row) => ({
+                assessmentDate: row.assessment.assessment_date,
+                averagePercent: row.averagePercent,
+                averageScore: row.averageScore,
+                category: row.assessment.category,
+                categoryLabel: scoreCategoryLabels[row.assessment.category],
+                enteredCount: row.enteredCount,
+                missingCount: row.missingCount,
+                subjectName: row.assessment.subject_name,
+                title: row.assessment.title,
+              }))
+            : reportView === 'behavior'
+              ? behaviorReportRows.map((row) => {
+                  const student = studentById.get(row.student_id);
+                  return {
+                    behaviorDate: row.behavior_date,
+                    category: row.category,
+                    description: row.description,
+                    followUp: followUpLabels[row.follow_up_status],
+                    points: row.points,
+                    studentCode: student?.student_code || null,
+                    studentName: student ? `${student.first_name} ${student.last_name}` : null,
+                    tone: toneLabels[row.tone],
+                  };
+                })
+              : reportView === 'individual' && selectedStudent
+                ? [
+                    {
+                      attendanceRecords: selectedStudentAttendanceRecords.length,
+                      behaviorRecords: selectedStudentBehaviorRecords.length,
+                      homeVisitCompletion: selectedHomeVisit?.completion_percent || 0,
+                      savingsBalance: Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0),
+                      savingsTransactions: selectedStudentSavingsTransactions.length,
+                      scoreAverage: selectedStudentScoreAverage,
+                      studentCode: selectedStudent.student_code,
+                      studentName: `${selectedStudent.first_name} ${selectedStudent.last_name}`,
+                    },
+                  ]
+                : [];
     const payload = {
       createdAt: new Date().toISOString(),
       credit: 'Created by MIKPURINUT',
@@ -925,21 +1305,21 @@ export function ReportsPage({ session }: ReportsPageProps) {
         dateFrom,
         dateTo,
         query,
+        reportPeriod,
+        reportView,
       },
-      reportType: 'attendance_summary',
+      reportType: reportView,
       coreMetrics,
-      rows: reportRows.map((row) => ({
-        ...row,
-        statusLabel: statusLabels[row.status],
-      })),
+      rows: activeRows,
       schoolName: session.workspace?.schoolName || 'Demo Workspace',
       summary,
+      termRanges,
       timezone: 'Asia/Bangkok',
       workspaceId: session.workspace?.id || 'demo-workspace',
     };
 
     downloadBlob(
-      `classcare-attendance-package-${dateFrom}-${dateTo}.json`,
+      `classcare-${reportView}-package-${dateFrom}-${dateTo}.json`,
       new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' }),
     );
   }
@@ -1012,7 +1392,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
           </button>
           <button
             className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!exportableAttendance}
+            disabled={activeReportRowCount === 0 && reportView !== 'settings'}
             onClick={exportJsonPackage}
             type="button"
           >
@@ -1275,46 +1655,125 @@ export function ReportsPage({ session }: ReportsPageProps) {
           ) : null}
 
           {reportView === 'savings' ? (
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              <article className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs font-black uppercase text-amber-700">ยอดรวม</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.savings.totalBalance.toLocaleString('th-TH')}</p>
-                <p className="mt-1 text-sm font-bold text-slate-600">บาท จาก {coreMetrics.savings.accountCount} บัญชี</p>
-              </article>
-              <article className="rounded-3xl border border-slate-200 bg-white p-4 lg:col-span-2">
-                <h3 className="text-lg font-black text-slate-950">โครงรายงานเงินออม</h3>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                  รองรับรายเดือน เทอม และปี โดยควรรวมฝาก ถอน ยอดยกมา ยอดคงเหลือ และช่องลงชื่อครูประจำชั้น/ผอ. ใน export PDF/XLSX
-                </p>
-              </article>
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <article className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-black uppercase text-amber-700">ยอดคงเหลือห้อง</p>
+                  <p className="mt-2 text-4xl font-black text-slate-950">{formatBaht(savingsReportRows.reduce((sum, row) => sum + row.balance, 0))}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-600">บาท</p>
+                </article>
+                <article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-black uppercase text-emerald-700">ฝากช่วงนี้</p>
+                  <p className="mt-2 text-4xl font-black text-slate-950">{formatBaht(savingsReportRows.reduce((sum, row) => sum + row.deposits, 0))}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-600">บาท</p>
+                </article>
+                <article className="rounded-3xl border border-rose-200 bg-rose-50 p-4">
+                  <p className="text-xs font-black uppercase text-rose-700">ถอนช่วงนี้</p>
+                  <p className="mt-2 text-4xl font-black text-slate-950">{formatBaht(savingsReportRows.reduce((sum, row) => sum + row.withdrawals, 0))}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-600">บาท</p>
+                </article>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-100 text-left">
+                  <thead>
+                    <tr className="text-xs font-black uppercase text-slate-500">
+                      <th className="px-3 py-3">นักเรียน</th>
+                      <th className="px-3 py-3">ฝาก</th>
+                      <th className="px-3 py-3">ถอน</th>
+                      <th className="px-3 py-3">ยอดคงเหลือ</th>
+                      <th className="px-3 py-3">รายการ</th>
+                      <th className="px-3 py-3">ล่าสุด</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {savingsReportRows.map((row) => (
+                      <tr className="hover:bg-amber-50/50" key={row.student.id}>
+                        <td className="px-3 py-3">
+                          <p className="font-black text-slate-950">{row.student.first_name} {row.student.last_name}</p>
+                          <p className="text-xs font-bold text-slate-500">{row.student.student_code || '-'}</p>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 font-black text-emerald-700">{formatBaht(row.deposits)} ฿</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-black text-rose-700">{formatBaht(row.withdrawals)} ฿</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-black text-slate-950">{formatBaht(row.balance)} ฿</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.transactionCount}</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.latestDate}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isLoading && classroomSavingsTransactions.length === 0 ? (
+                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
+                  ยังไม่มีรายการฝาก/ถอนในช่วงเวลานี้ แต่ยังแสดงยอดคงเหลือจากบัญชีเงินออมได้
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           {reportView === 'scores' ? (
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-3 lg:grid-cols-3">
               <article className="rounded-3xl border border-slate-200 bg-white p-4">
                 <p className="text-xs font-black uppercase text-slate-400">ชุดคะแนน</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.scores.assessmentCount}</p>
-                <p className="mt-1 text-sm font-bold text-slate-600">ชุดใน workspace</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{scoreAssessmentRows.length}</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">ชุดในห้อง/ช่วงนี้</p>
               </article>
               <article className="rounded-3xl border border-slate-200 bg-white p-4">
                 <p className="text-xs font-black uppercase text-slate-400">เฉลี่ย</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.scores.averagePercent}%</p>
-                <p className="mt-1 text-sm font-bold text-slate-600">รวมทุกวิชาที่โหลดได้</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">
+                  {scoreAssessmentRows.length > 0 ? round(scoreAssessmentRows.reduce((sum, row) => sum + row.averagePercent, 0) / scoreAssessmentRows.length) : 0}%
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-600">รวมชุดคะแนนที่มีคะแนนแล้ว</p>
               </article>
               <article className="rounded-3xl border border-rose-200 bg-rose-50 p-4">
-                <p className="text-xs font-black uppercase text-rose-700">ต้องติดตาม</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{coreMetrics.scores.belowHalfCount}</p>
-                <p className="mt-1 text-sm font-bold text-slate-600">รายการต่ำกว่า 50%</p>
+                <p className="text-xs font-black uppercase text-rose-700">ยังไม่กรอก</p>
+                <p className="mt-2 text-4xl font-black text-slate-950">{scoreAssessmentRows.reduce((sum, row) => sum + row.missingCount, 0)}</p>
+                <p className="mt-1 text-sm font-bold text-slate-600">ช่องคะแนนที่ยังว่าง</p>
               </article>
-              <div className="nexus-muted-box p-4 text-sm font-bold leading-6 text-slate-600 lg:col-span-3">
-                รายงานคะแนนควรแยก export เป็น “สรุปรายชั้น”, “สรุปรายห้อง”, “รายวิชา”, และ “รายบุคคล” โดยดึงชุดคะแนนกลางภาค/ปลายภาค/ระหว่างเรียนจากระบบคะแนนหลัก
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-lg font-black text-slate-950">สรุปรายวิชา</h3>
+                  <div className="mt-3 grid gap-2">
+                    {scoreSubjectRows.map((row) => (
+                      <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2" key={row.subject}>
+                        <div>
+                          <p className="font-black text-slate-950">{row.subject}</p>
+                          <p className="text-xs font-bold text-slate-500">{row.assessmentCount} ชุด | กรอกแล้ว {row.enteredCount}</p>
+                        </div>
+                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">{row.averagePercent}%</span>
+                      </div>
+                    ))}
+                    {scoreSubjectRows.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีชุดคะแนนในช่วงนี้</p> : null}
+                  </div>
+                </article>
+
+                <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-lg font-black text-slate-950">ชุดคะแนนล่าสุด</h3>
+                  <div className="mt-3 grid gap-2">
+                    {scoreAssessmentRows.slice(0, 6).map((row) => (
+                      <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2" key={row.assessment.id}>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-black text-slate-950">{row.assessment.title}</p>
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{scoreCategoryLabels[row.assessment.category]}</span>
+                        </div>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {row.assessment.subject_name} | เฉลี่ย {row.averageScore}/{row.assessment.max_score} | ยังไม่กรอก {row.missingCount}
+                        </p>
+                      </div>
+                    ))}
+                    {scoreAssessmentRows.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีชุดคะแนนในช่วงนี้</p> : null}
+                  </div>
+                </article>
               </div>
             </div>
           ) : null}
 
           {reportView === 'individual' ? (
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <div className="mt-5 grid gap-4">
               <article className="rounded-3xl border border-slate-200 bg-white p-4">
                 <p className="text-sm font-black text-teal-700">Student Report</p>
                 <h3 className="mt-1 text-2xl font-black text-slate-950">
@@ -1322,27 +1781,108 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </h3>
                 <p className="mt-2 text-sm font-bold text-slate-500">{selectedStudent?.student_code || '-'} | {selectedClassroom?.name || '-'}</p>
               </article>
-              <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                <h3 className="text-lg font-black text-slate-950">ข้อมูลที่จะรวมในรายงานรายบุคคล</h3>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                  เวลาเรียน คะแนน เงินออม พฤติกรรม เคสดูแล แบบเยี่ยมบ้าน และประวัติการติดต่อผู้ปกครอง แยกช่วงเดือน/เทอม/ปี
-                </p>
-              </article>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { detail: 'บันทึกเวลาเรียน', label: 'เวลาเรียน', value: selectedStudentAttendanceRecords.length },
+                  { detail: 'คะแนนเฉลี่ย', label: 'คะแนน', value: `${selectedStudentScoreAverage}%` },
+                  { detail: 'ยอดคงเหลือ', label: 'เงินออม', value: `${formatBaht(Number(selectedStudent ? savingsAccountByStudent.get(selectedStudent.id)?.balance || 0 : 0))} ฿` },
+                  { detail: 'แบบเยี่ยมบ้าน', label: 'กสศ.01', value: `${selectedHomeVisit?.completion_percent || 0}%` },
+                ].map((item) => (
+                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
+                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
+                    <p className="mt-2 text-2xl font-black text-slate-950">{item.value}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-lg font-black text-slate-950">เคสดูแลล่าสุด</h3>
+                  <div className="mt-3 grid gap-2">
+                    {selectedStudentBehaviorRecords.slice(0, 5).map((record) => (
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2" key={record.id}>
+                        <p className="font-black text-slate-950">{record.category}</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{record.behavior_date} | {toneLabels[record.tone]} | {followUpLabels[record.follow_up_status]}</p>
+                      </div>
+                    ))}
+                    {selectedStudentBehaviorRecords.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีเคสดูแลในช่วงนี้</p> : null}
+                  </div>
+                </article>
+
+                <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-lg font-black text-slate-950">เงินออมล่าสุด</h3>
+                  <div className="mt-3 grid gap-2">
+                    {selectedStudentSavingsTransactions.slice(0, 5).map((transaction) => (
+                      <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2" key={transaction.id}>
+                        <div>
+                          <p className="font-black text-slate-950">{savingsTransactionLabels[transaction.transaction_type]} {formatBaht(Number(transaction.amount || 0))} ฿</p>
+                          <p className="text-xs font-bold text-slate-500">{transaction.transaction_date}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedStudentSavingsTransactions.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีรายการเงินออมในช่วงนี้</p> : null}
+                  </div>
+                </article>
+              </div>
             </div>
           ) : null}
 
           {reportView === 'behavior' ? (
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
-              {[
-                { label: 'เคสติดตาม', value: coreMetrics.behavior.followUps },
-                { label: 'เชิงบวก', value: coreMetrics.behavior.positiveCount },
-                { label: 'คะแนนพฤติกรรม', value: coreMetrics.behavior.totalPoints },
-              ].map((item) => (
-                <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
-                  <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-                  <p className="mt-2 text-4xl font-black text-slate-950">{item.value.toLocaleString('th-TH')}</p>
-                </article>
-              ))}
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  { label: 'เคสติดตาม', value: coreMetrics.behavior.followUps },
+                  { label: 'เชิงบวก', value: coreMetrics.behavior.positiveCount },
+                  { label: 'คะแนนพฤติกรรม', value: coreMetrics.behavior.totalPoints },
+                ].map((item) => (
+                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
+                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
+                    <p className="mt-2 text-4xl font-black text-slate-950">{item.value.toLocaleString('th-TH')}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-100 text-left">
+                  <thead>
+                    <tr className="text-xs font-black uppercase text-slate-500">
+                      <th className="px-3 py-3">วันที่</th>
+                      <th className="px-3 py-3">นักเรียน</th>
+                      <th className="px-3 py-3">ประเภท</th>
+                      <th className="px-3 py-3">ติดตาม</th>
+                      <th className="px-3 py-3">บันทึก</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {behaviorReportRows.map((record) => {
+                      const student = studentById.get(record.student_id);
+
+                      return (
+                        <tr className="hover:bg-amber-50/50" key={record.id}>
+                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{record.behavior_date}</td>
+                          <td className="px-3 py-3">
+                            <p className="font-black text-slate-950">{student ? `${student.first_name} ${student.last_name}` : '-'}</p>
+                            <p className="text-xs font-bold text-slate-500">{student?.student_code || '-'}</p>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3">
+                            <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">{toneLabels[record.tone]}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{followUpLabels[record.follow_up_status]}</td>
+                          <td className="min-w-56 px-3 py-3 font-bold text-slate-600">{record.category}: {record.description}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isLoading && behaviorReportRows.length === 0 ? (
+                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
+                  ยังไม่มีบันทึกพฤติกรรมหรือเคสดูแลในช่วงนี้
+                </div>
+              ) : null}
             </div>
           ) : null}
 
