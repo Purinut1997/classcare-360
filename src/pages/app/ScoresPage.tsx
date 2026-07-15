@@ -1095,12 +1095,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
       </section>
 
       <section
-        className={`mt-5 grid gap-5 ${
-          scoreView === 'setup' || scoreView === 'entry' ? 'xl:grid-cols-[360px_minmax(0,1fr)]' : ''
-        }`}
+        className={scoreView === 'setup' || scoreView === 'entry' ? 'app-workbench' : 'mt-5 grid gap-5'}
       >
         {scoreView === 'setup' || scoreView === 'entry' ? (
-        <aside className="grid gap-5">
+        <aside className="grid gap-4">
           {scoreView === 'setup' ? (
           <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void handleCreateAssessment(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">

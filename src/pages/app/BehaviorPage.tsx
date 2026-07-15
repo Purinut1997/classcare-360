@@ -441,8 +441,8 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="grid gap-5">
+      <section className="app-workbench">
+        <aside className="grid gap-4">
           <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void handleCreateBehavior(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <MessageSquarePlus size={16} aria-hidden="true" />

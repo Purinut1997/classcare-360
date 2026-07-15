@@ -1441,8 +1441,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[410px_minmax(0,1fr)]">
-        <aside className="grid gap-5">
+      <section className="app-workbench">
+        <aside className="grid gap-4">
           <section className="nexus-card p-4 sm:p-5">
             <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
               <CalendarRange size={16} className="text-amber-600" aria-hidden="true" />

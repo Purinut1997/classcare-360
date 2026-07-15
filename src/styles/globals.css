@@ -104,7 +104,14 @@
   }
 
   .app-workbench {
-    @apply mt-5 grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)];
+    @apply mt-5 grid gap-5;
+  }
+
+  .app-workbench > :first-child {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    align-items: start;
+    gap: 1rem;
   }
 
   .app-data-table {
