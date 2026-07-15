@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
+const isCi = process.env.CI === 'true';
 
 const requiredMigrations = [
   '0001_core_foundation.sql',
@@ -82,6 +83,7 @@ const envLocalPath = join(root, '.env.local');
 const envExamplePath = join(root, '.env.example');
 const envLocal = parseEnvFile(envLocalPath);
 const envExample = parseEnvFile(envExamplePath);
+const hasEnvLocal = existsSync(envLocalPath);
 const migrationsDir = join(root, 'supabase', 'migrations');
 const functionsDir = join(root, 'supabase', 'functions');
 
@@ -95,12 +97,17 @@ const deno = commandExists('deno');
 
 const checks = [
   check(existsSync(envExamplePath), '.env.example exists', envExamplePath),
-  check(existsSync(envLocalPath), '.env.local exists', existsSync(envLocalPath) ? envLocalPath : 'Create from .env.example'),
+  check(
+    hasEnvLocal || isCi,
+    '.env.local exists or CI env is available',
+    hasEnvLocal ? envLocalPath : isCi ? 'CI mode: use repository/host environment variables' : 'Create from .env.example',
+    isCi ? 'warn' : 'error',
+  ),
   ...requiredPublicEnv.map((key) =>
     check(
-      envLocal.has(key) || envExample.has(key),
+      envLocal.has(key) || Boolean(process.env[key]) || envExample.has(key),
       `public env: ${key}`,
-      envLocal.has(key) ? '.env.local' : envExample.has(key) ? '.env.example only' : 'missing',
+      envLocal.has(key) ? '.env.local' : process.env[key] ? 'process.env' : envExample.has(key) ? '.env.example only' : 'missing',
     ),
   ),
   ...serverOnlyEnv.map((key) =>
