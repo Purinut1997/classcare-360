@@ -162,7 +162,7 @@ export function DashboardPage({
   }, [canManageBilling, session.workspace]);
 
   return (
-    <main className="min-w-0 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+    <main className="app-page">
       <Topbar
         badges={badges}
         canSwitchWorkspace={['superadmin', 'teacher_owner', 'teacher_member'].includes(session.profile.role)}

@@ -1347,14 +1347,14 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   return (
-    <main className="min-w-0 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+    <main className="app-page">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="nexus-kicker">
             <FileSpreadsheet size={18} aria-hidden="true" />
             Report Center
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
+          <h1 className="app-page-title">
             ศูนย์รายงานโรงเรียน
           </h1>
           <p className="mt-3 max-w-4xl text-sm font-bold leading-7 text-slate-600">

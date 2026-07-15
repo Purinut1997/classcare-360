@@ -260,7 +260,7 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
   }
 
   return (
-    <main className="min-w-0 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+    <main className="app-page">
       <section className="nexus-card overflow-hidden p-0">
         <div className="bg-slate-950 p-5 text-white sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

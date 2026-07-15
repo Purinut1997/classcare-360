@@ -78,30 +78,30 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const uncategorizedItems = navItems.filter((item) => !renderedKeys.has(item.key));
 
   return (
-    <aside className="hidden overflow-y-auto border-r border-sky-200/60 bg-white/75 p-5 shadow-[18px_0_40px_rgba(14,165,233,0.08)] backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-      <div className="flex items-center gap-3 rounded-2xl bg-slate-950 p-3 text-white shadow-[0_20px_44px_rgba(2,6,23,0.22)]">
-        <AppLogo className="h-12 w-12 rounded-2xl bg-white shadow-[0_0_28px_rgba(255,255,255,0.22)]" />
+    <aside className="hidden overflow-y-auto border-r border-[#ead8bd]/75 bg-white/88 p-4 shadow-[12px_0_32px_rgba(122,79,38,0.07)] backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
+      <div className="flex items-center gap-3 rounded-2xl bg-slate-950 p-2.5 text-white shadow-[0_16px_36px_rgba(2,6,23,0.18)]">
+        <AppLogo className="h-11 w-11 rounded-xl bg-white shadow-[0_0_22px_rgba(255,255,255,0.20)]" />
         <div className="min-w-0">
           <p className="truncate text-lg font-black tracking-tight">ClassCare 360</p>
           <p className="truncate text-xs font-bold text-cyan-100">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
         </div>
       </div>
 
-      <nav className="mt-7 grid gap-3" aria-label="เมนูหลัก">
+      <nav className="mt-5 grid gap-1" aria-label="เมนูหลัก">
         {[...sections, ...(uncategorizedItems.length ? [{ key: 'other', label: 'อื่น ๆ', items: uncategorizedItems }] : [])].map(
           (section) => {
             const hasActiveItem = section.items.some((item) => item.key === activeView);
 
             return (
               <details
-                className="group rounded-3xl border border-slate-200/70 bg-white/70 p-1.5 shadow-sm open:bg-white/90"
+                className="group border-b border-[#ead8bd]/70 py-2 last:border-b-0"
                 key={section.key}
                 open={hasActiveItem || section.key === 'primary'}
               >
-                <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-3 text-xs font-black text-slate-500 transition hover:bg-slate-50 hover:text-slate-950 [&::-webkit-details-marker]:hidden">
+                <summary className="flex h-8 cursor-pointer list-none items-center justify-between gap-3 px-1 text-[11px] font-black uppercase tracking-[0.06em] text-slate-400 transition hover:text-slate-950 [&::-webkit-details-marker]:hidden">
                   <span className="truncate">{section.label}</span>
                   <span className="inline-flex items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{section.items.length}</span>
+                    <span className="rounded-full bg-[#f8ead4] px-2 py-0.5 text-[10px] text-[#7a4f26]">{section.items.length}</span>
                     <ChevronRight
                       className="transition group-open:rotate-90"
                       size={15}
@@ -117,9 +117,9 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                 return (
                   <div className="grid gap-1" key={item.label}>
                     <Link
-                      className={`flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-black transition ${
+                      className={`flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-black transition ${
                         isActive
-                          ? 'blue-action'
+                          ? 'bg-[#fff1c9] text-[#5a3515] shadow-sm ring-1 ring-[#e8c47b]'
                           : 'text-slate-600 hover:bg-white/90 hover:text-slate-950 hover:shadow-sm'
                       }`}
                       to={item.path}
@@ -129,15 +129,15 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                     </Link>
 
                     {item.key === 'students' && isActive ? (
-                      <div className="ml-5 grid gap-1 border-l border-amber-200/80 pl-3">
+                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
                         {studentSubNavItems.map((subItem) => {
                           const isSubActive = activeStudentSubView === subItem.value;
 
                           return (
                             <Link
-                              className={`flex min-h-9 items-center rounded-2xl px-3 text-xs font-black transition ${
+                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
                                 isSubActive
-                                  ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200'
+                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
                                   : 'text-slate-500 hover:bg-white hover:text-slate-950'
                               }`}
                               key={subItem.value}
@@ -151,15 +151,15 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                     ) : null}
 
                     {item.key === 'scores' && isActive ? (
-                      <div className="ml-5 grid gap-1 border-l border-amber-200/80 pl-3">
+                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
                         {scoreSubNavItems.map((subItem) => {
                           const isSubActive = activeScoreSubView === subItem.value;
 
                           return (
                             <Link
-                              className={`flex min-h-9 items-center rounded-2xl px-3 text-xs font-black transition ${
+                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
                                 isSubActive
-                                  ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200'
+                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
                                   : 'text-slate-500 hover:bg-white hover:text-slate-950'
                               }`}
                               key={subItem.value}
@@ -173,15 +173,15 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                     ) : null}
 
                     {item.key === 'reports' && isActive ? (
-                      <div className="ml-5 grid gap-1 border-l border-amber-200/80 pl-3">
+                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
                         {reportSubNavItems.map((subItem) => {
                           const isSubActive = activeReportSubView === subItem.value;
 
                           return (
                             <Link
-                              className={`flex min-h-9 items-center rounded-2xl px-3 text-xs font-black transition ${
+                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
                                 isSubActive
-                                  ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200'
+                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
                                   : 'text-slate-500 hover:bg-white hover:text-slate-950'
                               }`}
                               key={subItem.value}
@@ -204,16 +204,16 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
       </nav>
 
       {isSuperadmin ? (
-        <div className="mt-7 overflow-hidden rounded-3xl border border-cyan-200 bg-white/90 p-4 shadow-[0_20px_44px_rgba(14,165,233,0.12)]">
+        <div className="mt-5 overflow-hidden rounded-2xl border border-cyan-200 bg-white/90 p-3 shadow-[0_14px_30px_rgba(14,165,233,0.09)]">
           <div className="flex items-center gap-2 text-cyan-700">
             <ServerCog size={18} aria-hidden="true" />
             <p className="font-black">Superadmin Tools</p>
           </div>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+          <p className="mt-2 text-xs font-bold leading-5 text-slate-600">
             จัดการสิทธิ์ admin, workspace, ระบบตรวจสอบ และศูนย์ควบคุมหลักของแอป
           </p>
           <Link
-            className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-3 text-sm font-black"
+            className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#fff1c9] px-3 text-sm font-black text-[#5a3515] shadow-sm ring-1 ring-[#e8c47b] transition hover:-translate-y-0.5"
             to="/app/dashboard?view=superadmin-dashboard"
           >
             เปิดศูนย์ผู้ดูแล
@@ -222,7 +222,7 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
         </div>
       ) : null}
 
-      <div className="mt-auto rounded-2xl border border-slate-200 bg-white/80 p-4 text-xs font-bold text-slate-500 shadow-sm">
+      <div className="mt-auto rounded-xl border border-[#ead8bd] bg-white/80 p-3 text-xs font-bold text-slate-500 shadow-sm">
         Created by MIKPURINUT
       </div>
     </aside>

@@ -413,24 +413,24 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   return (
-    <main className="min-w-0 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-10">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <main className="app-page">
+      <div className="app-page-header">
         <div>
           <div className="nexus-kicker">
             <ClipboardCheck size={18} aria-hidden="true" />
             Attendance
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
+          <h1 className="app-page-title">
             เช็คเวลาเรียนรายวัน
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
+          <p className="app-page-description">
             {session.workspace?.schoolName || 'Demo Workspace'} | ข้อมูลเวลาเรียนผูกกับ workspace, classroom, session และ student
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:min-w-[520px]">
+        <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
           {summary.slice(0, 3).map((item) => (
-            <div className={`rounded-3xl p-3 text-center font-black shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 transition hover:-translate-y-1 ${item.tone}`} key={item.value}>
+            <div className={`rounded-2xl p-3 text-center font-black shadow-[0_12px_28px_rgba(15,23,42,0.06)] ring-1 transition hover:-translate-y-0.5 ${item.tone}`} key={item.value}>
               <p className="text-2xl">{item.count}</p>
               <p className="mt-1 text-xs">{item.label}</p>
             </div>
@@ -438,9 +438,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+      <section className="app-workbench">
         <div className="grid gap-5">
-          <form className="nexus-card p-4 sm:p-5" onSubmit={handleCreateSession}>
+          <form className="app-panel-pad" onSubmit={handleCreateSession}>
             <div className="nexus-kicker">
               <CalendarDays size={16} aria-hidden="true" />
               รอบเช็คชื่อ
@@ -498,7 +498,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </button>
           </form>
 
-          <div className="nexus-card p-4 sm:p-5">
+          <div className="app-panel-pad">
             <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
               <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
               RLS + workspace_id + session_id
@@ -531,7 +531,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         </div>
 
-        <div className="nexus-card p-4 sm:p-5">
+        <div className="app-panel-pad">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm font-black text-teal-700">
@@ -552,44 +552,58 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </button>
           </div>
 
-          <div className="mt-4 grid gap-3">
-            {classroomStudents.map((student) => (
-              <div className="nexus-muted-box p-3" key={student.id}>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <p className="font-black text-slate-950">
-                      {student.student_code || '-'} | {student.first_name} {student.last_name}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{student.nickname || 'ยังไม่มีชื่อเล่น'}</p>
+          <div className="mt-4">
+            {classroomStudents.length > 0 ? (
+              <div className="app-data-table overflow-x-auto">
+                <div className="min-w-[980px]">
+                  <div className="grid grid-cols-[150px_minmax(240px,1fr)_390px_260px] gap-3 border-b border-[#ead8bd] bg-[#fff8ef]/80 px-4 py-3 text-xs font-black text-slate-500">
+                    <span>รหัส</span>
+                    <span>นักเรียน</span>
+                    <span>สถานะ</span>
+                    <span>หมายเหตุ</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {statusOptions.map((option) => {
-                      const isActive = marks[student.id] === option.value;
+                  {classroomStudents.map((student) => (
+                    <div
+                      className="grid grid-cols-[150px_minmax(240px,1fr)_390px_260px] items-center gap-3 border-b border-[#ead8bd]/70 px-4 py-3 last:border-b-0"
+                      key={student.id}
+                    >
+                      <p className="text-sm font-black text-slate-600">{student.student_code || '-'}</p>
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-950">
+                          {student.first_name} {student.last_name}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs font-bold text-slate-500">{student.nickname || 'ยังไม่มีชื่อเล่น'}</p>
+                      </div>
+                      <div className="grid grid-cols-6 gap-1.5">
+                        {statusOptions.map((option) => {
+                          const isActive = marks[student.id] === option.value;
 
-                      return (
-                        <button
-                          className={`inline-flex h-9 items-center gap-1 rounded-2xl px-3 text-xs font-black ring-1 transition hover:-translate-y-0.5 ${
-                            isActive ? option.tone : 'bg-white/85 text-slate-500 ring-slate-200 hover:bg-white'
-                          }`}
-                          key={option.value}
-                          onClick={() => setMarks((current) => ({ ...current, [student.id]: option.value }))}
-                          type="button"
-                        >
-                          {isActive ? <Check size={14} aria-hidden="true" /> : null}
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                          return (
+                            <button
+                              className={`inline-flex h-8 items-center justify-center gap-1 rounded-xl px-2 text-xs font-black ring-1 transition hover:-translate-y-0.5 ${
+                                isActive ? option.tone : 'bg-white/85 text-slate-500 ring-slate-200 hover:bg-white'
+                              }`}
+                              key={option.value}
+                              onClick={() => setMarks((current) => ({ ...current, [student.id]: option.value }))}
+                              type="button"
+                            >
+                              {isActive ? <Check size={13} aria-hidden="true" /> : null}
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input
+                        className="nexus-field h-9 px-3"
+                        onChange={(event) => setNotes((current) => ({ ...current, [student.id]: event.target.value }))}
+                        placeholder={`หมายเหตุ: ${statusLabels[marks[student.id] || 'present']}`}
+                        value={notes[student.id] || ''}
+                      />
+                    </div>
+                  ))}
                 </div>
-                <input
-                  className="nexus-field mt-3 h-10 w-full px-3"
-                  onChange={(event) => setNotes((current) => ({ ...current, [student.id]: event.target.value }))}
-                  placeholder={`หมายเหตุสำหรับสถานะ ${statusLabels[marks[student.id] || 'present']}`}
-                  value={notes[student.id] || ''}
-                />
               </div>
-            ))}
+            ) : null}
 
             {!isLoading && classroomStudents.length === 0 ? (
               <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">

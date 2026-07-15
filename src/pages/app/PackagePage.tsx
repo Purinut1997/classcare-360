@@ -284,14 +284,14 @@ export function PackagePage({ session }: PackagePageProps) {
   }
 
   return (
-    <main className="min-w-0 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+    <main className="app-page">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="inline-flex h-10 items-center gap-2 rounded-full bg-amber-50/90 px-4 text-xs font-black text-amber-700 ring-1 ring-amber-100">
             <Sparkles size={18} aria-hidden="true" />
             Package
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
+          <h1 className="app-page-title">
             อัปเกรดเป็น ClassCare 360 VIP
           </h1>
           <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">

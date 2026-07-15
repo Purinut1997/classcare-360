@@ -308,7 +308,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   }
 
   return (
-    <main className="min-w-0 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+    <main className="app-page">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="nexus-kicker">
