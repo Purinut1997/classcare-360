@@ -313,7 +313,7 @@ export function PackagePage({ session }: PackagePageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="mt-5 grid gap-5">
         <div className="nexus-card overflow-hidden p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -416,7 +416,7 @@ export function PackagePage({ session }: PackagePageProps) {
         </form>
       </section>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="mt-5 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>

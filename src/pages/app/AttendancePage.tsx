@@ -460,7 +460,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   ))}
                 </select>
               </label>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   วันที่
                   <input

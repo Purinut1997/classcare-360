@@ -1503,7 +1503,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
                       <option value="term2">ภาคเรียนที่ 2</option>
                     </select>
                   </label>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-2 text-sm font-black text-slate-700">
                       เริ่มเทอม
                       <input
@@ -1550,7 +1550,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </label>
               ) : null}
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   จากวันที่
                   <input className="nexus-field h-11 px-3" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} />

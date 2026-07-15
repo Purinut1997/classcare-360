@@ -848,7 +848,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[420px_minmax(0,1fr)]">
+      <section className="mt-5 grid gap-5">
         <div className="grid gap-5">
           <form id="workspace-profile" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">

@@ -398,7 +398,7 @@ export function SystemSetupPage({ session }: SystemSetupPageProps) {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+      <section className="mt-5 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -470,7 +470,7 @@ export function SystemSetupPage({ session }: SystemSetupPageProps) {
         </aside>
       </section>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="mt-5 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-950">
             <Database size={18} className="text-sky-600" aria-hidden="true" />

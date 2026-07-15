@@ -1283,7 +1283,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[420px_minmax(0,1fr)]">
+      <section className="mt-5 grid gap-5">
         <aside className="grid gap-5">
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">

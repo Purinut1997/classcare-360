@@ -2799,7 +2799,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       ) : null}
 
       {activeStudentView === 'quality' ? (
-        <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="mt-5 grid gap-5">
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -2947,7 +2947,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       ) : null}
 
       {activeStudentView === 'roster' ? (
-      <section id="student-roster" className="mt-5 scroll-mt-24 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section id="student-roster" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="grid gap-3 2xl:grid-cols-[minmax(220px,1fr)_220px_180px_auto] 2xl:items-center">
             <label className="relative block min-w-0">
@@ -3139,7 +3139,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 />
               </label>
 
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ชื่อ
                   <input
@@ -3204,7 +3204,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   value={classroomName}
                 />
               </label>
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ระดับชั้น
                   <input
@@ -3965,7 +3965,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       ) : null}
 
       {activeStudentView === 'profile' ? (
-      <section id="student-profile" className="mt-5 scroll-mt-24 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section id="student-profile" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -4116,7 +4116,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       ) : null}
 
       {activeStudentView === 'care' ? (
-      <section id="student-care" className="mt-5 scroll-mt-24 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section id="student-care" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -4454,7 +4454,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
       {activeStudentView === 'portal' ? (
       <>
-      <section id="student-portal" className="mt-5 scroll-mt-24 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section id="student-portal" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -4528,7 +4528,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 value={inviteEmail}
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-sm font-black text-slate-700">
                 ประเภท Portal
                 <select
@@ -4565,7 +4565,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         </form>
       </section>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="mt-5 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -4655,7 +4655,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         </form>
       </section>
 
-      <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="mt-5 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -4707,7 +4707,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 value={guardianName}
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-sm font-black text-slate-700">
                 ความสัมพันธ์
                 <input
