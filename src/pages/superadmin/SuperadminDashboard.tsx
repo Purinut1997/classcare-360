@@ -7,8 +7,10 @@ import {
   Banknote,
   Building2,
   CheckCircle2,
+  Crown,
   FileUp,
   GraduationCap,
+  KeyRound,
   QrCode,
   RefreshCw,
   School,
@@ -42,6 +44,11 @@ function isMissingRpcFunction(error: { code?: string; message?: string } | null 
 function getPermanentDeleteSetupNotice(actionLabel: string, detail?: string) {
   const suffix = detail ? ` รายละเอียดจาก Supabase: ${detail}` : '';
   return `${actionLabel}ไม่ได้ เพราะ Supabase project ยังไม่ได้ติดตั้ง RPC ลบถาวรชุดล่าสุด ให้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ใน Supabase SQL Editor แล้วกด Reload schema cache/รอครู่หนึ่งก่อนลองใหม่.${suffix}`;
+}
+
+function getRoleOperationSetupNotice(actionLabel: string, detail?: string) {
+  const suffix = detail ? ` Supabase: ${detail}` : '';
+  return `${actionLabel}ไม่สำเร็จ เพราะ production ยังไม่มี RPC ชุดจัดการบทบาท ให้รัน supabase/migrations/0021_role_operations_control_center.sql ใน Supabase SQL Editor แล้วลองใหม่.${suffix}`;
 }
 
 const controlCenterSections = [
@@ -80,6 +87,34 @@ const controlCenterSections = [
     href: '#superadmin-audit',
     icon: FileUp,
     label: 'Audit & Support',
+  },
+];
+
+const roleCapabilityMatrix = [
+  {
+    capabilities: ['ภาพรวมระบบ', 'จัด workspace', 'รีเซ็ตรหัสผ่าน', 'กู้คืน/ระงับบัญชี', 'ให้ VIP lifetime', 'ตรวจ health/audit'],
+    label: 'Superadmin',
+    status: 'ควบคุมทั้งระบบ',
+  },
+  {
+    capabilities: ['อนุมัติครู', 'จัดสมาชิก', 'เพิ่ม/ลบ/กู้คืนห้องเรียน', 'ตั้งค่าโรงเรียน', 'สำรองข้อมูล/เลื่อนชั้น'],
+    label: 'Owner workspace',
+    status: 'คุมโรงเรียนตัวเอง',
+  },
+  {
+    capabilities: ['เช็กเวลาเรียน', 'กรอกคะแนน', 'เงินออม', 'พฤติกรรม', 'เยี่ยมบ้าน', 'รายงานที่เกี่ยวข้อง'],
+    label: 'ครูร่วม',
+    status: 'ทำงานใน workspace',
+  },
+  {
+    capabilities: ['ดูรายงาน', 'ดูข้อมูลที่ได้รับสิทธิ์', 'export ตาม policy'],
+    label: 'ผู้ดูรายงาน',
+    status: 'อ่านอย่างเดียว',
+  },
+  {
+    capabilities: ['ดูข้อมูลนักเรียนที่ผูกบัญชี', 'ดูรายงาน/คำเชิญ portal', 'รับแจ้งเตือน'],
+    label: 'ผู้ปกครอง/นักเรียน',
+    status: 'Portal',
   },
 ];
 
@@ -420,6 +455,10 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [isQrSubmitting, setIsQrSubmitting] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [workspaceActionId, setWorkspaceActionId] = useState<string | null>(null);
+  const [adminActionId, setAdminActionId] = useState<string | null>(null);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+  const [recoveryAction, setRecoveryAction] = useState<string | null>(null);
 
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
   const totalStudentCount = workspaces.reduce((sum, workspace) => sum + workspace.studentCount, 0);
@@ -608,17 +647,140 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   async function setAdminAccess(row: AdminAccessRow, isActive: boolean) {
     if (!supabase) return;
 
-    const { error } = await supabase
-      .from('superadmin_profiles')
-      .update({ is_active: isActive })
-      .eq('profile_id', row.profileId);
+    setAdminActionId(row.profileId);
+    setAdminNotice(null);
+
+    const { data, error } = await supabase.rpc('set_superadmin_profile_status', {
+      next_is_active: isActive,
+      target_profile_id: row.profileId,
+    });
 
     if (error) {
-      setAdminNotice(error.message);
+      setAdminNotice(
+        isMissingRpcFunction(error)
+          ? getRoleOperationSetupNotice('ปรับสิทธิ์ผู้ดูแล', error.message)
+          : error.message,
+      );
+      setAdminActionId(null);
+      return;
+    }
+
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      setAdminNotice('ปรับสิทธิ์ไม่สำเร็จ: ฐานข้อมูลไม่คืนแถวผู้ดูแลกลับมา โปรดตรวจ migration/RLS');
+      setAdminActionId(null);
       return;
     }
 
     setAdminNotice(`${isActive ? 'เปิด' : 'ปิด'}สิทธิ์ ${row.email} สำเร็จ`);
+    setAdminActionId(null);
+    void loadSuperadminData();
+  }
+
+  async function sendPasswordResetEmail(emailInput?: string) {
+    if (!supabase) {
+      setRecoveryNotice('โหมดตัวอย่าง: ต้องเชื่อม Supabase ก่อนส่งอีเมลรีเซ็ตรหัสผ่าน');
+      return;
+    }
+
+    const email = (emailInput || recoveryEmail).trim().toLowerCase();
+    if (!email) {
+      setRecoveryNotice('กรุณากรอกอีเมลผู้ใช้ก่อนส่งลิงก์รีเซ็ตรหัสผ่าน');
+      return;
+    }
+
+    setRecoveryNotice(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login?mode=forgot`,
+    });
+
+    if (error) {
+      setRecoveryNotice(`ส่งอีเมลรีเซ็ตรหัสผ่านไม่สำเร็จ: ${error.message}`);
+      return;
+    }
+
+    setRecoveryNotice(`ส่งอีเมลรีเซ็ตรหัสผ่านไปที่ ${email} แล้ว`);
+  }
+
+  async function setProfileAccountStatus(nextAccountStatus: 'active' | 'suspended') {
+    if (!supabase) {
+      setRecoveryNotice('โหมดตัวอย่าง: ต้องเชื่อม Supabase ก่อนปรับสถานะบัญชีผู้ใช้');
+      return;
+    }
+
+    const email = recoveryEmail.trim().toLowerCase();
+    if (!email) {
+      setRecoveryNotice('กรุณากรอกอีเมลผู้ใช้ก่อนปรับสถานะบัญชี');
+      return;
+    }
+
+    const actionLabel = nextAccountStatus === 'active' ? 'กู้คืนบัญชีผู้ใช้' : 'ระงับบัญชีผู้ใช้';
+    const confirmed = window.confirm(`${actionLabel} ${email} หรือไม่?`);
+    if (!confirmed) return;
+
+    setRecoveryAction(nextAccountStatus);
+    setRecoveryNotice(null);
+
+    const { data, error } = await supabase.rpc('set_profile_account_status_by_email', {
+      next_account_status: nextAccountStatus,
+      target_email: email,
+    });
+
+    if (error) {
+      setRecoveryNotice(
+        isMissingRpcFunction(error)
+          ? getRoleOperationSetupNotice(actionLabel, error.message)
+          : `${actionLabel}ไม่สำเร็จ: ${error.message}`,
+      );
+      setRecoveryAction(null);
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result) {
+      setRecoveryNotice(`${actionLabel}ไม่สำเร็จ: ฐานข้อมูลไม่คืนข้อมูลผู้ใช้กลับมา`);
+      setRecoveryAction(null);
+      return;
+    }
+
+    setRecoveryNotice(`${actionLabel}สำเร็จ: ${email} -> ${nextAccountStatus}`);
+    setRecoveryAction(null);
+  }
+
+  async function grantLifetimeVip(workspace: WorkspaceAdminRow) {
+    if (!supabase) {
+      setNotice('โหมดตัวอย่าง: พร้อมให้ VIP lifetime หลังเชื่อม Supabase');
+      return;
+    }
+
+    const confirmed = window.confirm(`ให้ VIP ตลอดชีพกับ workspace "${workspace.name}" หรือไม่?`);
+    if (!confirmed) return;
+
+    setWorkspaceActionId(workspace.id);
+    setNotice(null);
+
+    const { data, error } = await supabase.rpc('grant_workspace_lifetime_vip', {
+      target_workspace_id: workspace.id,
+    });
+
+    if (error) {
+      setNotice(
+        isMissingRpcFunction(error)
+          ? getRoleOperationSetupNotice('ให้ VIP lifetime', error.message)
+          : `ให้ VIP lifetime ไม่สำเร็จ: ${error.message}`,
+      );
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    const result = data as { granted?: boolean; reason?: string } | null;
+    if (!result?.granted) {
+      setNotice(`ให้ VIP lifetime ไม่สำเร็จ${result?.reason ? `: ${result.reason}` : ''}`);
+      setWorkspaceActionId(null);
+      return;
+    }
+
+    setNotice(`ให้ VIP lifetime กับ ${workspace.name} สำเร็จ`);
+    setWorkspaceActionId(null);
     void loadSuperadminData();
   }
 
@@ -984,6 +1146,35 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       return;
     }
 
+    if (!shouldArchive) {
+      const { data, error } = await supabase.rpc('restore_workspace_safely', {
+        target_workspace_id: workspace.id,
+      });
+
+      if (error) {
+        setNotice(
+          isMissingRpcFunction(error)
+            ? getRoleOperationSetupNotice('กู้คืน workspace', error.message)
+            : error.message,
+        );
+        setWorkspaceActionId(null);
+        return;
+      }
+
+      if (!(data as { restored?: boolean } | null)?.restored) {
+        setNotice('กู้คืน workspace ไม่สำเร็จ: ฐานข้อมูลไม่คืนสถานะ restored กลับมา');
+        setWorkspaceActionId(null);
+        return;
+      }
+
+      setWorkspaces((current) =>
+        current.map((item) => (item.id === workspace.id ? { ...item, archivedAt: null } : item)),
+      );
+      setNotice(`กู้คืน ${workspace.name} แล้ว`);
+      setWorkspaceActionId(null);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('workspaces')
       .update({ archived_at: shouldArchive ? new Date().toISOString() : null })
@@ -1323,6 +1514,15 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     {workspace.archivedAt ? 'กู้คืน workspace' : 'เก็บถาวร workspace'}
                   </button>
                   <button
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={workspaceActionId === workspace.id}
+                    onClick={() => void grantLifetimeVip(workspace)}
+                    type="button"
+                  >
+                    <Crown size={16} aria-hidden="true" />
+                    VIP lifetime
+                  </button>
+                  <button
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={workspaceActionId === workspace.id}
                     onClick={() => void deleteWorkspacePermanently(workspace)}
@@ -1404,6 +1604,58 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 {adminNotice}
               </div>
             ) : null}
+
+            <div className="mt-5 rounded-3xl border border-amber-100 bg-amber-50/40 p-4">
+              <div className="flex items-center gap-2 text-sm font-black text-amber-800">
+                <KeyRound size={17} aria-hidden="true" />
+                User Recovery
+              </div>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                ใช้ส่งอีเมลรีเซ็ตรหัสผ่านให้ผู้ใช้ที่เข้าไม่ได้ โดยไม่ต้องรู้รหัสเดิมของผู้ใช้
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  className="h-11 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-bold text-slate-950 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                  placeholder="user@example.com"
+                  type="email"
+                  value={recoveryEmail}
+                />
+                <button
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5"
+                  onClick={() => void sendPasswordResetEmail()}
+                  type="button"
+                >
+                  <KeyRound size={16} aria-hidden="true" />
+                  ส่ง reset
+                </button>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <button
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-white px-4 text-sm font-black text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={recoveryAction === 'active'}
+                  onClick={() => void setProfileAccountStatus('active')}
+                  type="button"
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  Restore active
+                </button>
+                <button
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={recoveryAction === 'suspended'}
+                  onClick={() => void setProfileAccountStatus('suspended')}
+                  type="button"
+                >
+                  <XCircle size={16} aria-hidden="true" />
+                  Suspend account
+                </button>
+              </div>
+              {recoveryNotice ? (
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-white/80 p-3 text-sm font-bold leading-6 text-amber-900">
+                  {recoveryNotice}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="nexus-card p-4 sm:p-5">
@@ -1422,7 +1674,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
             <div className="mt-4 grid gap-3">
               {adminRows.map((admin) => (
-                <div className="nexus-muted-box grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_220px] md:items-center" key={admin.profileId}>
+                <div className="nexus-muted-box grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_330px] md:items-center" key={admin.profileId}>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
@@ -1441,17 +1693,28 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                       {admin.displayName} | เพิ่มเมื่อ {formatDateTime(admin.createdAt)}
                     </p>
                   </div>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <button
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-100 bg-white px-4 text-sm font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-50"
+                      onClick={() => void sendPasswordResetEmail(admin.email)}
+                      type="button"
+                    >
+                      <KeyRound size={16} aria-hidden="true" />
+                      Reset
+                    </button>
                   <button
                     className={`inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 ${
                       admin.isActive
                         ? 'border border-rose-100 bg-white text-rose-600 hover:bg-rose-50'
                         : 'blue-action'
                     }`}
+                    disabled={adminActionId === admin.profileId}
                     onClick={() => void setAdminAccess(admin, !admin.isActive)}
                     type="button"
                   >
                     {admin.isActive ? 'ปิดสิทธิ์' : 'เปิดสิทธิ์'}
                   </button>
+                  </div>
                 </div>
               ))}
 
@@ -1461,6 +1724,39 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </div>
               ) : null}
             </div>
+          </div>
+        </section>
+
+        <section className="mt-5 scroll-mt-24 nexus-card p-4 sm:p-5">
+          <div className="nexus-kicker">
+            <ShieldCheck size={18} aria-hidden="true" />
+            Role Capability Matrix
+          </div>
+          <h2 className="mt-4 text-2xl font-black text-slate-950">ขอบเขตการใช้งานตามบทบาท</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+            ใช้เป็น checklist ว่าบทบาทไหนควรเห็นเมนูอะไร และ action สำคัญต้องผ่าน backend/RPC ไม่ใช่แก้ข้อมูลตรงจากหน้าเว็บ
+          </p>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {roleCapabilityMatrix.map((role) => (
+              <article className="rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-sm" key={role.label}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-950">{role.label}</h3>
+                    <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-cyan-700">{role.status}</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+                    mapped
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {role.capabilities.map((capability) => (
+                    <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-100" key={capability}>
+                      {capability}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 

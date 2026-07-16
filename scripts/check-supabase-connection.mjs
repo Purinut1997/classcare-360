@@ -91,19 +91,27 @@ const destructiveRpcChecks = await Promise.all([
   assertRpcExists('delete_workspace_safely', { target_workspace_id: NIL_UUID }),
   assertRpcExists('delete_score_assessment_safely', { target_assessment_id: NIL_UUID }),
   assertRpcExists('delete_score_entry_safely', { target_entry_id: NIL_UUID }),
+  assertRpcExists('restore_workspace_safely', { target_workspace_id: NIL_UUID }),
+  assertRpcExists('restore_classroom_safely', { target_classroom_id: NIL_UUID }),
+  assertRpcExists('grant_workspace_lifetime_vip', { target_workspace_id: NIL_UUID }),
+  assertRpcExists('set_superadmin_profile_status', { target_profile_id: NIL_UUID, next_is_active: true }),
+  assertRpcExists('set_profile_account_status_by_email', {
+    target_email: 'missing@example.invalid',
+    next_account_status: 'active',
+  }),
 ]);
 const missingDestructiveRpcs = destructiveRpcChecks.filter((check) => !check.ok);
 
 if (missingDestructiveRpcs.length > 0) {
-  console.error('Supabase destructive-action RPCs are missing:');
+  console.error('Supabase action RPCs are missing:');
   for (const check of missingDestructiveRpcs) {
     console.error(`- ${check.name}: ${check.reason}`);
   }
   console.error('');
-  console.error('Run supabase/migrations/0020_harden_destructive_action_rpcs.sql in Supabase SQL Editor, then re-run this check.');
+  console.error('Run supabase/migrations/0020_harden_destructive_action_rpcs.sql and supabase/migrations/0021_role_operations_control_center.sql in Supabase SQL Editor, then re-run this check.');
   process.exit(1);
 }
 
 console.log('Supabase connection OK.');
 console.log(`Plans visible through anon key: ${data?.map((plan) => plan.code).join(', ') || 'none'}`);
-console.log(`Delete RPCs visible: ${destructiveRpcChecks.map((check) => check.name).join(', ')}`);
+console.log(`Action RPCs visible: ${destructiveRpcChecks.map((check) => check.name).join(', ')}`);
