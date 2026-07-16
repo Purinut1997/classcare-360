@@ -102,6 +102,26 @@ function downloadJson(filename: string, payload: unknown) {
   URL.revokeObjectURL(url);
 }
 
+function getRpcErrorMessage(actionLabel: string, error: { code?: string; message?: string }) {
+  const message = error.message || 'ไม่ทราบสาเหตุ';
+  const isMissingRpc =
+    error.code === 'PGRST202' ||
+    message.includes('schema cache') ||
+    message.includes('Could not find the function') ||
+    message.includes('delete_classroom_safely') ||
+    message.includes('delete_workspace_safely');
+
+  if (isMissingRpc) {
+    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบถาวร ให้รัน migration supabase/migrations/0018_safe_delete_rpc.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
+  }
+
+  if (error.code === '42501' || message.includes('not allowed')) {
+    return `${actionLabel}ไม่สำเร็จ: บัญชีนี้ต้องเป็นเจ้าของ workspace หรือ Superadmin`;
+  }
+
+  return `${actionLabel}ไม่สำเร็จ: ${message}`;
+}
+
 export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<Record<string, number>>({});
@@ -442,7 +462,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     }
 
     if (error) {
-      setNotice(`ลบห้องเรียนไม่สำเร็จ: ${error.message}`);
+      setNotice(getRpcErrorMessage('ลบห้องเรียน', error));
       setIsSubmitting(false);
       return;
     }
@@ -564,7 +584,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     }
 
     if (error) {
-      setNotice(`ลบ workspace ไม่สำเร็จ: ${error.message}`);
+      setNotice(getRpcErrorMessage('ลบ workspace', error));
       setIsSubmitting(false);
       return;
     }

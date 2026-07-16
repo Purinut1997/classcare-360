@@ -25,6 +25,7 @@ const requiredMigrations = [
   '0016_workspace_classroom_delete_policy.sql',
   '0017_score_assessment_exam_terms.sql',
   '0018_safe_delete_rpc.sql',
+  '0019_score_delete_rpc.sql',
 ];
 
 const requiredFunctions = [

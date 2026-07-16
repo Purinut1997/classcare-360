@@ -14,6 +14,7 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -72,6 +73,11 @@ interface ScoreEntryRow {
   note: string | null;
   score: number | null;
   student_id: string;
+}
+
+interface SafeDeleteResult {
+  deleted?: boolean;
+  reason?: string;
 }
 
 const demoClassrooms: ClassroomRow[] = [{ academic_year: '2569', id: 'demo-classroom', name: 'ป.5/2' }];
@@ -230,6 +236,26 @@ function downloadTextFile(filename: string, content: string, mimeType: string) {
 function parseNumericInput(value: string, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getScoreDeleteErrorMessage(actionLabel: string, error: { code?: string; message?: string }) {
+  const message = error.message || 'ไม่ทราบสาเหตุ';
+  const isMissingRpc =
+    error.code === 'PGRST202' ||
+    message.includes('schema cache') ||
+    message.includes('Could not find the function') ||
+    message.includes('delete_score_assessment_safely') ||
+    message.includes('delete_score_entry_safely');
+
+  if (isMissingRpc) {
+    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบคะแนน ให้รัน migration supabase/migrations/0019_score_delete_rpc.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
+  }
+
+  if (error.code === '42501' || message.includes('not allowed')) {
+    return `${actionLabel}ไม่สำเร็จ: บัญชีนี้ต้องเป็นเจ้าของ workspace, ครูร่วม หรือ Superadmin`;
+  }
+
+  return `${actionLabel}ไม่สำเร็จ: ${message}`;
 }
 
 function getClassroomWithRoster(
@@ -930,6 +956,133 @@ export function ScoresPage({ session }: ScoresPageProps) {
     );
   }
 
+  async function handleDeleteAssessment(assessment: ScoreAssessmentRow) {
+    const assessmentEntries = entriesByAssessment.get(assessment.id) || [];
+    const confirmed = window.confirm(
+      `ลบชุดคะแนน "${assessment.title}" ถาวรหรือไม่?\n\nคะแนนที่กรอกไว้ ${assessmentEntries.length} รายการจะถูกลบไปพร้อมกัน และจะหายจากรายงานคะแนน`,
+    );
+    if (!confirmed) return;
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase) {
+      setAssessments((current) => current.filter((item) => item.id !== assessment.id));
+      setEntries((current) => current.filter((entry) => entry.assessment_id !== assessment.id));
+      if (selectedAssessmentId === assessment.id) {
+        const nextAssessment = contextAssessments.find((item) => item.id !== assessment.id) || null;
+        setSelectedAssessmentId(nextAssessment?.id || '');
+      }
+      setNotice('ลบชุดคะแนนในโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const rpcResult = await supabase.rpc('delete_score_assessment_safely', {
+      target_assessment_id: assessment.id,
+    });
+
+    if (rpcResult.error) {
+      setNotice(getScoreDeleteErrorMessage('ลบชุดคะแนน', rpcResult.error));
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = rpcResult.data as SafeDeleteResult | null;
+    if (!result?.deleted) {
+      setNotice('ลบชุดคะแนนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0019_score_delete_rpc.sql หรือสิทธิ์บัญชีไม่ตรงกับ workspace นี้');
+      setIsSubmitting(false);
+      return;
+    }
+
+    await writeAuditLog(session, {
+      action: 'score_assessment.deleted',
+      entityId: assessment.id,
+      entityTable: 'score_assessments',
+      metadata: {
+        category: assessment.category,
+        classroom_id: assessment.classroom_id,
+        deleted_entries: assessmentEntries.length,
+        subject_name: assessment.subject_name,
+        title: assessment.title,
+      },
+      riskLevel: 'high',
+      source: 'score_center',
+    });
+
+    setAssessments((current) => current.filter((item) => item.id !== assessment.id));
+    setEntries((current) => current.filter((entry) => entry.assessment_id !== assessment.id));
+    if (selectedAssessmentId === assessment.id) {
+      const nextAssessment = contextAssessments.find((item) => item.id !== assessment.id) || null;
+      setSelectedAssessmentId(nextAssessment?.id || '');
+    }
+    setNotice(`ลบชุดคะแนน ${assessment.title} แล้ว`);
+    setIsSubmitting(false);
+  }
+
+  async function handleClearStudentScore(student: StudentRow) {
+    if (!selectedAssessment) return;
+    const entry = selectedEntryByStudent.get(student.id);
+    const label = `${student.first_name} ${student.last_name}`;
+    const confirmed = window.confirm(`ล้างคะแนนของ ${label} ในชุด "${selectedAssessment.title}" หรือไม่?`);
+    if (!confirmed) return;
+
+    setNotice(null);
+    setScores((current) => ({ ...current, [student.id]: '' }));
+    setNotes((current) => ({ ...current, [student.id]: '' }));
+
+    if (!entry?.id) {
+      setNotice(`ล้างคะแนนของ ${label} แล้ว`);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    if (!supabase) {
+      setEntries((current) => current.filter((item) => item.id !== entry.id));
+      setNotice(`ล้างคะแนนของ ${label} ในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const rpcResult = await supabase.rpc('delete_score_entry_safely', {
+      target_entry_id: entry.id,
+    });
+
+    if (rpcResult.error) {
+      setNotice(getScoreDeleteErrorMessage('ล้างคะแนนรายคน', rpcResult.error));
+      setScores((current) => ({ ...current, [student.id]: entry.score === null ? '' : String(entry.score) }));
+      setNotes((current) => ({ ...current, [student.id]: entry.note || '' }));
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = rpcResult.data as SafeDeleteResult | null;
+    if (!result?.deleted) {
+      setNotice('ล้างคะแนนรายคนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง');
+      setIsSubmitting(false);
+      return;
+    }
+
+    await writeAuditLog(session, {
+      action: 'score_entry.deleted',
+      entityId: entry.id,
+      entityTable: 'score_entries',
+      metadata: {
+        assessment_id: selectedAssessment.id,
+        classroom_id: selectedAssessment.classroom_id,
+        student_id: student.id,
+        subject_name: selectedAssessment.subject_name,
+      },
+      riskLevel: 'normal',
+      source: 'score_center',
+    });
+
+    setEntries((current) => current.filter((item) => item.id !== entry.id));
+    setNotice(`ล้างคะแนนของ ${label} แล้ว`);
+    setIsSubmitting(false);
+  }
+
   function exportAssessmentCsv() {
     if (!selectedAssessment) return;
 
@@ -1251,38 +1404,56 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </div>
             <div className="mt-4 grid gap-2">
               {contextAssessments.map((assessment) => (
-                <button
+                <div
                   className={`rounded-3xl p-3 text-left transition ${
                     assessment.id === selectedAssessment?.id
                       ? 'bg-slate-950 text-white shadow-[0_18px_36px_rgba(15,23,42,0.22)]'
                       : 'bg-white/80 text-slate-700 ring-1 ring-slate-200 hover:bg-white'
                   }`}
                   key={assessment.id}
-                  onClick={() => {
-                    setClassroomId(assessment.classroom_id);
-                    setSubjectFilter(assessment.subject_name);
-                    setSelectedAssessmentId(assessment.id);
-                  }}
-                  type="button"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <button
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => {
+                        setClassroomId(assessment.classroom_id);
+                        setSubjectFilter(assessment.subject_name);
+                        setSelectedAssessmentId(assessment.id);
+                      }}
+                      type="button"
+                    >
                       <p className="truncate text-sm font-black">{assessment.title}</p>
                       <p className={`mt-1 text-xs font-bold ${assessment.id === selectedAssessment?.id ? 'text-cyan-100' : 'text-slate-500'}`}>
                         {assessment.subject_name} | {categoryLabels[assessment.category]} | {assessment.max_score} คะแนน
                       </p>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                          assessment.status === 'published'
+                            ? 'bg-cyan-100 text-cyan-800'
+                            : 'bg-white/20 text-current ring-1 ring-current/15'
+                        }`}
+                      >
+                        {assessment.status}
+                      </span>
+                      <button
+                        aria-label={`ลบชุดคะแนน ${assessment.title}`}
+                        className={`grid h-9 w-9 place-items-center rounded-2xl transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          assessment.id === selectedAssessment?.id
+                            ? 'bg-white/10 text-rose-100 hover:bg-rose-500/25'
+                            : 'bg-rose-50 text-rose-600 ring-1 ring-rose-100 hover:bg-rose-100'
+                        }`}
+                        disabled={isSubmitting}
+                        onClick={() => void handleDeleteAssessment(assessment)}
+                        title="ลบชุดคะแนน"
+                        type="button"
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                      </button>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
-                        assessment.status === 'published'
-                          ? 'bg-cyan-100 text-cyan-800'
-                          : 'bg-white/20 text-current ring-1 ring-current/15'
-                      }`}
-                    >
-                      {assessment.status}
-                    </span>
                   </div>
-                </button>
+                </div>
               ))}
 
               {contextAssessments.length === 0 ? (
@@ -1522,26 +1693,40 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </div>
                 <div className="mt-3 grid gap-2">
                   {contextAssessments.map((assessment) => (
-                    <button
+                    <div
                       className="flex items-center justify-between gap-3 rounded-2xl border border-[#ead8bd] bg-[#fff8ef] px-4 py-3 text-left transition hover:bg-white"
                       key={`${assessment.id}-setup`}
-                      onClick={() => {
-                        setSelectedAssessmentId(assessment.id);
-                        handleScoreViewChange('entry');
-                      }}
-                      type="button"
                     >
-                      <div className="min-w-0">
+                      <button
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => {
+                          setSelectedAssessmentId(assessment.id);
+                          handleScoreViewChange('entry');
+                        }}
+                        type="button"
+                      >
                         <p className="truncate font-black text-slate-950">{assessment.title}</p>
                         <p className="mt-1 text-xs font-bold text-slate-500">
                           {assessment.subject_name} | {categoryLabels[assessment.category]} | เต็ม {assessment.max_score} | น้ำหนัก{' '}
                           {assessment.weight}
                         </p>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-100">
+                          {assessment.status}
+                        </span>
+                        <button
+                          aria-label={`ลบชุดคะแนน ${assessment.title}`}
+                          className="grid h-9 w-9 place-items-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isSubmitting}
+                          onClick={() => void handleDeleteAssessment(assessment)}
+                          title="ลบชุดคะแนน"
+                          type="button"
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
                       </div>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-100">
-                        {assessment.status}
-                      </span>
-                    </button>
+                    </div>
                   ))}
 
                   {contextAssessments.length === 0 ? (
@@ -1710,6 +1895,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   <Save size={17} aria-hidden="true" />
                   บันทึกคะแนน
                 </button>
+                <button
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!selectedAssessment || isSubmitting}
+                  onClick={() => selectedAssessment && void handleDeleteAssessment(selectedAssessment)}
+                  type="button"
+                >
+                  <Trash2 size={17} aria-hidden="true" />
+                  ลบชุดนี้
+                </button>
               </div>
             </div>
 
@@ -1755,6 +1949,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     <th className="px-3 py-3">คะแนน</th>
                     <th className="px-3 py-3">ร้อยละ</th>
                     <th className="px-3 py-3">หมายเหตุ</th>
+                    <th className="px-3 py-3">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
@@ -1814,6 +2009,17 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             placeholder="เช่น ต้องทบทวน / ส่งช้า"
                             value={notes[student.id] ?? entry?.note ?? ''}
                           />
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3">
+                          <button
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!selectedAssessment || isSubmitting}
+                            onClick={() => void handleClearStudentScore(student)}
+                            type="button"
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                            ล้าง
+                          </button>
                         </td>
                       </tr>
                     );
