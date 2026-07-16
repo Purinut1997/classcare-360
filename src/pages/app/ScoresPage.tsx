@@ -238,16 +238,21 @@ function parseNumericInput(value: string, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function getScoreDeleteErrorMessage(actionLabel: string, error: { code?: string; message?: string }) {
-  const message = error.message || 'ไม่ทราบสาเหตุ';
-  const isMissingRpc =
+function isMissingScoreDeleteRpc(error: { code?: string; message?: string }) {
+  const message = error.message || '';
+  return (
     error.code === 'PGRST202' ||
     message.includes('schema cache') ||
     message.includes('Could not find the function') ||
     message.includes('delete_score_assessment_safely') ||
-    message.includes('delete_score_entry_safely');
+    message.includes('delete_score_entry_safely')
+  );
+}
 
-  if (isMissingRpc) {
+function getScoreDeleteErrorMessage(actionLabel: string, error: { code?: string; message?: string }) {
+  const message = error.message || 'ไม่ทราบสาเหตุ';
+
+  if (isMissingScoreDeleteRpc(error)) {
     return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบคะแนน ให้รัน migration supabase/migrations/0019_score_delete_rpc.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
   }
 
@@ -956,6 +961,18 @@ export function ScoresPage({ session }: ScoresPageProps) {
     );
   }
 
+  function removeAssessmentFromLocalState(assessmentId: string) {
+    setAssessments((current) => current.filter((item) => item.id !== assessmentId));
+    setEntries((current) => current.filter((entry) => entry.assessment_id !== assessmentId));
+    setScores({});
+    setNotes({});
+
+    if (selectedAssessmentId === assessmentId) {
+      const nextAssessment = contextAssessments.find((item) => item.id !== assessmentId) || null;
+      setSelectedAssessmentId(nextAssessment?.id || '');
+    }
+  }
+
   async function handleDeleteAssessment(assessment: ScoreAssessmentRow) {
     const assessmentEntries = entriesByAssessment.get(assessment.id) || [];
     const confirmed = window.confirm(
@@ -967,12 +984,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     setNotice(null);
 
     if (!supabase) {
-      setAssessments((current) => current.filter((item) => item.id !== assessment.id));
-      setEntries((current) => current.filter((entry) => entry.assessment_id !== assessment.id));
-      if (selectedAssessmentId === assessment.id) {
-        const nextAssessment = contextAssessments.find((item) => item.id !== assessment.id) || null;
-        setSelectedAssessmentId(nextAssessment?.id || '');
-      }
+      removeAssessmentFromLocalState(assessment.id);
       setNotice('ลบชุดคะแนนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return;
@@ -983,6 +995,49 @@ export function ScoresPage({ session }: ScoresPageProps) {
     });
 
     if (rpcResult.error) {
+      if (isMissingScoreDeleteRpc(rpcResult.error)) {
+        const archiveResult = await supabase
+          .from('score_assessments')
+          .update({ status: 'archived' })
+          .eq('id', assessment.id)
+          .eq('workspace_id', assessment.workspace_id)
+          .select('id')
+          .maybeSingle();
+
+        if (archiveResult.error || !archiveResult.data) {
+          setNotice(
+            archiveResult.error
+              ? getScoreDeleteErrorMessage('ลบชุดคะแนน', archiveResult.error)
+              : 'ลบชุดคะแนนไม่สำเร็จ: ไม่พบแถวที่มีสิทธิ์ลบ/เก็บถาวรใน workspace นี้',
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        await writeAuditLog(session, {
+          action: 'score_assessment.archived_delete_fallback',
+          entityId: assessment.id,
+          entityTable: 'score_assessments',
+          metadata: {
+            category: assessment.category,
+            classroom_id: assessment.classroom_id,
+            deleted_entries: assessmentEntries.length,
+            reason: 'missing_delete_rpc',
+            subject_name: assessment.subject_name,
+            title: assessment.title,
+          },
+          riskLevel: 'normal',
+          source: 'score_center',
+        });
+
+        removeAssessmentFromLocalState(assessment.id);
+        setNotice(
+          `เก็บถาวรชุดคะแนน "${assessment.title}" ให้แล้ว จึงจะไม่แสดงในหน้าคะแนนปกติ ถ้าต้องการลบถาวรจริงให้รัน migration 0019_score_delete_rpc.sql ใน Supabase SQL Editor`,
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       setNotice(getScoreDeleteErrorMessage('ลบชุดคะแนน', rpcResult.error));
       setIsSubmitting(false);
       return;
@@ -1010,12 +1065,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       source: 'score_center',
     });
 
-    setAssessments((current) => current.filter((item) => item.id !== assessment.id));
-    setEntries((current) => current.filter((entry) => entry.assessment_id !== assessment.id));
-    if (selectedAssessmentId === assessment.id) {
-      const nextAssessment = contextAssessments.find((item) => item.id !== assessment.id) || null;
-      setSelectedAssessmentId(nextAssessment?.id || '');
-    }
+    removeAssessmentFromLocalState(assessment.id);
     setNotice(`ลบชุดคะแนน ${assessment.title} แล้ว`);
     setIsSubmitting(false);
   }
@@ -1246,6 +1296,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
           })}
         </div>
       </section>
+
+      {notice ? (
+        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
+          <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
+          <p>{notice}</p>
+        </div>
+      ) : null}
 
       <section
         className={scoreView === 'setup' || scoreView === 'entry' ? 'app-workbench' : 'mt-5 grid gap-5'}
@@ -2055,13 +2112,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
           ) : null}
         </section>
       </section>
-
-      {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
-          <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-          <p>{notice}</p>
-        </div>
-      ) : null}
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">Created by MIKPURINUT</footer>
     </main>
