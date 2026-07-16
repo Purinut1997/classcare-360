@@ -112,7 +112,7 @@ function getRpcErrorMessage(actionLabel: string, error: { code?: string; message
     message.includes('delete_workspace_safely');
 
   if (isMissingRpc) {
-    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบถาวร ให้รัน migration supabase/migrations/0018_safe_delete_rpc.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
+    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบถาวรชุดล่าสุด ให้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
   }
 
   if (error.code === '42501' || message.includes('not allowed')) {
@@ -455,10 +455,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
     let data: Array<{ id: string }> | null = null;
     const error = rpcResult.error;
+    let failureReason: string | undefined;
 
     if (rpcResult.data) {
       const result = rpcResult.data as SafeDeleteResult;
       data = result.deleted ? [{ id: classroom.id }] : [];
+      failureReason = result.reason;
     }
 
     if (error) {
@@ -468,7 +470,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     }
 
     if (!data || data.length === 0) {
-      setNotice('ลบห้องเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0018_safe_delete_rpc.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
+      setNotice(
+        `ลบห้องเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง${failureReason ? ` (${failureReason})` : ''} ถ้า production ยังไม่ได้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ให้รันก่อน`,
+      );
       setIsSubmitting(false);
       return;
     }
@@ -577,10 +581,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
     let data: Array<{ id: string }> | null = null;
     const error = rpcResult.error;
+    let failureReason: string | undefined;
 
     if (rpcResult.data) {
       const result = rpcResult.data as SafeDeleteResult;
       data = result.deleted ? [{ id: session.workspace.id }] : [];
+      failureReason = result.reason;
     }
 
     if (error) {
@@ -590,7 +596,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     }
 
     if (!data || data.length === 0) {
-      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0018_safe_delete_rpc.sql หรือบัญชีนี้ไม่ใช่เจ้าของ workspace/Superadmin');
+      setNotice(
+        `ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง${failureReason ? ` (${failureReason})` : ''} ถ้า production ยังไม่ได้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ให้รันก่อน เพราะ Cloudflare/GitHub deploy ไม่ได้ติดตั้ง SQL ให้ Supabase`,
+      );
       setIsSubmitting(false);
       return;
     }

@@ -253,7 +253,7 @@ function getScoreDeleteErrorMessage(actionLabel: string, error: { code?: string;
   const message = error.message || 'ไม่ทราบสาเหตุ';
 
   if (isMissingScoreDeleteRpc(error)) {
-    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบคะแนน ให้รัน migration supabase/migrations/0019_score_delete_rpc.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
+    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบคะแนนชุดล่าสุด ให้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
   }
 
   if (error.code === '42501' || message.includes('not allowed')) {
@@ -995,49 +995,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
     });
 
     if (rpcResult.error) {
-      if (isMissingScoreDeleteRpc(rpcResult.error)) {
-        const archiveResult = await supabase
-          .from('score_assessments')
-          .update({ status: 'archived' })
-          .eq('id', assessment.id)
-          .eq('workspace_id', assessment.workspace_id)
-          .select('id')
-          .maybeSingle();
-
-        if (archiveResult.error || !archiveResult.data) {
-          setNotice(
-            archiveResult.error
-              ? getScoreDeleteErrorMessage('ลบชุดคะแนน', archiveResult.error)
-              : 'ลบชุดคะแนนไม่สำเร็จ: ไม่พบแถวที่มีสิทธิ์ลบ/เก็บถาวรใน workspace นี้',
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        await writeAuditLog(session, {
-          action: 'score_assessment.archived_delete_fallback',
-          entityId: assessment.id,
-          entityTable: 'score_assessments',
-          metadata: {
-            category: assessment.category,
-            classroom_id: assessment.classroom_id,
-            deleted_entries: assessmentEntries.length,
-            reason: 'missing_delete_rpc',
-            subject_name: assessment.subject_name,
-            title: assessment.title,
-          },
-          riskLevel: 'normal',
-          source: 'score_center',
-        });
-
-        removeAssessmentFromLocalState(assessment.id);
-        setNotice(
-          `เก็บถาวรชุดคะแนน "${assessment.title}" ให้แล้ว จึงจะไม่แสดงในหน้าคะแนนปกติ ถ้าต้องการลบถาวรจริงให้รัน migration 0019_score_delete_rpc.sql ใน Supabase SQL Editor`,
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
       setNotice(getScoreDeleteErrorMessage('ลบชุดคะแนน', rpcResult.error));
       setIsSubmitting(false);
       return;
@@ -1045,7 +1002,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
     const result = rpcResult.data as SafeDeleteResult | null;
     if (!result?.deleted) {
-      setNotice('ลบชุดคะแนนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0019_score_delete_rpc.sql หรือสิทธิ์บัญชีไม่ตรงกับ workspace นี้');
+      setNotice(
+        `ลบชุดคะแนนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง${result?.reason ? ` (${result.reason})` : ''} ถ้า production ยังไม่ได้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ให้รันก่อน`,
+      );
       setIsSubmitting(false);
       return;
     }

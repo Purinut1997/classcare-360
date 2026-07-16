@@ -26,6 +26,7 @@ const requiredMigrations = [
   '0017_score_assessment_exam_terms.sql',
   '0018_safe_delete_rpc.sql',
   '0019_score_delete_rpc.sql',
+  '0020_harden_destructive_action_rpcs.sql',
 ];
 
 const requiredFunctions = [

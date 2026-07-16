@@ -39,6 +39,11 @@ function isMissingRpcFunction(error: { code?: string; message?: string } | null 
   return error?.code === 'PGRST202' || message.includes('could not find the function') || message.includes('schema cache');
 }
 
+function getPermanentDeleteSetupNotice(actionLabel: string, detail?: string) {
+  const suffix = detail ? ` รายละเอียดจาก Supabase: ${detail}` : '';
+  return `${actionLabel}ไม่ได้ เพราะ Supabase project ยังไม่ได้ติดตั้ง RPC ลบถาวรชุดล่าสุด ให้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ใน Supabase SQL Editor แล้วกด Reload schema cache/รอครู่หนึ่งก่อนลองใหม่.${suffix}`;
+}
+
 const controlCenterSections = [
   {
     body: 'จำนวน workspace active, นักเรียน, สมาชิก, admin และคำขอสำคัญล่าสุด',
@@ -1035,32 +1040,29 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     });
 
     let data: Array<{ id: string }> | null = null;
-    let error = rpcResult.error;
+    const error = rpcResult.error;
+    let failureReason: string | undefined;
 
     if (rpcResult.data) {
       const result = rpcResult.data as SafeDeleteResult;
       data = result.deleted ? [{ id: workspace.id }] : [];
-    }
-
-    if (error && isMissingRpcFunction(error)) {
-      const fallbackResult = await supabase
-        .from('workspaces')
-        .delete()
-        .eq('id', workspace.id)
-        .select('id');
-
-      data = fallbackResult.data;
-      error = fallbackResult.error;
+      failureReason = result.reason;
     }
 
     if (error) {
-      setNotice(`ลบ workspace ไม่สำเร็จ: ${error.message}`);
+      setNotice(
+        isMissingRpcFunction(error)
+          ? getPermanentDeleteSetupNotice('ลบ workspace ถาวร', error.message)
+          : `ลบ workspace ไม่สำเร็จ: ${error.message}`,
+      );
       setWorkspaceActionId(null);
       return;
     }
 
     if (!data || data.length === 0) {
-      setNotice('ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0018_safe_delete_rpc.sql หรือสิทธิ์ RLS ยังไม่อนุญาตให้ลบ');
+      setNotice(
+        `ลบ workspace ไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง${failureReason ? ` (${failureReason})` : ''} ถ้า production ยังไม่ได้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ให้รันก่อน เพราะ Cloudflare/GitHub deploy ไม่ได้ติดตั้ง SQL ให้ Supabase`,
+      );
       setWorkspaceActionId(null);
       return;
     }

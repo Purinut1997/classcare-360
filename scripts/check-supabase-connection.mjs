@@ -49,6 +49,33 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
+function isMissingRpc(error) {
+  const message = error?.message?.toLowerCase() || '';
+  return error?.code === 'PGRST202' || message.includes('could not find the function') || message.includes('schema cache');
+}
+
+async function assertRpcExists(name, args) {
+  const { error } = await supabase.rpc(name, args);
+
+  if (isMissingRpc(error)) {
+    return {
+      name,
+      ok: false,
+      reason: error.message,
+    };
+  }
+
+  // anon users may get permission denied because the function is granted to
+  // authenticated users only. That still proves the function exists.
+  return {
+    name,
+    ok: true,
+    reason: error?.message || 'visible',
+  };
+}
+
 const { data, error } = await supabase.from('plans').select('code,name').limit(5);
 
 if (error) {
@@ -59,5 +86,24 @@ if (error) {
   process.exit(1);
 }
 
+const destructiveRpcChecks = await Promise.all([
+  assertRpcExists('delete_classroom_safely', { target_classroom_id: NIL_UUID }),
+  assertRpcExists('delete_workspace_safely', { target_workspace_id: NIL_UUID }),
+  assertRpcExists('delete_score_assessment_safely', { target_assessment_id: NIL_UUID }),
+  assertRpcExists('delete_score_entry_safely', { target_entry_id: NIL_UUID }),
+]);
+const missingDestructiveRpcs = destructiveRpcChecks.filter((check) => !check.ok);
+
+if (missingDestructiveRpcs.length > 0) {
+  console.error('Supabase destructive-action RPCs are missing:');
+  for (const check of missingDestructiveRpcs) {
+    console.error(`- ${check.name}: ${check.reason}`);
+  }
+  console.error('');
+  console.error('Run supabase/migrations/0020_harden_destructive_action_rpcs.sql in Supabase SQL Editor, then re-run this check.');
+  process.exit(1);
+}
+
 console.log('Supabase connection OK.');
 console.log(`Plans visible through anon key: ${data?.map((plan) => plan.code).join(', ') || 'none'}`);
+console.log(`Delete RPCs visible: ${destructiveRpcChecks.map((check) => check.name).join(', ')}`);
