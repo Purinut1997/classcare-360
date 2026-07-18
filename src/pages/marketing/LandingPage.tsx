@@ -5,8 +5,8 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
+  FileSearch,
   FileSpreadsheet,
-  GraduationCap,
   HeartHandshake,
   LockKeyhole,
   MapPinned,
@@ -357,10 +357,10 @@ export function LandingPage({ session }: LandingPageProps) {
               </Link>
               <Link
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] border border-[#d49a31] bg-white/80 px-6 text-sm font-black text-[#3b2918] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
-                to="/login"
+                to="/public/report"
               >
-                เข้าสู่ระบบ
-                <GraduationCap size={18} aria-hidden="true" />
+                ดูรายงานนักเรียน
+                <FileSearch size={18} aria-hidden="true" />
               </Link>
             </div>
           </div>

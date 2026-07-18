@@ -30,6 +30,9 @@ const LandingPage = lazy(() =>
 const PricingPage = lazy(() =>
   import('./pages/auth/PricingPage').then((module) => ({ default: module.PricingPage })),
 );
+const PublicReportLookupPage = lazy(() =>
+  import('./pages/public/PublicReportLookupPage').then((module) => ({ default: module.PublicReportLookupPage })),
+);
 const AuditCenterPage = lazy(() =>
   import('./pages/app/AuditCenterPage').then((module) => ({ default: module.AuditCenterPage })),
 );
@@ -562,6 +565,8 @@ function AppRoutes() {
       <Route element={<LoginPage session={session} />} path="/login" />
       <Route element={<CompleteProfilePage />} path="/auth/complete-profile" />
       <Route element={<PricingPage />} path="/pricing" />
+      <Route element={<PublicReportLookupPage />} path="/public/report" />
+      <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />
       <Route element={<AppDashboardRoute session={session} />} path="/app/dashboard" />
       <Route element={<WorkspaceSetupRoute session={session} />} path="/app/select-workspace" />
       <Route element={<PackageRoute session={session} />} path="/app/package" />

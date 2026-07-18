@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Download, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Download, Globe2, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
@@ -35,6 +35,26 @@ interface SafeDeleteResult {
   deleted?: boolean;
   reason?: string;
 }
+
+interface PublicReportPolicy {
+  attendance: boolean;
+  behavior: boolean;
+  enabled: boolean;
+  guardians: boolean;
+  home_visit: boolean;
+  savings: boolean;
+  scores: boolean;
+}
+
+const defaultPublicReportPolicy: PublicReportPolicy = {
+  attendance: true,
+  behavior: false,
+  enabled: false,
+  guardians: false,
+  home_visit: false,
+  savings: false,
+  scores: true,
+};
 
 const demoClassrooms: ClassroomRow[] = [
   { academic_year: '2569', grade_level: 'ป.5', id: 'demo-classroom', name: 'ป.5/2', status: 'active' },
@@ -141,6 +161,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     name: session.workspace?.name || 'ห้องเรียนของฉัน',
     schoolName: session.workspace?.schoolName || 'โรงเรียนตัวอย่าง ClassCare',
   });
+  const [workspaceSettingsJson, setWorkspaceSettingsJson] = useState<Record<string, unknown>>({});
+  const [publicReportPolicy, setPublicReportPolicy] = useState<PublicReportPolicy>(defaultPublicReportPolicy);
   const [classroomForm, setClassroomForm] = useState({
     academicYear: session.workspace?.academicYear || '2569',
     gradeLevel: 'ป.5',
@@ -208,7 +230,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         setMembers((memberRows || []) as WorkspaceMemberRow[]);
       }
 
-      const settings = (workspaceRow?.settings || {}) as { classroom_name?: string };
+      const settings = (workspaceRow?.settings || {}) as Record<string, unknown> & {
+        classroom_name?: string;
+        public_report?: Partial<PublicReportPolicy>;
+      };
+      setWorkspaceSettingsJson(settings);
+      setPublicReportPolicy({
+        ...defaultPublicReportPolicy,
+        ...(settings.public_report || {}),
+      });
       setWorkspaceForm({
         academicYear: workspaceRow?.academic_year || session.workspace.academicYear,
         classroomName: settings.classroom_name || session.workspace.classroomName,
@@ -287,7 +317,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         name: nextWorkspace.name,
         school_name: nextWorkspace.schoolName,
         settings: {
+          ...workspaceSettingsJson,
           classroom_name: nextWorkspace.classroomName,
+          public_report: publicReportPolicy,
         },
       })
       .eq('id', session.workspace.id);
@@ -311,6 +343,54 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       source: 'workspace_settings',
     });
     setNotice('บันทึกตั้งค่าโรงเรียนแล้ว หาก header ยังแสดงค่าเดิมให้ refresh เพื่อโหลด session ใหม่');
+    setWorkspaceSettingsJson((current) => ({
+      ...current,
+      classroom_name: nextWorkspace.classroomName,
+      public_report: publicReportPolicy,
+    }));
+    setIsSubmitting(false);
+  }
+
+  async function savePublicReportPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!supabase || !session.workspace) {
+      setWorkspaceSettingsJson((current) => ({ ...current, public_report: publicReportPolicy }));
+      setNotice('บันทึกการเปิดรายงานหน้าแรกในโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc('set_workspace_public_report_policy', {
+      policy: publicReportPolicy,
+      target_workspace_id: session.workspace.id,
+    });
+
+    if (error) {
+      setNotice(`บันทึกการเปิดรายงานหน้าแรกไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const payload = data as { ok?: boolean; reason?: string } | null;
+    if (payload && payload.ok === false) {
+      setNotice(`บันทึกการเปิดรายงานหน้าแรกไม่สำเร็จ: ${payload.reason || 'not_allowed'}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    setWorkspaceSettingsJson((current) => ({ ...current, public_report: publicReportPolicy }));
+    await writeAuditLog(session, {
+      action: 'workspace_public_report_policy.updated',
+      entityId: session.workspace.id,
+      entityTable: 'workspaces',
+      metadata: { ...publicReportPolicy },
+      riskLevel: publicReportPolicy.enabled ? 'normal' : 'low',
+      source: 'workspace_settings',
+    });
+    setNotice('บันทึกการเปิดรายงานหน้าแรกแล้ว');
     setIsSubmitting(false);
   }
 
@@ -898,6 +978,76 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             >
               <Save size={17} aria-hidden="true" />
               บันทึกข้อมูลโรงเรียน
+            </button>
+          </form>
+
+          <form id="public-report-policy" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void savePublicReportPolicy(event)}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+                  <Globe2 size={16} aria-hidden="true" />
+                  รายงานหน้าแรก
+                </div>
+                <h3 className="mt-2 text-xl font-black text-slate-950">เปิดให้ค้นหารายงานด้วยโรงเรียน เลขบัตร และวันเกิด</h3>
+                <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+                  ใช้สำหรับผู้ปกครอง/นักเรียนที่ยังไม่เข้า Portal ระบบแสดงเฉพาะหมวดที่เปิดไว้ และค้นหาด้วย hash ไม่เปิดเลขบัตรจริงในหน้าเว็บ
+                </p>
+              </div>
+              <label className="flex w-fit cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700">
+                <input
+                  checked={publicReportPolicy.enabled}
+                  className="h-4 w-4 accent-cyan-600"
+                  onChange={(event) => setPublicReportPolicy((current) => ({ ...current, enabled: event.target.checked }))}
+                  type="checkbox"
+                />
+                เปิดใช้งาน
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['attendance', 'เวลาเรียน', 'มา ขาด สาย ลา และรายการล่าสุด'],
+                ['scores', 'คะแนน', 'จำนวนชุดคะแนนและค่าเฉลี่ย'],
+                ['savings', 'เงินออม', 'ยอดเงินออมคงเหลือ'],
+                ['behavior', 'พฤติกรรม/เคสดูแล', 'เชิงบวก ข้อห่วงใย และติดตาม'],
+                ['home_visit', 'เยี่ยมบ้าน', 'สถานะและความครบถ้วน กสศ.01'],
+                ['guardians', 'ผู้ปกครอง', 'ข้อมูลผู้ปกครองที่โรงเรียนอนุญาต'],
+              ].map(([key, label, body]) => (
+                <label
+                  className="flex cursor-pointer items-start gap-3 rounded-[22px] border border-slate-200 bg-white/80 p-4 text-sm shadow-sm"
+                  key={key}
+                >
+                  <input
+                    checked={Boolean(publicReportPolicy[key as keyof PublicReportPolicy])}
+                    className="mt-1 h-4 w-4 accent-cyan-600"
+                    disabled={!publicReportPolicy.enabled}
+                    onChange={(event) =>
+                      setPublicReportPolicy((current) => ({
+                        ...current,
+                        [key]: event.target.checked,
+                      }))
+                    }
+                    type="checkbox"
+                  />
+                  <span>
+                    <span className="block font-black text-slate-950">{label}</span>
+                    <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">{body}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-900">
+              ก่อนค้นหาได้ ครูต้องไปที่ Student 360 แล้วแก้นักเรียนเพื่อบันทึกวันเกิดและเลขบัตร 13 หลัก ระบบจะสร้างรหัสค้นหาแบบ hash ให้โดยไม่โชว์เลขบัตรในหน้าเว็บ
+            </div>
+
+            <button
+              className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+              disabled={isSubmitting || isLoading}
+              type="submit"
+            >
+              <Save size={17} aria-hidden="true" />
+              บันทึกการเปิดรายงานหน้าแรก
             </button>
           </form>
 

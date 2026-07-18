@@ -28,6 +28,7 @@ const requiredMigrations = [
   '0019_score_delete_rpc.sql',
   '0020_harden_destructive_action_rpcs.sql',
   '0021_role_operations_control_center.sql',
+  '0022_public_report_lookup.sql',
 ];
 
 const requiredFunctions = [

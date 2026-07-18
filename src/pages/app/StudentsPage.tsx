@@ -63,11 +63,13 @@ interface ClassroomRow {
 }
 
 interface StudentRow {
+  birth_date?: string | null;
   care_flags: Record<string, unknown>;
   classroom_id: string | null;
   first_name: string;
   id: string;
   last_name: string;
+  metadata?: Record<string, unknown>;
   nickname: string | null;
   status: StudentStatus;
   student_code: string | null;
@@ -1047,6 +1049,8 @@ function renderHomeVisitPrintHtml({
 
 function emptyStudentForm(classroomId: string) {
   return {
+    birthDate: '',
+    citizenId: '',
     classroomId,
     firstName: '',
     lastName: '',
@@ -1352,7 +1356,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id')
+          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false }),
         supabase
@@ -1438,6 +1442,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
     setSelectedStudentId(student.id);
     setEditingStudentId(student.id);
     setStudentForm({
+      birthDate: student.birth_date || '',
+      citizenId: '',
       classroomId: student.classroom_id || classrooms[0]?.id || '',
       firstName: student.first_name,
       lastName: student.last_name,
@@ -1490,6 +1496,35 @@ export function StudentsPage({ session }: StudentsPageProps) {
       },
       ...current,
     ]);
+  }
+
+  function normalizeCitizenId(value: string) {
+    return value.replace(/\D/g, '');
+  }
+
+  async function savePublicLookupIdentity(studentId: string) {
+    const citizenId = normalizeCitizenId(studentForm.citizenId);
+    if (!citizenId) return;
+
+    if (citizenId.length !== 13) {
+      throw new Error('เลขบัตรประชาชนต้องมี 13 หลักก่อนเปิดดูรายงานหน้าแรก');
+    }
+
+    if (!studentForm.birthDate) {
+      throw new Error('ต้องกรอกวันเกิดนักเรียนก่อนเปิดดูรายงานหน้าแรก');
+    }
+
+    if (!supabase) return;
+
+    const { data, error } = await supabase.rpc('set_student_public_lookup_identity', {
+      citizen_id: citizenId,
+      target_student_id: studentId,
+    });
+
+    if (error) throw error;
+    if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
+      throw new Error(typeof data.reason === 'string' ? data.reason : 'ตั้งค่ารหัสค้นหารายงานหน้าแรกไม่สำเร็จ');
+    }
   }
 
   async function ensureClassroom() {
@@ -1588,6 +1623,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             student.id === editingStudentId
               ? {
                   ...student,
+                  birth_date: studentForm.birthDate || null,
                   classroom_id: studentForm.classroomId,
                   first_name: trimmedFirstName,
                   last_name: trimmedLastName,
@@ -1600,11 +1636,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
         setNotice('แก้ไขนักเรียนในโหมดตัวอย่างแล้ว');
       } else {
         const localStudent: StudentRow = {
+          birth_date: studentForm.birthDate || null,
           care_flags: {},
           classroom_id: studentForm.classroomId,
           first_name: trimmedFirstName,
           id: `demo-student-${Date.now()}`,
           last_name: trimmedLastName,
+          metadata: studentForm.citizenId ? { public_lookup_ready: true } : {},
           nickname: studentForm.nickname.trim() || null,
           status: 'active',
           student_code: studentForm.studentCode.trim() || null,
@@ -1621,6 +1659,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     try {
       const targetClassroomId = await ensureClassroom();
       const payload = {
+        birth_date: studentForm.birthDate || null,
         classroom_id: targetClassroomId || null,
         first_name: trimmedFirstName,
         last_name: trimmedLastName,
@@ -1634,20 +1673,31 @@ export function StudentsPage({ session }: StudentsPageProps) {
           .update(payload)
           .eq('id', editingStudentId)
           .eq('workspace_id', session.workspace.id)
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id')
+          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
           .single();
 
         if (error) throw error;
 
         const nextStudent = data as StudentRow;
-        setStudents((current) => current.map((student) => (student.id === editingStudentId ? nextStudent : student)));
+        await savePublicLookupIdentity(nextStudent.id);
+        const refreshedStudent: StudentRow = studentForm.citizenId
+          ? {
+              ...nextStudent,
+              metadata: {
+                ...nextStudent.metadata,
+                public_lookup_enabled: true,
+              },
+            }
+          : nextStudent;
+        setStudents((current) => current.map((student) => (student.id === editingStudentId ? refreshedStudent : student)));
         await writeAuditLog({
           action: 'student.updated',
-          entityId: nextStudent.id,
+          entityId: refreshedStudent.id,
           entityTable: 'students',
           metadata: {
-            classroom_id: nextStudent.classroom_id,
-            student_code: nextStudent.student_code,
+            classroom_id: refreshedStudent.classroom_id,
+            public_lookup_enabled: Boolean(studentForm.citizenId),
+            student_code: refreshedStudent.student_code,
           },
           riskLevel: 'low',
         });
@@ -1660,21 +1710,32 @@ export function StudentsPage({ session }: StudentsPageProps) {
             status: 'active',
             workspace_id: session.workspace.id,
           })
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id')
+          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
           .single();
 
         if (error) throw error;
 
         const nextStudent = data as StudentRow;
-        setStudents((current) => [nextStudent, ...current]);
-        setSelectedStudentId(nextStudent.id);
+        await savePublicLookupIdentity(nextStudent.id);
+        const refreshedStudent: StudentRow = studentForm.citizenId
+          ? {
+              ...nextStudent,
+              metadata: {
+                ...nextStudent.metadata,
+                public_lookup_enabled: true,
+              },
+            }
+          : nextStudent;
+        setStudents((current) => [refreshedStudent, ...current]);
+        setSelectedStudentId(refreshedStudent.id);
         await writeAuditLog({
           action: 'student.created',
-          entityId: nextStudent.id,
+          entityId: refreshedStudent.id,
           entityTable: 'students',
           metadata: {
-            classroom_id: nextStudent.classroom_id,
-            student_code: nextStudent.student_code,
+            classroom_id: refreshedStudent.classroom_id,
+            public_lookup_enabled: Boolean(studentForm.citizenId),
+            student_code: refreshedStudent.student_code,
           },
           riskLevel: 'low',
         });
@@ -1757,7 +1818,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     const { data, error } = await supabase
       .from('students')
       .insert(rows)
-      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id');
+      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata');
 
     if (error) {
       setNotice(`เพิ่มข้อมูลทดลองไม่สำเร็จ: ${error.message}`);
@@ -1799,7 +1860,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .update({ status })
       .eq('id', student.id)
       .eq('workspace_id', session.workspace.id)
-      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id')
+      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
       .single();
 
     if (error) {
@@ -1959,7 +2020,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         .update({ care_flags: nextCareFlags })
         .eq('id', selectedStudent.id)
         .eq('workspace_id', session.workspace.id)
-        .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id')
+        .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
         .single(),
     ]);
 
@@ -2353,7 +2414,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         .update({ care_flags: nextCareFlags })
         .eq('id', selectedStudent.id)
         .eq('workspace_id', session.workspace.id)
-        .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id')
+        .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
         .single(),
     ]);
 
@@ -3167,6 +3228,51 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   value={studentForm.nickname}
                 />
               </label>
+
+              <div className="rounded-3xl bg-cyan-50/70 p-4 ring-1 ring-cyan-100">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-cyan-800">รายงานหน้าแรก</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
+                      ใช้สำหรับให้ผู้ปกครองหรือนักเรียนเลือกโรงเรียน กรอกเลขบัตรและวันเกิด เพื่อดูเฉพาะรายงานที่โรงเรียนเปิดให้
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                    {selectedStudent?.metadata?.public_lookup_enabled || selectedStudent?.metadata?.public_lookup_id_hash
+                      ? 'เปิดแล้ว'
+                      : 'ยังไม่เปิด'}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    วันเกิดนักเรียน
+                    <input
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => setStudentForm((current) => ({ ...current, birthDate: event.target.value }))}
+                      type="date"
+                      value={studentForm.birthDate}
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    เลขบัตรประชาชน 13 หลัก
+                    <input
+                      className="nexus-field h-11 px-3"
+                      inputMode="numeric"
+                      maxLength={13}
+                      onChange={(event) =>
+                        setStudentForm((current) => ({
+                          ...current,
+                          citizenId: normalizeCitizenId(event.target.value).slice(0, 13),
+                        }))
+                      }
+                      placeholder="กรอกเมื่อต้องการเปิด public report"
+                      value={studentForm.citizenId}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 flex gap-2">
