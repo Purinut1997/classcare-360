@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -135,6 +136,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [attendanceDate, setAttendanceDate] = useState(getTodayDate());
   const [periodLabel, setPeriodLabel] = useState('เช้า');
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
+  const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule());
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>(() => createDefaultMarks(demoStudents));
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
@@ -243,6 +245,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   useEffect(() => {
     setAttendanceSession(null);
     setRecords([]);
+    setScheduleOptions(getAttendanceOptionsFromSchedule());
     setSubjectName(modeCopy[mode].subject);
     setPeriodLabel(mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
   }, [mode]);
@@ -546,21 +549,41 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   {mode === 'homeroom' ? 'ช่วงเวลา' : 'คาบเรียน'}
                   <input
                     className="nexus-field h-11 px-3"
+                    list={mode === 'homeroom' ? 'attendance-homeroom-period-options' : 'attendance-period-options'}
                     onChange={(event) => setPeriodLabel(event.target.value)}
                     placeholder={mode === 'homeroom' ? 'เช้า / บ่าย' : 'คาบ 1'}
                     value={periodLabel}
                   />
+                  <datalist id="attendance-homeroom-period-options">
+                    {['เช้า', 'บ่าย', 'โฮมรูม', 'หน้าเสาธง', ...scheduleOptions.periodOptions].map((option) => (
+                      <option key={option} value={option} />
+                    ))}
+                  </datalist>
+                  <datalist id="attendance-period-options">
+                    {scheduleOptions.periodOptions.map((option) => (
+                      <option key={option} value={option} />
+                    ))}
+                  </datalist>
                 </label>
               </div>
               <label className="grid gap-2 text-sm font-black text-slate-700">
                 {mode === 'homeroom' ? 'กิจกรรม' : 'รายวิชา'}
                 <input
                   className="nexus-field h-11 px-3"
+                  list="attendance-subject-options"
                   onChange={(event) => setSubjectName(event.target.value)}
                   placeholder={mode === 'homeroom' ? 'โฮมรูม' : 'เช่น คณิตศาสตร์'}
                   value={subjectName}
                 />
+                <datalist id="attendance-subject-options">
+                  {scheduleOptions.subjectOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
               </label>
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/80 p-3 text-xs font-bold leading-5 text-cyan-900">
+                Dropdown ช่วงเวลา/คาบและรายวิชาอ้างอิงจากเมนูตารางสอน แต่ยังพิมพ์เองได้ ถ้าต้องการเพิ่มตัวเลือกถาวรให้ไปแก้ที่ตารางสอนก่อน
+              </div>
             </div>
             <button
               className="amber-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"

@@ -1,8 +1,9 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Download, Globe2, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Archive, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
+import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
 
@@ -143,6 +144,7 @@ function getRpcErrorMessage(actionLabel: string, error: { code?: string; message
 }
 
 export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
+  const initialReportIdentity = loadSchoolReportIdentity();
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<Record<string, number>>({});
   const [members, setMembers] = useState<WorkspaceMemberRow[]>(demoMembers);
@@ -157,9 +159,13 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   const [memberRole, setMemberRole] = useState<ManageableMemberRole>('teacher_member');
   const [workspaceForm, setWorkspaceForm] = useState({
     academicYear: session.workspace?.academicYear || '2569',
+    academicHeadName: initialReportIdentity.academicHeadName,
     classroomName: session.workspace?.classroomName || 'ป.5/2',
+    directorName: initialReportIdentity.directorName,
     name: session.workspace?.name || 'ห้องเรียนของฉัน',
+    schoolLogoDataUrl: initialReportIdentity.schoolLogoDataUrl,
     schoolName: session.workspace?.schoolName || 'โรงเรียนตัวอย่าง ClassCare',
+    teacherName: initialReportIdentity.teacherName,
   });
   const [workspaceSettingsJson, setWorkspaceSettingsJson] = useState<Record<string, unknown>>({});
   const [publicReportPolicy, setPublicReportPolicy] = useState<PublicReportPolicy>(defaultPublicReportPolicy);
@@ -233,6 +239,16 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       const settings = (workspaceRow?.settings || {}) as Record<string, unknown> & {
         classroom_name?: string;
         public_report?: Partial<PublicReportPolicy>;
+        report_identity?: Partial<{
+          academicHeadName: string;
+          directorName: string;
+          schoolLogoDataUrl: string;
+          teacherName: string;
+        }>;
+      };
+      const reportIdentity = {
+        ...loadSchoolReportIdentity(),
+        ...(settings.report_identity || {}),
       };
       setWorkspaceSettingsJson(settings);
       setPublicReportPolicy({
@@ -241,9 +257,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       });
       setWorkspaceForm({
         academicYear: workspaceRow?.academic_year || session.workspace.academicYear,
+        academicHeadName: reportIdentity.academicHeadName || '',
         classroomName: settings.classroom_name || session.workspace.classroomName,
+        directorName: reportIdentity.directorName || '',
         name: workspaceRow?.name || session.workspace.name,
+        schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
         schoolName: workspaceRow?.school_name || session.workspace.schoolName,
+        teacherName: reportIdentity.teacherName || '',
+      });
+      saveSchoolReportIdentity({
+        academicHeadName: reportIdentity.academicHeadName || '',
+        academicYear: workspaceRow?.academic_year || session.workspace.academicYear,
+        classroomName: settings.classroom_name || session.workspace.classroomName,
+        directorName: reportIdentity.directorName || '',
+        schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
+        schoolName: workspaceRow?.school_name || session.workspace.schoolName,
+        teacherName: reportIdentity.teacherName || '',
       });
       setClassroomForm((current) => ({
         ...current,
@@ -292,9 +321,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
     const nextWorkspace = {
       academicYear: workspaceForm.academicYear.trim(),
+      academicHeadName: workspaceForm.academicHeadName.trim(),
       classroomName: workspaceForm.classroomName.trim(),
+      directorName: workspaceForm.directorName.trim(),
       name: workspaceForm.name.trim(),
+      schoolLogoDataUrl: workspaceForm.schoolLogoDataUrl,
       schoolName: workspaceForm.schoolName.trim(),
+      teacherName: workspaceForm.teacherName.trim(),
+    };
+    const reportIdentity = {
+      academicHeadName: nextWorkspace.academicHeadName,
+      academicYear: nextWorkspace.academicYear,
+      classroomName: nextWorkspace.classroomName,
+      directorName: nextWorkspace.directorName,
+      schoolLogoDataUrl: nextWorkspace.schoolLogoDataUrl,
+      schoolName: nextWorkspace.schoolName,
+      teacherName: nextWorkspace.teacherName,
     };
 
     if (!nextWorkspace.name || !nextWorkspace.schoolName || !nextWorkspace.academicYear) {
@@ -305,6 +347,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
     if (!supabase || !session.workspace) {
       setWorkspaceForm(nextWorkspace);
+      saveSchoolReportIdentity(reportIdentity);
       setNotice('บันทึกตั้งค่าโรงเรียนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return;
@@ -320,6 +363,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           ...workspaceSettingsJson,
           classroom_name: nextWorkspace.classroomName,
           public_report: publicReportPolicy,
+          report_identity: reportIdentity,
         },
       })
       .eq('id', session.workspace.id);
@@ -336,8 +380,11 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       entityTable: 'workspaces',
       metadata: {
         academic_year: nextWorkspace.academicYear,
+        academic_head_name: nextWorkspace.academicHeadName,
         classroom_name: nextWorkspace.classroomName,
+        director_name: nextWorkspace.directorName,
         school_name: nextWorkspace.schoolName,
+        teacher_name: nextWorkspace.teacherName,
       },
       riskLevel: 'low',
       source: 'workspace_settings',
@@ -347,7 +394,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       ...current,
       classroom_name: nextWorkspace.classroomName,
       public_report: publicReportPolicy,
+      report_identity: reportIdentity,
     }));
+    saveSchoolReportIdentity(reportIdentity);
     setIsSubmitting(false);
   }
 
@@ -856,6 +905,19 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setNotice(`สร้างแผนเลื่อนชั้น ${fromYear} -> ${toYear} แล้ว ยังไม่ย้ายข้อมูลจริง`);
   }
 
+  async function handleSchoolLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const schoolLogoDataUrl = await compressImageFile(file, 520, 0.78);
+      setWorkspaceForm((current) => ({ ...current, schoolLogoDataUrl }));
+      setNotice('บีบอัดโลโก้โรงเรียนแล้ว กดบันทึกข้อมูลโรงเรียนเพื่อใช้กับรายงานทั้งหมด');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'อัปโหลดโลโก้โรงเรียนไม่สำเร็จ');
+    }
+  }
+
   return (
     <main className="app-page">
       <section className="nexus-card overflow-hidden p-0">
@@ -952,6 +1014,31 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                   value={workspaceForm.schoolName}
                 />
               </label>
+              <div className="rounded-[24px] border border-[#ead8bd] bg-[#fffaf0]/85 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[#ead8bd] bg-white text-[#8a5200]">
+                    {workspaceForm.schoolLogoDataUrl ? (
+                      <img alt="โลโก้โรงเรียน" className="h-full w-full object-contain p-2" src={workspaceForm.schoolLogoDataUrl} />
+                    ) : (
+                      <ImagePlus size={28} aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      โลโก้โรงเรียนสำหรับรายงานทุกฉบับ
+                      <input
+                        accept="image/*"
+                        className="nexus-field h-11 px-3 py-2"
+                        onChange={(event) => void handleSchoolLogoChange(event)}
+                        type="file"
+                      />
+                    </label>
+                    <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+                      ระบบย่อรูปก่อนเก็บไว้ใช้ในรายงาน ตารางสอน และเอกสารพิมพ์ เพื่อลดขนาดข้อมูลใน browser และ payload
+                    </p>
+                  </div>
+                </div>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ปีการศึกษา
@@ -967,6 +1054,35 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                     className="nexus-field h-11 px-3"
                     onChange={(event) => setWorkspaceForm((current) => ({ ...current, classroomName: event.target.value }))}
                     value={workspaceForm.classroomName}
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ชื่อครูผู้สอน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, teacherName: event.target.value }))}
+                    placeholder="เช่น นางสาว..."
+                    value={workspaceForm.teacherName}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  หัวหน้าวิชาการ
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, academicHeadName: event.target.value }))}
+                    placeholder="ชื่อผู้ตรวจตาราง/รายงาน"
+                    value={workspaceForm.academicHeadName}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ผู้อำนวยการโรงเรียน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, directorName: event.target.value }))}
+                    placeholder="ชื่อผู้อำนวยการ"
+                    value={workspaceForm.directorName}
                   />
                 </label>
               </div>
