@@ -54,6 +54,9 @@ const PackagePage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('./pages/app/ReportsPage').then((module) => ({ default: module.ReportsPage })),
 );
+const SchedulePage = lazy(() =>
+  import('./pages/app/SchedulePage').then((module) => ({ default: module.SchedulePage })),
+);
 const ScoresPage = lazy(() =>
   import('./pages/app/ScoresPage').then((module) => ({ default: module.ScoresPage })),
 );
@@ -106,6 +109,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'overview',
       'students',
       'teacher-work',
+      'schedule',
       'scores',
       'savings',
       'behavior',
@@ -118,6 +122,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'overview',
       'students',
       'teacher-work',
+      'schedule',
       'scores',
       'savings',
       'behavior',
@@ -132,6 +137,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'overview',
       'students',
       'teacher-work',
+      'schedule',
       'scores',
       'savings',
       'behavior',
@@ -242,6 +248,21 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <AttendancePage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'schedule') {
+    return (
+      <RequireRouteAccess
+        allowedRoles={allowedRoles}
+        featureName={activeNavItem.label}
+        moduleKey={activeNavItem.moduleKey}
+        session={session}
+      >
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <SchedulePage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

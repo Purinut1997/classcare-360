@@ -17,7 +17,7 @@ const sidebarSections = [
   {
     key: 'teacher-work',
     label: 'งานครู',
-    itemKeys: ['teacher-work', 'scores', 'savings', 'behavior', 'randomizer'],
+    itemKeys: ['teacher-work', 'schedule', 'scores', 'savings', 'behavior', 'randomizer'],
   },
   { key: 'data', label: 'รายงานและข้อมูล', itemKeys: ['reports', 'import-export', 'notifications'] },
   { key: 'workspace', label: 'จัดการโรงเรียน', itemKeys: ['workspace-settings', 'workspace-switch'] },
