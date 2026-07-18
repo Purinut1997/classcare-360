@@ -97,9 +97,9 @@ const workspaceControlSections = [
     label: 'ห้องเรียน',
   },
   {
-    body: 'ตั้งชื่อโรงเรียน ปีการศึกษา ห้องหลัก และข้อมูลพื้นฐานของ workspace',
+    body: 'ตั้งชื่อโรงเรียน ปีการศึกษา ห้องหลัก โลโก้ และผู้ลงนามสำหรับรายงานทุกฉบับ',
     href: '#workspace-profile',
-    label: 'ข้อมูลโรงเรียน',
+    label: 'ข้อมูลโรงเรียน/ผู้ลงนาม',
   },
   {
     body: 'สำรอง snapshot การตั้งค่าและเตรียมส่งออก debug ให้ผู้ดูแลระบบ',
@@ -995,8 +995,11 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           <form id="workspace-profile" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <ShieldCheck size={16} aria-hidden="true" />
-              ข้อมูล workspace
+              ตั้งค่าโรงเรียนและผู้ลงนาม
             </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+              ข้อมูลส่วนนี้เป็นฐานกลางของรายงานทั้งหมด เช่น ตารางสอน เวลาเรียน คะแนน เงินออม รายบุคคล และเอกสารพิมพ์ของโรงเรียน
+            </p>
             <div className="mt-4 grid gap-3">
               <label className="grid gap-2 text-sm font-black text-slate-700">
                 ชื่อ workspace

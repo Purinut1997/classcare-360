@@ -1,10 +1,9 @@
-import { Fragment, type ChangeEvent, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   BookOpenCheck,
   CalendarRange,
   Download,
   FileSpreadsheet,
-  ImagePlus,
   Plus,
   Printer,
   Save,
@@ -16,14 +15,12 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 import {
   buildSchedulePeriods,
-  compressImageFile,
   defaultDays,
   exportScheduleCsv,
   loadScheduleSettings,
   loadSchoolReportIdentity,
   makeScheduleCellKey,
   saveScheduleSettings,
-  saveSchoolReportIdentity,
   type DayName,
   type ScheduleCell,
   type ScheduleSubjectOption,
@@ -38,7 +35,7 @@ interface SchedulePageProps {
 export function SchedulePage({ session }: SchedulePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
-  const [identity, setIdentity] = useState<SchoolReportIdentity>(() => ({
+  const [identity] = useState<SchoolReportIdentity>(() => ({
     ...loadSchoolReportIdentity(),
     academicYear: session.workspace?.academicYear || loadSchoolReportIdentity().academicYear,
     classroomName: session.workspace?.classroomName || loadSchoolReportIdentity().classroomName,
@@ -79,7 +76,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     updateSettings({ activeDays: nextDays.length ? nextDays : [day] });
   }
 
-  function saveAll(nextSettings = settings, nextIdentity = identity) {
+  function saveAll(nextSettings = settings) {
     const subjects = normalizeSubjects([
       ...nextSettings.subjects,
       { code: selectedSubjectCode.trim(), name: selectedSubject.trim() },
@@ -107,7 +104,6 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
     setSettings(normalizedSettings);
     saveScheduleSettings(normalizedSettings);
-    saveSchoolReportIdentity(nextIdentity);
     setNotice('บันทึกตั้งค่าตารางสอนแล้ว หน้าเช็คเวลาเรียนจะเห็นคาบและรายวิชาจากตารางนี้');
   }
 
@@ -187,21 +183,6 @@ export function SchedulePage({ session }: SchedulePageProps) {
       },
     };
     saveAll(nextSettings);
-  }
-
-  async function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const schoolLogoDataUrl = await compressImageFile(file, 520, 0.78);
-      const nextIdentity = { ...identity, schoolLogoDataUrl };
-      setIdentity(nextIdentity);
-      saveSchoolReportIdentity(nextIdentity);
-      setNotice('บีบอัดและบันทึกโลโก้โรงเรียนสำหรับรายงานแล้ว');
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'อัปโหลดโลโก้ไม่สำเร็จ');
-    }
   }
 
   function printSchedule() {
@@ -322,7 +303,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
           <div className="grid gap-2 sm:grid-cols-2">
             {[
               { value: 'table' as const, label: 'ตาราง', description: 'กรอกช่องตารางสอนและพิมพ์เอกสาร' },
-              { value: 'settings' as const, label: 'ตั้งค่า', description: 'คาบเรียน รายวิชา ห้อง โลโก้ และผู้ลงนาม' },
+              { value: 'settings' as const, label: 'ตั้งค่า', description: 'คาบเรียน รายวิชา และห้องที่ใช้ในตาราง' },
             ].map((item) => (
               <button
                 className={`rounded-[1.35rem] px-4 py-3 text-left transition ${
@@ -434,50 +415,6 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       </button>
                     </div>
                   ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="app-panel-pad">
-              <div className="nexus-kicker">
-                <ImagePlus size={16} aria-hidden="true" />
-                ตั้งค่าโรงเรียนและผู้ลงนาม
-              </div>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  โลโก้โรงเรียน
-                  <input className="nexus-field h-11 px-3 py-2" accept="image/*" onChange={(event) => void handleLogoChange(event)} type="file" />
-                </label>
-                {identity.schoolLogoDataUrl ? (
-                  <img alt="โลโก้โรงเรียน" className="h-20 w-20 rounded-2xl border border-[#ead8bd] bg-white object-contain p-2" src={identity.schoolLogoDataUrl} />
-                ) : null}
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ชื่อโรงเรียน
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setIdentity((current) => ({ ...current, schoolName: event.target.value }))} value={identity.schoolName} />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ปีการศึกษา
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setIdentity((current) => ({ ...current, academicYear: event.target.value }))} value={identity.academicYear} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ห้องหลัก
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setIdentity((current) => ({ ...current, classroomName: event.target.value }))} value={identity.classroomName} />
-                  </label>
-                </div>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ชื่อครูผู้สอน
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setIdentity((current) => ({ ...current, teacherName: event.target.value }))} value={identity.teacherName} />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    หัวหน้าวิชาการ
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setIdentity((current) => ({ ...current, academicHeadName: event.target.value }))} value={identity.academicHeadName} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ผู้อำนวยการโรงเรียน
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setIdentity((current) => ({ ...current, directorName: event.target.value }))} value={identity.directorName} />
-                  </label>
                 </div>
               </div>
             </section>
