@@ -1417,30 +1417,6 @@ export function ReportsPage({ session }: ReportsPageProps) {
         ))}
       </section>
 
-      <section className="nexus-card mt-5 p-3 sm:p-4">
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {reportViews.map((item) => {
-            const isActive = item.value === reportView;
-
-            return (
-              <button
-                className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${
-                  isActive
-                    ? 'border-amber-300 bg-amber-100 text-amber-950 shadow-[0_14px_28px_rgba(217,119,6,0.12)]'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-amber-200'
-                }`}
-                key={item.value}
-                onClick={() => updateReportSearch({ reportView: item.value })}
-                type="button"
-              >
-                <span className="text-sm font-black">{item.label}</span>
-                <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">{item.description}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       <section className="app-workbench">
         <aside className="grid gap-4">
           <section className="nexus-card p-4 sm:p-5">
