@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Archive, Download, FileUp, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
 
@@ -496,6 +496,9 @@ function isWorkspaceBackupPackage(value: unknown): value is WorkspaceBackupPacka
 }
 
 export function ImportExportPage({ session }: ImportExportPageProps) {
+  const dmcFileInputRef = useRef<HTMLInputElement | null>(null);
+  const studentCsvInputRef = useRef<HTMLInputElement | null>(null);
+  const guardianCsvInputRef = useRef<HTMLInputElement | null>(null);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentExportRow[]>(demoStudents);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
@@ -1283,6 +1286,60 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </div>
       </div>
 
+      <section className="mt-5 rounded-[2rem] border border-amber-200 bg-white/95 p-4 shadow-[0_18px_50px_rgba(146,92,28,0.10)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-sm font-black text-amber-700">เพิ่มรายชื่อนักเรียน</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">นำเข้าให้เสร็จจากตรงนี้ได้เลย</h2>
+            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
+              เลือกไฟล์ก่อน ระบบจะสร้าง preview ให้ตรวจ ถ้าแถวผ่านตรวจแล้วปุ่มนำเข้าจะกดได้ทันที
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[620px] xl:grid-cols-4">
+            <button
+              className="amber-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+              onClick={() => dmcFileInputRef.current?.click()}
+              type="button"
+            >
+              <FileUp size={17} aria-hidden="true" />
+              เลือกไฟล์ DMC
+            </button>
+            <button
+              className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
+              onClick={() => studentCsvInputRef.current?.click()}
+              type="button"
+            >
+              <Upload size={17} aria-hidden="true" />
+              เลือก CSV
+            </button>
+            <button
+              className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
+              onClick={() => guardianCsvInputRef.current?.click()}
+              type="button"
+            >
+              <Upload size={17} aria-hidden="true" />
+              ผู้ปกครอง CSV
+            </button>
+            <button
+              className="dark-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white"
+              disabled={isSubmitting || validPreviewRows.length === 0}
+              onClick={() => void importValidRows()}
+              type="button"
+            >
+              <Save size={17} aria-hidden="true" />
+              นำเข้า {validPreviewRows.length} แถว
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-600 lg:grid-cols-3">
+          <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">1. เลือกไฟล์ DMC/CSV</div>
+          <div className="rounded-2xl bg-cyan-50 px-4 py-3 ring-1 ring-cyan-100">2. เลือกห้องและตรวจ preview</div>
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">3. กดนำเข้ารายชื่อที่ผ่านตรวจ</div>
+        </div>
+      </section>
+
       <section className="mt-5 grid gap-5">
         <aside className="grid gap-5">
           <div className="nexus-card p-4 sm:p-5">
@@ -1297,7 +1354,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               <Upload className="text-cyan-700" size={26} aria-hidden="true" />
               <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ DMC .xlsx</span>
               <span className="mt-1 text-xs font-bold text-slate-500">รองรับหัวตาราง: ชั้น, ห้อง, ชื่อ, นามสกุล</span>
-              <input accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(event) => void handleDmcFileChange(event)} type="file" />
+              <input
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="sr-only"
+                onChange={(event) => void handleDmcFileChange(event)}
+                ref={dmcFileInputRef}
+                type="file"
+              />
             </label>
 
             <div className="mt-4">
@@ -1435,7 +1498,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <Upload className="text-cyan-700" size={26} aria-hidden="true" />
                 <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ CSV เพื่อ preview</span>
                 <span className="mt-1 text-xs font-bold text-slate-500">{templateHeaders.join(', ')}</span>
-                <input accept=".csv,text/csv" className="sr-only" onChange={(event) => void handleFileChange(event)} type="file" />
+                <input
+                  accept=".csv,text/csv"
+                  className="sr-only"
+                  onChange={(event) => void handleFileChange(event)}
+                  ref={studentCsvInputRef}
+                  type="file"
+                />
               </label>
             </div>
           </div>
@@ -1457,7 +1526,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <Upload className="text-cyan-700" size={26} aria-hidden="true" />
                 <span className="mt-2 text-sm font-black text-slate-700">เลือก Guardian CSV</span>
                 <span className="mt-1 text-xs font-bold text-slate-500">student_code, guardian_email, create_portal_invite</span>
-                <input accept=".csv,text/csv" className="sr-only" onChange={(event) => void handleGuardianFileChange(event)} type="file" />
+                <input
+                  accept=".csv,text/csv"
+                  className="sr-only"
+                  onChange={(event) => void handleGuardianFileChange(event)}
+                  ref={guardianCsvInputRef}
+                  type="file"
+                />
               </label>
             </div>
           </div>
