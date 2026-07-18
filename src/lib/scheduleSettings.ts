@@ -13,6 +13,12 @@ export interface SchedulePeriod {
   start: string;
 }
 
+export interface ScheduleSubjectOption {
+  code: string;
+  name: string;
+  teacherName?: string;
+}
+
 export interface ScheduleSettings {
   activeDays: DayName[];
   cells: Record<string, ScheduleCell>;
@@ -23,6 +29,7 @@ export interface ScheduleSettings {
   periodCount: number;
   periodMinutes: number;
   startTime: string;
+  subjects: ScheduleSubjectOption[];
   subjectOptions: string[];
 }
 
@@ -53,6 +60,18 @@ export const defaultSubjectOptions = [
   'กิจกรรมแนะแนว',
 ];
 
+export const defaultScheduleSubjects: ScheduleSubjectOption[] = [
+  { code: 'HR', name: 'โฮมรูม' },
+  { code: 'ค15101', name: 'คณิตศาสตร์' },
+  { code: 'ท15101', name: 'ภาษาไทย' },
+  { code: 'ว15101', name: 'วิทยาศาสตร์' },
+  { code: 'ส15101', name: 'สังคมศึกษา' },
+  { code: 'อ15101', name: 'ภาษาอังกฤษ' },
+  { code: 'ศ15101', name: 'ศิลปะ' },
+  { code: 'พ15101', name: 'สุขศึกษา' },
+  { code: 'ก15901', name: 'กิจกรรมแนะแนว' },
+];
+
 export function makeScheduleCellKey(day: string, periodIndex: number) {
   return `${day}-${periodIndex}`;
 }
@@ -71,6 +90,7 @@ export function getDefaultScheduleSettings(classroomName = 'ป.5/1'): ScheduleS
     periodCount: 7,
     periodMinutes: 60,
     startTime: '08:30',
+    subjects: defaultScheduleSubjects,
     subjectOptions: defaultSubjectOptions,
   };
 }
@@ -106,12 +126,42 @@ function writeStorageJson(key: string, value: unknown) {
 export function loadScheduleSettings(classroomName?: string): ScheduleSettings {
   const fallback = getDefaultScheduleSettings(classroomName);
   const stored = readStorageJson<ScheduleSettings>(scheduleStorageKey, fallback);
+  const storedSubjects = (stored.subjects || [])
+    .map((subject) => ({
+      code: subject.code?.trim() || '',
+      name: subject.name?.trim() || '',
+      teacherName: subject.teacherName?.trim() || '',
+    }))
+    .filter((subject) => subject.name);
+  const legacySubjects: ScheduleSubjectOption[] = (stored.subjectOptions || [])
+    .filter(Boolean)
+    .map((name) => ({ code: '', name, teacherName: '' }));
+  const subjectMap = new Map<string, ScheduleSubjectOption>();
+  [...fallback.subjects, ...legacySubjects, ...storedSubjects].forEach((subject) => {
+    if (!subject.name) return;
+    subjectMap.set(subject.name, {
+      code: subject.code || subjectMap.get(subject.name)?.code || '',
+      name: subject.name,
+      teacherName: subject.teacherName || subjectMap.get(subject.name)?.teacherName || '',
+    });
+  });
+  const subjects = Array.from(subjectMap.values());
+  const subjectOptions = Array.from(
+    new Set([
+      ...fallback.subjectOptions,
+      ...(stored.subjectOptions || []),
+      ...subjects.map((subject) => subject.name),
+      ...Object.values(stored.cells || {}).map((cell) => cell.subject).filter(Boolean),
+    ]),
+  );
+
   return {
     ...fallback,
     ...stored,
     activeDays: stored.activeDays?.length ? stored.activeDays : fallback.activeDays,
     classroomOptions: stored.classroomOptions?.length ? stored.classroomOptions : fallback.classroomOptions,
-    subjectOptions: stored.subjectOptions?.length ? stored.subjectOptions : fallback.subjectOptions,
+    subjects,
+    subjectOptions,
   };
 }
 
@@ -176,6 +226,7 @@ export function getAttendanceOptionsFromSchedule() {
   const subjectOptions = Array.from(
     new Set([
       ...defaultSubjectOptions,
+      ...(settings.subjects || []).map((subject) => subject.name),
       ...(settings.subjectOptions || []),
       ...Object.values(settings.cells || {}).map((cell) => cell.subject).filter(Boolean),
     ]),

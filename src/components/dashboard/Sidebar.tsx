@@ -41,6 +41,11 @@ const scoreSubNavItems = [
   { label: 'สมุดรวมคะแนน', value: 'gradebook' },
 ];
 
+const scheduleSubNavItems = [
+  { label: 'ตาราง', value: 'table' },
+  { label: 'ตั้งค่า', value: 'settings' },
+];
+
 const reportSubNavItems = [
   { label: 'เวลาเรียน', value: 'attendance' },
   { label: 'เงินออม', value: 'savings' },
@@ -61,6 +66,10 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const activeScoreSubView = scoreSubNavItems.some((item) => item.value === requestedScoreSubView)
     ? requestedScoreSubView
     : 'entry';
+  const requestedScheduleSubView = new URLSearchParams(location.search).get('scheduleView') || 'table';
+  const activeScheduleSubView = scheduleSubNavItems.some((item) => item.value === requestedScheduleSubView)
+    ? requestedScheduleSubView
+    : 'table';
   const requestedReportSubView = new URLSearchParams(location.search).get('reportView') || 'attendance';
   const activeReportSubView = reportSubNavItems.some((item) => item.value === requestedReportSubView)
     ? requestedReportSubView
@@ -164,6 +173,28 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
                               }`}
                               key={subItem.value}
                               to={`/app/dashboard?view=scores&scoreView=${subItem.value}`}
+                            >
+                              <span className="truncate">{subItem.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    {item.key === 'schedule' && isActive ? (
+                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
+                        {scheduleSubNavItems.map((subItem) => {
+                          const isSubActive = activeScheduleSubView === subItem.value;
+
+                          return (
+                            <Link
+                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
+                                isSubActive
+                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
+                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
+                              }`}
+                              key={subItem.value}
+                              to={`/app/dashboard?view=schedule&scheduleView=${subItem.value}`}
                             >
                               <span className="truncate">{subItem.label}</span>
                             </Link>

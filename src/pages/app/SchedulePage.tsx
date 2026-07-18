@@ -2,16 +2,17 @@ import { Fragment, type ChangeEvent, useMemo, useState } from 'react';
 import {
   BookOpenCheck,
   CalendarRange,
-  Clock3,
   Download,
   FileSpreadsheet,
   ImagePlus,
+  Plus,
   Printer,
   Save,
   Settings2,
+  Trash2,
   UserRound,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import {
   buildSchedulePeriods,
@@ -25,6 +26,7 @@ import {
   saveSchoolReportIdentity,
   type DayName,
   type ScheduleCell,
+  type ScheduleSubjectOption,
   type SchoolReportIdentity,
 } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
@@ -34,6 +36,7 @@ interface SchedulePageProps {
 }
 
 export function SchedulePage({ session }: SchedulePageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
   const [identity, setIdentity] = useState<SchoolReportIdentity>(() => ({
     ...loadSchoolReportIdentity(),
@@ -44,8 +47,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const [selectedSubject, setSelectedSubject] = useState(settings.subjectOptions[0] || 'คณิตศาสตร์');
   const [selectedSubjectCode, setSelectedSubjectCode] = useState('ค15101');
   const [selectedClassroom, setSelectedClassroom] = useState(session.workspace?.classroomName || settings.classroomOptions[0] || 'ป.5/1');
+  const [subjectDraft, setSubjectDraft] = useState<ScheduleSubjectOption>(() => ({
+    code: 'ค15101',
+    name: settings.subjectOptions[0] || 'คณิตศาสตร์',
+    teacherName: '',
+  }));
   const [notice, setNotice] = useState<string | null>(null);
 
+  const activeView = searchParams.get('scheduleView') === 'settings' ? 'settings' : 'table';
   const periods = useMemo(() => buildSchedulePeriods(settings), [settings]);
   const usedCells = Object.keys(settings.cells).length;
   const totalCells = settings.activeDays.length * periods.length;
@@ -53,6 +62,13 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
   function updateSettings(next: Partial<typeof settings>) {
     setSettings((current) => ({ ...current, ...next }));
+  }
+
+  function setScheduleView(nextView: 'table' | 'settings') {
+    const next = new URLSearchParams(searchParams);
+    next.set('view', 'schedule');
+    next.set('scheduleView', nextView);
+    setSearchParams(next);
   }
 
   function toggleDay(day: DayName) {
@@ -64,9 +80,18 @@ export function SchedulePage({ session }: SchedulePageProps) {
   }
 
   function saveAll(nextSettings = settings, nextIdentity = identity) {
+    const subjects = normalizeSubjects([
+      ...nextSettings.subjects,
+      { code: selectedSubjectCode.trim(), name: selectedSubject.trim() },
+      ...Object.values(nextSettings.cells).map((cell) => ({
+        code: cell.subjectCode || '',
+        name: cell.subject,
+      })),
+    ]);
     const subjectOptions = Array.from(
       new Set([
         ...nextSettings.subjectOptions,
+        ...subjects.map((subject) => subject.name),
         selectedSubject.trim(),
         ...Object.values(nextSettings.cells).map((cell) => cell.subject),
       ].filter(Boolean)),
@@ -78,12 +103,62 @@ export function SchedulePage({ session }: SchedulePageProps) {
         ...Object.values(nextSettings.cells).map((cell) => cell.classroom),
       ].filter(Boolean)),
     );
-    const normalizedSettings = { ...nextSettings, classroomOptions, subjectOptions };
+    const normalizedSettings = { ...nextSettings, classroomOptions, subjects, subjectOptions };
 
     setSettings(normalizedSettings);
     saveScheduleSettings(normalizedSettings);
     saveSchoolReportIdentity(nextIdentity);
     setNotice('บันทึกตั้งค่าตารางสอนแล้ว หน้าเช็คเวลาเรียนจะเห็นคาบและรายวิชาจากตารางนี้');
+  }
+
+  function normalizeSubjects(subjects: ScheduleSubjectOption[]) {
+    const subjectMap = new Map<string, ScheduleSubjectOption>();
+    subjects.forEach((subject) => {
+      const name = subject.name.trim();
+      if (!name) return;
+      const existing = subjectMap.get(name);
+      subjectMap.set(name, {
+        code: subject.code.trim() || existing?.code || '',
+        name,
+        teacherName: subject.teacherName?.trim() || existing?.teacherName || '',
+      });
+    });
+    return Array.from(subjectMap.values());
+  }
+
+  function addSubject() {
+    const name = subjectDraft.name.trim();
+    if (!name) {
+      setNotice('กรุณากรอกชื่อรายวิชาก่อนบันทึก');
+      return;
+    }
+
+    const subjects = normalizeSubjects([...settings.subjects, { ...subjectDraft, name }]);
+    const nextSettings = {
+      ...settings,
+      subjects,
+      subjectOptions: Array.from(new Set([...settings.subjectOptions, ...subjects.map((subject) => subject.name)])),
+    };
+    setSelectedSubject(name);
+    setSelectedSubjectCode(subjectDraft.code.trim());
+    setSettings(nextSettings);
+    saveScheduleSettings(nextSettings);
+    setNotice(`เพิ่มรายวิชา ${name} แล้ว`);
+  }
+
+  function removeSubject(subjectName: string) {
+    const subjects = settings.subjects.filter((subject) => subject.name !== subjectName);
+    const subjectOptions = settings.subjectOptions.filter((name) => name !== subjectName);
+    const nextSettings = { ...settings, subjects, subjectOptions };
+    setSettings(nextSettings);
+    saveScheduleSettings(nextSettings);
+    setNotice(`ลบรายวิชา ${subjectName} ออกจาก dropdown แล้ว ตารางที่เคยกรอกไว้ยังคงข้อมูลเดิมเพื่อไม่ทำรายงานหาย`);
+  }
+
+  function selectSubject(nextSubjectName: string) {
+    const match = settings.subjects.find((subject) => subject.name === nextSubjectName);
+    setSelectedSubject(nextSubjectName);
+    if (match?.code) setSelectedSubjectCode(match.code);
   }
 
   function assignCell(day: DayName, periodIndex: number) {
@@ -243,15 +318,38 @@ export function SchedulePage({ session }: SchedulePageProps) {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[440px_minmax(0,1fr)]">
-          <div className="grid gap-5">
+        <section className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/92 p-2 shadow-[0_14px_34px_rgba(122,79,38,0.06)]">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { value: 'table' as const, label: 'ตาราง', description: 'กรอกช่องตารางสอนและพิมพ์เอกสาร' },
+              { value: 'settings' as const, label: 'ตั้งค่า', description: 'คาบเรียน รายวิชา ห้อง โลโก้ และผู้ลงนาม' },
+            ].map((item) => (
+              <button
+                className={`rounded-[1.35rem] px-4 py-3 text-left transition ${
+                  activeView === item.value
+                    ? 'bg-[#fff1c9] text-[#4b2f18] ring-1 ring-[#e6bd70]'
+                    : 'text-slate-600 hover:bg-[#fffaf0]'
+                }`}
+                key={item.value}
+                onClick={() => setScheduleView(item.value)}
+                type="button"
+              >
+                <span className="text-base font-black">{item.label}</span>
+                <span className="mt-1 block text-xs font-bold">{item.description}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {activeView === 'settings' ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
             <section className="app-panel-pad">
               <div className="nexus-kicker">
                 <Settings2 size={16} aria-hidden="true" />
-                ตั้งค่าตารางและรายงาน
+                ตั้งค่าคาบเรียน
               </div>
-              <div className="mt-4 grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
+              <div className="mt-4 grid gap-4">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="grid gap-2 text-sm font-black text-slate-700">
                     จำนวนคาบ
                     <input className="nexus-field h-11 px-3" min={1} max={12} onChange={(event) => updateSettings({ periodCount: Number(event.target.value) })} type="number" value={settings.periodCount} />
@@ -260,12 +358,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
                     นาทีต่อคาบ
                     <input className="nexus-field h-11 px-3" min={20} max={90} onChange={(event) => updateSettings({ periodMinutes: Number(event.target.value) })} type="number" value={settings.periodMinutes} />
                   </label>
-                </div>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  เวลาเริ่มเรียน
-                  <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ startTime: event.target.value })} type="time" value={settings.startTime} />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
+                  <label className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2">
+                    เวลาเริ่มเรียน
+                    <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ startTime: event.target.value })} type="time" value={settings.startTime} />
+                  </label>
                   <label className="grid gap-2 text-sm font-black text-slate-700">
                     เริ่มพักเที่ยง
                     <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ lunchStart: event.target.value })} type="time" value={settings.lunchStart} />
@@ -298,6 +394,46 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="app-panel-pad">
+              <div className="nexus-kicker">
+                <BookOpenCheck size={16} aria-hidden="true" />
+                ตั้งค่ารายวิชาที่สอน
+              </div>
+              <div className="mt-4 grid gap-3">
+                <div className="grid gap-3 md:grid-cols-[160px_minmax(0,1fr)]">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    รหัสวิชา
+                    <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, code: event.target.value }))} placeholder="เช่น ค15101" value={subjectDraft.code} />
+                  </label>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ชื่อรายวิชา
+                    <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น คณิตศาสตร์" value={subjectDraft.name} />
+                  </label>
+                </div>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ครูผู้สอนรายวิชา
+                  <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, teacherName: event.target.value }))} placeholder="เว้นว่างได้ ถ้าใช้ครูผู้สอนหลัก" value={subjectDraft.teacherName || ''} />
+                </label>
+                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={addSubject} type="button">
+                  <Plus size={17} aria-hidden="true" />
+                  เพิ่มรายวิชาใน dropdown
+                </button>
+                <div className="mt-2 grid gap-2">
+                  {settings.subjects.map((subject) => (
+                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#ead8bd] bg-[#fffaf0] p-3" key={subject.name}>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-950">{subject.name}</p>
+                        <p className="text-xs font-bold text-slate-500">{subject.code || 'ยังไม่กรอกรหัส'}{subject.teacherName ? ` | ${subject.teacherName}` : ''}</p>
+                      </div>
+                      <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-50 text-rose-600 ring-1 ring-rose-200" onClick={() => removeSubject(subject.name)} title="ลบรายวิชาออกจาก dropdown" type="button">
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </section>
@@ -348,25 +484,12 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
             <section className="app-panel-pad">
               <div className="nexus-kicker">
-                <BookOpenCheck size={16} aria-hidden="true" />
-                รายวิชาและห้อง
+                <FileSpreadsheet size={16} aria-hidden="true" />
+                ห้องเรียนและส่งออก
               </div>
               <div className="mt-4 grid gap-3">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
-                  รหัสวิชา
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectCode(event.target.value)} placeholder="เช่น อ14101" value={selectedSubjectCode} />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  รายวิชา
-                  <input className="nexus-field h-11 px-3" list="schedule-subject-options" onChange={(event) => setSelectedSubject(event.target.value)} value={selectedSubject} />
-                  <datalist id="schedule-subject-options">
-                    {settings.subjectOptions.map((subject) => (
-                      <option key={subject} value={subject} />
-                    ))}
-                  </datalist>
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ห้องเรียน
+                  ห้องเรียนที่ใช้ในตาราง
                   <input className="nexus-field h-11 px-3" list="schedule-classroom-options" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom} />
                   <datalist id="schedule-classroom-options">
                     {settings.classroomOptions.map((classroom) => (
@@ -377,7 +500,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 <div className="grid grid-cols-2 gap-2">
                   <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
                     <Save size={17} aria-hidden="true" />
-                    บันทึก
+                    บันทึกตั้งค่า
                   </button>
                   <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => exportScheduleCsv(settings)} type="button">
                     <Download size={17} aria-hidden="true" />
@@ -386,9 +509,39 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 </div>
               </div>
             </section>
-          </div>
-
+          </section>
+        ) : (
           <section className="app-panel-pad overflow-hidden">
+            <div className="mb-5 grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)_180px_auto]">
+              <label className="grid gap-2 text-sm font-black text-slate-700">
+                รหัสวิชา
+                <input className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectCode(event.target.value)} placeholder="เช่น อ14101" value={selectedSubjectCode} />
+              </label>
+              <label className="grid gap-2 text-sm font-black text-slate-700">
+                รายวิชา
+                <input className="nexus-field h-11 px-3" list="schedule-subject-options" onChange={(event) => selectSubject(event.target.value)} value={selectedSubject} />
+                <datalist id="schedule-subject-options">
+                  {settings.subjects.map((subject) => (
+                    <option key={subject.name} value={subject.name} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="grid gap-2 text-sm font-black text-slate-700">
+                ห้องเรียน
+                <input className="nexus-field h-11 px-3" list="schedule-classroom-options-table" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom} />
+                <datalist id="schedule-classroom-options-table">
+                  {settings.classroomOptions.map((classroom) => (
+                    <option key={classroom} value={classroom} />
+                  ))}
+                </datalist>
+              </label>
+              <div className="flex items-end">
+                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={() => setScheduleView('settings')} type="button">
+                  <Settings2 size={17} aria-hidden="true" />
+                  ตั้งค่า
+                </button>
+              </div>
+            </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-black text-[#b46a00]">ตารางสำหรับใช้งานจริง</p>
@@ -472,7 +625,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
               </div>
             </div>
           </section>
-        </section>
+        )}
       </div>
     </main>
   );

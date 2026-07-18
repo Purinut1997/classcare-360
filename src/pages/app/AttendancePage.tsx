@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   BellRing,
   BookOpen,
-  CalendarDays,
   Check,
   ClipboardCheck,
   Clock3,
