@@ -42,6 +42,9 @@ const AttendancePage = lazy(() =>
 const DashboardPage = lazy(() =>
   import('./pages/app/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 );
+const DataSafetyCenterPage = lazy(() =>
+  import('./pages/app/DataSafetyCenterPage').then((module) => ({ default: module.DataSafetyCenterPage })),
+);
 const ImportExportPage = lazy(() =>
   import('./pages/app/ImportExportPage').then((module) => ({ default: module.ImportExportPage })),
 );
@@ -118,6 +121,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'behavior',
       'randomizer',
       'reports',
+      'data-safety',
       'help-center',
       'notifications',
       'workspace-switch',
@@ -133,6 +137,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'randomizer',
       'reports',
       'import-export',
+      'data-safety',
       'help-center',
       'notifications',
       'workspace-settings',
@@ -149,6 +154,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'randomizer',
       'reports',
       'import-export',
+      'data-safety',
       'help-center',
       'notifications',
       'workspace-settings',
@@ -173,6 +179,7 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'workspace-settings' || key === 'import-export' || key === 'package') {
     return ['superadmin', 'teacher_owner'] as WorkspaceRole[];
   }
+  if (key === 'data-safety') return classroomUserRoles;
 
   return classroomUserRoles;
 }
@@ -360,6 +367,21 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ImportExportPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'data-safety') {
+    return (
+      <RequireRouteAccess
+        allowedRoles={allowedRoles}
+        featureName={activeNavItem.label}
+        moduleKey={activeNavItem.moduleKey}
+        session={session}
+      >
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <DataSafetyCenterPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

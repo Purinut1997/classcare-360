@@ -29,6 +29,7 @@ const requiredMigrations = [
   '0020_harden_destructive_action_rpcs.sql',
   '0021_role_operations_control_center.sql',
   '0022_public_report_lookup.sql',
+  '0023_data_safety_center.sql',
 ];
 
 const requiredFunctions = [

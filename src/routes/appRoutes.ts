@@ -5,6 +5,7 @@ import {
   CalendarRange,
   CircleHelp,
   ClipboardList,
+  DatabaseZap,
   Dice5,
   FileSpreadsheet,
   GraduationCap,
@@ -64,6 +65,13 @@ export const appNavItems: AppNavItem[] = [
     icon: Archive,
     moduleKey: 'import_export',
     path: '/app/dashboard?view=import-export',
+  },
+  {
+    key: 'data-safety',
+    label: 'ศูนย์ดูแลข้อมูล',
+    icon: DatabaseZap,
+    moduleKey: 'support',
+    path: '/app/dashboard?view=data-safety',
   },
   {
     key: 'notifications',
@@ -163,6 +171,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'Import Export Backup',
     title: 'นำเข้า ส่งออก และสำรองข้อมูลโดยไม่ทำข้อมูลพัง',
     body: 'รองรับ template import, preview row errors, duplicate check, export และ backup manifest โดยทุกงานต้องผูก workspace_id และมี metadata ตรวจสอบย้อนหลัง',
+  },
+  'data-safety': {
+    eyebrow: 'Data Safety Center',
+    title: 'ศูนย์ดูแลข้อมูลก่อนใช้งานจริง',
+    body: 'รวม import safety, duplicate protection, trash/restore, data health, ปฏิทินโรงเรียน, simple mode และ template ข้อความไว้จุดเดียว เพื่อลดปัญหานำเข้าผิด ลบผิด หรือรายงานไม่ตรง',
   },
   'workspace-settings': {
     eyebrow: 'Owner Workspace Center',
