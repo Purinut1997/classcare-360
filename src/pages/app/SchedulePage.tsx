@@ -35,19 +35,20 @@ interface SchedulePageProps {
 export function SchedulePage({ session }: SchedulePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
+  const firstSubject = settings.subjects[0];
   const [identity] = useState<SchoolReportIdentity>(() => ({
     ...loadSchoolReportIdentity(),
     academicYear: session.workspace?.academicYear || loadSchoolReportIdentity().academicYear,
     classroomName: session.workspace?.classroomName || loadSchoolReportIdentity().classroomName,
     schoolName: session.workspace?.schoolName || loadSchoolReportIdentity().schoolName,
   }));
-  const [selectedSubject, setSelectedSubject] = useState(settings.subjectOptions[0] || 'คณิตศาสตร์');
-  const [selectedSubjectCode, setSelectedSubjectCode] = useState('ค15101');
+  const [selectedSubject, setSelectedSubject] = useState(firstSubject?.name || settings.subjectOptions[0] || 'คณิตศาสตร์');
+  const [selectedSubjectCode, setSelectedSubjectCode] = useState(firstSubject?.code || 'ค15101');
   const [selectedClassroom, setSelectedClassroom] = useState(session.workspace?.classroomName || settings.classroomOptions[0] || 'ป.5/1');
   const [subjectDraft, setSubjectDraft] = useState<ScheduleSubjectOption>(() => ({
-    code: 'ค15101',
-    name: settings.subjectOptions[0] || 'คณิตศาสตร์',
-    teacherName: '',
+    code: firstSubject?.code || 'ค15101',
+    name: firstSubject?.name || settings.subjectOptions[0] || 'คณิตศาสตร์',
+    teacherName: firstSubject?.teacherName || '',
   }));
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -142,6 +143,34 @@ export function SchedulePage({ session }: SchedulePageProps) {
     setNotice(`เพิ่มรายวิชา ${name} แล้ว`);
   }
 
+  function savePeriodSettings() {
+    saveAll(settings);
+    setNotice('บันทึกตั้งค่าคาบเรียนและวันเรียนแล้ว');
+  }
+
+  function saveSubjectSettings() {
+    const subjects = normalizeSubjects(settings.subjects);
+    const nextSettings = {
+      ...settings,
+      subjects,
+      subjectOptions: subjects.map((subject) => subject.name),
+    };
+    setSettings(nextSettings);
+    saveScheduleSettings(nextSettings);
+    setNotice('บันทึกรายวิชาที่ใช้ใน dropdown แล้ว');
+  }
+
+  function saveClassroomSettings() {
+    const classroom = selectedClassroom.trim();
+    const classroomOptions = classroom
+      ? Array.from(new Set([...settings.classroomOptions, classroom]))
+      : settings.classroomOptions;
+    const nextSettings = { ...settings, classroomOptions };
+    setSettings(nextSettings);
+    saveScheduleSettings(nextSettings);
+    setNotice('บันทึกห้องเรียนที่ใช้ในตารางแล้ว');
+  }
+
   function removeSubject(subjectName: string) {
     const subjects = settings.subjects.filter((subject) => subject.name !== subjectName);
     const subjectOptions = settings.subjectOptions.filter((name) => name !== subjectName);
@@ -154,7 +183,16 @@ export function SchedulePage({ session }: SchedulePageProps) {
   function selectSubject(nextSubjectName: string) {
     const match = settings.subjects.find((subject) => subject.name === nextSubjectName);
     setSelectedSubject(nextSubjectName);
-    if (match?.code) setSelectedSubjectCode(match.code);
+    setSelectedSubjectCode(match?.code || '');
+    setNotice(`เลือก ${nextSubjectName} แล้ว คลิกช่องในตารางเพื่อเพิ่มวิชานี้`);
+  }
+
+  function useCurrentSubjectForTable() {
+    if (!selectedSubject.trim()) {
+      setNotice('กรุณาเลือกรายวิชาก่อนนำไปใส่ตาราง');
+      return;
+    }
+    setNotice(`พร้อมเพิ่ม ${selectedSubjectCode ? `${selectedSubjectCode} / ` : ''}${selectedSubject} ลงตารางแล้ว ให้คลิกช่องคาบที่ต้องการ`);
   }
 
   function assignCell(day: DayName, periodIndex: number) {
@@ -376,6 +414,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
                     })}
                   </div>
                 </div>
+                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={savePeriodSettings} type="button">
+                  <Save size={17} aria-hidden="true" />
+                  บันทึกตั้งค่าคาบเรียน
+                </button>
               </div>
             </section>
 
@@ -416,6 +458,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
                     </div>
                   ))}
                 </div>
+                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={saveSubjectSettings} type="button">
+                  <Save size={17} aria-hidden="true" />
+                  บันทึกรายวิชาทั้งหมด
+                </button>
               </div>
             </section>
 
@@ -435,9 +481,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   </datalist>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
+                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={saveClassroomSettings} type="button">
                     <Save size={17} aria-hidden="true" />
-                    บันทึกตั้งค่า
+                    บันทึกห้องเรียน
                   </button>
                   <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => exportScheduleCsv(settings)} type="button">
                     <Download size={17} aria-hidden="true" />
@@ -449,34 +495,56 @@ export function SchedulePage({ session }: SchedulePageProps) {
           </section>
         ) : (
           <section className="app-panel-pad overflow-hidden">
-            <div className="mb-5 grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)_180px_auto]">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                รหัสวิชา
-                <input className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectCode(event.target.value)} placeholder="เช่น อ14101" value={selectedSubjectCode} />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                รายวิชา
-                <input className="nexus-field h-11 px-3" list="schedule-subject-options" onChange={(event) => selectSubject(event.target.value)} value={selectedSubject} />
-                <datalist id="schedule-subject-options">
-                  {settings.subjects.map((subject) => (
-                    <option key={subject.name} value={subject.name} />
-                  ))}
-                </datalist>
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ห้องเรียน
-                <input className="nexus-field h-11 px-3" list="schedule-classroom-options-table" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom} />
-                <datalist id="schedule-classroom-options-table">
-                  {settings.classroomOptions.map((classroom) => (
-                    <option key={classroom} value={classroom} />
-                  ))}
-                </datalist>
-              </label>
-              <div className="flex items-end">
-                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={() => setScheduleView('settings')} type="button">
-                  <Settings2 size={17} aria-hidden="true" />
-                  ตั้งค่า
-                </button>
+            <div className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-[#fffaf0]/80 p-4">
+              <div className="grid gap-3 xl:grid-cols-[160px_minmax(0,1fr)_190px_auto_auto]">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  รหัสวิชา
+                  <input className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectCode(event.target.value)} placeholder="เช่น อ14101" value={selectedSubjectCode} />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  รายวิชาจากที่ตั้งค่าไว้
+                  <select className="nexus-field h-11 px-3" onChange={(event) => selectSubject(event.target.value)} value={selectedSubject}>
+                    {settings.subjects.map((subject) => (
+                      <option key={subject.name} value={subject.name}>
+                        {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ห้องเรียน
+                  <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom}>
+                    {settings.classroomOptions.map((classroom) => (
+                      <option key={classroom} value={classroom}>
+                        {classroom}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <button className="amber-action inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black xl:w-auto" onClick={useCurrentSubjectForTable} type="button">
+                    <Plus size={17} aria-hidden="true" />
+                    เลือกใช้วิชานี้
+                  </button>
+                </div>
+                <div className="flex items-end">
+                  <button className="nexus-pill inline-flex h-11 w-full items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 xl:w-auto" onClick={() => setScheduleView('settings')} type="button">
+                    <Settings2 size={17} aria-hidden="true" />
+                    ตั้งค่า
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 rounded-3xl border border-[#e6bd70] bg-white p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิชาที่จะใส่ลงตาราง</p>
+                  <h3 className="mt-1 text-2xl font-black text-slate-950">
+                    {selectedSubjectCode ? `${selectedSubjectCode} / ` : ''}{selectedSubject || 'ยังไม่ได้เลือกวิชา'}
+                  </h3>
+                  <p className="mt-1 text-sm font-bold text-slate-500">ขั้นตอน: 1) เลือกรายวิชา 2) เลือกห้อง 3) คลิกช่องคาบในตารางเพื่อเพิ่ม 4) คลิกช่องเดิมเพื่อล้าง</p>
+                </div>
+                <div className="rounded-2xl bg-[#4b2f18] px-4 py-3 text-sm font-black text-white">
+                  ห้อง {selectedClassroom || '-'}
+                </div>
               </div>
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -486,6 +554,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่วิชา/ห้อง คลิกช่องเดิมอีกครั้งเพื่อล้าง</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
+                  <Save size={17} aria-hidden="true" />
+                  บันทึกตาราง
+                </button>
                 <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
                   <Printer size={17} aria-hidden="true" />
                   พิมพ์ตาราง
