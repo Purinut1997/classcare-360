@@ -324,14 +324,25 @@ export function SchedulePage({ session }: SchedulePageProps) {
           .classcare-grid-bg { background: #fff !important; overflow: visible !important; }
           .classcare-grid-bg > .pointer-events-none,
           .classcare-grid-bg > .fixed { display: none !important; }
-          .schedule-print-sheet { display: block !important; width: 281mm !important; min-height: 194mm !important; padding: 0 !important; }
+          .schedule-print-sheet { display: block !important; width: 281mm !important; min-height: 194mm !important; padding: 0 !important; font-size: 14pt !important; line-height: 1.08 !important; }
           .schedule-print-sheet, .schedule-print-sheet * { font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; }
           .schedule-screen { display: none !important; }
-          .schedule-print-table { font-size: 16pt !important; table-layout: fixed !important; }
-          .schedule-print-table th, .schedule-print-table td { padding: 4px !important; }
+          .schedule-print-title { font-size: 18pt !important; line-height: 1.05 !important; }
+          .schedule-print-subtitle { margin-top: 1.5mm !important; font-size: 16pt !important; line-height: 1.05 !important; }
+          .schedule-print-teacher { margin-top: 1.5mm !important; font-size: 15pt !important; line-height: 1.05 !important; }
+          .schedule-print-table { margin-top: 5mm !important; font-size: 13.5pt !important; line-height: 1.05 !important; table-layout: fixed !important; }
+          .schedule-print-table th, .schedule-print-table td { padding: 3px !important; }
+          .schedule-print-table thead th { font-size: 14pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
+          .schedule-print-table thead span { font-size: 12.5pt !important; line-height: 1 !important; }
           .schedule-print-day { width: 24mm !important; }
-          .schedule-print-cell { height: 18mm !important; }
-          .schedule-print-lunch { width: 16mm !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.08em; }
+          .schedule-print-day-label { font-size: 14.5pt !important; line-height: 1.05 !important; }
+          .schedule-print-cell { height: 19mm !important; font-size: 13.5pt !important; line-height: 1.05 !important; }
+          .schedule-print-cell-code { font-size: 13pt !important; line-height: 1.05 !important; }
+          .schedule-print-cell-subject { margin-top: 0.8mm !important; font-size: 14pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
+          .schedule-print-cell-classroom { margin-top: 0.5mm !important; font-size: 12.5pt !important; line-height: 1.05 !important; }
+          .schedule-print-lunch { width: 16mm !important; font-size: 13pt !important; line-height: 1 !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.06em; }
+          .schedule-print-signatures { margin-top: 7mm !important; font-size: 14pt !important; line-height: 1.1 !important; }
+          .schedule-print-signatures p + p { margin-top: 2mm !important; }
         }
       `}</style>
 
@@ -341,9 +352,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
             <img alt="school logo" className="absolute left-0 top-0 h-20 w-20 object-contain" src={identity.schoolLogoDataUrl} />
           ) : null}
           <div className="mx-auto max-w-[920px] text-center">
-            <h1 className="text-xl font-bold">{identity.schoolName}</h1>
-            <p className="mt-2 text-lg font-bold">{settings.courseTitle || 'ตารางสอนประจำสัปดาห์'} ปีการศึกษา {identity.academicYear}</p>
-            <p className="mt-2 text-lg font-bold">ครูผู้สอน {identity.teacherName || '................................................'}</p>
+            <h1 className="schedule-print-title text-xl font-bold">{identity.schoolName}</h1>
+            <p className="schedule-print-subtitle mt-2 text-lg font-bold">{settings.courseTitle || 'ตารางสอนประจำสัปดาห์'} ปีการศึกษา {identity.academicYear}</p>
+            <p className="schedule-print-teacher mt-2 text-lg font-bold">ครูผู้สอน {identity.teacherName || '................................................'}</p>
           </div>
 
           <table className="schedule-print-table mt-7 w-full border-collapse text-center text-[12px]">
@@ -370,7 +381,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
             <tbody>
               {settings.activeDays.map((day, dayIndex) => (
                 <tr key={day}>
-                  <th className="border border-black p-2 text-lg">{day}</th>
+                  <th className="schedule-print-day-label border border-black p-2 text-lg">{day}</th>
                   {scheduleColumns.map((column) => {
                     if (column.type === 'lunch') {
                       return dayIndex === 0 ? (
@@ -390,9 +401,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       <td className="schedule-print-cell h-20 border border-black p-2 align-middle" key={period.index}>
                         {cell ? (
                           <>
-                            <div>{cell.subjectCode || ''}</div>
-                            <div className="mt-2">{cell.subject}</div>
-                            <div className="mt-1 text-sm">{cell.classroom}</div>
+                            <div className="schedule-print-cell-code">{cell.subjectCode || ''}</div>
+                            <div className="schedule-print-cell-subject mt-2">{cell.subject}</div>
+                            <div className="schedule-print-cell-classroom mt-1 text-sm">{cell.classroom}</div>
                           </>
                         ) : null}
                       </td>
@@ -403,7 +414,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
             </tbody>
           </table>
 
-          <div className="mt-9 grid grid-cols-3 gap-8 text-center text-base">
+          <div className="schedule-print-signatures mt-9 grid grid-cols-3 gap-8 text-center text-base">
             <div>
               <p>ลงชื่อ........................................ครูผู้สอน</p>
               <p className="mt-3">({identity.teacherName || '........................................'})</p>
