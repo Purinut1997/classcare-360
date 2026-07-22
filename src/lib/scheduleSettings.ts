@@ -193,9 +193,13 @@ export function buildSchedulePeriods(settings: Pick<ScheduleSettings, 'lunchEnd'
   let cursor = toMinutes(settings.startTime);
   const lunchStartMinutes = toMinutes(settings.lunchStart);
   const lunchEndMinutes = toMinutes(settings.lunchEnd);
+  const hasLunchBreak = lunchEndMinutes > lunchStartMinutes;
 
   for (let index = 1; index <= settings.periodCount; index += 1) {
-    if (cursor >= lunchStartMinutes && cursor < lunchEndMinutes) {
+    const periodEnd = cursor + settings.periodMinutes;
+    const overlapsLunchBreak = hasLunchBreak && cursor < lunchEndMinutes && periodEnd > lunchStartMinutes;
+
+    if (overlapsLunchBreak) {
       cursor = lunchEndMinutes;
     }
 

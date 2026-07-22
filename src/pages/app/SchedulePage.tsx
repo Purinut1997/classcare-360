@@ -23,6 +23,7 @@ import {
   saveScheduleSettings,
   type DayName,
   type ScheduleCell,
+  type SchedulePeriod,
   type ScheduleSubjectOption,
   type SchoolReportIdentity,
 } from '../../lib/scheduleSettings';
@@ -30,6 +31,15 @@ import type { AppSessionContext } from '../../types/core';
 
 interface SchedulePageProps {
   session: AppSessionContext;
+}
+
+type ScheduleColumn =
+  | { period: SchedulePeriod; type: 'period' }
+  | { end: string; key: 'lunch'; start: string; type: 'lunch' };
+
+function toScheduleMinutes(time: string) {
+  const [hours, minutes] = time.split(':').map((value) => Number(value));
+  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
 }
 
 export function SchedulePage({ session }: SchedulePageProps) {
@@ -60,6 +70,30 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
   const activeView = searchParams.get('scheduleView') === 'settings' ? 'settings' : 'table';
   const periods = useMemo(() => buildSchedulePeriods(settings), [settings]);
+  const scheduleColumns = useMemo<ScheduleColumn[]>(() => {
+    const lunchStartMinutes = toScheduleMinutes(settings.lunchStart);
+    const lunchEndMinutes = toScheduleMinutes(settings.lunchEnd);
+    const hasLunchBreak = lunchEndMinutes > lunchStartMinutes;
+    const hasMorningPeriod = periods.some((period) => toScheduleMinutes(period.end) <= lunchStartMinutes);
+    const columns: ScheduleColumn[] = [];
+    let lunchInserted = false;
+
+    periods.forEach((period) => {
+      if (hasLunchBreak && hasMorningPeriod && !lunchInserted && toScheduleMinutes(period.start) >= lunchEndMinutes) {
+        columns.push({
+          end: settings.lunchEnd,
+          key: 'lunch',
+          start: settings.lunchStart,
+          type: 'lunch',
+        });
+        lunchInserted = true;
+      }
+
+      columns.push({ period, type: 'period' });
+    });
+
+    return columns;
+  }, [periods, settings.lunchEnd, settings.lunchStart]);
   const usedCells = Object.keys(settings.cells).length;
   const totalCells = settings.activeDays.length * periods.length;
   const completion = totalCells > 0 ? Math.round((usedCells / totalCells) * 100) : 0;
@@ -269,6 +303,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
           .schedule-print-table th, .schedule-print-table td { padding: 4px !important; }
           .schedule-print-day { width: 24mm !important; }
           .schedule-print-cell { height: 18mm !important; }
+          .schedule-print-lunch { width: 16mm !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.08em; }
         }
       `}</style>
 
@@ -287,20 +322,41 @@ export function SchedulePage({ session }: SchedulePageProps) {
             <thead>
               <tr>
                 <th className="schedule-print-day w-24 border border-black p-2">วัน / เวลา</th>
-                {periods.map((period) => (
-                  <th className="border border-black p-2" key={period.index}>
-                    ชั่วโมงที่ {period.index}
-                    <br />
-                    <span className="font-normal">{period.start}-{period.end} น.</span>
-                  </th>
-                ))}
+                {scheduleColumns.map((column) =>
+                  column.type === 'lunch' ? (
+                    <th className="border border-black p-2" key={column.key}>
+                      พักเที่ยง
+                      <br />
+                      <span className="font-normal">{column.start}-{column.end} น.</span>
+                    </th>
+                  ) : (
+                    <th className="border border-black p-2" key={column.period.index}>
+                      ชั่วโมงที่ {column.period.index}
+                      <br />
+                      <span className="font-normal">{column.period.start}-{column.period.end} น.</span>
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
-              {settings.activeDays.map((day) => (
+              {settings.activeDays.map((day, dayIndex) => (
                 <tr key={day}>
                   <th className="border border-black p-2 text-lg">{day}</th>
-                  {periods.map((period) => {
+                  {scheduleColumns.map((column) => {
+                    if (column.type === 'lunch') {
+                      return dayIndex === 0 ? (
+                        <td
+                          className="schedule-print-lunch border border-black bg-slate-50 p-2 align-middle text-base font-bold"
+                          key={column.key}
+                          rowSpan={settings.activeDays.length}
+                        >
+                          พักกลางวัน
+                        </td>
+                      ) : null;
+                    }
+
+                    const { period } = column;
                     const cell = settings.cells[makeScheduleCellKey(day, period.index)];
                     return (
                       <td className="schedule-print-cell h-20 border border-black p-2 align-middle" key={period.index}>
@@ -643,23 +699,42 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   </div>
                 </div>
 
-                <div className="grid gap-2" style={{ gridTemplateColumns: `110px repeat(${periods.length}, minmax(96px, 1fr))` }}>
+                <div className="grid gap-2" style={{ gridTemplateColumns: `110px repeat(${scheduleColumns.length}, minmax(96px, 1fr))` }}>
                   <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-center text-lg font-black text-white">
                     วัน/เวลา
                   </div>
-                  {periods.map((period) => (
-                    <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-center font-black text-white" key={period.index}>
-                      <span>{period.label}</span>
-                      <span className="text-xs leading-5">{period.start}<br />{period.end}</span>
-                    </div>
-                  ))}
+                  {scheduleColumns.map((column) =>
+                    column.type === 'lunch' ? (
+                      <div className="grid min-h-20 place-items-center rounded-2xl bg-[#fff1c9] p-2 text-center font-black text-[#7a4f26] ring-1 ring-[#e6bd70]" key={column.key}>
+                        <span>พักเที่ยง</span>
+                        <span className="text-xs leading-5">{column.start}<br />{column.end}</span>
+                      </div>
+                    ) : (
+                      <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-center font-black text-white" key={column.period.index}>
+                        <span>{column.period.label}</span>
+                        <span className="text-xs leading-5">{column.period.start}<br />{column.period.end}</span>
+                      </div>
+                    ),
+                  )}
 
                   {settings.activeDays.map((day) => (
                     <Fragment key={day}>
                       <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-lg font-black text-white">
                         {day}
                       </div>
-                      {periods.map((period) => {
+                      {scheduleColumns.map((column) => {
+                        if (column.type === 'lunch') {
+                          return (
+                            <div
+                              className="grid min-h-20 place-items-center rounded-2xl border border-[#e6bd70] bg-[#fff8df] p-2 text-center text-sm font-black text-[#7a4f26]"
+                              key={`${day}-${column.key}`}
+                            >
+                              พักกลางวัน
+                            </div>
+                          );
+                        }
+
+                        const { period } = column;
                         const key = makeScheduleCellKey(day, period.index);
                         const cell = settings.cells[key];
 
