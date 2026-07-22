@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
 interface DataSafetyCenterPageProps {
@@ -69,6 +70,15 @@ interface DataSafetyState {
   calendarRules: CalendarRule[];
   templates: MessageTemplate[];
 }
+
+type SyncStatus = 'local' | 'loading' | 'synced' | 'missing_sql' | 'error';
+
+interface SyncState {
+  status: SyncStatus;
+  message: string;
+}
+
+type DbRow = Record<string, unknown>;
 
 const trashKindLabels: Record<TrashKind, string> = {
   student: 'นักเรียน',
@@ -191,9 +201,109 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="text-xs font-black text-slate-600">{children}</label>;
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isMissingDataSafetySql(error: unknown) {
+  const message = String((error as { message?: string; code?: string })?.message || '');
+  const code = String((error as { code?: string })?.code || '');
+  return code === '42P01' || message.includes('does not exist') || message.includes('schema cache');
+}
+
+function toTrashKind(value: string): TrashKind {
+  if (['student', 'classroom', 'workspace', 'score_set', 'attendance_session'].includes(value)) {
+    return value as TrashKind;
+  }
+  return 'student';
+}
+
+function toHealthSeverity(value: string): HealthSeverity {
+  if (value === 'critical' || value === 'error') return 'danger';
+  if (value === 'warning') return 'warning';
+  return 'info';
+}
+
+function toCalendarType(value: string): CalendarRule['type'] {
+  if (value === 'holiday' || value === 'exam' || value === 'activity' || value === 'makeup') return value;
+  return 'custom';
+}
+
+function toDayType(value: CalendarRule['type']) {
+  if (value === 'custom') return 'school_day';
+  return value === 'holiday' ? 'holiday' : value;
+}
+
+function toTemplateType(category: string) {
+  const text = category.toLowerCase();
+  if (text.includes('absence') || text.includes('ขาด')) return 'attendance_absent';
+  if (text.includes('late') || text.includes('สาย')) return 'attendance_late';
+  if (text.includes('care') || text.includes('เคส')) return 'care_follow_up';
+  if (text.includes('saving') || text.includes('ออม')) return 'savings';
+  if (text.includes('score') || text.includes('คะแนน')) return 'score';
+  return 'general';
+}
+
+function getJsonObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function mapTrashRow(row: DbRow): TrashItem {
+  const payload = getJsonObject(row.payload);
+  const metadata = getJsonObject(row.metadata);
+  return {
+    id: String(row.id),
+    kind: toTrashKind(String(row.entity_type || 'student')),
+    title: String(row.display_name || row.entity_type || 'deleted item'),
+    detail: String(row.reason || payload.detail || metadata.detail || ''),
+    deletedBy: String(row.deleted_by || metadata.deleted_by_email || 'system'),
+    deletedAt: String(row.deleted_at || row.created_at || '').slice(0, 10),
+    restored: row.restore_status === 'restored',
+    permanentlyDeleted: row.restore_status === 'purged',
+  };
+}
+
+function mapHealthRow(row: DbRow): HealthIssue {
+  return {
+    id: String(row.id),
+    severity: toHealthSeverity(String(row.severity || 'warning')),
+    title: String(row.title || row.issue_type || 'Data issue'),
+    detail: String(row.detail || ''),
+    action: String(row.suggested_action || 'ตรวจสอบข้อมูล'),
+    resolved: row.status === 'resolved',
+  };
+}
+
+function mapCalendarRow(row: DbRow): CalendarRule {
+  const type = toCalendarType(String(row.day_type || 'custom'));
+  const metadata = getJsonObject(row.metadata);
+  return {
+    id: String(row.id),
+    date: String(row.calendar_date || '').slice(0, 10),
+    title: String(row.title || ''),
+    type,
+    attendancePolicy:
+      (metadata.attendancePolicy as CalendarRule['attendancePolicy'] | undefined) ||
+      (row.affects_attendance === false ? 'skip' : type === 'exam' || type === 'holiday' ? 'warn' : 'normal'),
+  };
+}
+
+function mapTemplateRow(row: DbRow): MessageTemplate {
+  return {
+    id: String(row.id),
+    category: String(row.template_type || 'general'),
+    title: String(row.title || ''),
+    body: String(row.body || ''),
+  };
+}
+
 export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   const storageKey = getStorageKey(session);
   const [state, setState] = useState<DataSafetyState>(() => createDefaultState(session));
+  const [sync, setSync] = useState<SyncState>({
+    status: 'local',
+    message: 'Local-first: ใช้ข้อมูลในเครื่องจนกว่าจะเชื่อม Supabase สำเร็จ',
+  });
   const [calendarDraft, setCalendarDraft] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: '',
@@ -219,6 +329,89 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     window.localStorage.setItem(storageKey, JSON.stringify(state));
   }, [state, storageKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRemoteState() {
+      if (!supabase || !session.workspace?.id) {
+        setSync({
+          status: 'local',
+          message: 'ยังไม่มี Supabase หรือ workspace ใช้ข้อมูล local สำหรับทดลองก่อน',
+        });
+        return;
+      }
+
+      setSync({ status: 'loading', message: 'กำลังโหลดข้อมูล Data Safety จาก Supabase' });
+
+      try {
+        const workspaceId = session.workspace.id;
+        const [trashResult, healthResult, calendarResult, settingsResult, templatesResult] = await Promise.all([
+          supabase
+            .from('trash_items')
+            .select('*')
+            .eq('workspace_id', workspaceId)
+            .neq('restore_status', 'purged')
+            .order('deleted_at', { ascending: false }),
+          supabase
+            .from('data_health_issues')
+            .select('*')
+            .eq('workspace_id', workspaceId)
+            .order('detected_at', { ascending: false }),
+          supabase
+            .from('school_calendar_days')
+            .select('*')
+            .eq('workspace_id', workspaceId)
+            .order('calendar_date', { ascending: true }),
+          supabase.from('workspace_ui_settings').select('*').eq('workspace_id', workspaceId).maybeSingle(),
+          supabase
+            .from('message_templates')
+            .select('*')
+            .eq('workspace_id', workspaceId)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false }),
+        ]);
+
+        const error =
+          trashResult.error ||
+          healthResult.error ||
+          calendarResult.error ||
+          settingsResult.error ||
+          templatesResult.error;
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        setState((current) => ({
+          ...current,
+          mode: (settingsResult.data?.mode as UiMode) || current.mode,
+          trashItems: trashResult.data?.length ? trashResult.data.map(mapTrashRow) : current.trashItems,
+          healthIssues: healthResult.data?.length ? healthResult.data.map(mapHealthRow) : current.healthIssues,
+          calendarRules: calendarResult.data?.length ? calendarResult.data.map(mapCalendarRow) : current.calendarRules,
+          templates: templatesResult.data?.length ? templatesResult.data.map(mapTemplateRow) : current.templates,
+        }));
+
+        setSync({
+          status: 'synced',
+          message: 'เชื่อม Supabase แล้ว: กู้คืน/ลบถาวร/ปฏิทิน/template จะบันทึกลงฐานข้อมูลเมื่อมีตารางพร้อม',
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setSync({
+          status: isMissingDataSafetySql(error) ? 'missing_sql' : 'error',
+          message: isMissingDataSafetySql(error)
+            ? 'ยังไม่ได้รัน SQL 0023_data_safety_center.sql ใน Supabase จึงใช้ข้อมูล local ชั่วคราว'
+            : `โหลด Supabase ไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
+        });
+      }
+    }
+
+    void loadRemoteState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session.workspace?.id]);
+
   const summary = useMemo(() => {
     const openTrash = state.trashItems.filter((item) => !item.restored && !item.permanentlyDeleted).length;
     const openIssues = state.healthIssues.filter((item) => !item.resolved).length;
@@ -227,7 +420,27 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     return { openTrash, openIssues, warningCalendar };
   }, [state]);
 
-  const runImportSafetyCheck = () => {
+  const updateSyncFromError = (error: unknown) => {
+    setSync({
+      status: isMissingDataSafetySql(error) ? 'missing_sql' : 'error',
+      message: isMissingDataSafetySql(error)
+        ? 'ยังไม่ได้รัน SQL 0023_data_safety_center.sql ใน Supabase จึงบันทึกเฉพาะ local'
+        : `บันทึก Supabase ไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
+    });
+  };
+
+  const persistMode = async (mode: UiMode) => {
+    if (!supabase || !session.workspace?.id) return;
+    const { error } = await supabase.from('workspace_ui_settings').upsert({
+      workspace_id: session.workspace.id,
+      mode,
+      updated_by: session.profile.id,
+    });
+    if (error) updateSyncFromError(error);
+    else setSync({ status: 'synced', message: 'บันทึกโหมดใช้งานลง Supabase แล้ว' });
+  };
+
+  const runImportSafetyCheck = async () => {
     setState((current) => ({
       ...current,
       importChecked: true,
@@ -237,38 +450,92 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         issue.id === 'health-duplicate' ? { ...issue, resolved: true } : issue,
       ),
     }));
+
+    const duplicateIssue = state.healthIssues.find((issue) => issue.id === 'health-duplicate');
+    if (supabase && session.workspace?.id && duplicateIssue && isUuid(duplicateIssue.id)) {
+      const { error } = await supabase
+        .from('data_health_issues')
+        .update({
+          status: 'resolved',
+          resolved_by: session.profile.id,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq('id', duplicateIssue.id)
+        .eq('workspace_id', session.workspace.id);
+      if (error) updateSyncFromError(error);
+    }
   };
 
-  const restoreTrash = (id: string) => {
+  const restoreTrash = async (id: string) => {
     setState((current) => ({
       ...current,
       trashItems: current.trashItems.map((item) => (item.id === id ? { ...item, restored: true } : item)),
     }));
+
+    if (!supabase || !session.workspace?.id || !isUuid(id)) return;
+    const { error } = await supabase
+      .from('trash_items')
+      .update({
+        restore_status: 'restored',
+        restored_by: session.profile.id,
+        restored_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('workspace_id', session.workspace.id);
+    if (error) updateSyncFromError(error);
+    else setSync({ status: 'synced', message: 'กู้คืนรายการลง Supabase แล้ว' });
   };
 
-  const deleteTrashForever = (id: string) => {
+  const deleteTrashForever = async (id: string) => {
     setState((current) => ({
       ...current,
       trashItems: current.trashItems.map((item) =>
         item.id === id ? { ...item, permanentlyDeleted: true } : item,
       ),
     }));
+
+    if (!supabase || !session.workspace?.id || !isUuid(id)) return;
+    const { error } = await supabase
+      .from('trash_items')
+      .update({
+        restore_status: 'purged',
+        purged_by: session.profile.id,
+        purged_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('workspace_id', session.workspace.id);
+    if (error) updateSyncFromError(error);
+    else setSync({ status: 'synced', message: 'ลบถาวรใน Supabase แล้ว' });
   };
 
-  const resolveHealthIssue = (id: string) => {
+  const resolveHealthIssue = async (id: string) => {
     setState((current) => ({
       ...current,
       healthIssues: current.healthIssues.map((issue) => (issue.id === id ? { ...issue, resolved: true } : issue)),
     }));
+
+    if (!supabase || !session.workspace?.id || !isUuid(id)) return;
+    const { error } = await supabase
+      .from('data_health_issues')
+      .update({
+        status: 'resolved',
+        resolved_by: session.profile.id,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('workspace_id', session.workspace.id);
+    if (error) updateSyncFromError(error);
+    else setSync({ status: 'synced', message: 'ปิด issue ลง Supabase แล้ว' });
   };
 
-  const addCalendarRule = () => {
+  const addCalendarRule = async () => {
     if (!calendarDraft.title.trim()) return;
+    const tempId = `calendar-${Date.now()}`;
     setState((current) => ({
       ...current,
       calendarRules: [
         {
-          id: `calendar-${Date.now()}`,
+          id: tempId,
           date: calendarDraft.date,
           title: calendarDraft.title.trim(),
           type: calendarDraft.type,
@@ -278,15 +545,41 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       ],
     }));
     setCalendarDraft((current) => ({ ...current, title: '' }));
+
+    if (!supabase || !session.workspace?.id) return;
+    const { data, error } = await supabase
+      .from('school_calendar_days')
+      .insert({
+        workspace_id: session.workspace.id,
+        calendar_date: calendarDraft.date,
+        day_type: toDayType(calendarDraft.type),
+        title: calendarDraft.title.trim(),
+        affects_attendance: calendarDraft.attendancePolicy !== 'skip',
+        affects_reports: true,
+        metadata: { attendancePolicy: calendarDraft.attendancePolicy },
+        created_by: session.profile.id,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      updateSyncFromError(error);
+      return;
+    }
+    setState((current) => ({
+      ...current,
+      calendarRules: current.calendarRules.map((rule) => (rule.id === tempId ? mapCalendarRow(data) : rule)),
+    }));
+    setSync({ status: 'synced', message: 'บันทึกปฏิทินโรงเรียนลง Supabase แล้ว' });
   };
 
-  const addTemplate = () => {
+  const addTemplate = async () => {
     if (!templateDraft.title.trim() || !templateDraft.body.trim()) return;
+    const tempId = `template-${Date.now()}`;
     setState((current) => ({
       ...current,
       templates: [
         {
-          id: `template-${Date.now()}`,
+          id: tempId,
           category: templateDraft.category.trim() || 'ทั่วไป',
           title: templateDraft.title.trim(),
           body: templateDraft.body.trim(),
@@ -295,6 +588,30 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       ],
     }));
     setTemplateDraft((current) => ({ ...current, title: '' }));
+
+    if (!supabase || !session.workspace?.id) return;
+    const { data, error } = await supabase
+      .from('message_templates')
+      .insert({
+        workspace_id: session.workspace.id,
+        template_type: toTemplateType(templateDraft.category),
+        title: templateDraft.title.trim(),
+        body: templateDraft.body.trim(),
+        channel: 'line',
+        is_active: true,
+        created_by: session.profile.id,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      updateSyncFromError(error);
+      return;
+    }
+    setState((current) => ({
+      ...current,
+      templates: current.templates.map((template) => (template.id === tempId ? mapTemplateRow(data) : template)),
+    }));
+    setSync({ status: 'synced', message: 'บันทึก template ลง Supabase แล้ว' });
   };
 
   return (
@@ -328,6 +645,18 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         <StatCard label="วันพิเศษ" value={state.calendarRules.length} tone="text-teal-700" />
         <StatCard label="template" value={state.templates.length} tone="text-slate-950" />
       </section>
+
+      <div
+        className={`mt-5 rounded-2xl border px-4 py-3 text-sm font-bold ${
+          sync.status === 'synced'
+            ? 'border-teal-200 bg-teal-50 text-teal-800'
+            : sync.status === 'missing_sql' || sync.status === 'error'
+              ? 'border-amber-200 bg-amber-50 text-amber-800'
+              : 'border-[#ead8bd] bg-white/80 text-slate-600'
+        }`}
+      >
+        Supabase sync: {sync.message}
+      </div>
 
       <section className="app-content-grid xl:grid-cols-[1.05fr_0.95fr]">
         <div className="app-panel-pad">
@@ -381,7 +710,10 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
                     : 'border-[#ead8bd] bg-white/80 text-slate-600 hover:bg-white'
                 }`}
                 key={mode}
-                onClick={() => setState((current) => ({ ...current, mode }))}
+                onClick={() => {
+                  setState((current) => ({ ...current, mode }));
+                  void persistMode(mode);
+                }}
                 type="button"
               >
                 <span className="block text-lg">{mode === 'simple' ? 'Simple Mode' : 'Advanced Mode'}</span>
