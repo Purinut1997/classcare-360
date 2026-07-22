@@ -60,6 +60,9 @@ const PackagePage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('./pages/app/ReportsPage').then((module) => ({ default: module.ReportsPage })),
 );
+const SchoolCalendarPage = lazy(() =>
+  import('./pages/app/SchoolCalendarPage').then((module) => ({ default: module.SchoolCalendarPage })),
+);
 const SchedulePage = lazy(() =>
   import('./pages/app/SchedulePage').then((module) => ({ default: module.SchedulePage })),
 );
@@ -121,6 +124,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'behavior',
       'randomizer',
       'reports',
+      'school-calendar',
       'data-safety',
       'help-center',
       'notifications',
@@ -136,6 +140,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'behavior',
       'randomizer',
       'reports',
+      'school-calendar',
       'import-export',
       'data-safety',
       'help-center',
@@ -153,6 +158,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'behavior',
       'randomizer',
       'reports',
+      'school-calendar',
       'import-export',
       'data-safety',
       'help-center',
@@ -180,6 +186,7 @@ function getAllowedRolesForNavItem(key: string) {
     return ['superadmin', 'teacher_owner'] as WorkspaceRole[];
   }
   if (key === 'data-safety') return classroomUserRoles;
+  if (key === 'school-calendar') return classroomUserRoles;
 
   return classroomUserRoles;
 }
@@ -292,6 +299,21 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ReportsPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'school-calendar') {
+    return (
+      <RequireRouteAccess
+        allowedRoles={allowedRoles}
+        featureName={activeNavItem.label}
+        moduleKey={activeNavItem.moduleKey}
+        session={session}
+      >
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <SchoolCalendarPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

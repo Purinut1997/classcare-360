@@ -2,6 +2,7 @@ import {
   Archive,
   Bell,
   Building2,
+  CalendarDays,
   CalendarRange,
   CircleHelp,
   ClipboardList,
@@ -59,6 +60,13 @@ export const appNavItems: AppNavItem[] = [
     path: '/app/dashboard?view=randomizer',
   },
   { key: 'reports', label: 'รายงาน', icon: FileSpreadsheet, moduleKey: 'reports', path: '/app/dashboard?view=reports&reportView=attendance' },
+  {
+    key: 'school-calendar',
+    label: 'ปฏิทินโรงเรียน',
+    icon: CalendarDays,
+    moduleKey: 'attendance',
+    path: '/app/dashboard?view=school-calendar',
+  },
   {
     key: 'import-export',
     label: 'นำเข้า/สำรอง',
@@ -176,6 +184,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'Data Safety Center',
     title: 'ศูนย์ดูแลข้อมูลก่อนใช้งานจริง',
     body: 'รวม import safety, duplicate protection, trash/restore, data health, ปฏิทินโรงเรียน, simple mode และ template ข้อความไว้จุดเดียว เพื่อลดปัญหานำเข้าผิด ลบผิด หรือรายงานไม่ตรง',
+  },
+  'school-calendar': {
+    eyebrow: 'School Calendar',
+    title: 'ปฏิทินโรงเรียนสำหรับวันหยุด สอบ กิจกรรม และรายงาน',
+    body: 'ใช้เป็นฐานวันกลางของโรงเรียน เพื่อให้เช็กชื่อ ตารางสอน ตารางเรียน และรายงานอ่านข้อมูลตรงกันจากจุดเดียว',
   },
   'workspace-settings': {
     eyebrow: 'Owner Workspace Center',

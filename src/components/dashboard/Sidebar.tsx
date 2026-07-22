@@ -19,7 +19,7 @@ const sidebarSections = [
     label: 'งานครู',
     itemKeys: ['teacher-work', 'schedule', 'scores', 'savings', 'behavior', 'randomizer'],
   },
-  { key: 'data', label: 'รายงานและข้อมูล', itemKeys: ['reports', 'import-export', 'data-safety', 'notifications'] },
+  { key: 'data', label: 'รายงานและข้อมูล', itemKeys: ['reports', 'school-calendar', 'import-export', 'data-safety', 'notifications'] },
   { key: 'workspace', label: 'จัดการโรงเรียน', itemKeys: ['workspace-settings', 'workspace-switch'] },
   { key: 'system', label: 'ระบบผู้ดูแล', itemKeys: ['help-center', 'setup', 'audit', 'superadmin-dashboard'] },
 ];
