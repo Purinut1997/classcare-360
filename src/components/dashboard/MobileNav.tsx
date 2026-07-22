@@ -9,7 +9,7 @@ interface MobileNavProps {
 
 export function MobileNav({ activeView, navItems }: MobileNavProps) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-30 grid auto-cols-[76px] grid-flow-col overflow-x-auto rounded-3xl border border-white/80 bg-white/90 p-1.5 shadow-[0_20px_50px_rgba(15,23,42,0.18)] backdrop-blur-xl lg:hidden">
+    <nav className="app-mobile-nav fixed inset-x-3 bottom-3 z-30 grid auto-cols-[76px] grid-flow-col overflow-x-auto rounded-3xl border border-white/80 bg-white/90 p-1.5 shadow-[0_20px_50px_rgba(15,23,42,0.18)] backdrop-blur-xl lg:hidden">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = item.key === activeView;

@@ -292,14 +292,42 @@ export function SchedulePage({ session }: SchedulePageProps) {
   return (
     <main className="app-page">
       <style>{`
+        @font-face {
+          font-family: 'TH Sarabun PSK';
+          font-style: normal;
+          font-weight: 400;
+          src: url('/fonts/THSarabun.ttf') format('truetype');
+        }
+        @font-face {
+          font-family: 'TH Sarabun PSK';
+          font-style: normal;
+          font-weight: 700;
+          src: url('/fonts/THSarabun-Bold.ttf') format('truetype');
+        }
+        @font-face {
+          font-family: 'TH Sarabun PSK';
+          font-style: italic;
+          font-weight: 400;
+          src: url('/fonts/THSarabun-Italic.ttf') format('truetype');
+        }
+        @font-face {
+          font-family: 'TH Sarabun PSK';
+          font-style: italic;
+          font-weight: 700;
+          src: url('/fonts/THSarabun-BoldItalic.ttf') format('truetype');
+        }
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
-          body { background: #fff !important; }
-          .app-sidebar, .app-shell-sidebar, .app-topbar, .print-hidden, .no-print { display: none !important; }
+          html, body { background: #fff !important; font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; }
+          .app-sidebar, .app-shell-sidebar, .app-topbar, .app-mobile-nav, .print-hidden, .no-print { display: none !important; }
           .app-page { padding: 0 !important; background: #fff !important; }
+          .classcare-grid-bg { background: #fff !important; overflow: visible !important; }
+          .classcare-grid-bg > .pointer-events-none,
+          .classcare-grid-bg > .fixed { display: none !important; }
           .schedule-print-sheet { display: block !important; width: 281mm !important; min-height: 194mm !important; padding: 0 !important; }
+          .schedule-print-sheet, .schedule-print-sheet * { font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; }
           .schedule-screen { display: none !important; }
-          .schedule-print-table { font-size: 10.5px !important; table-layout: fixed !important; }
+          .schedule-print-table { font-size: 16pt !important; table-layout: fixed !important; }
           .schedule-print-table th, .schedule-print-table td { padding: 4px !important; }
           .schedule-print-day { width: 24mm !important; }
           .schedule-print-cell { height: 18mm !important; }
