@@ -21,7 +21,7 @@ const sidebarSections = [
   },
   { key: 'data', label: 'รายงานและข้อมูล', itemKeys: ['reports', 'import-export', 'notifications'] },
   { key: 'workspace', label: 'จัดการโรงเรียน', itemKeys: ['workspace-settings', 'workspace-switch'] },
-  { key: 'system', label: 'ระบบผู้ดูแล', itemKeys: ['setup', 'audit', 'superadmin-dashboard'] },
+  { key: 'system', label: 'ระบบผู้ดูแล', itemKeys: ['help-center', 'setup', 'audit', 'superadmin-dashboard'] },
 ];
 
 const studentSubNavItems = [

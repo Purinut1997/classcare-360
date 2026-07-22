@@ -3,6 +3,12 @@
 อัปเดตล่าสุด: 2026-07-13
 Timezone: Asia/Bangkok
 
+## อัปเดตล่าสุด 2026-07-22
+
+- เพิ่ม `Help Center` ใน shell หลักของระบบที่เมนู `คู่มือใช้งาน` สำหรับครู, viewer, owner และ superadmin เพื่อรวมลำดับเริ่มใช้งาน, ปุ่มลัดงานสำคัญ, คู่มือแก้ปัญหาที่เจอบ่อย, workflow ตามบทบาท และ smoke test ก่อนทดลองระบบจริง
+- ผูก route ใหม่ `/app/dashboard?view=help-center` เข้ากับ AppShell, Sidebar, role guard และ lazy loaded page `src/pages/app/HelpCenterPage.tsx`
+- ตรวจล่าสุด: `npm run lint` ผ่าน และ `npm run build` ผ่าน
+
 ## อัปเดตล่าสุด 2026-07-15
 
 - ปิดช่องว่าง readiness/deploy: `npm run check:deploy` ตรวจ migration ครบถึง `0020_harden_destructive_action_rpcs.sql` แล้ว เพื่อไม่ให้ระบบรายงานว่าพร้อมทั้งที่ RPC ลบห้องเรียน/workspace/ชุดคะแนนยังไม่ได้อยู่ในชุด deploy

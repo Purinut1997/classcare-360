@@ -45,6 +45,9 @@ const DashboardPage = lazy(() =>
 const ImportExportPage = lazy(() =>
   import('./pages/app/ImportExportPage').then((module) => ({ default: module.ImportExportPage })),
 );
+const HelpCenterPage = lazy(() =>
+  import('./pages/app/HelpCenterPage').then((module) => ({ default: module.HelpCenterPage })),
+);
 const NotificationsPage = lazy(() =>
   import('./pages/app/NotificationsPage').then((module) => ({ default: module.NotificationsPage })),
 );
@@ -104,7 +107,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
   const navKeysByRole: Record<WorkspaceRole, string[]> = {
     parent: [],
     student: [],
-    viewer: ['overview', 'reports'],
+    viewer: ['overview', 'reports', 'help-center'],
     teacher_member: [
       'overview',
       'students',
@@ -115,6 +118,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'behavior',
       'randomizer',
       'reports',
+      'help-center',
       'notifications',
       'workspace-switch',
     ],
@@ -129,6 +133,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'randomizer',
       'reports',
       'import-export',
+      'help-center',
       'notifications',
       'workspace-settings',
       'workspace-switch',
@@ -144,6 +149,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'randomizer',
       'reports',
       'import-export',
+      'help-center',
       'notifications',
       'workspace-settings',
       'workspace-switch',
@@ -160,6 +166,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
 
 function getAllowedRolesForNavItem(key: string) {
   if (key === 'reports') return reportViewerRoles;
+  if (key === 'help-center') return reportViewerRoles;
   if (key === 'audit') return ['superadmin'] as WorkspaceRole[];
   if (key === 'setup' || key === 'superadmin-dashboard') return ['superadmin'] as WorkspaceRole[];
   if (key === 'workspace-switch') return workspaceSelectionRoles;
@@ -368,6 +375,21 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <NotificationsPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'help-center') {
+    return (
+      <RequireRouteAccess
+        allowedRoles={allowedRoles}
+        featureName={activeNavItem.label}
+        moduleKey={activeNavItem.moduleKey}
+        session={session}
+      >
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <HelpCenterPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

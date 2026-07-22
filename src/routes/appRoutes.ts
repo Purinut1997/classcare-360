@@ -3,6 +3,7 @@ import {
   Bell,
   Building2,
   CalendarRange,
+  CircleHelp,
   ClipboardList,
   Dice5,
   FileSpreadsheet,
@@ -93,6 +94,13 @@ export const appNavItems: AppNavItem[] = [
     path: '/app/dashboard?view=setup',
   },
   {
+    key: 'help-center',
+    label: 'คู่มือใช้งาน',
+    icon: CircleHelp,
+    moduleKey: 'support',
+    path: '/app/dashboard?view=help-center',
+  },
+  {
     key: 'audit',
     label: 'ประวัติระบบ',
     icon: History,
@@ -170,6 +178,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'System Readiness',
     title: 'ปิดงาน production launch ก่อนเปิดให้ใช้งานจริง',
     body: 'รวม checklist สำหรับ Cloudflare Pages, Supabase Auth redirect, workspace smoke test, RLS isolation, migrations, storage bucket, Edge Functions และ secret ที่ต้องตั้งฝั่ง server',
+  },
+  'help-center': {
+    eyebrow: 'Help Center',
+    title: 'คู่มือใช้งานและทางลัดแก้ปัญหาระบบ',
+    body: 'รวมขั้นตอนเริ่มต้น ปุ่มลัดตามงานครู วิธีตรวจข้อมูลไม่แสดง วิธีลบ/กู้คืน และลำดับงานตามบทบาท เพื่อให้ผู้ใช้ไปถูกหน้าโดยไม่ต้องเดาเมนูเอง',
   },
   audit: {
     eyebrow: 'Audit Center',
