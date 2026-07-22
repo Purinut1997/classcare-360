@@ -50,6 +50,12 @@ export function SchedulePage({ session }: SchedulePageProps) {
     name: firstSubject?.name || settings.subjectOptions[0] || 'คณิตศาสตร์',
     teacherName: firstSubject?.teacherName || '',
   }));
+  const [editingCell, setEditingCell] = useState<{ day: DayName; periodIndex: number } | null>(null);
+  const [cellDraft, setCellDraft] = useState<ScheduleCell>(() => ({
+    classroom: session.workspace?.classroomName || settings.classroomOptions[0] || 'ป.5/1',
+    subject: firstSubject?.name || settings.subjectOptions[0] || 'คณิตศาสตร์',
+    subjectCode: firstSubject?.code || 'ค15101',
+  }));
   const [notice, setNotice] = useState<string | null>(null);
 
   const activeView = searchParams.get('scheduleView') === 'settings' ? 'settings' : 'table';
@@ -180,38 +186,41 @@ export function SchedulePage({ session }: SchedulePageProps) {
     setNotice(`ลบรายวิชา ${subjectName} ออกจาก dropdown แล้ว ตารางที่เคยกรอกไว้ยังคงข้อมูลเดิมเพื่อไม่ทำรายงานหาย`);
   }
 
-  function selectSubject(nextSubjectName: string) {
+  function updateCellDraftSubject(nextSubjectName: string) {
     const match = settings.subjects.find((subject) => subject.name === nextSubjectName);
-    setSelectedSubject(nextSubjectName);
-    setSelectedSubjectCode(match?.code || '');
-    setNotice(`เลือก ${nextSubjectName} แล้ว คลิกช่องในตารางเพื่อเพิ่มวิชานี้`);
+    setCellDraft((current) => ({
+      ...current,
+      subject: nextSubjectName,
+      subjectCode: match?.code || current.subjectCode || '',
+    }));
   }
 
-  function useCurrentSubjectForTable() {
-    if (!selectedSubject.trim()) {
-      setNotice('กรุณาเลือกรายวิชาก่อนนำไปใส่ตาราง');
-      return;
-    }
-    setNotice(`พร้อมเพิ่ม ${selectedSubjectCode ? `${selectedSubjectCode} / ` : ''}${selectedSubject} ลงตารางแล้ว ให้คลิกช่องคาบที่ต้องการ`);
-  }
-
-  function assignCell(day: DayName, periodIndex: number) {
+  function openCellEditor(day: DayName, periodIndex: number) {
     const key = makeScheduleCellKey(day, periodIndex);
     const current = settings.cells[key];
-
-    if (current) {
-      const nextCells = { ...settings.cells };
-      delete nextCells[key];
-      const nextSettings = { ...settings, cells: nextCells };
-      setSettings(nextSettings);
-      saveScheduleSettings(nextSettings);
-      return;
-    }
-
-    const nextCell: ScheduleCell = {
+    const fallbackCell: ScheduleCell = {
       classroom: selectedClassroom.trim() || identity.classroomName,
       subject: selectedSubject.trim() || 'ไม่ระบุวิชา',
       subjectCode: selectedSubjectCode.trim() || undefined,
+    };
+    setCellDraft(current || fallbackCell);
+    setEditingCell({ day, periodIndex });
+  }
+
+  function saveEditingCell() {
+    if (!editingCell) return;
+
+    const subject = cellDraft.subject.trim();
+    if (!subject) {
+      setNotice('กรุณาเลือกรายวิชาก่อนบันทึกช่องตาราง');
+      return;
+    }
+
+    const key = makeScheduleCellKey(editingCell.day, editingCell.periodIndex);
+    const nextCell: ScheduleCell = {
+      classroom: cellDraft.classroom.trim() || selectedClassroom.trim() || identity.classroomName,
+      subject,
+      subjectCode: cellDraft.subjectCode?.trim() || undefined,
     };
     const nextSettings = {
       ...settings,
@@ -221,6 +230,24 @@ export function SchedulePage({ session }: SchedulePageProps) {
       },
     };
     saveAll(nextSettings);
+    setSelectedSubject(nextCell.subject);
+    setSelectedSubjectCode(nextCell.subjectCode || '');
+    setSelectedClassroom(nextCell.classroom);
+    setEditingCell(null);
+    setNotice(`บันทึก ${nextCell.subject} ใน ${editingCell.day} คาบ ${editingCell.periodIndex} แล้ว`);
+  }
+
+  function clearEditingCell() {
+    if (!editingCell) return;
+
+    const key = makeScheduleCellKey(editingCell.day, editingCell.periodIndex);
+    const nextCells = { ...settings.cells };
+    delete nextCells[key];
+    const nextSettings = { ...settings, cells: nextCells };
+    setSettings(nextSettings);
+    saveScheduleSettings(nextSettings);
+    setEditingCell(null);
+    setNotice(`ล้างช่อง ${editingCell.day} คาบ ${editingCell.periodIndex} แล้ว`);
   }
 
   function printSchedule() {
@@ -232,29 +259,34 @@ export function SchedulePage({ session }: SchedulePageProps) {
     <main className="app-page">
       <style>{`
         @media print {
+          @page { size: A4 landscape; margin: 8mm; }
           body { background: #fff !important; }
           .app-sidebar, .app-shell-sidebar, .app-topbar, .print-hidden, .no-print { display: none !important; }
           .app-page { padding: 0 !important; background: #fff !important; }
-          .schedule-print-sheet { display: block !important; }
+          .schedule-print-sheet { display: block !important; width: 281mm !important; min-height: 194mm !important; padding: 0 !important; }
           .schedule-screen { display: none !important; }
+          .schedule-print-table { font-size: 10.5px !important; table-layout: fixed !important; }
+          .schedule-print-table th, .schedule-print-table td { padding: 4px !important; }
+          .schedule-print-day { width: 24mm !important; }
+          .schedule-print-cell { height: 18mm !important; }
         }
       `}</style>
 
       <section className="schedule-print-sheet hidden bg-white p-8 text-black">
-        <div className="relative min-h-[980px]">
+        <div className="relative min-h-[194mm]">
           {identity.schoolLogoDataUrl ? (
-            <img alt="school logo" className="absolute left-0 top-0 h-28 w-28 object-contain" src={identity.schoolLogoDataUrl} />
+            <img alt="school logo" className="absolute left-0 top-0 h-20 w-20 object-contain" src={identity.schoolLogoDataUrl} />
           ) : null}
           <div className="mx-auto max-w-[920px] text-center">
-            <h1 className="text-2xl font-bold">{identity.schoolName}</h1>
-            <p className="mt-3 text-xl font-bold">{settings.courseTitle || 'ตารางสอนประจำสัปดาห์'} ปีการศึกษา {identity.academicYear}</p>
-            <p className="mt-3 text-xl font-bold">ครูผู้สอน {identity.teacherName || '................................................'}</p>
+            <h1 className="text-xl font-bold">{identity.schoolName}</h1>
+            <p className="mt-2 text-lg font-bold">{settings.courseTitle || 'ตารางสอนประจำสัปดาห์'} ปีการศึกษา {identity.academicYear}</p>
+            <p className="mt-2 text-lg font-bold">ครูผู้สอน {identity.teacherName || '................................................'}</p>
           </div>
 
-          <table className="mt-10 w-full border-collapse text-center text-[15px]">
+          <table className="schedule-print-table mt-7 w-full border-collapse text-center text-[12px]">
             <thead>
               <tr>
-                <th className="w-28 border border-black p-2">วัน / เวลา</th>
+                <th className="schedule-print-day w-24 border border-black p-2">วัน / เวลา</th>
                 {periods.map((period) => (
                   <th className="border border-black p-2" key={period.index}>
                     ชั่วโมงที่ {period.index}
@@ -271,7 +303,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   {periods.map((period) => {
                     const cell = settings.cells[makeScheduleCellKey(day, period.index)];
                     return (
-                      <td className="h-24 border border-black p-2 align-middle" key={period.index}>
+                      <td className="schedule-print-cell h-20 border border-black p-2 align-middle" key={period.index}>
                         {cell ? (
                           <>
                             <div>{cell.subjectCode || ''}</div>
@@ -287,7 +319,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
             </tbody>
           </table>
 
-          <div className="mt-14 grid grid-cols-3 gap-8 text-center text-lg">
+          <div className="mt-9 grid grid-cols-3 gap-8 text-center text-base">
             <div>
               <p>ลงชื่อ........................................ครูผู้สอน</p>
               <p className="mt-3">({identity.teacherName || '........................................'})</p>
@@ -495,55 +527,89 @@ export function SchedulePage({ session }: SchedulePageProps) {
           </section>
         ) : (
           <section className="app-panel-pad overflow-hidden">
-            <div className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-[#fffaf0]/80 p-4">
-              <div className="grid gap-3 xl:grid-cols-[160px_minmax(0,1fr)_190px_auto_auto]">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  รหัสวิชา
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectCode(event.target.value)} placeholder="เช่น อ14101" value={selectedSubjectCode} />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  รายวิชาจากที่ตั้งค่าไว้
-                  <select className="nexus-field h-11 px-3" onChange={(event) => selectSubject(event.target.value)} value={selectedSubject}>
-                    {settings.subjects.map((subject) => (
-                      <option key={subject.name} value={subject.name}>
-                        {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ห้องเรียน
-                  <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom}>
-                    {settings.classroomOptions.map((classroom) => (
-                      <option key={classroom} value={classroom}>
-                        {classroom}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="flex items-end">
-                  <button className="amber-action inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black xl:w-auto" onClick={useCurrentSubjectForTable} type="button">
-                    <Plus size={17} aria-hidden="true" />
-                    เลือกใช้วิชานี้
-                  </button>
-                </div>
-                <div className="flex items-end">
-                  <button className="nexus-pill inline-flex h-11 w-full items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 xl:w-auto" onClick={() => setScheduleView('settings')} type="button">
-                    <Settings2 size={17} aria-hidden="true" />
-                    ตั้งค่า
-                  </button>
+            <div className="mb-5 grid gap-3 rounded-[1.75rem] border border-[#ead8bd] bg-[#fffaf0]/80 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิชาหลักที่เลือกไว้</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">
+                  {selectedSubjectCode ? `${selectedSubjectCode} / ` : ''}{selectedSubject || 'ยังไม่ได้เลือกวิชา'}
+                </h3>
+                <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องตารางเพื่อเพิ่มหรือแก้ไข ระบบจะให้เลือกวิชาและห้องในกล่องเดียว ไม่ต้องจำปุ่มหลายขั้น</p>
+              </div>
+              <div className="flex flex-wrap gap-2 md:justify-end">
+                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={() => setScheduleView('settings')} type="button">
+                  <Settings2 size={17} aria-hidden="true" />
+                  ตั้งค่า
+                </button>
+                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
+                  <Save size={17} aria-hidden="true" />
+                  บันทึกตาราง
+                </button>
+                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
+                  <Printer size={17} aria-hidden="true" />
+                  พิมพ์ A4 แนวนอน
+                </button>
+              </div>
+            </div>
+
+            {editingCell ? (
+              <div className="mb-5 rounded-[1.75rem] border border-[#d99b40] bg-white p-4 shadow-[0_18px_44px_rgba(122,79,38,0.12)]">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="min-w-[180px]">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">กำลังแก้ไข</p>
+                    <h3 className="mt-1 text-2xl font-black text-slate-950">
+                      {editingCell.day} / คาบ {editingCell.periodIndex}
+                    </h3>
+                  </div>
+                  <label className="grid flex-1 gap-2 text-sm font-black text-slate-700">
+                    รายวิชา
+                    <select className="nexus-field h-11 px-3" onChange={(event) => updateCellDraftSubject(event.target.value)} value={cellDraft.subject}>
+                      {settings.subjects.map((subject) => (
+                        <option key={subject.name} value={subject.name}>
+                          {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid min-w-[150px] gap-2 text-sm font-black text-slate-700">
+                    รหัสวิชา
+                    <input className="nexus-field h-11 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, subjectCode: event.target.value }))} placeholder="เช่น ค15101" value={cellDraft.subjectCode || ''} />
+                  </label>
+                  <label className="grid min-w-[170px] gap-2 text-sm font-black text-slate-700">
+                    ห้องเรียน
+                    <select className="nexus-field h-11 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, classroom: event.target.value }))} value={cellDraft.classroom}>
+                      {settings.classroomOptions.map((classroom) => (
+                        <option key={classroom} value={classroom}>
+                          {classroom}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2 lg:w-[330px]">
+                    <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={saveEditingCell} type="button">
+                      <Save size={16} aria-hidden="true" />
+                      บันทึก
+                    </button>
+                    <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-rose-600 ring-rose-200" onClick={clearEditingCell} type="button">
+                      <Trash2 size={16} aria-hidden="true" />
+                      ล้าง
+                    </button>
+                    <button className="nexus-pill inline-flex h-11 items-center justify-center px-4 text-sm font-black text-slate-600" onClick={() => setEditingCell(null)} type="button">
+                      ยกเลิก
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 rounded-3xl border border-[#e6bd70] bg-white p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            ) : null}
+
+            <div className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/90 p-4">
+              <div className="grid gap-3 rounded-3xl border border-[#e6bd70] bg-[#fffaf0] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิชาที่จะใส่ลงตาราง</p>
-                  <h3 className="mt-1 text-2xl font-black text-slate-950">
-                    {selectedSubjectCode ? `${selectedSubjectCode} / ` : ''}{selectedSubject || 'ยังไม่ได้เลือกวิชา'}
-                  </h3>
-                  <p className="mt-1 text-sm font-bold text-slate-500">ขั้นตอน: 1) เลือกรายวิชา 2) เลือกห้อง 3) คลิกช่องคาบในตารางเพื่อเพิ่ม 4) คลิกช่องเดิมเพื่อล้าง</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิธีใช้งานตาราง</p>
+                  <h3 className="mt-1 text-2xl font-black text-slate-950">คลิกช่องว่างหรือช่องที่มีวิชาแล้วแก้ได้ทันที</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-500">ข้อมูลรายวิชาและห้องเรียนมาจากเมนูตั้งค่า ส่วนปุ่มพิมพ์จะจัดหน้าเป็น A4 แนวนอนอัตโนมัติ</p>
                 </div>
                 <div className="rounded-2xl bg-[#4b2f18] px-4 py-3 text-sm font-black text-white">
-                  ห้อง {selectedClassroom || '-'}
+                  {usedCells}/{totalCells} ช่อง
                 </div>
               </div>
             </div>
@@ -551,17 +617,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
               <div>
                 <p className="text-sm font-black text-[#b46a00]">ตารางสำหรับใช้งานจริง</p>
                 <h2 className="text-3xl font-black text-slate-950">{identity.schoolName}</h2>
-                <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่วิชา/ห้อง คลิกช่องเดิมอีกครั้งเพื่อล้าง</p>
+                <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่ แก้ไข หรือล้างวิชาในคาบนั้น</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
-                  <Save size={17} aria-hidden="true" />
-                  บันทึกตาราง
-                </button>
-                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
-                  <Printer size={17} aria-hidden="true" />
-                  พิมพ์ตาราง
-                </button>
                 <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=attendance">
                   <FileSpreadsheet size={17} aria-hidden="true" />
                   รายงานเวลาเรียน
@@ -613,7 +671,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                 : 'border-[#e7c997] bg-white/95 text-slate-400 hover:border-[#d99b40]'
                             }`}
                             key={key}
-                            onClick={() => assignCell(day, period.index)}
+                            onClick={() => openCellEditor(day, period.index)}
                             type="button"
                           >
                             {cell ? (
