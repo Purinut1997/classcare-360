@@ -1068,6 +1068,7 @@ function emptyStudentForm(classroomId: string) {
     guardianFirstName: '',
     guardianLastName: '',
     guardianOccupation: '',
+    guardianPhone: '',
     guardianPrefix: '',
     guardianRelation: '',
     heightCm: '',
@@ -1086,6 +1087,7 @@ function emptyStudentForm(classroomId: string) {
     schoolCode: '',
     schoolName: '',
     studentCode: '',
+    studentPhone: '',
     subdistrict: '',
     villageNo: '',
     weightKg: '',
@@ -1120,6 +1122,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [rosterStatusFilter, setRosterStatusFilter] = useState<StudentStatus | 'all'>('active');
   const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [studentForm, setStudentForm] = useState(() => emptyStudentForm(demoClassrooms[0].id));
   const [classroomName, setClassroomName] = useState(session.workspace?.classroomName || 'ป.5/2');
   const [gradeLevel, setGradeLevel] = useState('ป.5');
@@ -1481,6 +1484,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
   function resetStudentForm(nextClassroomId = classrooms[0]?.id || '') {
     setEditingStudentId(null);
+    setIsEditModalOpen(false);
     setStudentForm(emptyStudentForm(nextClassroomId));
   }
 
@@ -1492,6 +1496,9 @@ export function StudentsPage({ session }: StudentsPageProps) {
     const mother = objectValue(metadata.dmc_mother);
     const healthFlags = student.health_flags || {};
     const careFlags = student.care_flags || {};
+    const studentGuardians = guardians.filter((item) => item.student_id === student.id);
+    const primaryStudentGuardian =
+      studentGuardians.find((item) => item.is_primary) || studentGuardians[0] || null;
     setSelectedStudentId(student.id);
     setEditingStudentId(student.id);
     setStudentForm({
@@ -1512,6 +1519,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       guardianFirstName: textValue(guardian.first_name),
       guardianLastName: textValue(guardian.last_name),
       guardianOccupation: textValue(guardian.occupation),
+      guardianPhone: primaryStudentGuardian?.phone || '',
       guardianPrefix: textValue(guardian.prefix),
       guardianRelation: textValue(guardian.relation),
       heightCm: textValue(healthFlags.height_cm),
@@ -1530,10 +1538,103 @@ export function StudentsPage({ session }: StudentsPageProps) {
       schoolCode: textValue(metadata.dmc_school_code),
       schoolName: textValue(metadata.dmc_school_name),
       studentCode: student.student_code || '',
+      studentPhone: textValue(metadata.contact_phone),
       subdistrict: textValue(address.subdistrict),
       villageNo: textValue(address.village_no),
       weightKg: textValue(healthFlags.weight_kg),
     });
+    setIsEditModalOpen(true);
+  }
+
+  function buildGuardianDisplayName() {
+    const parts = [
+      studentForm.guardianPrefix.trim(),
+      studentForm.guardianFirstName.trim(),
+      studentForm.guardianLastName.trim(),
+    ].filter(Boolean);
+    return parts.join(' ');
+  }
+
+  async function saveGuardianContactFromForm(studentId: string) {
+    const trimmedPhone = studentForm.guardianPhone.trim() || null;
+    const displayName = buildGuardianDisplayName();
+    const relation = studentForm.guardianRelation.trim() || 'ผู้ปกครอง';
+    const studentGuardians = guardians.filter((item) => item.student_id === studentId);
+    const primaryStudentGuardian =
+      studentGuardians.find((item) => item.is_primary) || studentGuardians[0] || null;
+
+    if (!trimmedPhone && !displayName) return;
+
+    if (!supabase || !session.workspace) {
+      if (primaryStudentGuardian) {
+        setGuardians((current) =>
+          current.map((item) =>
+            item.id === primaryStudentGuardian.id
+              ? {
+                  ...item,
+                  display_name: displayName || item.display_name,
+                  phone: trimmedPhone,
+                  relation,
+                }
+              : item,
+          ),
+        );
+        return;
+      }
+
+      if (!displayName && !trimmedPhone) return;
+
+      const localGuardian: GuardianRow = {
+        consent_status: 'pending',
+        display_name: displayName || 'ผู้ปกครอง',
+        id: `demo-guardian-${Date.now()}`,
+        is_primary: true,
+        phone: trimmedPhone,
+        relation,
+        student_id: studentId,
+      };
+      setGuardians((current) => [...current, localGuardian]);
+      return;
+    }
+
+    if (primaryStudentGuardian) {
+      const { data, error } = await supabase
+        .from('student_guardians')
+        .update({
+          display_name: displayName || primaryStudentGuardian.display_name,
+          phone: trimmedPhone,
+          relation,
+        })
+        .eq('id', primaryStudentGuardian.id)
+        .eq('workspace_id', session.workspace.id)
+        .select('id,student_id,relation,display_name,phone,is_primary,consent_status')
+        .single();
+
+      if (error) throw error;
+      setGuardians((current) =>
+        current.map((item) => (item.id === primaryStudentGuardian.id ? (data as GuardianRow) : item)),
+      );
+      return;
+    }
+
+    if (!displayName && !trimmedPhone) return;
+
+    const { data, error } = await supabase
+      .from('student_guardians')
+      .insert({
+        consent_status: 'pending',
+        display_name: displayName || 'ผู้ปกครอง',
+        is_primary: true,
+        phone: trimmedPhone,
+        relation,
+        student_id: studentId,
+        workspace_id: session.workspace.id,
+      })
+      .select('id,student_id,relation,display_name,phone,is_primary,consent_status')
+      .single();
+
+    if (error) throw error;
+    setGuardians((current) => [...current, data as GuardianRow]);
   }
 
   async function writeAuditLog({
@@ -1716,6 +1817,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     };
     const nextMetadata = {
       ...(currentStudent?.metadata || {}),
+      contact_phone: nullableValue(studentForm.studentPhone),
       dmc_address: {
         district: nullableValue(studentForm.district),
         house_no: nullableValue(studentForm.houseNo),
@@ -1773,6 +1875,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
               : student,
           ),
         );
+        await saveGuardianContactFromForm(editingStudentId);
         setNotice('แก้ไขนักเรียนในโหมดตัวอย่างแล้ว');
       } else {
         const localStudent: StudentRow = {
@@ -1794,6 +1897,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         };
         setStudents((current) => [localStudent, ...current]);
         setSelectedStudentId(localStudent.id);
+        await saveGuardianContactFromForm(localStudent.id);
         setNotice('เพิ่มนักเรียนในโหมดตัวอย่างแล้ว');
       }
       resetStudentForm(studentForm.classroomId);
@@ -1839,6 +1943,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             }
           : nextStudent;
         setStudents((current) => current.map((student) => (student.id === editingStudentId ? refreshedStudent : student)));
+        await saveGuardianContactFromForm(refreshedStudent.id);
         await writeAuditLog({
           action: 'student.updated',
           entityId: refreshedStudent.id,
@@ -1877,6 +1982,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           : nextStudent;
         setStudents((current) => [refreshedStudent, ...current]);
         setSelectedStudentId(refreshedStudent.id);
+        await saveGuardianContactFromForm(refreshedStudent.id);
         await writeAuditLog({
           action: 'student.created',
           entityId: refreshedStudent.id,
@@ -3316,10 +3422,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
         </div>
 
         <div className="grid gap-5">
+          {!editingStudentId ? (
           <form className="nexus-card p-4 sm:p-5" onSubmit={handleStudentSubmit}>
             <div className="nexus-kicker">
-              {editingStudentId ? <Edit3 size={16} aria-hidden="true" /> : <UserPlus size={16} aria-hidden="true" />}
-              {editingStudentId ? 'แก้ไขนักเรียน' : 'เพิ่มนักเรียน'}
+              <UserPlus size={16} aria-hidden="true" />
+              เพิ่มนักเรียน
             </div>
 
             <div className="mt-4 grid gap-3">
@@ -3378,7 +3485,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 />
               </label>
 
-              <details className="rounded-3xl bg-amber-50/70 p-4 ring-1 ring-amber-100" open={Boolean(editingStudentId)}>
+              <details className="rounded-3xl bg-amber-50/70 p-4 ring-1 ring-amber-100">
                 <summary className="cursor-pointer text-sm font-black text-amber-900">
                   ข้อมูล DMC รายบุคคลครบชุด
                   <span className="ml-2 text-xs font-bold text-slate-500">สุขภาพ ที่อยู่ และครอบครัว</span>
@@ -3582,20 +3689,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 disabled={isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? 'กำลังบันทึก' : editingStudentId ? 'บันทึกการแก้ไข' : 'บันทึกนักเรียน'}
+                {isSubmitting ? 'กำลังบันทึก' : 'บันทึกนักเรียน'}
                 <Save size={17} aria-hidden="true" />
               </button>
-              {editingStudentId ? (
-                <button
-                  className="nexus-pill inline-flex h-11 items-center justify-center px-3 text-sm font-black text-slate-700 transition hover:-translate-y-0.5"
-                  onClick={() => resetStudentForm(studentForm.classroomId)}
-                  type="button"
-                >
-                  ยกเลิก
-                </button>
-              ) : null}
             </div>
           </form>
+          ) : null}
 
           <form className="nexus-card p-4 sm:p-5" onSubmit={handleCreateClassroom}>
             <div className="nexus-kicker">
@@ -4432,6 +4531,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     <dd className="text-right text-slate-950">{selectedStudent.nickname || '-'}</dd>
                   </div>
                   <div className="flex justify-between gap-3">
+                    <dt>เบอร์โทรศัพท์</dt>
+                    <dd className="text-right text-slate-950">
+                      {textValue(selectedStudent.metadata?.contact_phone) || '-'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
                     <dt>ห้องเรียน</dt>
                     <dd className="text-right text-slate-950">{selectedClassroom?.name || '-'}</dd>
                   </div>
@@ -5251,10 +5356,332 @@ export function StudentsPage({ session }: StudentsPageProps) {
       </>
       ) : null}
 
-      {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
-          <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-          <p>{notice}</p>
+      {/* Interactive Modal Popup for Editing/Adding Student Info */}
+      {isEditModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm animate-fadeIn"
+          onClick={() => resetStudentForm(studentForm.classroomId)}
+          role="presentation"
+        >
+          <div
+            className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-edit-modal-title"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100 text-amber-800">
+                  <Edit3 size={20} aria-hidden="true" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-black text-slate-950" id="student-edit-modal-title">
+                    {editingStudentId ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียนใหม่'}
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500">
+                    {editingStudentId
+                      ? `${studentForm.firstName} ${studentForm.lastName} (${studentForm.studentCode || 'ไม่มีรหัส'})`
+                      : 'กรอกข้อมูลพื้นฐานและเบอร์โทรศัพท์นักเรียน/ผู้ปกครอง'}
+                  </p>
+                </div>
+              </div>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+                onClick={() => resetStudentForm(studentForm.classroomId)}
+                type="button"
+                title="ปิดหน้าต่าง"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form className="flex-1 overflow-y-auto p-6" onSubmit={handleStudentSubmit}>
+              <div className="grid gap-6">
+                {/* Section 1: ข้อมูลพื้นฐาน & เบอร์โทรศัพท์ */}
+                <div className="rounded-2xl border border-amber-200/60 bg-amber-50/40 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-black text-amber-900">
+                    <UserRound size={17} /> ข้อมูลพื้นฐาน & เบอร์โทรศัพท์ติดต่อ
+                  </h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      คำนำหน้า
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, prefix: e.target.value }))}
+                        placeholder="เด็กชาย / เด็กหญิง / นาย"
+                        value={studentForm.prefix}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ชื่อนักเรียน <span className="text-rose-500">*</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, firstName: e.target.value }))}
+                        placeholder="ชื่อจริง"
+                        required
+                        value={studentForm.firstName}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      นามสกุล <span className="text-rose-500">*</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, lastName: e.target.value }))}
+                        placeholder="นามสกุล"
+                        required
+                        value={studentForm.lastName}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ชื่อเล่น
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, nickname: e.target.value }))}
+                        placeholder="ชื่อเล่น"
+                        value={studentForm.nickname}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      รหัสประจำตัวนักเรียน
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, studentCode: e.target.value }))}
+                        placeholder="เช่น 2428"
+                        value={studentForm.studentCode}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      เลขบัตรประชาชน (13 หลัก)
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        maxLength={13}
+                        onChange={(e) => setStudentForm((c) => ({ ...c, citizenId: e.target.value }))}
+                        placeholder="1330501xxxxxx"
+                        value={studentForm.citizenId}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      เพศ
+                      <select
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, gender: e.target.value as any }))}
+                        value={studentForm.gender}
+                      >
+                        <option value="unspecified">ไม่ระบุ</option>
+                        <option value="male">ชาย</option>
+                        <option value="female">หญิง</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      วันเกิด
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, birthDate: e.target.value }))}
+                        type="date"
+                        value={studentForm.birthDate}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Highlighted Phone Number Input Fields */}
+                  <div className="mt-4 grid gap-3 rounded-2xl bg-white p-3.5 ring-1 ring-amber-300 sm:grid-cols-2 shadow-sm">
+                    <label className="grid gap-1.5 text-xs font-black text-teal-900">
+                      <span className="flex items-center gap-1.5 text-teal-700">
+                        <Phone size={15} /> เบอร์โทรศัพท์นักเรียน
+                      </span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-teal-500"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, studentPhone: e.target.value }))}
+                        placeholder="08X-XXX-XXXX"
+                        type="tel"
+                        value={studentForm.studentPhone}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-black text-cyan-900">
+                      <span className="flex items-center gap-1.5 text-cyan-700">
+                        <Phone size={15} /> เบอร์โทรศัพท์ผู้ปกครอง
+                      </span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-cyan-500"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianPhone: e.target.value }))}
+                        placeholder="08X-XXX-XXXX"
+                        type="tel"
+                        value={studentForm.guardianPhone}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Section 2: ข้อมูลผู้ปกครองหลัก */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-black text-slate-900">
+                    <Users size={17} /> ข้อมูลผู้ปกครองหลัก
+                  </h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      คำนำหน้าผู้ปกครอง
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianPrefix: e.target.value }))}
+                        placeholder="นาย / นาง / นางสาว"
+                        value={studentForm.guardianPrefix}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ชื่อผู้ปกครอง
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianFirstName: e.target.value }))}
+                        placeholder="ชื่อผู้ปกครอง"
+                        value={studentForm.guardianFirstName}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      นามสกุลผู้ปกครอง
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianLastName: e.target.value }))}
+                        placeholder="นามสกุล"
+                        value={studentForm.guardianLastName}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ความสัมพันธ์
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianRelation: e.target.value }))}
+                        placeholder="บิดา / มารดา / ปู่ / ย่า"
+                        value={studentForm.guardianRelation}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Section 3: ที่อยู่ DMC & สุขภาพ */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-black text-slate-900">
+                    <MapPin size={17} /> ที่อยู่ DMC & สุขภาพพื้นฐาน
+                  </h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      บ้านเลขที่
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, houseNo: e.target.value }))}
+                        placeholder="163"
+                        value={studentForm.houseNo}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      หมู่ที่
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, villageNo: e.target.value }))}
+                        placeholder="4"
+                        value={studentForm.villageNo}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ตำบล / แขวง
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, subdistrict: e.target.value }))}
+                        placeholder="กันทรารมย์"
+                        value={studentForm.subdistrict}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      อำเภอ / เขต
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, district: e.target.value }))}
+                        placeholder="ขุขันธ์"
+                        value={studentForm.district}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      จังหวัด
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, province: e.target.value }))}
+                        placeholder="ศรีสะเกษ"
+                        value={studentForm.province}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ห้องเรียน
+                      <select
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, classroomId: e.target.value }))}
+                        value={studentForm.classroomId}
+                      >
+                        {classrooms.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name} ({cls.academic_year || '2569'})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ส่วนสูง (ซม.)
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, heightCm: e.target.value }))}
+                        placeholder="145"
+                        value={studentForm.heightCm}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      น้ำหนัก (กก.)
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, weightKg: e.target.value }))}
+                        placeholder="33"
+                        value={studentForm.weightKg}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      กลุ่มเลือด
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, bloodType: e.target.value }))}
+                        placeholder="A / B / O / AB"
+                        value={studentForm.bloodType}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Buttons */}
+              <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-700 hover:bg-slate-100 transition"
+                  onClick={() => resetStudentForm(studentForm.classroomId)}
+                  type="button"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition hover:-translate-y-0.5"
+                  disabled={isSubmitting}
+                  type="submit"
+                >
+                  <Save size={18} aria-hidden="true" />
+                  {isSubmitting ? 'กำลังบันทึก...' : editingStudentId ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลนักเรียน'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       ) : null}
 
