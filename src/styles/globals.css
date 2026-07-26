@@ -139,6 +139,10 @@
     min-width: 0;
   }
 
+  .app-page .grid > * {
+    min-width: 0;
+  }
+
   .app-form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
