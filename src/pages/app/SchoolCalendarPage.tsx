@@ -369,7 +369,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   };
 
   return (
-    <main className="space-y-5">
+    <main className="app-page space-y-5">
       <section className="nexus-card overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="p-5 sm:p-7">

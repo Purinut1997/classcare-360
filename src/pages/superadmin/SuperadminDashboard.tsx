@@ -1264,7 +1264,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   }
 
   return (
-    <main className={embedded ? 'min-w-0 px-4 pb-24 pt-4 text-slate-950 sm:px-6 lg:px-8 lg:pb-10' : 'classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8'}>
+    <main className={embedded ? 'app-page' : 'classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8'}>
       {!embedded ? (
         <Link
           className="fixed left-4 top-4 z-30 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-4 text-sm font-black text-slate-700 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"

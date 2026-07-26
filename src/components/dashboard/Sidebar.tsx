@@ -1,79 +1,47 @@
-import { ChevronRight, ServerCog } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { ChevronDown, PanelLeftClose, ServerCog, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-import { AppLogo } from '../brand/AppLogo';
 import type { AppNavItem } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
+import { AppLogo } from '../brand/AppLogo';
 
 interface SidebarProps {
   activeView: string;
+  isMobileOpen?: boolean;
   navItems: AppNavItem[];
+  onClose?: () => void;
   session?: AppSessionContext;
 }
 
 const sidebarSections = [
-  { key: 'primary', label: 'ใช้งานประจำ', itemKeys: ['overview'] },
-  { key: 'students', label: 'ข้อมูลนักเรียน', itemKeys: ['students'] },
+  { key: 'overview', label: 'ภาพรวม', itemKeys: ['overview'] },
+  { key: 'students', label: 'นักเรียน', itemKeys: ['students'] },
   {
-    key: 'teacher-work',
-    label: 'งานครู',
-    itemKeys: ['teacher-work', 'schedule', 'scores', 'savings', 'behavior', 'randomizer'],
+    key: 'teaching',
+    label: 'การสอน',
+    itemKeys: ['teacher-work', 'schedule', 'scores', 'savings', 'randomizer'],
   },
-  { key: 'data', label: 'รายงานและข้อมูล', itemKeys: ['reports', 'school-calendar', 'import-export', 'data-safety', 'notifications'] },
-  { key: 'workspace', label: 'จัดการโรงเรียน', itemKeys: ['workspace-settings', 'workspace-switch'] },
-  { key: 'system', label: 'ระบบผู้ดูแล', itemKeys: ['help-center', 'setup', 'audit', 'superadmin-dashboard'] },
+  { key: 'care', label: 'ดูแลนักเรียน', itemKeys: ['behavior', 'notifications'] },
+  { key: 'reports', label: 'รายงาน', itemKeys: ['reports', 'school-calendar'] },
+  {
+    key: 'school',
+    label: 'จัดการโรงเรียน',
+    itemKeys: ['import-export', 'data-safety', 'workspace-settings', 'workspace-switch'],
+  },
+  {
+    key: 'system',
+    label: 'ระบบ',
+    itemKeys: ['help-center', 'setup', 'audit', 'superadmin-dashboard'],
+  },
 ];
 
-const studentSubNavItems = [
-  { label: 'รายชื่อและห้องเรียน', value: 'roster' },
-  { label: 'Data Quality', value: 'quality' },
-  { label: 'แบบเยี่ยมบ้าน กสศ.', value: 'home-visit' },
-  { label: 'โปรไฟล์รายคน', value: 'profile' },
-  { label: 'เคสดูแล', value: 'care' },
-  { label: 'Portal และผู้ปกครอง', value: 'portal' },
-  { label: 'ประวัติการทำงาน', value: 'timeline' },
-];
-
-const scoreSubNavItems = [
-  { label: 'ภาพรวมคะแนน', value: 'overview' },
-  { label: 'สร้างชุดคะแนน', value: 'setup' },
-  { label: 'กรอกคะแนน', value: 'entry' },
-  { label: 'สมุดรวมคะแนน', value: 'gradebook' },
-];
-
-const scheduleSubNavItems = [
-  { label: 'ตาราง', value: 'table' },
-  { label: 'ตั้งค่า', value: 'settings' },
-];
-
-const reportSubNavItems = [
-  { label: 'เวลาเรียน', value: 'attendance' },
-  { label: 'เงินออม', value: 'savings' },
-  { label: 'คะแนนรวมห้อง', value: 'scores' },
-  { label: 'รายบุคคล', value: 'individual' },
-  { label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
-  { label: 'ตั้งค่ารายงาน', value: 'settings' },
-];
-
-export function Sidebar({ activeView, navItems, session }: SidebarProps) {
-  const location = useLocation();
-  const isSuperadmin = session?.profile.role === 'superadmin';
-  const requestedStudentSubView = new URLSearchParams(location.search).get('studentView') || 'roster';
-  const activeStudentSubView = studentSubNavItems.some((item) => item.value === requestedStudentSubView)
-    ? requestedStudentSubView
-    : 'roster';
-  const requestedScoreSubView = new URLSearchParams(location.search).get('scoreView') || 'entry';
-  const activeScoreSubView = scoreSubNavItems.some((item) => item.value === requestedScoreSubView)
-    ? requestedScoreSubView
-    : 'entry';
-  const requestedScheduleSubView = new URLSearchParams(location.search).get('scheduleView') || 'table';
-  const activeScheduleSubView = scheduleSubNavItems.some((item) => item.value === requestedScheduleSubView)
-    ? requestedScheduleSubView
-    : 'table';
-  const requestedReportSubView = new URLSearchParams(location.search).get('reportView') || 'attendance';
-  const activeReportSubView = reportSubNavItems.some((item) => item.value === requestedReportSubView)
-    ? requestedReportSubView
-    : 'attendance';
+export function Sidebar({
+  activeView,
+  isMobileOpen = false,
+  navItems,
+  onClose,
+  session,
+}: SidebarProps) {
   const renderedKeys = new Set<string>();
   const sections = sidebarSections
     .map((section) => {
@@ -87,175 +55,101 @@ export function Sidebar({ activeView, navItems, session }: SidebarProps) {
   const uncategorizedItems = navItems.filter((item) => !renderedKeys.has(item.key));
 
   return (
-    <aside className="hidden overflow-y-auto border-r border-[#ead8bd]/75 bg-white/88 p-4 shadow-[12px_0_32px_rgba(122,79,38,0.07)] backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-      <div className="flex items-center gap-3 rounded-2xl bg-slate-950 p-2.5 text-white shadow-[0_16px_36px_rgba(2,6,23,0.18)]">
-        <AppLogo className="h-11 w-11 rounded-xl bg-white shadow-[0_0_22px_rgba(255,255,255,0.20)]" />
-        <div className="min-w-0">
-          <p className="truncate text-lg font-black tracking-tight">ClassCare 360</p>
-          <p className="truncate text-xs font-bold text-cyan-100">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
-        </div>
-      </div>
-
-      <nav className="mt-5 grid gap-1" aria-label="เมนูหลัก">
-        {[...sections, ...(uncategorizedItems.length ? [{ key: 'other', label: 'อื่น ๆ', items: uncategorizedItems }] : [])].map(
-          (section) => {
-            const hasActiveItem = section.items.some((item) => item.key === activeView);
-
-            return (
-              <details
-                className="group border-b border-[#ead8bd]/70 py-2 last:border-b-0"
-                key={section.key}
-                open={hasActiveItem || section.key === 'primary'}
-              >
-                <summary className="flex h-8 cursor-pointer list-none items-center justify-between gap-3 px-1 text-[11px] font-black uppercase tracking-[0.06em] text-slate-400 transition hover:text-slate-950 [&::-webkit-details-marker]:hidden">
-                  <span className="truncate">{section.label}</span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="rounded-full bg-[#f8ead4] px-2 py-0.5 text-[10px] text-[#7a4f26]">{section.items.length}</span>
-                    <ChevronRight
-                      className="transition group-open:rotate-90"
-                      size={15}
-                      aria-hidden="true"
-                    />
-                  </span>
-                </summary>
-                <div className="grid gap-1 pt-1">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.key === activeView;
-
-                return (
-                  <div className="grid gap-1" key={item.label}>
-                    <Link
-                      className={`flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-black transition ${
-                        isActive
-                          ? 'bg-[#fff1c9] text-[#5a3515] shadow-sm ring-1 ring-[#e8c47b]'
-                          : 'text-slate-600 hover:bg-white/90 hover:text-slate-950 hover:shadow-sm'
-                      }`}
-                      to={item.path}
-                    >
-                      <Icon size={18} aria-hidden="true" />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-
-                    {item.key === 'students' && isActive ? (
-                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
-                        {studentSubNavItems.map((subItem) => {
-                          const isSubActive = activeStudentSubView === subItem.value;
-
-                          return (
-                            <Link
-                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
-                                isSubActive
-                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
-                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
-                              }`}
-                              key={subItem.value}
-                              to={`/app/dashboard?view=students&studentView=${subItem.value}`}
-                            >
-                              <span className="truncate">{subItem.label}</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-
-                    {item.key === 'scores' && isActive ? (
-                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
-                        {scoreSubNavItems.map((subItem) => {
-                          const isSubActive = activeScoreSubView === subItem.value;
-
-                          return (
-                            <Link
-                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
-                                isSubActive
-                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
-                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
-                              }`}
-                              key={subItem.value}
-                              to={`/app/dashboard?view=scores&scoreView=${subItem.value}`}
-                            >
-                              <span className="truncate">{subItem.label}</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-
-                    {item.key === 'schedule' && isActive ? (
-                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
-                        {scheduleSubNavItems.map((subItem) => {
-                          const isSubActive = activeScheduleSubView === subItem.value;
-
-                          return (
-                            <Link
-                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
-                                isSubActive
-                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
-                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
-                              }`}
-                              key={subItem.value}
-                              to={`/app/dashboard?view=schedule&scheduleView=${subItem.value}`}
-                            >
-                              <span className="truncate">{subItem.label}</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-
-                    {item.key === 'reports' && isActive ? (
-                      <div className="ml-4 grid gap-0.5 border-l border-[#ead8bd] pl-3">
-                        {reportSubNavItems.map((subItem) => {
-                          const isSubActive = activeReportSubView === subItem.value;
-
-                          return (
-                            <Link
-                              className={`flex min-h-8 items-center rounded-lg px-2.5 text-xs font-black transition ${
-                                isSubActive
-                                  ? 'bg-[#fff6dc] text-[#8a5200] ring-1 ring-[#f1d18c]'
-                                  : 'text-slate-500 hover:bg-white hover:text-slate-950'
-                              }`}
-                              key={subItem.value}
-                              to={`/app/dashboard?view=reports&reportView=${subItem.value}`}
-                            >
-                              <span className="truncate">{subItem.label}</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-                </div>
-              </details>
-            );
-          },
-        )}
-      </nav>
-
-      {isSuperadmin ? (
-        <div className="mt-5 overflow-hidden rounded-2xl border border-cyan-200 bg-white/90 p-3 shadow-[0_14px_30px_rgba(14,165,233,0.09)]">
-          <div className="flex items-center gap-2 text-cyan-700">
-            <ServerCog size={18} aria-hidden="true" />
-            <p className="font-black">Superadmin Tools</p>
+    <>
+      <button
+        className={`fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-sm transition lg:hidden ${
+          isMobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+        aria-label="ปิดเมนู"
+        onClick={onClose}
+        type="button"
+      />
+      <aside className={`app-sidebar ${isMobileOpen ? 'is-open' : ''}`}>
+        <div className="app-sidebar-brand">
+          <AppLogo className="h-10 w-10 rounded-xl bg-white" />
+          <div className="min-w-0">
+            <p className="truncate text-base font-black tracking-tight text-white">ClassCare 360</p>
+            <p className="truncate text-[11px] font-bold text-cyan-100/75">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
           </div>
-          <p className="mt-2 text-xs font-bold leading-5 text-slate-600">
-            จัดการสิทธิ์ admin, workspace, ระบบตรวจสอบ และศูนย์ควบคุมหลักของแอป
-          </p>
+          <button
+            className="ml-auto grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white lg:hidden"
+            aria-label="ปิดเมนู"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={19} aria-hidden="true" />
+          </button>
+        </div>
+
+        <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
+          {[...sections, ...(uncategorizedItems.length ? [{ key: 'other', label: 'อื่น ๆ', items: uncategorizedItems }] : [])].map(
+            (section) => {
+              const hasActiveItem = section.items.some((item) => item.key === activeView);
+              const isSingle = section.items.length === 1;
+
+              if (isSingle) {
+                const item = section.items[0];
+                const Icon = item.icon;
+                return (
+                  <Link
+                    className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                    key={section.key}
+                    onClick={onClose}
+                    to={item.path}
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{section.label}</span>
+                  </Link>
+                );
+              }
+
+              return (
+                <details className="app-sidebar-section" key={section.key} open={hasActiveItem}>
+                  <summary>
+                    <span>{section.label}</span>
+                    <ChevronDown size={15} aria-hidden="true" />
+                  </summary>
+                  <div className="grid gap-1 py-1">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                          key={item.key}
+                          onClick={onClose}
+                          to={item.path}
+                        >
+                          <Icon size={17} aria-hidden="true" />
+                          <span className="truncate">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </details>
+              );
+            },
+          )}
+        </nav>
+
+        {session?.profile.role === 'superadmin' ? (
           <Link
-            className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#fff1c9] px-3 text-sm font-black text-[#5a3515] shadow-sm ring-1 ring-[#e8c47b] transition hover:-translate-y-0.5"
+            className="app-admin-shortcut"
+            onClick={onClose}
             to="/app/dashboard?view=superadmin-dashboard"
           >
-            เปิดศูนย์ผู้ดูแล
-            <ChevronRight size={17} aria-hidden="true" />
+            <ServerCog size={18} aria-hidden="true" />
+            <span>
+              <strong>Superadmin</strong>
+              <small>ศูนย์ควบคุมระบบ</small>
+            </span>
           </Link>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className="mt-auto rounded-xl border border-[#ead8bd] bg-white/80 p-3 text-xs font-bold text-slate-500 shadow-sm">
-        Created by MIKPURINUT
-      </div>
-    </aside>
+        <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-3 text-[10px] font-bold text-slate-400">
+          <span>Created by MIKPURINUT</span>
+          <PanelLeftClose size={16} aria-hidden="true" />
+        </div>
+      </aside>
+    </>
   );
 }

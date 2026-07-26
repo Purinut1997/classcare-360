@@ -18,12 +18,12 @@ export function SignOutButton({ className = '' }: SignOutButtonProps) {
 
   return (
     <button
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 hover:shadow-md ${className}`}
+      className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:text-slate-950 ${className}`}
       onClick={handleSignOut}
       type="button"
     >
       <LogOut size={17} aria-hidden="true" />
-      ออกจากระบบ
+      <span>ออกจากระบบ</span>
     </button>
   );
 }
