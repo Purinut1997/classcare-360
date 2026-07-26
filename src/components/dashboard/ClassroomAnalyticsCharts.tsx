@@ -54,11 +54,12 @@ interface ClassroomAnalyticsChartsProps {
 export function ClassroomAnalyticsCharts({ data }: ClassroomAnalyticsChartsProps) {
   const { attendance, behavior, dataCompleteness, savings, scores } = data;
 
-  const totalAttendance = attendance.present + attendance.late + attendance.leave + attendance.absent || 1;
-  const presentPct = Math.round((attendance.present / totalAttendance) * 100);
-  const latePct = Math.round((attendance.late / totalAttendance) * 100);
-  const leavePct = Math.round((attendance.leave / totalAttendance) * 100);
-  const absentPct = Math.round((attendance.absent / totalAttendance) * 100);
+  const rawTotalAttendance = attendance.present + attendance.late + attendance.leave + attendance.absent;
+  const totalAttendance = rawTotalAttendance || 1;
+  const presentPct = rawTotalAttendance > 0 ? Math.round((attendance.present / totalAttendance) * 100) : 0;
+  const latePct = rawTotalAttendance > 0 ? Math.round((attendance.late / totalAttendance) * 100) : 0;
+  const leavePct = rawTotalAttendance > 0 ? Math.round((attendance.leave / totalAttendance) * 100) : 0;
+  const absentPct = rawTotalAttendance > 0 ? Math.round((attendance.absent / totalAttendance) * 100) : 0;
 
   // Donut chart calculations
   const radius = 40;
@@ -70,8 +71,9 @@ export function ClassroomAnalyticsCharts({ data }: ClassroomAnalyticsChartsProps
   const offsetLeave = ((attendance.present + attendance.late) / totalAttendance) * circumference;
   const offsetAbsent = ((attendance.present + attendance.late + attendance.leave) / totalAttendance) * circumference;
 
-  const totalBehavior = (behavior.positivePoints || 0) + (behavior.negativePoints || 0) || 1;
-  const posBehaviorPct = Math.round(((behavior.positivePoints || 0) / totalBehavior) * 100);
+  const rawTotalBehavior = (behavior.positivePoints || 0) + (behavior.negativePoints || 0);
+  const totalBehavior = rawTotalBehavior || 1;
+  const posBehaviorPct = rawTotalBehavior > 0 ? Math.round(((behavior.positivePoints || 0) / totalBehavior) * 100) : 0;
 
   const completenessScore = Math.round(
     ((dataCompleteness.studentsCount > 0 ? 25 : 0) +
@@ -232,7 +234,7 @@ export function ClassroomAnalyticsCharts({ data }: ClassroomAnalyticsChartsProps
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span className="text-2xl font-black text-slate-950">{totalAttendance}</span>
+              <span className="text-2xl font-black text-slate-950">{rawTotalAttendance}</span>
               <span className="text-[10px] font-bold text-slate-400">รายการบันทึก</span>
             </div>
           </div>

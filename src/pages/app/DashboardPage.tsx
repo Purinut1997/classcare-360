@@ -51,37 +51,37 @@ interface ClassroomRow {
   name: string;
 }
 
-const defaultAnalyticsData: ClassroomAnalyticsData = {
+const emptyAnalyticsData: ClassroomAnalyticsData = {
   attendance: {
-    absent: 2,
-    late: 1,
-    leave: 2,
-    present: 375,
-    totalSessions: 20,
+    absent: 0,
+    late: 0,
+    leave: 0,
+    present: 0,
+    totalSessions: 0,
   },
   behavior: {
-    negativePoints: 2,
-    positivePoints: 28,
-    totalRecords: 12,
+    negativePoints: 0,
+    positivePoints: 0,
+    totalRecords: 0,
   },
-  classroomName: 'ประถมศึกษาปีที่ 5/1',
+  classroomName: '',
   dataCompleteness: {
-    attendanceCheckedToday: true,
-    behaviorRecorded: true,
-    homeVisitsCount: 15,
-    scoresEnteredCount: 5,
-    studentsCount: 20,
+    attendanceCheckedToday: false,
+    behaviorRecorded: false,
+    homeVisitsCount: 0,
+    scoresEnteredCount: 0,
+    studentsCount: 0,
   },
   savings: {
-    accountCount: 20,
-    activeAccounts: 18,
-    monthlyDeposits: 4500,
-    totalBalance: 68450,
+    accountCount: 0,
+    activeAccounts: 0,
+    monthlyDeposits: 0,
+    totalBalance: 0,
   },
   scores: {
-    assessmentCount: 5,
-    averagePercent: 82,
-    passedStudentsCount: 18,
+    assessmentCount: 0,
+    averagePercent: 0,
+    passedStudentsCount: 0,
   },
 };
 
@@ -126,7 +126,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
-  const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(defaultAnalyticsData);
+  const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
 
   // Load Classrooms
   useEffect(() => {
@@ -194,13 +194,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [session.workspace]);
 
-  // Load Classroom Specific Analytics Data
+  // Load Classroom Specific Analytics Data (Real Database Query)
   useEffect(() => {
     let isMounted = true;
 
     async function loadClassroomAnalytics() {
       if (!supabase || !session.workspace || !selectedClassroomId) {
-        setAnalyticsData(defaultAnalyticsData);
+        setAnalyticsData(emptyAnalyticsData);
         return;
       }
 
@@ -213,22 +213,24 @@ export function DashboardPage({ session }: DashboardPageProps) {
         { data: savingsAccountRows },
         { data: savingsTxRows },
         { data: scoreAssessments },
+        { data: scoreRecords },
         { data: behaviorRows },
         { data: homeVisitRows },
       ] = await Promise.all([
         supabase.from('students').select('id').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId),
-        supabase.from('attendance_records').select('status, record_date').eq('workspace_id', session.workspace.id),
+        supabase.from('attendance_records').select('student_id, status, record_date').eq('workspace_id', session.workspace.id),
         supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
-        supabase.from('savings_transactions').select('amount, transaction_type').eq('workspace_id', session.workspace.id),
-        supabase.from('score_assessments').select('id').eq('workspace_id', session.workspace.id),
-        supabase.from('behavior_records').select('points, tone').eq('workspace_id', session.workspace.id),
-        supabase.from('student_home_visits').select('id').eq('workspace_id', session.workspace.id).eq('status', 'completed'),
+        supabase.from('savings_transactions').select('student_id, amount, transaction_type').eq('workspace_id', session.workspace.id),
+        supabase.from('score_assessments').select('id, max_score').eq('workspace_id', session.workspace.id),
+        supabase.from('score_records').select('student_id, score, assessment_id').eq('workspace_id', session.workspace.id),
+        supabase.from('behavior_records').select('student_id, points, tone').eq('workspace_id', session.workspace.id),
+        supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).eq('status', 'completed'),
       ]);
 
       if (!isMounted) return;
 
       const studentIds = new Set((studentRows || []).map((s) => s.id));
-      const studentsCount = studentIds.size || (studentRows ? studentRows.length : 0);
+      const studentsCount = studentIds.size;
 
       // Attendance calculations
       let present = 0;
@@ -239,38 +241,62 @@ export function DashboardPage({ session }: DashboardPageProps) {
       let attendanceCheckedToday = false;
 
       (attendanceRows || []).forEach((row) => {
-        if (row.record_date === todayStr) {
-          attendanceCheckedToday = true;
+        if (studentIds.has(row.student_id)) {
+          if (row.record_date === todayStr) {
+            attendanceCheckedToday = true;
+          }
+          if (row.status === 'present' || row.status === 'activity') present++;
+          else if (row.status === 'late') late++;
+          else if (row.status === 'leave' || row.status === 'sick') leave++;
+          else if (row.status === 'absent') absent++;
         }
-        if (row.status === 'present' || row.status === 'activity') present++;
-        else if (row.status === 'late') late++;
-        else if (row.status === 'leave' || row.status === 'sick') leave++;
-        else if (row.status === 'absent') absent++;
       });
 
-      // If no attendance records found in real DB yet, provide realistic mock fallback
-      if (present + late + leave + absent === 0) {
-        present = 375;
-        late = 1;
-        leave = 2;
-        absent = 2;
-        attendanceCheckedToday = true;
-      }
-
       // Savings calculations
-      const activeSavingsAccounts = (savingsAccountRows || []).filter((acc) => Number(acc.balance || 0) > 0).length || Math.min(studentsCount || 20, 18);
-      const totalBalance = (savingsAccountRows || []).reduce((sum, acc) => sum + Number(acc.balance || 0), 0) || 68450;
+      const classroomSavingsAccounts = (savingsAccountRows || []).filter((acc) => studentIds.has(acc.student_id));
+      const activeSavingsAccounts = classroomSavingsAccounts.filter((acc) => Number(acc.balance || 0) > 0).length;
+      const totalBalance = classroomSavingsAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
       const monthlyDeposits = (savingsTxRows || [])
-        .filter((tx) => tx.transaction_type === 'deposit')
-        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0) || 4500;
+        .filter((tx) => studentIds.has(tx.student_id) && tx.transaction_type === 'deposit')
+        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 
       // Behavior calculations
       let posPoints = 0;
       let negPoints = 0;
+      let behaviorCount = 0;
       (behaviorRows || []).forEach((b) => {
-        if (b.tone === 'positive') posPoints += Number(b.points || 1);
-        else negPoints += Number(b.points || 1);
+        if (studentIds.has(b.student_id)) {
+          behaviorCount++;
+          if (b.tone === 'positive') posPoints += Number(b.points || 1);
+          else negPoints += Number(b.points || 1);
+        }
       });
+
+      // Home Visits
+      const homeVisitsCount = (homeVisitRows || []).filter((hv) => studentIds.has(hv.student_id)).length;
+
+      // Scores
+      const maxScoreMap = new Map((scoreAssessments || []).map((a) => [a.id, Number(a.max_score || 100)]));
+      const classroomScoreRecords = (scoreRecords || []).filter((sr) => studentIds.has(sr.student_id));
+      let totalScorePct = 0;
+      const studentScoresMap = new Map<string, number[]>();
+
+      classroomScoreRecords.forEach((sr) => {
+        const max = maxScoreMap.get(sr.assessment_id) || 100;
+        const pct = Math.min(100, Math.max(0, (Number(sr.score || 0) / max) * 100));
+        totalScorePct += pct;
+
+        if (!studentScoresMap.has(sr.student_id)) studentScoresMap.set(sr.student_id, []);
+        studentScoresMap.get(sr.student_id)?.push(pct);
+      });
+
+      let passedStudentsCount = 0;
+      studentScoresMap.forEach((pcts) => {
+        const avg = pcts.reduce((sum, p) => sum + p, 0) / pcts.length;
+        if (avg >= 50) passedStudentsCount++;
+      });
+
+      const averagePercent = classroomScoreRecords.length > 0 ? Math.round(totalScorePct / classroomScoreRecords.length) : 0;
 
       setAnalyticsData({
         attendance: {
@@ -281,28 +307,28 @@ export function DashboardPage({ session }: DashboardPageProps) {
           totalSessions: present + late + leave + absent,
         },
         behavior: {
-          negativePoints: negPoints || 2,
-          positivePoints: posPoints || 28,
-          totalRecords: (behaviorRows || []).length || 12,
+          negativePoints: negPoints,
+          positivePoints: posPoints,
+          totalRecords: behaviorCount,
         },
         classroomName,
         dataCompleteness: {
           attendanceCheckedToday,
-          behaviorRecorded: (behaviorRows || []).length > 0,
-          homeVisitsCount: (homeVisitRows || []).length || Math.min(studentsCount || 20, 15),
-          scoresEnteredCount: (scoreAssessments || []).length || 5,
-          studentsCount: studentsCount || 20,
+          behaviorRecorded: behaviorCount > 0,
+          homeVisitsCount,
+          scoresEnteredCount: (scoreAssessments || []).length,
+          studentsCount,
         },
         savings: {
-          accountCount: (savingsAccountRows || []).length || 20,
+          accountCount: classroomSavingsAccounts.length,
           activeAccounts: activeSavingsAccounts,
           monthlyDeposits,
           totalBalance,
         },
         scores: {
-          assessmentCount: (scoreAssessments || []).length || 5,
-          averagePercent: 82,
-          passedStudentsCount: Math.round((studentsCount || 20) * 0.9),
+          assessmentCount: (scoreAssessments || []).length,
+          averagePercent,
+          passedStudentsCount,
         },
       });
     }
