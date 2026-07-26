@@ -865,7 +865,9 @@ export function ReportsPage({ session }: ReportsPageProps) {
       setStudents((studentRows || []) as StudentRow[]);
       setAttendanceSessions(nextSessions);
       setAttendanceRecords(nextRecords);
-      setClassroomId((current) => current || nextClassrooms[0]?.id || '');
+      setClassroomId((current) =>
+        current && nextClassrooms.some((classroom) => classroom.id === current) ? current : nextClassrooms[0]?.id || '',
+      );
 
       const [
         { data: assessmentRows, error: assessmentError },
@@ -999,7 +1001,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
     const normalizedQuery = query.trim().toLowerCase();
 
     return rows.filter((row) => {
-      if (classroomId && row.classroomName !== classrooms.find((item) => item.id === classroomId)?.name) return false;
+      const targetClassroom = classrooms.find((item) => item.id === classroomId) || classrooms[0];
+      if (targetClassroom && row.classroomName !== targetClassroom.name) return false;
       if (!normalizedQuery) return true;
 
       return [row.studentCode, row.studentName, row.status, statusLabels[row.status], row.note]
