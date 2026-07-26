@@ -72,7 +72,10 @@ const typeStyles: Record<CalendarType, string> = {
 };
 
 function toDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function toThaiDate(dateText: string) {
@@ -351,19 +354,31 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     const target = events.find((event) => event.id === eventId);
     if (!target) return;
 
+    // Remove from UI immediately
     setEvents((current) => current.filter((event) => event.id !== eventId));
 
-    if (!supabase || !isUuid(eventId)) return;
+    // If it's a local event or no Supabase, just remove from localStorage
+    if (!supabase || !isUuid(eventId) || target.source === 'local') {
+      const localEvents = loadLocalCalendar(session);
+      const updatedLocal = localEvents.filter((event) => event.id !== eventId);
+      const storageKey = getDataSafetyStorageKey(session);
+      const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      state.calendarRules = updatedLocal;
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+      setSync({ status: 'local', message: 'ลบรายการในเครื่องแล้ว' });
+      return;
+    }
 
+    // Try to delete from Supabase
     try {
       const { error } = await supabase.from('school_calendar_days').delete().eq('id', eventId);
       if (error) throw error;
       setSync({ status: 'synced', message: 'ลบวันพิเศษออกจาก Supabase แล้ว' });
     } catch (error) {
-      setEvents((current) => [...current, target].sort((a, b) => a.date.localeCompare(b.date)));
+      // Don't restore the item - keep it removed from UI but show error
       setSync({
         status: 'error',
-        message: `ลบวันพิเศษไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
+        message: `ลบจาก Supabase ไม่สำเร็จ แต่ลบจากหน้าจอแล้ว: ${String((error as { message?: string })?.message || error)}`,
       });
     }
   };
