@@ -97,6 +97,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const usedCells = Object.keys(settings.cells).length;
   const totalCells = settings.activeDays.length * periods.length;
   const completion = totalCells > 0 ? Math.round((usedCells / totalCells) * 100) : 0;
+  const editingPeriod = editingCell ? periods.find((period) => period.index === editingCell.periodIndex) : null;
 
   function updateSettings(next: Partial<typeof settings>) {
     setSettings((current) => ({ ...current, ...next }));
@@ -635,66 +636,8 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   <Settings2 size={17} aria-hidden="true" />
                   ตั้งค่า
                 </button>
-                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
-                  <Save size={17} aria-hidden="true" />
-                  บันทึกตาราง
-                </button>
-                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
-                  <Printer size={17} aria-hidden="true" />
-                  พิมพ์ A4 แนวนอน
-                </button>
               </div>
             </div>
-
-            {editingCell ? (
-              <div className="mb-5 rounded-[1.75rem] border border-[#d99b40] bg-white p-4 shadow-[0_18px_44px_rgba(122,79,38,0.12)]">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                  <div className="min-w-[180px]">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">กำลังแก้ไข</p>
-                    <h3 className="mt-1 text-2xl font-black text-slate-950">
-                      {editingCell.day} / คาบ {editingCell.periodIndex}
-                    </h3>
-                  </div>
-                  <label className="grid flex-1 gap-2 text-sm font-black text-slate-700">
-                    รายวิชา
-                    <select className="nexus-field h-11 px-3" onChange={(event) => updateCellDraftSubject(event.target.value)} value={cellDraft.subject}>
-                      {settings.subjects.map((subject) => (
-                        <option key={subject.name} value={subject.name}>
-                          {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid min-w-[150px] gap-2 text-sm font-black text-slate-700">
-                    รหัสวิชา
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, subjectCode: event.target.value }))} placeholder="เช่น ค15101" value={cellDraft.subjectCode || ''} />
-                  </label>
-                  <label className="grid min-w-[170px] gap-2 text-sm font-black text-slate-700">
-                    ห้องเรียน
-                    <select className="nexus-field h-11 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, classroom: event.target.value }))} value={cellDraft.classroom}>
-                      {settings.classroomOptions.map((classroom) => (
-                        <option key={classroom} value={classroom}>
-                          {classroom}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 lg:w-[330px]">
-                    <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={saveEditingCell} type="button">
-                      <Save size={16} aria-hidden="true" />
-                      บันทึก
-                    </button>
-                    <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-rose-600 ring-rose-200" onClick={clearEditingCell} type="button">
-                      <Trash2 size={16} aria-hidden="true" />
-                      ล้าง
-                    </button>
-                    <button className="nexus-pill inline-flex h-11 items-center justify-center px-4 text-sm font-black text-slate-600" onClick={() => setEditingCell(null)} type="button">
-                      ยกเลิก
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
 
             <div className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/90 p-4">
               <div className="grid gap-3 rounded-3xl border border-[#e6bd70] bg-[#fffaf0] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -715,6 +658,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่ แก้ไข หรือล้างวิชาในคาบนั้น</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
+                  <Save size={17} aria-hidden="true" />
+                  บันทึกตาราง
+                </button>
+                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
+                  <Printer size={17} aria-hidden="true" />
+                  พิมพ์ A4 แนวนอน
+                </button>
                 <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=attendance">
                   <FileSpreadsheet size={17} aria-hidden="true" />
                   รายงานเวลาเรียน
@@ -805,6 +756,93 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 </div>
               </div>
             </div>
+
+            {editingCell ? (
+              <div
+                aria-modal="true"
+                className="no-print fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setEditingCell(null);
+                }}
+                role="dialog"
+              >
+                <div className="w-full max-w-2xl rounded-[2rem] border border-[#e6bd70] bg-white p-5 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+                  <div className="flex flex-col gap-3 border-b border-[#ead8bd] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">เลือกวิชาในตาราง</p>
+                      <h3 className="mt-1 text-2xl font-black text-slate-950">
+                        {editingCell.day} / {editingPeriod?.label || `คาบ ${editingCell.periodIndex}`}
+                      </h3>
+                      <p className="mt-1 text-sm font-bold text-slate-500">
+                        {editingPeriod ? `${editingPeriod.start} - ${editingPeriod.end} น.` : 'เลือกวิชาและห้องเรียนสำหรับช่องนี้'}
+                      </p>
+                    </div>
+                    <button className="nexus-pill h-10 px-4 text-sm font-black text-slate-600" onClick={() => setEditingCell(null)} type="button">
+                      ปิด
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid gap-4">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      รายวิชา
+                      <select className="nexus-field h-12 px-3" onChange={(event) => updateCellDraftSubject(event.target.value)} value={cellDraft.subject}>
+                        {settings.subjects.length ? null : <option value={cellDraft.subject}>{cellDraft.subject || 'ไม่ระบุวิชา'}</option>}
+                        {settings.subjects.map((subject) => (
+                          <option key={subject.name} value={subject.name}>
+                            {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid gap-2 text-sm font-black text-slate-700">
+                        รหัสวิชา
+                        <input
+                          className="nexus-field h-12 px-3"
+                          onChange={(event) => setCellDraft((current) => ({ ...current, subjectCode: event.target.value }))}
+                          placeholder="เช่น ค15101"
+                          value={cellDraft.subjectCode || ''}
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm font-black text-slate-700">
+                        ห้องเรียน
+                        <select className="nexus-field h-12 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, classroom: event.target.value }))} value={cellDraft.classroom}>
+                          {settings.classroomOptions.map((classroom) => (
+                            <option key={classroom} value={classroom}>
+                              {classroom}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="rounded-3xl border border-[#ead8bd] bg-[#fffaf0] p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#b46a00]">ตัวอย่างในช่อง</p>
+                      <div className="mt-3 rounded-2xl bg-[#4b2f18] p-4 text-white">
+                        <p className="text-sm font-black opacity-80">{cellDraft.subjectCode || '-'}</p>
+                        <p className="mt-1 text-lg font-black">{cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}</p>
+                        <p className="mt-1 text-sm font-bold opacity-80">{cellDraft.classroom || identity.classroomName}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                      <button className="amber-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black" onClick={saveEditingCell} type="button">
+                        <Save size={17} aria-hidden="true" />
+                        บันทึกช่องนี้
+                      </button>
+                      <button className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-5 text-sm font-black text-rose-600 ring-rose-200" onClick={clearEditingCell} type="button">
+                        <Trash2 size={17} aria-hidden="true" />
+                        ล้างช่อง
+                      </button>
+                      <button className="nexus-pill h-12 px-5 text-sm font-black text-slate-600" onClick={() => setEditingCell(null)} type="button">
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         )}
       </div>
