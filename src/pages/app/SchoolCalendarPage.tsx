@@ -3,10 +3,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Pencil,
   Plus,
   Printer,
   RefreshCw,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -219,6 +221,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     type: 'activity' as CalendarType,
     attendancePolicy: 'normal' as AttendancePolicy,
   });
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   const loadEvents = async () => {
     if (!supabase || !session.workspace?.id) {
@@ -380,6 +383,66 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
         message: `ลบวันพิเศษไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
       });
     }
+  };
+
+  const updateEvent = async () => {
+    if (!editingEvent || !draft.title.trim()) return;
+
+    if (!supabase || !isUuid(editingEvent.id) || editingEvent.source === 'local') {
+      // Update local storage
+      const localEvents = loadLocalCalendar(session);
+      const updatedLocal = localEvents.map((event) =>
+        event.id === editingEvent.id
+          ? { ...event, date: draft.date, title: draft.title.trim(), type: draft.type, attendancePolicy: draft.attendancePolicy }
+          : event
+      );
+      const storageKey = getDataSafetyStorageKey(session);
+      const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      state.calendarRules = updatedLocal;
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+      setEvents(updatedLocal);
+      setSync({ status: 'local', message: 'แก้ไขรายการในเครื่องแล้ว' });
+      setEditingEvent(null);
+      return;
+    }
+
+    // Update in Supabase
+    try {
+      const { data, error } = await supabase
+        .from('school_calendar_days')
+        .update({
+          calendar_date: draft.date,
+          day_type: toDayType(draft.type),
+          title: draft.title.trim(),
+          affects_attendance: draft.attendancePolicy !== 'skip',
+          affects_reports: true,
+          metadata: { attendancePolicy: draft.attendancePolicy },
+        })
+        .eq('id', editingEvent.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      setEvents((current) => current.map((event) => (event.id === editingEvent.id ? mapCalendarRow(data) : event)));
+      setSync({ status: 'synced', message: 'แก้ไขวันพิเศษใน Supabase แล้ว' });
+      setEditingEvent(null);
+    } catch (error) {
+      setSync({
+        status: 'error',
+        message: `แก้ไขวันพิเศษไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
+      });
+    }
+  };
+
+  const openEditModal = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setDraft({
+      date: event.date,
+      title: event.title,
+      type: event.type,
+      attendancePolicy: event.attendancePolicy,
+    });
   };
 
   return (
@@ -635,14 +698,24 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                           </span>
                         </div>
                       </div>
-                      <button
-                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600"
-                        onClick={() => void removeEvent(event.id)}
-                        type="button"
-                        aria-label={`ลบ ${event.title}`}
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600"
+                          onClick={() => openEditModal(event)}
+                          type="button"
+                          aria-label={`แก้ไข ${event.title}`}
+                        >
+                          <Pencil size={16} aria-hidden="true" />
+                        </button>
+                        <button
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600"
+                          onClick={() => void removeEvent(event.id)}
+                          type="button"
+                          aria-label={`ลบ ${event.title}`}
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -655,6 +728,92 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
           </div>
         </div>
       </section>
+
+      {/* Edit Modal */}
+      {editingEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#ead8bd] bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-cyan-700">แก้ไขวันในปฏิทิน</p>
+                <h2 className="text-2xl font-black text-slate-950">{toThaiDate(editingEvent.date)}</h2>
+              </div>
+              <button
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600"
+                onClick={() => setEditingEvent(null)}
+                type="button"
+                aria-label="ปิด"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <FieldLabel>
+                วันที่
+                <input
+                  className="nexus-field mt-2 h-12 px-4"
+                  type="date"
+                  value={draft.date}
+                  onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))}
+                />
+              </FieldLabel>
+              <FieldLabel>
+                ประเภทวัน
+                <select
+                  className="nexus-field mt-2 h-12 px-4"
+                  value={draft.type}
+                  onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as CalendarType }))}
+                >
+                  <option value="activity">กิจกรรม</option>
+                  <option value="holiday">หยุดเรียน</option>
+                  <option value="exam">สอบ</option>
+                  <option value="makeup">เรียนชดเชย</option>
+                  <option value="custom">กำหนดเอง</option>
+                </select>
+              </FieldLabel>
+              <FieldLabel>
+                นโยบายเช็กชื่อ
+                <select
+                  className="nexus-field mt-2 h-12 px-4"
+                  value={draft.attendancePolicy}
+                  onChange={(event) => setDraft((current) => ({ ...current, attendancePolicy: event.target.value as AttendancePolicy }))}
+                >
+                  <option value="normal">เช็กชื่อตามปกติ</option>
+                  <option value="warn">เตือนก่อนเช็กชื่อ</option>
+                  <option value="skip">ไม่นับเป็นวันเรียน</option>
+                </select>
+              </FieldLabel>
+              <FieldLabel>
+                ชื่อรายการ
+                <input
+                  className="nexus-field mt-2 h-12 px-4"
+                  placeholder="เช่น สอบกลางภาค / กิจกรรมวันแม่"
+                  value={draft.title}
+                  onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+                />
+              </FieldLabel>
+              <div className="flex gap-2">
+                <button
+                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-5 text-sm font-black text-slate-700"
+                  onClick={() => setEditingEvent(null)}
+                  type="button"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  className="amber-action inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black"
+                  onClick={updateEvent}
+                  type="button"
+                >
+                  <Pencil size={17} aria-hidden="true" />
+                  บันทึกการแก้ไข
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
