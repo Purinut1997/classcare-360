@@ -488,6 +488,102 @@ function buildMonthlyAttendanceGrid({
   };
 }
 
+interface MonthlySavingsRow {
+  dailyAmounts: Record<string, number>;
+  studentCode: string;
+  studentId: string;
+  studentName: string;
+  totalBalance: number;
+  totalMonth: number;
+}
+
+interface MonthlySavingsGrid {
+  classroom: ClassroomRow | null;
+  dayTotals: Record<number, number>;
+  rows: MonthlySavingsRow[];
+  totalActiveSavingsStudents: number;
+  totalCumulativeBalance: number;
+  totalMonthSavings: number;
+  totalStudents: number;
+}
+
+function buildMonthlySavingsGrid({
+  savingsAccounts,
+  savingsTransactions,
+  classroomId,
+  classrooms,
+  dateFrom,
+  students,
+}: {
+  savingsAccounts: SavingsAccountRow[];
+  savingsTransactions: SavingsTransactionRow[];
+  classroomId: string;
+  classrooms: ClassroomRow[];
+  dateFrom: string;
+  students: StudentRow[];
+}): MonthlySavingsGrid {
+  const { days } = getReportMonthContext(dateFrom);
+  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null;
+  const selectedClassroomId = selectedClassroom?.id || classroomId;
+  const classroomStudents = students.filter((student) => !selectedClassroomId || student.classroom_id === selectedClassroomId);
+  const savingsAccountByStudent = new Map(savingsAccounts.map((account) => [account.student_id, account]));
+
+  const dayTotals: Record<number, number> = {};
+  let totalMonthSavings = 0;
+  let totalCumulativeBalance = 0;
+  let totalActiveSavingsStudents = 0;
+
+  const rows = classroomStudents.map((student) => {
+    const account = savingsAccountByStudent.get(student.id);
+    const totalBalance = Number(account?.balance || 0);
+    totalCumulativeBalance += totalBalance;
+
+    const studentTx = savingsTransactions.filter((tx) => tx.student_id === student.id);
+    const dailyAmounts: Record<string, number> = {};
+    let totalMonth = 0;
+
+    days.forEach((day) => {
+      const dayTxs = studentTx.filter((tx) => tx.transaction_date === day.dateKey);
+      const dayNet = dayTxs.reduce((sum, tx) => {
+        const amt = Number(tx.amount || 0);
+        if (tx.transaction_type === 'deposit') return sum + amt;
+        if (tx.transaction_type === 'withdrawal') return sum - amt;
+        return sum + amt;
+      }, 0);
+
+      if (dayNet !== 0) {
+        dailyAmounts[day.dateKey] = dayNet;
+        totalMonth += dayNet;
+        dayTotals[day.day] = (dayTotals[day.day] || 0) + dayNet;
+      }
+    });
+
+    if (totalMonth > 0) {
+      totalActiveSavingsStudents += 1;
+    }
+    totalMonthSavings += totalMonth;
+
+    return {
+      dailyAmounts,
+      studentCode: student.student_code || '-',
+      studentId: student.id,
+      studentName: `${student.first_name} ${student.last_name}`,
+      totalBalance,
+      totalMonth,
+    };
+  });
+
+  return {
+    classroom: selectedClassroom,
+    dayTotals,
+    rows,
+    totalActiveSavingsStudents,
+    totalCumulativeBalance,
+    totalMonthSavings,
+    totalStudents: classroomStudents.length,
+  };
+}
+
 function buildPrintableReportHtml({
   attendanceGrid,
   dateFrom,
@@ -503,12 +599,9 @@ function buildPrintableReportHtml({
 }) {
   const { days, monthLabel } = getReportMonthContext(dateFrom);
   const dayHeaders = days
-    .map(
-      (day) => `
-        <th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>
-      `,
-    )
+    .map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`)
     .join('');
+
   const studentRows = attendanceGrid.rows
     .map((row, index) => {
       const dayCells = days
@@ -531,21 +624,13 @@ function buildPrintableReportHtml({
       `;
     })
     .join('');
+
   const totalCells = days
     .map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${attendanceGrid.dayTotals[day.day] || ''}</td>`)
     .join('');
-  const summaryCards = (['present', 'late', 'leave', 'absent'] as const)
-    .map(
-      (key) => `
-        <div class="summary-card">
-          <span>${monthlyStatusLabels[key]}</span>
-          <strong>${attendanceGrid.summary[key].toLocaleString('th-TH')}</strong>
-        </div>
-      `,
-    )
-    .join('');
+
   const classroomName = attendanceGrid.classroom?.name || workspaceName || '-';
-  const academicYear = attendanceGrid.classroom?.academic_year || '-';
+  const academicYear = attendanceGrid.classroom?.academic_year || '2569';
 
   return `<!doctype html>
     <html lang="th">
@@ -566,39 +651,40 @@ function buildPrintableReportHtml({
             display: grid;
             gap: 12px;
             grid-template-columns: 74px minmax(0,1fr) 74px;
-            padding: 10px 0 8px;
+            padding: 8px 0 8px;
             text-align: center;
           }
           .logo {
             align-items: center;
             border: 1px solid #bfdbfe;
-            border-radius: 18px;
+            border-radius: 50%;
             color: #0369a1;
             display: flex;
             font-size: 14px;
             font-weight: 900;
             height: 56px;
             justify-content: center;
+            margin: 0 auto;
             width: 56px;
           }
-          h1 { font-size: 24px; margin: 0; }
-          .subtitle { font-size: 15px; font-weight: 700; margin: 2px 0; }
-          .classline { font-size: 14px; font-weight: 700; margin: 8px 0 6px; }
+          h1 { font-size: 22px; margin: 0; }
+          .subtitle { font-size: 14px; font-weight: 700; margin: 2px 0; }
+          .classline { font-size: 13px; font-weight: 700; margin: 8px 0 6px; }
           .summary-grid {
             display: grid;
-            gap: 6px;
+            gap: 10px;
             grid-template-columns: repeat(4, 1fr);
-            margin: 8px 0;
+            margin: 8px 0 12px;
           }
           .summary-card {
-            background: #eff6ff;
-            border: 1px solid #93c5fd;
-            border-radius: 8px;
-            padding: 8px;
+            background: #f0f7ff;
+            border: 1px solid #c7e0fe;
+            border-radius: 12px;
+            padding: 6px 12px;
             text-align: center;
           }
-          .summary-card span { display: block; font-size: 13px; font-weight: 800; }
-          .summary-card strong { color: #1d4ed8; display: block; font-size: 20px; margin-top: 2px; }
+          .summary-card span { display: block; font-size: 12px; font-weight: 700; color: #1e40af; }
+          .summary-card strong { color: #1d4ed8; display: block; font-size: 18px; margin-top: 1px; }
           table { border-collapse: collapse; table-layout: fixed; width: 100%; }
           th, td {
             border: 1px solid #111827;
@@ -610,39 +696,72 @@ function buildPrintableReportHtml({
           }
           th { background: #f4a3cf; font-weight: 900; }
           th.name, td.name { text-align: left; width: 190px; }
-          th.number, td.number { width: 34px; }
+          th.number, td.number { width: 32px; }
           .day { width: 22px; }
           .weekend { background: #cfd6df !important; }
           .present { color: #047857; font-weight: 900; }
           .late { color: #b45309; font-weight: 900; }
           .leave { color: #075985; font-weight: 900; }
           .absent { color: #be123c; font-weight: 900; }
-          .sum { background: #fff7cc; width: 38px; }
+          .sum { background: #fff7cc; width: 36px; font-weight: 700; }
           .total { background: #ffe4e6; font-weight: 900; }
           tfoot td { background: #ffe4e6; font-weight: 900; }
+          .footer-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 24px;
+          }
           .signatures {
             display: grid;
-            gap: 100px;
+            gap: 120px;
             grid-template-columns: 1fr 1fr;
-            margin-top: 28px;
             text-align: center;
+            width: 75%;
           }
-          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 230px; }
-          .role { font-weight: 800; margin-top: 5px; }
+          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 200px; }
+          .role { font-weight: 800; margin-top: 4px; }
+          .footer-meta {
+            text-align: right;
+            font-size: 10px;
+            color: #64748b;
+          }
+          .footer-meta .credit {
+            margin-top: 12px;
+            font-weight: 700;
+            color: #94a3b8;
+          }
         </style>
       </head>
       <body>
         <header>
           <div class="logo">C360</div>
           <div>
-            <h1>รายงานเวลาเรียนระดับชั้น ${escapeHtml(classroomName)} ประจำเดือน ${escapeHtml(monthLabel)}</h1>
+            <h1>รายงานเวลาเรียนระดับชั้น ${escapeHtml(classroomName)} ประจำเดือน ${escapeHtml(dateFrom.slice(0, 7))}</h1>
             <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
             <p class="subtitle">เดือน${escapeHtml(monthLabel)}</p>
           </div>
           <div></div>
         </header>
         <p class="classline">ระดับชั้น: ${escapeHtml(classroomName)}</p>
-        <section class="summary-grid">${summaryCards}</section>
+        <section class="summary-grid">
+          <div class="summary-card">
+            <span>มา</span>
+            <strong>${attendanceGrid.summary.present.toLocaleString('th-TH')}</strong>
+          </div>
+          <div class="summary-card">
+            <span>สาย</span>
+            <strong>${attendanceGrid.summary.late.toLocaleString('th-TH')}</strong>
+          </div>
+          <div class="summary-card">
+            <span>ลา</span>
+            <strong>${attendanceGrid.summary.leave.toLocaleString('th-TH')}</strong>
+          </div>
+          <div class="summary-card">
+            <span>ขาด</span>
+            <strong>${attendanceGrid.summary.absent.toLocaleString('th-TH')}</strong>
+          </div>
+        </section>
         <table>
           <thead>
             <tr>
@@ -668,18 +787,240 @@ function buildPrintableReportHtml({
             </tr>
           </tfoot>
         </table>
-        <section class="signatures">
-          <div>
-            <span>ลงชื่อ</span><span class="signature-line"></span>
-            <div>(${escapeHtml(teacherName)})</div>
-            <div class="role">ครูประจำชั้น</div>
+        <div class="footer-section">
+          <div class="signatures">
+            <div>
+              <span>ลงชื่อ</span> <span class="signature-line"></span>
+              <div style="margin-top: 4px;">(${escapeHtml(teacherName)})</div>
+              <div class="role">ครูประจำชั้น</div>
+            </div>
+            <div>
+              <span>ลงชื่อ</span> <span class="signature-line"></span>
+              <div style="margin-top: 4px;">(................................................)</div>
+              <div class="role">ผู้อำนวยการโรงเรียน</div>
+            </div>
           </div>
+          <div class="footer-meta">
+            <div>หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด / ช่องสีเทาคือวันหยุดสุดสัปดาห์หรือวันที่ไม่มีในเดือนนั้น</div>
+            <div class="credit">Created by MIKPURINUT</div>
+          </div>
+        </div>
+      </body>
+    </html>`;
+}
+
+function buildPrintableSavingsReportHtml({
+  savingsGrid,
+  dateFrom,
+  teacherName,
+  schoolName,
+  workspaceName,
+}: {
+  savingsGrid: MonthlySavingsGrid;
+  dateFrom: string;
+  teacherName: string;
+  schoolName: string;
+  workspaceName: string;
+}) {
+  const { days, monthLabel } = getReportMonthContext(dateFrom);
+  const dayHeaders = days
+    .map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`)
+    .join('');
+
+  const studentRows = savingsGrid.rows
+    .map((row, index) => {
+      const dayCells = days
+        .map((day) => {
+          const amt = row.dailyAmounts[day.dateKey];
+          return `<td class="day ${day.isWeekend ? 'weekend' : ''}">${amt ? amt : ''}</td>`;
+        })
+        .join('');
+
+      return `
+        <tr>
+          <td class="number">${index + 1}</td>
+          <td class="name">${escapeHtml(row.studentName)}</td>
+          ${dayCells}
+          <td class="sum month-total">${row.totalMonth ? row.totalMonth.toLocaleString('th-TH') : ''}</td>
+          <td class="sum balance-total">${row.totalBalance ? row.totalBalance.toLocaleString('th-TH') : ''}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const totalCells = days
+    .map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`)
+    .join('');
+
+  const classroomName = savingsGrid.classroom?.name || workspaceName || '-';
+  const academicYear = savingsGrid.classroom?.academic_year || '2569';
+
+  return `<!doctype html>
+    <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>ClassCare 360 - รายงานการบันทึกการออมเงิน</title>
+        <style>
+          @page { margin: 8mm; size: A4 landscape; }
+          * { box-sizing: border-box; }
+          body {
+            color: #07111f;
+            font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, Arial, sans-serif;
+            line-height: 1.25;
+            margin: 0;
+          }
+          header {
+            border-bottom: 3px solid #2458ff;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 74px minmax(0,1fr) 74px;
+            padding: 8px 0 8px;
+            text-align: center;
+          }
+          .logo {
+            align-items: center;
+            border: 1px solid #bfdbfe;
+            border-radius: 50%;
+            color: #0369a1;
+            display: flex;
+            font-size: 14px;
+            font-weight: 900;
+            height: 56px;
+            justify-content: center;
+            margin: 0 auto;
+            width: 56px;
+          }
+          h1 { font-size: 22px; margin: 0; }
+          .subtitle { font-size: 14px; font-weight: 700; margin: 2px 0; }
+          .classline { font-size: 13px; font-weight: 700; margin: 8px 0 6px; }
+          .summary-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, 1fr);
+            margin: 8px 0 12px;
+          }
+          .summary-card {
+            background: #f0f7ff;
+            border: 1px solid #c7e0fe;
+            border-radius: 12px;
+            padding: 6px 12px;
+            text-align: center;
+          }
+          .summary-card span { display: block; font-size: 12px; font-weight: 700; color: #1e40af; }
+          .summary-card strong { color: #1d4ed8; display: block; font-size: 18px; margin-top: 1px; }
+          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+          th, td {
+            border: 1px solid #111827;
+            font-size: 11px;
+            height: 18px;
+            padding: 2px 3px;
+            text-align: center;
+            vertical-align: middle;
+          }
+          th { background: #f4a3cf; font-weight: 900; }
+          th.name, td.name { text-align: left; width: 190px; }
+          th.number, td.number { width: 32px; }
+          .day { width: 22px; }
+          .weekend { background: #cfd6df !important; }
+          .sum { background: #fff7cc; width: 45px; font-weight: 700; }
+          .month-total { background: #e0f2fe; color: #0369a1; font-weight: 800; }
+          .balance-total { background: #fce7f3; color: #be185d; font-weight: 800; }
+          .total { background: #ffe4e6; font-weight: 900; }
+          tfoot td { background: #ffe4e6; font-weight: 900; }
+          .footer-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 24px;
+          }
+          .signatures {
+            display: grid;
+            gap: 120px;
+            grid-template-columns: 1fr 1fr;
+            text-align: center;
+            width: 75%;
+          }
+          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 200px; }
+          .role { font-weight: 800; margin-top: 4px; }
+          .footer-meta {
+            text-align: right;
+            font-size: 10px;
+            color: #64748b;
+          }
+          .footer-meta .credit {
+            margin-top: 12px;
+            font-weight: 700;
+            color: #94a3b8;
+          }
+        </style>
+      </head>
+      <body>
+        <header>
+          <div class="logo">C360</div>
           <div>
-            <span>ลงชื่อ</span><span class="signature-line"></span>
-            <div>(................................................)</div>
-            <div class="role">ผู้อำนวยการโรงเรียน</div>
+            <h1>รายงานการบันทึกการออมเงินระดับชั้น ${escapeHtml(classroomName)}</h1>
+            <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
+            <p class="subtitle">เดือน${escapeHtml(monthLabel)}</p>
+          </div>
+          <div></div>
+        </header>
+        <p class="classline">ระดับชั้น: ${escapeHtml(classroomName)}</p>
+        <section class="summary-grid">
+          <div class="summary-card">
+            <span>นักเรียนทั้งหมด</span>
+            <strong>${savingsGrid.totalStudents}</strong>
+          </div>
+          <div class="summary-card">
+            <span>มีการออมเดือนนี้</span>
+            <strong>${savingsGrid.totalActiveSavingsStudents}</strong>
+          </div>
+          <div class="summary-card">
+            <span>ยอดรวมเดือนนี้</span>
+            <strong>${savingsGrid.totalMonthSavings.toLocaleString('th-TH')}</strong>
+          </div>
+          <div class="summary-card">
+            <span>ยอดสะสม/คงเหลือรวม</span>
+            <strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</strong>
           </div>
         </section>
+        <table>
+          <thead>
+            <tr>
+              <th class="number">เลขที่</th>
+              <th class="name">ชื่อ-นามสกุล</th>
+              ${dayHeaders}
+              <th>รวม</th>
+              <th>ยอดสะสม/คงเหลือ</th>
+            </tr>
+          </thead>
+          <tbody>${studentRows}</tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              <td class="name">รวม</td>
+              ${totalCells}
+              <td>${savingsGrid.totalMonthSavings.toLocaleString('th-TH')}</td>
+              <td>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="footer-section">
+          <div class="signatures">
+            <div>
+              <span>ลงชื่อ</span> <span class="signature-line"></span>
+              <div style="margin-top: 4px;">(${escapeHtml(teacherName)})</div>
+              <div class="role">ครูประจำชั้น</div>
+            </div>
+            <div>
+              <span>ลงชื่อ</span> <span class="signature-line"></span>
+              <div style="margin-top: 4px;">(................................................)</div>
+              <div class="role">ผู้อำนวยการโรงเรียน</div>
+            </div>
+          </div>
+          <div class="footer-meta">
+            <div class="credit">Created by MIKPURINUT</div>
+          </div>
+        </div>
       </body>
     </html>`;
 }
@@ -1035,6 +1376,21 @@ export function ReportsPage({ session }: ReportsPageProps) {
     [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, students],
   );
 
+  const monthlySavingsGrid = useMemo(
+    () =>
+      buildMonthlySavingsGrid({
+        classroomId,
+        classrooms,
+        dateFrom,
+        savingsAccounts,
+        savingsTransactions,
+        students,
+      }),
+    [classroomId, classrooms, dateFrom, savingsAccounts, savingsTransactions, students],
+  );
+
+  const monthContext = useMemo(() => getReportMonthContext(dateFrom), [dateFrom]);
+
   const selectedClassroom = useMemo(
     () => classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null,
     [classroomId, classrooms],
@@ -1189,7 +1545,9 @@ export function ReportsPage({ session }: ReportsPageProps) {
             : reportView === 'individual' && selectedStudent
               ? 1
               : 0;
-  const exportableAttendance = reportView === 'attendance' && reportRows.length > 0;
+  const exportableAttendance =
+    (reportView === 'attendance' && monthlyAttendanceGrid.rows.length > 0) ||
+    (reportView === 'savings' && monthlySavingsGrid.rows.length > 0);
   const readinessItems = [
     { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
     { label: 'เลือกห้อง/ช่วงข้อมูล', ready: Boolean(classroomId && dateFrom && dateTo) },
@@ -1233,15 +1591,25 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportExcel() {
-    const html = buildPrintableReportHtml({
-      attendanceGrid: monthlyAttendanceGrid,
-      dateFrom,
-      schoolName: session.workspace?.schoolName || 'Demo Workspace',
-      teacherName: session.profile.displayName,
-      workspaceName: session.workspace?.name || 'Demo Workspace',
-    });
+    const html =
+      reportView === 'savings'
+        ? buildPrintableSavingsReportHtml({
+            dateFrom,
+            savingsGrid: monthlySavingsGrid,
+            schoolName: session.workspace?.schoolName || 'Demo Workspace',
+            teacherName: session.profile.displayName,
+            workspaceName: session.workspace?.name || 'Demo Workspace',
+          })
+        : buildPrintableReportHtml({
+            attendanceGrid: monthlyAttendanceGrid,
+            dateFrom,
+            schoolName: session.workspace?.schoolName || 'Demo Workspace',
+            teacherName: session.profile.displayName,
+            workspaceName: session.workspace?.name || 'Demo Workspace',
+          });
+
     downloadBlob(
-      `classcare-attendance-monthly-${dateFrom.slice(0, 7)}.xls`,
+      `classcare-${reportView}-monthly-${dateFrom.slice(0, 7)}.xls`,
       new Blob([`\uFEFF${html}`], { type: 'application/vnd.ms-excel;charset=utf-8' }),
     );
   }
@@ -1334,16 +1702,25 @@ export function ReportsPage({ session }: ReportsPageProps) {
       return;
     }
 
+    const html =
+      reportView === 'savings'
+        ? buildPrintableSavingsReportHtml({
+            dateFrom,
+            savingsGrid: monthlySavingsGrid,
+            schoolName: session.workspace?.schoolName || 'Demo Workspace',
+            teacherName: session.profile.displayName,
+            workspaceName: session.workspace?.name || 'Demo Workspace',
+          })
+        : buildPrintableReportHtml({
+            attendanceGrid: monthlyAttendanceGrid,
+            dateFrom,
+            schoolName: session.workspace?.schoolName || 'Demo Workspace',
+            teacherName: session.profile.displayName,
+            workspaceName: session.workspace?.name || 'Demo Workspace',
+          });
+
     printWindow.document.open();
-    printWindow.document.write(
-      buildPrintableReportHtml({
-        attendanceGrid: monthlyAttendanceGrid,
-        dateFrom,
-        schoolName: session.workspace?.schoolName || 'Demo Workspace',
-        teacherName: session.profile.displayName,
-        workspaceName: session.workspace?.name || 'Demo Workspace',
-      }),
-    );
+    printWindow.document.write(html);
     printWindow.document.close();
     printWindow.focus();
     window.setTimeout(() => printWindow.print(), 350);
@@ -1581,51 +1958,101 @@ export function ReportsPage({ session }: ReportsPageProps) {
 
           {reportView === 'attendance' ? (
             <>
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                {summary.map((item) => (
-                  <div className="nexus-muted-box p-3 text-center transition hover:-translate-y-1" key={item.status}>
-                    <p className="text-2xl font-black text-slate-950">{item.count}</p>
-                    <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+              {/* Dark Mode Monthly Attendance Grid (Reference Image #1) */}
+              <div className="mt-5 rounded-3xl border border-slate-800 bg-[#080d1a] p-4 text-white shadow-2xl md:p-6">
+                <div className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-white">
+                      รายงานเวลาเรียนระดับชั้น {selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} ประจำเดือน {dateFrom.slice(0, 7)}
+                    </h2>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      {session.workspace?.schoolName || 'โรงเรียนบ้านโคกสูง'} · ช่วงวันที่ {dateFrom} ถึง {dateTo}
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-900/60 bg-[#0e1d20] px-3 py-1.5 text-xs font-black text-[#4ade80]">
+                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#0a3525] text-sm font-black text-[#4ade80]">
+                        {monthlyAttendanceGrid.summary.present}
+                      </span>
+                      มา
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-amber-900/60 bg-[#271d0e] px-3 py-1.5 text-xs font-black text-[#facc15]">
+                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#452e0a] text-sm font-black text-[#facc15]">
+                        {monthlyAttendanceGrid.summary.late}
+                      </span>
+                      สาย
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-sky-900/60 bg-[#0f2136] px-3 py-1.5 text-xs font-black text-[#38bdf8]">
+                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#0b3356] text-sm font-black text-[#38bdf8]">
+                        {monthlyAttendanceGrid.summary.leave}
+                      </span>
+                      ลา
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-rose-900/60 bg-[#2e0f19] px-3 py-1.5 text-xs font-black text-[#f87171]">
+                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#4c1021] text-sm font-black text-[#f87171]">
+                        {monthlyAttendanceGrid.summary.absent}
+                      </span>
+                      ขาด
+                    </div>
+                  </div>
+                </div>
 
-              <div className="mt-5 overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-100 text-left">
-                  <thead>
-                    <tr className="text-xs font-black uppercase text-slate-500">
-                      <th className="px-3 py-3">วันที่</th>
-                      <th className="px-3 py-3">ห้อง</th>
-                      <th className="px-3 py-3">นักเรียน</th>
-                      <th className="px-3 py-3">สถานะ</th>
-                      <th className="px-3 py-3">หมายเหตุ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {reportRows.map((row, index) => (
-                      <tr className="hover:bg-amber-50/50" key={`${row.date}-${row.studentCode}-${index}`}>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
-                          {row.date}
-                          <span className="block text-xs text-slate-400">{row.periodLabel}</span>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName}</td>
-                        <td className="px-3 py-3">
-                          <p className="font-black text-slate-950">{row.studentName}</p>
-                          <p className="text-xs font-bold text-slate-500">{row.studentCode}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3">
-                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                            {statusLabels[row.status]}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 font-bold text-slate-600">{row.note || '-'}</td>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400">
+                        <th className="w-10 px-2 py-3 text-center">เลขที่</th>
+                        <th className="w-48 px-3 py-3 text-left">ชื่อ-สกุล</th>
+                        {monthContext.days.map((day) => (
+                          <th
+                            className={`w-8 px-1 py-3 text-center ${day.isWeekend ? 'bg-slate-900/60 text-slate-600' : ''}`}
+                            key={day.day}
+                          >
+                            {day.day}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-bold">
+                      {monthlyAttendanceGrid.rows.map((row, index) => (
+                        <tr className="transition hover:bg-slate-800/40" key={row.studentCode + index}>
+                          <td className="px-2 py-2.5 text-center font-bold text-slate-400">{index + 1}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-200">{row.studentName}</td>
+                          {monthContext.days.map((day) => {
+                            const status = row.dailyStatuses[day.dateKey];
+                            return (
+                              <td
+                                className={`px-0.5 py-1 text-center ${day.isWeekend ? 'bg-slate-900/40' : ''}`}
+                                key={day.dateKey}
+                              >
+                                {status === 'present' || status === 'activity' ? (
+                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#0e3a29] text-[10px] font-black text-[#4ade80] ring-1 ring-emerald-500/30">
+                                    มา
+                                  </span>
+                                ) : status === 'late' ? (
+                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#3a280c] text-[10px] font-black text-[#facc15] ring-1 ring-amber-500/30">
+                                    สาย
+                                  </span>
+                                ) : status === 'leave' || status === 'sick' ? (
+                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#0d2a45] text-[10px] font-black text-[#38bdf8] ring-1 ring-sky-500/30">
+                                    ลา
+                                  </span>
+                                ) : status === 'absent' ? (
+                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#450d1b] text-[10px] font-black text-[#f87171] ring-1 ring-rose-500/30">
+                                    ขาด
+                                  </span>
+                                ) : null}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {!isLoading && reportRows.length === 0 ? (
+              {!isLoading && monthlyAttendanceGrid.rows.length === 0 ? (
                 <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
                   ยังไม่มีข้อมูลเวลาเรียนตามช่วงวันที่และตัวกรองนี้
                 </div>
@@ -1634,61 +2061,83 @@ export function ReportsPage({ session }: ReportsPageProps) {
           ) : null}
 
           {reportView === 'savings' ? (
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <article className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-black uppercase text-amber-700">ยอดคงเหลือห้อง</p>
-                  <p className="mt-2 text-4xl font-black text-slate-950">{formatBaht(savingsReportRows.reduce((sum, row) => sum + row.balance, 0))}</p>
-                  <p className="mt-1 text-sm font-bold text-slate-600">บาท</p>
-                </article>
-                <article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="text-xs font-black uppercase text-emerald-700">ฝากช่วงนี้</p>
-                  <p className="mt-2 text-4xl font-black text-slate-950">{formatBaht(savingsReportRows.reduce((sum, row) => sum + row.deposits, 0))}</p>
-                  <p className="mt-1 text-sm font-bold text-slate-600">บาท</p>
-                </article>
-                <article className="rounded-3xl border border-rose-200 bg-rose-50 p-4">
-                  <p className="text-xs font-black uppercase text-rose-700">ถอนช่วงนี้</p>
-                  <p className="mt-2 text-4xl font-black text-slate-950">{formatBaht(savingsReportRows.reduce((sum, row) => sum + row.withdrawals, 0))}</p>
-                  <p className="mt-1 text-sm font-bold text-slate-600">บาท</p>
-                </article>
-              </div>
+            <>
+              {/* Dark Mode Monthly Savings Grid (Reference Image #3) */}
+              <div className="mt-5 rounded-3xl border border-slate-800 bg-[#080d1a] p-4 text-white shadow-2xl md:p-6">
+                <div className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-white">
+                      รายงานการบันทึกการออมเงินระดับชั้น {selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'}
+                    </h2>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      {session.workspace?.schoolName || 'โรงเรียนบ้านโคกสูง'} · ภาคเรียนที่ 1 ปีการศึกษา {selectedClassroom?.academic_year || '2569'} · เดือน{monthContext.monthLabel}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 rounded-2xl border border-cyan-900/60 bg-[#0c2b35] px-3 py-1.5 text-xs font-black text-[#22d3ee]">
+                      <span className="text-[11px] font-bold text-slate-400">นักเรียน</span>
+                      <span className="text-sm font-black text-[#22d3ee]">{monthlySavingsGrid.totalStudents}</span>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-cyan-900/60 bg-[#0c2b35] px-3 py-1.5 text-xs font-black text-[#22d3ee]">
+                      <span className="text-[11px] font-bold text-slate-400">ออมแล้ว</span>
+                      <span className="text-sm font-black text-[#22d3ee]">{monthlySavingsGrid.totalActiveSavingsStudents}</span>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-cyan-900/60 bg-[#0c2b35] px-3 py-1.5 text-xs font-black text-[#22d3ee]">
+                      <span className="text-[11px] font-bold text-slate-400">ยอดรวม</span>
+                      <span className="text-sm font-black text-[#22d3ee]">{monthlySavingsGrid.totalMonthSavings.toLocaleString('th-TH')}</span>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-100 text-left">
-                  <thead>
-                    <tr className="text-xs font-black uppercase text-slate-500">
-                      <th className="px-3 py-3">นักเรียน</th>
-                      <th className="px-3 py-3">ฝาก</th>
-                      <th className="px-3 py-3">ถอน</th>
-                      <th className="px-3 py-3">ยอดคงเหลือ</th>
-                      <th className="px-3 py-3">รายการ</th>
-                      <th className="px-3 py-3">ล่าสุด</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {savingsReportRows.map((row) => (
-                      <tr className="hover:bg-amber-50/50" key={row.student.id}>
-                        <td className="px-3 py-3">
-                          <p className="font-black text-slate-950">{row.student.first_name} {row.student.last_name}</p>
-                          <p className="text-xs font-bold text-slate-500">{row.student.student_code || '-'}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 font-black text-emerald-700">{formatBaht(row.deposits)} ฿</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-black text-rose-700">{formatBaht(row.withdrawals)} ฿</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-black text-slate-950">{formatBaht(row.balance)} ฿</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.transactionCount}</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.latestDate}</td>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400">
+                        <th className="w-10 px-2 py-3 text-center">เลขที่</th>
+                        <th className="w-48 px-3 py-3 text-left">ชื่อ-สกุล</th>
+                        {monthContext.days.map((day) => (
+                          <th
+                            className={`w-8 px-1 py-3 text-center ${day.isWeekend ? 'bg-slate-900/60 text-slate-600' : ''}`}
+                            key={day.day}
+                          >
+                            {day.day}
+                          </th>
+                        ))}
+                        <th className="w-24 px-3 py-3 text-right font-black text-cyan-400">รวมเดือนนี้</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-bold">
+                      {monthlySavingsGrid.rows.map((row, index) => (
+                        <tr className="transition hover:bg-slate-800/40" key={row.studentId + index}>
+                          <td className="px-2 py-2.5 text-center font-bold text-slate-400">{index + 1}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-200">{row.studentName}</td>
+                          {monthContext.days.map((day) => {
+                            const amt = row.dailyAmounts[day.dateKey];
+                            return (
+                              <td
+                                className={`px-0.5 py-1 text-center font-bold ${day.isWeekend ? 'bg-slate-900/40 text-slate-700' : 'text-slate-300'}`}
+                                key={day.dateKey}
+                              >
+                                {amt ? amt : ''}
+                              </td>
+                            );
+                          })}
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-[#22d3ee]">
+                            {row.totalMonth ? row.totalMonth.toLocaleString('th-TH') : '0'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {!isLoading && classroomSavingsTransactions.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีรายการฝาก/ถอนในช่วงเวลานี้ แต่ยังแสดงยอดคงเหลือจากบัญชีเงินออมได้
+              {!isLoading && monthlySavingsGrid.rows.length === 0 ? (
+                <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
+                  ยังไม่มีรายการฝาก/ถอนในช่วงเวลานี้
                 </div>
               ) : null}
-            </div>
+            </>
           ) : null}
 
           {reportView === 'scores' ? (
