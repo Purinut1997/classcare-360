@@ -67,6 +67,8 @@ interface StudentRow {
   care_flags: Record<string, unknown>;
   classroom_id: string | null;
   first_name: string;
+  gender?: 'male' | 'female' | 'other' | 'unspecified';
+  health_flags?: Record<string, unknown>;
   id: string;
   last_name: string;
   metadata?: Record<string, unknown>;
@@ -1049,14 +1051,58 @@ function renderHomeVisitPrintHtml({
 
 function emptyStudentForm(classroomId: string) {
   return {
+    bloodType: '',
     birthDate: '',
+    cannotDisposeStatus: '',
     citizenId: '',
     classroomId,
+    disadvantage: '',
+    district: '',
+    ethnicity: '',
+    fatherFirstName: '',
+    fatherLastName: '',
+    fatherOccupation: '',
+    fatherPrefix: '',
     firstName: '',
+    gender: 'unspecified' as NonNullable<StudentRow['gender']>,
+    guardianFirstName: '',
+    guardianLastName: '',
+    guardianOccupation: '',
+    guardianPrefix: '',
+    guardianRelation: '',
+    heightCm: '',
+    houseNo: '',
     lastName: '',
+    motherFirstName: '',
+    motherLastName: '',
+    motherOccupation: '',
+    motherPrefix: '',
+    nationality: '',
     nickname: '',
+    prefix: '',
+    province: '',
+    religion: '',
+    roadOrSoi: '',
+    schoolCode: '',
+    schoolName: '',
     studentCode: '',
+    subdistrict: '',
+    villageNo: '',
+    weightKg: '',
   };
+}
+
+function objectValue(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function textValue(value: unknown) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function nullableValue(value: string) {
+  const trimmed = value.trim();
+  return trimmed || null;
 }
 
 export function StudentsPage({ session }: StudentsPageProps) {
@@ -1356,7 +1402,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
+          .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false }),
         supabase
@@ -1439,16 +1485,54 @@ export function StudentsPage({ session }: StudentsPageProps) {
   }
 
   function startEditStudent(student: StudentRow) {
+    const metadata = student.metadata || {};
+    const address = objectValue(metadata.dmc_address);
+    const guardian = objectValue(metadata.dmc_guardian);
+    const father = objectValue(metadata.dmc_father);
+    const mother = objectValue(metadata.dmc_mother);
+    const healthFlags = student.health_flags || {};
+    const careFlags = student.care_flags || {};
     setSelectedStudentId(student.id);
     setEditingStudentId(student.id);
     setStudentForm({
+      bloodType: textValue(healthFlags.blood_type),
       birthDate: student.birth_date || '',
-      citizenId: '',
+      cannotDisposeStatus: textValue(careFlags.cannot_dispose_status),
+      citizenId: textValue(metadata.dmc_id_card),
       classroomId: student.classroom_id || classrooms[0]?.id || '',
+      disadvantage: textValue(careFlags.disadvantage),
+      district: textValue(address.district),
+      ethnicity: textValue(metadata.dmc_ethnicity),
+      fatherFirstName: textValue(father.first_name),
+      fatherLastName: textValue(father.last_name),
+      fatherOccupation: textValue(father.occupation),
+      fatherPrefix: textValue(father.prefix),
       firstName: student.first_name,
+      gender: student.gender || 'unspecified',
+      guardianFirstName: textValue(guardian.first_name),
+      guardianLastName: textValue(guardian.last_name),
+      guardianOccupation: textValue(guardian.occupation),
+      guardianPrefix: textValue(guardian.prefix),
+      guardianRelation: textValue(guardian.relation),
+      heightCm: textValue(healthFlags.height_cm),
+      houseNo: textValue(address.house_no),
       lastName: student.last_name,
+      motherFirstName: textValue(mother.first_name),
+      motherLastName: textValue(mother.last_name),
+      motherOccupation: textValue(mother.occupation),
+      motherPrefix: textValue(mother.prefix),
+      nationality: textValue(metadata.dmc_nationality),
       nickname: student.nickname || '',
+      prefix: textValue(metadata.dmc_prefix),
+      province: textValue(address.province),
+      religion: textValue(metadata.dmc_religion),
+      roadOrSoi: textValue(address.road_or_soi),
+      schoolCode: textValue(metadata.dmc_school_code),
+      schoolName: textValue(metadata.dmc_school_name),
       studentCode: student.student_code || '',
+      subdistrict: textValue(address.subdistrict),
+      villageNo: textValue(address.village_no),
+      weightKg: textValue(healthFlags.weight_kg),
     });
   }
 
@@ -1616,6 +1700,58 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
+    const currentStudent = editingStudentId
+      ? students.find((student) => student.id === editingStudentId) || null
+      : null;
+    const nextHealthFlags = {
+      ...(currentStudent?.health_flags || {}),
+      blood_type: nullableValue(studentForm.bloodType),
+      height_cm: nullableValue(studentForm.heightCm),
+      weight_kg: nullableValue(studentForm.weightKg),
+    };
+    const nextCareFlags = {
+      ...(currentStudent?.care_flags || {}),
+      cannot_dispose_status: nullableValue(studentForm.cannotDisposeStatus),
+      disadvantage: nullableValue(studentForm.disadvantage),
+    };
+    const nextMetadata = {
+      ...(currentStudent?.metadata || {}),
+      dmc_address: {
+        district: nullableValue(studentForm.district),
+        house_no: nullableValue(studentForm.houseNo),
+        province: nullableValue(studentForm.province),
+        road_or_soi: nullableValue(studentForm.roadOrSoi),
+        subdistrict: nullableValue(studentForm.subdistrict),
+        village_no: nullableValue(studentForm.villageNo),
+      },
+      dmc_ethnicity: nullableValue(studentForm.ethnicity),
+      dmc_father: {
+        first_name: nullableValue(studentForm.fatherFirstName),
+        last_name: nullableValue(studentForm.fatherLastName),
+        occupation: nullableValue(studentForm.fatherOccupation),
+        prefix: nullableValue(studentForm.fatherPrefix),
+      },
+      dmc_guardian: {
+        first_name: nullableValue(studentForm.guardianFirstName),
+        last_name: nullableValue(studentForm.guardianLastName),
+        occupation: nullableValue(studentForm.guardianOccupation),
+        prefix: nullableValue(studentForm.guardianPrefix),
+        relation: nullableValue(studentForm.guardianRelation),
+      },
+      dmc_id_card: nullableValue(studentForm.citizenId),
+      dmc_mother: {
+        first_name: nullableValue(studentForm.motherFirstName),
+        last_name: nullableValue(studentForm.motherLastName),
+        occupation: nullableValue(studentForm.motherOccupation),
+        prefix: nullableValue(studentForm.motherPrefix),
+      },
+      dmc_nationality: nullableValue(studentForm.nationality),
+      dmc_prefix: nullableValue(studentForm.prefix),
+      dmc_religion: nullableValue(studentForm.religion),
+      dmc_school_code: nullableValue(studentForm.schoolCode),
+      dmc_school_name: nullableValue(studentForm.schoolName),
+    };
+
     if (!supabase || !session.workspace) {
       if (editingStudentId) {
         setStudents((current) =>
@@ -1624,9 +1760,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
               ? {
                   ...student,
                   birth_date: studentForm.birthDate || null,
+                  care_flags: nextCareFlags,
                   classroom_id: studentForm.classroomId,
                   first_name: trimmedFirstName,
+                  gender: studentForm.gender,
+                  health_flags: nextHealthFlags,
                   last_name: trimmedLastName,
+                  metadata: nextMetadata,
                   nickname: studentForm.nickname.trim() || null,
                   student_code: studentForm.studentCode.trim() || null,
                 }
@@ -1637,12 +1777,17 @@ export function StudentsPage({ session }: StudentsPageProps) {
       } else {
         const localStudent: StudentRow = {
           birth_date: studentForm.birthDate || null,
-          care_flags: {},
+          care_flags: nextCareFlags,
           classroom_id: studentForm.classroomId,
           first_name: trimmedFirstName,
+          gender: studentForm.gender,
+          health_flags: nextHealthFlags,
           id: `demo-student-${Date.now()}`,
           last_name: trimmedLastName,
-          metadata: studentForm.citizenId ? { public_lookup_ready: true } : {},
+          metadata: {
+            ...nextMetadata,
+            ...(studentForm.citizenId ? { public_lookup_ready: true } : {}),
+          },
           nickname: studentForm.nickname.trim() || null,
           status: 'active',
           student_code: studentForm.studentCode.trim() || null,
@@ -1660,9 +1805,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
       const targetClassroomId = await ensureClassroom();
       const payload = {
         birth_date: studentForm.birthDate || null,
+        care_flags: nextCareFlags,
         classroom_id: targetClassroomId || null,
         first_name: trimmedFirstName,
+        gender: studentForm.gender,
+        health_flags: nextHealthFlags,
         last_name: trimmedLastName,
+        metadata: nextMetadata,
         nickname: studentForm.nickname.trim() || null,
         student_code: studentForm.studentCode.trim() || null,
       };
@@ -1673,7 +1822,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           .update(payload)
           .eq('id', editingStudentId)
           .eq('workspace_id', session.workspace.id)
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
+          .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
           .single();
 
         if (error) throw error;
@@ -1710,7 +1859,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             status: 'active',
             workspace_id: session.workspace.id,
           })
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
+          .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
           .single();
 
         if (error) throw error;
@@ -1818,7 +1967,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     const { data, error } = await supabase
       .from('students')
       .insert(rows)
-      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata');
+      .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata');
 
     if (error) {
       setNotice(`เพิ่มข้อมูลทดลองไม่สำเร็จ: ${error.message}`);
@@ -1860,7 +2009,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .update({ status })
       .eq('id', student.id)
       .eq('workspace_id', session.workspace.id)
-      .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
+      .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
       .single();
 
     if (error) {
@@ -2020,7 +2169,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         .update({ care_flags: nextCareFlags })
         .eq('id', selectedStudent.id)
         .eq('workspace_id', session.workspace.id)
-        .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
+        .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
         .single(),
     ]);
 
@@ -2414,7 +2563,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         .update({ care_flags: nextCareFlags })
         .eq('id', selectedStudent.id)
         .eq('workspace_id', session.workspace.id)
-        .select('id,student_code,first_name,last_name,nickname,status,care_flags,classroom_id,birth_date,metadata')
+        .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
         .single(),
     ]);
 
@@ -3228,6 +3377,158 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   value={studentForm.nickname}
                 />
               </label>
+
+              <details className="rounded-3xl bg-amber-50/70 p-4 ring-1 ring-amber-100" open={Boolean(editingStudentId)}>
+                <summary className="cursor-pointer text-sm font-black text-amber-900">
+                  ข้อมูล DMC รายบุคคลครบชุด
+                  <span className="ml-2 text-xs font-bold text-slate-500">สุขภาพ ที่อยู่ และครอบครัว</span>
+                </summary>
+
+                <div className="mt-4 grid gap-5">
+                  <section>
+                    <p className="text-xs font-black uppercase tracking-wide text-cyan-700">ข้อมูลพื้นฐานและสุขภาพ</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {([
+                        ['prefix', 'คำนำหน้าชื่อ'],
+                        ['weightKg', 'น้ำหนัก (กก.)'],
+                        ['heightCm', 'ส่วนสูง (ซม.)'],
+                        ['bloodType', 'กลุ่มเลือด'],
+                        ['religion', 'ศาสนา'],
+                        ['ethnicity', 'เชื้อชาติ'],
+                        ['nationality', 'สัญชาติ'],
+                        ['disadvantage', 'ความด้อยโอกาส'],
+                      ] as const).map(([field, label]) => (
+                        <label className="grid gap-2 text-xs font-black text-slate-600" key={field}>
+                          {label}
+                          <input
+                            className="nexus-field h-10 px-3 text-sm"
+                            onChange={(event) => setStudentForm((current) => ({ ...current, [field]: event.target.value }))}
+                            value={studentForm[field]}
+                          />
+                        </label>
+                      ))}
+                      <label className="grid gap-2 text-xs font-black text-slate-600">
+                        เพศ
+                        <select
+                          className="nexus-field h-10 px-3 text-sm"
+                          onChange={(event) =>
+                            setStudentForm((current) => ({
+                              ...current,
+                              gender: event.target.value as NonNullable<StudentRow['gender']>,
+                            }))
+                          }
+                          value={studentForm.gender}
+                        >
+                          <option value="unspecified">ไม่ระบุ</option>
+                          <option value="male">ชาย</option>
+                          <option value="female">หญิง</option>
+                          <option value="other">อื่น ๆ</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-2 text-xs font-black text-slate-600 sm:col-span-2 lg:col-span-3">
+                        สถานะยังไม่สามารถจำหน่ายได้ (3.1.8)
+                        <input
+                          className="nexus-field h-10 px-3 text-sm"
+                          onChange={(event) => setStudentForm((current) => ({ ...current, cannotDisposeStatus: event.target.value }))}
+                          value={studentForm.cannotDisposeStatus}
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section>
+                    <p className="text-xs font-black uppercase tracking-wide text-cyan-700">ที่อยู่ตามข้อมูล DMC</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {([
+                        ['houseNo', 'บ้านเลขที่'],
+                        ['villageNo', 'หมู่'],
+                        ['roadOrSoi', 'ถนน/ซอย'],
+                        ['subdistrict', 'ตำบล'],
+                        ['district', 'อำเภอ'],
+                        ['province', 'จังหวัด'],
+                      ] as const).map(([field, label]) => (
+                        <label className="grid gap-2 text-xs font-black text-slate-600" key={field}>
+                          {label}
+                          <input
+                            className="nexus-field h-10 px-3 text-sm"
+                            onChange={(event) => setStudentForm((current) => ({ ...current, [field]: event.target.value }))}
+                            value={studentForm[field]}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+
+                  {([
+                    {
+                      fields: [
+                        ['guardianPrefix', 'คำนำหน้า'],
+                        ['guardianFirstName', 'ชื่อ'],
+                        ['guardianLastName', 'นามสกุล'],
+                        ['guardianOccupation', 'อาชีพ'],
+                        ['guardianRelation', 'ความสัมพันธ์'],
+                      ] as const,
+                      title: 'ผู้ปกครอง',
+                    },
+                    {
+                      fields: [
+                        ['fatherPrefix', 'คำนำหน้า'],
+                        ['fatherFirstName', 'ชื่อ'],
+                        ['fatherLastName', 'นามสกุล'],
+                        ['fatherOccupation', 'อาชีพ'],
+                      ] as const,
+                      title: 'บิดา',
+                    },
+                    {
+                      fields: [
+                        ['motherPrefix', 'คำนำหน้า'],
+                        ['motherFirstName', 'ชื่อ'],
+                        ['motherLastName', 'นามสกุล'],
+                        ['motherOccupation', 'อาชีพ'],
+                      ] as const,
+                      title: 'มารดา',
+                    },
+                  ] as const).map((group) => (
+                    <section key={group.title}>
+                      <p className="text-xs font-black uppercase tracking-wide text-cyan-700">{group.title}</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {group.fields.map(([field, label]) => (
+                          <label className="grid gap-2 text-xs font-black text-slate-600" key={field}>
+                            {label}
+                            <input
+                              className="nexus-field h-10 px-3 text-sm"
+                              onChange={(event) => setStudentForm((current) => ({ ...current, [field]: event.target.value }))}
+                              value={studentForm[field]}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+
+                  <section>
+                    <p className="text-xs font-black uppercase tracking-wide text-cyan-700">แหล่งข้อมูล</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="grid gap-2 text-xs font-black text-slate-600">
+                        รหัสโรงเรียน
+                        <input
+                          className="nexus-field h-10 px-3 text-sm"
+                          onChange={(event) => setStudentForm((current) => ({ ...current, schoolCode: event.target.value }))}
+                          value={studentForm.schoolCode}
+                        />
+                      </label>
+                      <label className="grid gap-2 text-xs font-black text-slate-600">
+                        ชื่อโรงเรียน
+                        <input
+                          className="nexus-field h-10 px-3 text-sm"
+                          onChange={(event) => setStudentForm((current) => ({ ...current, schoolName: event.target.value }))}
+                          value={studentForm.schoolName}
+                        />
+                      </label>
+                    </div>
+                  </section>
+                </div>
+              </details>
 
               <div className="rounded-3xl bg-cyan-50/70 p-4 ring-1 ring-cyan-100">
                 <div className="flex items-start justify-between gap-3">
@@ -4118,6 +4419,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           ) : null}
 
           {selectedStudent ? (
+            <>
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
               <article className="nexus-muted-box p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-slate-950">
@@ -4182,6 +4484,98 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 )}
               </article>
             </div>
+            <details className="mt-4 rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" open>
+              <summary className="cursor-pointer text-sm font-black text-slate-950">
+                ข้อมูล DMC ที่นำเข้าทั้งหมด
+                <span className="ml-2 text-xs font-bold text-cyan-700">ดูและตรวจข้อมูลรายบุคคล</span>
+              </summary>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {[
+                  {
+                    title: 'พื้นฐานและสุขภาพ',
+                    rows: [
+                      ['คำนำหน้า', selectedStudent.metadata?.dmc_prefix],
+                      ['เพศ', selectedStudent.gender === 'male' ? 'ชาย' : selectedStudent.gender === 'female' ? 'หญิง' : selectedStudent.gender],
+                      ['วันเกิด', selectedStudent.birth_date],
+                      ['เลขบัตรประชาชน', selectedStudent.metadata?.dmc_id_card],
+                      ['น้ำหนัก', selectedStudent.health_flags?.weight_kg ? `${selectedStudent.health_flags.weight_kg} กก.` : null],
+                      ['ส่วนสูง', selectedStudent.health_flags?.height_cm ? `${selectedStudent.health_flags.height_cm} ซม.` : null],
+                      ['กลุ่มเลือด', selectedStudent.health_flags?.blood_type],
+                      ['ศาสนา', selectedStudent.metadata?.dmc_religion],
+                      ['เชื้อชาติ', selectedStudent.metadata?.dmc_ethnicity],
+                      ['สัญชาติ', selectedStudent.metadata?.dmc_nationality],
+                    ],
+                  },
+                  {
+                    title: 'ที่อยู่',
+                    rows: (() => {
+                      const address = objectValue(selectedStudent.metadata?.dmc_address);
+                      return [
+                        ['บ้านเลขที่', address.house_no],
+                        ['หมู่', address.village_no],
+                        ['ถนน/ซอย', address.road_or_soi],
+                        ['ตำบล', address.subdistrict],
+                        ['อำเภอ', address.district],
+                        ['จังหวัด', address.province],
+                      ];
+                    })(),
+                  },
+                  {
+                    title: 'ผู้ปกครอง',
+                    rows: (() => {
+                      const guardian = objectValue(selectedStudent.metadata?.dmc_guardian);
+                      return [
+                        ['ชื่อ', [guardian.prefix, guardian.first_name, guardian.last_name].filter(Boolean).join(' ')],
+                        ['อาชีพ', guardian.occupation],
+                        ['ความสัมพันธ์', guardian.relation],
+                      ];
+                    })(),
+                  },
+                  {
+                    title: 'บิดาและมารดา',
+                    rows: (() => {
+                      const father = objectValue(selectedStudent.metadata?.dmc_father);
+                      const mother = objectValue(selectedStudent.metadata?.dmc_mother);
+                      return [
+                        ['บิดา', [father.prefix, father.first_name, father.last_name].filter(Boolean).join(' ')],
+                        ['อาชีพบิดา', father.occupation],
+                        ['มารดา', [mother.prefix, mother.first_name, mother.last_name].filter(Boolean).join(' ')],
+                        ['อาชีพมารดา', mother.occupation],
+                      ];
+                    })(),
+                  },
+                  {
+                    title: 'สถานะการดูแล',
+                    rows: [
+                      ['ความด้อยโอกาส', selectedStudent.care_flags.disadvantage],
+                      ['ยังไม่สามารถจำหน่ายได้', selectedStudent.care_flags.cannot_dispose_status],
+                    ],
+                  },
+                  {
+                    title: 'แหล่งข้อมูล',
+                    rows: [
+                      ['รหัสโรงเรียน', selectedStudent.metadata?.dmc_school_code],
+                      ['ชื่อโรงเรียน', selectedStudent.metadata?.dmc_school_name],
+                      ['ชั้น/ห้องจาก DMC', [selectedStudent.metadata?.dmc_grade, selectedStudent.metadata?.dmc_room].filter(Boolean).join('/')],
+                      ['นำเข้าล่าสุด', selectedStudent.metadata?.last_imported_at],
+                    ],
+                  },
+                ].map((group) => (
+                  <article className="nexus-muted-box p-4" key={group.title}>
+                    <p className="text-sm font-black text-cyan-800">{group.title}</p>
+                    <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-600">
+                      {group.rows.map(([label, value]) => (
+                        <div className="flex justify-between gap-4 border-b border-slate-100 pb-2 last:border-0 last:pb-0" key={String(label)}>
+                          <dt>{String(label)}</dt>
+                          <dd className="break-words text-right text-slate-950">{textValue(value) || '-'}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            </details>
+            </>
           ) : (
             <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
               เลือกนักเรียนจากตารางด้านบนเพื่อเปิดโปรไฟล์รายคน

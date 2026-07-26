@@ -16,10 +16,15 @@ interface ClassroomRow {
 }
 
 interface StudentExportRow {
+  birth_date?: string | null;
+  care_flags?: Record<string, unknown>;
   classroom_id: string | null;
   first_name: string;
+  gender?: 'male' | 'female' | 'other' | 'unspecified';
+  health_flags?: Record<string, unknown>;
   id: string;
   last_name: string;
+  metadata?: Record<string, unknown>;
   nickname: string | null;
   status?: 'active' | 'transferred' | 'graduated' | 'inactive' | 'archived';
   student_code: string | null;
@@ -38,8 +43,10 @@ interface PreviewRow {
   lastName: string;
   metadata?: Record<string, unknown>;
   nickname: string;
+  populatedFieldCount?: number;
   rowNumber: number;
   source?: 'csv' | 'dmc' | 'manual';
+  sourceColumnCount?: number;
   studentCode: string;
   warnings: string[];
 }
@@ -104,7 +111,7 @@ interface StudentInsertRow {
   last_name: string;
   metadata?: Record<string, unknown>;
   nickname: string | null;
-  status: 'active';
+  status: NonNullable<StudentExportRow['status']>;
   student_code: string | null;
   workspace_id: string;
 }
@@ -184,7 +191,7 @@ function parseStudentCsv(text: string, existingCodes: Set<string>) {
     if (!firstName) errors.push('ไม่มี first_name');
     if (!lastName) errors.push('ไม่มี last_name');
     if (!classroomName) errors.push('ไม่มี classroom_name');
-    if (studentCode && existingCodes.has(studentCode)) warnings.push('รหัสซ้ำกับข้อมูลเดิม จะถูกข้ามใน import จริง');
+    if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
 
     return {
       classroomName,
@@ -357,7 +364,7 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
     if (!firstName) errors.push('ไม่มีชื่อ');
     if (!lastName) errors.push('ไม่มีนามสกุล');
     if (!studentCode) errors.push('ไม่มีเลขประจำตัวนักเรียน');
-    if (studentCode && existingCodes.has(studentCode)) warnings.push('เลขประจำตัวซ้ำกับข้อมูลเดิม จะถูกข้ามใน import จริง');
+    if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
     if (studentCode && seenCodes.has(studentCode)) warnings.push('เลขประจำตัวซ้ำในไฟล์ DMC เดียวกัน');
     if (studentCode) seenCodes.add(studentCode);
 
@@ -391,8 +398,10 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
         dmc_school_name: normalizeCell(row[schoolNameIndex]) || null,
       },
       nickname: '',
+      populatedFieldCount: row.slice(0, headers.length).filter((value) => Boolean(normalizeCell(value))).length,
       rowNumber: headerIndex + index + 2,
       source: 'dmc' as const,
+      sourceColumnCount: headers.filter(Boolean).length,
       studentCode,
       warnings,
     }];
@@ -539,8 +548,12 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       ),
     [students],
   );
-  const validPreviewRows = previewRows.filter((row) => row.errors.length === 0 && row.warnings.length === 0);
-  const invalidPreviewRows = previewRows.filter((row) => row.errors.length > 0 || row.warnings.length > 0);
+  const validPreviewRows = previewRows.filter(
+    (row) => row.errors.length === 0 && !row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')),
+  );
+  const invalidPreviewRows = previewRows.filter(
+    (row) => row.errors.length > 0 || row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')),
+  );
   const managedStudents = useMemo(() => {
     const normalizedQuery = studentManageQuery.trim().toLowerCase();
 
@@ -604,7 +617,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,student_code,first_name,last_name,nickname,status,classroom_id')
+          .select('id,student_code,first_name,last_name,nickname,status,classroom_id,birth_date,gender,care_flags,health_flags,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false }),
         supabase
@@ -725,7 +738,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     if (!firstName) errors.push('ไม่มีชื่อ');
     if (!lastName) errors.push('ไม่มีนามสกุล');
     if (!classroomName) errors.push('ไม่มีชั้น/ห้อง');
-    if (studentCode && existingCodes.has(studentCode)) warnings.push('เลขประจำตัวซ้ำกับข้อมูลเดิม จะถูกข้ามใน import จริง');
+    if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
     if (studentCode && previewRows.some((row) => row.studentCode === studentCode)) warnings.push('เลขประจำตัวซ้ำใน preview');
 
     setPreviewRows((current) => [
@@ -919,19 +932,29 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
       for (const row of validPreviewRows) {
         const classroomId = await ensureClassroomByName(row.classroomName, row.dmcGrade);
+        const existingStudent = row.studentCode ? studentsByCode.get(row.studentCode) : null;
         rowsToInsert.push({
           birth_date: row.birthDate || null,
-          care_flags: row.careFlags || {},
+          care_flags: {
+            ...(existingStudent?.care_flags || {}),
+            ...(row.careFlags || {}),
+          },
           classroom_id: classroomId,
           first_name: row.firstName,
-          gender: row.gender || 'unspecified',
-          health_flags: row.healthFlags || {},
-          last_name: row.lastName,
-          metadata: row.metadata || {
-            import_source: row.source || 'student_csv',
+          gender: row.gender || existingStudent?.gender || 'unspecified',
+          health_flags: {
+            ...(existingStudent?.health_flags || {}),
+            ...(row.healthFlags || {}),
           },
-          nickname: row.nickname || null,
-          status: 'active',
+          last_name: row.lastName,
+          metadata: {
+            ...(existingStudent?.metadata || {}),
+            ...(row.metadata || {}),
+            import_source: row.source || 'student_csv',
+            last_imported_at: new Date().toISOString(),
+          },
+          nickname: row.nickname || existingStudent?.nickname || null,
+          status: existingStudent?.status || 'active',
           student_code: row.studentCode || null,
           workspace_id: session.workspace?.id || 'demo-workspace',
         });
@@ -956,14 +979,108 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         return;
       }
 
-      const { data: insertedStudents, error: studentError } = await supabase
-        .from('students')
-        .insert(rowsToInsert)
-        .select('id,student_code,first_name,last_name,nickname,status,classroom_id');
-      if (studentError) throw studentError;
+      const workspaceId = session.workspace.id;
+      const rowsWithCode = rowsToInsert.filter((row) => row.student_code);
+      const rowsWithoutCode = rowsToInsert.filter((row) => !row.student_code);
+      const importedStudents: StudentExportRow[] = [];
+
+      if (rowsWithCode.length > 0) {
+        const { data, error } = await supabase
+          .from('students')
+          .upsert(rowsWithCode, { onConflict: 'workspace_id,student_code' })
+          .select('id,student_code,first_name,last_name,nickname,status,classroom_id,birth_date,gender,care_flags,health_flags,metadata');
+        if (error) throw error;
+        importedStudents.push(...((data || []) as StudentExportRow[]));
+      }
+
+      if (rowsWithoutCode.length > 0) {
+        const { data, error } = await supabase
+          .from('students')
+          .insert(rowsWithoutCode)
+          .select('id,student_code,first_name,last_name,nickname,status,classroom_id,birth_date,gender,care_flags,health_flags,metadata');
+        if (error) throw error;
+        importedStudents.push(...((data || []) as StudentExportRow[]));
+      }
+
+      const importedIds = importedStudents.map((student) => student.id);
+      if (importedIds.length > 0) {
+        const { data: existingGuardianRows, error: guardianReadError } = await supabase
+          .from('student_guardians')
+          .select('id,student_id,consent_status,is_primary,metadata,phone')
+          .in('student_id', importedIds)
+          .eq('workspace_id', workspaceId);
+        if (guardianReadError) throw guardianReadError;
+
+        const guardianByStudentId = new Map(
+          (existingGuardianRows || []).map((guardian) => [guardian.student_id as string, guardian]),
+        );
+        const importedByCode = new Map(
+          importedStudents
+            .filter((student) => student.student_code)
+            .map((student) => [student.student_code as string, student]),
+        );
+        const guardianUpserts = validPreviewRows.flatMap((row) => {
+          const importedStudent = importedByCode.get(row.studentCode);
+          const guardian = row.metadata?.dmc_guardian;
+          if (!importedStudent || !guardian || typeof guardian !== 'object' || Array.isArray(guardian)) return [];
+
+          const guardianRecord = guardian as Record<string, unknown>;
+          const displayName = [
+            guardianRecord.prefix,
+            guardianRecord.first_name,
+            guardianRecord.last_name,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          if (!displayName) return [];
+
+          const existingGuardian = guardianByStudentId.get(importedStudent.id);
+          return [{
+            consent_status: existingGuardian?.consent_status || 'pending',
+            display_name: displayName,
+            existing_id: existingGuardian?.id as string | undefined,
+            is_primary: existingGuardian?.is_primary ?? true,
+            metadata: {
+              ...((existingGuardian?.metadata as Record<string, unknown> | null) || {}),
+              imported_from: 'DMC',
+              occupation: guardianRecord.occupation || null,
+            },
+            phone: existingGuardian?.phone || null,
+            relation: String(guardianRecord.relation || 'ผู้ปกครอง'),
+            student_id: importedStudent.id,
+            workspace_id: workspaceId,
+          }];
+        });
+
+        if (guardianUpserts.length > 0) {
+          const guardianInserts = guardianUpserts
+            .filter((guardian) => !guardian.existing_id)
+            .map((guardian) => {
+              const guardianInsert = { ...guardian };
+              delete guardianInsert.existing_id;
+              return guardianInsert;
+            });
+          const guardianUpdates = guardianUpserts.filter((guardian) => guardian.existing_id);
+
+          if (guardianInserts.length > 0) {
+            const { error } = await supabase.from('student_guardians').insert(guardianInserts);
+            if (error) throw error;
+          }
+
+          for (const { existing_id: existingId, ...guardian } of guardianUpdates) {
+            const { error } = await supabase
+              .from('student_guardians')
+              .update(guardian)
+              .eq('id', existingId as string)
+              .eq('workspace_id', workspaceId);
+            if (error) throw error;
+          }
+        }
+      }
 
       const { error: jobError } = await supabase.from('import_jobs').insert({
-        workspace_id: session.workspace.id,
+        workspace_id: workspaceId,
         import_type: 'students',
         status: 'imported',
         total_rows: previewRows.length,
@@ -977,7 +1094,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         })),
         metadata: {
           dmc_class_keys: selectedDmcClassKeys,
+          inserted_rows: rowsWithoutCode.length + rowsWithCode.filter((row) => !studentsByCode.has(row.student_code || '')).length,
           import_sources: Array.from(new Set(previewRows.map((row) => row.source || 'csv'))),
+          updated_rows: rowsWithCode.filter((row) => studentsByCode.has(row.student_code || '')).length,
         },
         created_by: session.profile.id,
         imported_at: new Date().toISOString(),
@@ -999,9 +1118,14 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         riskLevel: invalidPreviewRows.length > 0 ? 'normal' : 'low',
         source: 'import_export',
       });
-      setStudents((current) => [...((insertedStudents || []) as StudentExportRow[]), ...current]);
+      setStudents((current) => {
+        const importedIds = new Set(importedStudents.map((student) => student.id));
+        return [...importedStudents, ...current.filter((student) => !importedIds.has(student.id))];
+      });
       setPreviewRows([]);
-      setNotice('import นักเรียนสำเร็จและบันทึก import job แล้ว');
+      const updatedCount = rowsWithCode.filter((row) => studentsByCode.has(row.student_code || '')).length;
+      const insertedCount = rowsToInsert.length - updatedCount;
+      setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'import ไม่สำเร็จ');
     }
@@ -1762,12 +1886,23 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                       <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.studentCode || '-'}</td>
                       <td className="px-3 py-3">
                         <p className="font-black text-slate-950">{row.firstName} {row.lastName}</p>
-                        <p className="text-xs font-bold text-slate-500">{row.nickname || 'ไม่มีชื่อเล่น'}</p>
+                        <p className="text-xs font-bold text-slate-500">
+                          {row.source === 'dmc'
+                            ? `อ่านข้อมูล ${row.populatedFieldCount || 0}/${row.sourceColumnCount || 0} ช่องจาก DMC`
+                            : row.nickname || 'ไม่มีชื่อเล่น'}
+                        </p>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName || '-'}</td>
                       <td className="px-3 py-3">
                         {row.errors.length === 0 && row.warnings.length === 0 ? (
                           <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
+                        ) : row.errors.length === 0 && !row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')) ? (
+                          <div className="grid gap-1">
+                            <span className="w-fit rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
+                              อัปเดตข้อมูลเดิม
+                            </span>
+                            {row.warnings.map((message) => <span className="text-xs font-bold text-sky-700" key={message}>{message}</span>)}
+                          </div>
                         ) : (
                           <div className="grid gap-1 text-xs font-bold text-amber-700">
                             {[...row.errors, ...row.warnings].map((message) => <span key={message}>{message}</span>)}
