@@ -240,8 +240,8 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       if (error) throw error;
 
       const mapped = (data || []).map(mapCalendarRow);
-      const localEvents = loadLocalCalendar(session);
-      setEvents(mapped.length ? mapped : localEvents.length ? localEvents : createDemoEvents(session));
+      // Only use Supabase data when connected - don't merge with local storage
+      setEvents(mapped);
       setSync({
         status: 'synced',
         message: mapped.length ? 'เชื่อมข้อมูลปฏิทิน Supabase แล้ว' : 'เชื่อม Supabase แล้ว แต่ยังไม่มีวันพิเศษในตาราง',
