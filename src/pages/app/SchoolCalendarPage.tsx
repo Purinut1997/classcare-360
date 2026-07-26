@@ -354,9 +354,6 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     const target = events.find((event) => event.id === eventId);
     if (!target) return;
 
-    // Remove from UI immediately
-    setEvents((current) => current.filter((event) => event.id !== eventId));
-
     // If it's a local event or no Supabase, just remove from localStorage
     if (!supabase || !isUuid(eventId) || target.source === 'local') {
       const localEvents = loadLocalCalendar(session);
@@ -365,6 +362,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
       state.calendarRules = updatedLocal;
       window.localStorage.setItem(storageKey, JSON.stringify(state));
+      setEvents((current) => current.filter((event) => event.id !== eventId));
       setSync({ status: 'local', message: 'ลบรายการในเครื่องแล้ว' });
       return;
     }
@@ -373,12 +371,13 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     try {
       const { error } = await supabase.from('school_calendar_days').delete().eq('id', eventId);
       if (error) throw error;
+      // Remove from UI after successful deletion
+      setEvents((current) => current.filter((event) => event.id !== eventId));
       setSync({ status: 'synced', message: 'ลบวันพิเศษออกจาก Supabase แล้ว' });
     } catch (error) {
-      // Don't restore the item - keep it removed from UI but show error
       setSync({
         status: 'error',
-        message: `ลบจาก Supabase ไม่สำเร็จ แต่ลบจากหน้าจอแล้ว: ${String((error as { message?: string })?.message || error)}`,
+        message: `ลบวันพิเศษไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
       });
     }
   };
