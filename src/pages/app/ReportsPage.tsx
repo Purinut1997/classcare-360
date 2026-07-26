@@ -2011,6 +2011,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
                             {day.day}
                           </th>
                         ))}
+                        <th className="w-10 px-1 py-3 text-center font-black text-emerald-400">มา</th>
+                        <th className="w-10 px-1 py-3 text-center font-black text-amber-400">สาย</th>
+                        <th className="w-10 px-1 py-3 text-center font-black text-sky-400">ลา</th>
+                        <th className="w-10 px-1 py-3 text-center font-black text-rose-400">ขาด</th>
+                        <th className="w-16 px-2 py-3 text-center font-black text-slate-300">รวมบันทึก</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-bold">
@@ -2045,6 +2050,13 @@ export function ReportsPage({ session }: ReportsPageProps) {
                               </td>
                             );
                           })}
+                          <td className="px-1 py-2.5 text-center font-black text-emerald-400">{row.totals.present}</td>
+                          <td className="px-1 py-2.5 text-center font-black text-amber-400">{row.totals.late}</td>
+                          <td className="px-1 py-2.5 text-center font-black text-sky-400">{row.totals.leave}</td>
+                          <td className="px-1 py-2.5 text-center font-black text-rose-400">{row.totals.absent}</td>
+                          <td className="px-2 py-2.5 text-center font-black text-slate-200">
+                            {row.totals.present + row.totals.late + row.totals.leave + row.totals.absent}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2062,7 +2074,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
 
           {reportView === 'savings' ? (
             <>
-              {/* Dark Mode Monthly Savings Grid (Reference Image #3) */}
+              {/* Dark Mode Monthly Savings Grid (Reference Image #3 & #4) */}
               <div className="mt-5 rounded-3xl border border-slate-800 bg-[#080d1a] p-4 text-white shadow-2xl md:p-6">
                 <div className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -2104,6 +2116,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
                           </th>
                         ))}
                         <th className="w-24 px-3 py-3 text-right font-black text-cyan-400">รวมเดือนนี้</th>
+                        <th className="w-28 px-3 py-3 text-right font-black text-emerald-400">ยอดสะสม/คงเหลือ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-bold">
@@ -2124,6 +2137,9 @@ export function ReportsPage({ session }: ReportsPageProps) {
                           })}
                           <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-[#22d3ee]">
                             {row.totalMonth ? row.totalMonth.toLocaleString('th-TH') : '0'}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-emerald-400">
+                            {row.totalBalance ? row.totalBalance.toLocaleString('th-TH') : '0'}
                           </td>
                         </tr>
                       ))}
