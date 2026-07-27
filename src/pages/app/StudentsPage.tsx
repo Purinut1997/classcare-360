@@ -1612,6 +1612,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       setGuardians((current) =>
         current.map((item) => (item.id === primaryStudentGuardian.id ? (data as GuardianRow) : item)),
       );
+      await reloadGuardians();
       return;
     }
 
@@ -1631,6 +1632,24 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     if (error) throw error;
     setGuardians((current) => [...current, data as GuardianRow]);
+    await reloadGuardians();
+  }
+
+  async function reloadGuardians() {
+    if (!supabase || !session.workspace) return;
+    
+    const { data, error } = await supabase
+      .from('student_guardians')
+      .select('id,student_id,relation,display_name,phone,is_primary,consent_status')
+      .eq('workspace_id', session.workspace.id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Failed to reload guardians:', error);
+      return;
+    }
+
+    setGuardians((data || []) as GuardianRow[]);
   }
 
   async function writeAuditLog({
