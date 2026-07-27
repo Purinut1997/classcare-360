@@ -671,6 +671,12 @@ function buildPrintableReportHtml({
             margin: 0 auto;
             width: 48px;
           }
+          .logo img {
+            border-radius: 50%;
+            height: 100%;
+            object-fit: cover;
+            width: 100%;
+          }
           h1 { font-size: 18px; margin: 0; }
           .subtitle { font-size: 12px; font-weight: 700; margin: 1px 0; }
           .classline { font-size: 11px; font-weight: 700; margin: 6px 0 4px; }
@@ -739,7 +745,7 @@ function buildPrintableReportHtml({
       </head>
       <body>
         <header>
-          <div class="logo">C</div>
+          <div class="logo">${reportIdentity.schoolLogoDataUrl ? `<img src="${escapeHtml(reportIdentity.schoolLogoDataUrl)}" alt="Logo" />` : 'C'}</div>
           <div>
             <h1>รายงานเวลาเรียนระดับชั้น ${escapeHtml(classroomName)} ประจำเดือน ${escapeHtml(dateFrom.slice(0, 7))}</h1>
             <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
@@ -897,6 +903,12 @@ function buildPrintableSavingsReportHtml({
             margin: 0 auto;
             width: 48px;
           }
+          .logo img {
+            border-radius: 50%;
+            height: 100%;
+            object-fit: cover;
+            width: 100%;
+          }
           h1 { font-size: 18px; margin: 0; }
           .subtitle { font-size: 12px; font-weight: 700; margin: 1px 0; }
           .classline { font-size: 11px; font-weight: 700; margin: 6px 0 4px; }
@@ -963,7 +975,7 @@ function buildPrintableSavingsReportHtml({
       </head>
       <body>
         <header>
-          <div class="logo">C</div>
+          <div class="logo">${reportIdentity.schoolLogoDataUrl ? `<img src="${escapeHtml(reportIdentity.schoolLogoDataUrl)}" alt="Logo" />` : 'C'}</div>
           <div>
             <h1>รายงานการบันทึกการออมเงินระดับชั้น ${escapeHtml(classroomName)}</h1>
             <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
