@@ -1642,6 +1642,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
   async function reloadGuardians() {
     if (!supabase || !session.workspace) return;
     
+    console.log('reloadGuardians: Starting reload for workspace', session.workspace.id);
+    
     const { data, error } = await supabase
       .from('student_guardians')
       .select('id,student_id,relation,display_name,phone,is_primary,consent_status')
@@ -1653,6 +1655,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
+    console.log('reloadGuardians: Loaded guardians:', data);
     setGuardians((data || []) as GuardianRow[]);
   }
 
