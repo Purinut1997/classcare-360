@@ -1615,7 +1615,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
       setGuardians((current) =>
         current.map((item) => (item.id === primaryStudentGuardian.id ? (data as GuardianRow) : item)),
       );
-      await reloadGuardians();
       return;
     }
 
@@ -1636,7 +1635,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
     if (error) throw error;
     console.log('Inserted guardian:', data);
     setGuardians((current) => [...current, data as GuardianRow]);
-    await reloadGuardians();
   }
 
   async function reloadGuardians() {
