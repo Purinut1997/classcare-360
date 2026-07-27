@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, Printer, Search, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, ImagePlus, Printer, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
 
 interface ReportsPageProps {
@@ -590,12 +591,14 @@ function buildPrintableReportHtml({
   teacherName,
   schoolName,
   workspaceName,
+  reportIdentity,
 }: {
   attendanceGrid: MonthlyAttendanceGrid;
   dateFrom: string;
   teacherName: string;
   schoolName: string;
   workspaceName: string;
+  reportIdentity: SchoolReportIdentity;
 }) {
   const { days, monthLabel } = getReportMonthContext(dateFrom);
   const dayHeaders = days
@@ -638,20 +641,21 @@ function buildPrintableReportHtml({
         <meta charset="utf-8" />
         <title>ClassCare 360 - รายงานเวลาเรียนรายเดือน</title>
         <style>
-          @page { margin: 8mm; size: A4 landscape; }
+          @page { margin: 10mm; size: A4 landscape; }
           * { box-sizing: border-box; }
           body {
             color: #07111f;
             font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, Arial, sans-serif;
-            line-height: 1.25;
+            line-height: 1.2;
             margin: 0;
+            font-size: 11px;
           }
           header {
             border-bottom: 3px solid #2458ff;
             display: grid;
-            gap: 12px;
-            grid-template-columns: 74px minmax(0,1fr) 74px;
-            padding: 8px 0 8px;
+            gap: 8px;
+            grid-template-columns: 60px minmax(0,1fr) 60px;
+            padding: 6px 0 6px;
             text-align: center;
           }
           .logo {
@@ -660,74 +664,74 @@ function buildPrintableReportHtml({
             border-radius: 50%;
             color: #0369a1;
             display: flex;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 900;
-            height: 56px;
+            height: 48px;
             justify-content: center;
             margin: 0 auto;
-            width: 56px;
+            width: 48px;
           }
-          h1 { font-size: 22px; margin: 0; }
-          .subtitle { font-size: 14px; font-weight: 700; margin: 2px 0; }
-          .classline { font-size: 13px; font-weight: 700; margin: 8px 0 6px; }
+          h1 { font-size: 18px; margin: 0; }
+          .subtitle { font-size: 12px; font-weight: 700; margin: 1px 0; }
+          .classline { font-size: 11px; font-weight: 700; margin: 6px 0 4px; }
           .summary-grid {
             display: grid;
-            gap: 10px;
+            gap: 8px;
             grid-template-columns: repeat(4, 1fr);
-            margin: 8px 0 12px;
+            margin: 6px 0 10px;
           }
           .summary-card {
             background: #f0f7ff;
             border: 1px solid #c7e0fe;
-            border-radius: 12px;
-            padding: 6px 12px;
+            border-radius: 8px;
+            padding: 4px 8px;
             text-align: center;
           }
-          .summary-card span { display: block; font-size: 12px; font-weight: 700; color: #1e40af; }
-          .summary-card strong { color: #1d4ed8; display: block; font-size: 18px; margin-top: 1px; }
+          .summary-card span { display: block; font-size: 10px; font-weight: 700; color: #1e40af; }
+          .summary-card strong { color: #1d4ed8; display: block; font-size: 14px; margin-top: 1px; }
           table { border-collapse: collapse; table-layout: fixed; width: 100%; }
           th, td {
             border: 1px solid #111827;
-            font-size: 11px;
-            height: 18px;
-            padding: 2px 3px;
+            font-size: 9px;
+            height: 16px;
+            padding: 1px 2px;
             text-align: center;
             vertical-align: middle;
           }
           th { background: #f4a3cf; font-weight: 900; }
-          th.name, td.name { text-align: left; width: 190px; }
-          th.number, td.number { width: 32px; }
-          .day { width: 22px; }
+          th.name, td.name { text-align: left; width: 160px; }
+          th.number, td.number { width: 28px; }
+          .day { width: 18px; }
           .weekend { background: #cfd6df !important; }
           .present { color: #047857; font-weight: 900; }
           .late { color: #b45309; font-weight: 900; }
           .leave { color: #075985; font-weight: 900; }
           .absent { color: #be123c; font-weight: 900; }
-          .sum { background: #fff7cc; width: 36px; font-weight: 700; }
+          .sum { background: #fff7cc; width: 30px; font-weight: 700; }
           .total { background: #ffe4e6; font-weight: 900; }
           tfoot td { background: #ffe4e6; font-weight: 900; }
           .footer-section {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            margin-top: 24px;
+            margin-top: 16px;
           }
           .signatures {
             display: grid;
-            gap: 120px;
+            gap: 80px;
             grid-template-columns: 1fr 1fr;
             text-align: center;
-            width: 75%;
+            width: 70%;
           }
-          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 200px; }
-          .role { font-weight: 800; margin-top: 4px; }
+          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 140px; }
+          .role { font-weight: 800; margin-top: 3px; font-size: 10px; }
           .footer-meta {
             text-align: right;
-            font-size: 10px;
+            font-size: 9px;
             color: #64748b;
           }
           .footer-meta .credit {
-            margin-top: 12px;
+            margin-top: 8px;
             font-weight: 700;
             color: #94a3b8;
           }
@@ -791,12 +795,12 @@ function buildPrintableReportHtml({
           <div class="signatures">
             <div>
               <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(${escapeHtml(teacherName)})</div>
+              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.teacherName || teacherName)})</div>
               <div class="role">ครูประจำชั้น</div>
             </div>
             <div>
               <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(................................................)</div>
+              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.directorName || '................................................')})</div>
               <div class="role">ผู้อำนวยการโรงเรียน</div>
             </div>
           </div>
@@ -815,12 +819,14 @@ function buildPrintableSavingsReportHtml({
   teacherName,
   schoolName,
   workspaceName,
+  reportIdentity,
 }: {
   savingsGrid: MonthlySavingsGrid;
   dateFrom: string;
   teacherName: string;
   schoolName: string;
   workspaceName: string;
+  reportIdentity: SchoolReportIdentity;
 }) {
   const { days, monthLabel } = getReportMonthContext(dateFrom);
   const dayHeaders = days
@@ -861,20 +867,21 @@ function buildPrintableSavingsReportHtml({
         <meta charset="utf-8" />
         <title>ClassCare 360 - รายงานการบันทึกการออมเงิน</title>
         <style>
-          @page { margin: 8mm; size: A4 landscape; }
+          @page { margin: 10mm; size: A4 landscape; }
           * { box-sizing: border-box; }
           body {
             color: #07111f;
             font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, Arial, sans-serif;
-            line-height: 1.25;
+            line-height: 1.2;
             margin: 0;
+            font-size: 11px;
           }
           header {
             border-bottom: 3px solid #2458ff;
             display: grid;
-            gap: 12px;
-            grid-template-columns: 74px minmax(0,1fr) 74px;
-            padding: 8px 0 8px;
+            gap: 8px;
+            grid-template-columns: 60px minmax(0,1fr) 60px;
+            padding: 6px 0 6px;
             text-align: center;
           }
           .logo {
@@ -883,46 +890,46 @@ function buildPrintableSavingsReportHtml({
             border-radius: 50%;
             color: #0369a1;
             display: flex;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 900;
-            height: 56px;
+            height: 48px;
             justify-content: center;
             margin: 0 auto;
-            width: 56px;
+            width: 48px;
           }
-          h1 { font-size: 22px; margin: 0; }
-          .subtitle { font-size: 14px; font-weight: 700; margin: 2px 0; }
-          .classline { font-size: 13px; font-weight: 700; margin: 8px 0 6px; }
+          h1 { font-size: 18px; margin: 0; }
+          .subtitle { font-size: 12px; font-weight: 700; margin: 1px 0; }
+          .classline { font-size: 11px; font-weight: 700; margin: 6px 0 4px; }
           .summary-grid {
             display: grid;
-            gap: 10px;
+            gap: 8px;
             grid-template-columns: repeat(4, 1fr);
-            margin: 8px 0 12px;
+            margin: 6px 0 10px;
           }
           .summary-card {
             background: #f0f7ff;
             border: 1px solid #c7e0fe;
-            border-radius: 12px;
-            padding: 6px 12px;
+            border-radius: 8px;
+            padding: 4px 8px;
             text-align: center;
           }
-          .summary-card span { display: block; font-size: 12px; font-weight: 700; color: #1e40af; }
-          .summary-card strong { color: #1d4ed8; display: block; font-size: 18px; margin-top: 1px; }
+          .summary-card span { display: block; font-size: 10px; font-weight: 700; color: #1e40af; }
+          .summary-card strong { color: #1d4ed8; display: block; font-size: 14px; margin-top: 1px; }
           table { border-collapse: collapse; table-layout: fixed; width: 100%; }
           th, td {
             border: 1px solid #111827;
-            font-size: 11px;
-            height: 18px;
-            padding: 2px 3px;
+            font-size: 9px;
+            height: 16px;
+            padding: 1px 2px;
             text-align: center;
             vertical-align: middle;
           }
           th { background: #f4a3cf; font-weight: 900; }
-          th.name, td.name { text-align: left; width: 190px; }
-          th.number, td.number { width: 32px; }
-          .day { width: 22px; }
+          th.name, td.name { text-align: left; width: 160px; }
+          th.number, td.number { width: 28px; }
+          .day { width: 18px; }
           .weekend { background: #cfd6df !important; }
-          .sum { background: #fff7cc; width: 45px; font-weight: 700; }
+          .sum { background: #fff7cc; width: 35px; font-weight: 700; }
           .month-total { background: #e0f2fe; color: #0369a1; font-weight: 800; }
           .balance-total { background: #fce7f3; color: #be185d; font-weight: 800; }
           .total { background: #ffe4e6; font-weight: 900; }
@@ -931,24 +938,24 @@ function buildPrintableSavingsReportHtml({
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            margin-top: 24px;
+            margin-top: 16px;
           }
           .signatures {
             display: grid;
-            gap: 120px;
+            gap: 80px;
             grid-template-columns: 1fr 1fr;
             text-align: center;
-            width: 75%;
+            width: 70%;
           }
-          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 200px; }
-          .role { font-weight: 800; margin-top: 4px; }
+          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 140px; }
+          .role { font-weight: 800; margin-top: 3px; font-size: 10px; }
           .footer-meta {
             text-align: right;
-            font-size: 10px;
+            font-size: 9px;
             color: #64748b;
           }
           .footer-meta .credit {
-            margin-top: 12px;
+            margin-top: 8px;
             font-weight: 700;
             color: #94a3b8;
           }
@@ -1008,12 +1015,12 @@ function buildPrintableSavingsReportHtml({
           <div class="signatures">
             <div>
               <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(${escapeHtml(teacherName)})</div>
+              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.teacherName || teacherName)})</div>
               <div class="role">ครูประจำชั้น</div>
             </div>
             <div>
               <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(................................................)</div>
+              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.directorName || '................................................')})</div>
               <div class="role">ผู้อำนวยการโรงเรียน</div>
             </div>
           </div>
@@ -1052,6 +1059,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
     term1: { end: '2026-10-10', start: '2026-05-16' },
     term2: { end: '2027-03-31', start: '2026-11-01' },
   });
+  const [reportIdentity, setReportIdentity] = useState<SchoolReportIdentity>(() => loadSchoolReportIdentity());
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [dateFrom, setDateFrom] = useState(getTodayDate());
   const [dateTo, setDateTo] = useState(getTodayDate());
@@ -1591,6 +1599,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportExcel() {
+    const reportIdentity = loadSchoolReportIdentity();
     const html =
       reportView === 'savings'
         ? buildPrintableSavingsReportHtml({
@@ -1599,6 +1608,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
+            reportIdentity,
           })
         : buildPrintableReportHtml({
             attendanceGrid: monthlyAttendanceGrid,
@@ -1606,6 +1616,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
+            reportIdentity,
           });
 
     downloadBlob(
@@ -1702,6 +1713,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       return;
     }
 
+    const reportIdentity = loadSchoolReportIdentity();
     const html =
       reportView === 'savings'
         ? buildPrintableSavingsReportHtml({
@@ -1710,6 +1722,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
+            reportIdentity,
           })
         : buildPrintableReportHtml({
             attendanceGrid: monthlyAttendanceGrid,
@@ -1717,6 +1730,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
+            reportIdentity,
           });
 
     printWindow.document.open();
@@ -1725,6 +1739,23 @@ export function ReportsPage({ session }: ReportsPageProps) {
     printWindow.focus();
     window.setTimeout(() => printWindow.print(), 350);
   }
+
+  const saveReportIdentitySettings = () => {
+    saveSchoolReportIdentity(reportIdentity);
+    setNotice('บันทึกตั้งค่าผู้ลงนามในรายงานแล้ว');
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const compressedDataUrl = await compressImageFile(file);
+      setReportIdentity((current) => ({ ...current, schoolLogoDataUrl: compressedDataUrl }));
+    } catch (error) {
+      setNotice(`อัปโหลดโลโก้ไม่สำเร็จ: ${String(error)}`);
+    }
+  };
 
   return (
     <main className="app-page">
@@ -2358,10 +2389,85 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </article>
               ))}
               <article className="rounded-3xl border border-slate-200 bg-white p-4 lg:col-span-2">
-                <h3 className="text-lg font-black text-slate-950">Template รายงานที่ควรตั้งค่าต่อ</h3>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                  โลโก้โรงเรียน ชื่อครูประจำชั้น ชื่อผู้อำนวยการ ลายเซ็น ขนาดกระดาษ A4 แนวตั้ง/แนวนอน และ footer Created by MIKPURINUT
-                </p>
+                <h3 className="text-lg font-black text-slate-950">ตั้งค่าผู้ลงนามในรายงาน</h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ชื่อครูประจำชั้น
+                    <input
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => setReportIdentity((current) => ({ ...current, teacherName: event.target.value }))}
+                      placeholder="ชื่อครูประจำชั้น"
+                      value={reportIdentity.teacherName}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ชื่อผู้อำนวยการโรงเรียน
+                    <input
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => setReportIdentity((current) => ({ ...current, directorName: event.target.value }))}
+                      placeholder="ชื่อผู้อำนวยการ"
+                      value={reportIdentity.directorName}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ชื่อหัวหน้าวิชาการ
+                    <input
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => setReportIdentity((current) => ({ ...current, academicHeadName: event.target.value }))}
+                      placeholder="ชื่อผู้ตรวจตาราง/รายงาน"
+                      value={reportIdentity.academicHeadName}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    โลโก้โรงเรียน
+                    <div className="flex gap-2">
+                      <input
+                        accept="image/*"
+                        className="hidden"
+                        id="logo-upload"
+                        onChange={handleLogoUpload}
+                        type="file"
+                      />
+                      <label
+                        className="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                        htmlFor="logo-upload"
+                      >
+                        <ImagePlus size={16} aria-hidden="true" />
+                        อัปโหลด
+                      </label>
+                      {reportIdentity.schoolLogoDataUrl && (
+                        <button
+                          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-600 transition hover:bg-rose-100"
+                          onClick={() => setReportIdentity((current) => ({ ...current, schoolLogoDataUrl: '' }))}
+                          type="button"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                          ลบ
+                        </button>
+                      )}
+                    </div>
+                    {reportIdentity.schoolLogoDataUrl && (
+                      <div className="mt-2 flex items-center gap-3">
+                        <img
+                          alt="School Logo"
+                          className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+                          src={reportIdentity.schoolLogoDataUrl}
+                        />
+                        <span className="text-xs font-bold text-slate-600">โลโก้ถูกตั้งค่าแล้ว</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black"
+                    onClick={saveReportIdentitySettings}
+                    type="button"
+                  >
+                    <Save size={16} aria-hidden="true" />
+                    บันทึกตั้งค่า
+                  </button>
+                </div>
               </article>
             </div>
           ) : null}
