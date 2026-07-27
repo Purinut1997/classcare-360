@@ -1582,8 +1582,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
         return;
       }
 
-      if (!displayName && !trimmedPhone) return;
-
       const localGuardian: GuardianRow = {
         consent_status: 'pending',
         display_name: displayName || 'ผู้ปกครอง',
@@ -1616,8 +1614,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
       );
       return;
     }
-
-    if (!displayName && !trimmedPhone) return;
 
     const { data, error } = await supabase
       .from('student_guardians')
