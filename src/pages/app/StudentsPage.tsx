@@ -1563,6 +1563,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
     const primaryStudentGuardian =
       studentGuardians.find((item) => item.is_primary) || studentGuardians[0] || null;
 
+    console.log('saveGuardianContactFromForm:', { studentId, trimmedPhone, displayName, relation, primaryStudentGuardian });
+
     if (!trimmedPhone && !displayName) return;
 
     if (!supabase || !session.workspace) {
@@ -1609,6 +1611,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         .single();
 
       if (error) throw error;
+      console.log('Updated guardian:', data);
       setGuardians((current) =>
         current.map((item) => (item.id === primaryStudentGuardian.id ? (data as GuardianRow) : item)),
       );
@@ -1631,6 +1634,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .single();
 
     if (error) throw error;
+    console.log('Inserted guardian:', data);
     setGuardians((current) => [...current, data as GuardianRow]);
     await reloadGuardians();
   }
