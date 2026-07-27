@@ -641,7 +641,7 @@ function buildPrintableReportHtml({
         <meta charset="utf-8" />
         <title>ClassCare 360 - รายงานเวลาเรียนรายเดือน</title>
         <style>
-          @page { margin: 10mm; size: A4 landscape; }
+          @page { margin: 15mm 20mm; size: A4 landscape; }
           * { box-sizing: border-box; }
           body {
             color: #07111f;
@@ -739,7 +739,7 @@ function buildPrintableReportHtml({
       </head>
       <body>
         <header>
-          <div class="logo">C360</div>
+          <div class="logo">C</div>
           <div>
             <h1>รายงานเวลาเรียนระดับชั้น ${escapeHtml(classroomName)} ประจำเดือน ${escapeHtml(dateFrom.slice(0, 7))}</h1>
             <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
@@ -867,7 +867,7 @@ function buildPrintableSavingsReportHtml({
         <meta charset="utf-8" />
         <title>ClassCare 360 - รายงานการบันทึกการออมเงิน</title>
         <style>
-          @page { margin: 10mm; size: A4 landscape; }
+          @page { margin: 15mm 20mm; size: A4 landscape; }
           * { box-sizing: border-box; }
           body {
             color: #07111f;
@@ -963,7 +963,7 @@ function buildPrintableSavingsReportHtml({
       </head>
       <body>
         <header>
-          <div class="logo">C360</div>
+          <div class="logo">C</div>
           <div>
             <h1>รายงานการบันทึกการออมเงินระดับชั้น ${escapeHtml(classroomName)}</h1>
             <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
