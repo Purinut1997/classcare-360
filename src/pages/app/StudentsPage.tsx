@@ -1720,15 +1720,26 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     if (!supabase) return;
 
+    console.log('savePublicLookupIdentity:', { studentId, citizenId });
+
     const { data, error } = await supabase.rpc('set_student_public_lookup_identity', {
       citizen_id: citizenId,
       target_student_id: studentId,
     });
 
-    if (error) throw error;
-    if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
-      throw new Error(typeof data.reason === 'string' ? data.reason : 'ตั้งค่ารหัสค้นหารายงานหน้าแรกไม่สำเร็จ');
+    if (error) {
+      console.error('savePublicLookupIdentity error:', error);
+      // Don't throw error to prevent blocking guardian phone saving
+      return;
     }
+
+    if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
+      console.error('savePublicLookupIdentity failed:', data);
+      // Don't throw error to prevent blocking guardian phone saving
+      return;
+    }
+
+    console.log('savePublicLookupIdentity success:', data);
   }
 
   async function ensureClassroom() {
