@@ -51,7 +51,7 @@ function toScheduleMinutes(time: string) {
 }
 
 function formatScheduleClassroom(classroom?: string) {
-  return classroom?.trim() || 'ไม่ระบุห้องเรียน / ทุกห้อง';
+  return classroom?.trim() || '';
 }
 
 export function SchedulePage({ session }: SchedulePageProps) {
@@ -533,7 +533,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           <>
                             <div className="schedule-print-cell-code">{cell.subjectCode || ''}</div>
                             <div className="schedule-print-cell-subject mt-2">{cell.subject}</div>
-                            <div className="schedule-print-cell-classroom mt-1 text-sm">{formatScheduleClassroom(cell.classroom)}</div>
+                            {formatScheduleClassroom(cell.classroom) ? (
+                              <div className="schedule-print-cell-classroom mt-1 text-sm">{formatScheduleClassroom(cell.classroom)}</div>
+                            ) : null}
                           </>
                         ) : null}
                       </td>
@@ -872,7 +874,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                               <>
                                 <p className="text-xs font-black opacity-80">{cell.subjectCode || '-'}</p>
                                 <p className="mt-1 text-sm font-black">{cell.subject}</p>
-                                <p className="mt-1 text-xs font-bold opacity-80">{formatScheduleClassroom(cell.classroom)}</p>
+                                {formatScheduleClassroom(cell.classroom) ? (
+                                  <p className="mt-1 text-xs font-bold opacity-80">{formatScheduleClassroom(cell.classroom)}</p>
+                                ) : null}
                               </>
                             ) : (
                               <span className="grid h-full place-items-center text-center text-xs font-black">เพิ่ม</span>
@@ -965,7 +969,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       <div className="mt-3 rounded-2xl bg-[#4b2f18] p-4 text-white">
                         <p className="text-sm font-black opacity-80">{cellDraft.subjectCode || '-'}</p>
                         <p className="mt-1 text-lg font-black">{cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}</p>
-                        <p className="mt-1 text-sm font-bold opacity-80">{formatScheduleClassroom(cellDraft.classroom)}</p>
+                        {formatScheduleClassroom(cellDraft.classroom) ? (
+                          <p className="mt-1 text-sm font-bold opacity-80">{formatScheduleClassroom(cellDraft.classroom)}</p>
+                        ) : null}
                       </div>
                     </div>
 
