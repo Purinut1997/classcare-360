@@ -159,10 +159,16 @@ export function LoginPage({ session }: LoginPageProps) {
 
     setIsGoogleSubmitting(true);
 
+    // Return to the auth entry point first. AppRoutes then decides the next
+    // destination from the newly refreshed profile and workspace membership.
+    const callbackUrl = new URL('/login', window.location.origin);
+    const requestedRedirect = searchParams.get('redirect');
+    if (requestedRedirect) callbackUrl.searchParams.set('redirect', requestedRedirect);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/complete-profile`,
+        redirectTo: callbackUrl.toString(),
         scopes: 'openid email profile',
       },
     });

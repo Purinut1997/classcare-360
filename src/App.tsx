@@ -641,6 +641,13 @@ function AppRoutes() {
     return <Navigate replace to="/auth/complete-profile" />;
   }
 
+  // An OAuth callback from an older link can still land here. Once a profile
+  // exists, never show the first-time setup page again: route by real workspace
+  // membership instead (dashboard when the user already has a workspace).
+  if (session && !session.profile.needsProfile && location.pathname === '/auth/complete-profile') {
+    return <Navigate replace to={getInitialRouteForSession(session)} />;
+  }
+
   if (session && location.pathname === '/login') {
     const redirectTo = new URLSearchParams(location.search).get('redirect');
     return <Navigate replace to={getPostAuthRouteForSession(session, redirectTo)} />;
