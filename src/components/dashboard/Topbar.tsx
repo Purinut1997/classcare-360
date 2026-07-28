@@ -1,4 +1,4 @@
-import { Bell, Building2, Menu, Search } from 'lucide-react';
+import { Bell, Building2, Menu, Moon, Search, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { roleLabels } from '../../lib/roles';
@@ -8,7 +8,9 @@ import { SignOutButton } from '../auth/SignOutButton';
 interface TopbarProps {
   activeLabel: string;
   onMenuToggle: () => void;
+  onThemeToggle: () => void;
   session?: AppSessionContext;
+  theme: 'light' | 'dark';
 }
 
 function getInitials(displayName?: string) {
@@ -16,7 +18,7 @@ function getInitials(displayName?: string) {
   return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 }
 
-export function Topbar({ activeLabel, onMenuToggle, session }: TopbarProps) {
+export function Topbar({ activeLabel, onMenuToggle, onThemeToggle, session, theme }: TopbarProps) {
   const workspace = session?.workspace;
 
   return (
@@ -64,6 +66,16 @@ export function Topbar({ activeLabel, onMenuToggle, session }: TopbarProps) {
           Ctrl K
         </kbd>
       </label>
+
+      <button
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="app-icon-button"
+        onClick={onThemeToggle}
+        title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        type="button"
+      >
+        {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+      </button>
 
       <Link className="app-icon-button relative" aria-label="เปิดการแจ้งเตือน" to="/app/dashboard?view=notifications">
         <Bell size={19} aria-hidden="true" />

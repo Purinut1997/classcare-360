@@ -16,14 +16,22 @@ interface AppShellProps {
 
 export function AppShell({ activeView, children, navItems, session }: AppShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return window.localStorage.getItem('classcare-theme') === 'dark' ? 'dark' : 'light';
+  });
   const activeLabel = navItems.find((item) => item.key === activeView)?.label || 'ClassCare 360';
 
   useEffect(() => {
     setIsMenuOpen(false);
   }, [activeView]);
 
+  useEffect(() => {
+    window.localStorage.setItem('classcare-theme', theme);
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
       <Sidebar
         activeView={activeView}
         isMobileOpen={isMenuOpen}
@@ -32,7 +40,13 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         session={session}
       />
       <div className="app-shell-main">
-        <Topbar activeLabel={activeLabel} onMenuToggle={() => setIsMenuOpen(true)} session={session} />
+        <Topbar
+          activeLabel={activeLabel}
+          onMenuToggle={() => setIsMenuOpen(true)}
+          onThemeToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          session={session}
+          theme={theme}
+        />
         <ContextNav activeView={activeView} />
         {children}
       </div>

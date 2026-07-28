@@ -443,12 +443,11 @@
 }
 
 /* Nexus dark system theme: preserve the ClassCare logo and all workflows. */
-:root { color-scheme: dark; }
+:root { color-scheme: light; }
 
-body { background: #061426; color: #eaf7ff; }
+body { background: #f6f7f9; color: #0f172a; }
 
-.app-shell,
-.classcare-grid-bg {
+.app-shell.theme-dark {
   background:
     radial-gradient(circle at 82% 4%, rgb(39 215 255 / 0.15), transparent 24rem),
     radial-gradient(circle at 4% 60%, rgb(87 93 255 / 0.12), transparent 30rem),
@@ -457,125 +456,125 @@ body { background: #061426; color: #eaf7ff; }
     linear-gradient(145deg, #061a31 0%, #061426 54%, #09152d 100%) !important;
   background-size: auto, auto, 2.5rem 2.5rem, 2.5rem 2.5rem, auto !important;
 }
-.app-shell { color: #eaf7ff !important; }
-.app-shell-main { background: rgb(2 12 27 / 0.34); }
+.app-shell.theme-dark { color: #eaf7ff !important; }
+.app-shell.theme-dark .app-shell-main { background: rgb(2 12 27 / 0.34); }
 
-.app-sidebar {
+.app-shell.theme-dark .app-sidebar {
   background: linear-gradient(180deg, #071a33 0%, #041124 100%) !important;
   border-right: 1px solid rgb(73 223 255 / 0.16);
   box-shadow: 12px 0 40px rgb(0 7 20 / 0.26) !important;
 }
-.app-sidebar-link.is-active {
+.app-shell.theme-dark .app-sidebar-link.is-active {
   background: linear-gradient(135deg, #147dff 0%, #20d6ef 100%) !important;
   color: #f5fdff !important;
   box-shadow: 0 10px 24px rgb(20 165 255 / 0.26) !important;
 }
-.app-sidebar-link:hover { background: rgb(68 208 255 / 0.1) !important; }
-.app-sidebar-section > summary { color: #87a7c7 !important; }
-.app-sidebar-section > summary:hover { background: rgb(68 208 255 / 0.09) !important; color: #eafcff !important; }
+.app-shell.theme-dark .app-sidebar-link:hover { background: rgb(68 208 255 / 0.1) !important; }
+.app-shell.theme-dark .app-sidebar-section > summary { color: #87a7c7 !important; }
+.app-shell.theme-dark .app-sidebar-section > summary:hover { background: rgb(68 208 255 / 0.09) !important; color: #eafcff !important; }
 
-.app-topbar,
-.app-context-nav {
+.app-shell.theme-dark .app-topbar,
+.app-shell.theme-dark .app-context-nav {
   border-color: rgb(95 210 255 / 0.15) !important;
   background: rgb(5 20 40 / 0.8) !important;
   box-shadow: 0 10px 28px rgb(0 6 18 / 0.12);
 }
-.app-context-nav a { color: #9db7d1 !important; }
-.app-context-nav a:hover { background: rgb(52 211 255 / 0.1) !important; color: #effdff !important; }
-.app-context-nav a.is-active { background: linear-gradient(135deg, #126cf5, #24cde2) !important; color: #fff !important; }
+.app-shell.theme-dark .app-context-nav a { color: #9db7d1 !important; }
+.app-shell.theme-dark .app-context-nav a:hover { background: rgb(52 211 255 / 0.1) !important; color: #effdff !important; }
+.app-shell.theme-dark .app-context-nav a.is-active { background: linear-gradient(135deg, #126cf5, #24cde2) !important; color: #fff !important; }
 
-.app-shell .glass-panel,
-.app-shell .nexus-card,
-.app-shell .app-panel,
-.app-shell .app-panel-pad,
-.app-shell .app-action-bar,
-.app-shell .app-sticky-tools,
-.app-shell .app-data-table,
-.app-shell .compact-stat,
-.app-shell .nexus-pill,
-.app-shell .nexus-muted-box {
+.app-shell.theme-dark .glass-panel,
+.app-shell.theme-dark .nexus-card,
+.app-shell.theme-dark .app-panel,
+.app-shell.theme-dark .app-panel-pad,
+.app-shell.theme-dark .app-action-bar,
+.app-shell.theme-dark .app-sticky-tools,
+.app-shell.theme-dark .app-data-table,
+.app-shell.theme-dark .compact-stat,
+.app-shell.theme-dark .nexus-pill,
+.app-shell.theme-dark .nexus-muted-box {
   border-color: rgb(102 213 255 / 0.16) !important;
   background: linear-gradient(145deg, rgb(16 43 72 / 0.9), rgb(6 24 47 / 0.9)) !important;
   box-shadow: 0 16px 36px rgb(0 5 16 / 0.2) !important;
 }
-.app-shell .home-visit-section { background: rgb(13 37 64 / 0.84) !important; border-color: rgb(102 213 255 / 0.16) !important; }
-.app-shell .app-data-table table,
-.app-shell .app-data-table .min-w-\[980px\] { background: transparent !important; }
+.app-shell.theme-dark .home-visit-section { background: rgb(13 37 64 / 0.84) !important; border-color: rgb(102 213 255 / 0.16) !important; }
+.app-shell.theme-dark .app-data-table table,
+.app-shell.theme-dark .app-data-table .min-w-\[980px\] { background: transparent !important; }
 
-.app-shell .nexus-kicker {
+.app-shell.theme-dark .nexus-kicker {
   background: rgb(27 208 243 / 0.12) !important;
   color: #66edff !important;
   box-shadow: inset 0 0 0 1px rgb(57 222 255 / 0.22);
 }
-.app-shell .nexus-field,
-.app-shell .app-icon-button,
-.app-shell .app-workspace-switcher,
-.app-shell .app-global-search {
+.app-shell.theme-dark .nexus-field,
+.app-shell.theme-dark .app-icon-button,
+.app-shell.theme-dark .app-workspace-switcher,
+.app-shell.theme-dark .app-global-search {
   border-color: rgb(107 203 255 / 0.18) !important;
   background: rgb(5 25 50 / 0.74) !important;
   color: #edfaff !important;
 }
-.app-shell .nexus-field::placeholder,
-.app-shell .app-global-search input::placeholder { color: #6f8daa !important; }
-.app-shell .app-global-search input { color: #edfaff !important; }
-.app-shell .nexus-field:focus,
-.app-shell .app-global-search:focus-within { border-color: #37d9f3 !important; box-shadow: 0 0 0 4px rgb(55 217 243 / 0.12) !important; }
-.app-shell .app-workspace-switcher:hover,
-.app-shell .app-icon-button:hover { background: rgb(21 58 91 / 0.92) !important; border-color: rgb(65 218 255 / 0.42) !important; color: #f4fdff !important; }
-.app-shell .app-workspace-icon { background: rgb(35 208 243 / 0.14) !important; color: #66edff !important; }
+.app-shell.theme-dark .nexus-field::placeholder,
+.app-shell.theme-dark .app-global-search input::placeholder { color: #6f8daa !important; }
+.app-shell.theme-dark .app-global-search input { color: #edfaff !important; }
+.app-shell.theme-dark .nexus-field:focus,
+.app-shell.theme-dark .app-global-search:focus-within { border-color: #37d9f3 !important; box-shadow: 0 0 0 4px rgb(55 217 243 / 0.12) !important; }
+.app-shell.theme-dark .app-workspace-switcher:hover,
+.app-shell.theme-dark .app-icon-button:hover { background: rgb(21 58 91 / 0.92) !important; border-color: rgb(65 218 255 / 0.42) !important; color: #f4fdff !important; }
+.app-shell.theme-dark .app-workspace-icon { background: rgb(35 208 243 / 0.14) !important; color: #66edff !important; }
 
-.app-shell .blue-action,
-.app-shell .amber-action {
+.app-shell.theme-dark .blue-action,
+.app-shell.theme-dark .amber-action {
   background: linear-gradient(135deg, #1479ff 0%, #21d2eb 100%) !important;
   color: #fff !important;
   box-shadow: 0 12px 24px rgb(18 137 250 / 0.22) !important;
 }
-.app-shell .blue-action:hover,
-.app-shell .amber-action:hover { filter: brightness(1.08); }
-.app-shell .dark-action { background: rgb(3 14 33 / 0.92) !important; border: 1px solid rgb(91 210 255 / 0.22); }
+.app-shell.theme-dark .blue-action:hover,
+.app-shell.theme-dark .amber-action:hover { filter: brightness(1.08); }
+.app-shell.theme-dark .dark-action { background: rgb(3 14 33 / 0.92) !important; border: 1px solid rgb(91 210 255 / 0.22); }
 
-.app-shell [class~="text-slate-950"],
-.app-shell [class~="text-slate-900"],
-.app-shell [class~="text-slate-800"] { color: #f0fbff !important; }
-.app-shell [class~="text-slate-700"],
-.app-shell [class~="text-slate-600"] { color: #bfd5e8 !important; }
-.app-shell [class~="text-slate-500"],
-.app-shell [class~="text-slate-400"] { color: #8daac3 !important; }
-.app-shell [class~="border-slate-100"],
-.app-shell [class~="border-slate-200"],
-.app-shell [class~="border-slate-300"] { border-color: rgb(108 205 255 / 0.16) !important; }
-.app-shell [class~="bg-white"],
-.app-shell [class~="bg-slate-50"],
-.app-shell [class~="bg-slate-100"] { background-color: rgb(11 35 62 / 0.8) !important; }
+.app-shell.theme-dark [class~="text-slate-950"],
+.app-shell.theme-dark [class~="text-slate-900"],
+.app-shell.theme-dark [class~="text-slate-800"] { color: #f0fbff !important; }
+.app-shell.theme-dark [class~="text-slate-700"],
+.app-shell.theme-dark [class~="text-slate-600"] { color: #bfd5e8 !important; }
+.app-shell.theme-dark [class~="text-slate-500"],
+.app-shell.theme-dark [class~="text-slate-400"] { color: #8daac3 !important; }
+.app-shell.theme-dark [class~="border-slate-100"],
+.app-shell.theme-dark [class~="border-slate-200"],
+.app-shell.theme-dark [class~="border-slate-300"] { border-color: rgb(108 205 255 / 0.16) !important; }
+.app-shell.theme-dark [class~="bg-white"],
+.app-shell.theme-dark [class~="bg-slate-50"],
+.app-shell.theme-dark [class~="bg-slate-100"] { background-color: rgb(11 35 62 / 0.8) !important; }
 
-.app-shell .schedule-v2 { background: transparent !important; }
-.app-shell .schedule-v2 .bg-\[\#fffaf0\],
-.app-shell .schedule-v2 .bg-\[\#fff7df\],
-.app-shell .schedule-v2 .bg-\[\#fff8df\],
-.app-shell .schedule-v2 .bg-\[\#fff1c9\] { background: rgb(10 35 62 / 0.9) !important; }
-.app-shell .schedule-v2 .bg-\[\#dfae6d\] { background: linear-gradient(135deg, #143d70, #126b9e) !important; }
-.app-shell .schedule-v2 .bg-\[\#4b2f18\] { background: linear-gradient(135deg, #126eac, #16b9cb) !important; }
-.app-shell .schedule-v2 .border-\[\#ead8bd\],
-.app-shell .schedule-v2 .border-\[\#e6bd70\],
-.app-shell .schedule-v2 .border-\[\#e3b875\],
-.app-shell .schedule-v2 .border-\[\#e7c997\] { border-color: rgb(94 206 255 / 0.24) !important; }
-.app-shell .schedule-v2 .text-\[\#b46a00\],
-.app-shell .schedule-v2 .text-\[\#7a4f26\] { color: #6cecff !important; }
+.app-shell.theme-dark .schedule-v2 { background: transparent !important; }
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fffaf0\],
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fff7df\],
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fff8df\],
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fff1c9\] { background: rgb(10 35 62 / 0.9) !important; }
+.app-shell.theme-dark .schedule-v2 .bg-\[\#dfae6d\] { background: linear-gradient(135deg, #143d70, #126b9e) !important; }
+.app-shell.theme-dark .schedule-v2 .bg-\[\#4b2f18\] { background: linear-gradient(135deg, #126eac, #16b9cb) !important; }
+.app-shell.theme-dark .schedule-v2 .border-\[\#ead8bd\],
+.app-shell.theme-dark .schedule-v2 .border-\[\#e6bd70\],
+.app-shell.theme-dark .schedule-v2 .border-\[\#e3b875\],
+.app-shell.theme-dark .schedule-v2 .border-\[\#e7c997\] { border-color: rgb(94 206 255 / 0.24) !important; }
+.app-shell.theme-dark .schedule-v2 .text-\[\#b46a00\],
+.app-shell.theme-dark .schedule-v2 .text-\[\#7a4f26\] { color: #6cecff !important; }
 
-.app-shell .report-v2 .bg-\[\#080d1a\] {
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] {
   background: linear-gradient(160deg, #061832 0%, #030d20 100%) !important;
   border-color: rgb(88 205 255 / 0.2) !important;
   box-shadow: 0 18px 40px rgb(0 5 18 / 0.32) !important;
   color: #eaf7ff !important;
 }
-.app-shell .report-v2 .bg-\[\#080d1a\] h2 { color: #f2fdff !important; }
-.app-shell .report-v2 .bg-\[\#080d1a\] .border-slate-800,
-.app-shell .report-v2 .bg-\[\#080d1a\] .border-slate-800\/80 { border-color: rgb(111 215 255 / 0.13) !important; }
-.app-shell .report-v2 .bg-\[\#080d1a\] .text-slate-400,
-.app-shell .report-v2 .bg-\[\#080d1a\] .text-slate-300,
-.app-shell .report-v2 .bg-\[\#080d1a\] .text-slate-200 { color: #a8c4da !important; }
-.app-shell .report-v2 .bg-\[\#080d1a\] .bg-slate-900\/60,
-.app-shell .report-v2 .bg-\[\#080d1a\] .bg-slate-900\/40 { background: rgb(12 37 65 / 0.72) !important; }
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] h2 { color: #f2fdff !important; }
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .border-slate-800,
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .border-slate-800\/80 { border-color: rgb(111 215 255 / 0.13) !important; }
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .text-slate-400,
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .text-slate-300,
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .text-slate-200 { color: #a8c4da !important; }
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .bg-slate-900\/60,
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .bg-slate-900\/40 { background: rgb(12 37 65 / 0.72) !important; }
 
 @media print {
   body { background: #fff !important; color: #111 !important; }
