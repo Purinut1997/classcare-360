@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   CalendarClock,
-  CheckCircle2,
   ChevronDown,
   ClipboardList,
-  Clock3,
   FileSpreadsheet,
   HeartHandshake,
   School,
@@ -16,7 +14,12 @@ import { Link } from 'react-router-dom';
 import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
 import { canManageWorkspace } from '../../lib/roles';
-import { loadScheduleSettings, type DayName } from '../../lib/scheduleSettings';
+import {
+  buildSchedulePeriods,
+  loadScheduleSettings,
+  makeScheduleCellKey,
+  type ScheduleSettings,
+} from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 import { StatsGrid } from '../../components/dashboard/StatsGrid';
@@ -56,6 +59,28 @@ interface ClassroomRow {
   name: string;
 }
 
+interface AttendanceSessionRow {
+  attendance_date: string;
+  id: string;
+  period_label: string;
+  subject_name: string | null;
+}
+
+interface AttendanceRecordSummaryRow {
+  session_id: string;
+  status: string;
+}
+
+interface SubjectAttendanceSummary {
+  absent: number;
+  id: string;
+  late: number;
+  periodLabel: string;
+  present: number;
+  subjectName: string;
+  total: number;
+}
+
 const emptyAnalyticsData: ClassroomAnalyticsData = {
   attendance: {
     absent: 0,
@@ -90,8 +115,6 @@ const emptyAnalyticsData: ClassroomAnalyticsData = {
   },
 };
 
-const dayNamesTh: DayName[] = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-
 export function DashboardPage({ session }: DashboardPageProps) {
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
   const [stats, setStats] = useState(dashboardStats);
@@ -100,7 +123,34 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
   const [watchlistStudents, setWatchlistStudents] = useState<WatchlistStudentItem[]>([]);
-  const [todaySchedule, setTodaySchedule] = useState<Array<[string, string, string]>>([]);
+  const [subjectAttendanceSummaries, setSubjectAttendanceSummaries] = useState<SubjectAttendanceSummary[]>([]);
+  const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName));
+
+  const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWeeklySchedule() {
+      const fallback = loadScheduleSettings(session.workspace?.classroomName);
+      if (!supabase || !session.workspace) {
+        if (isMounted) setWeeklySchedule(fallback);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('workspace_schedule_settings')
+        .select('settings')
+        .eq('workspace_id', session.workspace.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+      setWeeklySchedule(data?.settings && typeof data.settings === 'object' ? { ...fallback, ...(data.settings as ScheduleSettings) } : fallback);
+    }
+
+    void loadWeeklySchedule();
+    return () => { isMounted = false; };
+  }, [session.workspace]);
 
   // Load Classrooms
   useEffect(() => {
@@ -192,9 +242,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
         { data: behaviorRows },
         { data: homeVisitRows },
         { data: careCaseRows },
+        { data: attendanceSessionRows },
       ] = await Promise.all([
         supabase.from('students').select('id, student_code, first_name, last_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId),
-        supabase.from('attendance_records').select('student_id, status, record_date').eq('workspace_id', session.workspace.id),
+        supabase.from('attendance_records').select('session_id, student_id, status, record_date').eq('workspace_id', session.workspace.id),
         supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
         supabase.from('savings_transactions').select('student_id, amount, transaction_type').eq('workspace_id', session.workspace.id),
         supabase.from('score_assessments').select('id, max_score').eq('workspace_id', session.workspace.id),
@@ -202,6 +253,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         supabase.from('behavior_records').select('student_id, points, tone').eq('workspace_id', session.workspace.id),
         supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).eq('status', 'completed'),
         supabase.from('student_care_cases').select('id, student_id, title, status, priority').eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
+        supabase.from('attendance_sessions').select('id, attendance_date, period_label, subject_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('attendance_date', getBangkokDate()).order('period_label', { ascending: true }),
       ]);
 
       if (!isMounted) return;
@@ -325,24 +377,32 @@ export function DashboardPage({ session }: DashboardPageProps) {
       });
       setWatchlistStudents(watchlistItems);
 
-      // Real Timetable for Today's Day
-      const todayDayIndex = new Date().getDay();
-      const todayDayName = dayNamesTh[todayDayIndex];
-      const settings = loadScheduleSettings(classroomName);
-      const scheduleItems: Array<[string, string, string]> = [];
+      const recordsBySession = new Map<string, AttendanceRecordSummaryRow[]>();
+      (attendanceRows || []).forEach((row) => {
+        if (!row.session_id) return;
+        const existing = recordsBySession.get(row.session_id) || [];
+        existing.push(row as AttendanceRecordSummaryRow);
+        recordsBySession.set(row.session_id, existing);
+      });
+      const subjectSummaries = ((attendanceSessionRows || []) as AttendanceSessionRow[])
+        .filter((item) => Boolean(item.subject_name))
+        .map((item) => {
+          const records = recordsBySession.get(item.id) || [];
+          const present = records.filter((record) => record.status === 'present' || record.status === 'activity').length;
+          const absent = records.filter((record) => record.status === 'absent').length;
+          const late = records.filter((record) => record.status === 'late').length;
+          return {
+            absent,
+            id: item.id,
+            late,
+            periodLabel: item.period_label,
+            present,
+            subjectName: item.subject_name || 'ไม่ระบุวิชา',
+            total: records.length,
+          };
+        });
+      setSubjectAttendanceSummaries(subjectSummaries);
 
-      for (let i = 0; i < settings.periodCount; i++) {
-        const cellKey = `${todayDayName}-${i}`;
-        const cell = settings.cells[cellKey];
-        if (cell && cell.subject) {
-          const startTimeMinutes = 8 * 60 + 30 + i * settings.periodMinutes;
-          const endTimeMinutes = startTimeMinutes + settings.periodMinutes;
-          const startStr = `${String(Math.floor(startTimeMinutes / 60)).padStart(2, '0')}:${String(startTimeMinutes % 60).padStart(2, '0')}`;
-          const endStr = `${String(Math.floor(endTimeMinutes / 60)).padStart(2, '0')}:${String(endTimeMinutes % 60).padStart(2, '0')}`;
-          scheduleItems.push([`${startStr}–${endStr}`, cell.subject, classroomName]);
-        }
-      }
-      setTodaySchedule(scheduleItems);
     }
 
     void loadClassroomAnalytics();
@@ -524,44 +584,40 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
         <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Clock3 className="text-cyan-700" size={19} aria-hidden="true" />
-            <h2 className="text-lg font-black text-slate-950">ตารางวันนี้ ({dayNamesTh[new Date().getDay()]})</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="text-cyan-700" size={19} aria-hidden="true" />
+              <h2 className="text-lg font-black text-slate-950">การเข้าเรียนรายวิชาวันนี้</h2>
+            </div>
+            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=reports&reportView=subject-attendance">ดูทั้งหมด <ArrowRight className="inline" size={14} /></Link>
           </div>
-          <div className="mt-4 divide-y divide-slate-100">
-            {todaySchedule.length > 0 ? (
-              todaySchedule.map(([time, subject, room]) => (
-                <div className="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-3 py-3 first:pt-0 last:pb-0" key={`${time}-${subject}`}>
-                  <span className="text-xs font-black text-slate-500">{time}</span>
-                  <span className="font-black text-slate-900">{subject}</span>
-                  <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">{room}</span>
-                </div>
-              ))
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+            {subjectAttendanceSummaries.length > 0 ? (
+              <table className="min-w-[520px] w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500"><tr className="font-black"><th className="px-3 py-2.5">รายวิชา</th><th className="px-3 py-2.5">คาบ</th><th className="px-3 py-2.5 text-center">มา</th><th className="px-3 py-2.5 text-center">ขาด</th><th className="px-3 py-2.5 text-center">สาย</th><th className="px-3 py-2.5 text-center">รวม</th></tr></thead>
+                <tbody>{subjectAttendanceSummaries.map((item) => <tr className="border-t border-slate-100 font-bold text-slate-700" key={item.id}><td className="px-3 py-3 font-black text-slate-900">{item.subjectName}</td><td className="px-3 py-3 text-slate-500">{item.periodLabel}</td><td className="px-3 py-3 text-center text-emerald-700">{item.present}</td><td className="px-3 py-3 text-center text-rose-600">{item.absent}</td><td className="px-3 py-3 text-center text-amber-700">{item.late}</td><td className="px-3 py-3 text-center">{item.total}</td></tr>)}</tbody>
+              </table>
             ) : (
-              <div className="py-6 text-center text-xs font-bold text-slate-400">
-                ยังไม่ได้กำหนดตารางเรียนประจำวันนี้ ({dayNamesTh[new Date().getDay()]})
-              </div>
+              <div className="p-6 text-center text-sm font-bold text-slate-400">ยังไม่มีการเช็กเวลาเรียนรายวิชาในวันนี้</div>
             )}
           </div>
         </article>
 
         <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="text-emerald-600" size={19} aria-hidden="true" />
-            <h2 className="text-lg font-black text-slate-950">ความพร้อมของห้องเรียน ({selectedClassroom?.name || 'ห้องเรียน'})</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="text-cyan-700" size={19} aria-hidden="true" />
+              <h2 className="text-lg font-black text-slate-950">ตารางสอนประจำสัปดาห์</h2>
+            </div>
+            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=schedule">จัดการตาราง <ArrowRight className="inline" size={14} /></Link>
           </div>
-          <div className="mt-4 grid gap-2">
-            {[
-              `รายชื่อนักเรียนในห้อง: ${analyticsData.dataCompleteness.studentsCount} คน`,
-              `การเช็กเวลาเรียนประจำวันนี้: ${analyticsData.dataCompleteness.attendanceCheckedToday ? 'เรียบร้อยแล้ว' : 'ยังไม่เช็กชื่อ'}`,
-              `จำนวนชุดคะแนนที่ลงบันทึก: ${analyticsData.scores.assessmentCount} ชุด`,
-              `การบันทึกเยี่ยมบ้าน: ${analyticsData.dataCompleteness.homeVisitsCount} / ${analyticsData.dataCompleteness.studentsCount} คน`,
-            ].map((item) => (
-              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-800" key={item}>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                {item}
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+            <div className="min-w-[560px]">
+              <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-200 bg-slate-50 text-[11px] font-black text-slate-500">
+                <span className="p-2.5">เวลา</span>{weeklySchedule.activeDays.slice(0, 5).map((day) => <span className="p-2.5 text-center" key={day}>{day}</span>)}
               </div>
-            ))}
+              {weeklyPeriods.map((period) => <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-100 last:border-b-0" key={period.index}><span className="p-2 text-[10px] font-black text-slate-500">{period.start}-{period.end}</span>{weeklySchedule.activeDays.slice(0, 5).map((day) => { const cell = weeklySchedule.cells[makeScheduleCellKey(day, period.index)]; return <div className="border-l border-slate-100 p-1.5" key={`${day}-${period.index}`}>{cell?.subject ? <div className="min-h-9 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-1 text-center text-[10px] font-black leading-4 text-sky-900">{cell.subject}</div> : null}</div>; })}</div>)}
+            </div>
           </div>
         </article>
       </section>
