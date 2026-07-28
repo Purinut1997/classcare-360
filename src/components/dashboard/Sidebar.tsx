@@ -66,7 +66,7 @@ export function Sidebar({
       />
       <aside className={`app-sidebar ${isMobileOpen ? 'is-open' : ''}`}>
         <div className="app-sidebar-brand">
-          <AppLogo className="h-10 w-10 rounded-xl bg-white" />
+          <AppLogo className="h-10 w-10 rounded-xl bg-white/95 ring-1 ring-cyan-100/20" />
           <div className="min-w-0">
             <p className="truncate text-base font-black tracking-tight text-white">ClassCare 360</p>
             <p className="truncate text-[11px] font-bold text-cyan-100/75">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
