@@ -47,7 +47,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
   const firstSubject = settings.subjects[0];
-  const [identity] = useState<SchoolReportIdentity>(() => ({
+  const [identity, setIdentity] = useState<SchoolReportIdentity>(() => ({
     ...loadSchoolReportIdentity(),
     academicYear: session.workspace?.academicYear || loadSchoolReportIdentity().academicYear,
     classroomName: session.workspace?.classroomName || loadSchoolReportIdentity().classroomName,
@@ -91,6 +91,30 @@ export function SchedulePage({ session }: SchedulePageProps) {
     }
 
     void loadSharedSchedule();
+    return () => { isMounted = false; };
+  }, [session.workspace]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadWorkspaceIdentity() {
+      if (!supabase || !session.workspace) return;
+      const workspace = session.workspace;
+      const { data, error } = await supabase
+        .from('workspaces')
+        .select('school_name,academic_year,settings')
+        .eq('id', workspace.id)
+        .maybeSingle();
+      if (!isMounted || error || !data) return;
+      const workspaceSettings = (data.settings || {}) as { classroom_name?: string; report_identity?: Partial<SchoolReportIdentity> };
+      setIdentity((current) => ({
+        ...current,
+        ...(workspaceSettings.report_identity || {}),
+        academicYear: data.academic_year || workspace.academicYear,
+        classroomName: workspaceSettings.classroom_name || workspace.classroomName,
+        schoolName: data.school_name || workspace.schoolName,
+      }));
+    }
+    void loadWorkspaceIdentity();
     return () => { isMounted = false; };
   }, [session.workspace]);
 
@@ -723,7 +747,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   <Printer size={17} aria-hidden="true" />
                   พิมพ์ A4 แนวนอน
                 </button>
-                <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=attendance">
+                <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=subject-attendance">
                   <FileSpreadsheet size={17} aria-hidden="true" />
                   รายงาน / พิมพ์ตารางสอน
                 </Link>

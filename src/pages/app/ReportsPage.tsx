@@ -416,6 +416,7 @@ function buildMonthlyAttendanceGrid({
   classrooms,
   dateFrom,
   periodLabel,
+  sessionKind,
   subjectName,
   students,
 }: {
@@ -425,6 +426,7 @@ function buildMonthlyAttendanceGrid({
   classrooms: ClassroomRow[];
   dateFrom: string;
   periodLabel?: string;
+  sessionKind: 'daily' | 'subject';
   subjectName?: string;
   students: StudentRow[];
 }): MonthlyAttendanceGrid {
@@ -435,6 +437,10 @@ function buildMonthlyAttendanceGrid({
   const sessionsByDate = new Map(
     attendanceSessions
       .filter((session) => !selectedClassroomId || session.classroom_id === selectedClassroomId)
+      .filter((session) => {
+        const isLegacyHomeroom = session.subject_name === 'โฮมรูม';
+        return sessionKind === 'subject' ? Boolean(session.subject_name) && !isLegacyHomeroom : !session.subject_name || isLegacyHomeroom;
+      })
       .filter((session) => !subjectName || session.subject_name === subjectName)
       .filter((session) => !periodLabel || session.period_label === periodLabel)
       .map((session) => [session.attendance_date, session]),
@@ -1085,6 +1091,31 @@ export function ReportsPage({ session }: ReportsPageProps) {
   );
 
   useEffect(() => {
+    let mounted = true;
+    async function loadWorkspaceIdentity() {
+      if (!supabase || !session.workspace) return;
+      const { data, error } = await supabase
+        .from('workspaces')
+        .select('school_name,academic_year,settings')
+        .eq('id', session.workspace.id)
+        .maybeSingle();
+      if (!mounted || error || !data) return;
+      const settings = (data.settings || {}) as { classroom_name?: string; report_identity?: Partial<SchoolReportIdentity> };
+      const identity = {
+        ...loadSchoolReportIdentity(),
+        ...(settings.report_identity || {}),
+        academicYear: data.academic_year || session.workspace.academicYear,
+        classroomName: settings.classroom_name || session.workspace.classroomName,
+        schoolName: data.school_name || session.workspace.schoolName,
+      };
+      setReportIdentity(identity);
+      saveSchoolReportIdentity(identity);
+    }
+    void loadWorkspaceIdentity();
+    return () => { mounted = false; };
+  }, [session.workspace]);
+
+  useEffect(() => {
     const nextView = searchParams.get('reportView');
     const nextPeriod = searchParams.get('reportPeriod');
     if (isReportView(nextView)) setReportView(nextView);
@@ -1386,7 +1417,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   );
 
   const subjectOptions = useMemo(
-    () => Array.from(new Set(attendanceSessions.map((item) => item.subject_name).filter((item): item is string => Boolean(item)))).sort(),
+    () => Array.from(new Set(attendanceSessions.map((item) => item.subject_name).filter((item): item is string => Boolean(item) && item !== 'โฮมรูม'))).sort(),
     [attendanceSessions],
   );
   const periodOptions = useMemo(
@@ -1411,6 +1442,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         classrooms,
         dateFrom,
         periodLabel: selectedPeriodLabel,
+        sessionKind: 'subject',
         students,
         subjectName: selectedSubjectName,
       }),
@@ -1430,6 +1462,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         classroomId,
         classrooms,
         dateFrom,
+        sessionKind: 'daily',
         students,
       }),
     [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, students],
@@ -1654,7 +1687,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportExcel() {
-    const reportIdentity = loadSchoolReportIdentity();
+    const activeIdentity = reportIdentity;
     const html =
       reportView === 'savings'
         ? buildPrintableSavingsReportHtml({
@@ -1663,7 +1696,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity,
+            reportIdentity: activeIdentity,
           })
         : buildPrintableReportHtml({
             attendanceGrid: activeAttendanceGrid,
@@ -1671,7 +1704,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity,
+            reportIdentity: activeIdentity,
           });
 
     downloadBlob(
@@ -1770,7 +1803,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       return;
     }
 
-    const reportIdentity = loadSchoolReportIdentity();
+    const activeIdentity = reportIdentity;
     const html =
       reportView === 'savings'
         ? buildPrintableSavingsReportHtml({
@@ -1779,7 +1812,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity,
+            reportIdentity: activeIdentity,
           })
         : buildPrintableReportHtml({
             attendanceGrid: activeAttendanceGrid,
@@ -1787,7 +1820,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
             workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity,
+            reportIdentity: activeIdentity,
           });
 
     printWindow.document.open();

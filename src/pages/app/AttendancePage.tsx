@@ -278,7 +278,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
       return;
     }
 
-    const normalizedPeriod = mode === 'subject' ? `${periodLabel} - ${subjectName.trim() || 'ไม่ระบุวิชา'}` : periodLabel;
+    // The report boundary is explicit: daily sessions have no subject; subject
+    // sessions always do. This prevents the two report types from mixing.
+    const normalizedSubjectName = mode === 'subject' ? subjectName.trim() || 'ไม่ระบุวิชา' : null;
+    const normalizedPeriod = periodLabel;
 
     if (!supabase || !session.workspace) {
       const localSession: AttendanceSessionRow = {
@@ -287,7 +290,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
         id: `demo-attendance-${Date.now()}`,
         period_label: normalizedPeriod,
         status: 'draft',
-        subject_name: subjectName,
+        subject_name: normalizedSubjectName,
       };
       setAttendanceSession(localSession);
       setRecords([]);
@@ -304,7 +307,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           classroom_id: classroomId,
           attendance_date: attendanceDate,
           period_label: normalizedPeriod,
-          subject_name: subjectName.trim() || null,
+          subject_name: normalizedSubjectName,
           status: 'draft',
           created_by: session.profile.id,
         },
