@@ -63,6 +63,7 @@ export function LoginPage({ session }: LoginPageProps) {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'ยังไม่ได้ตั้งค่า .env.local จึงแสดงเป็นโหมดตัวอย่างก่อน',
   );
@@ -156,6 +157,8 @@ export function LoginPage({ session }: LoginPageProps) {
       return;
     }
 
+    setIsGoogleSubmitting(true);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -164,7 +167,15 @@ export function LoginPage({ session }: LoginPageProps) {
       },
     });
 
-    if (error) setNotice(error.message);
+    if (error) {
+      const isProviderSetupError = /provider|google|oauth/i.test(error.message);
+      setNotice(
+        isProviderSetupError
+          ? 'ยังเปิดใช้ Google Login ไม่สมบูรณ์: ให้เปิด Google provider ใน Supabase Auth และเพิ่ม callback URL ของ ClassCare 360 ก่อน'
+          : error.message,
+      );
+      setIsGoogleSubmitting(false);
+    }
   }
 
   return (
@@ -307,10 +318,12 @@ export function LoginPage({ session }: LoginPageProps) {
 
           <button
             className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-            onClick={handleGoogleLogin}
+            disabled={isGoogleSubmitting || isSubmitting}
+            onClick={() => void handleGoogleLogin()}
             type="button"
           >
-            เข้าสู่ระบบด้วย Google
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-[#4285f4] text-xs font-black text-white">G</span>
+            {isGoogleSubmitting ? 'กำลังไปยัง Google…' : 'เข้าสู่ระบบด้วย Google'}
           </button>
 
           {notice ? (
