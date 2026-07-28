@@ -1,12 +1,15 @@
-import { Bell, Building2, Menu, Moon, Search, Sun } from 'lucide-react';
+import { Bell, Building2, Menu, Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { roleLabels } from '../../lib/roles';
 import type { AppSessionContext } from '../../types/core';
 import { SignOutButton } from '../auth/SignOutButton';
+import { GlobalSearch } from './GlobalSearch';
+import type { AppNavItem } from '../../routes/appRoutes';
 
 interface TopbarProps {
   activeLabel: string;
+  navItems: AppNavItem[];
   onMenuToggle: () => void;
   onThemeToggle: () => void;
   session?: AppSessionContext;
@@ -18,7 +21,7 @@ function getInitials(displayName?: string) {
   return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 }
 
-export function Topbar({ activeLabel, onMenuToggle, onThemeToggle, session, theme }: TopbarProps) {
+export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, session, theme }: TopbarProps) {
   const workspace = session?.workspace;
 
   return (
@@ -55,17 +58,7 @@ export function Topbar({ activeLabel, onMenuToggle, onThemeToggle, session, them
         <p className="truncate text-[11px] font-bold text-slate-500">พื้นที่ทำงานปัจจุบัน</p>
       </div>
 
-      <label className="app-global-search">
-        <Search size={17} aria-hidden="true" />
-        <input
-          aria-label="ค้นหาทั้งระบบ"
-          placeholder="ค้นหานักเรียน งาน หรือรายงาน"
-          type="search"
-        />
-        <kbd className="hidden rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-black text-slate-400 xl:inline">
-          Ctrl K
-        </kbd>
-      </label>
+      <GlobalSearch navItems={navItems} session={session} />
 
       <button
         aria-label={theme === 'nexus' ? 'Switch to light theme' : 'Switch to Nexus theme'}

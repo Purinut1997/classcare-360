@@ -42,6 +42,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
       <div className="app-shell-main">
         <Topbar
           activeLabel={activeLabel}
+          navItems={navItems}
           onMenuToggle={() => setIsMenuOpen(true)}
           onThemeToggle={() => setTheme((current) => (current === 'nexus' ? 'light' : 'nexus'))}
           session={session}

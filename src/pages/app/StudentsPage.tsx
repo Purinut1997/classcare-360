@@ -1157,6 +1157,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อบันทึกนักเรียนลง Supabase จริง',
   );
   const requestedStudentView = searchParams.get('studentView') || 'roster';
+  const requestedStudentId = searchParams.get('studentId');
+  const requestedClassroomId = searchParams.get('classroomId');
   const activeStudentView = studentTaskLinks.some((item) => item.value === requestedStudentView)
     ? requestedStudentView
     : 'roster';
@@ -1343,6 +1345,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
       }),
     [classrooms, students],
   );
+
+  useEffect(() => {
+    if (requestedStudentId && students.some((student) => student.id === requestedStudentId)) {
+      setSelectedStudentId(requestedStudentId);
+    }
+  }, [requestedStudentId, students]);
+
+  useEffect(() => {
+    if (requestedClassroomId && classrooms.some((classroom) => classroom.id === requestedClassroomId)) {
+      setRosterClassroomFilter(requestedClassroomId);
+    }
+  }, [classrooms, requestedClassroomId]);
 
   useEffect(() => {
     if (!selectedStudent || selectedCareCases.length === 0) {
