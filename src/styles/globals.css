@@ -576,6 +576,22 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .bg-slate-900\/60,
 .app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] .bg-slate-900\/40 { background: rgb(12 37 65 / 0.72) !important; }
 
+/* A few shared page primitives and legacy amber classes carry their own
+   foreground color rather than a Tailwind text utility.  Keep them readable
+   whenever the app shell is dark, including pages added in older releases. */
+.app-shell.theme-dark .app-page-title { color: #f3fbff !important; }
+.app-shell.theme-dark .app-page-description { color: #a9c4dc !important; }
+.app-shell.theme-dark .app-page-header { border-color: rgb(108 205 255 / 0.2) !important; }
+.app-shell.theme-dark [class*="text-[#3a"],
+.app-shell.theme-dark [class*="text-[#4b"],
+.app-shell.theme-dark [class*="text-[#5a"],
+.app-shell.theme-dark [class*="text-[#7a"],
+.app-shell.theme-dark [class*="text-[#8a"],
+.app-shell.theme-dark [class*="text-[#9a"],
+.app-shell.theme-dark [class*="text-[#b4"] { color: #d5eaff !important; }
+.app-shell.theme-dark select { color: #edfaff !important; }
+.app-shell.theme-dark select option { background: #071b34; color: #edfaff; }
+
 @media print {
   body { background: #fff !important; color: #111 !important; }
   .schedule-print-sheet, .schedule-print-sheet * { color: #111 !important; }
