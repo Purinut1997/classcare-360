@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
+import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
 import type { AppSessionContext } from '../../types/core';
@@ -111,7 +112,7 @@ const demoStudents: StudentRow[] = [
 
 const demoAssessments: ScoreAssessmentRow[] = [
   {
-    assessment_date: new Date().toISOString().slice(0, 10),
+    assessment_date: getBangkokDate(),
     category: 'quiz',
     classroom_id: 'demo-classroom',
     created_by: 'demo-teacher',
@@ -124,7 +125,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
     workspace_id: 'demo-workspace',
   },
   {
-    assessment_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString().slice(0, 10),
+    assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 4)),
     category: 'assignment',
     classroom_id: 'demo-classroom',
     created_by: 'demo-teacher',
@@ -137,7 +138,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
     workspace_id: 'demo-workspace',
   },
   {
-    assessment_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 9).toISOString().slice(0, 10),
+    assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 9)),
     category: 'midterm',
     classroom_id: 'demo-classroom',
     created_by: 'demo-teacher',
@@ -150,7 +151,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
     workspace_id: 'demo-workspace',
   },
   {
-    assessment_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString().slice(0, 10),
+    assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 14)),
     category: 'final',
     classroom_id: 'demo-classroom',
     created_by: 'demo-teacher',
@@ -214,7 +215,7 @@ function formatScore(value: number) {
 }
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return getBangkokDate();
 }
 
 function escapeCsv(value: string | number | null) {

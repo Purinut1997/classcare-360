@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -81,7 +82,7 @@ const demoTransactions: SavingsTransactionRow[] = [
     note: 'ฝากประจำวัน',
     recorded_by: 'demo-teacher',
     student_id: 'demo-student-1',
-    transaction_date: new Date().toISOString().slice(0, 10),
+    transaction_date: getBangkokDate(),
     transaction_type: 'deposit',
     workspace_id: 'demo-workspace',
   },
@@ -93,14 +94,14 @@ const demoTransactions: SavingsTransactionRow[] = [
     note: 'ถอนซื้ออุปกรณ์',
     recorded_by: 'demo-teacher',
     student_id: 'demo-student-2',
-    transaction_date: new Date().toISOString().slice(0, 10),
+    transaction_date: getBangkokDate(),
     transaction_type: 'withdrawal',
     workspace_id: 'demo-workspace',
   },
 ];
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return getBangkokDate();
 }
 
 function formatBaht(value: number) {

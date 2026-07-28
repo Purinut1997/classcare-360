@@ -14,6 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 
 import { dashboardStats } from '../../data/dashboard';
+import { getBangkokDate } from '../../lib/date';
 import { canManageWorkspace } from '../../lib/roles';
 import { loadScheduleSettings, type DayName } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
@@ -187,7 +188,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         { data: savingsAccountRows },
         { data: savingsTxRows },
         { data: scoreAssessments },
-        { data: scoreRecords },
+        { data: scoreEntries },
         { data: behaviorRows },
         { data: homeVisitRows },
         { data: careCaseRows },
@@ -197,7 +198,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
         supabase.from('savings_transactions').select('student_id, amount, transaction_type').eq('workspace_id', session.workspace.id),
         supabase.from('score_assessments').select('id, max_score').eq('workspace_id', session.workspace.id),
-        supabase.from('score_records').select('student_id, score, assessment_id').eq('workspace_id', session.workspace.id),
+        supabase.from('score_entries').select('student_id, score, assessment_id').eq('workspace_id', session.workspace.id),
         supabase.from('behavior_records').select('student_id, points, tone').eq('workspace_id', session.workspace.id),
         supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).eq('status', 'completed'),
         supabase.from('student_care_cases').select('id, student_id, title, status, priority').eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
@@ -214,7 +215,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       let late = 0;
       let leave = 0;
       let absent = 0;
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getBangkokDate();
       let attendanceCheckedToday = false;
 
       (attendanceRows || []).forEach((row) => {
@@ -254,7 +255,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       // Real Scores
       const maxScoreMap = new Map((scoreAssessments || []).map((a) => [a.id, Number(a.max_score || 100)]));
-      const classroomScoreRecords = (scoreRecords || []).filter((sr) => studentIds.has(sr.student_id));
+      const classroomScoreRecords = (scoreEntries || []).filter((sr) => studentIds.has(sr.student_id));
       let totalScorePct = 0;
       const studentScoresMap = new Map<string, number[]>();
 

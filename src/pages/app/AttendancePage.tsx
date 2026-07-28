@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { getBangkokDate } from '../../lib/date';
 import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -103,7 +104,7 @@ const statusLabels = Object.fromEntries(statusOptions.map((option) => [option.va
 >;
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return getBangkokDate();
 }
 
 function createDefaultMarks(students: StudentRow[]) {

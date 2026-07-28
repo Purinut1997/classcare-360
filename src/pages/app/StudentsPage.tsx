@@ -1563,8 +1563,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
     const primaryStudentGuardian =
       studentGuardians.find((item) => item.is_primary) || studentGuardians[0] || null;
 
-    console.log('saveGuardianContactFromForm:', { studentId, trimmedPhone, displayName, relation, primaryStudentGuardian });
-
     if (!trimmedPhone && !displayName) return;
 
     if (!supabase || !session.workspace) {
@@ -1611,7 +1609,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
         .single();
 
       if (error) throw error;
-      console.log('Updated guardian:', data);
       setGuardians((current) =>
         current.map((item) => (item.id === primaryStudentGuardian.id ? (data as GuardianRow) : item)),
       );
@@ -1633,28 +1630,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .single();
 
     if (error) throw error;
-    console.log('Inserted guardian:', data);
     setGuardians((current) => [...current, data as GuardianRow]);
-  }
-
-  async function reloadGuardians() {
-    if (!supabase || !session.workspace) return;
-    
-    console.log('reloadGuardians: Starting reload for workspace', session.workspace.id);
-    
-    const { data, error } = await supabase
-      .from('student_guardians')
-      .select('id,student_id,relation,display_name,phone,is_primary,consent_status')
-      .eq('workspace_id', session.workspace.id)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Failed to reload guardians:', error);
-      return;
-    }
-
-    console.log('reloadGuardians: Loaded guardians:', data);
-    setGuardians((data || []) as GuardianRow[]);
   }
 
   async function writeAuditLog({
@@ -1721,26 +1697,20 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     if (!supabase) return;
 
-    console.log('savePublicLookupIdentity:', { studentId, citizenId });
-
     const { data, error } = await supabase.rpc('set_student_public_lookup_identity', {
       citizen_id: citizenId,
       target_student_id: studentId,
     });
 
     if (error) {
-      console.error('savePublicLookupIdentity error:', error);
       // Don't throw error to prevent blocking guardian phone saving
       return;
     }
 
     if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
-      console.error('savePublicLookupIdentity failed:', data);
       // Don't throw error to prevent blocking guardian phone saving
       return;
     }
-
-    console.log('savePublicLookupIdentity success:', data);
   }
 
   async function ensureClassroom() {
@@ -3081,6 +3051,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
           ))}
         </div>
       </div>
+
+      {notice ? (
+        <div aria-live="polite" className="mt-5 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-950">
+          {notice}
+        </div>
+      ) : null}
 
       <nav
         aria-label="เมนูย่อย Student 360"
@@ -5501,7 +5477,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       เพศ
                       <select
                         className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, gender: e.target.value as any }))}
+                        onChange={(e) =>
+                          setStudentForm((c) => ({
+                            ...c,
+                            gender: e.target.value as NonNullable<StudentRow['gender']>,
+                          }))
+                        }
                         value={studentForm.gender}
                       >
                         <option value="unspecified">ไม่ระบุ</option>

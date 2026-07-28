@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -62,7 +63,7 @@ const demoStudents: StudentRow[] = [
 
 const demoBehaviorRecords: BehaviorRecordRow[] = [
   {
-    behavior_date: new Date().toISOString().slice(0, 10),
+    behavior_date: getBangkokDate(),
     category: 'ช่วยเหลือเพื่อน',
     created_at: new Date().toISOString(),
     description: 'ช่วยเพื่อนเก็บอุปกรณ์หลังเลิกเรียนโดยครูไม่ต้องเตือน',
@@ -75,7 +76,7 @@ const demoBehaviorRecords: BehaviorRecordRow[] = [
     workspace_id: 'demo-workspace',
   },
   {
-    behavior_date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString().slice(0, 10),
+    behavior_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24)),
     category: 'งานไม่ครบ',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
     description: 'ค้างใบงานภาษาไทย 1 ชิ้น นัดติดตามในคาบโฮมรูม',
@@ -110,7 +111,7 @@ const followUpLabels: Record<FollowUpStatus, string> = {
 };
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return getBangkokDate();
 }
 
 function escapeCsv(value: string | number | null) {

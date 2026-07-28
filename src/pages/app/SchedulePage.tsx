@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   BookOpenCheck,
   CalendarRange,
@@ -27,6 +27,7 @@ import {
   type ScheduleSubjectOption,
   type SchoolReportIdentity,
 } from '../../lib/scheduleSettings';
+import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
 interface SchedulePageProps {
@@ -67,6 +68,40 @@ export function SchedulePage({ session }: SchedulePageProps) {
     subjectCode: firstSubject?.code || 'ค15101',
   }));
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSharedSchedule() {
+      if (!supabase || !session.workspace) return;
+      const { data, error } = await supabase
+        .from('workspace_schedule_settings')
+        .select('settings')
+        .eq('workspace_id', session.workspace.id)
+        .maybeSingle();
+
+      if (!isMounted || error || !data?.settings || typeof data.settings !== 'object') return;
+      const shared = data.settings as typeof settings;
+      const merged = { ...loadScheduleSettings(session.workspace.classroomName || 'ป.5/1'), ...shared };
+      setSettings(merged);
+      setSelectedSubject(merged.subjects[0]?.name || merged.subjectOptions[0] || 'คณิตศาสตร์');
+      setSelectedSubjectCode(merged.subjects[0]?.code || '');
+      setNotice('โหลดรายวิชาและตารางสอนกลางของ workspace แล้ว');
+    }
+
+    void loadSharedSchedule();
+    return () => { isMounted = false; };
+  }, [session.workspace]);
+
+  function persistSharedSchedule(nextSettings: typeof settings) {
+    if (!supabase || !session.workspace) return;
+    void supabase
+      .from('workspace_schedule_settings')
+      .upsert({ settings: nextSettings, updated_by: session.profile.id, workspace_id: session.workspace.id })
+      .then(({ error }) => {
+        if (error) setNotice('บันทึกไว้ในเครื่องแล้ว แต่ยัง sync ตารางกลางไม่ได้: ตรวจ migration 0028 และสิทธิ์ owner');
+      });
+  }
 
   const activeView = searchParams.get('scheduleView') === 'settings' ? 'settings' : 'table';
   const periods = useMemo(() => buildSchedulePeriods(settings), [settings]);
@@ -146,6 +181,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
     setSettings(normalizedSettings);
     saveScheduleSettings(normalizedSettings);
+    persistSharedSchedule(normalizedSettings);
     setNotice('บันทึกตั้งค่าตารางสอนแล้ว หน้าเช็คเวลาเรียนจะเห็นคาบและรายวิชาจากตารางนี้');
   }
 
@@ -181,6 +217,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     setSelectedSubjectCode(subjectDraft.code.trim());
     setSettings(nextSettings);
     saveScheduleSettings(nextSettings);
+    persistSharedSchedule(nextSettings);
     setNotice(`เพิ่มรายวิชา ${name} แล้ว`);
   }
 
@@ -198,6 +235,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     };
     setSettings(nextSettings);
     saveScheduleSettings(nextSettings);
+    persistSharedSchedule(nextSettings);
     setNotice('บันทึกรายวิชาที่ใช้ใน dropdown แล้ว');
   }
 
@@ -209,6 +247,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const nextSettings = { ...settings, classroomOptions };
     setSettings(nextSettings);
     saveScheduleSettings(nextSettings);
+    persistSharedSchedule(nextSettings);
     setNotice('บันทึกห้องเรียนที่ใช้ในตารางแล้ว');
   }
 
@@ -218,6 +257,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const nextSettings = { ...settings, subjects, subjectOptions };
     setSettings(nextSettings);
     saveScheduleSettings(nextSettings);
+    persistSharedSchedule(nextSettings);
     setNotice(`ลบรายวิชา ${subjectName} ออกจาก dropdown แล้ว ตารางที่เคยกรอกไว้ยังคงข้อมูลเดิมเพื่อไม่ทำรายงานหาย`);
   }
 
@@ -281,6 +321,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const nextSettings = { ...settings, cells: nextCells };
     setSettings(nextSettings);
     saveScheduleSettings(nextSettings);
+    persistSharedSchedule(nextSettings);
     setEditingCell(null);
     setNotice(`ล้างช่อง ${editingCell.day} คาบ ${editingCell.periodIndex} แล้ว`);
   }

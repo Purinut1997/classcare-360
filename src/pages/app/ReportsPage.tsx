@@ -11,7 +11,7 @@ interface ReportsPageProps {
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'activity';
-type ReportView = 'attendance' | 'savings' | 'scores' | 'individual' | 'behavior' | 'settings';
+type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'individual' | 'behavior' | 'settings';
 type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
 
@@ -210,6 +210,7 @@ const statusOrder: AttendanceStatus[] = ['present', 'absent', 'late', 'leave', '
 
 const reportViews: Array<{ description: string; label: string; value: ReportView }> = [
   { description: 'รายเดือน / เทอม / ปีการศึกษา', label: 'เวลาเรียน', value: 'attendance' },
+  { description: 'แยกวิชา คาบ และช่วงเวลา พร้อม export', label: 'เวลาเรียนรายวิชา', value: 'subject-attendance' },
   { description: 'เงินฝาก ถอน และยอดคงเหลือ', label: 'เงินออม', value: 'savings' },
   { description: 'สรุปคะแนนรวมห้องและรายชั้น', label: 'คะแนนรวมห้อง', value: 'scores' },
   { description: 'รวมเวลาเรียน คะแนน เงินออม พฤติกรรม', label: 'รายบุคคล', value: 'individual' },
@@ -253,13 +254,6 @@ const followUpLabels: Record<BehaviorRecordRow['follow_up_status'], string> = {
   referred: 'ส่งต่อ',
   resolved: 'ปิดเคสแล้ว',
   watch: 'เฝ้าดู',
-};
-
-const monthlyStatusLabels: Record<'absent' | 'late' | 'leave' | 'present', string> = {
-  present: 'มา',
-  late: 'สาย',
-  leave: 'ลา',
-  absent: 'ขาด',
 };
 
 const monthlyStatusAbbreviations: Record<AttendanceStatus, string> = {
@@ -421,6 +415,8 @@ function buildMonthlyAttendanceGrid({
   classroomId,
   classrooms,
   dateFrom,
+  periodLabel,
+  subjectName,
   students,
 }: {
   attendanceRecords: AttendanceRecordRow[];
@@ -428,6 +424,8 @@ function buildMonthlyAttendanceGrid({
   classroomId: string;
   classrooms: ClassroomRow[];
   dateFrom: string;
+  periodLabel?: string;
+  subjectName?: string;
   students: StudentRow[];
 }): MonthlyAttendanceGrid {
   const { days } = getReportMonthContext(dateFrom);
@@ -437,6 +435,8 @@ function buildMonthlyAttendanceGrid({
   const sessionsByDate = new Map(
     attendanceSessions
       .filter((session) => !selectedClassroomId || session.classroom_id === selectedClassroomId)
+      .filter((session) => !subjectName || session.subject_name === subjectName)
+      .filter((session) => !periodLabel || session.period_label === periodLabel)
       .map((session) => [session.attendance_date, session]),
   );
   const recordsBySessionStudent = new Map(
@@ -1076,6 +1076,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [dateFrom, setDateFrom] = useState(getTodayDate());
   const [dateTo, setDateTo] = useState(getTodayDate());
   const [query, setQuery] = useState('');
+  const [selectedSubjectName, setSelectedSubjectName] = useState('');
+  const [selectedPeriodLabel, setSelectedPeriodLabel] = useState('');
   const [coreMetrics, setCoreMetrics] = useState<CoreReportMetrics>(emptyCoreMetrics);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [notice, setNotice] = useState<string | null>(
@@ -1383,6 +1385,43 @@ export function ReportsPage({ session }: ReportsPageProps) {
     [reportRows],
   );
 
+  const subjectOptions = useMemo(
+    () => Array.from(new Set(attendanceSessions.map((item) => item.subject_name).filter((item): item is string => Boolean(item)))).sort(),
+    [attendanceSessions],
+  );
+  const periodOptions = useMemo(
+    () => Array.from(new Set(attendanceSessions.map((item) => item.period_label).filter(Boolean))).sort(),
+    [attendanceSessions],
+  );
+  const subjectReportRows = useMemo(
+    () =>
+      reportRows.filter(
+        (row) =>
+          (!selectedSubjectName || row.subjectName === selectedSubjectName) &&
+          (!selectedPeriodLabel || row.periodLabel === selectedPeriodLabel),
+      ),
+    [reportRows, selectedPeriodLabel, selectedSubjectName],
+  );
+  const subjectAttendanceGrid = useMemo(
+    () =>
+      buildMonthlyAttendanceGrid({
+        attendanceRecords,
+        attendanceSessions,
+        classroomId,
+        classrooms,
+        dateFrom,
+        periodLabel: selectedPeriodLabel,
+        students,
+        subjectName: selectedSubjectName,
+      }),
+    [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, selectedPeriodLabel, selectedSubjectName, students],
+  );
+  useEffect(() => {
+    if (reportView !== 'subject-attendance') return;
+    if (!selectedSubjectName && subjectOptions[0]) setSelectedSubjectName(subjectOptions[0]);
+    if (!selectedPeriodLabel && periodOptions[0]) setSelectedPeriodLabel(periodOptions[0]);
+  }, [periodOptions, reportView, selectedPeriodLabel, selectedSubjectName, subjectOptions]);
+
   const monthlyAttendanceGrid = useMemo(
     () =>
       buildMonthlyAttendanceGrid({
@@ -1395,6 +1434,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       }),
     [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, students],
   );
+  const activeAttendanceGrid = reportView === 'subject-attendance' ? subjectAttendanceGrid : monthlyAttendanceGrid;
 
   const monthlySavingsGrid = useMemo(
     () =>
@@ -1556,6 +1596,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const activeReportRowCount =
     reportView === 'attendance'
       ? reportRows.length
+      : reportView === 'subject-attendance'
+        ? subjectReportRows.length
       : reportView === 'savings'
         ? classroomSavingsTransactions.length
         : reportView === 'scores'
@@ -1566,7 +1608,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
               ? 1
               : 0;
   const exportableAttendance =
-    (reportView === 'attendance' && monthlyAttendanceGrid.rows.length > 0) ||
+    ((reportView === 'attendance' && monthlyAttendanceGrid.rows.length > 0) ||
+      (reportView === 'subject-attendance' && activeAttendanceGrid.rows.length > 0)) ||
     (reportView === 'savings' && monthlySavingsGrid.rows.length > 0);
   const readinessItems = [
     { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
@@ -1589,7 +1632,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
     const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'เครดิต'];
     const lines = [
       headers.map(escapeCsv).join(','),
-      ...reportRows.map((row) =>
+      ...(reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) =>
         [
           row.date,
           row.periodLabel,
@@ -1623,7 +1666,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             reportIdentity,
           })
         : buildPrintableReportHtml({
-            attendanceGrid: monthlyAttendanceGrid,
+            attendanceGrid: activeAttendanceGrid,
             dateFrom,
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
@@ -1639,8 +1682,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
 
   function exportJsonPackage() {
     const activeRows =
-      reportView === 'attendance'
-        ? reportRows.map((row) => ({ ...row, statusLabel: statusLabels[row.status] }))
+      reportView === 'attendance' || reportView === 'subject-attendance'
+        ? (reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) => ({ ...row, statusLabel: statusLabels[row.status] }))
         : reportView === 'savings'
           ? savingsReportRows.map((row) => ({
               balance: row.balance,
@@ -1701,6 +1744,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
         query,
         reportPeriod,
         reportView,
+        selectedPeriodLabel,
+        selectedSubjectName,
       },
       reportType: reportView,
       coreMetrics,
@@ -1737,7 +1782,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             reportIdentity,
           })
         : buildPrintableReportHtml({
-            attendanceGrid: monthlyAttendanceGrid,
+            attendanceGrid: activeAttendanceGrid,
             dateFrom,
             schoolName: session.workspace?.schoolName || 'Demo Workspace',
             teacherName: session.profile.displayName,
@@ -1889,6 +1934,23 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </label>
               ) : null}
 
+              {reportView === 'subject-attendance' ? (
+                <div className="grid gap-3 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-3">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    รายวิชา
+                    <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectName(event.target.value)} value={selectedSubjectName}>
+                      {subjectOptions.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    คาบเรียน
+                    <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedPeriodLabel(event.target.value)} value={selectedPeriodLabel}>
+                      {periodOptions.map((period) => <option key={period} value={period}>{period}</option>)}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+
               {reportPeriod === 'term' ? (
                 <div className="grid gap-3 rounded-3xl border border-amber-200 bg-amber-50/60 p-3">
                   <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -1999,14 +2061,16 @@ export function ReportsPage({ session }: ReportsPageProps) {
             <p className="text-xs font-bold text-slate-500">Created by MIKPURINUT</p>
           </div>
 
-          {reportView === 'attendance' ? (
+          {reportView === 'attendance' || reportView === 'subject-attendance' ? (
             <>
               {/* Dark Mode Monthly Attendance Grid (Reference Image #1) */}
               <div className="mt-5 rounded-3xl border border-slate-800 bg-[#080d1a] p-4 text-white shadow-2xl md:p-6">
                 <div className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-xl font-black text-white">
-                      รายงานเวลาเรียนระดับชั้น {selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} ประจำเดือน {dateFrom.slice(0, 7)}
+                      {reportView === 'subject-attendance'
+                        ? `รายงานเวลาเรียน ${selectedSubjectName || 'รายวิชา'} / ${selectedPeriodLabel || 'คาบเรียน'}`
+                        : `รายงานเวลาเรียนระดับชั้น ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} ประจำเดือน ${dateFrom.slice(0, 7)}`}
                     </h2>
                     <p className="mt-1 text-xs font-bold text-slate-400">
                       {session.workspace?.schoolName || 'โรงเรียนบ้านโคกสูง'} · ช่วงวันที่ {dateFrom} ถึง {dateTo}
@@ -2015,25 +2079,25 @@ export function ReportsPage({ session }: ReportsPageProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2 rounded-2xl border border-emerald-900/60 bg-[#0e1d20] px-3 py-1.5 text-xs font-black text-[#4ade80]">
                       <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#0a3525] text-sm font-black text-[#4ade80]">
-                        {monthlyAttendanceGrid.summary.present}
+                        {activeAttendanceGrid.summary.present}
                       </span>
                       มา
                     </div>
                     <div className="flex items-center gap-2 rounded-2xl border border-amber-900/60 bg-[#271d0e] px-3 py-1.5 text-xs font-black text-[#facc15]">
                       <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#452e0a] text-sm font-black text-[#facc15]">
-                        {monthlyAttendanceGrid.summary.late}
+                        {activeAttendanceGrid.summary.late}
                       </span>
                       สาย
                     </div>
                     <div className="flex items-center gap-2 rounded-2xl border border-sky-900/60 bg-[#0f2136] px-3 py-1.5 text-xs font-black text-[#38bdf8]">
                       <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#0b3356] text-sm font-black text-[#38bdf8]">
-                        {monthlyAttendanceGrid.summary.leave}
+                        {activeAttendanceGrid.summary.leave}
                       </span>
                       ลา
                     </div>
                     <div className="flex items-center gap-2 rounded-2xl border border-rose-900/60 bg-[#2e0f19] px-3 py-1.5 text-xs font-black text-[#f87171]">
                       <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#4c1021] text-sm font-black text-[#f87171]">
-                        {monthlyAttendanceGrid.summary.absent}
+                        {activeAttendanceGrid.summary.absent}
                       </span>
                       ขาด
                     </div>
@@ -2062,7 +2126,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-bold">
-                      {monthlyAttendanceGrid.rows.map((row, index) => (
+                      {activeAttendanceGrid.rows.map((row, index) => (
                         <tr className="transition hover:bg-slate-800/40" key={row.studentCode + index}>
                           <td className="px-2 py-2.5 text-center font-bold text-slate-400">{index + 1}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-200">{row.studentName}</td>
