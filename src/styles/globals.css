@@ -568,6 +568,30 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark [class*="bg-purple-50/"] { background-color: rgb(48 35 84 / 0.88) !important; }
 .app-shell.theme-dark [class~="bg-teal-50"],
 .app-shell.theme-dark [class*="bg-teal-50/"] { background-color: rgb(8 57 65 / 0.88) !important; }
+.app-shell.theme-dark [class~="bg-sky-100"],
+.app-shell.theme-dark [class*="bg-sky-100/"],
+.app-shell.theme-dark [class~="bg-cyan-100"],
+.app-shell.theme-dark [class*="bg-cyan-100/"],
+.app-shell.theme-dark [class~="bg-emerald-100"],
+.app-shell.theme-dark [class*="bg-emerald-100/"],
+.app-shell.theme-dark [class~="bg-amber-100"],
+.app-shell.theme-dark [class*="bg-amber-100/"],
+.app-shell.theme-dark [class~="bg-rose-100"],
+.app-shell.theme-dark [class*="bg-rose-100/"],
+.app-shell.theme-dark [class~="bg-purple-100"],
+.app-shell.theme-dark [class*="bg-purple-100/"] { background-color: rgb(21 53 82 / 0.92) !important; }
+.app-shell.theme-dark [class~="bg-slate-200"],
+.app-shell.theme-dark [class~="bg-slate-300"] { background-color: rgb(35 65 92 / 0.92) !important; }
+.app-shell.theme-dark [class*="bg-[#fff"] { background-color: rgb(13 38 66 / 0.9) !important; }
+
+/* Table row variants are used by student, score, savings, import and report
+   pages.  The direct row rule makes selected and hover bars unambiguously
+   dark even when a page supplies a custom opacity utility. */
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-sky-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-cyan-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-amber-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-slate-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-[#fff"] { background-color: rgb(14 48 78 / 0.94) !important; }
 .app-shell.theme-dark [class~="text-sky-700"],
 .app-shell.theme-dark [class~="text-sky-800"] { color: #7dd3fc !important; }
 .app-shell.theme-dark [class~="text-cyan-700"],
