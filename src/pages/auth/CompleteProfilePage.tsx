@@ -1,6 +1,6 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { ArrowRight, BadgeCheck, Building2, CheckCircle2, GraduationCap, ShieldCheck, UserRound } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { WorkspaceRole } from '../../types/core';
@@ -37,6 +37,28 @@ export function CompleteProfilePage() {
     isSupabaseReady ? null : 'โหมดตัวอย่าง: พร้อมต่อ profiles table หลังตั้งค่า Supabase',
   );
   const selectedRoleOption = roleOptions.find((option) => option.value === role);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadExistingProfile() {
+      if (!supabase) return;
+      const { data: authData } = await supabase.auth.getUser();
+      if (!mounted || !authData.user) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name,phone,metadata')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+      if (!mounted || error || !data) return;
+      const metadata = (data.metadata || {}) as { preferred_role?: Exclude<WorkspaceRole, 'superadmin'>; school_name?: string };
+      setDisplayName(data.display_name || authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'ครูประจำชั้น');
+      setPhone(data.phone || '');
+      setSchoolName(metadata.school_name || '');
+      if (metadata.preferred_role && roleOptions.some((option) => option.value === metadata.preferred_role)) setRole(metadata.preferred_role);
+    }
+    void loadExistingProfile();
+    return () => { mounted = false; };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -204,9 +226,9 @@ export function CompleteProfilePage() {
               {isSubmitting ? 'กำลังบันทึก' : 'บันทึก profile'}
               <ArrowRight size={18} aria-hidden="true" />
             </button>
-            <Link className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md" to="/app/select-workspace">
-              ไปเลือก workspace
-            </Link>
+            <button className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-500 shadow-sm" onClick={() => setNotice('กรุณาบันทึก profile ก่อน ระบบจึงจะใช้ชื่อโรงเรียนที่เลือกเพื่อกรอง workspace ได้ถูกต้อง')} type="button">
+              บันทึกก่อนเลือก workspace
+            </button>
           </div>
         </form>
       </section>
