@@ -54,6 +54,40 @@ function formatScheduleClassroom(classroom?: string) {
   return classroom?.trim() || '';
 }
 
+async function makeDarkLogoBackgroundTransparent(source: string) {
+  if (!source || typeof document === 'undefined') return source;
+
+  return new Promise<string>((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const longestEdge = Math.max(image.naturalWidth, image.naturalHeight);
+        const scale = longestEdge > 420 ? 420 / longestEdge : 1;
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return resolve(source);
+
+        context.drawImage(image, 0, 0, width, height);
+        const pixels = context.getImageData(0, 0, width, height);
+        for (let index = 0; index < pixels.data.length; index += 4) {
+          const [red, green, blue] = [pixels.data[index], pixels.data[index + 1], pixels.data[index + 2]];
+          if (red < 28 && green < 28 && blue < 28) pixels.data[index + 3] = 0;
+        }
+        context.putImageData(pixels, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve(source);
+      }
+    };
+    image.onerror = () => resolve(source);
+    image.src = source;
+  });
+}
+
 export function SchedulePage({ session }: SchedulePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
@@ -81,6 +115,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [quickSubjectName, setQuickSubjectName] = useState('');
   const [workspaceClassrooms, setWorkspaceClassrooms] = useState<WorkspaceClassroomRow[]>([]);
+  const [printLogoDataUrl, setPrintLogoDataUrl] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -105,6 +140,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
     void loadSharedSchedule();
     return () => { isMounted = false; };
   }, [session.workspace]);
+
+  useEffect(() => {
+    let isMounted = true;
+    void makeDarkLogoBackgroundTransparent(identity.schoolLogoDataUrl).then((nextLogo) => {
+      if (isMounted) setPrintLogoDataUrl(nextLogo);
+    });
+    return () => { isMounted = false; };
+  }, [identity.schoolLogoDataUrl]);
 
   useEffect(() => {
     let isMounted = true;
@@ -451,35 +494,37 @@ export function SchedulePage({ session }: SchedulePageProps) {
           html, body { background: #fff !important; font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; }
           .app-sidebar, .app-shell-sidebar, .app-topbar, .app-mobile-nav, .print-hidden, .no-print { display: none !important; }
           .app-page { padding: 0 !important; background: #fff !important; }
+          .app-page > :not(.schedule-print-sheet) { display: none !important; }
           .classcare-grid-bg { background: #fff !important; overflow: visible !important; }
           .classcare-grid-bg > .pointer-events-none,
           .classcare-grid-bg > .fixed { display: none !important; }
-          .schedule-print-sheet { display: block !important; width: 281mm !important; min-height: 194mm !important; padding: 0 !important; font-size: 14pt !important; line-height: 1.08 !important; }
-          .schedule-print-sheet, .schedule-print-sheet * { font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; }
+          .schedule-print-sheet { box-sizing: border-box !important; display: block !important; width: 281mm !important; min-height: 0 !important; padding: 0 !important; color: #111 !important; font-size: 16pt !important; line-height: 1 !important; }
+          .schedule-print-sheet, .schedule-print-sheet * { font-family: 'TH Sarabun New', 'TH Sarabun PSK', 'Noto Sans Thai', sans-serif !important; }
+          .schedule-print-sheet > div { min-height: 0 !important; }
           .schedule-screen { display: none !important; }
-          .schedule-print-title { font-size: 18pt !important; line-height: 1.05 !important; }
-          .schedule-print-subtitle { margin-top: 1.5mm !important; font-size: 16pt !important; line-height: 1.05 !important; }
-          .schedule-print-teacher { margin-top: 1.5mm !important; font-size: 15pt !important; line-height: 1.05 !important; }
-          .schedule-print-table { margin-top: 5mm !important; font-size: 13.5pt !important; line-height: 1.05 !important; table-layout: fixed !important; }
-          .schedule-print-table th, .schedule-print-table td { padding: 3px !important; }
-          .schedule-print-table thead th { font-size: 14pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
-          .schedule-print-table thead span { font-size: 12.5pt !important; line-height: 1 !important; }
+          .schedule-print-title { font-size: 21pt !important; line-height: 1.08 !important; }
+          .schedule-print-subtitle { margin-top: 1mm !important; font-size: 17pt !important; line-height: 1.08 !important; }
+          .schedule-print-teacher { margin-top: 1mm !important; font-size: 16pt !important; line-height: 1.08 !important; }
+          .schedule-print-table { margin-top: 4mm !important; font-size: 15pt !important; line-height: 1.02 !important; table-layout: fixed !important; }
+          .schedule-print-table th, .schedule-print-table td { padding: 2.5px !important; }
+          .schedule-print-table thead th { font-size: 15.5pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
+          .schedule-print-table thead span { font-size: 13.5pt !important; line-height: 1 !important; }
           .schedule-print-day { width: 24mm !important; }
-          .schedule-print-day-label { font-size: 14.5pt !important; line-height: 1.05 !important; }
-          .schedule-print-cell { height: 19mm !important; font-size: 13.5pt !important; line-height: 1.05 !important; }
-          .schedule-print-cell-code { font-size: 13pt !important; line-height: 1.05 !important; }
-          .schedule-print-cell-subject { margin-top: 0.8mm !important; font-size: 14pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
-          .schedule-print-cell-classroom { margin-top: 0.5mm !important; font-size: 12.5pt !important; line-height: 1.05 !important; }
-          .schedule-print-lunch { width: 16mm !important; font-size: 13pt !important; line-height: 1 !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.06em; }
-          .schedule-print-signatures { margin-top: 7mm !important; font-size: 14pt !important; line-height: 1.1 !important; }
-          .schedule-print-signatures p + p { margin-top: 2mm !important; }
+          .schedule-print-day-label { font-size: 16.5pt !important; line-height: 1.05 !important; }
+          .schedule-print-cell { height: 18.5mm !important; font-size: 15pt !important; line-height: 1.05 !important; }
+          .schedule-print-cell-code { font-size: 13.5pt !important; line-height: 1 !important; }
+          .schedule-print-cell-subject { margin-top: 0.5mm !important; font-size: 16pt !important; line-height: 1.03 !important; font-weight: 700 !important; }
+          .schedule-print-cell-classroom { margin-top: 0.5mm !important; font-size: 13pt !important; line-height: 1 !important; }
+          .schedule-print-lunch { width: 16mm !important; font-size: 14pt !important; line-height: 1 !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.06em; }
+          .schedule-print-signatures { margin-top: 5mm !important; font-size: 15pt !important; line-height: 1.08 !important; }
+          .schedule-print-signatures p + p { margin-top: 1mm !important; }
         }
       `}</style>
 
       <section className="schedule-print-sheet hidden bg-white p-8 text-black">
-        <div className="relative min-h-[194mm]">
-          {identity.schoolLogoDataUrl ? (
-            <img alt="school logo" className="absolute left-0 top-0 h-20 w-20 object-contain" src={identity.schoolLogoDataUrl} />
+        <div className="relative">
+          {printLogoDataUrl ? (
+            <img alt="school logo" className="absolute left-0 top-0 h-20 w-20 object-contain" src={printLogoDataUrl} />
           ) : null}
           <div className="mx-auto max-w-[920px] text-center">
             <h1 className="schedule-print-title text-xl font-bold">{identity.schoolName}</h1>
@@ -808,7 +853,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
               <div className="min-w-[980px] rounded-[2rem] border border-[#e3b875] bg-[#fff7df] p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.55)]">
                 <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-white/80 p-3">
                   <div className="flex items-center gap-3">
-                    {identity.schoolLogoDataUrl ? <img alt="โลโก้โรงเรียน" className="h-12 w-12 rounded-xl object-contain" src={identity.schoolLogoDataUrl} /> : null}
+                    {printLogoDataUrl ? <img alt="โลโก้โรงเรียน" className="h-12 w-12 object-contain" src={printLogoDataUrl} /> : null}
                     <div>
                       <p className="font-black text-slate-950">{settings.courseTitle}</p>
                       <p className="text-xs font-bold text-slate-500">{identity.teacherName || 'ยังไม่กรอกครูผู้สอน'} | ปีการศึกษา {identity.academicYear}</p>
