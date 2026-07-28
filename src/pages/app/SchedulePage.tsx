@@ -50,6 +50,10 @@ function toScheduleMinutes(time: string) {
   return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
 }
 
+function formatScheduleClassroom(classroom?: string) {
+  return classroom?.trim() || 'ไม่ระบุห้องเรียน / ทุกห้อง';
+}
+
 export function SchedulePage({ session }: SchedulePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
@@ -377,7 +381,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
     const key = makeScheduleCellKey(editingCell.day, editingCell.periodIndex);
     const nextCell: ScheduleCell = {
-      classroom: cellDraft.classroom.trim() || selectedClassroom.trim() || identity.classroomName,
+      classroom: cellDraft.classroom.trim(),
       subject,
       subjectCode: cellDraft.subjectCode?.trim() || undefined,
     };
@@ -529,7 +533,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           <>
                             <div className="schedule-print-cell-code">{cell.subjectCode || ''}</div>
                             <div className="schedule-print-cell-subject mt-2">{cell.subject}</div>
-                            <div className="schedule-print-cell-classroom mt-1 text-sm">{cell.classroom}</div>
+                            <div className="schedule-print-cell-classroom mt-1 text-sm">{formatScheduleClassroom(cell.classroom)}</div>
                           </>
                         ) : null}
                       </td>
@@ -868,7 +872,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                               <>
                                 <p className="text-xs font-black opacity-80">{cell.subjectCode || '-'}</p>
                                 <p className="mt-1 text-sm font-black">{cell.subject}</p>
-                                <p className="mt-1 text-xs font-bold opacity-80">{cell.classroom}</p>
+                                <p className="mt-1 text-xs font-bold opacity-80">{formatScheduleClassroom(cell.classroom)}</p>
                               </>
                             ) : (
                               <span className="grid h-full place-items-center text-center text-xs font-black">เพิ่ม</span>
@@ -940,6 +944,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       <label className="grid gap-2 text-sm font-black text-slate-700">
                         ห้องเรียนที่สอนคาบนี้
                         <select className="nexus-field h-12 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, classroom: event.target.value }))} value={cellDraft.classroom}>
+                          <option value="">ไม่ระบุห้องเรียน / ทุกห้อง (กิจกรรมรวม)</option>
                           {scheduleClassroomOptions.map((classroom) => (
                             <option key={classroom.value} value={classroom.value}>
                               {classroom.label}
@@ -947,7 +952,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           ))}
                         </select>
                         <span className="text-xs font-bold leading-5 text-slate-500">
-                          เลือกได้ต่างจากห้องหลักของคุณ รายการนี้ดึงจากห้องเรียนที่สร้างไว้ใน workspace
+                          เลือกห้องที่สอน หรือเลือก “ไม่ระบุห้องเรียน / ทุกห้อง” สำหรับชุมนุม สวดมนต์ และกิจกรรมรวม
                         </span>
                         <Link className="text-xs font-black text-sky-700 hover:text-sky-900" to="/app/dashboard?view=workspace-settings#workspace-classrooms">
                           + เพิ่มห้องเรียน/ชั้นอื่นก่อนจัดตาราง
@@ -960,7 +965,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       <div className="mt-3 rounded-2xl bg-[#4b2f18] p-4 text-white">
                         <p className="text-sm font-black opacity-80">{cellDraft.subjectCode || '-'}</p>
                         <p className="mt-1 text-lg font-black">{cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}</p>
-                        <p className="mt-1 text-sm font-bold opacity-80">{cellDraft.classroom || identity.classroomName}</p>
+                        <p className="mt-1 text-sm font-bold opacity-80">{formatScheduleClassroom(cellDraft.classroom)}</p>
                       </div>
                     </div>
 
