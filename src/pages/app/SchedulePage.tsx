@@ -703,7 +703,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
             </section>
           </section>
         ) : (
-          <section className="app-panel-pad overflow-hidden">
+          <section className="schedule-v2 app-panel-pad overflow-hidden">
             <div className="mb-5 grid gap-3 rounded-[1.75rem] border border-[#ead8bd] bg-[#fffaf0]/80 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิชาหลักที่เลือกไว้</p>

@@ -469,7 +469,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             <ClipboardCheck size={18} aria-hidden="true" />
             Attendance
           </div>
-          <h1 className="app-page-title">บันทึกเวลาเรียน</h1>
+          <h1 className="app-page-title">{mode === 'subject' ? 'เช็คเวลาเรียนรายวิชา' : 'เช็คชื่อประจำวัน'}</h1>
           <p className="app-page-description">
             {session.workspace?.schoolName || 'Demo Workspace'} | แยกเช็คชื่อประจำวันและเช็คเวลาเรียนรายวิชา แต่ยังบันทึกลง session เดียวกันเพื่อรายงานได้ถูกต้อง
           </p>
@@ -485,7 +485,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
         </div>
       </div>
 
-      <section className="grid gap-3 lg:grid-cols-2">
+      <section className="flex w-full flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         {(['homeroom', 'subject'] as AttendanceMode[]).map((item) => {
           const copy = modeCopy[item];
           const Icon = copy.icon;
@@ -493,22 +493,22 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
           return (
             <button
-              className={`rounded-3xl border p-5 text-left transition hover:-translate-y-0.5 ${
+              className={`flex-1 rounded-xl border px-4 py-3 text-left transition ${
                 isActive
-                  ? 'border-amber-300 bg-[#fff7df] shadow-[0_18px_42px_rgba(217,119,6,0.13)]'
-                  : 'border-[#ead8bd] bg-white/86 hover:border-amber-200'
+                  ? 'border-teal-200 bg-teal-50 shadow-sm'
+                  : 'border-transparent bg-white hover:border-slate-200'
               }`}
               key={item}
               onClick={() => setMode(item)}
               type="button"
             >
               <div className="flex items-center gap-3">
-                <span className={`grid h-11 w-11 place-items-center rounded-2xl ${isActive ? 'bg-[#4b2f18] text-white' : 'bg-[#f8ead4] text-[#8a5200]'}`}>
+                <span className={`grid h-9 w-9 place-items-center rounded-lg ${isActive ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
                   <Icon size={20} aria-hidden="true" />
                 </span>
                 <div>
-                  <p className="text-lg font-black text-slate-950">{copy.label}</p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{copy.body}</p>
+                  <p className="text-sm font-black text-slate-950">{copy.label}</p>
+                  <p className="mt-0.5 text-xs font-bold leading-5 text-slate-500">{copy.body}</p>
                 </div>
               </div>
             </button>
