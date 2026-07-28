@@ -38,6 +38,13 @@ type ScheduleColumn =
   | { period: SchedulePeriod; type: 'period' }
   | { end: string; key: 'lunch'; start: string; type: 'lunch' };
 
+interface WorkspaceClassroomRow {
+  academic_year: string | null;
+  id: string;
+  name: string;
+  status: string | null;
+}
+
 function toScheduleMinutes(time: string) {
   const [hours, minutes] = time.split(':').map((value) => Number(value));
   return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
@@ -69,6 +76,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
   }));
   const [notice, setNotice] = useState<string | null>(null);
   const [quickSubjectName, setQuickSubjectName] = useState('');
+  const [workspaceClassrooms, setWorkspaceClassrooms] = useState<WorkspaceClassroomRow[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -91,6 +99,26 @@ export function SchedulePage({ session }: SchedulePageProps) {
     }
 
     void loadSharedSchedule();
+    return () => { isMounted = false; };
+  }, [session.workspace]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWorkspaceClassrooms() {
+      if (!supabase || !session.workspace) return;
+      const { data, error } = await supabase
+        .from('classrooms')
+        .select('id,name,academic_year,status')
+        .eq('workspace_id', session.workspace.id)
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (!isMounted || error) return;
+      setWorkspaceClassrooms((data || []) as WorkspaceClassroomRow[]);
+    }
+
+    void loadWorkspaceClassrooms();
     return () => { isMounted = false; };
   }, [session.workspace]);
 
@@ -158,6 +186,22 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const totalCells = settings.activeDays.length * periods.length;
   const completion = totalCells > 0 ? Math.round((usedCells / totalCells) * 100) : 0;
   const editingPeriod = editingCell ? periods.find((period) => period.index === editingCell.periodIndex) : null;
+  const scheduleClassroomOptions = useMemo(() => {
+    const options = new Map<string, { label: string; value: string }>();
+    workspaceClassrooms.forEach((classroom) => {
+      options.set(classroom.name, {
+        label: `${classroom.name}${classroom.academic_year ? ` (${classroom.academic_year})` : ''}`,
+        value: classroom.name,
+      });
+    });
+    settings.classroomOptions.forEach((classroom) => {
+      if (!options.has(classroom)) options.set(classroom, { label: classroom, value: classroom });
+    });
+    if (cellDraft.classroom && !options.has(cellDraft.classroom)) {
+      options.set(cellDraft.classroom, { label: cellDraft.classroom, value: cellDraft.classroom });
+    }
+    return Array.from(options.values());
+  }, [cellDraft.classroom, settings.classroomOptions, workspaceClassrooms]);
 
   function updateSettings(next: Partial<typeof settings>) {
     setSettings((current) => ({ ...current, ...next }));
@@ -894,14 +938,20 @@ export function SchedulePage({ session }: SchedulePageProps) {
                         />
                       </label>
                       <label className="grid gap-2 text-sm font-black text-slate-700">
-                        ห้องเรียน
+                        ห้องเรียนที่สอนคาบนี้
                         <select className="nexus-field h-12 px-3" onChange={(event) => setCellDraft((current) => ({ ...current, classroom: event.target.value }))} value={cellDraft.classroom}>
-                          {settings.classroomOptions.map((classroom) => (
-                            <option key={classroom} value={classroom}>
-                              {classroom}
+                          {scheduleClassroomOptions.map((classroom) => (
+                            <option key={classroom.value} value={classroom.value}>
+                              {classroom.label}
                             </option>
                           ))}
                         </select>
+                        <span className="text-xs font-bold leading-5 text-slate-500">
+                          เลือกได้ต่างจากห้องหลักของคุณ รายการนี้ดึงจากห้องเรียนที่สร้างไว้ใน workspace
+                        </span>
+                        <Link className="text-xs font-black text-sky-700 hover:text-sky-900" to="/app/dashboard?view=workspace-settings#workspace-classrooms">
+                          + เพิ่มห้องเรียน/ชั้นอื่นก่อนจัดตาราง
+                        </Link>
                       </label>
                     </div>
 
