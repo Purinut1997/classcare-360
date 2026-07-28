@@ -134,6 +134,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [records, setRecords] = useState<AttendanceRecordRow[]>([]);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
   const [attendanceDate, setAttendanceDate] = useState(getTodayDate());
+  const [editSessionDate, setEditSessionDate] = useState('');
   const [periodLabel, setPeriodLabel] = useState('เช้า');
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
   const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule());
@@ -324,8 +325,38 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
     const nextSession = data as AttendanceSessionRow;
     setAttendanceSession(nextSession);
+    setEditSessionDate(nextSession.attendance_date);
     await loadSessionRecords(nextSession);
     setNotice('เริ่มเช็คเวลาเรียนสำเร็จ');
+    setIsSubmitting(false);
+  }
+
+  async function handleCorrectSessionDate() {
+    if (!attendanceSession || !editSessionDate || editSessionDate === attendanceSession.attendance_date) return;
+    setIsSubmitting(true);
+    setNotice(null);
+    if (!supabase || !session.workspace) {
+      setAttendanceSession((current) => (current ? { ...current, attendance_date: editSessionDate } : current));
+      setAttendanceDate(editSessionDate);
+      setNotice('แก้ไขวันที่บันทึกในโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('attendance_sessions')
+      .update({ attendance_date: editSessionDate })
+      .eq('id', attendanceSession.id)
+      .eq('workspace_id', session.workspace.id)
+      .select('id,classroom_id,attendance_date,period_label,subject_name,status')
+      .single();
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+    setAttendanceSession(data as AttendanceSessionRow);
+    setAttendanceDate(editSessionDate);
+    setNotice('แก้ไขวันที่ของบันทึกแล้ว และรายงานจะย้ายตามวันที่ใหม่');
     setIsSubmitting(false);
   }
 
@@ -654,6 +685,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <Save size={17} aria-hidden="true" />
             </button>
           </div>
+
+          {attendanceSession ? (
+            <div className="mt-4 flex flex-wrap items-end gap-2 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+              <label className="grid gap-1 text-xs font-black text-slate-600">
+                แก้ไขวันที่บันทึกย้อนหลัง
+                <input className="nexus-field h-9 w-44 bg-white px-3" onChange={(event) => setEditSessionDate(event.target.value)} type="date" value={editSessionDate || attendanceSession.attendance_date} />
+              </label>
+              <button className="inline-flex h-9 items-center justify-center rounded-xl bg-sky-700 px-3 text-xs font-black text-white disabled:bg-slate-300" disabled={isSubmitting || editSessionDate === attendanceSession.attendance_date} onClick={() => void handleCorrectSessionDate()} type="button">
+                บันทึกวันที่ใหม่
+              </button>
+              <p className="pb-1 text-xs font-bold text-slate-500">ใช้เมื่อเช็กชื่อผิดวัน ระบบจะคงรายชื่อนักเรียนและสถานะเดิมไว้</p>
+            </div>
+          ) : null}
 
           {notice ? (
             <div className="mt-4 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">

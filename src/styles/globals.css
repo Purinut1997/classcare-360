@@ -474,3 +474,26 @@
 .schedule-v2 .text-\[\#7a4f26\] { color: #2563a8 !important; }
 .schedule-v2 .amber-action { background: #0f766e !important; color: #fff !important; }
 .schedule-v2 .amber-action:hover { background: #115e59 !important; }
+
+/* Reports use the same light paper-and-ink language as the editor. */
+.report-v2 .bg-\[\#080d1a\] {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%) !important;
+  border-color: #cfe0f2 !important;
+  box-shadow: 0 16px 36px rgba(24, 58, 99, 0.08) !important;
+  color: #17324f !important;
+}
+.report-v2 .bg-\[\#080d1a\] h2 { color: #17324f !important; }
+.report-v2 .bg-\[\#080d1a\] .border-slate-800,
+.report-v2 .bg-\[\#080d1a\] .border-slate-800\/80 { border-color: #dbe8f5 !important; }
+.report-v2 .bg-\[\#080d1a\] .text-slate-400,
+.report-v2 .bg-\[\#080d1a\] .text-slate-300,
+.report-v2 .bg-\[\#080d1a\] .text-slate-200 { color: #60758d !important; }
+.report-v2 .bg-\[\#080d1a\] .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) { border-color: #e6eef7 !important; }
+.report-v2 .bg-\[\#080d1a\] .hover\:bg-slate-800\/40:hover { background: #edf6ff !important; }
+.report-v2 .bg-\[\#080d1a\] .bg-slate-900\/60,
+.report-v2 .bg-\[\#080d1a\] .bg-slate-900\/40 { background: #eef5fc !important; }
+.report-v2 .bg-\[\#080d1a\] .bg-\[\#0e3a29\] { background: #e9fbf3 !important; }
+.report-v2 .bg-\[\#080d1a\] .bg-\[\#3a280c\] { background: #fff7df !important; }
+.report-v2 .bg-\[\#080d1a\] .bg-\[\#0d2a45\] { background: #eaf5ff !important; }
+.report-v2 .bg-\[\#080d1a\] .bg-\[\#450d1b\] { background: #fff0f3 !important; }
+.report-v2 img[alt="Logo"], .schedule-v2 img[alt="โลโก้โรงเรียน"] { mix-blend-mode: multiply; }

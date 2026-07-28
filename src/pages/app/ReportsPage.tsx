@@ -1848,7 +1848,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   };
 
   return (
-    <main className="app-page">
+    <main className="report-v2 app-page">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="nexus-kicker">

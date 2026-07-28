@@ -295,6 +295,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [scores, setScores] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [correctedAssessmentDate, setCorrectedAssessmentDate] = useState('');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -960,6 +961,39 @@ export function ScoresPage({ session }: ScoresPageProps) {
         assessment.id === selectedAssessment.id ? { ...assessment, status: nextStatus } : assessment,
       ),
     );
+  }
+
+  async function handleCorrectAssessmentDate() {
+    if (!selectedAssessment || !correctedAssessmentDate || correctedAssessmentDate === selectedAssessment.assessment_date) return;
+    setIsSubmitting(true);
+    setNotice(null);
+    if (!supabase || !session.workspace) {
+      setAssessments((current) => current.map((item) => item.id === selectedAssessment.id ? { ...item, assessment_date: correctedAssessmentDate } : item));
+      setNotice('แก้ไขวันที่ชุดคะแนนในโหมดตัวอย่างแล้ว');
+      setIsSubmitting(false);
+      return;
+    }
+    const { error } = await supabase
+      .from('score_assessments')
+      .update({ assessment_date: correctedAssessmentDate })
+      .eq('id', selectedAssessment.id)
+      .eq('workspace_id', session.workspace.id);
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+    await writeAuditLog(session, {
+      action: 'score_assessment.date_corrected',
+      entityId: selectedAssessment.id,
+      entityTable: 'score_assessments',
+      metadata: { from_date: selectedAssessment.assessment_date, to_date: correctedAssessmentDate },
+      riskLevel: 'normal',
+      source: 'score_center',
+    });
+    setAssessments((current) => current.map((item) => item.id === selectedAssessment.id ? { ...item, assessment_date: correctedAssessmentDate } : item));
+    setNotice('แก้ไขวันที่ชุดคะแนนแล้ว รายงานจะอ้างอิงวันที่ใหม่');
+    setIsSubmitting(false);
   }
 
   function removeAssessmentFromLocalState(assessmentId: string) {
@@ -1923,6 +1957,19 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </button>
               </div>
             </div>
+
+            {selectedAssessment ? (
+              <div className="mt-4 flex flex-wrap items-end gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
+                <label className="grid gap-1 text-xs font-black text-slate-600">
+                  แก้ไขวันที่บันทึกคะแนนย้อนหลัง
+                  <input className="nexus-field h-9 w-44 bg-white px-3" onChange={(event) => setCorrectedAssessmentDate(event.target.value)} type="date" value={correctedAssessmentDate || selectedAssessment.assessment_date} />
+                </label>
+                <button className="inline-flex h-9 items-center justify-center rounded-xl bg-cyan-700 px-3 text-xs font-black text-white disabled:bg-slate-300" disabled={isSubmitting || (correctedAssessmentDate || selectedAssessment.assessment_date) === selectedAssessment.assessment_date} onClick={() => void handleCorrectAssessmentDate()} type="button">
+                  บันทึกวันที่ใหม่
+                </button>
+                <p className="pb-1 text-xs font-bold text-slate-500">การเปลี่ยนแปลงถูกบันทึกใน audit log</p>
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-3 lg:grid-cols-4">
               {[
