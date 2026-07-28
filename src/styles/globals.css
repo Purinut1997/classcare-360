@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -18,8 +18,8 @@
   body {
     @apply min-h-screen bg-[#f6f7f9] text-slate-950 antialiased;
     font-family:
-      'Anuphan',
       'Noto Sans Thai',
+      'Anuphan',
       ui-sans-serif,
       system-ui,
       sans-serif;
@@ -651,16 +651,124 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark select { color: #edfaff !important; }
 .app-shell.theme-dark select option { background: #071b34; color: #edfaff; }
 
+/* Nexus visual system -------------------------------------------------------
+   Shared chrome and content rules intentionally live here rather than inside
+   individual pages, so all dashboard modules inherit the same typography,
+   depth, table density and cyan-blue palette. */
+.app-shell.theme-dark {
+  --nexus-bg: #061727;
+  --nexus-surface: #0a2540;
+  --nexus-surface-strong: #0d2e4f;
+  --nexus-border: rgb(83 197 255 / 0.22);
+  --nexus-text: #effaff;
+  --nexus-muted: #9bb5ca;
+  --nexus-accent: #22d3ee;
+  font-family: 'Noto Sans Thai', 'Anuphan', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+.app-shell.theme-dark .app-page {
+  max-width: 1320px;
+  padding-top: 1.65rem;
+}
+.app-shell.theme-dark .app-page-title {
+  font-size: clamp(1.7rem, 2vw, 2.35rem);
+  font-weight: 900;
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+}
+.app-shell.theme-dark .app-page-description {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.7;
+}
+.app-shell.theme-dark .app-sidebar {
+  padding: 1rem 0.75rem;
+  background:
+    linear-gradient(180deg, rgb(8 30 53 / 0.98), rgb(4 18 37 / 0.99)),
+    linear-gradient(90deg, rgb(34 211 238 / 0.08), transparent) !important;
+}
+.app-shell.theme-dark .app-sidebar-brand { padding: 0.3rem 0.45rem 1rem; }
+.app-shell.theme-dark .app-sidebar-link {
+  min-height: 2.85rem;
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+  color: #b7c9d8;
+}
+.app-shell.theme-dark .app-sidebar-link.is-active {
+  border-color: rgb(92 217 255 / 0.18);
+  background: linear-gradient(90deg, rgb(33 198 255 / 0.3), rgb(25 120 190 / 0.16)) !important;
+  box-shadow: inset 3px 0 0 #30d7f4, 0 9px 24px rgb(13 171 255 / 0.13) !important;
+}
+.app-shell.theme-dark .app-topbar { height: 3.55rem; }
+.app-shell.theme-dark .app-context-nav {
+  min-height: 2.75rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+.app-shell.theme-dark .app-context-nav a {
+  border-radius: 0.65rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+.app-shell.theme-dark .app-panel,
+.app-shell.theme-dark .app-panel-pad,
+.app-shell.theme-dark .nexus-card,
+.app-shell.theme-dark .app-data-table {
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgb(14 46 78 / 0.96), rgb(8 31 57 / 0.96)) !important;
+  border-color: var(--nexus-border) !important;
+}
+.app-shell.theme-dark .app-data-table { overflow: hidden; }
+.app-shell.theme-dark .app-data-table thead,
+.app-shell.theme-dark .app-data-table thead tr {
+  background: rgb(4 22 43 / 0.74) !important;
+}
+.app-shell.theme-dark .app-data-table th {
+  color: #8fb4ce !important;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.app-shell.theme-dark .app-data-table td {
+  color: #eaf7ff;
+  font-size: 0.86rem;
+}
+.app-shell.theme-dark .app-data-table tbody tr {
+  border-color: rgb(121 207 255 / 0.18) !important;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+.app-shell.theme-dark .app-data-table tbody tr:hover {
+  background: rgb(25 87 130 / 0.42) !important;
+}
+.app-shell.theme-dark .nexus-field,
+.app-shell.theme-dark select,
+.app-shell.theme-dark input,
+.app-shell.theme-dark textarea {
+  border-radius: 0.75rem;
+  font-weight: 600;
+}
+.app-shell.theme-dark .app-icon-button,
+.app-shell.theme-dark .app-workspace-switcher {
+  border-radius: 0.8rem;
+}
+.app-shell.theme-dark .blue-action,
+.app-shell.theme-dark .amber-action,
+.app-shell.theme-dark .sky-action {
+  border-radius: 0.8rem;
+  background: linear-gradient(135deg, #1687ff 0%, #27c8ed 100%) !important;
+  box-shadow: 0 10px 24px rgb(26 145 255 / 0.24) !important;
+}
+
 @media print {
   body { background: #fff !important; color: #111 !important; }
   .schedule-print-sheet, .schedule-print-sheet * { color: #111 !important; }
 }
 
 /* Replace legacy amber accents that appear in status panels outside AppShell. */
-body [class~="bg-amber-50"] { background-color: rgb(27 208 243 / 0.12) !important; }
-body [class~="text-amber-700"] { color: #0e7490 !important; }
-body [class~="text-amber-600"] { color: #0891b2 !important; }
-body [class~="border-amber-200"] { border-color: rgb(34 211 238 / 0.35) !important; }
+.app-shell.theme-dark [class~="bg-amber-50"] { background-color: rgb(74 53 17 / 0.88) !important; }
+.app-shell.theme-dark [class~="text-amber-700"] { color: #fde68a !important; }
+.app-shell.theme-dark [class~="text-amber-600"] { color: #fcd34d !important; }
+.app-shell.theme-dark [class~="border-amber-200"] { border-color: rgb(253 230 138 / 0.28) !important; }
 
 @keyframes pulse-glow {
   0%,
