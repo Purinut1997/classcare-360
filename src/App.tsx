@@ -657,7 +657,10 @@ function AppRoutes() {
     <Routes>
       <Route element={<LandingPage session={session} />} path="/" />
       <Route element={<LoginPage session={session} />} path="/login" />
-      <Route element={<CompleteProfilePage />} path="/auth/complete-profile" />
+      <Route
+        element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />}
+        path="/auth/complete-profile"
+      />
       <Route element={<PricingPage />} path="/pricing" />
       <Route element={<PublicReportLookupPage />} path="/public/report" />
       <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />

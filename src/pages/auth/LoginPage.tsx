@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -71,14 +71,6 @@ export function LoginPage({ session }: LoginPageProps) {
   const currentCopy = modeCopy[mode];
   const canSubmitPassword = mode === 'forgot' || password.length >= 8;
   const primaryDisabled = isSubmitting || !email || !canSubmitPassword;
-
-  const nextSearch = useMemo(() => {
-    const next = new URLSearchParams(searchParams);
-    next.delete('mode');
-    next.delete('redirect');
-    const value = next.toString();
-    return value ? `?${value}` : '';
-  }, [searchParams]);
 
   useEffect(() => {
     if (!session) return;
@@ -338,13 +330,7 @@ export function LoginPage({ session }: LoginPageProps) {
             </div>
           ) : null}
 
-          <div className="mt-5 grid gap-2 rounded-3xl bg-white/70 p-4 text-sm font-black text-slate-600 ring-1 ring-slate-200/70">
-            <Link className="text-sky-700 hover:text-sky-900" to={`/auth/complete-profile${nextSearch}`}>
-              ไปหน้า Complete Profile
-            </Link>
-            <Link className="text-sky-700 hover:text-sky-900" to={`/app/select-workspace${nextSearch}`}>
-              เลือกหรือสร้าง workspace
-            </Link>
+          <div className="mt-5 text-center text-sm font-black">
             <Link className="text-violet-700 hover:text-violet-900" to="/pricing">
               ดูแพ็กเกจ ClassCare 360 VIP
             </Link>
