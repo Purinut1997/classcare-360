@@ -547,6 +547,41 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark [class~="bg-slate-50"],
 .app-shell.theme-dark [class~="bg-slate-100"] { background-color: rgb(11 35 62 / 0.8) !important; }
 
+/* Tailwind opacity variants are separate class tokens (for example
+   bg-sky-50/80), so match them explicitly.  These are used throughout older
+   list, table and form pages for selection/hover states. */
+.app-shell.theme-dark [class*="bg-white/"],
+.app-shell.theme-dark [class*="bg-slate-50/"],
+.app-shell.theme-dark [class*="bg-slate-100/"],
+.app-shell.theme-dark [class*="bg-slate-200/"] { background-color: rgb(13 38 66 / 0.9) !important; }
+.app-shell.theme-dark [class~="bg-sky-50"],
+.app-shell.theme-dark [class*="bg-sky-50/"],
+.app-shell.theme-dark [class~="bg-cyan-50"],
+.app-shell.theme-dark [class*="bg-cyan-50/"] { background-color: rgb(9 53 78 / 0.9) !important; }
+.app-shell.theme-dark [class~="bg-emerald-50"],
+.app-shell.theme-dark [class*="bg-emerald-50/"] { background-color: rgb(9 58 50 / 0.88) !important; }
+.app-shell.theme-dark [class~="bg-amber-50"],
+.app-shell.theme-dark [class*="bg-amber-50/"] { background-color: rgb(74 53 17 / 0.88) !important; }
+.app-shell.theme-dark [class~="bg-rose-50"],
+.app-shell.theme-dark [class*="bg-rose-50/"] { background-color: rgb(79 25 47 / 0.88) !important; }
+.app-shell.theme-dark [class~="bg-purple-50"],
+.app-shell.theme-dark [class*="bg-purple-50/"] { background-color: rgb(48 35 84 / 0.88) !important; }
+.app-shell.theme-dark [class~="bg-teal-50"],
+.app-shell.theme-dark [class*="bg-teal-50/"] { background-color: rgb(8 57 65 / 0.88) !important; }
+.app-shell.theme-dark [class~="text-sky-700"],
+.app-shell.theme-dark [class~="text-sky-800"] { color: #7dd3fc !important; }
+.app-shell.theme-dark [class~="text-cyan-700"],
+.app-shell.theme-dark [class~="text-cyan-800"],
+.app-shell.theme-dark [class~="text-teal-700"] { color: #67e8f9 !important; }
+.app-shell.theme-dark [class~="text-emerald-700"],
+.app-shell.theme-dark [class~="text-emerald-800"] { color: #6ee7b7 !important; }
+.app-shell.theme-dark [class~="text-amber-700"],
+.app-shell.theme-dark [class~="text-amber-800"] { color: #fde68a !important; }
+.app-shell.theme-dark [class~="text-rose-700"],
+.app-shell.theme-dark [class~="text-rose-800"] { color: #fda4af !important; }
+.app-shell.theme-dark [class~="text-purple-700"],
+.app-shell.theme-dark [class~="text-purple-800"] { color: #d8b4fe !important; }
+
 .app-shell.theme-dark .schedule-v2 { background: transparent !important; }
 .app-shell.theme-dark .schedule-v2 .bg-\[\#fffaf0\],
 .app-shell.theme-dark .schedule-v2 .bg-\[\#fff7df\],
