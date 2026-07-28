@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { ArrowRight, BadgeCheck, Building2, CheckCircle2, GraduationCap, ShieldCheck, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,42 +28,26 @@ function getNextRouteAfterProfile(role: Exclude<WorkspaceRole, 'superadmin'>) {
 
 export function CompleteProfilePage() {
   const navigate = useNavigate();
-  const [displayName, setDisplayName] = useState('ครูประจำชั้น');
+  const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<Exclude<WorkspaceRole, 'superadmin'>>('teacher_owner');
   const [phone, setPhone] = useState('');
-  const [schoolName, setSchoolName] = useState('โรงเรียนตัวอย่าง ClassCare');
+  const [schoolName, setSchoolName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: พร้อมต่อ profiles table หลังตั้งค่า Supabase',
   );
   const selectedRoleOption = roleOptions.find((option) => option.value === role);
 
-  useEffect(() => {
-    let mounted = true;
-    async function loadExistingProfile() {
-      if (!supabase) return;
-      const { data: authData } = await supabase.auth.getUser();
-      if (!mounted || !authData.user) return;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('display_name,phone,metadata')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-      if (!mounted || error || !data) return;
-      const metadata = (data.metadata || {}) as { preferred_role?: Exclude<WorkspaceRole, 'superadmin'>; school_name?: string };
-      setDisplayName(data.display_name || authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'ครูประจำชั้น');
-      setPhone(data.phone || '');
-      setSchoolName(metadata.school_name || '');
-      if (metadata.preferred_role && roleOptions.some((option) => option.value === metadata.preferred_role)) setRole(metadata.preferred_role);
-    }
-    void loadExistingProfile();
-    return () => { mounted = false; };
-  }, []);
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setNotice(null);
+
+    if (!displayName.trim() || !schoolName.trim()) {
+      setNotice('กรุณากรอกชื่อที่แสดงและชื่อโรงเรียนก่อนบันทึก profile');
+      setIsSubmitting(false);
+      return;
+    }
 
     if (!supabase) {
       setNotice('โหมดตัวอย่าง: บันทึกข้อมูลตัวอย่างแล้ว ขั้นต่อไปคือเลือกหรือสร้าง workspace');
