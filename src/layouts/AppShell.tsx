@@ -16,8 +16,8 @@ interface AppShellProps {
 
 export function AppShell({ activeView, children, navItems, session }: AppShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return window.localStorage.getItem('classcare-theme') === 'dark' ? 'dark' : 'light';
+  const [theme, setTheme] = useState<'light' | 'nexus'>(() => {
+    return window.localStorage.getItem('classcare-theme') === 'light' ? 'light' : 'nexus';
   });
   const activeLabel = navItems.find((item) => item.key === activeView)?.label || 'ClassCare 360';
 
@@ -31,7 +31,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
   }, [theme]);
 
   return (
-    <div className={`app-shell ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
+    <div className={`app-shell ${theme === 'nexus' ? 'theme-dark theme-nexus' : 'theme-light'}`}>
       <Sidebar
         activeView={activeView}
         isMobileOpen={isMenuOpen}
@@ -43,7 +43,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         <Topbar
           activeLabel={activeLabel}
           onMenuToggle={() => setIsMenuOpen(true)}
-          onThemeToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          onThemeToggle={() => setTheme((current) => (current === 'nexus' ? 'light' : 'nexus'))}
           session={session}
           theme={theme}
         />

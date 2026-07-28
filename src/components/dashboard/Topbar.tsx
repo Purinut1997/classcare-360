@@ -10,7 +10,7 @@ interface TopbarProps {
   onMenuToggle: () => void;
   onThemeToggle: () => void;
   session?: AppSessionContext;
-  theme: 'light' | 'dark';
+  theme: 'light' | 'nexus';
 }
 
 function getInitials(displayName?: string) {
@@ -68,13 +68,13 @@ export function Topbar({ activeLabel, onMenuToggle, onThemeToggle, session, them
       </label>
 
       <button
-        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={theme === 'nexus' ? 'Switch to light theme' : 'Switch to Nexus theme'}
         className="app-icon-button"
         onClick={onThemeToggle}
-        title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        title={theme === 'nexus' ? 'Light theme' : 'Nexus theme'}
         type="button"
       >
-        {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+        {theme === 'nexus' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
       </button>
 
       <Link className="app-icon-button relative" aria-label="เปิดการแจ้งเตือน" to="/app/dashboard?view=notifications">
