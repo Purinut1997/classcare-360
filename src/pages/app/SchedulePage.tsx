@@ -68,6 +68,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     subjectCode: firstSubject?.code || 'ค15101',
   }));
   const [notice, setNotice] = useState<string | null>(null);
+  const [quickSubjectName, setQuickSubjectName] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -218,6 +219,21 @@ export function SchedulePage({ session }: SchedulePageProps) {
     setSettings(nextSettings);
     saveScheduleSettings(nextSettings);
     persistSharedSchedule(nextSettings);
+    setNotice(`เพิ่มรายวิชา ${name} แล้ว`);
+  }
+
+  function addQuickSubject() {
+    const name = quickSubjectName.trim();
+    if (!name) return;
+    const subjects = normalizeSubjects([...settings.subjects, { code: '', name }]);
+    const nextSettings = { ...settings, subjects, subjectOptions: Array.from(new Set([...settings.subjectOptions, name])) };
+    setSettings(nextSettings);
+    saveScheduleSettings(nextSettings);
+    persistSharedSchedule(nextSettings);
+    setSelectedSubject(name);
+    setSelectedSubjectCode('');
+    setCellDraft((current) => ({ ...current, subject: name, subjectCode: '' }));
+    setQuickSubjectName('');
     setNotice(`เพิ่มรายวิชา ${name} แล้ว`);
   }
 
@@ -709,7 +725,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 </button>
                 <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=attendance">
                   <FileSpreadsheet size={17} aria-hidden="true" />
-                  รายงานเวลาเรียน
+                  รายงาน / พิมพ์ตารางสอน
                 </Link>
               </div>
             </div>
@@ -835,6 +851,13 @@ export function SchedulePage({ session }: SchedulePageProps) {
                         ))}
                       </select>
                     </label>
+                    <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3">
+                      <p className="text-sm font-black text-sky-950">ยังไม่มีวิชาที่ต้องการ?</p>
+                      <div className="mt-2 flex gap-2">
+                        <input className="nexus-field h-10 flex-1 bg-white px-3" onChange={(event) => setQuickSubjectName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addQuickSubject(); } }} placeholder="พิมพ์ชื่อวิชา แล้วกดเพิ่ม" value={quickSubjectName} />
+                        <button className="amber-action inline-flex h-10 shrink-0 items-center gap-1 rounded-xl px-3 text-sm font-black" onClick={addQuickSubject} type="button"><Plus size={16} /> เพิ่ม</button>
+                      </div>
+                    </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="grid gap-2 text-sm font-black text-slate-700">
