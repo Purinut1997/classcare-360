@@ -16,6 +16,7 @@ import { AppShell } from './layouts/AppShell';
 import { appNavItems, appViewCopy, superadminNavItem } from './routes/appRoutes';
 import { RequireRouteAccess } from './routes/RouteGuards';
 import './styles/globals.css';
+import './styles/nexus.css';
 import type { AppSessionContext, WorkspaceRole } from './types/core';
 
 const CompleteProfilePage = lazy(() =>

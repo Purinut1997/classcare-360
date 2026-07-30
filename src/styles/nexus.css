@@ -1,0 +1,449 @@
+/* Nexus 2.0: a calm graphite workspace for long school days. */
+:root[data-theme="nexus"] {
+  --nx-canvas: #080d14;
+  --nx-chrome: #0b121b;
+  --nx-sidebar: #090f17;
+  --nx-panel: #101823;
+  --nx-raised: #151f2c;
+  --nx-soft: #0d151f;
+  --nx-field: #0b131d;
+  --nx-line: #263341;
+  --nx-line-soft: #1c2834;
+  --nx-ink: #f4f7fa;
+  --nx-ink-soft: #c8d0da;
+  --nx-muted: #96a3b3;
+  --nx-faint: #687586;
+  --nx-cyan: #22c7e8;
+  --nx-cyan-soft: #72ddf1;
+  --nx-mint: #38d6a3;
+  --nx-amber: #f3b94f;
+  --nx-coral: #ff667a;
+  --nx-violet: #a78bfa;
+}
+
+.app-shell.theme-dark {
+  --cc-bg: var(--nx-canvas);
+  --cc-chrome: var(--nx-chrome);
+  --cc-surface: var(--nx-panel);
+  --cc-surface-raised: var(--nx-raised);
+  --cc-field: var(--nx-field);
+  --cc-border: var(--nx-line);
+  --cc-text: var(--nx-ink);
+  --cc-muted: var(--nx-muted);
+  --cc-accent: var(--nx-cyan);
+  --cc-success: var(--nx-mint);
+  --cc-warning: var(--nx-amber);
+  --cc-danger: var(--nx-coral);
+  color: var(--nx-ink) !important;
+  background:
+    radial-gradient(70rem 34rem at 82% -12%, rgb(34 199 232 / 0.075), transparent 60%),
+    radial-gradient(50rem 28rem at 28% 110%, rgb(167 139 250 / 0.035), transparent 68%),
+    var(--nx-canvas) !important;
+  background-size: auto !important;
+}
+
+.app-shell.theme-dark .app-shell-main { background: transparent !important; }
+
+.app-shell.theme-dark .app-sidebar {
+  background: linear-gradient(180deg, rgb(12 19 29 / 0.99), rgb(7 12 19 / 0.995)) !important;
+  border-right: 1px solid var(--nx-line-soft);
+  box-shadow: 20px 0 48px rgb(0 0 0 / 0.18) !important;
+}
+
+.app-shell.theme-dark .app-sidebar-brand { border-color: var(--nx-line-soft) !important; }
+.app-shell.theme-dark .app-sidebar-brand .bg-white\/95 {
+  background: #f7fafc !important;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 22px rgb(0 0 0 / 0.3);
+}
+.app-shell.theme-dark .app-sidebar-section { margin-top: 0.2rem; }
+.app-shell.theme-dark .app-sidebar-section > summary {
+  min-height: 2.15rem;
+  color: var(--nx-faint) !important;
+  letter-spacing: 0.075em;
+}
+.app-shell.theme-dark .app-sidebar-section > summary:hover {
+  color: var(--nx-ink-soft) !important;
+  background: rgb(255 255 255 / 0.025) !important;
+}
+.app-shell.theme-dark .app-sidebar-link {
+  position: relative;
+  color: #9aa6b5 !important;
+  border-radius: 0.625rem;
+  border: 1px solid transparent;
+  box-shadow: none !important;
+}
+.app-shell.theme-dark .app-sidebar-link:hover {
+  color: var(--nx-ink) !important;
+  background: rgb(255 255 255 / 0.04) !important;
+  border-color: rgb(255 255 255 / 0.035);
+}
+.app-shell.theme-dark .app-sidebar-link.is-active {
+  color: #ecfbff !important;
+  background: linear-gradient(90deg, rgb(34 199 232 / 0.15), rgb(34 199 232 / 0.045)) !important;
+  border-color: rgb(34 199 232 / 0.16);
+  box-shadow: inset 2px 0 0 var(--nx-cyan) !important;
+}
+.app-shell.theme-dark .app-sidebar-link.is-active svg {
+  color: var(--nx-cyan-soft);
+  filter: drop-shadow(0 0 8px rgb(34 199 232 / 0.18));
+}
+.app-shell.theme-dark .app-admin-shortcut {
+  color: #b8edf6;
+  background: rgb(34 199 232 / 0.055);
+  border-color: rgb(34 199 232 / 0.14);
+}
+
+.app-shell.theme-dark .app-topbar {
+  height: 4rem;
+  border-color: var(--nx-line-soft) !important;
+  background: rgb(9 15 23 / 0.86) !important;
+  box-shadow: 0 12px 34px rgb(0 0 0 / 0.15);
+  backdrop-filter: blur(22px) saturate(125%);
+}
+.app-shell.theme-dark .app-context-nav {
+  border-color: var(--nx-line-soft) !important;
+  background: rgb(8 13 20 / 0.74) !important;
+  box-shadow: none;
+}
+.app-shell.theme-dark .app-context-nav a {
+  color: var(--nx-faint) !important;
+  border-radius: 0.5rem;
+}
+.app-shell.theme-dark .app-context-nav a:hover {
+  color: var(--nx-ink-soft) !important;
+  background: rgb(255 255 255 / 0.035) !important;
+}
+.app-shell.theme-dark .app-context-nav a.is-active {
+  color: #eafcff !important;
+  background: rgb(34 199 232 / 0.11) !important;
+  box-shadow: inset 0 -2px 0 var(--nx-cyan) !important;
+}
+
+.app-shell.theme-dark .app-page {
+  max-width: 1380px;
+  padding-top: 2rem;
+}
+.app-shell.theme-dark .app-page-header {
+  border-color: var(--nx-line) !important;
+  padding-bottom: 1.35rem;
+}
+.app-shell.theme-dark .app-page-title,
+.app-shell.theme-dark main.app-page h1 {
+  color: var(--nx-ink) !important;
+  text-wrap: balance;
+}
+.app-shell.theme-dark .app-page-description { color: var(--nx-muted) !important; }
+
+.app-shell.theme-dark .glass-panel,
+.app-shell.theme-dark .nexus-card,
+.app-shell.theme-dark .app-panel,
+.app-shell.theme-dark .app-panel-pad,
+.app-shell.theme-dark .app-action-bar,
+.app-shell.theme-dark .app-sticky-tools,
+.app-shell.theme-dark .app-data-table,
+.app-shell.theme-dark .compact-stat,
+.app-shell.theme-dark .nexus-pill,
+.app-shell.theme-dark .nexus-muted-box {
+  color: var(--nx-ink);
+  background: linear-gradient(180deg, #111a25 0%, #0f1721 100%) !important;
+  border-color: var(--nx-line) !important;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.025) inset, 0 16px 38px rgb(0 0 0 / 0.13) !important;
+}
+.app-shell.theme-dark .nexus-card,
+.app-shell.theme-dark .app-panel,
+.app-shell.theme-dark .app-panel-pad,
+.app-shell.theme-dark .app-action-bar,
+.app-shell.theme-dark .app-sticky-tools { border-radius: 0.875rem; }
+.app-shell.theme-dark .compact-stat { border-radius: 0.75rem; }
+.app-shell.theme-dark .home-visit-section {
+  color: var(--nx-ink);
+  background: #111a25 !important;
+  border-color: var(--nx-line) !important;
+  border-radius: 1rem;
+  box-shadow: none !important;
+}
+.app-shell.theme-dark .nexus-kicker {
+  height: 1.65rem;
+  color: var(--nx-cyan-soft) !important;
+  background: rgb(34 199 232 / 0.075) !important;
+  border: 1px solid rgb(34 199 232 / 0.13);
+  box-shadow: none !important;
+}
+
+.app-shell.theme-dark .nexus-field,
+.app-shell.theme-dark input,
+.app-shell.theme-dark textarea,
+.app-shell.theme-dark select,
+.app-shell.theme-dark .app-global-search,
+.app-shell.theme-dark .app-workspace-switcher,
+.app-shell.theme-dark .app-icon-button,
+.app-shell.theme-dark .nexus-icon-button {
+  color: var(--nx-ink-soft) !important;
+  background: var(--nx-field) !important;
+  border-color: var(--nx-line) !important;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.018) inset !important;
+}
+.app-shell.theme-dark .app-workspace-switcher:hover,
+.app-shell.theme-dark .app-icon-button:hover,
+.app-shell.theme-dark .nexus-icon-button:hover {
+  color: var(--nx-ink) !important;
+  background: #151f2b !important;
+  border-color: #3a4959 !important;
+}
+.app-shell.theme-dark .app-global-search { background: #0a121b !important; }
+.app-shell.theme-dark .app-global-search:focus-within,
+.app-shell.theme-dark .nexus-field:focus,
+.app-shell.theme-dark input:focus,
+.app-shell.theme-dark textarea:focus,
+.app-shell.theme-dark select:focus {
+  border-color: rgb(34 199 232 / 0.76) !important;
+  box-shadow: 0 0 0 3px rgb(34 199 232 / 0.1) !important;
+  outline: none;
+}
+.app-shell.theme-dark .nexus-field::placeholder,
+.app-shell.theme-dark input::placeholder,
+.app-shell.theme-dark textarea::placeholder,
+.app-shell.theme-dark .app-global-search input::placeholder { color: #5f6c7b !important; }
+.app-shell.theme-dark .app-workspace-icon {
+  color: var(--nx-cyan-soft) !important;
+  background: rgb(34 199 232 / 0.08) !important;
+  border: 1px solid rgb(34 199 232 / 0.1);
+}
+.app-shell.theme-dark .app-global-search-panel {
+  color: var(--nx-ink);
+  background: rgb(14 22 32 / 0.97) !important;
+  border-color: var(--nx-line) !important;
+  box-shadow: 0 28px 70px rgb(0 0 0 / 0.45) !important;
+  backdrop-filter: blur(24px);
+}
+.app-shell.theme-dark .app-global-search-result:hover {
+  color: var(--nx-ink) !important;
+  background: rgb(255 255 255 / 0.04) !important;
+}
+.app-shell.theme-dark .app-global-search-result-icon {
+  color: var(--nx-cyan-soft) !important;
+  background: rgb(34 199 232 / 0.075) !important;
+}
+
+.app-shell.theme-dark .blue-action,
+.app-shell.theme-dark .amber-action,
+.app-shell.theme-dark .sky-action {
+  color: #031217 !important;
+  background: var(--nx-cyan) !important;
+  border: 1px solid #43d5ee !important;
+  box-shadow: 0 9px 22px rgb(34 199 232 / 0.12) !important;
+  font-weight: 850;
+}
+.app-shell.theme-dark .blue-action:hover,
+.app-shell.theme-dark .amber-action:hover,
+.app-shell.theme-dark .sky-action:hover {
+  background: #4dd6ee !important;
+  filter: none;
+}
+.app-shell.theme-dark .dark-action {
+  color: var(--nx-ink-soft) !important;
+  background: var(--nx-field) !important;
+  border: 1px solid var(--nx-line) !important;
+  box-shadow: none !important;
+}
+.app-shell.theme-dark .dark-action:hover {
+  color: var(--nx-ink) !important;
+  background: var(--nx-raised) !important;
+}
+
+.app-shell.theme-dark .app-data-table {
+  background: var(--nx-soft) !important;
+  border-radius: 0.8rem;
+  box-shadow: none !important;
+}
+.app-shell.theme-dark .app-data-table table,
+.app-shell.theme-dark .app-data-table .min-w-\[980px\] { background: transparent !important; }
+.app-shell.theme-dark .app-data-table thead,
+.app-shell.theme-dark .app-data-table thead tr { background: #0a111a !important; }
+.app-shell.theme-dark .app-data-table th {
+  color: #798799 !important;
+  font-size: 0.7rem;
+  letter-spacing: 0.035em;
+  border-color: var(--nx-line) !important;
+}
+.app-shell.theme-dark .app-data-table td {
+  color: var(--nx-ink-soft);
+  border-color: var(--nx-line-soft) !important;
+}
+.app-shell.theme-dark .app-data-table tbody tr {
+  background: transparent !important;
+  border-color: var(--nx-line-soft) !important;
+}
+.app-shell.theme-dark .app-data-table tbody tr:nth-child(even) { background: rgb(255 255 255 / 0.012) !important; }
+.app-shell.theme-dark .app-data-table tbody tr:hover {
+  background: rgb(34 199 232 / 0.045) !important;
+  box-shadow: inset 2px 0 0 rgb(34 199 232 / 0.65);
+}
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-sky-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-cyan-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-slate-50"],
+.app-shell.theme-dark .app-data-table tbody tr[class*="bg-[#fff"] {
+  background: rgb(34 199 232 / 0.075) !important;
+  box-shadow: inset 2px 0 0 var(--nx-cyan);
+}
+
+.app-shell.theme-dark [class~="text-slate-950"],
+.app-shell.theme-dark [class~="text-slate-900"],
+.app-shell.theme-dark [class~="text-slate-800"] { color: var(--nx-ink) !important; }
+.app-shell.theme-dark [class~="text-slate-700"],
+.app-shell.theme-dark [class~="text-slate-600"] { color: var(--nx-ink-soft) !important; }
+.app-shell.theme-dark [class~="text-slate-500"],
+.app-shell.theme-dark [class~="text-slate-400"] { color: var(--nx-muted) !important; }
+.app-shell.theme-dark [class~="border-slate-100"],
+.app-shell.theme-dark [class~="border-slate-200"],
+.app-shell.theme-dark [class~="border-slate-300"] { border-color: var(--nx-line) !important; }
+.app-shell.theme-dark [class~="bg-white"],
+.app-shell.theme-dark [class~="bg-slate-50"],
+.app-shell.theme-dark [class~="bg-slate-100"],
+.app-shell.theme-dark [class*="bg-white/"],
+.app-shell.theme-dark [class*="bg-slate-50/"],
+.app-shell.theme-dark [class*="bg-slate-100/"] { background-color: var(--nx-panel) !important; }
+
+.app-shell.theme-dark [class~="bg-sky-50"],
+.app-shell.theme-dark [class*="bg-sky-50/"],
+.app-shell.theme-dark [class~="bg-cyan-50"],
+.app-shell.theme-dark [class*="bg-cyan-50/"] { background-color: rgb(34 199 232 / 0.07) !important; }
+.app-shell.theme-dark [class~="bg-emerald-50"],
+.app-shell.theme-dark [class*="bg-emerald-50/"] { background-color: rgb(56 214 163 / 0.075) !important; }
+.app-shell.theme-dark [class~="bg-amber-50"],
+.app-shell.theme-dark [class*="bg-amber-50/"] { background-color: rgb(243 185 79 / 0.075) !important; }
+.app-shell.theme-dark [class~="bg-rose-50"],
+.app-shell.theme-dark [class*="bg-rose-50/"] { background-color: rgb(255 102 122 / 0.075) !important; }
+.app-shell.theme-dark [class~="bg-purple-50"],
+.app-shell.theme-dark [class*="bg-purple-50/"] { background-color: rgb(167 139 250 / 0.075) !important; }
+.app-shell.theme-dark [class*="from-amber-50"][class*="to-orange-50"],
+.app-shell.theme-dark [class*="from-yellow-50"][class*="to-amber-50"] {
+  background-image: linear-gradient(145deg, rgb(243 185 79 / 0.09), rgb(243 185 79 / 0.025)) !important;
+  border-color: rgb(243 185 79 / 0.18) !important;
+}
+.app-shell.theme-dark [class*="ring-slate-"],
+.app-shell.theme-dark [class*="ring-sky-"],
+.app-shell.theme-dark [class*="ring-cyan-"] {
+  --tw-ring-color: var(--nx-line) !important;
+}
+.app-shell.theme-dark [class*="ring-emerald-"] { --tw-ring-color: rgb(56 214 163 / 0.22) !important; }
+.app-shell.theme-dark [class*="ring-amber-"],
+.app-shell.theme-dark [class*="ring-yellow-"] { --tw-ring-color: rgb(243 185 79 / 0.22) !important; }
+.app-shell.theme-dark [class*="ring-rose-"] { --tw-ring-color: rgb(255 102 122 / 0.22) !important; }
+.app-shell.theme-dark [class*="ring-purple-"] { --tw-ring-color: rgb(167 139 250 / 0.22) !important; }
+
+.app-shell.theme-dark [class~="text-sky-700"],
+.app-shell.theme-dark [class~="text-sky-800"],
+.app-shell.theme-dark [class~="text-cyan-700"],
+.app-shell.theme-dark [class~="text-cyan-800"],
+.app-shell.theme-dark [class~="text-teal-700"] { color: var(--nx-cyan-soft) !important; }
+.app-shell.theme-dark [class~="text-emerald-700"],
+.app-shell.theme-dark [class~="text-emerald-800"] { color: #70e3bd !important; }
+.app-shell.theme-dark [class~="text-amber-600"],
+.app-shell.theme-dark [class~="text-amber-700"],
+.app-shell.theme-dark [class~="text-amber-800"] { color: #f4c96f !important; }
+.app-shell.theme-dark [class~="text-rose-700"],
+.app-shell.theme-dark [class~="text-rose-800"] { color: #ff8797 !important; }
+.app-shell.theme-dark [class~="text-purple-700"],
+.app-shell.theme-dark [class~="text-purple-800"] { color: #bba8fb !important; }
+.app-shell.theme-dark select option { color: var(--nx-ink); background: var(--nx-panel); }
+
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fffaf0\],
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fff7df\],
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fff8df\],
+.app-shell.theme-dark .schedule-v2 .bg-\[\#fff1c9\] { background: var(--nx-panel) !important; }
+.app-shell.theme-dark .schedule-v2 .bg-\[\#dfae6d\] { background: #182636 !important; }
+.app-shell.theme-dark .schedule-v2 .bg-\[\#4b2f18\] { background: rgb(34 199 232 / 0.13) !important; }
+.app-shell.theme-dark .schedule-v2 .border-\[\#ead8bd\],
+.app-shell.theme-dark .schedule-v2 .border-\[\#e6bd70\],
+.app-shell.theme-dark .schedule-v2 .border-\[\#e3b875\],
+.app-shell.theme-dark .schedule-v2 .border-\[\#e7c997\] { border-color: var(--nx-line) !important; }
+.app-shell.theme-dark .report-v2 .bg-\[\#080d1a\] {
+  color: var(--nx-ink) !important;
+  background: var(--nx-chrome) !important;
+  border-color: var(--nx-line) !important;
+  box-shadow: 0 18px 45px rgb(0 0 0 / 0.2) !important;
+}
+
+:root[data-theme="nexus"] .route-loading-screen {
+  color: var(--nx-ink);
+  background: radial-gradient(32rem 24rem at 50% 42%, rgb(34 199 232 / 0.065), transparent 70%), var(--nx-canvas);
+}
+:root[data-theme="nexus"] .route-loading-card {
+  border-color: var(--nx-line);
+  background: var(--nx-panel);
+  border-radius: 1rem;
+  box-shadow: 0 28px 70px rgb(0 0 0 / 0.34);
+}
+:root[data-theme="nexus"] .system-loading-overlay {
+  background: rgb(3 7 11 / 0.72);
+  backdrop-filter: blur(14px) saturate(105%);
+}
+:root[data-theme="nexus"] .system-loading-card {
+  max-width: 23rem;
+  color: var(--nx-ink);
+  border-color: rgb(135 153 172 / 0.22);
+  border-radius: 1rem;
+  background: linear-gradient(155deg, rgb(22 31 43 / 0.94), rgb(11 18 27 / 0.92));
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.045);
+  backdrop-filter: blur(26px) saturate(115%);
+}
+:root[data-theme="nexus"] .system-loading-orbit {
+  border-radius: 1.15rem;
+  border-color: rgb(34 199 232 / 0.12);
+  border-top-color: var(--nx-cyan);
+  border-right-color: var(--nx-mint);
+}
+:root[data-theme="nexus"] .system-loading-progress {
+  background: #080e16;
+  border: 1px solid var(--nx-line-soft);
+}
+:root[data-theme="nexus"] .system-toast-stack { top: 4.75rem; bottom: auto; }
+:root[data-theme="nexus"] .system-toast {
+  border-color: rgb(116 133 151 / 0.25);
+  border-radius: 0.875rem;
+  color: var(--nx-ink);
+  background: linear-gradient(145deg, rgb(24 34 47 / 0.93), rgb(12 19 28 / 0.91));
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.42), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(24px) saturate(115%);
+}
+:root[data-theme="nexus"] .system-toast.is-success { border-left-color: var(--nx-mint); }
+:root[data-theme="nexus"] .system-toast.is-error { border-left-color: var(--nx-coral); }
+:root[data-theme="nexus"] .system-toast.is-warning { border-left-color: var(--nx-amber); }
+:root[data-theme="nexus"] .system-toast.is-info { border-left-color: var(--nx-cyan); }
+:root[data-theme="nexus"] .system-toast-message { color: var(--nx-muted); }
+:root[data-theme="nexus"] .system-toast-details { background: rgb(5 10 16 / 0.48); border-color: var(--nx-line); }
+
+@media (max-width: 1023px) {
+  .app-shell.theme-dark {
+    background: radial-gradient(42rem 24rem at 82% -8%, rgb(34 199 232 / 0.06), transparent 68%), var(--nx-canvas) !important;
+  }
+  .app-shell.theme-dark .app-mobile-nav {
+    color: var(--nx-muted);
+    border-color: rgb(108 126 145 / 0.24);
+    background: rgb(11 17 25 / 0.93);
+    box-shadow: 0 -12px 36px rgb(0 0 0 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.04);
+    backdrop-filter: blur(22px) saturate(115%);
+  }
+  .app-shell.theme-dark .app-mobile-nav a,
+  .app-shell.theme-dark .app-mobile-nav button {
+    color: var(--nx-muted);
+    background: transparent;
+  }
+  .app-shell.theme-dark .app-mobile-nav :is(a, button)[aria-current="page"],
+  .app-shell.theme-dark .app-mobile-nav :is(a, button).is-active {
+    color: var(--nx-ink);
+    background: rgb(34 199 232 / 0.11);
+    box-shadow: inset 0 0 0 1px rgb(34 199 232 / 0.18);
+  }
+}
+
+@media (max-width: 639px) {
+  .app-shell.theme-dark .app-topbar { height: 3.75rem; padding-inline: 0.75rem; }
+  .app-shell.theme-dark .app-page { padding-top: 1.25rem; }
+  :root[data-theme="nexus"] .system-toast-stack { top: 4.25rem; }
+}
+
+@media print {
+  :root[data-theme="nexus"] { color-scheme: light; }
+}
