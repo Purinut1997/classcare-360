@@ -9,10 +9,12 @@
   --nx-field: #0b131d;
   --nx-line: #263341;
   --nx-line-soft: #1c2834;
-  --nx-ink: #f4f7fa;
-  --nx-ink-soft: #c8d0da;
-  --nx-muted: #96a3b3;
-  --nx-faint: #687586;
+  --nx-ink: #e9eef3;
+  --nx-ink-strong: #dce4ec;
+  --nx-ink-soft: #b9c4cf;
+  --nx-muted: #909dad;
+  --nx-faint: #748294;
+  --nx-placeholder: #7e8b9b;
   --nx-cyan: #22c7e8;
   --nx-cyan-soft: #72ddf1;
   --nx-mint: #38d6a3;
@@ -58,7 +60,7 @@
 .app-shell.theme-dark .app-sidebar-section { margin-top: 0.2rem; }
 .app-shell.theme-dark .app-sidebar-section > summary {
   min-height: 2.15rem;
-  color: var(--nx-faint) !important;
+  color: #8290a0 !important;
   letter-spacing: 0.075em;
 }
 .app-shell.theme-dark .app-sidebar-section > summary:hover {
@@ -67,7 +69,7 @@
 }
 .app-shell.theme-dark .app-sidebar-link {
   position: relative;
-  color: #9aa6b5 !important;
+  color: #a2adba !important;
   border-radius: 0.625rem;
   border: 1px solid transparent;
   box-shadow: none !important;
@@ -78,7 +80,7 @@
   border-color: rgb(255 255 255 / 0.035);
 }
 .app-shell.theme-dark .app-sidebar-link.is-active {
-  color: #ecfbff !important;
+  color: #e8f7fa !important;
   background: linear-gradient(90deg, rgb(34 199 232 / 0.15), rgb(34 199 232 / 0.045)) !important;
   border-color: rgb(34 199 232 / 0.16);
   box-shadow: inset 2px 0 0 var(--nx-cyan) !important;
@@ -106,7 +108,7 @@
   box-shadow: none;
 }
 .app-shell.theme-dark .app-context-nav a {
-  color: var(--nx-faint) !important;
+  color: #8491a1 !important;
   border-radius: 0.5rem;
 }
 .app-shell.theme-dark .app-context-nav a:hover {
@@ -114,7 +116,7 @@
   background: rgb(255 255 255 / 0.035) !important;
 }
 .app-shell.theme-dark .app-context-nav a.is-active {
-  color: #eafcff !important;
+  color: #e5f6f9 !important;
   background: rgb(34 199 232 / 0.11) !important;
   box-shadow: inset 0 -2px 0 var(--nx-cyan) !important;
 }
@@ -130,9 +132,37 @@
 .app-shell.theme-dark .app-page-title,
 .app-shell.theme-dark main.app-page h1 {
   color: var(--nx-ink) !important;
+  font-weight: 800 !important;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
   text-wrap: balance;
 }
-.app-shell.theme-dark .app-page-description { color: var(--nx-muted) !important; }
+.app-shell.theme-dark main.app-page h2 {
+  color: var(--nx-ink-strong) !important;
+  font-weight: 760 !important;
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+}
+.app-shell.theme-dark main.app-page h3 {
+  color: var(--nx-ink-strong) !important;
+  font-weight: 700 !important;
+  line-height: 1.35;
+}
+.app-shell.theme-dark .app-page-description {
+  color: #9ca9b8 !important;
+  font-weight: 550;
+  line-height: 1.7;
+}
+.app-shell.theme-dark main.app-page :is(p, dd) {
+  text-wrap: pretty;
+}
+.app-shell.theme-dark main.app-page :is(label, dt) {
+  color: #a8b4c1;
+  font-weight: 650 !important;
+}
+.app-shell.theme-dark main.app-page :is(small, figcaption) {
+  color: var(--nx-muted);
+}
 
 .app-shell.theme-dark .glass-panel,
 .app-shell.theme-dark .nexus-card,
@@ -178,7 +208,7 @@
 .app-shell.theme-dark .app-workspace-switcher,
 .app-shell.theme-dark .app-icon-button,
 .app-shell.theme-dark .nexus-icon-button {
-  color: var(--nx-ink-soft) !important;
+  color: #d2dae3 !important;
   background: var(--nx-field) !important;
   border-color: var(--nx-line) !important;
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.018) inset !important;
@@ -203,7 +233,10 @@
 .app-shell.theme-dark .nexus-field::placeholder,
 .app-shell.theme-dark input::placeholder,
 .app-shell.theme-dark textarea::placeholder,
-.app-shell.theme-dark .app-global-search input::placeholder { color: #5f6c7b !important; }
+.app-shell.theme-dark .app-global-search input::placeholder {
+  color: var(--nx-placeholder) !important;
+  opacity: 1;
+}
 .app-shell.theme-dark .app-workspace-icon {
   color: var(--nx-cyan-soft) !important;
   background: rgb(34 199 232 / 0.08) !important;
@@ -232,7 +265,7 @@
   background: var(--nx-cyan) !important;
   border: 1px solid #43d5ee !important;
   box-shadow: 0 9px 22px rgb(34 199 232 / 0.12) !important;
-  font-weight: 850;
+  font-weight: 750;
 }
 .app-shell.theme-dark .blue-action:hover,
 .app-shell.theme-dark .amber-action:hover,
@@ -250,6 +283,9 @@
   color: var(--nx-ink) !important;
   background: var(--nx-raised) !important;
 }
+.app-shell.theme-dark main.app-page button {
+  font-weight: 700 !important;
+}
 
 .app-shell.theme-dark .app-data-table {
   background: var(--nx-soft) !important;
@@ -261,13 +297,16 @@
 .app-shell.theme-dark .app-data-table thead,
 .app-shell.theme-dark .app-data-table thead tr { background: #0a111a !important; }
 .app-shell.theme-dark .app-data-table th {
-  color: #798799 !important;
+  color: #97a5b5 !important;
   font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.45;
   letter-spacing: 0.035em;
   border-color: var(--nx-line) !important;
 }
 .app-shell.theme-dark .app-data-table td {
-  color: var(--nx-ink-soft);
+  color: #bec8d3;
+  line-height: 1.55;
   border-color: var(--nx-line-soft) !important;
 }
 .app-shell.theme-dark .app-data-table tbody tr {
@@ -294,6 +333,14 @@
 .app-shell.theme-dark [class~="text-slate-600"] { color: var(--nx-ink-soft) !important; }
 .app-shell.theme-dark [class~="text-slate-500"],
 .app-shell.theme-dark [class~="text-slate-400"] { color: var(--nx-muted) !important; }
+.app-shell.theme-dark [class~="text-white"] { color: var(--nx-ink) !important; }
+.app-shell.theme-dark [class~="text-gray-950"],
+.app-shell.theme-dark [class~="text-gray-900"],
+.app-shell.theme-dark [class~="text-gray-800"] { color: var(--nx-ink) !important; }
+.app-shell.theme-dark [class~="text-gray-700"],
+.app-shell.theme-dark [class~="text-gray-600"] { color: var(--nx-ink-soft) !important; }
+.app-shell.theme-dark [class~="text-gray-500"],
+.app-shell.theme-dark [class~="text-gray-400"] { color: var(--nx-muted) !important; }
 .app-shell.theme-dark [class~="border-slate-100"],
 .app-shell.theme-dark [class~="border-slate-200"],
 .app-shell.theme-dark [class~="border-slate-300"] { border-color: var(--nx-line) !important; }

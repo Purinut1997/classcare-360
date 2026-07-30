@@ -76,6 +76,16 @@ async function assertRpcExists(name, args) {
   };
 }
 
+async function assertTableShape(name, columns) {
+  const { error } = await supabase.from(name).select(columns).limit(1);
+
+  return {
+    name,
+    ok: !error,
+    reason: error?.message || 'visible',
+  };
+}
+
 const { data, error } = await supabase.from('plans').select('code,name').limit(5);
 
 if (error) {
@@ -102,6 +112,29 @@ const destructiveRpcChecks = await Promise.all([
 ]);
 const missingDestructiveRpcs = destructiveRpcChecks.filter((check) => !check.ok);
 
+const dashboardSchemaChecks = await Promise.all([
+  assertTableShape('attendance_records', 'session_id,student_id,status'),
+  assertTableShape('student_care_cases', 'id,student_id,summary,status,risk_level'),
+  assertTableShape('score_entries', 'student_id,score,assessment_id'),
+  assertTableShape('savings_accounts', 'student_id,balance,status'),
+]);
+const workspaceMemberRpcChecks = await Promise.all([
+  assertRpcExists('can_manage_workspace_members', { target_workspace_id: NIL_UUID }),
+  assertRpcExists('get_workspace_members', { target_workspace_id: NIL_UUID }),
+  assertRpcExists('add_workspace_member_by_email', {
+    target_workspace_id: NIL_UUID,
+    target_email: 'missing@example.invalid',
+    target_role: 'viewer',
+  }),
+  assertRpcExists('set_workspace_member_status', {
+    target_workspace_id: NIL_UUID,
+    target_profile_id: NIL_UUID,
+    next_status: 'active',
+  }),
+]);
+const failedDashboardChecks = dashboardSchemaChecks.filter((check) => !check.ok);
+const missingWorkspaceMemberRpcs = workspaceMemberRpcChecks.filter((check) => !check.ok);
+
 if (missingDestructiveRpcs.length > 0) {
   console.error('Supabase action RPCs are missing:');
   for (const check of missingDestructiveRpcs) {
@@ -112,6 +145,18 @@ if (missingDestructiveRpcs.length > 0) {
   process.exit(1);
 }
 
+if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0) {
+  console.error('Supabase dashboard schema is incomplete:');
+  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs]) {
+    console.error(`- ${check.name}: ${check.reason}`);
+  }
+  console.error('');
+  console.error('Apply pending repair migrations, then re-run this check.');
+  process.exit(1);
+}
+
 console.log('Supabase connection OK.');
 console.log(`Plans visible through anon key: ${data?.map((plan) => plan.code).join(', ') || 'none'}`);
 console.log(`Action RPCs visible: ${destructiveRpcChecks.map((check) => check.name).join(', ')}`);
+console.log(`Dashboard tables visible: ${dashboardSchemaChecks.map((check) => check.name).join(', ')}`);
+console.log(`Workspace member RPCs visible: ${workspaceMemberRpcChecks.map((check) => check.name).join(', ')}`);

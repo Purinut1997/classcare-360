@@ -69,6 +69,7 @@ interface AttendanceSessionRow {
 interface AttendanceRecordSummaryRow {
   session_id: string;
   status: string;
+  student_id: string;
 }
 
 interface SubjectAttendanceSummary {
@@ -232,6 +233,26 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const targetClassroom = classrooms.find((c) => c.id === selectedClassroomId);
       const classroomName = targetClassroom ? targetClassroom.name : session.workspace.classroomName || 'ห้องเรียน';
 
+      const { data: attendanceSessionRows } = await supabase
+        .from('attendance_sessions')
+        .select('id, attendance_date, period_label, subject_name')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', selectedClassroomId)
+        .eq('attendance_date', getBangkokDate())
+        .order('period_label', { ascending: true });
+
+      const todayAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map(
+        (item) => item.id,
+      );
+      const attendanceRecordsPromise =
+        todayAttendanceSessionIds.length > 0
+          ? supabase
+              .from('attendance_records')
+              .select('session_id, student_id, status')
+              .eq('workspace_id', session.workspace.id)
+              .in('session_id', todayAttendanceSessionIds)
+          : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
+
       const [
         { data: studentRows },
         { data: attendanceRows },
@@ -242,18 +263,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
         { data: behaviorRows },
         { data: homeVisitRows },
         { data: careCaseRows },
-        { data: attendanceSessionRows },
       ] = await Promise.all([
         supabase.from('students').select('id, student_code, first_name, last_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId),
-        supabase.from('attendance_records').select('session_id, student_id, status, record_date').eq('workspace_id', session.workspace.id),
+        attendanceRecordsPromise,
         supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
         supabase.from('savings_transactions').select('student_id, amount, transaction_type').eq('workspace_id', session.workspace.id),
         supabase.from('score_assessments').select('id, max_score').eq('workspace_id', session.workspace.id),
         supabase.from('score_entries').select('student_id, score, assessment_id').eq('workspace_id', session.workspace.id),
         supabase.from('behavior_records').select('student_id, points, tone').eq('workspace_id', session.workspace.id),
         supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).eq('status', 'completed'),
-        supabase.from('student_care_cases').select('id, student_id, title, status, priority').eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
-        supabase.from('attendance_sessions').select('id, attendance_date, period_label, subject_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('attendance_date', getBangkokDate()).order('period_label', { ascending: true }),
+        supabase.from('student_care_cases').select('id, student_id, summary, status, risk_level').eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
       ]);
 
       if (!isMounted) return;
@@ -267,14 +286,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
       let late = 0;
       let leave = 0;
       let absent = 0;
-      const todayStr = getBangkokDate();
-      let attendanceCheckedToday = false;
+      const attendanceCheckedToday = (attendanceRows || []).length > 0;
 
       (attendanceRows || []).forEach((row) => {
         if (studentIds.has(row.student_id)) {
-          if (row.record_date === todayStr) {
-            attendanceCheckedToday = true;
-          }
           if (row.status === 'present' || row.status === 'activity') present++;
           else if (row.status === 'late') late++;
           else if (row.status === 'leave' || row.status === 'sick') leave++;
@@ -368,10 +383,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
         const st = studentMap.get(cc.student_id);
         const name = st ? `${st.first_name} ${st.last_name}` : 'นักเรียนในห้อง';
         return {
-          accent: cc.priority === 'high' || cc.priority === 'urgent' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800',
+          accent: cc.risk_level === 'urgent' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800',
           id: cc.id,
           name,
-          reason: cc.title || 'ติดตามการดูแล',
+          reason: cc.summary || 'ติดตามการดูแล',
           status: cc.status === 'open' ? 'เคสใหม่' : 'กำลังติดตาม',
         };
       });
