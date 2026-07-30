@@ -291,7 +291,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         supabase.from('score_assessments').select('id, max_score').eq('workspace_id', session.workspace.id),
         supabase.from('score_entries').select('student_id, score, assessment_id').eq('workspace_id', session.workspace.id),
         supabase.from('behavior_records').select('student_id, points, tone').eq('workspace_id', session.workspace.id),
-        supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).eq('status', 'completed'),
+        supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).in('status', ['submitted', 'certified']),
         supabase.from('student_care_cases').select('id, student_id, summary, status, risk_level').eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
       ]);
 

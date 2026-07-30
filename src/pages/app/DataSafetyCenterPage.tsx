@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { getBangkokDate } from '../../lib/date';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -96,7 +97,7 @@ const healthStyles: Record<HealthSeverity, string> = {
 
 function createDefaultState(session: AppSessionContext): DataSafetyState {
   const schoolName = session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียนตัวอย่าง';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getBangkokDate();
 
   return {
     mode: 'simple',
@@ -305,7 +306,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     message: 'Local-first: ใช้ข้อมูลในเครื่องจนกว่าจะเชื่อม Supabase สำเร็จ',
   });
   const [calendarDraft, setCalendarDraft] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getBangkokDate(),
     title: '',
     type: 'activity' as CalendarRule['type'],
     attendancePolicy: 'warn' as CalendarRule['attendancePolicy'],

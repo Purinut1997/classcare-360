@@ -16,7 +16,6 @@ const requiredMigrations = [
   '0008_savings_behavior_foundation.sql',
   '0009_randomizer_foundation.sql',
   '0010_api_grants.sql',
-  '0010_payment_slip_storage.sql',
   '0011_admin_lifetime_access.sql',
   '0012_workspace_member_admin.sql',
   '0013_payment_qr_storage.sql',
@@ -30,6 +29,15 @@ const requiredMigrations = [
   '0021_role_operations_control_center.sql',
   '0022_public_report_lookup.sql',
   '0023_data_safety_center.sql',
+  '0024_fix_public_lookup_permissions.sql',
+  '0025_verify_public_lookup_function.sql',
+  '0026_add_normalize_thai_citizen_id.sql',
+  '0027_add_is_superadmin_function.sql',
+  '0028_workspace_schedule_settings.sql',
+  '0029_restore_workspace_member_admin_rpcs.sql',
+  '0030_teacher_automation_center.sql',
+  '0031_workspace_discovery_rpc.sql',
+  '0032_automation_execution_hardening.sql',
 ];
 
 const requiredFunctions = [

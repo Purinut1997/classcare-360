@@ -547,6 +547,42 @@ export function AttendancePage({ session }: AttendancePageProps) {
       return;
     }
 
+    const approvalRows = targets.map((guardian) => {
+      const student = alertStudents.find((item) => item.id === guardian.student_id);
+      const status = student ? marks[student.id] : 'present';
+      const studentName = student ? `${student.first_name} ${student.last_name}` : 'นักเรียน';
+      const note = student ? notes[student.id]?.trim() : '';
+      return {
+        body: `${studentName} มีสถานะ ${statusLabels[status]} วันที่ ${attendanceDate} ${sessionLabel}${note ? ` หมายเหตุ: ${note}` : ''}`,
+        channels: ['in_app'],
+        consent_snapshot: { consent_status: 'granted', relation: guardian.relation },
+        created_by: session.profile.id,
+        reason: `เตรียมจากผลเช็กชื่อ สถานะ ${statusLabels[status]} รอครูอนุมัติก่อนส่ง`,
+        recipient_name: guardian.display_name,
+        recipient_profile_id: guardian.profile_id,
+        source_id: attendanceSession?.id,
+        source_type: 'attendance_session',
+        status: 'pending',
+        student_id: guardian.student_id,
+        title: `แจ้งเวลาเรียน: ${studentName}`,
+        workspace_id: activeWorkspaceId,
+      };
+    });
+    const { error: approvalError } = await activeSupabase
+      .from('communication_approval_queue')
+      .upsert(approvalRows, { ignoreDuplicates: true });
+    if (approvalError) {
+      setNotice(approvalError.message);
+    } else {
+      setNotice(`เตรียมข้อความ ${approvalRows.length} รายการแล้ว กรุณาตรวจและอนุมัติใน Automation Center`);
+      feedback.success({
+        title: 'เตรียมข้อความแล้ว',
+        message: `${approvalRows.length} รายการยังไม่ถูกส่ง ระบบรอครูอนุมัติก่อน`,
+      });
+    }
+    setIsNotifying(false);
+    return;
+
     const results = await Promise.allSettled(
       targets.map((guardian) => {
         const student = alertStudents.find((item) => item.id === guardian.student_id);

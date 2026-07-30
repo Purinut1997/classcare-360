@@ -13,6 +13,7 @@ interface AutomationCenterPageProps { session: AppSessionContext }
 interface RuleRow {
   id: string; name: string; trigger_type: string; action_type: string;
   threshold: number; window_days: number; is_active: boolean; approval_required: boolean;
+  config: Record<string, unknown>;
 }
 interface SignalRow {
   id: string; student_id: string; signal_type: string; severity: string;
@@ -100,6 +101,35 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
     else await load();
   }
 
+  async function configureRule(rule: RuleRow) {
+    if (!supabase) return;
+    if (rule.trigger_type === 'home_visit_incomplete') {
+      const deadline = window.prompt('กำหนดส่งแบบเยี่ยมบ้าน (YYYY-MM-DD)', String(rule.config?.deadline ?? ''));
+      if (deadline === null) return;
+      const { error } = await supabase.from('automation_rules').update({
+        config: { ...rule.config, deadline: deadline.trim() || null },
+      }).eq('id', rule.id).eq('workspace_id', workspaceId);
+      if (error) feedback.error({ title: 'บันทึกกำหนดส่งไม่สำเร็จ', message: error.message });
+      else await load();
+      return;
+    }
+    const thresholdText = window.prompt('ค่าเกณฑ์ของกฎ', String(rule.threshold));
+    if (thresholdText === null) return;
+    const windowText = window.prompt('จำนวนวันที่ใช้ประเมินย้อนหลัง', String(rule.window_days));
+    if (windowText === null) return;
+    const threshold = Number(thresholdText);
+    const windowDays = Number(windowText);
+    if (!Number.isFinite(threshold) || threshold < 0 || !Number.isInteger(windowDays) || windowDays < 1 || windowDays > 365) {
+      feedback.warning({ title: 'ค่ากฎไม่ถูกต้อง', message: 'เกณฑ์ต้องเป็นตัวเลข และจำนวนวันต้องอยู่ระหว่าง 1–365' });
+      return;
+    }
+    const { error } = await supabase.from('automation_rules').update({
+      threshold, window_days: windowDays,
+    }).eq('id', rule.id).eq('workspace_id', workspaceId);
+    if (error) feedback.error({ title: 'บันทึกกฎไม่สำเร็จ', message: error.message });
+    else await load();
+  }
+
   async function reviewMessage(item: QueueRow, status: 'approved' | 'rejected') {
     if (!supabase) return;
     const { error } = await supabase.from('communication_approval_queue').update({
@@ -119,16 +149,12 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
       return;
     }
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke('dispatch-notification', {
+    const { error } = await supabase.functions.invoke('dispatch-notification', {
       body: {
-        workspace_id: workspaceId, recipient_profile_id: item.recipient_profile_id,
-        title: item.title, body: item.body, notification_type: 'automation',
+        queueId: item.id,
+        workspaceId,
       },
     });
-    await supabase.from('communication_approval_queue').update({
-      status: error ? 'failed' : 'sent', sent_at: error ? null : new Date().toISOString(),
-      dispatch_result: error ? { error: error.message } : { response: data },
-    }).eq('id', item.id).eq('workspace_id', workspaceId).eq('status', 'approved');
     if (error) feedback.error({ title: 'ส่งข้อความไม่สำเร็จ', message: error.message });
     else feedback.success({ title: 'ส่งข้อความเรียบร้อย', message: `${item.recipient_name ?? 'ผู้ปกครอง'} · ${item.title}` });
     await load();
@@ -164,7 +190,10 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
           {rules.map((rule) => (
             <article className="automation-rule" key={rule.id}>
               <div><span className="status-pill">{triggerLabels[rule.trigger_type] ?? rule.trigger_type}</span><h3>{rule.name}</h3><p>ทำงาน: {rule.action_type} · ย้อนหลัง {rule.window_days} วัน</p></div>
-              <button className={`toggle-button ${rule.is_active ? 'active' : ''}`} onClick={() => void toggleRule(rule)}>{rule.is_active ? 'เปิด' : 'ปิด'}</button>
+              <div className="approval-actions">
+                <button className="toggle-button" onClick={() => void configureRule(rule)}>ตั้งค่า</button>
+                <button className={`toggle-button ${rule.is_active ? 'active' : ''}`} onClick={() => void toggleRule(rule)}>{rule.is_active ? 'เปิด' : 'ปิด'}</button>
+              </div>
             </article>
           ))}
           {!rules.length && !busy ? <div className="empty-state">ยังไม่มีกฎ กด “ติดตั้งกฎมาตรฐาน” เพื่อเริ่มต้น</div> : null}

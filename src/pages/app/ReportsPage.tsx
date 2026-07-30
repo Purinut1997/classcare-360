@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, ImagePlus, Printer, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
@@ -135,7 +136,7 @@ const demoStudents: StudentRow[] = [
 ];
 
 const demoSessions: AttendanceSessionRow[] = [
-  { attendance_date: new Date().toISOString().slice(0, 10), classroom_id: 'demo-classroom', id: 'demo-session-1', period_label: 'เช้า', subject_name: 'โฮมรูม' },
+  { attendance_date: getBangkokDate(), classroom_id: 'demo-classroom', id: 'demo-session-1', period_label: 'เช้า', subject_name: 'โฮมรูม' },
 ];
 
 const demoRecords: AttendanceRecordRow[] = [
@@ -266,7 +267,7 @@ const monthlyStatusAbbreviations: Record<AttendanceStatus, string> = {
 };
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return getBangkokDate();
 }
 
 function escapeCsv(value: string | number) {

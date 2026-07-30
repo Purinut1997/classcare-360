@@ -117,15 +117,19 @@ export function installSystemNetworkFeedback() {
   let lastAction = 'บันทึกการเปลี่ยนแปลง';
   let lastContext: FeedbackDetail[] = [];
   let lastActionAt = 0;
+  let lastActionIsMutationIntent = false;
   let requestId = 0;
   const originalFetch = window.fetch.bind(window);
 
   document.addEventListener('click', (event) => {
+    lastActionIsMutationIntent = event.target instanceof Element
+      && Boolean(event.target.closest('button, input[type="submit"], [role="button"]'));
     lastAction = getActionLabel(event.target);
     lastContext = getActionContext(event.target);
     lastActionAt = Date.now();
   }, true);
   document.addEventListener('submit', (event) => {
+    lastActionIsMutationIntent = true;
     lastAction = getActionLabel(event.submitter);
     lastContext = getActionContext(event.submitter);
     lastActionAt = Date.now();
@@ -139,6 +143,7 @@ export function installSystemNetworkFeedback() {
     // Supabase read-only RPC calls also use POST. Show global feedback only
     // when the request follows an explicit click or form submission.
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
+      && lastActionIsMutationIntent
       && Date.now() - lastActionAt < 2500;
     const id = ++requestId;
     const action = Date.now() - lastActionAt < 2500 ? lastAction : 'บันทึกการเปลี่ยนแปลง';

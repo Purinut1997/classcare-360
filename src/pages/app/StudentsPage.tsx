@@ -25,6 +25,7 @@ import {
   Users,
 } from 'lucide-react';
 
+import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -222,7 +223,7 @@ const defaultHomeVisitForm: HomeVisitFormState = {
   travelMethod: 'เดิน',
   travelMinutes: '',
   vehicles: 'รถมอเตอร์ไซต์/เรือประมงพื้นบ้าน',
-  visitDate: new Date().toISOString().slice(0, 10),
+  visitDate: getBangkokDate(),
   wallMaterial: 'ไม้กระดาน',
   welfareSupport: 'ไม่ได้รับสวัสดิการแห่งรัฐ',
 };

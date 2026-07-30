@@ -10,6 +10,7 @@ interface DispatchNotificationPayload {
   lineUserId?: string;
   privacyLevel?: PrivacyLevel;
   profileId?: string;
+  queueId?: string;
   telegramChatId?: string;
   title?: string;
   type?: string;
@@ -150,6 +151,8 @@ async function sendLineMessage(lineUserId: string | undefined, title: string, bo
 }
 
 Deno.serve(async (request) => {
+  let activeQueueId: string | null = null;
+  let queueFailureClient: ReturnType<typeof createClient> | null = null;
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -169,15 +172,16 @@ Deno.serve(async (request) => {
     }
 
     const payload = (await request.json()) as DispatchNotificationPayload;
-    const workspaceId = payload.workspaceId?.trim();
-    const profileId = payload.profileId?.trim();
-    const title = payload.title?.trim();
-    const body = payload.body?.trim();
-    const type = payload.type?.trim() || 'manual';
-    const privacyLevel = payload.privacyLevel || 'normal';
-    const channels = normalizeChannels(payload.channels);
+    let workspaceId = payload.workspaceId?.trim();
+    let profileId = payload.profileId?.trim();
+    let title = payload.title?.trim();
+    let body = payload.body?.trim();
+    let type = payload.type?.trim() || 'manual';
+    let privacyLevel = payload.privacyLevel || 'normal';
+    let channels = normalizeChannels(payload.channels);
+    const queueId = payload.queueId?.trim();
 
-    if (!workspaceId || !profileId || !title || !body) {
+    if (!queueId && (!workspaceId || !profileId || !title || !body)) {
       return jsonResponse({ error: 'workspaceId, profileId, title, and body are required' }, 400);
     }
 
@@ -193,6 +197,7 @@ Deno.serve(async (request) => {
     const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
+    queueFailureClient = serviceClient;
 
     const {
       data: { user },
@@ -201,6 +206,43 @@ Deno.serve(async (request) => {
 
     if (userError || !user) {
       return jsonResponse({ error: 'Invalid user token' }, 401);
+    }
+
+    if (queueId) {
+      activeQueueId = queueId;
+      const { data: queueItem, error: queueError } = await serviceClient
+        .from('communication_approval_queue')
+        .select('id,workspace_id,recipient_profile_id,channels,title,body,source_type,status,dispatch_result')
+        .eq('id', queueId)
+        .maybeSingle();
+      if (queueError) throw queueError;
+      if (!queueItem) return jsonResponse({ error: 'Approval queue item not found' }, 404);
+      if (queueItem.status !== 'approved') {
+        return jsonResponse({ error: `Queue item must be approved before sending (current: ${queueItem.status})` }, 409);
+      }
+      if (!queueItem.recipient_profile_id) return jsonResponse({ error: 'Queue item has no recipient profile' }, 400);
+
+      const { data: claimed, error: claimError } = await serviceClient
+        .from('communication_approval_queue')
+        .update({ status: 'sending', dispatch_result: { claimed_at: new Date().toISOString(), claimed_by: user.id } })
+        .eq('id', queueId)
+        .eq('status', 'approved')
+        .select('id')
+        .maybeSingle();
+      if (claimError) throw claimError;
+      if (!claimed) return jsonResponse({ error: 'Queue item is already being sent' }, 409);
+
+      workspaceId = queueItem.workspace_id;
+      profileId = queueItem.recipient_profile_id;
+      title = queueItem.title;
+      body = queueItem.body;
+      type = queueItem.source_type || 'automation';
+      privacyLevel = 'restricted';
+      channels = normalizeChannels(queueItem.channels);
+    }
+
+    if (!workspaceId || !profileId || !title || !body) {
+      return jsonResponse({ error: 'Resolved notification payload is incomplete' }, 400);
     }
 
     const { data: superadmin, error: superadminError } = await serviceClient
@@ -298,12 +340,29 @@ Deno.serve(async (request) => {
       workspace_id: workspaceId,
     });
 
+    if (queueId) {
+      await serviceClient.from('communication_approval_queue').update({
+        status: 'sent',
+        sent_at: now,
+        dispatch_result: { dispatch_results: dispatchResults, notification_id: notification.id },
+      }).eq('id', queueId).eq('status', 'sending');
+    }
+
     return jsonResponse({
       dispatchResults,
       notification,
       ok: true,
     });
   } catch (error) {
+    if (activeQueueId && queueFailureClient) {
+      await queueFailureClient.from('communication_approval_queue').update({
+        status: 'failed',
+        dispatch_result: {
+          error: error instanceof Error ? error.message : 'Unexpected error',
+          failed_at: new Date().toISOString(),
+        },
+      }).eq('id', activeQueueId).eq('status', 'sending');
+    }
     return jsonResponse(
       {
         error: error instanceof Error ? error.message : 'Unexpected error',
