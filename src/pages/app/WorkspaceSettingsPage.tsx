@@ -6,6 +6,7 @@ import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
+import { MemberAccessControl } from '../../components/workspace/MemberAccessControl';
 
 interface WorkspaceSettingsPageProps {
   session: AppSessionContext;
@@ -1465,6 +1466,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           ) : null}
         </div>
       </section>
+
+      {canUseDestructiveActions ? <MemberAccessControl classrooms={activeClassrooms} session={session} /> : null}
 
       {memberNotice ? (
         <div className="mt-5 flex gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/90 p-3 text-sm font-bold leading-6 text-cyan-900 shadow-sm">
