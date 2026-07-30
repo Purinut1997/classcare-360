@@ -136,7 +136,10 @@ export function installSystemNetworkFeedback() {
       init?.method
       || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
     ).toUpperCase();
-    const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+    // Supabase read-only RPC calls also use POST. Show global feedback only
+    // when the request follows an explicit click or form submission.
+    const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
+      && Date.now() - lastActionAt < 2500;
     const id = ++requestId;
     const action = Date.now() - lastActionAt < 2500 ? lastAction : 'บันทึกการเปลี่ยนแปลง';
     const context = Date.now() - lastActionAt < 2500 ? lastContext : [];

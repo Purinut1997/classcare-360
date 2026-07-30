@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { ArrowRight, Building2, CalendarDays, CheckCircle2, Clock3, GraduationCap, Plus, School } from 'lucide-react';
+import { ArrowRight, Building2, CalendarDays, CheckCircle2, Clock3, GraduationCap, Pencil, Plus, Save, School, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { roleLabels } from '../../lib/roles';
@@ -85,6 +85,8 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(Boolean(supabase));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestingWorkspaceId, setRequestingWorkspaceId] = useState<string | null>(null);
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
+  const [editingWorkspaceName, setEditingWorkspaceName] = useState('');
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: การสร้าง workspace จริงต้อง insert ผ่าน Supabase และ RLS',
   );
@@ -194,6 +196,28 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     }
 
     window.location.assign('/app/dashboard');
+  }
+
+  async function saveWorkspaceName(workspace: WorkspaceOption) {
+    const nextName = editingWorkspaceName.trim();
+    if (!nextName) {
+      setNotice('กรุณากรอกชื่อ workspace');
+      return;
+    }
+    if (!supabase) {
+      setAvailableWorkspaces((current) => current.map((item) => item.id === workspace.id ? { ...item, name: nextName } : item));
+      setEditingWorkspaceId(null);
+      return;
+    }
+    setIsSubmitting(true);
+    const { error } = await supabase.from('workspaces').update({ name: nextName }).eq('id', workspace.id);
+    if (error) setNotice(`เปลี่ยนชื่อ workspace ไม่สำเร็จ: ${error.message}`);
+    else {
+      setAvailableWorkspaces((current) => current.map((item) => item.id === workspace.id ? { ...item, name: nextName } : item));
+      setNotice(`เปลี่ยนชื่อ workspace เป็น “${nextName}” แล้ว`);
+      setEditingWorkspaceId(null);
+    }
+    setIsSubmitting(false);
   }
 
   async function requestWorkspaceAccess(workspace: WorkspaceOption) {
@@ -391,7 +415,25 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-black text-cyan-700">{workspace.schoolName}</p>
-                    <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">{workspace.name}</h2>
+                    {editingWorkspaceId === workspace.id ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <input
+                          autoFocus
+                          className="h-11 min-w-[240px] flex-1 rounded-2xl border border-cyan-300 bg-white px-4 text-lg font-black text-slate-950 outline-none ring-4 ring-cyan-100"
+                          onChange={(event) => setEditingWorkspaceName(event.target.value)}
+                          value={editingWorkspaceName}
+                        />
+                        <button className="blue-action inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-black" disabled={isSubmitting} onClick={() => void saveWorkspaceName(workspace)} type="button"><Save size={16} /> บันทึก</button>
+                        <button className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-600" onClick={() => setEditingWorkspaceId(null)} type="button"><X size={16} /> ยกเลิก</button>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-2">
+                        <h2 className="text-2xl font-black tracking-tight text-slate-950">{workspace.name}</h2>
+                        {(session.profile.role === 'superadmin' || workspace.role === 'teacher_owner') ? (
+                          <button aria-label="เปลี่ยนชื่อ workspace" className="inline-grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-cyan-300 hover:text-cyan-700" onClick={() => { setEditingWorkspaceId(workspace.id); setEditingWorkspaceName(workspace.name); }} title="เปลี่ยนชื่อ workspace" type="button"><Pencil size={16} /></button>
+                        ) : null}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">
                         <CalendarDays size={14} aria-hidden="true" />

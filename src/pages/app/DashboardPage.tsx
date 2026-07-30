@@ -59,6 +59,12 @@ interface ClassroomRow {
   name: string;
 }
 
+interface ClassroomStudentCount {
+  classroomId: string;
+  classroomName: string;
+  count: number;
+}
+
 interface AttendanceSessionRow {
   attendance_date: string;
   id: string;
@@ -121,6 +127,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [stats, setStats] = useState(dashboardStats);
   const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [classroomStudentCounts, setClassroomStudentCounts] = useState<ClassroomStudentCount[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
   const [watchlistStudents, setWatchlistStudents] = useState<WatchlistStudentItem[]>([]);
@@ -187,12 +194,12 @@ export function DashboardPage({ session }: DashboardPageProps) {
       }
 
       const [
-        { count: studentCount },
+        { data: activeStudentRows, count: studentCount },
         { count: classroomCount },
         { count: careCaseCount },
         { data: savingsRows },
       ] = await Promise.all([
-        supabase.from('students').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).eq('status', 'active'),
+        supabase.from('students').select('id,classroom_id', { count: 'exact' }).eq('workspace_id', session.workspace.id).eq('status', 'active'),
         supabase.from('classrooms').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).eq('status', 'active'),
         supabase.from('student_care_cases').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
         supabase.from('savings_accounts').select('balance').eq('workspace_id', session.workspace.id).eq('status', 'active'),
@@ -204,6 +211,19 @@ export function DashboardPage({ session }: DashboardPageProps) {
         (sum, row) => sum + Number((row as { balance?: number | string | null }).balance || 0),
         0,
       );
+      const countsByClassroom = new Map<string, number>();
+      ((activeStudentRows || []) as Array<{ classroom_id: string | null }>).forEach((student) => {
+        const key = student.classroom_id || 'unassigned';
+        countsByClassroom.set(key, (countsByClassroom.get(key) || 0) + 1);
+      });
+      const nextClassroomCounts = classrooms.map((classroom) => ({
+        classroomId: classroom.id,
+        classroomName: classroom.name,
+        count: countsByClassroom.get(classroom.id) || 0,
+      }));
+      const unassignedCount = countsByClassroom.get('unassigned') || 0;
+      if (unassignedCount > 0) nextClassroomCounts.push({ classroomId: 'unassigned', classroomName: 'ยังไม่ระบุห้อง', count: unassignedCount });
+      setClassroomStudentCounts(nextClassroomCounts);
 
       setStats([
         { ...dashboardStats[0], detail: session.workspace.classroomName, value: String(studentCount ?? 0) },
@@ -217,7 +237,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [classrooms, session.workspace]);
 
   // Load Classroom Specific Real Analytics Data & Watchlist Students
   useEffect(() => {
@@ -542,6 +562,37 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       {/* Main Workspace Metrics */}
       <StatsGrid stats={stats} />
+
+      <section className="mt-4 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-cyan-700">Students by classroom</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950">นักเรียนในความดูแล แยกตามห้องเรียน</h2>
+          </div>
+          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-cyan-100">
+            รวม {classroomStudentCounts.reduce((sum, item) => sum + item.count, 0)} คน
+          </span>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {classroomStudentCounts.map((item) => (
+            <button
+              className={`flex items-center justify-between rounded-2xl border p-4 text-left transition ${
+                item.classroomId === selectedClassroomId
+                  ? 'border-cyan-300 bg-cyan-50/80 shadow-sm'
+                  : 'border-slate-200 bg-slate-50/70 hover:border-cyan-200 hover:bg-white'
+              }`}
+              disabled={item.classroomId === 'unassigned'}
+              key={item.classroomId}
+              onClick={() => setSelectedClassroomId(item.classroomId)}
+              type="button"
+            >
+              <span><span className="block text-xs font-bold text-slate-500">ห้องเรียน</span><strong className="mt-1 block text-base text-slate-950">{item.classroomName}</strong></span>
+              <span className="text-2xl font-black text-cyan-800">{item.count}</span>
+            </button>
+          ))}
+          {!classroomStudentCounts.length ? <p className="text-sm font-bold text-slate-500">ยังไม่มีข้อมูลห้องเรียน</p> : null}
+        </div>
+      </section>
 
       {/* Classroom Dataset Status & Analytics Charts Section */}
       <ClassroomAnalyticsCharts data={analyticsData} />
