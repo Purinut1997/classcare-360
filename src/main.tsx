@@ -1,9 +1,18 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
+import {
+  installSystemNetworkFeedback,
+  SystemFeedbackProvider,
+} from './components/system/SystemFeedback';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+installSystemNetworkFeedback();
+
+void import('./App').then(({ default: App }) => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <SystemFeedbackProvider>
+        <App />
+      </SystemFeedbackProvider>
+    </StrictMode>,
+  );
+});

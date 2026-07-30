@@ -193,11 +193,15 @@ function getAllowedRolesForNavItem(key: string) {
 
 function SessionStateScreen({ detail, title }: { detail: string; title: string }) {
   return (
-    <main className="classcare-grid-bg flex min-h-screen items-center px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
-      <section className="nexus-card mx-auto max-w-3xl p-6 text-center sm:p-8">
-        <AppLogo className="mx-auto h-16 w-16 rounded-2xl bg-white shadow-[0_18px_42px_rgba(2,6,23,0.12)] ring-1 ring-slate-200" />
+    <main className="route-loading-screen">
+      <section className="route-loading-card">
+        <div className="system-loading-logo mx-auto">
+          <span className="system-loading-orbit" />
+          <AppLogo className="h-16 w-16 rounded-2xl bg-white p-1.5 shadow-xl" />
+        </div>
         <h1 className="mt-5 text-3xl font-black text-slate-950">{title}</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-600">{detail}</p>
+        <div className="system-loading-progress mx-auto mt-6 max-w-sm"><span /></div>
         <p className="mt-6 text-xs font-bold text-slate-500">Created by MIKPURINUT</p>
       </section>
     </main>

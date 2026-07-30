@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { getBangkokDate } from '../../lib/date';
 import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -127,6 +128,7 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 }
 
 export function AttendancePage({ session }: AttendancePageProps) {
+  const feedback = useSystemFeedback();
   const [mode, setMode] = useState<AttendanceMode>('homeroom');
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
@@ -279,6 +281,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
       return;
     }
 
+    const operationId = feedback.beginOperation({
+      title: 'กำลังเตรียมรายการเช็คชื่อ',
+      message: `กำลังเปิดรอบวันที่ ${attendanceDate} สำหรับห้อง ${selectedClassroom?.name || '-'}`,
+    });
+
     // The report boundary is explicit: daily sessions have no subject; subject
     // sessions always do. This prevents the two report types from mixing.
     const normalizedSubjectName = mode === 'subject' ? subjectName.trim() || 'ไม่ระบุวิชา' : null;
@@ -296,6 +303,17 @@ export function AttendancePage({ session }: AttendancePageProps) {
       setAttendanceSession(localSession);
       setRecords([]);
       setNotice('เริ่มเช็คเวลาในโหมดตัวอย่างแล้ว');
+      feedback.endOperation(operationId);
+      feedback.success({
+        title: 'พร้อมเช็คชื่อแล้ว',
+        message: 'สร้างรอบเช็คชื่อในโหมดตัวอย่างสำเร็จ',
+        details: [
+          { label: 'วันที่', value: attendanceDate },
+          { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+          { label: 'ช่วงเวลา', value: normalizedPeriod },
+          { label: 'นักเรียน', value: `${classroomStudents.length} คน` },
+        ],
+      });
       setIsSubmitting(false);
       return;
     }
@@ -319,6 +337,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
     if (error) {
       setNotice(error.message);
+      feedback.endOperation(operationId);
+      feedback.error({
+        title: 'เริ่มเช็คชื่อไม่สำเร็จ',
+        message: error.message,
+        details: [
+          { label: 'วันที่', value: attendanceDate },
+          { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+        ],
+      });
       setIsSubmitting(false);
       return;
     }
@@ -328,6 +355,17 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setEditSessionDate(nextSession.attendance_date);
     await loadSessionRecords(nextSession);
     setNotice('เริ่มเช็คเวลาเรียนสำเร็จ');
+    feedback.endOperation(operationId);
+    feedback.success({
+      title: 'พร้อมเช็คชื่อแล้ว',
+      message: 'ระบบสร้างหรือเปิดรอบเช็คชื่อเดิมเรียบร้อย',
+      details: [
+        { label: 'วันที่', value: nextSession.attendance_date },
+        { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+        { label: 'ช่วงเวลา', value: nextSession.period_label },
+        { label: 'นักเรียน', value: `${classroomStudents.length} คน` },
+      ],
+    });
     setIsSubmitting(false);
   }
 
@@ -335,10 +373,24 @@ export function AttendancePage({ session }: AttendancePageProps) {
     if (!attendanceSession || !editSessionDate || editSessionDate === attendanceSession.attendance_date) return;
     setIsSubmitting(true);
     setNotice(null);
+    const previousDate = attendanceSession.attendance_date;
+    const operationId = feedback.beginOperation({
+      title: 'กำลังแก้ไขวันที่เช็คชื่อ',
+      message: `ย้ายข้อมูลจาก ${previousDate} ไปยัง ${editSessionDate}`,
+    });
     if (!supabase || !session.workspace) {
       setAttendanceSession((current) => (current ? { ...current, attendance_date: editSessionDate } : current));
       setAttendanceDate(editSessionDate);
       setNotice('แก้ไขวันที่บันทึกในโหมดตัวอย่างแล้ว');
+      feedback.endOperation(operationId);
+      feedback.success({
+        title: 'แก้ไขวันที่สำเร็จ',
+        message: 'ข้อมูลเช็คชื่อและรายงานจะอ้างอิงวันที่ใหม่',
+        details: [
+          { label: 'วันที่เดิม', value: previousDate },
+          { label: 'วันที่ใหม่', value: editSessionDate },
+        ],
+      });
       setIsSubmitting(false);
       return;
     }
@@ -351,12 +403,23 @@ export function AttendancePage({ session }: AttendancePageProps) {
       .single();
     if (error) {
       setNotice(error.message);
+      feedback.endOperation(operationId);
+      feedback.error({ title: 'แก้ไขวันที่ไม่สำเร็จ', message: error.message });
       setIsSubmitting(false);
       return;
     }
     setAttendanceSession(data as AttendanceSessionRow);
     setAttendanceDate(editSessionDate);
     setNotice('แก้ไขวันที่ของบันทึกแล้ว และรายงานจะย้ายตามวันที่ใหม่');
+    feedback.endOperation(operationId);
+    feedback.success({
+      title: 'แก้ไขวันที่สำเร็จ',
+      message: 'ข้อมูลเช็คชื่อและรายงานถูกย้ายไปอ้างอิงวันที่ใหม่แล้ว',
+      details: [
+        { label: 'วันที่เดิม', value: previousDate },
+        { label: 'วันที่ใหม่', value: editSessionDate },
+      ],
+    });
     setIsSubmitting(false);
   }
 
@@ -368,6 +431,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
     setIsSubmitting(true);
     setNotice(null);
+    const operationId = feedback.beginOperation({
+      title: 'กำลังบันทึกผลเช็คชื่อ',
+      message: `ตรวจสอบสถานะนักเรียน ${classroomStudents.length} คน และบันทึกลงระบบ`,
+    });
 
     const payload = classroomStudents.map((student) => ({
       workspace_id: session.workspace?.id || 'demo-workspace',
@@ -390,6 +457,16 @@ export function AttendancePage({ session }: AttendancePageProps) {
         })),
       );
       setNotice('บันทึกเวลาเรียนในโหมดตัวอย่างแล้ว');
+      feedback.endOperation(operationId);
+      feedback.success({
+        title: 'บันทึกเช็คชื่อสำเร็จ',
+        message: 'บันทึกข้อมูลในโหมดตัวอย่างครบทุกคนแล้ว',
+        details: [
+          { label: 'วันที่', value: attendanceSession.attendance_date },
+          { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+          ...summary.map((item) => ({ label: item.label, value: `${item.count} คน` })),
+        ],
+      });
       setIsSubmitting(false);
       return;
     }
@@ -401,12 +478,33 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
     if (error) {
       setNotice(error.message);
+      feedback.endOperation(operationId);
+      feedback.error({
+        title: 'บันทึกเช็คชื่อไม่สำเร็จ',
+        message: error.message,
+        details: [
+          { label: 'วันที่', value: attendanceSession.attendance_date },
+          { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+          { label: 'ข้อมูลที่พยายามบันทึก', value: `${payload.length} คน` },
+        ],
+      });
       setIsSubmitting(false);
       return;
     }
 
     setRecords((data || []) as AttendanceRecordRow[]);
     setNotice('บันทึกเวลาเรียนสำเร็จ');
+    feedback.endOperation(operationId);
+    feedback.success({
+      title: 'บันทึกเช็คชื่อสำเร็จ',
+      message: `บันทึกสถานะนักเรียนครบ ${data?.length || 0} คน`,
+      details: [
+        { label: 'วันที่', value: attendanceSession.attendance_date },
+        { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+        { label: 'ช่วงเวลา', value: attendanceSession.period_label },
+        ...summary.map((item) => ({ label: item.label, value: `${item.count} คน` })),
+      ],
+    });
     setIsSubmitting(false);
   }
 

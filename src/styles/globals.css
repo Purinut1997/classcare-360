@@ -476,16 +476,28 @@
 
 /* Nexus dark system theme: preserve the ClassCare logo and all workflows. */
 :root { color-scheme: light; }
+:root[data-theme="nexus"] { color-scheme: dark; }
 
 body { background: #f6f7f9; color: #0f172a; }
 
 .app-shell.theme-dark {
+  --cc-bg: #07111f;
+  --cc-chrome: #091827;
+  --cc-surface: #10243a;
+  --cc-surface-raised: #142c45;
+  --cc-field: #091b2e;
+  --cc-border: #29445d;
+  --cc-text: #f3f7fb;
+  --cc-muted: #9cb0c3;
+  --cc-accent: #22c7e8;
+  --cc-success: #34d399;
+  --cc-warning: #f5b942;
+  --cc-danger: #fb7185;
   background:
-    radial-gradient(circle at 82% 4%, rgb(39 215 255 / 0.15), transparent 24rem),
-    radial-gradient(circle at 4% 60%, rgb(87 93 255 / 0.12), transparent 30rem),
-    linear-gradient(rgb(49 214 255 / 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(49 214 255 / 0.055) 1px, transparent 1px),
-    linear-gradient(145deg, #061a31 0%, #061426 54%, #09152d 100%) !important;
+    radial-gradient(circle at 86% 2%, rgb(34 199 232 / 0.07), transparent 26rem),
+    linear-gradient(rgb(56 103 138 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(56 103 138 / 0.035) 1px, transparent 1px),
+    var(--cc-bg) !important;
   background-size: auto, auto, 2.5rem 2.5rem, 2.5rem 2.5rem, auto !important;
 }
 .app-shell.theme-dark { color: #eaf7ff !important; }
@@ -525,9 +537,9 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark .compact-stat,
 .app-shell.theme-dark .nexus-pill,
 .app-shell.theme-dark .nexus-muted-box {
-  border-color: rgb(102 213 255 / 0.16) !important;
-  background: linear-gradient(145deg, rgb(16 43 72 / 0.9), rgb(6 24 47 / 0.9)) !important;
-  box-shadow: 0 16px 36px rgb(0 5 16 / 0.2) !important;
+  border-color: var(--cc-border) !important;
+  background: var(--cc-surface) !important;
+  box-shadow: 0 14px 30px rgb(0 5 16 / 0.16) !important;
 }
 .app-shell.theme-dark .home-visit-section { background: rgb(13 37 64 / 0.84) !important; border-color: rgb(102 213 255 / 0.16) !important; }
 .app-shell.theme-dark .app-data-table table,
@@ -542,9 +554,9 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark .app-icon-button,
 .app-shell.theme-dark .app-workspace-switcher,
 .app-shell.theme-dark .app-global-search {
-  border-color: rgb(107 203 255 / 0.18) !important;
-  background: rgb(5 25 50 / 0.74) !important;
-  color: #edfaff !important;
+  border-color: var(--cc-border) !important;
+  background: var(--cc-field) !important;
+  color: var(--cc-text) !important;
 }
 .app-shell.theme-dark .nexus-field::placeholder,
 .app-shell.theme-dark .app-global-search input::placeholder { color: #6f8daa !important; }
@@ -591,7 +603,7 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark [class~="border-slate-300"] { border-color: rgb(108 205 255 / 0.16) !important; }
 .app-shell.theme-dark [class~="bg-white"],
 .app-shell.theme-dark [class~="bg-slate-50"],
-.app-shell.theme-dark [class~="bg-slate-100"] { background-color: rgb(11 35 62 / 0.8) !important; }
+.app-shell.theme-dark [class~="bg-slate-100"] { background-color: var(--cc-surface) !important; }
 
 /* Tailwind opacity variants are separate class tokens (for example
    bg-sky-50/80), so match them explicitly.  These are used throughout older
@@ -599,7 +611,7 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark [class*="bg-white/"],
 .app-shell.theme-dark [class*="bg-slate-50/"],
 .app-shell.theme-dark [class*="bg-slate-100/"],
-.app-shell.theme-dark [class*="bg-slate-200/"] { background-color: rgb(13 38 66 / 0.9) !important; }
+.app-shell.theme-dark [class*="bg-slate-200/"] { background-color: var(--cc-surface-raised) !important; }
 .app-shell.theme-dark [class~="bg-sky-50"],
 .app-shell.theme-dark [class*="bg-sky-50/"],
 .app-shell.theme-dark [class~="bg-cyan-50"],
@@ -697,18 +709,180 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark select { color: #edfaff !important; }
 .app-shell.theme-dark select option { background: #071b34; color: #edfaff; }
 
+/* System feedback ----------------------------------------------------------
+   Shared operation state for every workflow. It intentionally sits outside
+   AppShell so authentication, route loading and app pages share one language. */
+.route-loading-screen {
+  @apply flex min-h-screen items-center px-4 py-8 sm:px-6 lg:px-8;
+  color: #f3f7fb;
+  background:
+    radial-gradient(circle at 50% 38%, rgb(34 199 232 / 0.1), transparent 26rem),
+    #07111f;
+}
+
+.route-loading-card {
+  @apply mx-auto w-full max-w-2xl rounded-[2rem] p-7 text-center sm:p-10;
+  border: 1px solid #29445d;
+  background: #10243a;
+  box-shadow: 0 28px 80px rgb(0 5 16 / 0.38);
+}
+
+.route-loading-card h1 { color: #f3f7fb !important; }
+.route-loading-card p { color: #9cb0c3 !important; }
+
+.system-loading-overlay {
+  @apply fixed inset-0 z-[100] grid place-items-center p-4;
+  background:
+    radial-gradient(circle at 50% 40%, rgb(34 199 232 / 0.08), transparent 28rem),
+    rgb(3 10 20 / 0.66);
+  backdrop-filter: blur(12px) saturate(125%);
+  animation: system-fade-in 180ms ease-out;
+}
+
+.system-loading-card {
+  @apply w-full max-w-md rounded-[2rem] p-7 text-center sm:p-8;
+  border: 1px solid rgb(125 211 252 / 0.22);
+  color: #f3f7fb;
+  background:
+    linear-gradient(145deg, rgb(19 47 73 / 0.82), rgb(7 25 45 / 0.78));
+  box-shadow:
+    0 30px 90px rgb(0 4 14 / 0.58),
+    inset 0 1px 0 rgb(255 255 255 / 0.07);
+  backdrop-filter: blur(24px) saturate(135%);
+}
+
+.system-loading-card h2 {
+  @apply mt-4 text-xl font-black;
+}
+
+.system-loading-card > p:not(.system-loading-eyebrow) {
+  @apply mt-2 text-sm font-semibold leading-6;
+  color: #9cb0c3;
+}
+
+.system-loading-card small {
+  @apply mt-4 block text-xs font-bold;
+  color: #7890a5;
+}
+
+.system-loading-eyebrow {
+  @apply mt-5 text-[11px] font-black uppercase tracking-[0.18em];
+  color: #22c7e8;
+}
+
+.system-loading-logo {
+  @apply relative mx-auto grid h-24 w-24 place-items-center;
+}
+
+.system-loading-orbit {
+  @apply absolute inset-0 rounded-[2rem];
+  border: 2px solid rgb(34 199 232 / 0.16);
+  border-top-color: #22c7e8;
+  border-right-color: #34d399;
+  animation: system-logo-orbit 1.15s linear infinite;
+}
+
+.system-loading-progress {
+  @apply mt-5 h-1.5 w-full overflow-hidden rounded-full;
+  background: #091b2e;
+}
+
+.system-loading-progress span {
+  @apply block h-full w-2/5 rounded-full;
+  background: linear-gradient(90deg, #22c7e8, #34d399);
+  animation: system-progress 1.2s ease-in-out infinite;
+}
+
+.system-toast-stack {
+  @apply pointer-events-none fixed bottom-5 right-4 z-[110] flex w-[min(27rem,calc(100vw-2rem))] flex-col gap-3 sm:right-5;
+}
+
+.system-toast {
+  @apply pointer-events-auto flex items-start gap-3 rounded-2xl p-4;
+  color: #f3f7fb;
+  border: 1px solid rgb(125 211 252 / 0.2);
+  background:
+    linear-gradient(145deg, rgb(21 50 76 / 0.82), rgb(7 26 47 / 0.78));
+  box-shadow:
+    0 20px 55px rgb(0 5 16 / 0.46),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(22px) saturate(140%);
+  animation: system-toast-in 240ms cubic-bezier(.2,.8,.2,1);
+}
+
+.system-toast.is-success { border-left: 4px solid #34d399; }
+.system-toast.is-error { border-left: 4px solid #fb7185; }
+.system-toast.is-warning { border-left: 4px solid #f5b942; }
+.system-toast.is-info { border-left: 4px solid #22c7e8; }
+.system-toast.is-success .system-toast-icon { color: #34d399; background: rgb(52 211 153 / 0.1); }
+.system-toast.is-error .system-toast-icon { color: #fb7185; background: rgb(251 113 133 / 0.1); }
+.system-toast.is-warning .system-toast-icon { color: #f5b942; background: rgb(245 185 66 / 0.1); }
+.system-toast.is-info .system-toast-icon { color: #22c7e8; background: rgb(34 199 232 / 0.1); }
+
+.system-toast-icon {
+  @apply grid h-9 w-9 shrink-0 place-items-center rounded-xl;
+}
+
+.system-toast-title { @apply pr-2 text-sm font-black leading-5; }
+.system-toast-message {
+  @apply mt-1 text-xs font-semibold leading-5;
+  color: #9cb0c3;
+}
+
+.system-toast-close {
+  @apply grid h-7 w-7 shrink-0 place-items-center rounded-lg transition;
+  color: #9cb0c3;
+}
+.system-toast-close:hover { color: #f3f7fb; background: #1b3550; }
+
+.system-toast-details-toggle {
+  @apply mt-2 inline-flex items-center gap-1 text-xs font-black;
+  color: #22c7e8;
+}
+.system-toast-details-toggle svg { @apply transition-transform; }
+
+.system-toast-details {
+  @apply mt-3 grid gap-1.5 rounded-xl p-2.5 text-xs;
+  background: rgb(3 17 32 / 0.48);
+  border: 1px solid rgb(125 211 252 / 0.14);
+}
+.system-toast-details > div { @apply flex items-start justify-between gap-4; }
+.system-toast-details dt { color: #7890a5; }
+.system-toast-details dd { @apply text-right font-black; color: #e9f2f8; }
+
+@keyframes system-logo-orbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes system-progress {
+  0% { transform: translateX(-120%); }
+  55%, 100% { transform: translateX(250%); }
+}
+@keyframes system-fade-in {
+  from { opacity: 0; }
+}
+@keyframes system-toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .system-loading-orbit,
+  .system-loading-progress span { animation-duration: 3s; }
+  .system-toast,
+  .system-loading-overlay { animation: none; }
+}
+
 /* Nexus visual system -------------------------------------------------------
    Shared chrome and content rules intentionally live here rather than inside
    individual pages, so all dashboard modules inherit the same typography,
    depth, table density and cyan-blue palette. */
 .app-shell.theme-dark {
-  --nexus-bg: #061727;
-  --nexus-surface: #0a2540;
-  --nexus-surface-strong: #0d2e4f;
-  --nexus-border: rgb(83 197 255 / 0.22);
-  --nexus-text: #effaff;
-  --nexus-muted: #9bb5ca;
-  --nexus-accent: #22d3ee;
+  --nexus-bg: var(--cc-bg);
+  --nexus-surface: var(--cc-surface);
+  --nexus-surface-strong: var(--cc-surface-raised);
+  --nexus-border: var(--cc-border);
+  --nexus-text: var(--cc-text);
+  --nexus-muted: var(--cc-muted);
+  --nexus-accent: var(--cc-accent);
   font-family: 'Noto Sans Thai', 'Anuphan', ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.01em;
 }
@@ -761,7 +935,7 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark .nexus-card,
 .app-shell.theme-dark .app-data-table {
   border-radius: 1rem;
-  background: linear-gradient(145deg, rgb(14 46 78 / 0.96), rgb(8 31 57 / 0.96)) !important;
+  background: var(--cc-surface) !important;
   border-color: var(--nexus-border) !important;
 }
 .app-shell.theme-dark .app-data-table { overflow: hidden; }
@@ -784,7 +958,7 @@ body { background: #f6f7f9; color: #0f172a; }
   transition: background-color 160ms ease, box-shadow 160ms ease;
 }
 .app-shell.theme-dark .app-data-table tbody tr:hover {
-  background: rgb(25 87 130 / 0.42) !important;
+  background: rgb(34 199 232 / 0.08) !important;
 }
 .app-shell.theme-dark .nexus-field,
 .app-shell.theme-dark select,
@@ -801,8 +975,28 @@ body { background: #f6f7f9; color: #0f172a; }
 .app-shell.theme-dark .amber-action,
 .app-shell.theme-dark .sky-action {
   border-radius: 0.8rem;
-  background: linear-gradient(135deg, #1687ff 0%, #27c8ed 100%) !important;
-  box-shadow: 0 10px 24px rgb(26 145 255 / 0.24) !important;
+  background: #159fbe !important;
+  box-shadow: 0 9px 22px rgb(34 199 232 / 0.16) !important;
+}
+
+/* Catch legacy paper colors without turning semantic warning/success states
+   into full-page color blocks. New components should use shared primitives. */
+.app-shell.theme-dark [class*="bg-[#fff"],
+.app-shell.theme-dark [class*="bg-[#fef"],
+.app-shell.theme-dark [class*="bg-[#faf"],
+.app-shell.theme-dark [class*="bg-[#f8f"] {
+  background-color: var(--cc-surface-raised) !important;
+}
+.app-shell.theme-dark .app-data-table [class*="bg-amber-"],
+.app-shell.theme-dark .app-data-table [class*="bg-yellow-"] {
+  background-color: rgb(245 185 66 / 0.08) !important;
+}
+.app-shell.theme-dark input,
+.app-shell.theme-dark textarea,
+.app-shell.theme-dark select {
+  background-color: var(--cc-field);
+  border-color: var(--cc-border);
+  color: var(--cc-text);
 }
 
 @media print {
