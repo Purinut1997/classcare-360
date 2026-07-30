@@ -2044,6 +2044,36 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             onChange={(event) =>
                               setScores((current) => ({ ...current, [student.id]: event.target.value }))
                             }
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter' && event.key !== 'ArrowDown') return;
+                              event.preventDefault();
+                              const index = filteredStudents.findIndex((item) => item.id === student.id);
+                              const nextId = filteredStudents[index + 1]?.id;
+                              if (nextId) document.querySelector<HTMLInputElement>(`[data-score-student="${nextId}"]`)?.focus();
+                            }}
+                            onPaste={(event) => {
+                              const values = event.clipboardData.getData('text')
+                                .split(/\r?\n|\t/)
+                                .map((value) => value.trim())
+                                .filter(Boolean);
+                              if (values.length < 2) return;
+                              event.preventDefault();
+                              const startIndex = filteredStudents.findIndex((item) => item.id === student.id);
+                              const maximum = selectedAssessment?.max_score ?? Number.POSITIVE_INFINITY;
+                              setScores((current) => {
+                                const next = { ...current };
+                                values.forEach((value, offset) => {
+                                  const target = filteredStudents[startIndex + offset];
+                                  const numericValue = Number(value);
+                                  if (target && Number.isFinite(numericValue) && numericValue >= 0 && numericValue <= maximum) {
+                                    next[target.id] = String(numericValue);
+                                  }
+                                });
+                                return next;
+                              });
+                              setNotice(`วางคะแนนจาก Excel ${Math.min(values.length, filteredStudents.length - startIndex)} คนแล้ว ตรวจสอบก่อนกดบันทึก`);
+                            }}
+                            data-score-student={student.id}
                             type="number"
                             value={scoreValue}
                           />

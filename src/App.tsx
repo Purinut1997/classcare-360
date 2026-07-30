@@ -40,6 +40,9 @@ const AuditCenterPage = lazy(() =>
 const AttendancePage = lazy(() =>
   import('./pages/app/AttendancePage').then((module) => ({ default: module.AttendancePage })),
 );
+const AutomationCenterPage = lazy(() =>
+  import('./pages/app/AutomationCenterPage').then((module) => ({ default: module.AutomationCenterPage })),
+);
 const DashboardPage = lazy(() =>
   import('./pages/app/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 );
@@ -123,6 +126,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'scores',
       'savings',
       'behavior',
+      'automation',
       'randomizer',
       'reports',
       'school-calendar',
@@ -139,6 +143,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'scores',
       'savings',
       'behavior',
+      'automation',
       'randomizer',
       'reports',
       'school-calendar',
@@ -157,6 +162,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'scores',
       'savings',
       'behavior',
+      'automation',
       'randomizer',
       'reports',
       'school-calendar',
@@ -274,6 +280,21 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <AttendancePage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'automation') {
+    return (
+      <RequireRouteAccess
+        allowedRoles={allowedRoles}
+        featureName={activeNavItem.label}
+        moduleKey={activeNavItem.moduleKey}
+        session={session}
+      >
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <AutomationCenterPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

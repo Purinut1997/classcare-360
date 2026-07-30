@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -52,6 +53,13 @@ export const appNavItems: AppNavItem[] = [
   { key: 'scores', label: 'ระบบคะแนน', icon: GraduationCap, moduleKey: 'scores', path: '/app/dashboard?view=scores' },
   { key: 'savings', label: 'บันทึกเงินออม', icon: PiggyBank, moduleKey: 'savings', path: '/app/dashboard?view=savings' },
   { key: 'behavior', label: 'บันทึกพฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
+  {
+    key: 'automation',
+    label: 'Automation & Early Warning',
+    icon: Workflow,
+    moduleKey: 'student_care',
+    path: '/app/dashboard?view=automation',
+  },
   {
     key: 'randomizer',
     label: 'สุ่ม',
