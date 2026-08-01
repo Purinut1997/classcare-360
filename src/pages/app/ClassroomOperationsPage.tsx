@@ -47,6 +47,7 @@ interface DutyTask {
   active_weekdays: number[];
   allow_substitute: boolean;
   checklist: string[];
+  classroom_id: string;
   evidence_required: boolean;
   id: string;
   instructions: string | null;
@@ -281,37 +282,46 @@ export function ClassroomOperationsPage({
     () => new Map(students.map((student) => [student.id, student])),
     [students],
   );
+  const classroomTasks = useMemo(
+    () => tasks.filter((task) => task.classroom_id === classroomId),
+    [classroomId, tasks],
+  );
+  const classroomTaskIds = useMemo(
+    () => new Set(classroomTasks.map((task) => task.id)),
+    [classroomTasks],
+  );
   const roomAssignments = useMemo(
     () =>
       assignments.filter(
         (item) =>
+          classroomTaskIds.has(item.duty_task_id) &&
           item.duty_date >= weekStart &&
           item.duty_date <= addDays(weekStart, 6),
       ),
-    [assignments, weekStart],
+    [assignments, classroomTaskIds, weekStart],
   );
   const displayedDutyDays = useMemo(() => {
-    const configured = new Set(tasks.flatMap((task) => task.active_weekdays));
+    const configured = new Set(classroomTasks.flatMap((task) => task.active_weekdays));
     const values = dutyWeekdays.filter((day) => configured.has(day.value));
     return values.length ? values : dutyWeekdays.slice(0, 5);
-  }, [tasks]);
+  }, [classroomTasks]);
   const uniqueTasks = useMemo(() => {
     const seen = new Set<string>();
-    return tasks.filter((task) => {
+    return classroomTasks.filter((task) => {
       const key = dutyTaskKey(task.name);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [tasks]);
+  }, [classroomTasks]);
   const taskAliasIds = useMemo(() => {
     const groups = new Map<string, string[]>();
-    tasks.forEach((task) => {
+    classroomTasks.forEach((task) => {
       const key = dutyTaskKey(task.name);
       groups.set(key, [...(groups.get(key) || []), task.id]);
     });
     return new Map(uniqueTasks.map((task) => [task.id, groups.get(dutyTaskKey(task.name)) || [task.id]]));
-  }, [tasks, uniqueTasks]);
+  }, [classroomTasks, uniqueTasks]);
   const selectedDayAssignments = useMemo(
     () => roomAssignments.filter((assignment) => assignment.duty_date === selectedDutyDate),
     [roomAssignments, selectedDutyDate],
@@ -347,7 +357,7 @@ export function ClassroomOperationsPage({
           .order("student_code"),
         supabase
           .from("duty_tasks")
-          .select("id,name,location,instructions,checklist,active_weekdays,slots_per_day,positive_points,missed_points,rotation_strategy,allow_substitute,evidence_required,is_active,sort_order")
+          .select("id,classroom_id,name,location,instructions,checklist,active_weekdays,slots_per_day,positive_points,missed_points,rotation_strategy,allow_substitute,evidence_required,is_active,sort_order")
           .eq("workspace_id", workspaceId)
           .order("sort_order"),
         supabase
@@ -664,7 +674,7 @@ export function ClassroomOperationsPage({
     };
     const result = editingTaskId
       ? await supabase.from("duty_tasks").update(payload).eq("id", editingTaskId).eq("workspace_id", session.workspace.id)
-      : await supabase.from("duty_tasks").insert({ ...payload, created_by: session.profile.id, sort_order: tasks.length * 10 + 10 });
+      : await supabase.from("duty_tasks").insert({ ...payload, created_by: session.profile.id, sort_order: classroomTasks.length * 10 + 10 });
     if (result.error) setNotice(result.error.message);
     else { setNotice(editingTaskId ? "แก้ไขหน้าที่เวรแล้ว" : "เพิ่มหน้าที่เวรแล้ว"); setTimeout(() => window.location.reload(), 400); }
     setBusy(false);
@@ -1089,16 +1099,26 @@ export function ClassroomOperationsPage({
       {tab === "duty" ? (
         <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                สัปดาห์
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setWeekStart(event.target.value)}
-                  type="date"
-                  value={weekStart}
-                />
-              </label>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ห้องเรียนที่จัดเวร
+                  <select className="nexus-field h-11 px-3" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
+                    {classrooms.filter((room) => room.status === "active").map((room) => (
+                      <option key={room.id} value={room.id}>{room.name} ({room.academic_year || "-"}) · {students.filter((student) => student.classroom_id === room.id).length} คน</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  สัปดาห์
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setWeekStart(event.target.value)}
+                    type="date"
+                    value={weekStart}
+                  />
+                </label>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   className="inline-flex h-11 items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-black text-cyan-800 hover:bg-cyan-100"
@@ -1206,6 +1226,7 @@ export function ClassroomOperationsPage({
               onDates={setDutyGenerationDates}
               onScope={setDutyGenerationScope}
               range={getDutyGenerationRange()}
+              roomName={classrooms.find((room) => room.id === classroomId)?.name || "-"}
               scope={dutyGenerationScope}
               studentCount={roomStudents.length}
               taskCount={uniqueTasks.filter((task) => task.is_active && task.rotation_strategy !== "manual").length}
@@ -1375,6 +1396,7 @@ function DutyGenerationDialog({
   onDates,
   onScope,
   range,
+  roomName,
   scope,
   studentCount,
   taskCount,
@@ -1386,6 +1408,7 @@ function DutyGenerationDialog({
   onDates: (value: { day: string; month: string; termEnd: string; termStart: string }) => void;
   onScope: (value: DutyGenerationScope) => void;
   range: { end: string; start: string };
+  roomName: string;
   scope: DutyGenerationScope;
   studentCount: number;
   taskCount: number;
@@ -1414,7 +1437,7 @@ function DutyGenerationDialog({
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-lime-300">Smart duty rotation</p>
             <h2 className="mt-2 text-2xl font-black" id="duty-generator-title">สุ่มจัดเวรตามช่วงเวลา</h2>
-            <p className="mt-2 max-w-xl text-sm font-bold leading-6 text-slate-300">ระบบกระจายจำนวนเวรให้ใกล้เคียงกัน ไม่จัดเด็กซ้ำในวันเดียว และข้ามวันหยุดตามปฏิทินโรงเรียน</p>
+            <p className="mt-2 max-w-xl text-sm font-bold leading-6 text-slate-300">กำลังจัดเวรเฉพาะห้อง <span className="text-lime-300">{roomName}</span> · ระบบจะไม่ดึงนักเรียนจากห้องอื่นมาปะปน</p>
           </div>
           <button aria-label="ปิด" className="grid size-10 shrink-0 place-items-center rounded-full border border-white/15 text-slate-300 transition hover:bg-white/10 hover:text-white" disabled={busy} onClick={onClose} type="button"><X size={19} /></button>
         </div>
