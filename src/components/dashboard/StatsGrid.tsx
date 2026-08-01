@@ -6,12 +6,13 @@ interface StatsGridProps {
 
 export function StatsGrid({ stats }: StatsGridProps) {
   return (
-    <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="สถิติ">
-      {stats.map((stat) => (
+    <section className="dashboard-stat-grid mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="สถิติ">
+      {stats.map((stat, index) => (
         <article
-          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_5px_18px_rgba(15,23,42,0.04)]"
+          className={`dashboard-stat dashboard-stat-${index + 1} rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_5px_18px_rgba(15,23,42,0.04)]`}
           key={stat.label}
         >
+          <span className="dashboard-stat-index" aria-hidden="true">0{index + 1}</span>
           <div className={`inline-flex rounded-lg px-2 py-1 text-[11px] font-black ring-1 ${stat.tone}`}>
             {stat.label}
           </div>

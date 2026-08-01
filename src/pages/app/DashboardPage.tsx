@@ -513,8 +513,8 @@ export function DashboardPage({ session }: DashboardPageProps) {
   ];
 
   return (
-    <main className="app-page">
-      <div className="app-page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <main className="app-page dashboard-premium">
+      <div className="app-page-header dashboard-hero flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-cyan-200">
@@ -563,7 +563,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       {/* Main Workspace Metrics */}
       <StatsGrid stats={stats} />
 
-      <section className="mt-4 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <section className="dashboard-classroom-rail mt-4 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-cyan-700">Students by classroom</p>
@@ -576,7 +576,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {classroomStudentCounts.map((item) => (
             <button
-              className={`flex items-center justify-between rounded-2xl border p-4 text-left transition ${
+              className={`dashboard-classroom-option flex items-center justify-between rounded-2xl border p-4 text-left transition ${
                 item.classroomId === selectedClassroomId
                   ? 'border-cyan-300 bg-cyan-50/80 shadow-sm'
                   : 'border-slate-200 bg-slate-50/70 hover:border-cyan-200 hover:bg-white'

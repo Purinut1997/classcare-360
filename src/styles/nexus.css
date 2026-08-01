@@ -521,6 +521,171 @@
 @media print {
   :root[data-theme="nexus"] { color-scheme: light; }
 }
+
+/* Nexus 3.1 signature shell and dashboard --------------------------------- */
+.app-shell.theme-dark .app-shell-main {
+  position: relative;
+  isolation: isolate;
+}
+.app-shell.theme-dark .app-shell-main::before {
+  position: fixed;
+  z-index: -1;
+  top: 3.75rem;
+  right: 0;
+  width: min(72vw, 84rem);
+  height: 30rem;
+  content: "";
+  pointer-events: none;
+  opacity: .9;
+  background:
+    radial-gradient(ellipse at 78% 0%, rgb(169 139 250 / .10), transparent 46%),
+    radial-gradient(ellipse at 48% 0%, rgb(67 214 165 / .07), transparent 42%),
+    radial-gradient(ellipse at 100% 8%, rgb(57 214 232 / .12), transparent 45%);
+  filter: blur(10px);
+  mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / .7) 48%, transparent 100%);
+}
+.app-shell.theme-dark .app-sidebar::after {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 12rem;
+  content: "";
+  pointer-events: none;
+  background: radial-gradient(circle at 12% 0%, rgb(57 214 232 / .10), transparent 65%);
+}
+.app-shell.theme-dark .app-sidebar-brand,
+.app-shell.theme-dark .app-sidebar nav,
+.app-shell.theme-dark .app-sidebar footer { position: relative; z-index: 1; }
+.app-shell.theme-dark .app-topbar::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: 42%;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgb(57 214 232 / .42), transparent);
+}
+
+.app-shell.theme-dark .dashboard-premium { max-width: 1460px; }
+.app-shell.theme-dark .dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 10.5rem;
+  padding: 1.75rem 2rem !important;
+  border: 1px solid var(--nx-line) !important;
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(105deg, rgb(20 29 40 / .98) 0%, rgb(13 20 29 / .96) 58%, rgb(12 23 31 / .92) 100%) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .055), var(--nx-shadow-lg);
+}
+.app-shell.theme-dark .dashboard-hero::before {
+  position: absolute;
+  top: -7rem;
+  right: -5rem;
+  width: 34rem;
+  height: 22rem;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 56% 44%, rgb(57 214 232 / .18), transparent 48%),
+    radial-gradient(ellipse at 76% 20%, rgb(169 139 250 / .16), transparent 44%);
+  filter: blur(18px);
+  transform: rotate(-8deg);
+}
+.app-shell.theme-dark .dashboard-hero::after {
+  position: absolute;
+  right: 2rem;
+  bottom: 1.2rem;
+  width: 15rem;
+  height: 7rem;
+  content: "CLASSCARE  /  TODAY";
+  color: rgb(255 255 255 / .07);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .22em;
+  text-align: right;
+  border-right: 1px solid rgb(57 214 232 / .24);
+}
+.app-shell.theme-dark .dashboard-hero > * { position: relative; z-index: 1; }
+.app-shell.theme-dark .dashboard-hero .app-page-title {
+  margin-top: .6rem !important;
+  font-size: clamp(2rem, 4vw, 3.15rem) !important;
+  letter-spacing: -.045em;
+}
+.app-shell.theme-dark .dashboard-hero .app-page-description { max-width: 44rem; }
+
+.app-shell.theme-dark .dashboard-stat-grid { gap: 1rem; margin-top: 1rem; }
+.app-shell.theme-dark .dashboard-stat {
+  position: relative;
+  overflow: hidden;
+  min-height: 8.25rem;
+  padding: 1.15rem 1.2rem !important;
+  border-color: var(--nx-line) !important;
+  border-radius: 1.15rem;
+  background: linear-gradient(145deg, rgb(22 31 43 / .98), rgb(13 20 29 / .98)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .05), 0 14px 34px rgb(0 0 0 / .18) !important;
+}
+.app-shell.theme-dark .dashboard-stat::after {
+  position: absolute;
+  right: -2.5rem;
+  bottom: -3.5rem;
+  width: 9rem;
+  height: 9rem;
+  content: "";
+  border: 1px solid rgb(255 255 255 / .05);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(57 214 232 / .09), transparent 68%);
+}
+.app-shell.theme-dark .dashboard-stat-2::after { background: radial-gradient(circle, rgb(169 139 250 / .11), transparent 68%); }
+.app-shell.theme-dark .dashboard-stat-3::after { background: radial-gradient(circle, rgb(255 107 122 / .10), transparent 68%); }
+.app-shell.theme-dark .dashboard-stat-4::after { background: radial-gradient(circle, rgb(245 188 91 / .11), transparent 68%); }
+.app-shell.theme-dark .dashboard-stat-index {
+  position: absolute;
+  top: .85rem;
+  right: 1rem;
+  color: #657383;
+  font-size: .65rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.app-shell.theme-dark .dashboard-stat > div:last-child { position: relative; z-index: 1; margin-top: 1.25rem; }
+.app-shell.theme-dark .dashboard-stat > div:last-child > p:first-child { font-size: 2.15rem !important; color: #fff !important; }
+
+.app-shell.theme-dark .dashboard-classroom-rail {
+  position: relative;
+  overflow: hidden;
+  padding: 1.2rem !important;
+  border-color: var(--nx-line) !important;
+  border-radius: 1.2rem;
+  background: rgb(10 16 23 / .78) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .035), 0 16px 38px rgb(0 0 0 / .16) !important;
+  backdrop-filter: blur(18px);
+}
+.app-shell.theme-dark .dashboard-classroom-option {
+  min-height: 5.25rem;
+  background: linear-gradient(145deg, #141d28, #0d151e) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .035);
+}
+.app-shell.theme-dark .dashboard-classroom-option:hover { transform: translateY(-2px); }
+.app-shell.theme-dark .dashboard-classroom-option[class*="border-cyan"] {
+  border-color: rgb(57 214 232 / .65) !important;
+  background: linear-gradient(145deg, rgb(57 214 232 / .12), rgb(16 27 37 / .96)) !important;
+  box-shadow: inset 0 0 0 1px rgb(57 214 232 / .08), 0 12px 30px rgb(0 0 0 / .2) !important;
+}
+
+.app-shell.theme-dark .dashboard-premium .nexus-card,
+.app-shell.theme-dark .dashboard-premium .app-panel-pad {
+  border-radius: 1.15rem !important;
+  background: linear-gradient(150deg, rgb(20 29 40 / .98), rgb(12 19 27 / .98)) !important;
+}
+.app-shell.theme-dark .dashboard-premium .nexus-card:hover,
+.app-shell.theme-dark .dashboard-premium .app-panel-pad:hover { transform: translateY(-1px); }
+
+@media (max-width: 767px) {
+  .app-shell.theme-dark .dashboard-hero { min-height: auto; padding: 1.25rem !important; }
+  .app-shell.theme-dark .dashboard-hero::after { display: none; }
+  .app-shell.theme-dark .dashboard-hero .app-page-title { font-size: 2rem !important; }
+  .app-shell.theme-dark .dashboard-stat { min-height: 7.5rem; }
+}
 /* Teacher automation center */
 .automation-center {
   --auto-surface-card: #ffffff;
