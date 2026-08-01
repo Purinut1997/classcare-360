@@ -2,6 +2,8 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   CalendarCheck,
+  CalendarDays,
+  CalendarRange,
   Download,
   GraduationCap,
   LockKeyhole,
@@ -25,6 +27,7 @@ import type { AppSessionContext } from "../../types/core";
 type TabKey = "duty" | "locks" | "rollover" | "archive" | "parent-qr";
 type DutyStatus =
   "assigned" | "completed" | "missed" | "excused" | "substituted";
+type DutyGenerationScope = "day" | "month" | "term";
 
 interface Classroom {
   academic_year: string | null;
@@ -241,6 +244,19 @@ export function ClassroomOperationsPage({
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [designerOpen, setDesignerOpen] = useState(false);
   const [selectedDutyDate, setSelectedDutyDate] = useState(weekStart);
+  const [dutyGeneratorOpen, setDutyGeneratorOpen] = useState(false);
+  const [dutyGenerationScope, setDutyGenerationScope] = useState<DutyGenerationScope>("day");
+  const [dutyGenerationDates, setDutyGenerationDates] = useState(() => {
+    const today = getBangkokDate();
+    const year = Number(today.slice(0, 4));
+    const month = Number(today.slice(5, 7));
+    return {
+      day: today,
+      month: today.slice(0, 7),
+      termStart: month >= 5 && month <= 10 ? `${year}-05-01` : month >= 11 ? `${year}-11-01` : `${year - 1}-11-01`,
+      termEnd: month >= 5 && month <= 10 ? `${year}-10-31` : month >= 11 ? `${year + 1}-03-31` : `${year}-03-31`,
+    };
+  });
   const [taskForm, setTaskForm] = useState({
     activeWeekdays: [1, 2, 3, 4, 5] as number[],
     allowSubstitute: true,
@@ -340,6 +356,7 @@ export function ClassroomOperationsPage({
           )
           .eq("workspace_id", workspaceId)
           .gte("duty_date", addDays(weekStart, -35))
+          .lte("duty_date", addDays(weekStart, 41))
           .order("duty_date"),
         supabase
           .from("data_period_locks")
@@ -437,27 +454,46 @@ export function ClassroomOperationsPage({
     window.location.reload();
   }
 
+  function getDutyGenerationRange() {
+    if (dutyGenerationScope === "day") return { start: dutyGenerationDates.day, end: dutyGenerationDates.day };
+    if (dutyGenerationScope === "month") {
+      const [year, month] = dutyGenerationDates.month.split("-").map(Number);
+      const endDay = new Date(year, month, 0).getDate();
+      return { start: `${dutyGenerationDates.month}-01`, end: `${dutyGenerationDates.month}-${String(endDay).padStart(2, "0")}` };
+    }
+    return { start: dutyGenerationDates.termStart, end: dutyGenerationDates.termEnd };
+  }
+
   async function generateDuty() {
     if (!supabase || !session.workspace || !classroomId) return;
+    const range = getDutyGenerationRange();
+    if (!range.start || !range.end || range.end < range.start) {
+      setNotice("ช่วงวันที่จัดเวรไม่ถูกต้อง กรุณาตรวจสอบวันเริ่มต้นและวันสิ้นสุด");
+      return;
+    }
     setBusy(true);
     setNotice(null);
-    const { error } = await supabase.rpc("generate_balanced_duty_week", {
+    const { data, error } = await supabase.rpc("generate_balanced_duty_range", {
       target_classroom_id: classroomId,
-      target_week_start: weekStart,
+      target_end_date: range.end,
+      target_scope: dutyGenerationScope,
+      target_start_date: range.start,
       target_workspace_id: session.workspace.id,
     });
     if (error) setNotice(error.message);
     else {
-      setNotice("จัดเวรอย่างสมดุลและเผยแพร่ตารางประจำสัปดาห์แล้ว");
+      const result = (data || {}) as { assignments?: number; school_days?: number };
+      setNotice(`จัดเวรสำเร็จ ${result.assignments || 0} รายการ ครอบคลุม ${result.school_days || 0} วันเรียน ระบบข้ามวันหยุดตามปฏิทินโรงเรียนแล้ว`);
+      setDutyGeneratorOpen(false);
       await writeAuditLog(session, {
-        action: "duty.week_generated",
+        action: "duty.range_generated",
         entityId: classroomId,
         entityTable: "duty_weeks",
-        metadata: { classroomId, weekStart },
+        metadata: { classroomId, scope: dutyGenerationScope, ...range, ...result },
         riskLevel: "normal",
         source: "classroom_operations",
       });
-      setTimeout(() => window.location.reload(), 500);
+      setWeekStart(startOfWeek(range.start));
     }
     setBusy(false);
   }
@@ -986,11 +1022,11 @@ export function ClassroomOperationsPage({
                 <button
                   className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black disabled:opacity-50"
                   disabled={busy || !classroomId}
-                  onClick={() => void generateDuty()}
+                  onClick={() => setDutyGeneratorOpen(true)}
                   type="button"
                 >
                   <Scale size={17} />
-                  จัดเวรอย่างสมดุล
+                  สุ่มจัดเวร
                 </button>
               </div>
             </div>
@@ -1064,6 +1100,20 @@ export function ClassroomOperationsPage({
               </table>
             </div>
           </div>
+          {dutyGeneratorOpen ? (
+            <DutyGenerationDialog
+              busy={busy}
+              dates={dutyGenerationDates}
+              onClose={() => setDutyGeneratorOpen(false)}
+              onConfirm={() => void generateDuty()}
+              onDates={setDutyGenerationDates}
+              onScope={setDutyGenerationScope}
+              range={getDutyGenerationRange()}
+              scope={dutyGenerationScope}
+              studentCount={roomStudents.length}
+              taskCount={uniqueTasks.filter((task) => task.is_active && task.rotation_strategy !== "manual").length}
+            />
+          ) : null}
           <aside className="grid content-start gap-4">
             <div className="nexus-card p-5">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">ตรวจผลรายวัน</p>
@@ -1203,6 +1253,103 @@ function addDays(value: string, count: number) {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(date.getDate() + count);
   return date.toISOString().slice(0, 10);
+}
+function startOfWeek(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  const day = date.getDay() || 7;
+  date.setDate(date.getDate() - day + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function DutyGenerationDialog({
+  busy,
+  dates,
+  onClose,
+  onConfirm,
+  onDates,
+  onScope,
+  range,
+  scope,
+  studentCount,
+  taskCount,
+}: {
+  busy: boolean;
+  dates: { day: string; month: string; termEnd: string; termStart: string };
+  onClose: () => void;
+  onConfirm: () => void;
+  onDates: (value: { day: string; month: string; termEnd: string; termStart: string }) => void;
+  onScope: (value: DutyGenerationScope) => void;
+  range: { end: string; start: string };
+  scope: DutyGenerationScope;
+  studentCount: number;
+  taskCount: number;
+}) {
+  const scopeOptions: Array<{
+    description: string;
+    icon: typeof CalendarCheck;
+    label: string;
+    value: DutyGenerationScope;
+  }> = [
+    { description: "จัดเฉพาะวันที่ต้องการ เหมาะกับการจัดเวรแทน", icon: CalendarCheck, label: "รายวัน", value: "day" },
+    { description: "วางตารางทั้งเดือนในครั้งเดียวและกระจายภาระ", icon: CalendarDays, label: "รายเดือน", value: "month" },
+    { description: "สร้างตารางยาวตลอดภาคเรียน ปรับช่วงวันที่ได้", icon: CalendarRange, label: "รายเทอม", value: "term" },
+  ];
+  const days = range.start && range.end
+    ? Math.max(0, Math.round((new Date(`${range.end}T12:00:00`).getTime() - new Date(`${range.start}T12:00:00`).getTime()) / 86400000) + 1)
+    : 0;
+  const displayDate = (value: string) => value
+    ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`))
+    : "-";
+
+  return (
+    <div aria-labelledby="duty-generator-title" aria-modal="true" className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-md" role="dialog">
+      <div className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/15 bg-white shadow-2xl dark:bg-[#171a16]">
+        <div className="flex items-start justify-between gap-5 border-b border-slate-200 bg-gradient-to-br from-slate-950 to-slate-900 p-5 text-white sm:p-7">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-lime-300">Smart duty rotation</p>
+            <h2 className="mt-2 text-2xl font-black" id="duty-generator-title">สุ่มจัดเวรตามช่วงเวลา</h2>
+            <p className="mt-2 max-w-xl text-sm font-bold leading-6 text-slate-300">ระบบกระจายจำนวนเวรให้ใกล้เคียงกัน ไม่จัดเด็กซ้ำในวันเดียว และข้ามวันหยุดตามปฏิทินโรงเรียน</p>
+          </div>
+          <button aria-label="ปิด" className="grid size-10 shrink-0 place-items-center rounded-full border border-white/15 text-slate-300 transition hover:bg-white/10 hover:text-white" disabled={busy} onClick={onClose} type="button"><X size={19} /></button>
+        </div>
+
+        <div className="p-5 sm:p-7">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {scopeOptions.map((item) => {
+              const Icon = item.icon;
+              const selected = scope === item.value;
+              return <button className={`rounded-2xl border p-4 text-left transition ${selected ? "border-cyan-400 bg-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.12)] dark:bg-lime-300/10" : "border-slate-200 bg-slate-50 hover:border-cyan-200 dark:bg-white/[0.03]"}`} key={item.value} onClick={() => onScope(item.value)} type="button">
+                <span className={`grid size-9 place-items-center rounded-xl ${selected ? "bg-cyan-500 text-white dark:bg-lime-300 dark:text-slate-950" : "bg-white text-slate-500 dark:bg-white/10"}`}><Icon size={18} /></span>
+                <strong className="mt-3 block text-base text-slate-950 dark:text-white">{item.label}</strong>
+                <span className="mt-1 block text-xs font-bold leading-5 text-slate-500 dark:text-slate-400">{item.description}</span>
+              </button>;
+            })}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:bg-black/20">
+            {scope === "day" ? <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">วันที่ต้องการจัดเวร<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, day: event.target.value })} type="date" value={dates.day} /></label> : null}
+            {scope === "month" ? <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">เดือนที่ต้องการจัดเวร<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, month: event.target.value })} type="month" value={dates.month} /></label> : null}
+            {scope === "term" ? <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">เปิดภาคเรียน<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, termStart: event.target.value })} type="date" value={dates.termStart} /></label>
+              <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">สิ้นสุดภาคเรียน<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, termEnd: event.target.value })} type="date" value={dates.termEnd} /></label>
+            </div> : null}
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Metric label="นักเรียน" value={`${studentCount} คน`} />
+            <Metric label="หน้าที่อัตโนมัติ" value={`${taskCount} งาน`} />
+            <Metric label="ช่วงเวลา" value={`${days} วัน`} />
+            <Metric label="ตั้งแต่" value={displayDate(range.start)} />
+          </div>
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800 dark:border-amber-300/20 dark:bg-amber-300/10 dark:text-amber-200">หากช่วงนี้มีตารางที่ยัง “รอตรวจ” ระบบจะจัดใหม่ ส่วนผลเวรที่ตรวจแล้วจะถูกเก็บไว้เพื่อป้องกันข้อมูลสูญหาย</p>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button className="h-11 rounded-2xl border border-slate-200 px-5 text-sm font-black text-slate-600 hover:bg-slate-50 dark:text-slate-300" disabled={busy} onClick={onClose} type="button">ยกเลิก</button>
+            <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black disabled:opacity-50" disabled={busy || !range.start || !range.end || range.end < range.start} onClick={onConfirm} type="button"><Scale size={17} />{busy ? "กำลังจัดตาราง..." : `ยืนยันสุ่มแบบ${scope === "day" ? "รายวัน" : scope === "month" ? "รายเดือน" : "รายเทอม"}`}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 function StatusRail({
   icon: Icon,
