@@ -96,6 +96,7 @@ const emptyAnalyticsData: ClassroomAnalyticsData = {
     present: 0,
     totalSessions: 0,
   },
+  attendanceTrend: [],
   behavior: {
     negativePoints: 0,
     positivePoints: 0,
@@ -253,24 +254,30 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const targetClassroom = classrooms.find((c) => c.id === selectedClassroomId);
       const classroomName = targetClassroom ? targetClassroom.name : session.workspace.classroomName || 'ห้องเรียน';
 
+      const today = getBangkokDate();
+      const trendDates = Array.from({ length: 7 }, (_, index) =>
+        getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)),
+      );
       const { data: attendanceSessionRows } = await supabase
         .from('attendance_sessions')
         .select('id, attendance_date, period_label, subject_name')
         .eq('workspace_id', session.workspace.id)
         .eq('classroom_id', selectedClassroomId)
-        .eq('attendance_date', getBangkokDate())
+        .gte('attendance_date', trendDates[0])
+        .lte('attendance_date', today)
+        .order('attendance_date', { ascending: true })
         .order('period_label', { ascending: true });
 
-      const todayAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map(
+      const allAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map(
         (item) => item.id,
       );
       const attendanceRecordsPromise =
-        todayAttendanceSessionIds.length > 0
+        allAttendanceSessionIds.length > 0
           ? supabase
               .from('attendance_records')
               .select('session_id, student_id, status')
               .eq('workspace_id', session.workspace.id)
-              .in('session_id', todayAttendanceSessionIds)
+              .in('session_id', allAttendanceSessionIds)
           : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
 
       const [
@@ -300,15 +307,27 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const studentMap = new Map((studentRows || []).map((s) => [s.id, s]));
       const studentIds = new Set(studentMap.keys());
       const studentsCount = studentIds.size;
+      const attendanceSessions = (attendanceSessionRows || []) as AttendanceSessionRow[];
+      const todayAttendanceSessionIds = new Set(
+        attendanceSessions.filter((item) => item.attendance_date === today).map((item) => item.id),
+      );
+      const todayAttendanceRows = (attendanceRows || []).filter((row) => todayAttendanceSessionIds.has(row.session_id));
+      const recordsBySession = new Map<string, AttendanceRecordSummaryRow[]>();
+      (attendanceRows || []).forEach((row) => {
+        if (!row.session_id) return;
+        const existing = recordsBySession.get(row.session_id) || [];
+        existing.push(row as AttendanceRecordSummaryRow);
+        recordsBySession.set(row.session_id, existing);
+      });
 
       // Real Attendance calculations
       let present = 0;
       let late = 0;
       let leave = 0;
       let absent = 0;
-      const attendanceCheckedToday = (attendanceRows || []).length > 0;
+      const attendanceCheckedToday = todayAttendanceRows.length > 0;
 
-      (attendanceRows || []).forEach((row) => {
+      todayAttendanceRows.forEach((row) => {
         if (studentIds.has(row.student_id)) {
           if (row.status === 'present' || row.status === 'activity') present++;
           else if (row.status === 'late') late++;
@@ -362,6 +381,21 @@ export function DashboardPage({ session }: DashboardPageProps) {
       });
 
       const averagePercent = classroomScoreRecords.length > 0 ? Math.round(totalScorePct / classroomScoreRecords.length) : 0;
+      const attendanceTrend = trendDates.map((date) => {
+        const sessionIds = new Set(attendanceSessions.filter((item) => item.attendance_date === date).map((item) => item.id));
+        const records = (attendanceRows || []).filter((row) => sessionIds.has(row.session_id) && studentIds.has(row.student_id));
+        return records.reduce(
+          (summary, row) => {
+            if (row.status === 'present' || row.status === 'activity') summary.present += 1;
+            else if (row.status === 'late') summary.late += 1;
+            else if (row.status === 'absent') summary.absent += 1;
+            else if (row.status === 'leave' || row.status === 'sick') summary.leave += 1;
+            summary.total += 1;
+            return summary;
+          },
+          { absent: 0, date, late: 0, leave: 0, present: 0, total: 0 },
+        );
+      });
 
       setAnalyticsData({
         attendance: {
@@ -371,6 +405,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           present,
           totalSessions: present + late + leave + absent,
         },
+        attendanceTrend,
         behavior: {
           negativePoints: negPoints,
           positivePoints: posPoints,
@@ -412,14 +447,8 @@ export function DashboardPage({ session }: DashboardPageProps) {
       });
       setWatchlistStudents(watchlistItems);
 
-      const recordsBySession = new Map<string, AttendanceRecordSummaryRow[]>();
-      (attendanceRows || []).forEach((row) => {
-        if (!row.session_id) return;
-        const existing = recordsBySession.get(row.session_id) || [];
-        existing.push(row as AttendanceRecordSummaryRow);
-        recordsBySession.set(row.session_id, existing);
-      });
-      const subjectSummaries = ((attendanceSessionRows || []) as AttendanceSessionRow[])
+      const subjectSummaries = attendanceSessions
+        .filter((item) => item.attendance_date === today)
         .filter((item) => Boolean(item.subject_name))
         .map((item) => {
           const records = recordsBySession.get(item.id) || [];
@@ -563,39 +592,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
       {/* Main Workspace Metrics */}
       <StatsGrid stats={stats} />
 
-      <section className="dashboard-classroom-rail mt-4 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-wide text-cyan-700">Students by classroom</p>
-            <h2 className="mt-1 text-lg font-black text-slate-950">นักเรียนในความดูแล แยกตามห้องเรียน</h2>
-          </div>
-          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-cyan-100">
-            รวม {classroomStudentCounts.reduce((sum, item) => sum + item.count, 0)} คน
-          </span>
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {classroomStudentCounts.map((item) => (
-            <button
-              className={`dashboard-classroom-option flex items-center justify-between rounded-2xl border p-4 text-left transition ${
-                item.classroomId === selectedClassroomId
-                  ? 'border-cyan-300 bg-cyan-50/80 shadow-sm'
-                  : 'border-slate-200 bg-slate-50/70 hover:border-cyan-200 hover:bg-white'
-              }`}
-              disabled={item.classroomId === 'unassigned'}
-              key={item.classroomId}
-              onClick={() => setSelectedClassroomId(item.classroomId)}
-              type="button"
-            >
-              <span><span className="block text-xs font-bold text-slate-500">ห้องเรียน</span><strong className="mt-1 block text-base text-slate-950">{item.classroomName}</strong></span>
-              <span className="text-2xl font-black text-cyan-800">{item.count}</span>
-            </button>
-          ))}
-          {!classroomStudentCounts.length ? <p className="text-sm font-bold text-slate-500">ยังไม่มีข้อมูลห้องเรียน</p> : null}
-        </div>
-      </section>
-
       {/* Classroom Dataset Status & Analytics Charts Section */}
-      <ClassroomAnalyticsCharts data={analyticsData} />
+      <ClassroomAnalyticsCharts
+        classroomDistribution={classroomStudentCounts}
+        data={analyticsData}
+        onSelectClassroom={setSelectedClassroomId}
+        selectedClassroomId={selectedClassroomId}
+      />
 
       {pendingJoinRequestCount > 0 ? (
         <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center">

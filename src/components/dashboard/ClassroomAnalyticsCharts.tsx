@@ -1,17 +1,28 @@
-import React from 'react';
 import {
+  AlertTriangle,
+  ArrowRight,
   Award,
   BarChart3,
-  CalendarCheck,
+  CalendarCheck2,
   CheckCircle2,
   Coins,
-  FileText,
+  DatabaseZap,
   HeartHandshake,
-  PieChart,
-  ShieldCheck,
+  Sparkles,
   TrendingUp,
-  UserCheck,
+  Users,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type { CSSProperties } from 'react';
+
+export interface AttendanceTrendPoint {
+  absent: number;
+  date: string;
+  late: number;
+  leave: number;
+  present: number;
+  total: number;
+}
 
 export interface ClassroomAnalyticsData {
   attendance: {
@@ -21,6 +32,7 @@ export interface ClassroomAnalyticsData {
     present: number;
     totalSessions: number;
   };
+  attendanceTrend: AttendanceTrendPoint[];
   behavior: {
     negativePoints: number;
     positivePoints: number;
@@ -47,299 +59,206 @@ export interface ClassroomAnalyticsData {
   };
 }
 
-interface ClassroomAnalyticsChartsProps {
-  data: ClassroomAnalyticsData;
+interface ClassroomDistributionItem {
+  classroomId: string;
+  classroomName: string;
+  count: number;
 }
 
-export function ClassroomAnalyticsCharts({ data }: ClassroomAnalyticsChartsProps) {
-  const { attendance, behavior, dataCompleteness, savings, scores } = data;
+interface ClassroomAnalyticsChartsProps {
+  classroomDistribution: ClassroomDistributionItem[];
+  data: ClassroomAnalyticsData;
+  onSelectClassroom: (classroomId: string) => void;
+  selectedClassroomId: string;
+}
 
-  const rawTotalAttendance = attendance.present + attendance.late + attendance.leave + attendance.absent;
-  const totalAttendance = rawTotalAttendance || 1;
-  const presentPct = rawTotalAttendance > 0 ? Math.round((attendance.present / totalAttendance) * 100) : 0;
-  const latePct = rawTotalAttendance > 0 ? Math.round((attendance.late / totalAttendance) * 100) : 0;
-  const leavePct = rawTotalAttendance > 0 ? Math.round((attendance.leave / totalAttendance) * 100) : 0;
-  const absentPct = rawTotalAttendance > 0 ? Math.round((attendance.absent / totalAttendance) * 100) : 0;
+const shortDate = new Intl.DateTimeFormat('th-TH', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'Asia/Bangkok',
+  weekday: 'short',
+});
 
-  // Donut chart calculations
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDasharray = `${circumference}`;
+function formatTrendDate(date: string) {
+  return shortDate.format(new Date(`${date}T12:00:00+07:00`)).replace('.', '');
+}
 
-  const offsetPresent = 0;
-  const offsetLate = (attendance.present / totalAttendance) * circumference;
-  const offsetLeave = ((attendance.present + attendance.late) / totalAttendance) * circumference;
-  const offsetAbsent = ((attendance.present + attendance.late + attendance.leave) / totalAttendance) * circumference;
-
-  const rawTotalBehavior = (behavior.positivePoints || 0) + (behavior.negativePoints || 0);
-  const totalBehavior = rawTotalBehavior || 1;
-  const posBehaviorPct = rawTotalBehavior > 0 ? Math.round(((behavior.positivePoints || 0) / totalBehavior) * 100) : 0;
-
-  const completenessScore = Math.round(
-    ((dataCompleteness.studentsCount > 0 ? 25 : 0) +
-      (dataCompleteness.attendanceCheckedToday ? 25 : 0) +
-      (scores.assessmentCount > 0 ? 25 : 0) +
-      (savings.activeAccounts > 0 ? 25 : 0))
-  );
+export function ClassroomAnalyticsCharts({
+  classroomDistribution,
+  data,
+  onSelectClassroom,
+  selectedClassroomId,
+}: ClassroomAnalyticsChartsProps) {
+  const { attendance, attendanceTrend, behavior, dataCompleteness, savings, scores } = data;
+  const trendTotal = attendanceTrend.reduce((sum, item) => sum + item.total, 0);
+  const trendPresent = attendanceTrend.reduce((sum, item) => sum + item.present, 0);
+  const attendanceRate = trendTotal > 0 ? Math.round((trendPresent / trendTotal) * 100) : 0;
+  const attendanceScale = Math.max(dataCompleteness.studentsCount, ...attendanceTrend.map((item) => item.total), 1);
+  const maxClassroomSize = Math.max(...classroomDistribution.map((item) => item.count), 1);
+  const positiveBehaviorRate = behavior.totalRecords > 0
+    ? Math.round((Math.abs(behavior.positivePoints) / Math.max(Math.abs(behavior.positivePoints) + Math.abs(behavior.negativePoints), 1)) * 100)
+    : 0;
+  const savingsCoverage = dataCompleteness.studentsCount > 0
+    ? Math.round((savings.activeAccounts / dataCompleteness.studentsCount) * 100)
+    : 0;
+  const homeVisitCoverage = dataCompleteness.studentsCount > 0
+    ? Math.round((dataCompleteness.homeVisitsCount / dataCompleteness.studentsCount) * 100)
+    : 0;
+  const completenessItems = [
+    dataCompleteness.studentsCount > 0,
+    dataCompleteness.attendanceCheckedToday,
+    scores.assessmentCount > 0,
+    savings.accountCount > 0,
+    dataCompleteness.behaviorRecorded,
+    dataCompleteness.homeVisitsCount >= dataCompleteness.studentsCount && dataCompleteness.studentsCount > 0,
+  ];
+  const completenessScore = Math.round((completenessItems.filter(Boolean).length / completenessItems.length) * 100);
 
   return (
-    <section className="mt-6 grid gap-5 xl:grid-cols-12">
-      {/* Classroom Dataset Health & Completeness Status Card */}
-      <article className="nexus-card rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm xl:col-span-12">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-teal-50 text-teal-700 ring-1 ring-teal-100">
-              <ShieldCheck size={22} aria-hidden="true" />
-            </span>
+    <section className="dashboard-analytics mt-5" aria-label="สถิติและแนวโน้มห้องเรียน">
+      <div className="dashboard-analytics-heading">
+        <div>
+          <p className="dashboard-section-label">CLASSROOM INTELLIGENCE</p>
+          <h2>สัญญาณสำคัญของ {data.classroomName || 'ห้องเรียนที่เลือก'}</h2>
+          <p>ดูแนวโน้มจริงจากเวลาเรียน ข้อมูลนักเรียน คะแนน พฤติกรรม และงานดูแลในมุมเดียว</p>
+        </div>
+        <Link className="dashboard-report-link" to="/app/dashboard?view=reports">
+          เปิดศูนย์รายงาน <ArrowRight size={15} aria-hidden="true" />
+        </Link>
+      </div>
+
+      <div className="dashboard-analytics-grid">
+        <article className="dashboard-chart-card dashboard-attendance-trend">
+          <header className="dashboard-card-header">
             <div>
-              <h2 className="text-lg font-black text-slate-950">
-                สถานะความสมบูรณ์ของชุดข้อมูลห้องเรียน ({data.classroomName || 'ห้องเรียน'})
-              </h2>
-              <p className="text-xs font-bold text-slate-500">
-                ประเมินความพร้อมของการบันทึกเวลาเรียน คะแนน เงินออม และการดูแลนักเรียน
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <span className="text-xs font-black text-slate-500">ความสมบูรณ์ข้อมูล</span>
-              <p className="text-xl font-black text-teal-700">{completenessScore}%</p>
-            </div>
-            <div className="h-3 w-28 overflow-hidden rounded-full bg-slate-100 p-0.5">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-500"
-                style={{ width: `${completenessScore}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-100 text-cyan-800">
-              <UserCheck size={16} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black text-slate-500">รายชื่อนักเรียน</p>
-              <p className="font-black text-slate-900">{dataCompleteness.studentsCount} คน</p>
-            </div>
-          </div>
-
-          <div className={`flex items-center gap-3 rounded-2xl p-3 ring-1 ${dataCompleteness.attendanceCheckedToday ? 'bg-emerald-50 text-emerald-900 ring-emerald-100' : 'bg-amber-50 text-amber-900 ring-amber-100'}`}>
-            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${dataCompleteness.attendanceCheckedToday ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-              <CalendarCheck size={16} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black opacity-80">เช็กชื่อวันนี้</p>
-              <p className="font-black">{dataCompleteness.attendanceCheckedToday ? 'เรียบร้อยแล้ว' : 'ยังไม่เช็กชื่อ'}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-800">
-              <FileText size={16} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black text-slate-500">ชุดคะแนนสอบ</p>
-              <p className="font-black text-slate-900">{scores.assessmentCount} ชุด</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800">
-              <Coins size={16} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black text-slate-500">บัญชีเงินออม</p>
-              <p className="font-black text-slate-900">{savings.activeAccounts} บัญชี active</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-800">
-              <HeartHandshake size={16} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black text-slate-500">การเยี่ยมบ้าน</p>
-              <p className="font-black text-slate-900">{dataCompleteness.homeVisitsCount} / {dataCompleteness.studentsCount || 20} คน</p>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      {/* Donut Chart: สถิติการมาเรียนประจำเดือน */}
-      <article className="nexus-card rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm lg:col-span-6 xl:col-span-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <PieChart className="text-teal-600" size={20} aria-hidden="true" />
-            <h3 className="text-base font-black text-slate-950">สถิติการมาเรียนเดือนนี้</h3>
-          </div>
-          <span className="rounded-lg bg-teal-50 px-2.5 py-1 text-xs font-black text-teal-700">
-            {presentPct}% มาเรียน
-          </span>
-        </div>
-
-        <div className="mt-5 flex flex-col items-center justify-center sm:flex-row sm:items-center sm:gap-6">
-          {/* SVG Donut Chart */}
-          <div className="relative h-36 w-36 shrink-0">
-            <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r={radius} stroke="#e2e8f0" strokeWidth="12" fill="transparent" />
-              {/* มา */}
-              <circle
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke="#10b981"
-                strokeWidth="12"
-                fill="transparent"
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={-offsetPresent}
-                className="transition-all duration-700"
-              />
-              {/* สาย */}
-              <circle
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke="#f59e0b"
-                strokeWidth="12"
-                fill="transparent"
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={-offsetLate}
-                className="transition-all duration-700"
-              />
-              {/* ลา */}
-              <circle
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke="#06b6d4"
-                strokeWidth="12"
-                fill="transparent"
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={-offsetLeave}
-                className="transition-all duration-700"
-              />
-              {/* ขาด */}
-              <circle
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke="#f43f5e"
-                strokeWidth="12"
-                fill="transparent"
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={-offsetAbsent}
-                className="transition-all duration-700"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span className="text-2xl font-black text-slate-950">{rawTotalAttendance}</span>
-              <span className="text-[10px] font-bold text-slate-400">รายการบันทึก</span>
-            </div>
-          </div>
-
-          <div className="mt-4 grid w-full grid-cols-2 gap-2 sm:mt-0">
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-2 text-center">
-              <span className="text-[11px] font-black text-emerald-800">มาเรียน</span>
-              <p className="text-lg font-black text-emerald-700">{attendance.present} <span className="text-xs font-bold text-emerald-600">({presentPct}%)</span></p>
-            </div>
-            <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-2 text-center">
-              <span className="text-[11px] font-black text-amber-800">มาสาย</span>
-              <p className="text-lg font-black text-amber-700">{attendance.late} <span className="text-xs font-bold text-amber-600">({latePct}%)</span></p>
-            </div>
-            <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-2 text-center">
-              <span className="text-[11px] font-black text-cyan-800">ลางาน</span>
-              <p className="text-lg font-black text-cyan-700">{attendance.leave} <span className="text-xs font-bold text-cyan-600">({leavePct}%)</span></p>
-            </div>
-            <div className="rounded-xl border border-rose-100 bg-rose-50/60 p-2 text-center">
-              <span className="text-[11px] font-black text-rose-800">ขาดเรียน</span>
-              <p className="text-lg font-black text-rose-700">{attendance.absent} <span className="text-xs font-bold text-rose-600">({absentPct}%)</span></p>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      {/* Bar Chart 2: ยอดเงินออม & สถิติบัญชีเงินออมห้องเรียน */}
-      <article className="nexus-card rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm lg:col-span-6 xl:col-span-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="text-amber-600" size={20} aria-hidden="true" />
-            <h3 className="text-base font-black text-slate-950">เงินออมสะสมประจำห้อง</h3>
-          </div>
-          <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700">
-            {savings.activeAccounts} บัญชี active
-          </span>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-orange-50/50 p-4">
-            <span className="text-xs font-black text-amber-800">ยอดเงินออมสะสมคงเหลือห้องเรียน</span>
-            <div className="mt-1 flex items-baseline justify-between">
-              <p className="text-3xl font-black text-slate-950">
-                {savings.totalBalance.toLocaleString('th-TH')} <span className="text-sm font-bold text-slate-500">บาท</span>
-              </p>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">
-                <Coins size={12} /> ฝากเดือนนี้ {savings.monthlyDeposits.toLocaleString('th-TH')} ฿
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-1">
-            <div className="flex justify-between text-xs font-black text-slate-600">
-              <span>สัดส่วนนักเรียนที่ร่วมออมเงิน</span>
-              <span>{savings.activeAccounts} จาก {dataCompleteness.studentsCount || 20} คน</span>
-            </div>
-            <div className="mt-1.5 h-3 overflow-hidden rounded-full bg-slate-100 p-0.5">
-              <div
-                className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                style={{ width: `${Math.min(100, Math.round((savings.activeAccounts / (dataCompleteness.studentsCount || 20)) * 100))}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </article>
-
-      {/* Chart 3: คะแนนเฉลี่ย & สถิติพฤติกรรม */}
-      <article className="nexus-card rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm xl:col-span-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="text-purple-600" size={20} aria-hidden="true" />
-            <h3 className="text-base font-black text-slate-950">ผลการเรียน & พฤติกรรม</h3>
-          </div>
-          <span className="rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-black text-purple-700">
-            เฉลี่ย {scores.averagePercent}%
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-3">
-          <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 place-items-center rounded-xl bg-purple-100 text-purple-700">
-                <Award size={16} />
-              </span>
+              <span className="dashboard-card-icon is-teal"><TrendingUp size={18} /></span>
               <div>
-                <p className="text-xs font-black text-slate-500">ผลประเมินสอบ</p>
-                <p className="font-black text-slate-900">{scores.passedStudentsCount} คน ผ่านเกณฑ์</p>
+                <h3>แนวโน้มการเข้าเรียน 7 วันล่าสุด</h3>
+                <p>สรุปจากรายการเช็กชื่อจริงของห้องนี้</p>
               </div>
             </div>
-            <span className="text-sm font-black text-purple-700">{scores.averagePercent}%</span>
+            <strong className="dashboard-chart-score">{attendanceRate}%<small>อัตรามาเรียน</small></strong>
+          </header>
+
+          <div className="dashboard-chart-legend" aria-label="คำอธิบายกราฟ">
+            <span><i className="is-present" />มาเรียน</span>
+            <span><i className="is-late" />มาสาย</span>
+            <span><i className="is-leave" />ลา</span>
+            <span><i className="is-absent" />ขาด</span>
           </div>
 
-          <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
-                <CheckCircle2 size={16} />
-              </span>
-              <div>
-                <p className="text-xs font-black text-slate-500">พฤติกรรมเชิงบวก</p>
-                <p className="font-black text-slate-900">บันทึก {behavior.positivePoints} คะแนน</p>
+          {trendTotal > 0 ? (
+            <div className="dashboard-stacked-chart">
+              <div className="dashboard-chart-axis" aria-hidden="true"><span>{attendanceScale}</span><span>{Math.round(attendanceScale / 2)}</span><span>0</span></div>
+              <div className="dashboard-chart-grid" aria-hidden="true"><i /><i /><i /></div>
+              <div className="dashboard-chart-bars">
+                {attendanceTrend.map((item) => (
+                  <div className="dashboard-chart-column" key={item.date} title={`${formatTrendDate(item.date)}: ${item.total} รายการ`}>
+                    <div className="dashboard-bar-value">{item.total || ''}</div>
+                    <div className="dashboard-stacked-bar" style={{ height: `${Math.max(4, (item.total / attendanceScale) * 100)}%` }}>
+                      {item.absent > 0 ? <i className="is-absent" style={{ flex: item.absent }} /> : null}
+                      {item.leave > 0 ? <i className="is-leave" style={{ flex: item.leave }} /> : null}
+                      {item.late > 0 ? <i className="is-late" style={{ flex: item.late }} /> : null}
+                      {item.present > 0 ? <i className="is-present" style={{ flex: item.present }} /> : null}
+                    </div>
+                    <span>{formatTrendDate(item.date)}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <span className="text-sm font-black text-emerald-700">{posBehaviorPct}% Positive</span>
-          </div>
+          ) : (
+            <div className="dashboard-chart-empty">
+              <CalendarCheck2 size={28} />
+              <strong>ยังไม่มีข้อมูลพอสำหรับแสดงแนวโน้ม</strong>
+              <span>เมื่อเริ่มเช็กชื่อ กราฟ 7 วันจะอัปเดตจากข้อมูลจริงโดยอัตโนมัติ</span>
+            </div>
+          )}
+
+          <footer className="dashboard-chart-summary">
+            <div><span>วันนี้</span><strong>{dataCompleteness.attendanceCheckedToday ? 'เช็กชื่อแล้ว' : 'ยังไม่เช็กชื่อ'}</strong></div>
+            <div><span>มาเรียน</span><strong className="text-emerald-700">{attendance.present} คน</strong></div>
+            <div><span>มาสาย</span><strong className="text-amber-700">{attendance.late} คน</strong></div>
+            <div><span>ขาด/ลา</span><strong className="text-rose-700">{attendance.absent + attendance.leave} คน</strong></div>
+          </footer>
+        </article>
+
+        <div className="dashboard-insight-column">
+          <article className="dashboard-chart-card dashboard-classroom-comparison">
+            <header className="dashboard-card-header">
+              <div>
+                <span className="dashboard-card-icon is-blue"><Users size={18} /></span>
+                <div><h3>นักเรียนแยกตามห้อง</h3><p>เลือกห้องเพื่อเจาะรายละเอียด</p></div>
+              </div>
+            </header>
+            <div className="dashboard-horizontal-bars">
+              {classroomDistribution.map((item) => (
+                <button
+                  className={item.classroomId === selectedClassroomId ? 'is-selected' : ''}
+                  disabled={item.classroomId === 'unassigned'}
+                  key={item.classroomId}
+                  onClick={() => onSelectClassroom(item.classroomId)}
+                  type="button"
+                >
+                  <span>{item.classroomName}</span>
+                  <i><b style={{ width: `${(item.count / maxClassroomSize) * 100}%` }} /></i>
+                  <strong>{item.count}</strong>
+                </button>
+              ))}
+              {!classroomDistribution.length ? <p className="dashboard-mini-empty">ยังไม่มีข้อมูลห้องเรียน</p> : null}
+            </div>
+          </article>
+
+          <article className="dashboard-chart-card dashboard-readiness-card">
+            <header className="dashboard-card-header">
+              <div>
+                <span className="dashboard-card-icon is-lime"><DatabaseZap size={18} /></span>
+                <div><h3>ความพร้อมของข้อมูล</h3><p>6 หมวดที่จำเป็นต่อรายงาน</p></div>
+              </div>
+            </header>
+            <div className="dashboard-readiness-body">
+              <div className="dashboard-readiness-ring" style={{ '--readiness': `${completenessScore * 3.6}deg` } as CSSProperties}>
+                <span><strong>{completenessScore}%</strong>พร้อมใช้</span>
+              </div>
+              <div className="dashboard-readiness-list">
+                <span><i className="is-ready" />พร้อมแล้ว <strong>{completenessItems.filter(Boolean).length} หมวด</strong></span>
+                <span><i className="is-pending" />ต้องเติม <strong>{completenessItems.filter((item) => !item).length} หมวด</strong></span>
+                <span><i className="is-neutral" />เยี่ยมบ้าน <strong>{homeVisitCoverage}%</strong></span>
+              </div>
+            </div>
+          </article>
         </div>
-      </article>
+      </div>
+
+      <div className="dashboard-signal-grid">
+        <article className="dashboard-signal-card is-learning">
+          <span className="dashboard-card-icon is-purple"><Award size={18} /></span>
+          <div><p>ผลการเรียน</p><strong>{scores.averagePercent}%</strong><span>คะแนนเฉลี่ยจาก {scores.assessmentCount} ชุดประเมิน</span></div>
+          <div className="dashboard-signal-meter"><i style={{ width: `${scores.averagePercent}%` }} /></div>
+          <small>{scores.passedStudentsCount} คนผ่านเกณฑ์</small>
+        </article>
+        <article className="dashboard-signal-card is-behavior">
+          <span className="dashboard-card-icon is-mint"><Sparkles size={18} /></span>
+          <div><p>พฤติกรรมเชิงบวก</p><strong>{positiveBehaviorRate}%</strong><span>{behavior.totalRecords} รายการที่บันทึก</span></div>
+          <div className="dashboard-signal-meter"><i style={{ width: `${positiveBehaviorRate}%` }} /></div>
+          <small>{behavior.positivePoints} คะแนนบวก · {Math.abs(behavior.negativePoints)} คะแนนลบ</small>
+        </article>
+        <article className="dashboard-signal-card is-savings">
+          <span className="dashboard-card-icon is-amber"><Coins size={18} /></span>
+          <div><p>เงินออมประจำห้อง</p><strong>{savings.totalBalance.toLocaleString('th-TH')}</strong><span>บาท · {savings.activeAccounts} บัญชี active</span></div>
+          <div className="dashboard-signal-meter"><i style={{ width: `${savingsCoverage}%` }} /></div>
+          <small>นักเรียนร่วมออม {savingsCoverage}%</small>
+        </article>
+        <article className="dashboard-signal-card is-care">
+          <span className="dashboard-card-icon is-coral"><HeartHandshake size={18} /></span>
+          <div><p>การเยี่ยมบ้าน</p><strong>{homeVisitCoverage}%</strong><span>{dataCompleteness.homeVisitsCount} จาก {dataCompleteness.studentsCount} คน</span></div>
+          <div className="dashboard-signal-meter"><i style={{ width: `${homeVisitCoverage}%` }} /></div>
+          <small>{homeVisitCoverage === 100 ? <><CheckCircle2 size={12} /> ครบทั้งห้องแล้ว</> : <><AlertTriangle size={12} /> ยังต้องติดตาม</>}</small>
+        </article>
+      </div>
+
+      <Link className="dashboard-mobile-report-link" to="/app/dashboard?view=reports">
+        <BarChart3 size={17} /> ดูรายงานเชิงลึกทั้งหมด <ArrowRight size={15} />
+      </Link>
     </section>
   );
 }
