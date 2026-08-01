@@ -168,6 +168,9 @@ export function ClassroomOperationsPage({
 }: {
   session: AppSessionContext;
 }) {
+  const isOwner =
+    session.profile.role === "teacher_owner" ||
+    session.profile.role === "superadmin";
   const [tab, setTab] = useState<TabKey>("duty");
   const [classrooms, setClassrooms] = useState<Classroom[]>(demoClassrooms);
   const [students, setStudents] = useState<Student[]>(demoStudents);
@@ -621,6 +624,9 @@ export function ClassroomOperationsPage({
       item.expires_at &&
       new Date(item.expires_at).getTime() < Date.now() + 7 * 86400000,
   ).length;
+  const visibleTabs = isOwner
+    ? tabs
+    : tabs.filter((item) => item.key === "duty" || item.key === "parent-qr");
 
   return (
     <main className="app-page">
@@ -661,17 +667,17 @@ export function ClassroomOperationsPage({
         </div>
       </header>
 
-      <section className="mt-4 grid gap-2 rounded-2xl border border-slate-200 bg-white/75 p-2 lg:grid-cols-3">
-        <StatusRail
+      <section className={`mt-4 grid gap-2 rounded-2xl border border-slate-200 bg-white/75 p-2 ${isOwner ? "lg:grid-cols-3" : "lg:grid-cols-1"}`}>
+        {isOwner ? <StatusRail
           icon={LockKeyhole}
           label={`ล็อกอยู่ ${activeLocks} งวด · รออนุมัติ ${pendingRequests}`}
           tone="amber"
-        />
-        <StatusRail
+        /> : null}
+        {isOwner ? <StatusRail
           icon={Archive}
           label={`Snapshot พร้อมค้น ${snapshots.length} ชุด`}
           tone="cyan"
-        />
+        /> : null}
         <StatusRail
           icon={QrCode}
           label={`คำเชิญใกล้หมดอายุ ${expiringInvites} รายการ`}
@@ -679,8 +685,8 @@ export function ClassroomOperationsPage({
         />
       </section>
 
-      <nav className="mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 sm:grid-cols-5">
-        {tabs.map((item) => {
+      <nav className={`mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 ${isOwner ? "sm:grid-cols-5" : "sm:grid-cols-2"}`}>
+        {visibleTabs.map((item) => {
           const Icon = item.icon;
           return (
             <button

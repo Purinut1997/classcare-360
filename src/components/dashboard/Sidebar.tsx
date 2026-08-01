@@ -21,7 +21,11 @@ const sidebarSections = [
     label: 'การสอน',
     itemKeys: ['teacher-work', 'schedule', 'scores', 'savings', 'randomizer'],
   },
-  { key: 'care', label: 'ดูแลนักเรียน', itemKeys: ['behavior', 'notifications'] },
+  {
+    key: 'care',
+    label: 'ดูแลนักเรียน',
+    itemKeys: ['behavior', 'classroom-operations', 'automation', 'notifications'],
+  },
   { key: 'reports', label: 'รายงาน', itemKeys: ['reports', 'school-calendar'] },
   {
     key: 'school',
