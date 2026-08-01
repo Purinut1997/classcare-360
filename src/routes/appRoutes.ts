@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CalendarRange,
   CircleHelp,
+  ClipboardCheck,
   ClipboardList,
   DatabaseZap,
   Dice5,
@@ -53,6 +54,13 @@ export const appNavItems: AppNavItem[] = [
   { key: 'scores', label: 'ระบบคะแนน', icon: GraduationCap, moduleKey: 'scores', path: '/app/dashboard?view=scores' },
   { key: 'savings', label: 'บันทึกเงินออม', icon: PiggyBank, moduleKey: 'savings', path: '/app/dashboard?view=savings' },
   { key: 'behavior', label: 'บันทึกพฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
+  {
+    key: 'classroom-operations',
+    label: 'ศูนย์งานประจำชั้น',
+    icon: ClipboardCheck,
+    moduleKey: 'behavior',
+    path: '/app/dashboard?view=classroom-operations',
+  },
   {
     key: 'automation',
     label: 'Automation & Early Warning',

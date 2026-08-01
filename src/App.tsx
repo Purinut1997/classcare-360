@@ -79,6 +79,9 @@ const SavingsPage = lazy(() =>
 const BehaviorPage = lazy(() =>
   import('./pages/app/BehaviorPage').then((module) => ({ default: module.BehaviorPage })),
 );
+const ClassroomOperationsPage = lazy(() =>
+  import('./pages/app/ClassroomOperationsPage').then((module) => ({ default: module.ClassroomOperationsPage })),
+);
 const RandomizerPage = lazy(() =>
   import('./pages/app/RandomizerPage').then((module) => ({ default: module.RandomizerPage })),
 );
@@ -126,6 +129,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'scores',
       'savings',
       'behavior',
+      'classroom-operations',
       'automation',
       'randomizer',
       'reports',
@@ -143,6 +147,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'scores',
       'savings',
       'behavior',
+      'classroom-operations',
       'automation',
       'randomizer',
       'reports',
@@ -162,6 +167,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'scores',
       'savings',
       'behavior',
+      'classroom-operations',
       'automation',
       'randomizer',
       'reports',
@@ -385,6 +391,21 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <BehaviorPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'classroom-operations') {
+    return (
+      <RequireRouteAccess
+        allowedRoles={allowedRoles}
+        featureName={activeNavItem.label}
+        moduleKey={activeNavItem.moduleKey}
+        session={session}
+      >
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <ClassroomOperationsPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );
