@@ -56,7 +56,7 @@ export const appNavItems: AppNavItem[] = [
   { key: 'behavior', label: 'บันทึกพฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
   {
     key: 'classroom-operations',
-    label: 'ศูนย์งานประจำชั้น',
+    label: 'ตารางเวรและจิตพิสัย',
     icon: ClipboardCheck,
     moduleKey: 'behavior',
     path: '/app/dashboard?view=classroom-operations',

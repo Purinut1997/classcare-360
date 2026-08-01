@@ -17,25 +17,22 @@ const sidebarSections = [
   { key: 'overview', label: 'ภาพรวม', itemKeys: ['overview'] },
   { key: 'students', label: 'นักเรียน', itemKeys: ['students'] },
   {
-    key: 'teaching',
-    label: 'การสอน',
-    itemKeys: ['teacher-work', 'schedule', 'scores', 'savings', 'randomizer'],
+    key: 'daily-work',
+    label: 'งานครูประจำวัน',
+    itemKeys: ['teacher-work', 'classroom-operations', 'savings', 'behavior', 'randomizer'],
   },
-  {
-    key: 'care',
-    label: 'ดูแลนักเรียน',
-    itemKeys: ['behavior', 'classroom-operations', 'automation', 'notifications'],
-  },
-  { key: 'reports', label: 'รายงาน', itemKeys: ['reports', 'school-calendar'] },
+  { key: 'teaching', label: 'การเรียนการสอน', itemKeys: ['schedule', 'scores'] },
+  { key: 'care', label: 'ดูแลและสื่อสาร', itemKeys: ['automation', 'notifications'] },
+  { key: 'reports', label: 'รายงาน', itemKeys: ['reports'] },
   {
     key: 'school',
-    label: 'จัดการโรงเรียน',
-    itemKeys: ['import-export', 'data-safety', 'workspace-settings', 'workspace-switch'],
+    label: 'บริหารโรงเรียน',
+    itemKeys: ['school-calendar', 'import-export', 'data-safety', 'workspace-settings', 'workspace-switch'],
   },
   {
     key: 'system',
     label: 'ระบบ',
-    itemKeys: ['help-center', 'setup', 'audit', 'superadmin-dashboard'],
+    itemKeys: ['help-center', 'setup', 'audit'],
   },
 ];
 
@@ -56,7 +53,9 @@ export function Sidebar({
       return { ...section, items };
     })
     .filter((section) => section.items.length > 0);
-  const uncategorizedItems = navItems.filter((item) => !renderedKeys.has(item.key));
+  const uncategorizedItems = navItems.filter(
+    (item) => !renderedKeys.has(item.key) && item.key !== 'superadmin-dashboard',
+  );
 
   return (
     <>
