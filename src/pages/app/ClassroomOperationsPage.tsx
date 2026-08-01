@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Scale,
+  X,
 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -171,6 +172,10 @@ function fullName(student: Student | undefined) {
   return student ? `${student.first_name} ${student.last_name}` : "-";
 }
 
+function dutyTaskKey(name: string) {
+  return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]+/g, "").toLocaleLowerCase("th");
+}
+
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json;charset=utf-8",
@@ -233,6 +238,8 @@ export function ClassroomOperationsPage({
   });
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [designerOpen, setDesignerOpen] = useState(false);
+  const [selectedDutyDate, setSelectedDutyDate] = useState(weekStart);
   const [taskForm, setTaskForm] = useState({
     activeWeekdays: [1, 2, 3, 4, 5] as number[],
     allowSubstitute: true,
@@ -270,6 +277,27 @@ export function ClassroomOperationsPage({
     const values = dutyWeekdays.filter((day) => configured.has(day.value));
     return values.length ? values : dutyWeekdays.slice(0, 5);
   }, [tasks]);
+  const uniqueTasks = useMemo(() => {
+    const seen = new Set<string>();
+    return tasks.filter((task) => {
+      const key = dutyTaskKey(task.name);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [tasks]);
+  const taskAliasIds = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    tasks.forEach((task) => {
+      const key = dutyTaskKey(task.name);
+      groups.set(key, [...(groups.get(key) || []), task.id]);
+    });
+    return new Map(uniqueTasks.map((task) => [task.id, groups.get(dutyTaskKey(task.name)) || [task.id]]));
+  }, [tasks, uniqueTasks]);
+  const selectedDayAssignments = useMemo(
+    () => roomAssignments.filter((assignment) => assignment.duty_date === selectedDutyDate),
+    [roomAssignments, selectedDutyDate],
+  );
   const pointsByStudent = useMemo(() => {
     const totals = new Map<string, number>();
     behaviorPoints.forEach((item) =>
@@ -401,6 +429,8 @@ export function ClassroomOperationsPage({
     );
   }, [mode]);
 
+  useEffect(() => setSelectedDutyDate(weekStart), [weekStart]);
+
   async function refreshOperations() {
     setWeekStart((current) => `${current}`);
     window.location.reload();
@@ -456,6 +486,7 @@ export function ClassroomOperationsPage({
   }
 
   function editTask(task?: DutyTask) {
+    setDesignerOpen(true);
     setEditingTaskId(task?.id || null);
     setTaskForm(task ? {
       activeWeekdays: task.active_weekdays,
@@ -938,21 +969,24 @@ export function ClassroomOperationsPage({
                 <thead className="bg-slate-950 text-white">
                   <tr>
                     <th className="p-3">งาน / วัน</th>
-                    {displayedDutyDays.map((day) => (
-                      <th className="p-3" key={day.value}>
+                    {displayedDutyDays.map((day) => {
+                      const date = addDays(weekStart, day.value - 1);
+                      return <th className={`p-1.5 ${selectedDutyDate === date ? "bg-cyan-950" : ""}`} key={day.value}>
+                        <button className="w-full rounded-xl px-2 py-2 text-left transition hover:bg-white/10" onClick={() => setSelectedDutyDate(date)} type="button">
                         {new Intl.DateTimeFormat("th-TH", {
                           weekday: "short",
                           day: "numeric",
                           month: "short",
                         }).format(
-                          new Date(`${addDays(weekStart, day.value - 1)}T12:00:00`),
+                          new Date(`${date}T12:00:00`),
                         )}
-                      </th>
-                    ))}
+                        </button>
+                      </th>;
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.filter((task) => task.is_active).map((task) => (
+                  {uniqueTasks.filter((task) => task.is_active).map((task) => (
                     <tr className="border-t border-slate-200" key={task.id}>
                       <th className="bg-slate-50 p-3 font-black text-slate-900">
                         <span className="block">{task.name}</span>
@@ -962,39 +996,23 @@ export function ClassroomOperationsPage({
                         const date = addDays(weekStart, day.value - 1);
                         const list = roomAssignments.filter(
                           (item) =>
-                            item.duty_task_id === task.id &&
+                            (taskAliasIds.get(task.id) || [task.id]).includes(item.duty_task_id) &&
                             item.duty_date === date,
                         );
                         return (
-                          <td className="p-3 align-top" key={date}>
+                          <td className={`p-2 align-top ${selectedDutyDate === date ? "bg-cyan-50/50" : ""}`} key={date}>
                             {list.length ? (
                               <>{list.map((assignment) => (
                                 <div
-                                  className="mb-2 rounded-xl bg-slate-50 p-2"
+                                  className={`mb-1.5 flex items-center gap-2 rounded-xl border px-2.5 py-2 ${dutyStatusStyle(assignment.status)}`}
                                   key={assignment.id}
                                 >
-                                  <p className="font-black text-slate-800">
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-70" />
+                                  <p className="min-w-0 truncate text-xs font-black">
                                     {fullName(
                                       studentMap.get(assignment.student_id),
                                     )}
                                   </p>
-                                  <select
-                                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
-                                    disabled={busy}
-                                    onChange={(event) =>
-                                      void recordDuty(
-                                        assignment,
-                                        event.target.value as DutyStatus,
-                                      )
-                                    }
-                                    value={assignment.status}
-                                  >
-                                    <option value="assigned">รอตรวจ</option>
-                                    <option value="completed">ทำแล้ว</option>
-                                    <option value="missed">ไม่ทำเวร</option>
-                                    <option value="excused">ลาเวร</option>
-                                    <option value="substituted">มีคนแทน</option>
-                                  </select>
                                 </div>
                               ))}
                               {list.length < task.slots_per_day ? <button className="w-full rounded-lg border border-dashed border-cyan-300 px-2 py-1.5 text-xs font-black text-cyan-700" disabled={busy} onClick={() => void assignDutyManually(task, date)} type="button">+ เพิ่มคน</button> : null}</>
@@ -1014,27 +1032,41 @@ export function ClassroomOperationsPage({
           </div>
           <aside className="grid content-start gap-4">
             <div className="nexus-card p-5">
-              <h2 className="text-xl font-black text-slate-950">
-                เวร → พฤติกรรม → จิตพิสัย
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">ตรวจผลรายวัน</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">
+                {new Intl.DateTimeFormat("th-TH", { dateStyle: "long" }).format(new Date(`${selectedDutyDate}T12:00:00`))}
               </h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                ผลเวรถูกบันทึกเป็น Behavior record โดยอัตโนมัติ
-                จึงตรวจสอบที่มาและแก้ไขย้อนหลังได้
-              </p>
-              <div className="mt-4 grid gap-2">
-                <FlowStep tone="teal" text="ทำเวร/ทำแทน → คะแนนบวก" />
-                <FlowStep tone="rose" text="ไม่ทำเวร → คะแนนลบ" />
-                <FlowStep
-                  tone="cyan"
-                  text="คะแนนจิตพิสัย = ฐาน 80 + คะแนนพฤติกรรม"
-                />
+              <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-center">
+                <Metric label="ทั้งหมด" value={`${selectedDayAssignments.length}`} />
+                <Metric label="ตรวจแล้ว" value={`${selectedDayAssignments.filter((item) => item.status !== "assigned").length}`} />
+                <Metric label="รอตรวจ" value={`${selectedDayAssignments.filter((item) => item.status === "assigned").length}`} />
+              </div>
+              <div className="mt-4 grid max-h-[560px] gap-2 overflow-y-auto pr-1">
+                {selectedDayAssignments.length ? selectedDayAssignments.map((assignment) => {
+                  const task = tasks.find((item) => item.id === assignment.duty_task_id);
+                  return <div className="rounded-2xl border border-slate-200 bg-white p-3" key={assignment.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-950">{task?.name || "หน้าที่เวร"}</p>
+                        <p className="mt-1 truncate text-xs font-bold text-slate-500">{fullName(studentMap.get(assignment.student_id))}</p>
+                      </div>
+                      <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${dutyStatusStyle(assignment.status)}`}>{dutyStatusLabel(assignment.status)}</span>
+                    </div>
+                    <select className="nexus-field mt-3 h-9 w-full px-2 text-xs font-black" disabled={busy} onChange={(event) => void recordDuty(assignment, event.target.value as DutyStatus)} value={assignment.status}>
+                      <option value="assigned">รอตรวจ</option>
+                      <option value="completed">ทำแล้ว</option>
+                      <option value="missed">ไม่ทำเวร</option>
+                      <option value="excused">ลาเวร</option>
+                      <option value="substituted">มีคนแทน</option>
+                    </select>
+                  </div>;
+                }) : <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">วันนี้ยังไม่มีการมอบหมายเวร</div>}
               </div>
             </div>
-            <div className="nexus-card p-5">
-              <h2 className="text-lg font-black text-slate-950">
-                คะแนนจิตพิสัยรายคน
-              </h2>
-              <div className="mt-3 grid gap-2">
+            <details className="nexus-card group p-5">
+              <summary className="cursor-pointer list-none text-lg font-black text-slate-950">สรุปคะแนนจิตพิสัยรายคน <span className="ml-2 text-xs text-cyan-700">เปิดดู</span></summary>
+              <p className="mt-2 text-xs font-bold text-slate-500">คะแนนฐาน 80 + ผลพฤติกรรมและผลเวรที่บันทึกแล้ว</p>
+              <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto">
                 {roomStudents.slice(0, 8).map((student) => {
                   const point = pointsByStudent.get(student.id) || 0;
                   const score = Math.max(0, Math.min(100, 80 + point));
@@ -1053,19 +1085,20 @@ export function ClassroomOperationsPage({
                   );
                 })}
               </div>
-            </div>
+            </details>
           </aside>
-          <DutyTaskSettings
+          {designerOpen ? <DutyTaskSettings
             busy={busy}
             editingTaskId={editingTaskId}
             form={taskForm}
-            onCancel={() => editTask()}
+            onCancel={() => setEditingTaskId(null)}
+            onClose={() => setDesignerOpen(false)}
             onEdit={editTask}
             onForm={setTaskForm}
             onSave={saveDutyTask}
             onToggle={toggleDutyTask}
-            tasks={tasks}
-          />
+            tasks={uniqueTasks}
+          /> : null}
         </section>
       ) : null}
 
@@ -1158,23 +1191,17 @@ function StatusRail({
     </div>
   );
 }
-function FlowStep({
-  text,
-  tone,
-}: {
-  text: string;
-  tone: "teal" | "rose" | "cyan";
-}) {
-  const color = {
-    teal: "border-teal-200 bg-teal-50 text-teal-800",
-    rose: "border-rose-200 bg-rose-50 text-rose-800",
-    cyan: "border-cyan-200 bg-cyan-50 text-cyan-800",
-  }[tone];
-  return (
-    <div className={`rounded-2xl border p-3 text-sm font-black ${color}`}>
-      {text}
-    </div>
-  );
+function dutyStatusStyle(status: DutyStatus) {
+  return status === "completed" || status === "substituted"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : status === "missed"
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : status === "excused"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-slate-200 bg-slate-50 text-slate-600";
+}
+function dutyStatusLabel(status: DutyStatus) {
+  return { assigned: "รอตรวจ", completed: "ทำแล้ว", excused: "ลาเวร", missed: "ไม่ทำเวร", substituted: "มีคนแทน" }[status];
 }
 function DutySummary({
   assignments,
@@ -1193,7 +1220,7 @@ function DutySummary({
   const values = Object.values(counts);
   const gap = values.length ? Math.max(...values) - Math.min(...values) : 0;
   return (
-    <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-4">
+    <div className="mt-4 grid gap-3 sm:grid-cols-4">
       <Metric label="นักเรียน" value={`${studentCount} คน`} />
       <Metric label="มอบหมายทั้งหมด" value={`${assignments.length} งาน`} />
       <Metric label="ความต่างสูงสุด" value={`${gap} ครั้ง`} />
@@ -1203,7 +1230,7 @@ function DutySummary({
 }
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/40">
       <p className="text-xs font-black text-slate-400">{label}</p>
       <p className="mt-1 text-lg font-black text-slate-950">{value}</p>
     </div>
@@ -1230,6 +1257,7 @@ function DutyTaskSettings({
   editingTaskId,
   form,
   onCancel,
+  onClose,
   onEdit,
   onForm,
   onSave,
@@ -1240,6 +1268,7 @@ function DutyTaskSettings({
   editingTaskId: string | null;
   form: DutyTaskForm;
   onCancel: () => void;
+  onClose: () => void;
   onEdit: (task?: DutyTask) => void;
   onForm: (value: DutyTaskForm) => void;
   onSave: (event: FormEvent) => void;
@@ -1250,7 +1279,8 @@ function DutyTaskSettings({
     ? tasks.find((task) => task.id === editingTaskId)
     : null;
   return (
-    <section className="nexus-card p-5 xl:col-span-2">
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/35 p-3 backdrop-blur-sm sm:p-5" role="presentation">
+    <section aria-label="ออกแบบหน้าที่เวร" className="h-full w-full max-w-5xl overflow-y-auto rounded-[28px] border border-white/70 bg-white p-5 shadow-2xl sm:p-6" role="dialog">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">Duty Designer</p>
@@ -1259,17 +1289,14 @@ function DutyTaskSettings({
             แต่ละหน้าที่กำหนดวัน จำนวนคน จุดปฏิบัติงาน วิธีหมุนเวียน เช็กลิสต์ และคะแนนได้อิสระ จึงรองรับทั้งโรงเรียนที่มีเวรเฉพาะวันเรียนและโรงเรียนที่มีเวรวันหยุด
           </p>
         </div>
-        <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white"
-          onClick={() => onEdit()}
-          type="button"
-        >
-          <Plus size={17} /> เพิ่มหน้าที่
-        </button>
+        <div className="flex gap-2">
+          <button className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white" onClick={() => onEdit()} type="button"><Plus size={17} /> เพิ่มหน้าที่</button>
+          <button aria-label="ปิด" className="grid h-11 w-11 place-items-center rounded-2xl border border-slate-200 text-slate-500 hover:bg-slate-50" onClick={onClose} type="button"><X size={18} /></button>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.9fr)]">
-        <div className="grid content-start gap-3">
+        <div className="grid max-h-[calc(100vh-220px)] content-start gap-2 overflow-y-auto pr-1">
           {tasks.length ? tasks.map((task) => (
             <article className={`rounded-2xl border p-4 ${task.is_active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 opacity-70"}`} key={task.id}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1363,6 +1390,7 @@ function DutyTaskSettings({
         </form>
       </div>
     </section>
+    </div>
   );
 }
 
