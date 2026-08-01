@@ -130,6 +130,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'savings',
       'behavior',
       'classroom-operations',
+      'parent-access',
       'automation',
       'randomizer',
       'reports',
@@ -137,6 +138,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'data-safety',
       'help-center',
       'notifications',
+      'period-locks',
       'workspace-switch',
     ],
     teacher_owner: [
@@ -148,6 +150,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'savings',
       'behavior',
       'classroom-operations',
+      'parent-access',
       'automation',
       'randomizer',
       'reports',
@@ -157,6 +160,8 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'help-center',
       'notifications',
       'workspace-settings',
+      'period-locks',
+      'academic-year',
       'workspace-switch',
     ],
     superadmin: [
@@ -168,6 +173,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'savings',
       'behavior',
       'classroom-operations',
+      'parent-access',
       'automation',
       'randomizer',
       'reports',
@@ -177,6 +183,8 @@ function getAppShellNavItems(session: AppSessionContext | null) {
       'help-center',
       'notifications',
       'workspace-settings',
+      'period-locks',
+      'academic-year',
       'workspace-switch',
       'setup',
       'audit',
@@ -195,7 +203,8 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'audit') return ['superadmin'] as WorkspaceRole[];
   if (key === 'setup' || key === 'superadmin-dashboard') return ['superadmin'] as WorkspaceRole[];
   if (key === 'workspace-switch') return workspaceSelectionRoles;
-  if (key === 'workspace-settings' || key === 'import-export' || key === 'package') {
+  if (key === 'period-locks') return classroomUserRoles;
+  if (key === 'workspace-settings' || key === 'academic-year' || key === 'import-export' || key === 'package') {
     return ['superadmin', 'teacher_owner'] as WorkspaceRole[];
   }
   if (key === 'data-safety') return classroomUserRoles;
@@ -396,7 +405,14 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
     );
   }
 
-  if (activeNavItem.key === 'classroom-operations') {
+  if (['classroom-operations', 'parent-access', 'period-locks', 'academic-year'].includes(activeNavItem.key)) {
+    const operationsMode = activeNavItem.key === 'parent-access'
+      ? 'parent'
+      : activeNavItem.key === 'period-locks'
+        ? 'locks'
+        : activeNavItem.key === 'academic-year'
+          ? 'year'
+          : 'duty';
     return (
       <RequireRouteAccess
         allowedRoles={allowedRoles}
@@ -405,7 +421,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
         session={session}
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
-          <ClassroomOperationsPage session={session} />
+          <ClassroomOperationsPage mode={operationsMode} session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

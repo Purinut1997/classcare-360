@@ -15,7 +15,7 @@ interface SidebarProps {
 
 const sidebarSections = [
   { key: 'overview', label: 'ภาพรวม', itemKeys: ['overview'] },
-  { key: 'students', label: 'นักเรียน', itemKeys: ['students'] },
+  { key: 'students', label: 'นักเรียนและผู้ปกครอง', itemKeys: ['students', 'parent-access'] },
   {
     key: 'daily-work',
     label: 'งานครูประจำวัน',
@@ -27,7 +27,7 @@ const sidebarSections = [
   {
     key: 'school',
     label: 'บริหารโรงเรียน',
-    itemKeys: ['school-calendar', 'import-export', 'data-safety', 'workspace-settings', 'workspace-switch'],
+    itemKeys: ['school-calendar', 'period-locks', 'academic-year', 'import-export', 'data-safety', 'workspace-settings', 'workspace-switch'],
   },
   {
     key: 'system',

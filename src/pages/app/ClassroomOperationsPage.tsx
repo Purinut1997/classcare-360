@@ -5,6 +5,8 @@ import {
   Download,
   GraduationCap,
   LockKeyhole,
+  Pencil,
+  Plus,
   Printer,
   QrCode,
   RefreshCw,
@@ -36,10 +38,19 @@ interface Student {
   student_code: string | null;
 }
 interface DutyTask {
+  active_weekdays: number[];
+  allow_substitute: boolean;
+  checklist: string[];
+  evidence_required: boolean;
   id: string;
+  instructions: string | null;
+  is_active: boolean;
+  location: string | null;
   missed_points: number;
   name: string;
   positive_points: number;
+  rotation_strategy: "balanced" | "random" | "fixed" | "manual";
+  slots_per_day: number;
   sort_order: number;
 }
 interface DutyAssignment {
@@ -113,6 +124,15 @@ const moduleLabels = {
   savings: "เงินออม",
   scores: "คะแนน",
 };
+const dutyWeekdays = [
+  { label: "จันทร์", short: "จ.", value: 1 },
+  { label: "อังคาร", short: "อ.", value: 2 },
+  { label: "พุธ", short: "พ.", value: 3 },
+  { label: "พฤหัสบดี", short: "พฤ.", value: 4 },
+  { label: "ศุกร์", short: "ศ.", value: 5 },
+  { label: "เสาร์", short: "ส.", value: 6 },
+  { label: "อาทิตย์", short: "อา.", value: 7 },
+];
 const demoClassrooms: Classroom[] = [
   { academic_year: "2569", id: "demo-room", name: "ป.5/1", status: "active" },
 ];
@@ -163,15 +183,18 @@ function downloadJson(filename: string, payload: unknown) {
   URL.revokeObjectURL(url);
 }
 
+type OperationsMode = "duty" | "locks" | "year" | "parent";
+
 export function ClassroomOperationsPage({
+  mode = "duty",
   session,
 }: {
+  mode?: OperationsMode;
   session: AppSessionContext;
 }) {
-  const isOwner =
-    session.profile.role === "teacher_owner" ||
-    session.profile.role === "superadmin";
-  const [tab, setTab] = useState<TabKey>("duty");
+  const [tab, setTab] = useState<TabKey>(
+    mode === "locks" ? "locks" : mode === "year" ? "rollover" : mode === "parent" ? "parent-qr" : "duty",
+  );
   const [classrooms, setClassrooms] = useState<Classroom[]>(demoClassrooms);
   const [students, setStudents] = useState<Student[]>(demoStudents);
   const [classroomId, setClassroomId] = useState(
@@ -209,6 +232,21 @@ export function ClassroomOperationsPage({
     studentId: "",
   });
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskForm, setTaskForm] = useState({
+    activeWeekdays: [1, 2, 3, 4, 5] as number[],
+    allowSubstitute: true,
+    checklist: "",
+    evidenceRequired: false,
+    instructions: "",
+    isActive: true,
+    location: "",
+    missedPoints: -1,
+    name: "",
+    positivePoints: 1,
+    rotationStrategy: "balanced" as DutyTask["rotation_strategy"],
+    slotsPerDay: 1,
+  });
 
   const roomStudents = useMemo(
     () => students.filter((student) => student.classroom_id === classroomId),
@@ -223,10 +261,15 @@ export function ClassroomOperationsPage({
       assignments.filter(
         (item) =>
           item.duty_date >= weekStart &&
-          item.duty_date <= addDays(weekStart, 4),
+          item.duty_date <= addDays(weekStart, 6),
       ),
     [assignments, weekStart],
   );
+  const displayedDutyDays = useMemo(() => {
+    const configured = new Set(tasks.flatMap((task) => task.active_weekdays));
+    const values = dutyWeekdays.filter((day) => configured.has(day.value));
+    return values.length ? values : dutyWeekdays.slice(0, 5);
+  }, [tasks]);
   const pointsByStudent = useMemo(() => {
     const totals = new Map<string, number>();
     behaviorPoints.forEach((item) =>
@@ -258,7 +301,7 @@ export function ClassroomOperationsPage({
           .order("student_code"),
         supabase
           .from("duty_tasks")
-          .select("id,name,positive_points,missed_points,sort_order")
+          .select("id,name,location,instructions,checklist,active_weekdays,slots_per_day,positive_points,missed_points,rotation_strategy,allow_substitute,evidence_required,is_active,sort_order")
           .eq("workspace_id", workspaceId)
           .order("sort_order"),
         supabase
@@ -346,6 +389,18 @@ export function ClassroomOperationsPage({
     };
   }, [classroomId, session.workspace, weekStart]);
 
+  useEffect(() => {
+    setTab(
+      mode === "locks"
+        ? "locks"
+        : mode === "year"
+          ? "rollover"
+          : mode === "parent"
+            ? "parent-qr"
+            : "duty",
+    );
+  }, [mode]);
+
   async function refreshOperations() {
     setWeekStart((current) => `${current}`);
     window.location.reload();
@@ -376,9 +431,96 @@ export function ClassroomOperationsPage({
     setBusy(false);
   }
 
+  async function assignDutyManually(task: DutyTask, dutyDate: string) {
+    if (!supabase || !session.workspace || !classroomId) return;
+    const query = window.prompt("กรอกรหัสนักเรียนหรือชื่อที่ต้องการมอบหมาย")?.trim();
+    if (!query) return;
+    const student = roomStudents.find(
+      (item) => item.id === query || item.student_code === query || fullName(item).includes(query),
+    );
+    if (!student) {
+      setNotice("ไม่พบนักเรียนในห้องนี้");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.rpc("set_manual_duty_assignment", {
+      target_classroom_id: classroomId,
+      target_date: dutyDate,
+      target_student_id: student.id,
+      target_task_id: task.id,
+      target_workspace_id: session.workspace.id,
+    });
+    setNotice(error ? error.message : `มอบหมาย ${fullName(student)} ทำหน้าที่ ${task.name} แล้ว`);
+    if (!error) setTimeout(() => window.location.reload(), 350);
+    setBusy(false);
+  }
+
+  function editTask(task?: DutyTask) {
+    setEditingTaskId(task?.id || null);
+    setTaskForm(task ? {
+      activeWeekdays: task.active_weekdays,
+      allowSubstitute: task.allow_substitute,
+      checklist: task.checklist.join("\n"),
+      evidenceRequired: task.evidence_required,
+      instructions: task.instructions || "",
+      isActive: task.is_active,
+      location: task.location || "",
+      missedPoints: task.missed_points,
+      name: task.name,
+      positivePoints: task.positive_points,
+      rotationStrategy: task.rotation_strategy,
+      slotsPerDay: task.slots_per_day,
+    } : {
+      activeWeekdays: [1, 2, 3, 4, 5], allowSubstitute: true, checklist: "", evidenceRequired: false,
+      instructions: "", isActive: true, location: "", missedPoints: -1, name: "", positivePoints: 1,
+      rotationStrategy: "balanced", slotsPerDay: 1,
+    });
+  }
+
+  async function saveDutyTask(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase || !session.workspace || !classroomId || !taskForm.name.trim() || !taskForm.activeWeekdays.length) return;
+    setBusy(true);
+    const payload = {
+      active_weekdays: taskForm.activeWeekdays,
+      allow_substitute: taskForm.allowSubstitute,
+      checklist: taskForm.checklist.split("\n").map((item) => item.trim()).filter(Boolean),
+      classroom_id: classroomId,
+      evidence_required: taskForm.evidenceRequired,
+      instructions: taskForm.instructions.trim() || null,
+      is_active: taskForm.isActive,
+      location: taskForm.location.trim() || null,
+      missed_points: Math.min(0, taskForm.missedPoints),
+      name: taskForm.name.trim(),
+      positive_points: Math.max(0, taskForm.positivePoints),
+      rotation_strategy: taskForm.rotationStrategy,
+      slots_per_day: Math.max(1, Math.min(10, taskForm.slotsPerDay)),
+      workspace_id: session.workspace.id,
+    };
+    const result = editingTaskId
+      ? await supabase.from("duty_tasks").update(payload).eq("id", editingTaskId).eq("workspace_id", session.workspace.id)
+      : await supabase.from("duty_tasks").insert({ ...payload, created_by: session.profile.id, sort_order: tasks.length * 10 + 10 });
+    if (result.error) setNotice(result.error.message);
+    else { setNotice(editingTaskId ? "แก้ไขหน้าที่เวรแล้ว" : "เพิ่มหน้าที่เวรแล้ว"); setTimeout(() => window.location.reload(), 400); }
+    setBusy(false);
+  }
+
+  async function toggleDutyTask(task: DutyTask) {
+    if (!supabase || !session.workspace) return;
+    const { error } = await supabase.from("duty_tasks").update({ is_active: !task.is_active }).eq("id", task.id).eq("workspace_id", session.workspace.id);
+    if (error) setNotice(error.message);
+    else setTasks((current) => current.map((item) => item.id === task.id ? { ...item, is_active: !item.is_active } : item));
+  }
+
   async function recordDuty(assignment: DutyAssignment, status: DutyStatus) {
     if (!supabase) return;
     setBusy(true);
+    const task = tasks.find((item) => item.id === assignment.duty_task_id);
+    if (status === "substituted" && task && !task.allow_substitute) {
+      setNotice("หน้าที่นี้ไม่อนุญาตให้ใช้คนแทน");
+      setBusy(false);
+      return;
+    }
     const substituteQuery =
       status === "substituted"
         ? window.prompt("กรอกรหัสนักเรียนหรือชื่อผู้ทำเวรแทน")?.trim()
@@ -396,9 +538,27 @@ export function ClassroomOperationsPage({
       setBusy(false);
       return;
     }
-    const { data, error } = await supabase.rpc("record_duty_result", {
+    const checklistResult = status === "completed" && task?.checklist.length
+      ? task.checklist.map((label) => ({ checked: window.confirm(`ยืนยัน: ${label}`), label }))
+      : [];
+    if (checklistResult.some((item) => !item.checked)) {
+      setNotice("เช็กลิสต์ยังไม่ครบ จึงยังไม่บันทึกว่าทำเวรเสร็จ");
+      setBusy(false);
+      return;
+    }
+    const evidence = status === "completed" && task?.evidence_required
+      ? window.prompt("หน้าที่นี้ต้องมีหลักฐาน กรุณาวางลิงก์รูปภาพหรือไฟล์")?.trim()
+      : null;
+    if (status === "completed" && task?.evidence_required && !evidence) {
+      setNotice("ยังไม่มีหลักฐาน จึงยังไม่บันทึกว่าทำเวรเสร็จ");
+      setBusy(false);
+      return;
+    }
+    const { data, error } = await supabase.rpc("record_duty_result_v2", {
       next_status: status,
       result_note: null,
+      target_checklist_result: checklistResult,
+      target_evidence_paths: evidence ? [evidence] : [],
       target_assignment_id: assignment.id,
       target_substitute_student_id: substitute?.id || null,
     });
@@ -624,9 +784,30 @@ export function ClassroomOperationsPage({
       item.expires_at &&
       new Date(item.expires_at).getTime() < Date.now() + 7 * 86400000,
   ).length;
-  const visibleTabs = isOwner
-    ? tabs
-    : tabs.filter((item) => item.key === "duty" || item.key === "parent-qr");
+  const modeTab: TabKey = mode === "locks"
+    ? "locks"
+    : mode === "parent"
+      ? "parent-qr"
+      : mode === "year"
+        ? "rollover"
+        : "duty";
+  const visibleTabs = mode === "year"
+    ? tabs.filter((item) => item.key === "rollover" || item.key === "archive")
+    : tabs.filter((item) => item.key === modeTab);
+  const pageTitle = mode === "duty"
+    ? "ตารางเวรและจิตพิสัย"
+    : mode === "locks"
+      ? "ควบคุมงวดข้อมูล"
+      : mode === "year"
+        ? "ปิดชั้นและคลังปีการศึกษา"
+        : "Portal และ QR ผู้ปกครอง";
+  const pageDescription = mode === "duty"
+    ? "ออกแบบหน้าที่รายวัน จัดเวรอย่างสมดุล ตรวจผล คนแทน และเชื่อมคะแนนจิตพิสัย"
+    : mode === "locks"
+      ? "ล็อกเวลาเรียน คะแนน และเงินออมหลังตรวจ พร้อมขั้นตอนขอและอนุมัติปลดล็อก"
+      : mode === "year"
+        ? "Preview → Approve → Execute → Undo พร้อม Snapshot สำหรับค้นย้อนหลัง"
+        : "สร้างคำเชิญผู้ปกครองแบบหมดอายุได้ เพิกถอนได้ และไม่ใช้เลขบัตรประชาชน";
 
   return (
     <main className="app-page">
@@ -634,11 +815,10 @@ export function ClassroomOperationsPage({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h1 className="text-3xl font-black text-slate-950 sm:text-4xl">
-              ศูนย์งานประจำชั้นและปีการศึกษา
+              {pageTitle}
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-500">
-              จัดเวร ล็อกงวด ปิดชั้น เก็บ Snapshot และออก QR ผู้ปกครองจาก
-              workflow เดียวที่ตรวจสอบย้อนหลังได้
+              {pageDescription}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -667,25 +847,25 @@ export function ClassroomOperationsPage({
         </div>
       </header>
 
-      <section className={`mt-4 grid gap-2 rounded-2xl border border-slate-200 bg-white/75 p-2 ${isOwner ? "lg:grid-cols-3" : "lg:grid-cols-1"}`}>
-        {isOwner ? <StatusRail
+      {mode !== "duty" ? <section className="mt-4 rounded-2xl border border-slate-200 bg-white/75 p-2">
+        {mode === "locks" ? <StatusRail
           icon={LockKeyhole}
           label={`ล็อกอยู่ ${activeLocks} งวด · รออนุมัติ ${pendingRequests}`}
           tone="amber"
         /> : null}
-        {isOwner ? <StatusRail
+        {mode === "year" ? <StatusRail
           icon={Archive}
           label={`Snapshot พร้อมค้น ${snapshots.length} ชุด`}
           tone="cyan"
         /> : null}
-        <StatusRail
+        {mode === "parent" ? <StatusRail
           icon={QrCode}
           label={`คำเชิญใกล้หมดอายุ ${expiringInvites} รายการ`}
           tone="rose"
-        />
-      </section>
+        /> : null}
+      </section> : null}
 
-      <nav className={`mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 ${isOwner ? "sm:grid-cols-5" : "sm:grid-cols-2"}`}>
+      {visibleTabs.length > 1 ? <nav className="mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 sm:grid-cols-2">
         {visibleTabs.map((item) => {
           const Icon = item.icon;
           return (
@@ -700,7 +880,7 @@ export function ClassroomOperationsPage({
             </button>
           );
         })}
-      </nav>
+      </nav> : null}
 
       {notice ? (
         <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-900">
@@ -722,6 +902,14 @@ export function ClassroomOperationsPage({
                 />
               </label>
               <div className="flex flex-wrap gap-2">
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-black text-cyan-800 hover:bg-cyan-100"
+                  onClick={() => editTask()}
+                  type="button"
+                >
+                  <Plus size={17} />
+                  เพิ่มหน้าที่เวร
+                </button>
                 <button
                   className="dark-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black"
                   onClick={() => window.print()}
@@ -746,31 +934,32 @@ export function ClassroomOperationsPage({
               studentCount={roomStudents.length}
             />
             <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full min-w-[820px] text-left text-sm">
+              <table className="w-full min-w-[980px] text-left text-sm">
                 <thead className="bg-slate-950 text-white">
                   <tr>
                     <th className="p-3">งาน / วัน</th>
-                    {[0, 1, 2, 3, 4].map((offset) => (
-                      <th className="p-3" key={offset}>
+                    {displayedDutyDays.map((day) => (
+                      <th className="p-3" key={day.value}>
                         {new Intl.DateTimeFormat("th-TH", {
                           weekday: "short",
                           day: "numeric",
                           month: "short",
                         }).format(
-                          new Date(`${addDays(weekStart, offset)}T12:00:00`),
+                          new Date(`${addDays(weekStart, day.value - 1)}T12:00:00`),
                         )}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.map((task) => (
+                  {tasks.filter((task) => task.is_active).map((task) => (
                     <tr className="border-t border-slate-200" key={task.id}>
                       <th className="bg-slate-50 p-3 font-black text-slate-900">
-                        {task.name}
+                        <span className="block">{task.name}</span>
+                        {task.location ? <span className="mt-1 block text-xs font-bold text-slate-400">{task.location}</span> : null}
                       </th>
-                      {[0, 1, 2, 3, 4].map((offset) => {
-                        const date = addDays(weekStart, offset);
+                      {displayedDutyDays.map((day) => {
+                        const date = addDays(weekStart, day.value - 1);
                         const list = roomAssignments.filter(
                           (item) =>
                             item.duty_task_id === task.id &&
@@ -779,7 +968,7 @@ export function ClassroomOperationsPage({
                         return (
                           <td className="p-3 align-top" key={date}>
                             {list.length ? (
-                              list.map((assignment) => (
+                              <>{list.map((assignment) => (
                                 <div
                                   className="mb-2 rounded-xl bg-slate-50 p-2"
                                   key={assignment.id}
@@ -807,9 +996,12 @@ export function ClassroomOperationsPage({
                                     <option value="substituted">มีคนแทน</option>
                                   </select>
                                 </div>
-                              ))
+                              ))}
+                              {list.length < task.slots_per_day ? <button className="w-full rounded-lg border border-dashed border-cyan-300 px-2 py-1.5 text-xs font-black text-cyan-700" disabled={busy} onClick={() => void assignDutyManually(task, date)} type="button">+ เพิ่มคน</button> : null}</>
+                            ) : task.active_weekdays.includes(day.value) ? (
+                              <button className="w-full rounded-lg border border-dashed border-slate-300 px-2 py-2 text-xs font-black text-slate-500 hover:border-cyan-300 hover:text-cyan-700" disabled={busy} onClick={() => void assignDutyManually(task, date)} type="button">+ มอบหมายเอง</button>
                             ) : (
-                              <span className="text-slate-400">ยังไม่จัด</span>
+                              <span className="text-slate-300">ไม่มีเวรวันนี้</span>
                             )}
                           </td>
                         );
@@ -863,6 +1055,17 @@ export function ClassroomOperationsPage({
               </div>
             </div>
           </aside>
+          <DutyTaskSettings
+            busy={busy}
+            editingTaskId={editingTaskId}
+            form={taskForm}
+            onCancel={() => editTask()}
+            onEdit={editTask}
+            onForm={setTaskForm}
+            onSave={saveDutyTask}
+            onToggle={toggleDutyTask}
+            tasks={tasks}
+          />
         </section>
       ) : null}
 
@@ -1004,6 +1207,162 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-black text-slate-400">{label}</p>
       <p className="mt-1 text-lg font-black text-slate-950">{value}</p>
     </div>
+  );
+}
+
+type DutyTaskForm = {
+  activeWeekdays: number[];
+  allowSubstitute: boolean;
+  checklist: string;
+  evidenceRequired: boolean;
+  instructions: string;
+  isActive: boolean;
+  location: string;
+  missedPoints: number;
+  name: string;
+  positivePoints: number;
+  rotationStrategy: DutyTask["rotation_strategy"];
+  slotsPerDay: number;
+};
+
+function DutyTaskSettings({
+  busy,
+  editingTaskId,
+  form,
+  onCancel,
+  onEdit,
+  onForm,
+  onSave,
+  onToggle,
+  tasks,
+}: {
+  busy: boolean;
+  editingTaskId: string | null;
+  form: DutyTaskForm;
+  onCancel: () => void;
+  onEdit: (task?: DutyTask) => void;
+  onForm: (value: DutyTaskForm) => void;
+  onSave: (event: FormEvent) => void;
+  onToggle: (task: DutyTask) => void;
+  tasks: DutyTask[];
+}) {
+  const selectedTask = editingTaskId
+    ? tasks.find((task) => task.id === editingTaskId)
+    : null;
+  return (
+    <section className="nexus-card p-5 xl:col-span-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-700">Duty Designer</p>
+          <h2 className="mt-1 text-2xl font-black text-slate-950">ออกแบบหน้าที่เวรของโรงเรียน</h2>
+          <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-500">
+            แต่ละหน้าที่กำหนดวัน จำนวนคน จุดปฏิบัติงาน วิธีหมุนเวียน เช็กลิสต์ และคะแนนได้อิสระ จึงรองรับทั้งโรงเรียนที่มีเวรเฉพาะวันเรียนและโรงเรียนที่มีเวรวันหยุด
+          </p>
+        </div>
+        <button
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white"
+          onClick={() => onEdit()}
+          type="button"
+        >
+          <Plus size={17} /> เพิ่มหน้าที่
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.9fr)]">
+        <div className="grid content-start gap-3">
+          {tasks.length ? tasks.map((task) => (
+            <article className={`rounded-2xl border p-4 ${task.is_active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 opacity-70"}`} key={task.id}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-black text-slate-950">{task.name}</h3>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-black ${task.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                      {task.is_active ? "ใช้งาน" : "พักใช้งาน"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {task.location || "ไม่ระบุจุด"} · {task.slots_per_day} คน/วัน · {task.rotation_strategy === "balanced" ? "จัดสมดุล" : task.rotation_strategy === "random" ? "สุ่ม" : task.rotation_strategy === "fixed" ? "ชุดเดิม" : "จัดเอง"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {dutyWeekdays.map((day) => (
+                      <span className={`rounded-lg px-2 py-1 text-[11px] font-black ${task.active_weekdays.includes(day.value) ? "bg-cyan-50 text-cyan-800" : "bg-slate-50 text-slate-300"}`} key={day.value}>
+                        {day.short}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" onClick={() => onEdit(task)} title="แก้ไข" type="button"><Pencil size={16} /></button>
+                  <button className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50" onClick={() => void onToggle(task)} type="button">
+                    {task.is_active ? "พัก" : "เปิด"}
+                  </button>
+                </div>
+              </div>
+            </article>
+          )) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">ยังไม่มีหน้าที่เวร กดเพิ่มหน้าที่เพื่อเริ่มออกแบบ</div>
+          )}
+        </div>
+
+        <form className="rounded-3xl border border-cyan-100 bg-cyan-50/40 p-4" onSubmit={onSave}>
+          <h3 className="text-lg font-black text-slate-950">{selectedTask ? `แก้ไข ${selectedTask.name}` : "เพิ่มหน้าที่เวร"}</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-black text-slate-600">ชื่อหน้าที่
+              <input className="nexus-field h-11 px-3" onChange={(event) => onForm({ ...form, name: event.target.value })} required value={form.name} />
+            </label>
+            <label className="grid gap-1 text-xs font-black text-slate-600">จุดปฏิบัติงาน
+              <input className="nexus-field h-11 px-3" onChange={(event) => onForm({ ...form, location: event.target.value })} placeholder="เช่น หน้าอาคาร 1" value={form.location} />
+            </label>
+            <label className="grid gap-1 text-xs font-black text-slate-600">จำนวนคนต่อวัน
+              <input className="nexus-field h-11 px-3" max={10} min={1} onChange={(event) => onForm({ ...form, slotsPerDay: Number(event.target.value) })} type="number" value={form.slotsPerDay} />
+            </label>
+            <label className="grid gap-1 text-xs font-black text-slate-600">วิธีจัดเวร
+              <select className="nexus-field h-11 px-3" onChange={(event) => onForm({ ...form, rotationStrategy: event.target.value as DutyTask["rotation_strategy"] })} value={form.rotationStrategy}>
+                <option value="balanced">สมดุลจำนวนครั้ง</option>
+                <option value="random">สุ่มรายสัปดาห์</option>
+                <option value="fixed">ชุดเดิมต่อเนื่อง</option>
+                <option value="manual">ครูจัดเอง</option>
+              </select>
+            </label>
+          </div>
+          <fieldset className="mt-4">
+            <legend className="text-xs font-black text-slate-600">วันที่มีหน้าที่นี้</legend>
+            <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-7">
+              {dutyWeekdays.map((day) => {
+                const checked = form.activeWeekdays.includes(day.value);
+                return <label className={`cursor-pointer rounded-xl border px-2 py-2 text-center text-xs font-black ${checked ? "border-cyan-400 bg-cyan-100 text-cyan-900" : "border-slate-200 bg-white text-slate-500"}`} key={day.value}>
+                  <input className="sr-only" checked={checked} onChange={() => onForm({ ...form, activeWeekdays: checked ? form.activeWeekdays.filter((value) => value !== day.value) : [...form.activeWeekdays, day.value].sort() })} type="checkbox" />
+                  {day.short}
+                </label>;
+              })}
+            </div>
+          </fieldset>
+          <label className="mt-4 grid gap-1 text-xs font-black text-slate-600">คำแนะนำการทำเวร
+            <textarea className="nexus-field min-h-20 p-3" onChange={(event) => onForm({ ...form, instructions: event.target.value })} placeholder="ขอบเขตงานและข้อควรระวัง" value={form.instructions} />
+          </label>
+          <label className="mt-3 grid gap-1 text-xs font-black text-slate-600">เช็กลิสต์ตรวจงาน (1 บรรทัดต่อ 1 ข้อ)
+            <textarea className="nexus-field min-h-24 p-3" onChange={(event) => onForm({ ...form, checklist: event.target.value })} placeholder={"กวาดพื้นสะอาด\nเก็บอุปกรณ์เข้าที่"} value={form.checklist} />
+          </label>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-black text-slate-600">คะแนนเมื่อผ่าน
+              <input className="nexus-field h-11 px-3" min={0} onChange={(event) => onForm({ ...form, positivePoints: Number(event.target.value) })} type="number" value={form.positivePoints} />
+            </label>
+            <label className="grid gap-1 text-xs font-black text-slate-600">คะแนนเมื่อไม่ทำ
+              <input className="nexus-field h-11 px-3" max={0} onChange={(event) => onForm({ ...form, missedPoints: Number(event.target.value) })} type="number" value={form.missedPoints} />
+            </label>
+          </div>
+          <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700 sm:grid-cols-2">
+            <label className="flex items-center gap-2"><input checked={form.allowSubstitute} onChange={(event) => onForm({ ...form, allowSubstitute: event.target.checked })} type="checkbox" /> อนุญาตคนแทน</label>
+            <label className="flex items-center gap-2"><input checked={form.evidenceRequired} onChange={(event) => onForm({ ...form, evidenceRequired: event.target.checked })} type="checkbox" /> ต้องแนบหลักฐาน</label>
+          </div>
+          {!form.activeWeekdays.length ? <p className="mt-3 text-xs font-black text-rose-600">เลือกอย่างน้อย 1 วัน</p> : null}
+          <div className="mt-5 flex gap-2">
+            <button className="blue-action h-11 flex-1 rounded-2xl px-4 text-sm font-black disabled:opacity-50" disabled={busy || !form.activeWeekdays.length || !form.name.trim()} type="submit">บันทึกหน้าที่เวร</button>
+            {selectedTask ? <button className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-600" onClick={onCancel} type="button">ยกเลิก</button> : null}
+          </div>
+        </form>
+      </div>
+    </section>
   );
 }
 
