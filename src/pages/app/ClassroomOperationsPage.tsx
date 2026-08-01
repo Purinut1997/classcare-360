@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Scale,
+  Trash2,
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
@@ -541,6 +542,39 @@ export function ClassroomOperationsPage({
     const { error } = await supabase.from("duty_tasks").update({ is_active: !task.is_active }).eq("id", task.id).eq("workspace_id", session.workspace.id);
     if (error) setNotice(error.message);
     else setTasks((current) => current.map((item) => item.id === task.id ? { ...item, is_active: !item.is_active } : item));
+  }
+
+  async function deleteDutyTask(task: DutyTask, taskIds: string[]) {
+    if (!supabase || !session.workspace) return false;
+    setBusy(true);
+    setNotice(null);
+    const relatedAssignmentCount = assignments.filter((item) => taskIds.includes(item.duty_task_id)).length;
+    const { error } = await supabase
+      .from("duty_tasks")
+      .delete()
+      .eq("workspace_id", session.workspace.id)
+      .in("id", taskIds);
+
+    if (error) {
+      setNotice(`ลบหน้าที่เวรไม่สำเร็จ: ${error.message}`);
+      setBusy(false);
+      return false;
+    }
+
+    setTasks((current) => current.filter((item) => !taskIds.includes(item.id)));
+    setAssignments((current) => current.filter((item) => !taskIds.includes(item.duty_task_id)));
+    if (editingTaskId && taskIds.includes(editingTaskId)) editTask();
+    setNotice(`ลบหน้าที่ “${task.name}” และรายการมอบหมายที่เกี่ยวข้อง ${relatedAssignmentCount} รายการแล้ว`);
+    await writeAuditLog(session, {
+      action: "duty.task_deleted",
+      entityId: task.id,
+      entityTable: "duty_tasks",
+      metadata: { assignmentCount: relatedAssignmentCount, name: task.name, taskIds },
+      riskLevel: "high",
+      source: "classroom_operations",
+    });
+    setBusy(false);
+    return true;
   }
 
   async function recordDuty(assignment: DutyAssignment, status: DutyStatus) {
@@ -1095,6 +1129,8 @@ export function ClassroomOperationsPage({
             onClose={() => setDesignerOpen(false)}
             onEdit={editTask}
             onForm={setTaskForm}
+            onDelete={(task) => deleteDutyTask(task, taskAliasIds.get(task.id) || [task.id])}
+            getDeleteImpact={(task) => assignments.filter((item) => (taskAliasIds.get(task.id) || [task.id]).includes(item.duty_task_id)).length}
             onSave={saveDutyTask}
             onToggle={toggleDutyTask}
             tasks={uniqueTasks}
@@ -1260,6 +1296,8 @@ function DutyTaskSettings({
   onClose,
   onEdit,
   onForm,
+  onDelete,
+  getDeleteImpact,
   onSave,
   onToggle,
   tasks,
@@ -1271,10 +1309,13 @@ function DutyTaskSettings({
   onClose: () => void;
   onEdit: (task?: DutyTask) => void;
   onForm: (value: DutyTaskForm) => void;
+  onDelete: (task: DutyTask) => Promise<boolean>;
+  getDeleteImpact: (task: DutyTask) => number;
   onSave: (event: FormEvent) => void;
   onToggle: (task: DutyTask) => void;
   tasks: DutyTask[];
 }) {
+  const [deleteCandidate, setDeleteCandidate] = useState<DutyTask | null>(null);
   const selectedTask = editingTaskId
     ? tasks.find((task) => task.id === editingTaskId)
     : null;
@@ -1322,6 +1363,16 @@ function DutyTaskSettings({
                   <button className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" onClick={() => onEdit(task)} title="แก้ไข" type="button"><Pencil size={16} /></button>
                   <button className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50" onClick={() => void onToggle(task)} type="button">
                     {task.is_active ? "พัก" : "เปิด"}
+                  </button>
+                  <button
+                    aria-label={`ลบหน้าที่ ${task.name}`}
+                    className="rounded-xl border border-rose-200 p-2 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() => setDeleteCandidate(task)}
+                    title="ลบหน้าที่เวร"
+                    type="button"
+                  >
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
@@ -1389,6 +1440,43 @@ function DutyTaskSettings({
           </div>
         </form>
       </div>
+      {deleteCandidate ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-md" role="presentation">
+          <section
+            aria-describedby="delete-duty-description"
+            aria-labelledby="delete-duty-title"
+            aria-modal="true"
+            className="w-full max-w-md overflow-hidden rounded-3xl border border-rose-200/80 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.35)]"
+            role="alertdialog"
+          >
+            <div className="border-b border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-100 text-rose-700"><Trash2 size={20} /></span>
+              <h3 className="mt-4 text-xl font-black text-slate-950" id="delete-duty-title">ลบหน้าที่ “{deleteCandidate.name}”?</h3>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600" id="delete-duty-description">
+                หน้าที่นี้จะหายจากตัวออกแบบและตารางเวร พร้อมลบรายการมอบหมายที่เกี่ยวข้อง {getDeleteImpact(deleteCandidate)} รายการ การดำเนินการนี้ย้อนกลับไม่ได้
+              </p>
+            </div>
+            <div className="grid gap-2 p-5 sm:grid-cols-2">
+              <button
+                className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
+                disabled={busy}
+                onClick={() => setDeleteCandidate(null)}
+                type="button"
+              >
+                เก็บไว้ก่อน
+              </button>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 text-sm font-black text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700 disabled:cursor-wait disabled:opacity-60"
+                disabled={busy}
+                onClick={() => void onDelete(deleteCandidate).then((deleted) => { if (deleted) setDeleteCandidate(null); })}
+                type="button"
+              >
+                <Trash2 size={16} /> {busy ? "กำลังลบ..." : "ยืนยันลบหน้าที่"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
     </div>
   );
