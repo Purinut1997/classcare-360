@@ -61,10 +61,10 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, ses
       <GlobalSearch navItems={navItems} session={session} />
 
       <button
-        aria-label={theme === 'nexus' ? 'Switch to light theme' : 'Switch to Nexus theme'}
+        aria-label={theme === 'nexus' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
         className="app-icon-button"
         onClick={onThemeToggle}
-        title={theme === 'nexus' ? 'Light theme' : 'Nexus theme'}
+        title={theme === 'nexus' ? 'โหมดสว่าง' : 'โหมดมืด Obsidian Lime'}
         type="button"
       >
         {theme === 'nexus' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
