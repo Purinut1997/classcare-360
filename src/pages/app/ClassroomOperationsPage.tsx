@@ -21,6 +21,7 @@ import QRCode from "qrcode";
 
 import { writeAuditLog } from "../../lib/auditLog";
 import { getBangkokDate } from "../../lib/date";
+import { loadSchoolReportIdentity } from "../../lib/scheduleSettings";
 import { isSupabaseReady, supabase } from "../../lib/supabaseClient";
 import type { AppSessionContext } from "../../types/core";
 
@@ -452,6 +453,102 @@ export function ClassroomOperationsPage({
   async function refreshOperations() {
     setWeekStart((current) => `${current}`);
     window.location.reload();
+  }
+
+  function printDutyReport() {
+    if (!session.workspace || !classroomId) return;
+    const reportWindow = window.open("", "classcare-duty-report", "width=1200,height=820");
+    if (!reportWindow) {
+      setNotice("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต Pop-up สำหรับเว็บไซต์นี้แล้วลองอีกครั้ง");
+      return;
+    }
+    reportWindow.opener = null;
+
+    const identity = loadSchoolReportIdentity();
+    const classroom = classrooms.find((item) => item.id === classroomId);
+    const reportDays = displayedDutyDays.map((day) => ({
+      ...day,
+      date: addDays(weekStart, day.value - 1),
+    }));
+    const weekEnd = reportDays[reportDays.length - 1]?.date || addDays(weekStart, 4);
+    const dateLabel = (value: string, options?: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("th-TH", options || { day: "numeric", month: "short", year: "numeric" })
+        .format(new Date(`${value}T12:00:00`));
+    const taskRows = uniqueTasks
+      .filter((task) => task.is_active)
+      .map((task) => {
+        const cells = reportDays.map(({ date }) => {
+          const list = roomAssignments.filter(
+            (item) => (taskAliasIds.get(task.id) || [task.id]).includes(item.duty_task_id) && item.duty_date === date,
+          );
+          if (!list.length) return '<td><span class="empty">— ไม่มีเวร —</span></td>';
+          return `<td>${list.map((assignment) => {
+            const student = studentMap.get(assignment.student_id);
+            const substitute = assignment.substitute_student_id ? studentMap.get(assignment.substitute_student_id) : null;
+            return `<div class="student"><b>${escapeDutyHtml(student?.student_code || "-")}</b><span>${escapeDutyHtml(fullName(student))}</span>${substitute ? `<small>แทนโดย ${escapeDutyHtml(fullName(substitute))}</small>` : ""}</div>`;
+          }).join("")}</td>`;
+        }).join("");
+        return `<tr><th><strong>${escapeDutyHtml(task.name)}</strong>${task.location ? `<small>${escapeDutyHtml(task.location)}</small>` : ""}</th>${cells}</tr>`;
+      }).join("");
+    const assignmentCount = roomAssignments.length;
+    const assignedStudentCount = new Set(roomAssignments.map((item) => item.student_id)).size;
+    const teacherName = identity.teacherName || session.profile.displayName || "................................................";
+    const schoolName = identity.schoolName && identity.schoolName !== "โรงเรียนตัวอย่าง ClassCare"
+      ? identity.schoolName
+      : session.workspace.schoolName;
+    const logo = identity.schoolLogoDataUrl || "/brand/classcare-360-icon-128.png";
+
+    reportWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8" />
+      <title>ตารางเวร ${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</title>
+      <style>
+        @page { size: A4 landscape; margin: 8mm; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body { color: #101828; font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, sans-serif; font-size: 11px; line-height: 1.25; }
+        .sheet { width: 281mm; min-height: 194mm; margin: 0 auto; position: relative; }
+        header { align-items: center; border-bottom: 2.5px solid #155eef; display: grid; grid-template-columns: 62px 1fr 62px; min-height: 64px; padding: 0 0 7px; }
+        .logo { height: 54px; object-fit: contain; width: 54px; }
+        .header-copy { text-align: center; }
+        h1 { color: #07111f; font-size: 23px; line-height: 1.05; margin: 0; }
+        .school { font-size: 13px; font-weight: 700; margin-top: 3px; }
+        .period { color: #344054; font-size: 11px; font-weight: 700; margin-top: 3px; }
+        .meta { display: grid; gap: 6px; grid-template-columns: 1.15fr .8fr 1fr 1.15fr; margin: 8px 0; }
+        .meta div { background: #eff6ff; border: 1px solid #b9d5ff; border-radius: 8px; min-height: 41px; padding: 5px 8px; }
+        .meta span { color: #475467; display: block; font-size: 9px; }
+        .meta strong { color: #101828; display: block; font-size: 12px; margin-top: 2px; }
+        table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+        thead th { background: #dbeafe; border: 1px solid #475467; color: #12366b; font-size: 10.5px; height: 35px; padding: 4px; text-align: center; }
+        thead th:first-child { background: #eaf2ff; color: #101828; text-align: left; width: 27mm; }
+        tbody th, tbody td { border: 1px solid #667085; padding: 5px; vertical-align: top; }
+        tbody th { background: #f4f7fb; font-size: 10.5px; text-align: left; }
+        tbody th strong, tbody th small { display: block; }
+        tbody th small { color: #667085; font-size: 8.5px; margin-top: 2px; }
+        tbody td { height: 19mm; text-align: center; }
+        .student { align-items: baseline; background: #fff; border: 1px solid #d0d5dd; border-radius: 10px; display: flex; gap: 4px; justify-content: center; margin-bottom: 3px; padding: 3px 5px; }
+        .student:last-child { margin-bottom: 0; }
+        .student b { color: #155eef; font-size: 8.5px; white-space: nowrap; }
+        .student span { font-size: 9.5px; font-weight: 700; }
+        .student small { color: #7f56d9; display: block; font-size: 7.5px; }
+        .empty { color: #98a2b3; display: block; font-size: 9px; margin-top: 10px; }
+        footer { align-items: end; display: grid; gap: 12px; grid-template-columns: 1.15fr 1fr 1fr; margin-top: 8px; }
+        .summary { border: 1px solid #b9d5ff; border-radius: 9px; padding: 6px 8px; }
+        .summary strong { display: block; font-size: 11px; }
+        .summary p { color: #475467; margin: 2px 0 0; }
+        .signature { min-height: 49px; padding-top: 18px; text-align: center; }
+        .signature .line { border-bottom: 1px dotted #344054; display: inline-block; min-width: 160px; }
+        .signature p { margin: 2px 0 0; }
+        .generated { bottom: 0; color: #98a2b3; font-size: 7.5px; position: absolute; right: 0; }
+        @media print { .sheet { margin: 0; } }
+      </style></head><body><main class="sheet">
+        <header><img class="logo" src="${escapeDutyHtml(logo)}" alt="ตราโรงเรียน" /><div class="header-copy"><h1>ตารางเวรประจำสัปดาห์</h1><div class="school">${escapeDutyHtml(schoolName)} · ${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</div><div class="period">${dateLabel(weekStart)} – ${dateLabel(weekEnd)} · ปีการศึกษา ${escapeDutyHtml(classroom?.academic_year || session.workspace.academicYear)}</div></div><div></div></header>
+        <section class="meta"><div><span>โรงเรียน</span><strong>${escapeDutyHtml(schoolName)}</strong></div><div><span>ห้องเรียน</span><strong>${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</strong></div><div><span>ครูประจำชั้น</span><strong>${escapeDutyHtml(teacherName)}</strong></div><div><span>ช่วงวันที่</span><strong>${dateLabel(weekStart)} – ${dateLabel(weekEnd)}</strong></div></section>
+        <table><thead><tr><th>หน้าที่เวร</th>${reportDays.map(({ date, label }) => `<th>${escapeDutyHtml(label)}<br />${dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</th>`).join("")}</tr></thead><tbody>${taskRows || `<tr><td colspan="${reportDays.length + 1}" class="empty">ยังไม่มีหน้าที่เวรในสัปดาห์นี้</td></tr>`}</tbody></table>
+        <footer><div class="summary"><strong>สรุปตารางเวรประจำชั้น</strong><p>หน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน</p><p>ครูประจำชั้น: ${escapeDutyHtml(teacherName)}</p></div><div class="signature"><span>ลงชื่อ</span><span class="line"></span><p>(${escapeDutyHtml(teacherName)})</p><p>ครูประจำชั้น</p></div><div class="signature"><span>ลงชื่อ</span><span class="line"></span><p>(${escapeDutyHtml(identity.directorName || "................................................")})</p><p>ผู้อำนวยการโรงเรียน</p></div></footer>
+        <span class="generated">สร้างโดย ClassCare 360 · ${new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "short" }).format(new Date())}</span>
+      </main></body></html>`);
+    reportWindow.document.close();
+    reportWindow.focus();
+    window.setTimeout(() => reportWindow.print(), 350);
   }
 
   function getDutyGenerationRange() {
@@ -1013,7 +1110,7 @@ export function ClassroomOperationsPage({
                 </button>
                 <button
                   className="dark-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black"
-                  onClick={() => window.print()}
+                  onClick={printDutyReport}
                   type="button"
                 >
                   <Printer size={17} />
@@ -1253,6 +1350,15 @@ function addDays(value: string, count: number) {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(date.getDate() + count);
   return date.toISOString().slice(0, 10);
+}
+function escapeDutyHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  })[character] || character);
 }
 function startOfWeek(value: string) {
   const date = new Date(`${value}T12:00:00`);
