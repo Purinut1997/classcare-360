@@ -26,6 +26,148 @@
   --nx-shadow-lg: 0 24px 60px rgb(0 0 0 / 0.3);
 }
 
+/* Shared ambient canvas ---------------------------------------------------
+   The motion stays behind the application chrome and only animates GPU-safe
+   transforms/opacity. Light and dark modes deliberately use different light. */
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+}
+
+.app-ambient-background {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.app-shell-main { position: relative; z-index: 1; }
+.app-sidebar { z-index: 2; }
+.app-mobile-nav { z-index: 3; }
+
+.app-ambient-background::before {
+  position: absolute;
+  inset: -30%;
+  content: "";
+  background: conic-gradient(
+    from 110deg at 52% 48%,
+    transparent 0deg,
+    rgb(14 165 233 / 0.035) 54deg,
+    transparent 112deg,
+    rgb(190 242 100 / 0.04) 184deg,
+    transparent 250deg,
+    rgb(245 158 11 / 0.025) 318deg,
+    transparent 360deg
+  );
+  animation: ambient-drift 36s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+
+.app-ambient-orb {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  opacity: 0.72;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+.app-ambient-orb-one {
+  top: -14rem;
+  right: -10rem;
+  width: clamp(28rem, 48vw, 52rem);
+  height: clamp(28rem, 48vw, 52rem);
+  background: rgb(125 211 252 / 0.17);
+  animation: ambient-float-one 22s ease-in-out infinite alternate;
+}
+
+.app-ambient-orb-two {
+  top: 34%;
+  left: 12%;
+  width: clamp(22rem, 36vw, 40rem);
+  height: clamp(22rem, 36vw, 40rem);
+  background: rgb(190 242 100 / 0.12);
+  animation: ambient-float-two 28s ease-in-out infinite alternate;
+}
+
+.app-ambient-orb-three {
+  right: 8%;
+  bottom: -16rem;
+  width: clamp(26rem, 42vw, 46rem);
+  height: clamp(26rem, 42vw, 46rem);
+  background: rgb(251 191 36 / 0.09);
+  animation: ambient-float-three 32s ease-in-out infinite alternate;
+}
+
+.app-ambient-mesh {
+  position: absolute;
+  inset: 0;
+  opacity: 0.28;
+  background-image: radial-gradient(circle, rgb(51 65 85 / 0.2) 0.7px, transparent 0.8px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+  animation: ambient-mesh-shift 42s linear infinite;
+}
+
+.app-shell.theme-dark .app-ambient-background::before {
+  background: conic-gradient(
+    from 100deg at 50% 44%,
+    transparent 0deg,
+    rgb(199 255 49 / 0.04) 62deg,
+    transparent 122deg,
+    rgb(16 185 129 / 0.035) 192deg,
+    transparent 258deg,
+    rgb(163 230 53 / 0.025) 318deg,
+    transparent 360deg
+  );
+}
+
+.app-shell.theme-dark .app-ambient-orb { opacity: 0.58; filter: blur(96px); }
+.app-shell.theme-dark .app-ambient-orb-one { background: rgb(199 255 49 / 0.105); }
+.app-shell.theme-dark .app-ambient-orb-two { background: rgb(16 185 129 / 0.075); }
+.app-shell.theme-dark .app-ambient-orb-three { background: rgb(132 204 22 / 0.06); }
+.app-shell.theme-dark .app-ambient-mesh {
+  opacity: 0.2;
+  background-image: radial-gradient(circle, rgb(231 255 161 / 0.16) 0.65px, transparent 0.75px);
+  mask-image: linear-gradient(to bottom, black, transparent 76%);
+}
+
+@keyframes ambient-drift {
+  0% { transform: translate3d(-2%, -1%, 0) rotate(-5deg) scale(0.96); }
+  100% { transform: translate3d(3%, 2%, 0) rotate(8deg) scale(1.06); }
+}
+
+@keyframes ambient-float-one {
+  0% { transform: translate3d(0, 0, 0) scale(0.94); }
+  100% { transform: translate3d(-10vw, 12vh, 0) scale(1.08); }
+}
+
+@keyframes ambient-float-two {
+  0% { transform: translate3d(-7vw, 4vh, 0) scale(1); }
+  100% { transform: translate3d(14vw, -12vh, 0) scale(1.16); }
+}
+
+@keyframes ambient-float-three {
+  0% { transform: translate3d(7vw, 5vh, 0) scale(1.08); }
+  100% { transform: translate3d(-12vw, -10vh, 0) scale(0.92); }
+}
+
+@keyframes ambient-mesh-shift {
+  from { background-position: 0 0; }
+  to { background-position: 56px 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-ambient-background::before,
+  .app-ambient-orb,
+  .app-ambient-mesh {
+    animation: none !important;
+  }
+}
+
 .app-shell.theme-dark {
   --cc-bg: var(--nx-canvas);
   --cc-chrome: var(--nx-chrome);

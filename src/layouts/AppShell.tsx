@@ -32,6 +32,12 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
 
   return (
     <div className={`app-shell ${theme === 'nexus' ? 'theme-dark theme-nexus' : 'theme-light'}`}>
+      <div className="app-ambient-background" aria-hidden="true">
+        <span className="app-ambient-orb app-ambient-orb-one" />
+        <span className="app-ambient-orb app-ambient-orb-two" />
+        <span className="app-ambient-orb app-ambient-orb-three" />
+        <span className="app-ambient-mesh" />
+      </div>
       <Sidebar
         activeView={activeView}
         isMobileOpen={isMenuOpen}
