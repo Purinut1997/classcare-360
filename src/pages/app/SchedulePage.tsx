@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
+import { getBangkokDate } from '../../lib/date';
+import { buildOfficialDocumentCode, formatThaiOfficialDate } from '../../lib/officialReport';
 import {
   buildSchedulePeriods,
   defaultDays,
@@ -505,6 +507,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
           .schedule-print-title { font-size: 21pt !important; line-height: 1.08 !important; }
           .schedule-print-subtitle { margin-top: 1mm !important; font-size: 17pt !important; line-height: 1.08 !important; }
           .schedule-print-teacher { margin-top: 1mm !important; font-size: 16pt !important; line-height: 1.08 !important; }
+          .schedule-print-meta { border-bottom: 1px solid #444 !important; border-top: 1px solid #444 !important; display: flex !important; font-size: 12.5pt !important; justify-content: space-between !important; margin-top: 3mm !important; padding: 1mm 0 !important; }
           .schedule-print-table { margin-top: 4mm !important; font-size: 15pt !important; line-height: 1.02 !important; table-layout: fixed !important; }
           .schedule-print-table th, .schedule-print-table td { padding: 2.5px !important; }
           .schedule-print-table thead th { font-size: 15.5pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
@@ -518,6 +521,8 @@ export function SchedulePage({ session }: SchedulePageProps) {
           .schedule-print-lunch { width: 16mm !important; font-size: 14pt !important; line-height: 1 !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.06em; }
           .schedule-print-signatures { margin-top: 5mm !important; font-size: 15pt !important; line-height: 1.08 !important; }
           .schedule-print-signatures p + p { margin-top: 1mm !important; }
+          .schedule-print-certification { border: 1px solid #555 !important; font-size: 12.5pt !important; margin-top: 3mm !important; padding: 1.5mm 2mm !important; }
+          .schedule-print-footer { border-top: 1px solid #666 !important; display: flex !important; font-size: 9pt !important; justify-content: space-between !important; margin-top: 4mm !important; padding-top: 1mm !important; }
         }
       `}</style>
 
@@ -530,6 +535,11 @@ export function SchedulePage({ session }: SchedulePageProps) {
             <h1 className="schedule-print-title text-xl font-bold">{identity.schoolName}</h1>
             <p className="schedule-print-subtitle mt-2 text-lg font-bold">{settings.courseTitle || 'ตารางสอนประจำสัปดาห์'} ปีการศึกษา {identity.academicYear}</p>
             <p className="schedule-print-teacher mt-2 text-lg font-bold">ครูผู้สอน {identity.teacherName || '................................................'}</p>
+          </div>
+          <div className="schedule-print-meta">
+            <span>ชั้น/ห้อง: {identity.classroomName || session.workspace?.classroomName || '-'}</span>
+            <span>รหัสเอกสาร: {buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName)}</span>
+            <span>ข้อมูล ณ {formatThaiOfficialDate(getBangkokDate())}</span>
           </div>
 
           <table className="schedule-print-table mt-7 w-full border-collapse text-center text-[12px]">
@@ -591,6 +601,8 @@ export function SchedulePage({ session }: SchedulePageProps) {
             </tbody>
           </table>
 
+          <div className="schedule-print-certification">ขอรับรองว่าตารางสอนฉบับนี้ได้รับการตรวจสอบความถูกต้องของรายวิชา เวลาเรียน ห้องเรียน และผู้สอนแล้ว</div>
+
           <div className="schedule-print-signatures mt-9 grid grid-cols-3 gap-8 text-center text-base">
             <div>
               <p>ลงชื่อ........................................ครูผู้สอน</p>
@@ -605,6 +617,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
               <p className="mt-3">({identity.directorName || '........................................'})</p>
             </div>
           </div>
+          <div className="schedule-print-footer"><span>เอกสารควบคุมภายในสถานศึกษา · พิมพ์จากระบบ ClassCare 360</span><span>{buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName)} · หน้า 1/1</span></div>
         </div>
       </section>
 

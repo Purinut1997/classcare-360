@@ -3,6 +3,15 @@ import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, ImagePlus, Pri
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getBangkokDate } from '../../lib/date';
+import {
+  buildOfficialDocumentCode,
+  buildOfficialFooterHtml,
+  buildOfficialHeaderHtml,
+  buildOfficialReportCss,
+  buildOfficialSignaturesHtml,
+  formatThaiOfficialDate,
+  maskThaiCitizenId,
+} from '../../lib/officialReport';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
@@ -12,7 +21,7 @@ interface ReportsPageProps {
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'activity';
-type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'health' | 'individual' | 'behavior' | 'settings';
+type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'health' | 'student-register' | 'executive' | 'individual' | 'behavior' | 'settings';
 type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
 
@@ -23,12 +32,24 @@ interface ClassroomRow {
 }
 
 interface StudentRow {
+  birth_date: string | null;
   classroom_id: string | null;
   first_name: string;
+  gender: 'male' | 'female' | 'other' | 'unspecified' | null;
   id: string;
   last_name: string;
+  metadata: Record<string, unknown> | null;
   nickname: string | null;
+  status: string | null;
   student_code: string | null;
+}
+
+interface StudentGuardianReportRow {
+  display_name: string;
+  is_primary: boolean;
+  phone: string | null;
+  relation: string | null;
+  student_id: string;
 }
 
 interface AttendanceSessionRow {
@@ -146,9 +167,15 @@ interface CoreReportMetrics {
 const demoClassrooms: ClassroomRow[] = [{ academic_year: '2569', id: 'demo-classroom', name: 'ป.5/2' }];
 
 const demoStudents: StudentRow[] = [
-  { classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', id: 'demo-student-1', last_name: 'ใจดี', nickname: 'นัท', student_code: '001' },
-  { classroom_id: 'demo-classroom', first_name: 'พิมพ์ชนก', id: 'demo-student-2', last_name: 'แสงทอง', nickname: 'พิม', student_code: '002' },
-  { classroom_id: 'demo-classroom', first_name: 'กิตติพงศ์', id: 'demo-student-3', last_name: 'สุขใจ', nickname: 'ก้อง', student_code: '003' },
+  { birth_date: '2015-01-12', classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', gender: 'male', id: 'demo-student-1', last_name: 'ใจดี', metadata: { dmc_id_card: '1100100000001' }, nickname: 'นัท', status: 'active', student_code: '001' },
+  { birth_date: '2015-03-03', classroom_id: 'demo-classroom', first_name: 'พิมพ์ชนก', gender: 'female', id: 'demo-student-2', last_name: 'แสงทอง', metadata: { dmc_id_card: '1100100000002' }, nickname: 'พิม', status: 'active', student_code: '002' },
+  { birth_date: '2015-07-27', classroom_id: 'demo-classroom', first_name: 'กิตติพงศ์', gender: 'male', id: 'demo-student-3', last_name: 'สุขใจ', metadata: { dmc_id_card: '1100100000003' }, nickname: 'ก้อง', status: 'active', student_code: '003' },
+];
+
+const demoGuardians: StudentGuardianReportRow[] = [
+  { display_name: 'นางสมใจ ใจดี', is_primary: true, phone: '08x-xxx-1101', relation: 'มารดา', student_id: 'demo-student-1' },
+  { display_name: 'นายประสงค์ แสงทอง', is_primary: true, phone: '08x-xxx-1102', relation: 'บิดา', student_id: 'demo-student-2' },
+  { display_name: 'นางรัตนา สุขใจ', is_primary: true, phone: '08x-xxx-1103', relation: 'มารดา', student_id: 'demo-student-3' },
 ];
 
 const demoSessions: AttendanceSessionRow[] = [
@@ -243,6 +270,8 @@ const reportViews: Array<{ description: string; label: string; value: ReportView
   { description: 'เงินฝาก ถอน และยอดคงเหลือ', label: 'เงินออม', value: 'savings' },
   { description: 'สรุปคะแนนรวมห้องและรายชั้น', label: 'คะแนนรวมห้อง', value: 'scores' },
   { description: 'การเจริญเติบโต สุขอนามัย แปรงฟัน ดื่มนม และอาหารกลางวัน', label: 'สุขภาพและกิจวัตร', value: 'health' },
+  { description: 'บัญชีรายชื่อนักเรียนพร้อมข้อมูลผู้ปกครองและการรับรอง', label: 'ทะเบียนนักเรียน', value: 'student-register' },
+  { description: 'ภาพรวมผลดำเนินงาน ประเด็นเฝ้าระวัง และข้อเสนอเพื่อพิจารณา', label: 'สรุปผู้บริหาร', value: 'executive' },
   { description: 'รวมเวลาเรียน คะแนน เงินออม พฤติกรรม', label: 'รายบุคคล', value: 'individual' },
   { description: 'เคสดูแลและพฤติกรรมที่ต้องติดตาม', label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
   { description: 'ห้วงเวลาเทอม โลโก้ ลายเซ็น template', label: 'ตั้งค่ารายงาน', value: 'settings' },
@@ -670,6 +699,8 @@ function buildPrintableReportHtml({
 
   const classroomName = attendanceGrid.classroom?.name || workspaceName || '-';
   const academicYear = attendanceGrid.classroom?.academic_year || '2569';
+  const dateTo = days[days.length - 1]?.dateKey || dateFrom;
+  const documentCode = buildOfficialDocumentCode('CC-ATT', dateFrom, classroomName);
 
   return `<!doctype html>
     <html lang="th">
@@ -777,19 +808,16 @@ function buildPrintableReportHtml({
             font-weight: 700;
             color: #94a3b8;
           }
+          ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
+          .summary-card { background: #fff; border: 1px solid #666; border-radius: 0; }
+          .summary-card span, .summary-card strong, .present, .late, .leave, .absent { color: #111; }
+          th, .weekend, .sum, .total, tfoot td { background: #e9e9e9 !important; color: #111; }
+          th.name, td.name { width: 42mm; }
         </style>
       </head>
       <body>
-        <header>
-          <div class="logo">${reportIdentity.schoolLogoDataUrl ? `<img src="${escapeHtml(reportIdentity.schoolLogoDataUrl)}" alt="Logo" />` : 'C'}</div>
-          <div>
-            <h1>รายงานเวลาเรียนระดับชั้น ${escapeHtml(classroomName)} ประจำเดือน ${escapeHtml(dateFrom.slice(0, 7))}</h1>
-            <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
-            <p class="subtitle">เดือน${escapeHtml(monthLabel)}</p>
-          </div>
-          <div></div>
-        </header>
-        <p class="classline">ระดับชั้น: ${escapeHtml(classroomName)}</p>
+        <main class="official-sheet">
+        ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: { ...reportIdentity, academicYear }, schoolName, subtitle: `ประจำเดือน${monthLabel}`, title: `รายงานเวลาเรียนระดับชั้น ${classroomName}` })}
         <section class="summary-grid">
           <div class="summary-card">
             <span>มา</span>
@@ -833,24 +861,14 @@ function buildPrintableReportHtml({
             </tr>
           </tfoot>
         </table>
-        <div class="footer-section">
-          <div class="signatures">
-            <div>
-              <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.teacherName || teacherName)})</div>
-              <div class="role">ครูประจำชั้น</div>
-            </div>
-            <div>
-              <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.directorName || '................................................')})</div>
-              <div class="role">ผู้อำนวยการโรงเรียน</div>
-            </div>
-          </div>
-          <div class="footer-meta">
-            <div>หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด / ช่องสีเทาคือวันหยุดสุดสัปดาห์หรือวันที่ไม่มีในเดือนนั้น</div>
-            <div class="credit">Created by MIKPURINUT</div>
-          </div>
-        </div>
+        <div class="official-certification">หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด · ขอรับรองว่าข้อมูลเวลาเรียนตรงกับรายการที่บันทึกในระบบ ณ วันตัดยอด</div>
+        ${buildOfficialSignaturesHtml([
+          { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+          { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+          { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+        ])}
+        ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        </main>
       </body>
     </html>`;
 }
@@ -902,6 +920,8 @@ function buildPrintableSavingsReportHtml({
 
   const classroomName = savingsGrid.classroom?.name || workspaceName || '-';
   const academicYear = savingsGrid.classroom?.academic_year || '2569';
+  const dateTo = days[days.length - 1]?.dateKey || dateFrom;
+  const documentCode = buildOfficialDocumentCode('CC-SAV', dateFrom, classroomName);
 
   return `<!doctype html>
     <html lang="th">
@@ -1007,19 +1027,16 @@ function buildPrintableSavingsReportHtml({
             font-weight: 700;
             color: #94a3b8;
           }
+          ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
+          .summary-card { background: #fff; border: 1px solid #666; border-radius: 0; }
+          .summary-card span, .summary-card strong, .month-total, .balance-total { color: #111; }
+          th, .weekend, .sum, .month-total, .balance-total, .total, tfoot td { background: #e9e9e9 !important; color: #111; }
+          th.name, td.name { width: 42mm; }
         </style>
       </head>
       <body>
-        <header>
-          <div class="logo">${reportIdentity.schoolLogoDataUrl ? `<img src="${escapeHtml(reportIdentity.schoolLogoDataUrl)}" alt="Logo" />` : 'C'}</div>
-          <div>
-            <h1>รายงานการบันทึกการออมเงินระดับชั้น ${escapeHtml(classroomName)}</h1>
-            <p class="subtitle">${escapeHtml(schoolName)} · ภาคเรียนที่ 1 ปีการศึกษา ${escapeHtml(academicYear)}</p>
-            <p class="subtitle">เดือน${escapeHtml(monthLabel)}</p>
-          </div>
-          <div></div>
-        </header>
-        <p class="classline">ระดับชั้น: ${escapeHtml(classroomName)}</p>
+        <main class="official-sheet">
+        ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: { ...reportIdentity, academicYear }, schoolName, subtitle: `ประจำเดือน${monthLabel}`, title: `รายงานการออมเงินระดับชั้น ${classroomName}` })}
         <section class="summary-grid">
           <div class="summary-card">
             <span>นักเรียนทั้งหมด</span>
@@ -1059,31 +1076,24 @@ function buildPrintableSavingsReportHtml({
             </tr>
           </tfoot>
         </table>
-        <div class="footer-section">
-          <div class="signatures">
-            <div>
-              <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.teacherName || teacherName)})</div>
-              <div class="role">ครูประจำชั้น</div>
-            </div>
-            <div>
-              <span>ลงชื่อ</span> <span class="signature-line"></span>
-              <div style="margin-top: 4px;">(${escapeHtml(reportIdentity.directorName || '................................................')})</div>
-              <div class="role">ผู้อำนวยการโรงเรียน</div>
-            </div>
-          </div>
-          <div class="footer-meta">
-            <div class="credit">Created by MIKPURINUT</div>
-          </div>
-        </div>
+        <div class="official-certification">ขอรับรองว่ารายการฝาก ถอน และยอดคงเหลือในรายงานฉบับนี้ตรงกับข้อมูลที่บันทึกในระบบ ณ วันตัดยอด</div>
+        ${buildOfficialSignaturesHtml([
+          { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+          { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานการเงินหรือวิชาการ' },
+          { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+        ])}
+        ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        </main>
       </body>
     </html>`;
 }
 
 interface PrintableTableReportOptions {
   columns: string[];
+  confidential?: boolean;
   dateFrom: string;
   dateTo: string;
+  documentPrefix?: string;
   reportIdentity: SchoolReportIdentity;
   rows: Array<Array<number | string | null | undefined>>;
   schoolName: string;
@@ -1095,8 +1105,10 @@ interface PrintableTableReportOptions {
 
 function buildPrintableTableReportHtml({
   columns,
+  confidential = true,
   dateFrom,
   dateTo,
+  documentPrefix = 'CC-RPT',
   reportIdentity,
   rows,
   schoolName,
@@ -1105,12 +1117,10 @@ function buildPrintableTableReportHtml({
   title,
   workspaceName,
 }: PrintableTableReportOptions) {
-  const logo = reportIdentity.schoolLogoDataUrl
-    ? `<img class="logo" src="${escapeHtml(reportIdentity.schoolLogoDataUrl)}" alt="โลโก้โรงเรียน" />`
-    : '<div class="logo-placeholder">ตราโรงเรียน</div>';
+  const documentCode = buildOfficialDocumentCode(documentPrefix, dateFrom, workspaceName);
   const tableRows = rows.length > 0
-    ? rows.map((row, index) => `<tr><td class="center">${index + 1}</td>${row.map((cell) => `<td>${escapeHtml(String(cell ?? '-'))}</td>`).join('')}</tr>`).join('')
-    : `<tr><td class="empty" colspan="${columns.length + 1}">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</td></tr>`;
+    ? rows.map((row, index) => `<tr><td class="official-center">${index + 1}</td>${row.map((cell) => `<td>${escapeHtml(String(cell ?? '-'))}</td>`).join('')}</tr>`).join('')
+    : `<tr><td class="official-center" colspan="${columns.length + 1}">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</td></tr>`;
 
   return `<!doctype html>
     <html lang="th">
@@ -1118,50 +1128,171 @@ function buildPrintableTableReportHtml({
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
         <style>
-          @page { margin: 12mm; size: A4 landscape; }
-          * { box-sizing: border-box; }
-          body { color: #0f172a; font-family: "Sarabun", "Noto Sans Thai", Tahoma, sans-serif; font-size: 11px; margin: 0; }
-          .header { align-items: center; display: grid; gap: 12px; grid-template-columns: 74px 1fr 74px; margin-bottom: 12px; text-align: center; }
-          .logo, .logo-placeholder { height: 62px; margin: auto; width: 62px; }
-          .logo { object-fit: contain; }
-          .logo-placeholder { align-items: center; border: 1px dashed #94a3b8; border-radius: 50%; color: #64748b; display: flex; font-size: 9px; justify-content: center; }
-          h1 { font-size: 20px; margin: 0 0 2px; }
-          .school { font-size: 14px; font-weight: 700; }
-          .meta { color: #475569; margin-top: 3px; }
-          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
-          th, td { border: 1px solid #64748b; padding: 5px 4px; text-align: left; vertical-align: top; word-break: break-word; }
-          th { background: #e2e8f0; font-weight: 800; text-align: center; }
-          th:first-child, td:first-child { width: 34px; }
-          .center { text-align: center; }
-          .empty { color: #64748b; padding: 18px; text-align: center; }
-          .signatures { display: grid; gap: 80px; grid-template-columns: 1fr 1fr; margin: 34px 55px 0; text-align: center; }
-          .signature-line { border-bottom: 1px dotted #475569; display: inline-block; min-width: 180px; }
-          .role { color: #475569; margin-top: 4px; }
-          .credit { color: #94a3b8; font-size: 9px; margin-top: 18px; text-align: right; }
+          ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
+          .official-table th:first-child, .official-table td:first-child { width: 9mm; }
         </style>
       </head>
       <body>
-        <div class="header">
-          <div>${logo}</div>
-          <div>
-            <h1>${escapeHtml(title)}</h1>
-            <div class="school">${escapeHtml(reportIdentity.schoolName || schoolName)}</div>
-            <div class="meta">${escapeHtml(reportIdentity.classroomName || workspaceName)} | ${escapeHtml(subtitle)}</div>
-            <div class="meta">ช่วงวันที่ ${escapeHtml(dateFrom)} ถึง ${escapeHtml(dateTo)} | ปีการศึกษา ${escapeHtml(reportIdentity.academicYear || '-')}</div>
-          </div>
-          <div></div>
-        </div>
-        <table>
+        <main class="official-sheet">
+        ${buildOfficialHeaderHtml({ classroomName: workspaceName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle, title })}
+        <table class="official-table">
           <thead><tr><th>ที่</th>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
-        <div class="signatures">
-          <div><span>ลงชื่อ</span> <span class="signature-line"></span><div>(${escapeHtml(reportIdentity.teacherName || teacherName)})</div><div class="role">ครูประจำชั้น</div></div>
-          <div><span>ลงชื่อ</span> <span class="signature-line"></span><div>(${escapeHtml(reportIdentity.directorName || '................................................')})</div><div class="role">ผู้อำนวยการโรงเรียน</div></div>
-        </div>
-        <div class="credit">Created by MIKPURINUT</div>
+        <div class="official-certification">ขอรับรองว่าข้อมูลในรายงานฉบับนี้ตรวจสอบจากข้อมูลที่บันทึกในระบบตามช่วงเวลาที่ระบุ และถูกต้องตามข้อมูลที่มีอยู่ ณ วันตัดยอด</div>
+        ${buildOfficialSignaturesHtml([
+          { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน / ครูประจำชั้น' },
+          { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+          { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+        ])}
+        ${buildOfficialFooterHtml({ confidential, documentCode })}
+        </main>
       </body>
     </html>`;
+}
+
+function buildPrintableStudentRegisterHtml({
+  classroomName,
+  dateFrom,
+  dateTo,
+  guardians,
+  reportIdentity,
+  revealCitizenIds,
+  schoolName,
+  students,
+  teacherName,
+}: {
+  classroomName: string;
+  dateFrom: string;
+  dateTo: string;
+  guardians: StudentGuardianReportRow[];
+  reportIdentity: SchoolReportIdentity;
+  revealCitizenIds: boolean;
+  schoolName: string;
+  students: StudentRow[];
+  teacherName: string;
+}) {
+  const documentCode = buildOfficialDocumentCode('CC-REG', dateFrom, classroomName);
+  const primaryGuardianByStudent = new Map<string, StudentGuardianReportRow>();
+  guardians.forEach((guardian) => {
+    if (!primaryGuardianByStudent.has(guardian.student_id) || guardian.is_primary) primaryGuardianByStudent.set(guardian.student_id, guardian);
+  });
+  const genderLabel = (gender: StudentRow['gender']) => gender === 'male' ? 'ชาย' : gender === 'female' ? 'หญิง' : gender === 'other' ? 'อื่น ๆ' : '-';
+  const studentPrefix = (gender: StudentRow['gender']) => gender === 'male' ? 'เด็กชาย' : gender === 'female' ? 'เด็กหญิง' : '';
+  const rows = students.map((student, index) => {
+    const guardian = primaryGuardianByStudent.get(student.id);
+    const metadata = student.metadata || {};
+    return `<tr>
+      <td class="official-center">${index + 1}</td>
+      <td class="official-center">${escapeHtml(student.student_code || '-')}</td>
+      <td>${escapeHtml(`${studentPrefix(student.gender)}${student.first_name} ${student.last_name}`)}</td>
+      <td class="official-center">${genderLabel(student.gender)}</td>
+      <td class="official-nowrap">${escapeHtml(formatThaiOfficialDate(student.birth_date))}</td>
+      <td class="official-nowrap">${escapeHtml(maskThaiCitizenId(metadata.dmc_id_card, revealCitizenIds))}</td>
+      <td>${escapeHtml(guardian?.display_name || '-')}</td>
+      <td>${escapeHtml(guardian?.relation || '-')}</td>
+      <td class="official-nowrap">${escapeHtml(guardian?.phone || '-')}</td>
+      <td class="official-center">${student.status === 'active' ? 'กำลังศึกษา' : escapeHtml(student.status || '-')}</td>
+    </tr>`;
+  }).join('');
+  const maleCount = students.filter((student) => student.gender === 'male').length;
+  const femaleCount = students.filter((student) => student.gender === 'female').length;
+
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>ทะเบียนนักเรียน ${escapeHtml(classroomName)}</title><style>
+    ${buildOfficialReportCss({ dense: true, marginMm: 10, orientation: 'landscape' })}
+    .register-summary { display: flex; font-size: 11pt; gap: 8mm; margin: 2mm 0; }
+    .official-table th:nth-child(1) { width: 8mm; }
+    .official-table th:nth-child(2) { width: 18mm; }
+    .official-table th:nth-child(3) { width: 42mm; }
+    .official-table th:nth-child(4) { width: 11mm; }
+    .official-table th:nth-child(5) { width: 25mm; }
+    .official-table th:nth-child(6) { width: 34mm; }
+    .official-table th:nth-child(8) { width: 18mm; }
+    .official-table th:nth-child(9) { width: 27mm; }
+    .official-table th:nth-child(10) { width: 24mm; }
+  </style></head><body><main class="official-sheet">
+    ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle: `ทะเบียนนักเรียนประจำปีการศึกษา ${reportIdentity.academicYear || '-'}`, title: 'ทะเบียนนักเรียน' })}
+    <div class="register-summary"><span>นักเรียนทั้งหมด ${students.length} คน</span><span>ชาย ${maleCount} คน</span><span>หญิง ${femaleCount} คน</span><span>ข้อมูล ณ ${formatThaiOfficialDate(dateTo)}</span></div>
+    <table class="official-table"><thead><tr><th>เลขที่</th><th>รหัส</th><th>ชื่อ–นามสกุล</th><th>เพศ</th><th>วันเกิด</th><th>เลขประจำตัวประชาชน</th><th>ผู้ปกครอง</th><th>สัมพันธ์</th><th>โทรศัพท์</th><th>สถานภาพ</th></tr></thead><tbody>${rows || '<tr><td colspan="10" class="official-center">ยังไม่มีข้อมูลนักเรียน</td></tr>'}</tbody></table>
+    <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · ${revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชนในเอกสารฉบับนี้'}</div>
+    ${buildOfficialSignaturesHtml([
+      { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+      { name: reportIdentity.registrarName || reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน' },
+      { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+    ])}
+    ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+  </main></body></html>`;
+}
+
+interface ExecutiveReportMetrics {
+  attendanceRate: number;
+  behaviorFollowUps: number;
+  healthCompletionRate: number;
+  healthFollowUps: number;
+  savingsTotal: number;
+  scoreAverage: number;
+  studentCount: number;
+}
+
+function buildPrintableExecutiveReportHtml({
+  classroomName,
+  dateFrom,
+  dateTo,
+  metrics,
+  reportIdentity,
+  schoolName,
+  teacherName,
+}: {
+  classroomName: string;
+  dateFrom: string;
+  dateTo: string;
+  metrics: ExecutiveReportMetrics;
+  reportIdentity: SchoolReportIdentity;
+  schoolName: string;
+  teacherName: string;
+}) {
+  const documentCode = buildOfficialDocumentCode('CC-EXE', dateFrom, classroomName);
+  const status = (value: number, target: number) => value >= target ? 'เป็นไปตามเป้าหมาย' : value >= target - 10 ? 'ควรเฝ้าระวัง' : 'ต้องเร่งติดตาม';
+  const executiveRows = [
+    ['เวลาเรียน', `${metrics.attendanceRate}%`, 'ไม่น้อยกว่า 90%', status(metrics.attendanceRate, 90), metrics.attendanceRate < 90 ? 'ติดตามนักเรียนขาดเรียนและประสานผู้ปกครอง' : 'รักษาระดับและติดตามรายบุคคล'],
+    ['ผลการเรียน', `${metrics.scoreAverage}%`, 'ไม่น้อยกว่า 70%', status(metrics.scoreAverage, 70), metrics.scoreAverage < 70 ? 'จัดกิจกรรมสอนเสริมรายวิชาที่ต่ำกว่าเกณฑ์' : 'ติดตามชุดคะแนนที่ยังกรอกไม่ครบ'],
+    ['สุขภาพและกิจวัตร', `${metrics.healthCompletionRate}%`, 'ไม่น้อยกว่า 90%', status(metrics.healthCompletionRate, 90), `มีนักเรียนต้องติดตามสุขอนามัย ${metrics.healthFollowUps} คน`],
+    ['พฤติกรรม/การดูแล', `${metrics.behaviorFollowUps} เคส`, 'ปิดเคสตามกำหนด', metrics.behaviorFollowUps === 0 ? 'เป็นไปตามเป้าหมาย' : 'ควรเฝ้าระวัง', 'มอบหมายครูประจำชั้นติดตามและบันทึกผลดำเนินงาน'],
+    ['การออม', `${metrics.savingsTotal.toLocaleString('th-TH')} บาท`, 'รายงานครบถ้วน', 'ข้อมูลประกอบ', 'ตรวจสอบยอดกับบัญชีรายบุคคลก่อนรับรอง'],
+  ];
+  const proposedAction = [
+    metrics.attendanceRate < 90 ? 'เร่งติดตามนักเรียนที่มีเวลาเรียนต่ำกว่าเกณฑ์' : '',
+    metrics.scoreAverage < 70 ? 'จัดกิจกรรมสอนเสริมและติดตามผลสัมฤทธิ์' : '',
+    metrics.healthFollowUps > 0 ? `ติดตามสุขอนามัยนักเรียน ${metrics.healthFollowUps} คน` : '',
+    metrics.behaviorFollowUps > 0 ? `ทบทวนแผนช่วยเหลือนักเรียน ${metrics.behaviorFollowUps} เคส` : '',
+  ].filter(Boolean).join(' · ') || 'ผลดำเนินงานโดยรวมเป็นไปตามเป้าหมาย ให้ดำเนินงานตามแผนและติดตามต่อเนื่อง';
+
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานสรุปผู้บริหาร</title><style>
+    ${buildOfficialReportCss({ dense: false, marginMm: 14, orientation: 'portrait' })}
+    .official-table th:nth-child(1) { width: 27mm; }
+    .official-table th:nth-child(2) { width: 25mm; }
+    .official-table th:nth-child(3) { width: 28mm; }
+    .official-table th:nth-child(4) { width: 31mm; }
+  </style></head><body><main class="official-sheet">
+    ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle: 'รายงานผลดำเนินงานจากข้อมูลในระบบ ClassCare 360', title: 'รายงานสรุปผลการดำเนินงานสำหรับผู้บริหาร' })}
+    <section class="official-kpi-grid">
+      <div class="official-kpi"><span>นักเรียนทั้งหมด</span><strong>${metrics.studentCount} คน</strong></div>
+      <div class="official-kpi"><span>อัตรามาเรียน</span><strong>${metrics.attendanceRate}%</strong></div>
+      <div class="official-kpi"><span>คะแนนเฉลี่ย</span><strong>${metrics.scoreAverage}%</strong></div>
+      <div class="official-kpi"><span>ต้องติดตาม</span><strong>${metrics.behaviorFollowUps + metrics.healthFollowUps} รายการ</strong></div>
+    </section>
+    <h2 class="official-section-title">1. สรุปผลตามภารกิจ</h2>
+    <table class="official-table"><thead><tr><th>ด้าน</th><th>ผลช่วงนี้</th><th>เกณฑ์กำกับ</th><th>สถานะ</th><th>สาระสำคัญ/แนวทางดำเนินงาน</th></tr></thead><tbody>${executiveRows.map((row) => `<tr>${row.map((cell, index) => `<td class="${index > 0 && index < 4 ? 'official-center' : ''}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <h2 class="official-section-title">2. ประเด็นเสนอเพื่อพิจารณาและข้อสั่งการ</h2>
+    <div class="official-decision">${escapeHtml(proposedAction)}<br /><br />ข้อสั่งการผู้บริหาร ........................................................................................................................................................................</div>
+    <div class="official-certification">รายงานฉบับนี้ประมวลผลจากข้อมูลเวลาเรียน คะแนน สุขภาพ พฤติกรรม และการออมที่บันทึกใน workspace เดียวกัน ณ วันตัดยอด</div>
+    ${buildOfficialSignaturesHtml([
+      { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน' },
+      { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+      { name: reportIdentity.directorName, role: 'ทราบ / อนุมัติ' },
+    ])}
+    ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+  </main></body></html>`;
 }
 
 export function ReportsPage({ session }: ReportsPageProps) {
@@ -1183,6 +1314,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [behaviorRecords, setBehaviorRecords] = useState<BehaviorRecordRow[]>(demoBehaviorRecords);
   const [homeVisits, setHomeVisits] = useState<HomeVisitReportRow[]>(demoHomeVisits);
   const [healthRecords, setHealthRecords] = useState<StudentHealthRecordRow[]>(demoHealthRecords);
+  const [guardians, setGuardians] = useState<StudentGuardianReportRow[]>(demoGuardians);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
   const [reportView, setReportView] = useState<ReportView>(initialReportView);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(initialReportPeriod);
@@ -1199,6 +1331,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [query, setQuery] = useState('');
   const [selectedSubjectName, setSelectedSubjectName] = useState('');
   const [selectedPeriodLabel, setSelectedPeriodLabel] = useState('');
+  const [revealCitizenIds, setRevealCitizenIds] = useState(false);
   const [coreMetrics, setCoreMetrics] = useState<CoreReportMetrics>(emptyCoreMetrics);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [notice, setNotice] = useState<string | null>(
@@ -1287,6 +1420,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         setBehaviorRecords(demoBehaviorRecords);
         setHomeVisits(demoHomeVisits);
         setHealthRecords(demoHealthRecords);
+        setGuardians(demoGuardians);
         setCoreMetrics({
           attendance: {
             presentRate: 67,
@@ -1328,7 +1462,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,student_code,first_name,last_name,nickname,classroom_id')
+          .select('id,student_code,first_name,last_name,nickname,classroom_id,birth_date,gender,status,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('student_code', { ascending: true }),
         supabase
@@ -1386,6 +1520,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         { data: behaviorRows, error: behaviorError },
         { data: homeVisitRows, error: homeVisitError },
         { data: healthRows, error: healthError },
+        { data: guardianRows, error: guardianError },
       ] = await Promise.all([
         supabase
           .from('score_assessments')
@@ -1429,9 +1564,15 @@ export function ReportsPage({ session }: ReportsPageProps) {
           .lte('record_date', dateTo)
           .order('record_date', { ascending: false })
           .limit(3000),
+        supabase
+          .from('student_guardians')
+          .select('student_id,display_name,relation,phone,is_primary')
+          .eq('workspace_id', session.workspace.id)
+          .order('is_primary', { ascending: false })
+          .limit(3000),
       ]);
 
-      if (assessmentError || accountError || transactionError || behaviorError || homeVisitError || healthError) {
+      if (assessmentError || accountError || transactionError || behaviorError || homeVisitError || healthError || guardianError) {
         setNotice(
           assessmentError?.message ||
             accountError?.message ||
@@ -1439,6 +1580,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
             behaviorError?.message ||
             homeVisitError?.message ||
             healthError?.message ||
+            guardianError?.message ||
             'โหลดข้อมูลรายงานบางส่วนไม่สำเร็จ',
         );
       }
@@ -1468,6 +1610,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       const nextBehaviorRecords = (behaviorRows || []) as BehaviorRecordRow[];
       const nextHomeVisits = (homeVisitRows || []) as HomeVisitReportRow[];
       const nextHealthRecords = (healthRows || []) as StudentHealthRecordRow[];
+      const nextGuardians = (guardianRows || []) as StudentGuardianReportRow[];
       setScoreAssessments(nextAssessments);
       setScoreEntries(nextScoreEntries);
       setSavingsAccounts(nextSavingsAccounts);
@@ -1475,6 +1618,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       setBehaviorRecords(nextBehaviorRecords);
       setHomeVisits(nextHomeVisits);
       setHealthRecords(nextHealthRecords);
+      setGuardians(nextGuardians);
 
       const scorePercents = nextScoreEntries
         .map((row) => {
@@ -1752,6 +1896,24 @@ export function ReportsPage({ session }: ReportsPageProps) {
     }),
     [classroomHealthRecords, classroomStudents],
   );
+  const classroomGuardians = useMemo(
+    () => guardians.filter((guardian) => classroomStudentIds.has(guardian.student_id)),
+    [classroomStudentIds, guardians],
+  );
+  const executiveMetrics = useMemo<ExecutiveReportMetrics>(() => {
+    const routineRecords = classroomHealthRecords.filter((record) => ['toothbrushing', 'milk', 'lunch'].includes(record.record_type));
+    const routineCount = routineRecords.filter((record) => record.status !== 'exempt' && record.status !== 'not_checked').length;
+    const completedCount = routineRecords.filter((record) => record.status === 'completed').length;
+    return {
+      attendanceRate: coreMetrics.attendance.presentRate,
+      behaviorFollowUps: coreMetrics.behavior.followUps,
+      healthCompletionRate: routineCount > 0 ? round((completedCount / routineCount) * 100) : 0,
+      healthFollowUps: healthSummaryRows.filter((row) => row.attentionItems.length > 0 || row.latestHygiene?.status === 'attention').length,
+      savingsTotal: coreMetrics.savings.totalBalance,
+      scoreAverage: coreMetrics.scores.averagePercent,
+      studentCount: classroomStudents.length,
+    };
+  }, [classroomHealthRecords, classroomStudents.length, coreMetrics, healthSummaryRows]);
   const selectedStudentAttendanceRecords = useMemo(
     () => (selectedStudent ? attendanceRecords.filter((record) => record.student_id === selectedStudent.id) : []),
     [attendanceRecords, selectedStudent],
@@ -1797,6 +1959,10 @@ export function ReportsPage({ session }: ReportsPageProps) {
           ? scoreAssessmentRows.length
           : reportView === 'health'
             ? classroomHealthRecords.length
+          : reportView === 'student-register'
+            ? classroomStudents.length
+          : reportView === 'executive'
+            ? classroomStudents.length
           : reportView === 'behavior'
             ? behaviorReportRows.length
             : reportView === 'individual' && selectedStudent
@@ -1860,8 +2026,9 @@ export function ReportsPage({ session }: ReportsPageProps) {
       return buildPrintableTableReportHtml({
         ...common,
         columns: ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'],
+        documentPrefix: 'CC-SCO',
         rows: scoreAssessmentRows.map((row) => [
-          row.assessment.assessment_date,
+          formatThaiOfficialDate(row.assessment.assessment_date),
           row.assessment.subject_name,
           row.assessment.title,
           scoreCategoryLabels[row.assessment.category],
@@ -1880,6 +2047,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       return buildPrintableTableReportHtml({
         ...common,
         columns: ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'],
+        documentPrefix: 'CC-HLT',
         rows: healthSummaryRows.map((row) => [
           row.student.student_code || '-',
           `${row.student.first_name} ${row.student.last_name}`,
@@ -1889,7 +2057,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
           row.latestGrowth?.weight_kg ? `${row.latestGrowth.weight_kg} กก.` : '-',
           row.latestGrowth?.height_cm ? `${row.latestGrowth.height_cm} ซม.` : '-',
           row.latestGrowth?.bmi ?? '-',
-          row.latestHygiene?.record_date || '-',
+          formatThaiOfficialDate(row.latestHygiene?.record_date),
           row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
         ]),
         subtitle: `${periodLabel} | กิจวัตรที่ทำสำเร็จ/จำนวนครั้งที่บันทึก`,
@@ -1897,14 +2065,41 @@ export function ReportsPage({ session }: ReportsPageProps) {
       });
     }
 
+    if (reportView === 'student-register') {
+      return buildPrintableStudentRegisterHtml({
+        classroomName: common.workspaceName,
+        dateFrom,
+        dateTo,
+        guardians: classroomGuardians,
+        reportIdentity,
+        revealCitizenIds,
+        schoolName: common.schoolName,
+        students: classroomStudents,
+        teacherName: common.teacherName,
+      });
+    }
+
+    if (reportView === 'executive') {
+      return buildPrintableExecutiveReportHtml({
+        classroomName: common.workspaceName,
+        dateFrom,
+        dateTo,
+        metrics: executiveMetrics,
+        reportIdentity,
+        schoolName: common.schoolName,
+        teacherName: common.teacherName,
+      });
+    }
+
     if (reportView === 'behavior') {
       return buildPrintableTableReportHtml({
         ...common,
         columns: ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'],
+        documentPrefix: 'CC-BHV',
         rows: behaviorReportRows.map((row) => {
           const student = studentById.get(row.student_id);
           return [
-            row.behavior_date,
+            formatThaiOfficialDate(row.behavior_date),
             student?.student_code || '-',
             student ? `${student.first_name} ${student.last_name}` : '-',
             toneLabels[row.tone],
@@ -1922,10 +2117,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
     return buildPrintableTableReportHtml({
       ...common,
       columns: ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'],
+      documentPrefix: 'CC-IND',
       rows: selectedStudent
         ? [
             ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
-            ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${dateFrom} ถึง ${dateTo}`],
+            ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${formatThaiOfficialDate(dateFrom)} ถึง ${formatThaiOfficialDate(dateTo)}`],
             ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
             ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
             ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
@@ -1938,7 +2134,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportCsv() {
-    const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'เครดิต'];
+    const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'แหล่งข้อมูล'];
     const lines = [
       headers.map(escapeCsv).join(','),
       ...(reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) =>
@@ -1950,7 +2146,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
           row.studentName,
           statusLabels[row.status],
           row.note,
-          'Created by MIKPURINUT',
+          'พิมพ์จากระบบ ClassCare 360',
         ]
           .map(escapeCsv)
           .join(','),
@@ -2013,6 +2209,22 @@ export function ReportsPage({ session }: ReportsPageProps) {
                   studentName: `${row.student.first_name} ${row.student.last_name}`,
                   weightKg: row.latestGrowth?.weight_kg ?? null,
                 }))
+            : reportView === 'student-register'
+              ? classroomStudents.map((student) => {
+                  const guardian = classroomGuardians.find((row) => row.student_id === student.id && row.is_primary) || classroomGuardians.find((row) => row.student_id === student.id);
+                  return {
+                    birthDate: student.birth_date,
+                    gender: student.gender,
+                    guardianName: guardian?.display_name || null,
+                    guardianPhone: guardian?.phone || null,
+                    guardianRelation: guardian?.relation || null,
+                    status: student.status,
+                    studentCode: student.student_code,
+                    studentName: `${student.first_name} ${student.last_name}`,
+                  };
+                })
+            : reportView === 'executive'
+              ? [executiveMetrics]
             : reportView === 'behavior'
               ? behaviorReportRows.map((row) => {
                   const student = studentById.get(row.student_id);
@@ -2043,7 +2255,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 : [];
     const payload = {
       createdAt: new Date().toISOString(),
-      credit: 'Created by MIKPURINUT',
+      source: 'ClassCare 360',
       filters: {
         classroomId,
         dateFrom,
@@ -2240,6 +2452,18 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </div>
               ) : null}
 
+              {reportView === 'student-register' ? (
+                <label className="flex items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50/70 p-3 text-sm font-bold text-slate-700">
+                  <input
+                    checked={revealCitizenIds}
+                    className="mt-1 h-4 w-4"
+                    onChange={(event) => setRevealCitizenIds(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>แสดงเลขประจำตัวประชาชนเต็มในเอกสารพิมพ์ <small className="mt-1 block font-bold text-amber-700">ค่าเริ่มต้นปกปิดเพื่อคุ้มครองข้อมูลส่วนบุคคล</small></span>
+                </label>
+              ) : null}
+
               {reportPeriod === 'term' ? (
                 <div className="grid gap-3 rounded-3xl border border-amber-200 bg-amber-50/60 p-3">
                   <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -2347,7 +2571,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 {selectedClassroom?.name || '-'} | {dateFrom} ถึง {dateTo}
               </p>
             </div>
-            <p className="text-xs font-bold text-slate-500">Created by MIKPURINUT</p>
+            <p className="text-xs font-bold text-slate-500">ระบบสารสนเทศ ClassCare 360</p>
           </div>
 
           {reportView === 'attendance' || reportView === 'subject-attendance' ? (
@@ -2550,6 +2774,60 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </div>
               ) : null}
             </>
+          ) : null}
+
+          {reportView === 'student-register' ? (
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'นักเรียนทั้งหมด', value: classroomStudents.length, detail: selectedClassroom?.name || '-' },
+                  { label: 'ชาย', value: classroomStudents.filter((student) => student.gender === 'male').length, detail: 'ตามข้อมูลทะเบียน' },
+                  { label: 'หญิง', value: classroomStudents.filter((student) => student.gender === 'female').length, detail: 'ตามข้อมูลทะเบียน' },
+                ].map((item) => (
+                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
+                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
+                    <p className="mt-2 text-4xl font-black text-slate-950">{item.value}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                <table className="min-w-[1100px] divide-y divide-slate-100 text-left text-sm">
+                  <thead className="bg-slate-50"><tr className="text-xs font-black uppercase text-slate-500"><th className="px-3 py-3">รหัส</th><th className="px-3 py-3">ชื่อ–นามสกุล</th><th className="px-3 py-3">เพศ</th><th className="px-3 py-3">วันเกิด</th><th className="px-3 py-3">เลขประชาชน</th><th className="px-3 py-3">ผู้ปกครอง</th><th className="px-3 py-3">โทรศัพท์</th><th className="px-3 py-3">สถานภาพ</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {classroomStudents.map((student) => {
+                      const guardian = classroomGuardians.find((row) => row.student_id === student.id && row.is_primary) || classroomGuardians.find((row) => row.student_id === student.id);
+                      return <tr key={student.id}><td className="px-3 py-3 font-black">{student.student_code || '-'}</td><td className="px-3 py-3 font-black text-slate-950">{student.first_name} {student.last_name}</td><td className="px-3 py-3">{student.gender === 'male' ? 'ชาย' : student.gender === 'female' ? 'หญิง' : '-'}</td><td className="px-3 py-3">{formatThaiOfficialDate(student.birth_date)}</td><td className="px-3 py-3 font-mono text-xs">{maskThaiCitizenId(student.metadata?.dmc_id_card, false)}</td><td className="px-3 py-3">{guardian?.display_name || '-'}</td><td className="px-3 py-3">{guardian?.phone || '-'}</td><td className="px-3 py-3">{student.status === 'active' ? 'กำลังศึกษา' : student.status || '-'}</td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {reportView === 'executive' ? (
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'นักเรียน', value: `${executiveMetrics.studentCount} คน`, detail: selectedClassroom?.name || '-' },
+                  { label: 'อัตรามาเรียน', value: `${executiveMetrics.attendanceRate}%`, detail: 'เกณฑ์กำกับ 90%' },
+                  { label: 'คะแนนเฉลี่ย', value: `${executiveMetrics.scoreAverage}%`, detail: 'เกณฑ์กำกับ 70%' },
+                  { label: 'ต้องติดตาม', value: `${executiveMetrics.behaviorFollowUps + executiveMetrics.healthFollowUps}`, detail: 'เคสดูแลและสุขอนามัย' },
+                ].map((item) => <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}><p className="text-xs font-black uppercase text-slate-400">{item.label}</p><p className="mt-2 text-3xl font-black text-slate-950">{item.value}</p><p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p></article>)}
+              </div>
+              <article className="rounded-3xl border border-slate-200 bg-white p-4">
+                <h3 className="text-lg font-black text-slate-950">สาระสำคัญสำหรับผู้บริหาร</h3>
+                <div className="mt-3 grid gap-2">
+                  {[
+                    ['เวลาเรียน', `${executiveMetrics.attendanceRate}%`, executiveMetrics.attendanceRate >= 90 ? 'เป็นไปตามเป้าหมาย' : 'ต้องเร่งติดตาม'],
+                    ['ผลการเรียน', `${executiveMetrics.scoreAverage}%`, executiveMetrics.scoreAverage >= 70 ? 'เป็นไปตามเป้าหมาย' : 'ควรจัดสอนเสริม'],
+                    ['สุขภาพและกิจวัตร', `${executiveMetrics.healthCompletionRate}%`, `ติดตามสุขอนามัย ${executiveMetrics.healthFollowUps} คน`],
+                    ['พฤติกรรม/การดูแล', `${executiveMetrics.behaviorFollowUps} เคส`, 'ติดตามและบันทึกผลดำเนินงาน'],
+                    ['การออม', `${executiveMetrics.savingsTotal.toLocaleString('th-TH')} บาท`, 'ข้อมูลประกอบการบริหารชั้นเรียน'],
+                  ].map(([label, value, detail]) => <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 sm:grid-cols-[180px_110px_1fr]" key={label}><strong className="text-slate-950">{label}</strong><span className="font-black text-cyan-700">{value}</span><span className="font-bold text-slate-600">{detail}</span></div>)}
+                </div>
+              </article>
+            </div>
           ) : null}
 
           {reportView === 'health' ? (
@@ -2840,6 +3118,15 @@ export function ReportsPage({ session }: ReportsPageProps) {
                     />
                   </label>
                   <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ชื่อนายทะเบียนโรงเรียน
+                    <input
+                      className="nexus-field h-11 px-3"
+                      onChange={(event) => setReportIdentity((current) => ({ ...current, registrarName: event.target.value }))}
+                      placeholder="ชื่อผู้รับรองทะเบียนนักเรียน"
+                      value={reportIdentity.registrarName}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
                     โลโก้โรงเรียน
                     <div className="flex gap-2">
                       <input
@@ -2903,7 +3190,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       ) : null}
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-        Created by MIKPURINUT
+        ระบบสารสนเทศ ClassCare 360
       </footer>
     </main>
   );

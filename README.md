@@ -214,7 +214,7 @@ npm.cmd run check:deploy
 
 - หน้า `/app/dashboard?view=reports` export ได้ทั้ง CSV, Excel-compatible `.xls`, JSON package และ PDF/พิมพ์ผ่านหน้ารายงานสะอาด
 - JSON package มี filters, summary, rows, workspace id, timezone, timestamp และเครดิต สำหรับส่งต่อหรือ debug ข้ามเครื่อง
-- PDF/พิมพ์ใช้ layout A4 landscape พร้อมหัวรายงาน summary ตารางรายละเอียด และเครดิต `Created by MIKPURINUT`
+- PDF/พิมพ์ใช้แม่แบบเอกสารราชการ A4 พร้อมเลขที่เอกสาร วันที่ไทย ข้อความรับรอง ผู้ลงนาม และส่วนท้ายกำกับเอกสาร
 - ตรวจแล้ว: `npm.cmd run lint`, `npm.cmd run build`, `npm.cmd audit --audit-level=moderate`, HTTP status `200` สำหรับ reports/setup/audit
 
 ## Environment Variables

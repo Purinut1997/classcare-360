@@ -38,6 +38,7 @@ export interface SchoolReportIdentity {
   academicYear: string;
   classroomName: string;
   directorName: string;
+  registrarName: string;
   schoolLogoDataUrl: string;
   schoolName: string;
   teacherName: string;
@@ -101,6 +102,7 @@ export function getDefaultSchoolReportIdentity(): SchoolReportIdentity {
     academicYear: '2569',
     classroomName: 'ป.5/1',
     directorName: '',
+    registrarName: '',
     schoolLogoDataUrl: '',
     schoolName: 'โรงเรียนตัวอย่าง ClassCare',
     teacherName: '',

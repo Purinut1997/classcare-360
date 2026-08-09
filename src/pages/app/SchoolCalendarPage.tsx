@@ -12,6 +12,16 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import {
+  buildOfficialDocumentCode,
+  buildOfficialFooterHtml,
+  buildOfficialHeaderHtml,
+  buildOfficialReportCss,
+  buildOfficialSignaturesHtml,
+  escapeOfficialHtml,
+  formatThaiOfficialDate,
+} from '../../lib/officialReport';
+import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -303,6 +313,41 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     setCurrentMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1));
   };
 
+  const printCalendarReport = () => {
+    const reportWindow = window.open('', '_blank');
+    if (!reportWindow) {
+      setSync({ status: 'error', message: 'เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต popup แล้วลองอีกครั้ง' });
+      return;
+    }
+    const identity = loadSchoolReportIdentity();
+    const schoolName = session.workspace?.schoolName || session.profile.schoolName || identity.schoolName || 'โรงเรียน';
+    const classroomName = session.workspace?.classroomName || identity.classroomName || 'งานบริหารวิชาการ';
+    const dateFrom = toDateInput(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+    const dateTo = toDateInput(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
+    const documentCode = buildOfficialDocumentCode('CC-CAL', dateFrom, classroomName);
+    const rows = monthEvents.map((event, index) => `<tr><td class="official-center">${index + 1}</td><td class="official-nowrap">${escapeOfficialHtml(formatThaiOfficialDate(event.date))}</td><td>${escapeOfficialHtml(event.title)}</td><td class="official-center">${escapeOfficialHtml(typeLabels[event.type])}</td><td>${escapeOfficialHtml(policyLabels[event.attendancePolicy])}</td></tr>`).join('');
+
+    reportWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>ปฏิทินโรงเรียน ${escapeOfficialHtml(currentMonthText)}</title><style>
+      ${buildOfficialReportCss({ dense: false, marginMm: 14, orientation: 'portrait' })}
+      .calendar-summary { display: grid; gap: 2mm; grid-template-columns: repeat(4, 1fr); margin: 3mm 0; }
+      .calendar-summary div { border: 1px solid #555; padding: 2mm; text-align: center; }
+      .calendar-summary span { display: block; font-size: 10pt; }
+      .calendar-summary strong { display: block; font-size: 15pt; }
+    </style></head><body><main class="official-sheet">
+      ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity, schoolName, subtitle: `ประจำเดือน${currentMonthText}`, title: 'ปฏิทินกิจกรรมและวันสำคัญของโรงเรียน' })}
+      <section class="calendar-summary"><div><span>รายการทั้งหมด</span><strong>${stats.total}</strong></div><div><span>วันหยุด</span><strong>${stats.holiday}</strong></div><div><span>วันสอบ</span><strong>${stats.exam}</strong></div><div><span>กระทบเช็กชื่อ</span><strong>${stats.attendanceImpact}</strong></div></section>
+      <table class="official-table"><thead><tr><th>ที่</th><th>วันที่</th><th>รายการ</th><th>ประเภท</th><th>นโยบายเวลาเรียน</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="official-center">ไม่มีวันสำคัญหรือกิจกรรมในเดือนนี้</td></tr>'}</tbody></table>
+      <div class="official-certification">ขอรับรองว่าปฏิทินฉบับนี้ผ่านการตรวจสอบวันหยุด วันสอบ กิจกรรม และนโยบายการบันทึกเวลาเรียนตามข้อมูล ณ วันตัดยอด</div>
+      ${buildOfficialSignaturesHtml([
+        { name: identity.teacherName || session.profile.displayName, role: 'ผู้จัดทำ / ครูผู้รับผิดชอบ' },
+        { name: identity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+        { name: identity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+      ])}
+      ${buildOfficialFooterHtml({ confidential: false, documentCode })}
+    </main><script>window.addEventListener('load',()=>{window.focus();window.print();});</script></body></html>`);
+    reportWindow.document.close();
+  };
+
   const addEvent = async () => {
     if (!draft.title.trim()) return;
 
@@ -486,7 +531,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               </button>
               <button
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700"
-                onClick={() => window.print()}
+                onClick={printCalendarReport}
                 type="button"
               >
                 <Printer size={17} aria-hidden="true" />

@@ -26,6 +26,15 @@ import {
 } from 'lucide-react';
 
 import { getBangkokDate } from '../../lib/date';
+import {
+  buildOfficialDocumentCode,
+  buildOfficialFooterHtml,
+  buildOfficialHeaderHtml,
+  buildOfficialReportCss,
+  buildOfficialSignaturesHtml,
+  formatThaiOfficialDate,
+} from '../../lib/officialReport';
+import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -902,6 +911,9 @@ function renderHomeVisitPrintHtml({
 }) {
   const studentName = `${student.first_name} ${student.last_name}`;
   const classroomLabel = classroom ? `${classroom.name} ${classroom.academic_year ? `ปีการศึกษา ${classroom.academic_year}` : ''}` : '-';
+  const identity = loadSchoolReportIdentity();
+  const reportDate = form.visitDate || getBangkokDate();
+  const documentCode = buildOfficialDocumentCode('CC-HOV', reportDate, student.student_code);
   const rows = [
     ['ผู้ปกครอง', form.guardianName || guardian?.display_name || '-'],
     ['ความสัมพันธ์', form.relationship || guardian?.relation || '-'],
@@ -975,22 +987,17 @@ function renderHomeVisitPrintHtml({
     .signatures { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); margin-top: 28px; }
     .signature { border-top: 1px solid #0f172a; padding-top: 6px; text-align: center; }
     .muted { color: #64748b; font-size: 11px; }
+    ${buildOfficialReportCss({ dense: false, marginMm: 14, orientation: 'portrait' })}
+    .page { min-height: 270mm; }
+    .section h2 { background: #e9e9e9; border: 1px solid #555; border-radius: 0; color: #111; }
+    .field, .photo-box, .cert { border-color: #555; border-radius: 0; }
+    th { background: #e9e9e9; }
     @media print { button { display: none; } .page { page-break-after: always; } }
   </style>
 </head>
 <body>
-  <main class="page">
-    <header class="header">
-      <div>
-        <p class="brand">ClassCare 360 / Home Visit</p>
-        <h1 class="title">แบบขอรับเงินอุดหนุนนักเรียนยากจน กสศ.01</h1>
-        <p class="subtitle">จัดพิมพ์จากระบบ ClassCare 360 | ${escapeHtml(new Date().toLocaleString('th-TH'))}</p>
-      </div>
-      <div class="badge">
-        <span>Complete</span>
-        <strong>${completion}%</strong>
-      </div>
-    </header>
+	  <main class="page official-sheet">
+      ${buildOfficialHeaderHtml({ classroomName: classroom?.name || '-', dateFrom: reportDate, dateTo: reportDate, documentCode, identity, schoolName, subtitle: `แบบบันทึกการเยี่ยมบ้าน · ความครบถ้วน ${completion}%`, title: 'แบบขอรับเงินอุดหนุนนักเรียนยากจน กสศ.01' })}
 
     <section class="section">
       <h2>1. ข้อมูลนักเรียน</h2>
@@ -999,7 +1006,7 @@ function renderHomeVisitPrintHtml({
         <div class="field"><span>ชั้น/ห้อง</span><strong>${escapeHtml(classroomLabel)}</strong></div>
         <div class="field"><span>ชื่อนักเรียน</span><strong>${escapeHtml(studentName)}</strong></div>
         <div class="field"><span>รหัสนักเรียน</span><strong>${escapeHtml(student.student_code || '-')}</strong></div>
-        <div class="field"><span>วันที่เยี่ยมบ้าน</span><strong>${escapeHtml(form.visitDate || '-')}</strong></div>
+        <div class="field"><span>วันที่เยี่ยมบ้าน</span><strong>${escapeHtml(formatThaiOfficialDate(form.visitDate))}</strong></div>
         <div class="field"><span>สถานะเอกสาร</span><strong>${escapeHtml(homeVisitStatusLabels[form.status])}</strong></div>
       </div>
     </section>
@@ -1033,13 +1040,14 @@ function renderHomeVisitPrintHtml({
         <p>${form.consentAccepted ? 'รับรองว่าได้แจ้งวัตถุประสงค์การเก็บข้อมูลและข้อมูลส่วนบุคคลแล้ว' : 'ยังไม่ได้ยืนยันการรับรองข้อมูลส่วนบุคคล'}</p>
         <p class="muted">หมายเหตุ: ครูผู้สำรวจ/เยี่ยมบ้านเก็บข้อมูล ไม่มีส่วนเกี่ยวข้องกับการพิจารณาคัดกรองความยากจน</p>
       </div>
-      <div class="signatures">
-        <div class="signature">นักเรียน</div>
-        <div class="signature">ผู้ปกครอง</div>
-        <div class="signature">ครูผู้เยี่ยมบ้าน/สำรวจข้อมูล</div>
-      </div>
-    </section>
-  </main>
+        ${buildOfficialSignaturesHtml([
+          { name: studentName, role: 'นักเรียนผู้ให้ข้อมูล' },
+          { name: form.guardianName || guardian?.display_name, role: 'ผู้ปกครองผู้รับรองข้อมูล' },
+          { name: identity.teacherName, role: 'ครูผู้เยี่ยมบ้าน / ผู้สำรวจข้อมูล' },
+        ])}
+	    </section>
+      ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+	  </main>
   <script>
     window.addEventListener('load', () => {
       window.focus();

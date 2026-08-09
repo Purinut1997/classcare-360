@@ -21,6 +21,13 @@ import QRCode from "qrcode";
 
 import { writeAuditLog } from "../../lib/auditLog";
 import { getBangkokDate } from "../../lib/date";
+import {
+  buildOfficialDocumentCode,
+  buildOfficialFooterHtml,
+  buildOfficialHeaderHtml,
+  buildOfficialReportCss,
+  buildOfficialSignaturesHtml,
+} from "../../lib/officialReport";
 import { loadSchoolReportIdentity } from "../../lib/scheduleSettings";
 import { isSupabaseReady, supabase } from "../../lib/supabaseClient";
 import type { AppSessionContext } from "../../types/core";
@@ -507,6 +514,8 @@ export function ClassroomOperationsPage({
       ? identity.schoolName
       : session.workspace.schoolName;
     const logo = identity.schoolLogoDataUrl || "/brand/classcare-360-icon-128.png";
+    const classroomName = classroom?.name || session.workspace.classroomName;
+    const documentCode = buildOfficialDocumentCode("CC-DTY", weekStart, classroomName);
 
     reportWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8" />
       <title>ตารางเวร ${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</title>
@@ -548,13 +557,22 @@ export function ClassroomOperationsPage({
         .signature .line { border-bottom: 1px dotted #344054; display: inline-block; min-width: 160px; }
         .signature p { margin: 2px 0 0; }
         .generated { bottom: 0; color: #98a2b3; font-size: 7.5px; position: absolute; right: 0; }
+        ${buildOfficialReportCss({ dense: true, marginMm: 10, orientation: "landscape" })}
+        .sheet { width: auto; }
+        .meta div, .student, .summary { background: #fff; border-color: #555; border-radius: 0; }
+        thead th, thead th:first-child, tbody th { background: #e9e9e9; color: #111; }
         @media print { .sheet { margin: 0; } }
-      </style></head><body><main class="sheet">
-        <header><img class="logo" src="${escapeDutyHtml(logo)}" alt="ตราโรงเรียน" /><div class="header-copy"><h1>ตารางเวรประจำสัปดาห์</h1><div class="school">${escapeDutyHtml(schoolName)} · ${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</div><div class="period">${dateLabel(weekStart)} – ${dateLabel(weekEnd)} · ปีการศึกษา ${escapeDutyHtml(classroom?.academic_year || session.workspace.academicYear)}</div></div><div></div></header>
+      </style></head><body><main class="sheet official-sheet">
+        ${buildOfficialHeaderHtml({ classroomName, dateFrom: weekStart, dateTo: weekEnd, documentCode, identity: { ...identity, schoolLogoDataUrl: logo }, schoolName, subtitle: `ปีการศึกษา ${classroom?.academic_year || session.workspace.academicYear}`, title: "ตารางเวรประจำสัปดาห์" })}
         <section class="meta"><div><span>โรงเรียน</span><strong>${escapeDutyHtml(schoolName)}</strong></div><div><span>ห้องเรียน</span><strong>${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</strong></div><div><span>ครูประจำชั้น</span><strong>${escapeDutyHtml(teacherName)}</strong></div><div><span>ช่วงวันที่</span><strong>${dateLabel(weekStart)} – ${dateLabel(weekEnd)}</strong></div></section>
         <table><thead><tr><th>หน้าที่เวร</th>${reportDays.map(({ date, label }) => `<th>${escapeDutyHtml(label)}<br />${dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</th>`).join("")}</tr></thead><tbody>${taskRows || `<tr><td colspan="${reportDays.length + 1}" class="empty">ยังไม่มีหน้าที่เวรในสัปดาห์นี้</td></tr>`}</tbody></table>
-        <footer><div class="summary"><strong>สรุปตารางเวรประจำชั้น</strong><p>หน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน</p><p>ครูประจำชั้น: ${escapeDutyHtml(teacherName)}</p></div><div class="signature"><span>ลงชื่อ</span><span class="line"></span><p>(${escapeDutyHtml(teacherName)})</p><p>ครูประจำชั้น</p></div><div class="signature"><span>ลงชื่อ</span><span class="line"></span><p>(${escapeDutyHtml(identity.directorName || "................................................")})</p><p>ผู้อำนวยการโรงเรียน</p></div></footer>
-        <span class="generated">สร้างโดย ClassCare 360 · ${new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "short" }).format(new Date())}</span>
+        <div class="official-certification">สรุปหน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน · ขอรับรองว่าตารางเวรฉบับนี้ได้รับการตรวจสอบแล้ว</div>
+        ${buildOfficialSignaturesHtml([
+          { name: teacherName, role: "ผู้จัดทำ / ครูประจำชั้น" },
+          { name: identity.academicHeadName, role: "ผู้ตรวจสอบ / หัวหน้างานวิชาการ" },
+          { name: identity.directorName, role: "ผู้รับรอง / ผู้อำนวยการโรงเรียน" },
+        ])}
+        ${buildOfficialFooterHtml({ confidential: true, documentCode })}
       </main></body></html>`);
     reportWindow.document.close();
     reportWindow.focus();

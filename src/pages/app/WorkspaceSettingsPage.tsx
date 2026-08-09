@@ -163,6 +163,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     academicHeadName: initialReportIdentity.academicHeadName,
     classroomName: session.workspace?.classroomName || 'ป.5/2',
     directorName: initialReportIdentity.directorName,
+    registrarName: initialReportIdentity.registrarName,
     name: session.workspace?.name || 'ห้องเรียนของฉัน',
     schoolLogoDataUrl: initialReportIdentity.schoolLogoDataUrl,
     schoolName: session.workspace?.schoolName || 'โรงเรียนตัวอย่าง ClassCare',
@@ -243,6 +244,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         report_identity?: Partial<{
           academicHeadName: string;
           directorName: string;
+          registrarName: string;
           schoolLogoDataUrl: string;
           teacherName: string;
         }>;
@@ -261,6 +263,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         academicHeadName: reportIdentity.academicHeadName || '',
         classroomName: settings.classroom_name || session.workspace.classroomName,
         directorName: reportIdentity.directorName || '',
+        registrarName: reportIdentity.registrarName || '',
         name: workspaceRow?.name || session.workspace.name,
         schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
         schoolName: workspaceRow?.school_name || session.workspace.schoolName,
@@ -271,6 +274,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         academicYear: workspaceRow?.academic_year || session.workspace.academicYear,
         classroomName: settings.classroom_name || session.workspace.classroomName,
         directorName: reportIdentity.directorName || '',
+        registrarName: reportIdentity.registrarName || '',
         schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
         schoolName: workspaceRow?.school_name || session.workspace.schoolName,
         teacherName: reportIdentity.teacherName || '',
@@ -325,6 +329,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       academicHeadName: workspaceForm.academicHeadName.trim(),
       classroomName: workspaceForm.classroomName.trim(),
       directorName: workspaceForm.directorName.trim(),
+      registrarName: workspaceForm.registrarName.trim(),
       name: workspaceForm.name.trim(),
       schoolLogoDataUrl: workspaceForm.schoolLogoDataUrl,
       schoolName: workspaceForm.schoolName.trim(),
@@ -335,6 +340,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       academicYear: nextWorkspace.academicYear,
       classroomName: nextWorkspace.classroomName,
       directorName: nextWorkspace.directorName,
+      registrarName: nextWorkspace.registrarName,
       schoolLogoDataUrl: nextWorkspace.schoolLogoDataUrl,
       schoolName: nextWorkspace.schoolName,
       teacherName: nextWorkspace.teacherName,
@@ -1061,7 +1067,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                   />
                 </label>
               </div>
-              <div className="grid gap-3 lg:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ชื่อครูผู้สอน
                   <input
@@ -1078,6 +1084,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                     onChange={(event) => setWorkspaceForm((current) => ({ ...current, academicHeadName: event.target.value }))}
                     placeholder="ชื่อผู้ตรวจตาราง/รายงาน"
                     value={workspaceForm.academicHeadName}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  นายทะเบียนโรงเรียน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, registrarName: event.target.value }))}
+                    placeholder="ชื่อผู้รับรองทะเบียนนักเรียน"
+                    value={workspaceForm.registrarName}
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-black text-slate-700">
