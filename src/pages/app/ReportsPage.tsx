@@ -10,6 +10,7 @@ import {
   buildOfficialReportCss,
   buildOfficialSignaturesHtml,
   formatThaiOfficialDate,
+  formatThaiOfficialShortDate,
   maskThaiCitizenId,
 } from '../../lib/officialReport';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -24,6 +25,10 @@ type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'acti
 type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'health' | 'student-register' | 'executive' | 'individual' | 'behavior' | 'settings';
 type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
+type RegisterOrientation = 'portrait' | 'landscape';
+type RegisterOptionalField = 'address' | 'citizenId' | 'family' | 'health';
+
+type RegisterFieldSelection = Record<RegisterOptionalField, boolean>;
 
 interface ClassroomRow {
   academic_year: string | null;
@@ -36,6 +41,7 @@ interface StudentRow {
   classroom_id: string | null;
   first_name: string;
   gender: 'male' | 'female' | 'other' | 'unspecified' | null;
+  health_flags: Record<string, unknown> | null;
   id: string;
   last_name: string;
   metadata: Record<string, unknown> | null;
@@ -50,6 +56,13 @@ interface StudentGuardianReportRow {
   phone: string | null;
   relation: string | null;
   student_id: string;
+}
+
+interface StudentRegisterHealthRow {
+  heightCm: number | string | null;
+  recordDate: string | null;
+  studentId: string;
+  weightKg: number | string | null;
 }
 
 interface AttendanceSessionRow {
@@ -167,9 +180,9 @@ interface CoreReportMetrics {
 const demoClassrooms: ClassroomRow[] = [{ academic_year: '2569', id: 'demo-classroom', name: 'ป.5/2' }];
 
 const demoStudents: StudentRow[] = [
-  { birth_date: '2015-01-12', classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', gender: 'male', id: 'demo-student-1', last_name: 'ใจดี', metadata: { dmc_id_card: '1100100000001' }, nickname: 'นัท', status: 'active', student_code: '001' },
-  { birth_date: '2015-03-03', classroom_id: 'demo-classroom', first_name: 'พิมพ์ชนก', gender: 'female', id: 'demo-student-2', last_name: 'แสงทอง', metadata: { dmc_id_card: '1100100000002' }, nickname: 'พิม', status: 'active', student_code: '002' },
-  { birth_date: '2015-07-27', classroom_id: 'demo-classroom', first_name: 'กิตติพงศ์', gender: 'male', id: 'demo-student-3', last_name: 'สุขใจ', metadata: { dmc_id_card: '1100100000003' }, nickname: 'ก้อง', status: 'active', student_code: '003' },
+  { birth_date: '2015-01-12', classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', gender: 'male', health_flags: { height_cm: 142, weight_kg: 35.5 }, id: 'demo-student-1', last_name: 'ใจดี', metadata: { dmc_address: { district: 'เมือง', house_no: '12', province: 'นครราชสีมา', subdistrict: 'ในเมือง', village_no: '3' }, dmc_father: { first_name: 'สมชาย', last_name: 'ใจดี', prefix: 'นาย' }, dmc_id_card: '1100100000001', dmc_mother: { first_name: 'สมใจ', last_name: 'ใจดี', prefix: 'นาง' } }, nickname: 'นัท', status: 'active', student_code: '001' },
+  { birth_date: '2015-03-03', classroom_id: 'demo-classroom', first_name: 'พิมพ์ชนก', gender: 'female', health_flags: { height_cm: 138, weight_kg: 34.4 }, id: 'demo-student-2', last_name: 'แสงทอง', metadata: { dmc_address: { district: 'เมือง', house_no: '25/1', province: 'นครราชสีมา', subdistrict: 'โคกสูง', village_no: '2' }, dmc_father: { first_name: 'ประสงค์', last_name: 'แสงทอง', prefix: 'นาย' }, dmc_id_card: '1100100000002', dmc_mother: { first_name: 'มาลี', last_name: 'แสงทอง', prefix: 'นาง' } }, nickname: 'พิม', status: 'active', student_code: '002' },
+  { birth_date: '2015-07-27', classroom_id: 'demo-classroom', first_name: 'กิตติพงศ์', gender: 'male', health_flags: { height_cm: 141, weight_kg: 36.1 }, id: 'demo-student-3', last_name: 'สุขใจ', metadata: { dmc_address: { district: 'เมือง', house_no: '41', province: 'นครราชสีมา', subdistrict: 'โคกสูง', village_no: '5' }, dmc_father: { first_name: 'มนตรี', last_name: 'สุขใจ', prefix: 'นาย' }, dmc_id_card: '1100100000003', dmc_mother: { first_name: 'รัตนา', last_name: 'สุขใจ', prefix: 'นาง' } }, nickname: 'ก้อง', status: 'active', student_code: '003' },
 ];
 
 const demoGuardians: StudentGuardianReportRow[] = [
@@ -275,6 +288,13 @@ const reportViews: Array<{ description: string; label: string; value: ReportView
   { description: 'รวมเวลาเรียน คะแนน เงินออม พฤติกรรม', label: 'รายบุคคล', value: 'individual' },
   { description: 'เคสดูแลและพฤติกรรมที่ต้องติดตาม', label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
   { description: 'ห้วงเวลาเทอม โลโก้ ลายเซ็น template', label: 'ตั้งค่ารายงาน', value: 'settings' },
+];
+
+const registerFieldOptions: Array<{ description: string; label: string; value: RegisterOptionalField }> = [
+  { description: 'ปกปิดบางส่วนโดยค่าเริ่มต้น', label: 'เลขบัตรประชาชน', value: 'citizenId' },
+  { description: 'ข้อมูลวัดล่าสุดหรือข้อมูลนำเข้า DMC', label: 'น้ำหนักและส่วนสูง', value: 'health' },
+  { description: 'บ้านเลขที่ หมู่ ตำบล อำเภอ จังหวัด', label: 'ที่อยู่นักเรียน', value: 'address' },
+  { description: 'บิดา มารดา ผู้ปกครอง และเบอร์ติดต่อ', label: 'ข้อมูลครอบครัว', value: 'family' },
 ];
 
 const reportPeriods: Array<{ label: string; value: ReportPeriod }> = [
@@ -1151,11 +1171,86 @@ function buildPrintableTableReportHtml({
     </html>`;
 }
 
+function asReportRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function reportText(value: unknown) {
+  return String(value ?? '').trim();
+}
+
+function formatDmcPerson(value: unknown) {
+  const person = asReportRecord(value);
+  return [person.prefix, person.first_name, person.last_name].map(reportText).filter(Boolean).join(' ') || '-';
+}
+
+function formatRegisterAddress(student: StudentRow) {
+  const address = asReportRecord(student.metadata?.dmc_address);
+  const parts = [
+    address.house_no ? `บ้านเลขที่ ${reportText(address.house_no)}` : '',
+    address.village_no ? `หมู่ ${reportText(address.village_no)}` : '',
+    reportText(address.road_or_soi),
+    address.subdistrict ? `ต.${reportText(address.subdistrict)}` : '',
+    address.district ? `อ.${reportText(address.district)}` : '',
+    address.province ? `จ.${reportText(address.province)}` : '',
+  ].filter(Boolean);
+  return parts.join(' ') || reportText(student.metadata?.address || student.metadata?.current_address) || '-';
+}
+
+function getRegisterFamilyLines(student: StudentRow, guardians: StudentGuardianReportRow[]) {
+  const metadata = student.metadata || {};
+  const father = formatDmcPerson(metadata.dmc_father);
+  const mother = formatDmcPerson(metadata.dmc_mother);
+  const guardian = guardians.find((item) => item.student_id === student.id && item.is_primary)
+    || guardians.find((item) => item.student_id === student.id);
+  const lines = [
+    father !== '-' ? `บิดา: ${father}` : '',
+    mother !== '-' ? `มารดา: ${mother}` : '',
+    guardian ? `ผู้ปกครอง: ${guardian.display_name}${guardian.relation ? ` (${guardian.relation})` : ''}${guardian.phone ? ` โทร. ${guardian.phone}` : ''}` : '',
+  ].filter(Boolean);
+  return lines.length > 0 ? lines : ['-'];
+}
+
+function getRegisterHealthText(student: StudentRow, healthRows: StudentRegisterHealthRow[]) {
+  const latest = healthRows.find((row) => row.studentId === student.id);
+  const flags = student.health_flags || {};
+  const weight = latest?.weightKg ?? flags.weight_kg ?? null;
+  const height = latest?.heightCm ?? flags.height_cm ?? null;
+  const values = [
+    weight ? `น้ำหนัก ${weight} กก.` : '',
+    height ? `ส่วนสูง ${height} ซม.` : '',
+  ].filter(Boolean);
+  return values.join(' / ') || '-';
+}
+
+const registerFieldLabels: Record<RegisterOptionalField, string> = {
+  address: 'ที่อยู่ตามทะเบียน',
+  citizenId: 'เลขประจำตัวประชาชน',
+  family: 'บิดา มารดา หรือผู้ปกครอง / เบอร์ติดต่อ',
+  health: 'น้ำหนัก / ส่วนสูง',
+};
+
+function getRegisterFieldValue(
+  student: StudentRow,
+  field: RegisterOptionalField,
+  guardians: StudentGuardianReportRow[],
+  healthRows: StudentRegisterHealthRow[],
+  revealCitizenIds: boolean,
+) {
+  if (field === 'citizenId') return maskThaiCitizenId(student.metadata?.dmc_id_card, revealCitizenIds);
+  if (field === 'health') return getRegisterHealthText(student, healthRows);
+  if (field === 'address') return formatRegisterAddress(student);
+  return getRegisterFamilyLines(student, guardians).join(' | ');
+}
+
 function buildPrintableStudentRegisterHtml({
   classroomName,
   dateFrom,
   dateTo,
+  fields,
   guardians,
+  healthRows,
+  orientation,
   reportIdentity,
   revealCitizenIds,
   schoolName,
@@ -1165,7 +1260,10 @@ function buildPrintableStudentRegisterHtml({
   classroomName: string;
   dateFrom: string;
   dateTo: string;
+  fields: RegisterFieldSelection;
   guardians: StudentGuardianReportRow[];
+  healthRows: StudentRegisterHealthRow[];
+  orientation: RegisterOrientation;
   reportIdentity: SchoolReportIdentity;
   revealCitizenIds: boolean;
   schoolName: string;
@@ -1173,48 +1271,49 @@ function buildPrintableStudentRegisterHtml({
   teacherName: string;
 }) {
   const documentCode = buildOfficialDocumentCode('CC-REG', dateFrom, classroomName);
-  const primaryGuardianByStudent = new Map<string, StudentGuardianReportRow>();
-  guardians.forEach((guardian) => {
-    if (!primaryGuardianByStudent.has(guardian.student_id) || guardian.is_primary) primaryGuardianByStudent.set(guardian.student_id, guardian);
-  });
   const genderLabel = (gender: StudentRow['gender']) => gender === 'male' ? 'ชาย' : gender === 'female' ? 'หญิง' : gender === 'other' ? 'อื่น ๆ' : '-';
   const studentPrefix = (gender: StudentRow['gender']) => gender === 'male' ? 'เด็กชาย' : gender === 'female' ? 'เด็กหญิง' : '';
+  const enabledFields = registerFieldOptions.filter((field) => fields[field.value]).map((field) => field.value);
   const rows = students.map((student, index) => {
-    const guardian = primaryGuardianByStudent.get(student.id);
-    const metadata = student.metadata || {};
-    return `<tr>
-      <td class="official-center">${index + 1}</td>
-      <td class="official-center">${escapeHtml(student.student_code || '-')}</td>
-      <td>${escapeHtml(`${studentPrefix(student.gender)}${student.first_name} ${student.last_name}`)}</td>
-      <td class="official-center">${genderLabel(student.gender)}</td>
-      <td class="official-nowrap">${escapeHtml(formatThaiOfficialDate(student.birth_date))}</td>
-      <td class="official-nowrap">${escapeHtml(maskThaiCitizenId(metadata.dmc_id_card, revealCitizenIds))}</td>
-      <td>${escapeHtml(guardian?.display_name || '-')}</td>
-      <td>${escapeHtml(guardian?.relation || '-')}</td>
-      <td class="official-nowrap">${escapeHtml(guardian?.phone || '-')}</td>
-      <td class="official-center">${student.status === 'active' ? 'กำลังศึกษา' : escapeHtml(student.status || '-')}</td>
-    </tr>`;
+    const studentName = `${studentPrefix(student.gender)}${student.first_name} ${student.last_name}`;
+    if (orientation === 'portrait') {
+      const details = enabledFields.length > 0
+        ? enabledFields.map((field) => `<div class="register-detail"><strong>${registerFieldLabels[field]}:</strong> ${escapeHtml(getRegisterFieldValue(student, field, guardians, healthRows, revealCitizenIds))}</div>`).join('')
+        : '<span class="register-muted">ไม่มีข้อมูลเพิ่มเติมที่เลือก</span>';
+      return `<tr><td class="official-center">${index + 1}</td><td class="official-center">${escapeHtml(student.student_code || '-')}</td><td><strong>${escapeHtml(studentName)}</strong><small class="register-student-meta">${genderLabel(student.gender)} · เกิด ${escapeHtml(formatThaiOfficialShortDate(student.birth_date))}</small></td><td>${details}</td><td></td></tr>`;
+    }
+    return `<tr><td class="official-center">${index + 1}</td><td class="official-center">${escapeHtml(student.student_code || '-')}</td><td><strong>${escapeHtml(studentName)}</strong><small class="register-student-meta">${genderLabel(student.gender)} · เกิด ${escapeHtml(formatThaiOfficialShortDate(student.birth_date))}</small></td>${enabledFields.map((field) => `<td>${escapeHtml(getRegisterFieldValue(student, field, guardians, healthRows, revealCitizenIds))}</td>`).join('')}<td></td></tr>`;
   }).join('');
   const maleCount = students.filter((student) => student.gender === 'male').length;
   const femaleCount = students.filter((student) => student.gender === 'female').length;
 
   return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>ทะเบียนนักเรียน ${escapeHtml(classroomName)}</title><style>
-    ${buildOfficialReportCss({ dense: true, marginMm: 10, orientation: 'landscape' })}
-    .register-summary { display: flex; font-size: 11pt; gap: 8mm; margin: 2mm 0; }
-    .official-table th:nth-child(1) { width: 8mm; }
-    .official-table th:nth-child(2) { width: 18mm; }
-    .official-table th:nth-child(3) { width: 42mm; }
-    .official-table th:nth-child(4) { width: 11mm; }
-    .official-table th:nth-child(5) { width: 25mm; }
-    .official-table th:nth-child(6) { width: 34mm; }
-    .official-table th:nth-child(8) { width: 18mm; }
-    .official-table th:nth-child(9) { width: 27mm; }
-    .official-table th:nth-child(10) { width: 24mm; }
+    ${buildOfficialReportCss({ dense: true, marginMm: orientation === 'portrait' ? 12 : 8, orientation })}
+    .official-header { grid-template-columns: 23mm 1fr 23mm; padding-bottom: 2mm; }
+    .official-title { font-size: 18pt; }
+    .official-school { font-size: 14pt; }
+    .official-subtitle { font-size: 11pt; }
+    .official-meta { font-size: 10pt; margin-bottom: 2mm; padding: 1.5mm 0; }
+    .register-summary { align-items: stretch; border: 1px solid #555; display: grid; font-size: 10.5pt; grid-template-columns: repeat(4, 1fr); margin: 2mm 0; }
+    .register-summary span { padding: 1.2mm 2mm; text-align: center; }
+    .register-summary span + span { border-left: 1px solid #777; }
+    .register-summary strong { font-size: 12pt; }
+    .register-table th, .register-table td { font-size: ${orientation === 'portrait' ? '10.5pt' : '9.25pt'}; line-height: 1.08; padding: ${orientation === 'portrait' ? '1.2mm 1mm' : '.75mm .8mm'}; vertical-align: middle; }
+    .register-table thead { display: table-header-group; }
+    .register-table strong { font-weight: 700; }
+    .register-student-meta { color: #444; display: block; font-size: 8.75pt; font-weight: 400; margin-top: .3mm; }
+    .register-detail + .register-detail { border-top: .5px dotted #aaa; margin-top: .5mm; padding-top: .5mm; }
+    .register-muted { color: #666; }
+    .register-table tbody tr:nth-child(even) td { background: #f7f7f7; }
+    .official-certification { font-size: 9.75pt; margin-top: 1.5mm; padding: 1mm 2mm; }
+    .official-signatures { font-size: 10pt; margin-top: 4mm; }
+    .official-footer { font-size: 8pt; position: static; margin-top: 3mm; }
+    ${orientation === 'portrait' ? '.official-title { font-size: 17pt; } .official-school { font-size: 13.5pt; } .register-summary { font-size: 10pt; } .register-summary strong { font-size: 11.5pt; }' : ''}
   </style></head><body><main class="official-sheet">
     ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle: `ทะเบียนนักเรียนประจำปีการศึกษา ${reportIdentity.academicYear || '-'}`, title: 'ทะเบียนนักเรียน' })}
-    <div class="register-summary"><span>นักเรียนทั้งหมด ${students.length} คน</span><span>ชาย ${maleCount} คน</span><span>หญิง ${femaleCount} คน</span><span>ข้อมูล ณ ${formatThaiOfficialDate(dateTo)}</span></div>
-    <table class="official-table"><thead><tr><th>เลขที่</th><th>รหัส</th><th>ชื่อ–นามสกุล</th><th>เพศ</th><th>วันเกิด</th><th>เลขประจำตัวประชาชน</th><th>ผู้ปกครอง</th><th>สัมพันธ์</th><th>โทรศัพท์</th><th>สถานภาพ</th></tr></thead><tbody>${rows || '<tr><td colspan="10" class="official-center">ยังไม่มีข้อมูลนักเรียน</td></tr>'}</tbody></table>
-    <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · ${revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชนในเอกสารฉบับนี้'}</div>
+    <div class="register-summary"><span>นักเรียนทั้งหมด<br><strong>${students.length}</strong> คน</span><span>ชาย<br><strong>${maleCount}</strong> คน</span><span>หญิง<br><strong>${femaleCount}</strong> คน</span><span>ข้อมูล ณ<br><strong>${formatThaiOfficialShortDate(dateTo)}</strong></span></div>
+    <table class="official-table register-table"><colgroup>${orientation === 'portrait' ? '<col style="width:10mm"><col style="width:20mm"><col style="width:48mm"><col><col style="width:24mm">' : `<col style="width:8mm"><col style="width:18mm"><col style="width:48mm">${enabledFields.map(() => '<col>').join('')}<col style="width:24mm">`}</colgroup><thead><tr><th>ที่</th><th>เลขประจำตัว<br>นักเรียน</th><th>ชื่อ–สกุลนักเรียน</th>${orientation === 'portrait' ? '<th>รายละเอียดข้อมูลที่เลือก</th>' : enabledFields.map((field) => `<th>${registerFieldLabels[field]}</th>`).join('')}<th>หมายเหตุ</th></tr></thead><tbody>${rows || `<tr><td colspan="${orientation === 'portrait' ? 5 : enabledFields.length + 4}" class="official-center">ยังไม่มีข้อมูลนักเรียน</td></tr>`}</tbody></table>
+    <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · รูปแบบ A4 ${orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · ${fields.citizenId ? (revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชน') : 'ไม่ได้เลือกแสดงเลขประจำตัวประชาชน'}</div>
     ${buildOfficialSignaturesHtml([
       { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
       { name: reportIdentity.registrarName || reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน' },
@@ -1331,6 +1430,13 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [query, setQuery] = useState('');
   const [selectedSubjectName, setSelectedSubjectName] = useState('');
   const [selectedPeriodLabel, setSelectedPeriodLabel] = useState('');
+  const [registerOrientation, setRegisterOrientation] = useState<RegisterOrientation>('portrait');
+  const [registerFields, setRegisterFields] = useState<RegisterFieldSelection>({
+    address: false,
+    citizenId: false,
+    family: false,
+    health: false,
+  });
   const [revealCitizenIds, setRevealCitizenIds] = useState(false);
   const [coreMetrics, setCoreMetrics] = useState<CoreReportMetrics>(emptyCoreMetrics);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
@@ -1462,7 +1568,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,student_code,first_name,last_name,nickname,classroom_id,birth_date,gender,status,metadata')
+          .select('id,student_code,first_name,last_name,nickname,classroom_id,birth_date,gender,status,health_flags,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('student_code', { ascending: true }),
         supabase
@@ -1896,9 +2002,22 @@ export function ReportsPage({ session }: ReportsPageProps) {
     }),
     [classroomHealthRecords, classroomStudents],
   );
+  const registerHealthRows = useMemo<StudentRegisterHealthRow[]>(
+    () => healthSummaryRows.map((row) => ({
+      heightCm: row.latestGrowth?.height_cm ?? null,
+      recordDate: row.latestGrowth?.record_date ?? null,
+      studentId: row.student.id,
+      weightKg: row.latestGrowth?.weight_kg ?? null,
+    })),
+    [healthSummaryRows],
+  );
   const classroomGuardians = useMemo(
     () => guardians.filter((guardian) => classroomStudentIds.has(guardian.student_id)),
     [classroomStudentIds, guardians],
+  );
+  const activeRegisterFields = useMemo(
+    () => registerFieldOptions.filter((field) => registerFields[field.value]).map((field) => field.value),
+    [registerFields],
   );
   const executiveMetrics = useMemo<ExecutiveReportMetrics>(() => {
     const routineRecords = classroomHealthRecords.filter((record) => ['toothbrushing', 'milk', 'lunch'].includes(record.record_type));
@@ -2070,7 +2189,10 @@ export function ReportsPage({ session }: ReportsPageProps) {
         classroomName: common.workspaceName,
         dateFrom,
         dateTo,
+        fields: registerFields,
         guardians: classroomGuardians,
+        healthRows: registerHealthRows,
+        orientation: registerOrientation,
         reportIdentity,
         revealCitizenIds,
         schoolName: common.schoolName,
@@ -2210,19 +2332,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
                   weightKg: row.latestGrowth?.weight_kg ?? null,
                 }))
             : reportView === 'student-register'
-              ? classroomStudents.map((student) => {
-                  const guardian = classroomGuardians.find((row) => row.student_id === student.id && row.is_primary) || classroomGuardians.find((row) => row.student_id === student.id);
-                  return {
-                    birthDate: student.birth_date,
-                    gender: student.gender,
-                    guardianName: guardian?.display_name || null,
-                    guardianPhone: guardian?.phone || null,
-                    guardianRelation: guardian?.relation || null,
-                    status: student.status,
-                    studentCode: student.student_code,
-                    studentName: `${student.first_name} ${student.last_name}`,
-                  };
-                })
+              ? classroomStudents.map((student) => ({
+                  fields: Object.fromEntries(activeRegisterFields.map((field) => [field, getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)])),
+                  studentCode: student.student_code,
+                  studentName: `${student.first_name} ${student.last_name}`,
+                }))
             : reportView === 'executive'
               ? [executiveMetrics]
             : reportView === 'behavior'
@@ -2261,6 +2375,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
         dateFrom,
         dateTo,
         query,
+        registerFields,
+        registerOrientation,
         reportPeriod,
         reportView,
         selectedPeriodLabel,
@@ -2453,15 +2569,58 @@ export function ReportsPage({ session }: ReportsPageProps) {
               ) : null}
 
               {reportView === 'student-register' ? (
-                <label className="flex items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50/70 p-3 text-sm font-bold text-slate-700">
-                  <input
-                    checked={revealCitizenIds}
-                    className="mt-1 h-4 w-4"
-                    onChange={(event) => setRevealCitizenIds(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>แสดงเลขประจำตัวประชาชนเต็มในเอกสารพิมพ์ <small className="mt-1 block font-bold text-amber-700">ค่าเริ่มต้นปกปิดเพื่อคุ้มครองข้อมูลส่วนบุคคล</small></span>
-                </label>
+                <section className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">รูปแบบกระดาษ A4</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="แนวกระดาษทะเบียนนักเรียน">
+                      {([
+                        ['portrait', 'แนวตั้ง', 'บัญชีรายชื่อแบบกระชับ'],
+                        ['landscape', 'แนวนอน', 'ตารางรายละเอียดหลายช่อง'],
+                      ] as const).map(([value, label, description]) => (
+                        <button
+                          aria-pressed={registerOrientation === value}
+                          className={`rounded-2xl border px-3 py-3 text-left transition ${registerOrientation === value ? 'border-cyan-500 bg-cyan-50 text-cyan-950 shadow-sm' : 'border-slate-200 bg-white text-slate-700'}`}
+                          key={value}
+                          onClick={() => setRegisterOrientation(value)}
+                          type="button"
+                        >
+                          <strong className="block text-sm">{label}</strong>
+                          <small className="mt-1 block text-[11px] font-bold opacity-75">{description}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-black text-slate-950">ข้อมูลที่ต้องการแสดง</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">เลขประจำตัวนักเรียนและชื่อ–สกุลจะแสดงเสมอ</p>
+                    <div className="mt-2 grid gap-2">
+                      {registerFieldOptions.map((field) => (
+                        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3" key={field.value}>
+                          <input
+                            checked={registerFields[field.value]}
+                            className="mt-1 h-4 w-4"
+                            onChange={(event) => setRegisterFields((current) => ({ ...current, [field.value]: event.target.checked }))}
+                            type="checkbox"
+                          />
+                          <span><strong className="block text-sm text-slate-900">{field.label}</strong><small className="mt-0.5 block text-[11px] font-bold text-slate-500">{field.description}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {registerFields.citizenId ? (
+                    <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-sm font-bold text-slate-700">
+                      <input
+                        checked={revealCitizenIds}
+                        className="mt-1 h-4 w-4"
+                        onChange={(event) => setRevealCitizenIds(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>แสดงเลขบัตรประชาชนเต็ม <small className="mt-1 block font-bold text-amber-700">ค่าเริ่มต้นปกปิดเพื่อคุ้มครองข้อมูลส่วนบุคคล</small></span>
+                    </label>
+                  ) : null}
+                </section>
               ) : null}
 
               {reportPeriod === 'term' ? (
@@ -2791,16 +2950,33 @@ export function ReportsPage({ session }: ReportsPageProps) {
                   </article>
                 ))}
               </div>
-              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
-                <table className="min-w-[1100px] divide-y divide-slate-100 text-left text-sm">
-                  <thead className="bg-slate-50"><tr className="text-xs font-black uppercase text-slate-500"><th className="px-3 py-3">รหัส</th><th className="px-3 py-3">ชื่อ–นามสกุล</th><th className="px-3 py-3">เพศ</th><th className="px-3 py-3">วันเกิด</th><th className="px-3 py-3">เลขประชาชน</th><th className="px-3 py-3">ผู้ปกครอง</th><th className="px-3 py-3">โทรศัพท์</th><th className="px-3 py-3">สถานภาพ</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {classroomStudents.map((student) => {
-                      const guardian = classroomGuardians.find((row) => row.student_id === student.id && row.is_primary) || classroomGuardians.find((row) => row.student_id === student.id);
-                      return <tr key={student.id}><td className="px-3 py-3 font-black">{student.student_code || '-'}</td><td className="px-3 py-3 font-black text-slate-950">{student.first_name} {student.last_name}</td><td className="px-3 py-3">{student.gender === 'male' ? 'ชาย' : student.gender === 'female' ? 'หญิง' : '-'}</td><td className="px-3 py-3">{formatThaiOfficialDate(student.birth_date)}</td><td className="px-3 py-3 font-mono text-xs">{maskThaiCitizenId(student.metadata?.dmc_id_card, false)}</td><td className="px-3 py-3">{guardian?.display_name || '-'}</td><td className="px-3 py-3">{guardian?.phone || '-'}</td><td className="px-3 py-3">{student.status === 'active' ? 'กำลังศึกษา' : student.status || '-'}</td></tr>;
-                    })}
-                  </tbody>
-                </table>
+              <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div><p className="font-black text-slate-950">ตัวอย่างข้อมูลก่อนพิมพ์</p><p className="text-xs font-bold text-slate-500">A4 {registerOrientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · เลือกข้อมูลเพิ่มเติม {activeRegisterFields.length} รายการ</p></div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white">รหัสนักเรียน</span>
+                    <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white">ชื่อ–สกุล</span>
+                    {activeRegisterFields.map((field) => <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-black text-cyan-800" key={field}>{registerFieldLabels[field]}</span>)}
+                  </div>
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
+                    <thead className="bg-slate-50"><tr className="text-xs font-black uppercase text-slate-500"><th className="px-3 py-3">ที่</th><th className="px-3 py-3">เลขประจำตัวนักเรียน</th><th className="px-3 py-3">ชื่อ–สกุลนักเรียน</th><th className="px-3 py-3">รายละเอียดที่เลือก</th><th className="px-3 py-3">หมายเหตุ</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {classroomStudents.map((student, index) => (
+                        <tr key={student.id}>
+                          <td className="px-3 py-3 text-center font-bold text-slate-500">{index + 1}</td>
+                          <td className="px-3 py-3 font-black">{student.student_code || '-'}</td>
+                          <td className="px-3 py-3"><p className="font-black text-slate-950">{student.first_name} {student.last_name}</p><p className="text-xs font-bold text-slate-500">{student.gender === 'male' ? 'ชาย' : student.gender === 'female' ? 'หญิง' : '-'} · {formatThaiOfficialShortDate(student.birth_date)}</p></td>
+                          <td className="px-3 py-3">
+                            {activeRegisterFields.length > 0 ? activeRegisterFields.map((field) => <p className="text-xs font-bold text-slate-700" key={field}><span className="text-slate-400">{registerFieldLabels[field]}:</span> {getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, false)}</p>) : <span className="text-xs font-bold text-slate-400">บัญชีรายชื่อพื้นฐาน</span>}
+                          </td>
+                          <td className="px-3 py-3 text-slate-400">—</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ) : null}

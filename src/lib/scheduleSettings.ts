@@ -263,6 +263,8 @@ export async function compressImageFile(file: File, maxSize = 520, quality = 0.7
   const context = canvas.getContext('2d');
   if (!context) return dataUrl;
 
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/jpeg', quality);
 }

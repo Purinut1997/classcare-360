@@ -33,6 +33,18 @@ export function formatThaiOfficialDate(value: string | Date | null | undefined, 
   }).format(date);
 }
 
+export function formatThaiOfficialShortDate(value: string | Date | null | undefined, fallback = '-') {
+  if (!value) return fallback;
+  const date = parseLocalDate(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+  }).format(date);
+}
+
 export function formatThaiOfficialDateTime(value: string | Date = new Date()) {
   const date = parseLocalDate(value);
   return new Intl.DateTimeFormat('th-TH', {
@@ -73,12 +85,15 @@ export function buildOfficialReportCss({
     @font-face { font-family: "TH Sarabun New"; font-style: normal; font-weight: 700; src: url("/fonts/THSarabun-Bold.ttf") format("truetype"); }
     @page { margin: ${marginMm}mm; size: A4 ${orientation}; }
     * { box-sizing: border-box; }
-    html, body { background: #fff; margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; }
+    html { background: #dfe3e8; }
+    body { background: #dfe3e8; }
     body { color: #111; font-family: "TH Sarabun New", "Sarabun", "Noto Sans Thai", Tahoma, sans-serif; font-size: ${dense ? '11pt' : '13pt'}; line-height: 1.18; }
     h1, h2, h3, p { margin: 0; }
-    .official-sheet { margin: 0 auto; min-height: ${orientation === 'landscape' ? '185mm' : '270mm'}; position: relative; }
+    .official-sheet { background: #fff; margin: 8mm auto; min-height: ${orientation === 'landscape' ? `${210 - (marginMm * 2)}mm` : `${297 - (marginMm * 2)}mm`}; position: relative; width: ${orientation === 'landscape' ? `${297 - (marginMm * 2)}mm` : `${210 - (marginMm * 2)}mm`}; }
     .official-header { align-items: center; border-bottom: 1.4px solid #111; display: grid; gap: 10px; grid-template-columns: 25mm 1fr 25mm; padding-bottom: 3mm; text-align: center; }
-    .official-logo { height: 19mm; margin: 0 auto; object-fit: contain; width: 19mm; }
+    .official-logo-frame { align-items: center; background: #fff; border-radius: 50%; display: flex; height: 21mm; justify-content: center; margin: 0 auto; overflow: hidden; width: 21mm; }
+    .official-logo { background: #fff; border-radius: 50%; display: block; height: 20mm; object-fit: contain; width: 20mm; }
     .official-logo-placeholder { align-items: center; border: 1px solid #555; border-radius: 50%; display: flex; font-size: 9pt; height: 18mm; justify-content: center; margin: 0 auto; text-align: center; width: 18mm; }
     .official-title { font-size: 19pt; font-weight: 700; line-height: 1.05; }
     .official-school { font-size: 15pt; font-weight: 700; margin-top: 1mm; }
@@ -106,6 +121,11 @@ export function buildOfficialReportCss({
     .official-kpi strong { display: block; font-size: 16pt; margin-top: .8mm; }
     .official-decision { border: 1px solid #555; min-height: 20mm; padding: 2mm 3mm; }
     tr { break-inside: avoid; }
+    @media screen { .official-sheet { box-shadow: 0 2mm 7mm rgba(15, 23, 42, .18); } }
+    @media print {
+      html, body { background: #fff; }
+      .official-sheet { box-shadow: none; margin: 0; }
+    }
   `;
 }
 
@@ -133,7 +153,7 @@ export function buildOfficialHeaderHtml({
     : '<div class="official-logo-placeholder">ตรา<br />โรงเรียน</div>';
   return `
     <header class="official-header">
-      <div>${logo}</div>
+      <div class="official-logo-frame">${logo}</div>
       <div>
         <h1 class="official-title">${escapeOfficialHtml(title)}</h1>
         <div class="official-school">${escapeOfficialHtml(identity.schoolName || schoolName)}</div>
