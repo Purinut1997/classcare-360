@@ -13,6 +13,7 @@ import {
   GraduationCap,
   History,
   Heart,
+  HeartPulse,
   KeyRound,
   Home,
   PiggyBank,
@@ -45,6 +46,13 @@ export const appNavItems: AppNavItem[] = [
     icon: ClipboardList,
     moduleKey: 'attendance',
     path: '/app/dashboard?view=teacher-work',
+  },
+  {
+    key: 'student-health',
+    label: 'สุขภาพและกิจวัตรนักเรียน',
+    icon: HeartPulse,
+    moduleKey: 'attendance',
+    path: '/app/dashboard?view=student-health',
   },
   {
     key: 'schedule',
@@ -188,6 +196,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'Attendance',
     title: 'บันทึกการมาเรียนรายวันให้จบในหน้าห้องเรียน',
     body: 'เปิดรอบเช็กชื่อ เลือกห้อง/วันที่/ช่วงเวลา แล้วบันทึกสถานะ มา ขาด สาย ลา ป่วย หรือกิจกรรม โดยข้อมูลผูกกับ workspace และรายชื่อนักเรียนจริง',
+  },
+  'student-health': {
+    eyebrow: 'Student Health & Daily Care',
+    title: 'บันทึกสุขภาพและกิจวัตรนักเรียนทั้งห้องได้รวดเร็ว',
+    body: 'รวมการแปรงฟัน ดื่มนม อาหารกลางวัน น้ำหนัก ส่วนสูง BMI และการตรวจสุขอนามัยไว้ในระบบเดียว โดยผูกกับ workspace ห้องเรียน และนักเรียนจริง',
   },
   scores: {
     eyebrow: 'Score Center',

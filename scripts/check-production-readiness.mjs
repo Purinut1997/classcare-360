@@ -38,6 +38,12 @@ const requiredMigrations = [
   '0030_teacher_automation_center.sql',
   '0031_workspace_discovery_rpc.sql',
   '0032_automation_execution_hardening.sql',
+  '0033_workspace_access_control.sql',
+  '0034_classroom_year_operations.sql',
+  '0035_flexible_duty_roster.sql',
+  '0036_dedupe_duty_task_templates.sql',
+  '0037_duty_range_generation.sql',
+  '0038_student_health_and_routines.sql',
 ];
 
 const requiredFunctions = [

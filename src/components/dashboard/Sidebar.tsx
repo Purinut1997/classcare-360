@@ -19,7 +19,7 @@ const sidebarSections = [
   {
     key: 'daily-work',
     label: 'งานครูประจำวัน',
-    itemKeys: ['teacher-work', 'classroom-operations', 'savings', 'behavior', 'randomizer'],
+    itemKeys: ['teacher-work', 'student-health', 'classroom-operations', 'savings', 'behavior', 'randomizer'],
   },
   { key: 'teaching', label: 'การเรียนการสอน', itemKeys: ['schedule', 'scores'] },
   { key: 'care', label: 'ดูแลและสื่อสาร', itemKeys: ['automation', 'notifications'] },

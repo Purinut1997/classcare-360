@@ -12,7 +12,7 @@ interface ReportsPageProps {
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'activity';
-type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'individual' | 'behavior' | 'settings';
+type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'health' | 'individual' | 'behavior' | 'settings';
 type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
 
@@ -105,6 +105,22 @@ interface HomeVisitReportRow {
   visited_at: string | null;
 }
 
+type HealthRecordType = 'growth' | 'toothbrushing' | 'milk' | 'lunch' | 'hygiene';
+type HealthInspectionStatus = 'pass' | 'attention' | 'not_checked';
+
+interface StudentHealthRecordRow {
+  bmi: number | string | null;
+  height_cm: number | string | null;
+  id: string;
+  inspection_results: Record<string, HealthInspectionStatus>;
+  note: string | null;
+  record_date: string;
+  record_type: HealthRecordType;
+  status: 'recorded' | 'completed' | 'missed' | 'exempt' | 'normal' | 'attention' | 'not_checked';
+  student_id: string;
+  weight_kg: number | string | null;
+}
+
 interface CoreReportMetrics {
   attendance: {
     presentRate: number;
@@ -176,6 +192,18 @@ const demoHomeVisits: HomeVisitReportRow[] = [
   { academic_year: '2569', completion_percent: 43, id: 'demo-home-visit-1', status: 'draft', student_id: 'demo-student-1', term: '1', visited_at: getTodayDate() },
 ];
 
+const demoHealthRecords: StudentHealthRecordRow[] = [
+  { bmi: 17.61, height_cm: 142, id: 'demo-health-1', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'growth', status: 'recorded', student_id: 'demo-student-1', weight_kg: 35.5 },
+  { bmi: null, height_cm: null, id: 'demo-health-2', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'toothbrushing', status: 'completed', student_id: 'demo-student-1', weight_kg: null },
+  { bmi: null, height_cm: null, id: 'demo-health-3', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'milk', status: 'completed', student_id: 'demo-student-1', weight_kg: null },
+  { bmi: null, height_cm: null, id: 'demo-health-4', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'lunch', status: 'completed', student_id: 'demo-student-1', weight_kg: null },
+  { bmi: null, height_cm: null, id: 'demo-health-5', inspection_results: { hair: 'pass', nails: 'attention', skin: 'pass', teeth: 'pass' }, note: 'ติดตามความสะอาดเล็บ', record_date: getTodayDate(), record_type: 'hygiene', status: 'attention', student_id: 'demo-student-1', weight_kg: null },
+  { bmi: 18.07, height_cm: 138, id: 'demo-health-6', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'growth', status: 'recorded', student_id: 'demo-student-2', weight_kg: 34.4 },
+  { bmi: null, height_cm: null, id: 'demo-health-7', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'toothbrushing', status: 'missed', student_id: 'demo-student-2', weight_kg: null },
+  { bmi: null, height_cm: null, id: 'demo-health-8', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'milk', status: 'completed', student_id: 'demo-student-2', weight_kg: null },
+  { bmi: null, height_cm: null, id: 'demo-health-9', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'lunch', status: 'completed', student_id: 'demo-student-2', weight_kg: null },
+];
+
 const emptyCoreMetrics: CoreReportMetrics = {
   attendance: {
     presentRate: 0,
@@ -214,6 +242,7 @@ const reportViews: Array<{ description: string; label: string; value: ReportView
   { description: 'แยกวิชา คาบ และช่วงเวลา พร้อม export', label: 'เวลาเรียนรายวิชา', value: 'subject-attendance' },
   { description: 'เงินฝาก ถอน และยอดคงเหลือ', label: 'เงินออม', value: 'savings' },
   { description: 'สรุปคะแนนรวมห้องและรายชั้น', label: 'คะแนนรวมห้อง', value: 'scores' },
+  { description: 'การเจริญเติบโต สุขอนามัย แปรงฟัน ดื่มนม และอาหารกลางวัน', label: 'สุขภาพและกิจวัตร', value: 'health' },
   { description: 'รวมเวลาเรียน คะแนน เงินออม พฤติกรรม', label: 'รายบุคคล', value: 'individual' },
   { description: 'เคสดูแลและพฤติกรรมที่ต้องติดตาม', label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
   { description: 'ห้วงเวลาเทอม โลโก้ ลายเซ็น template', label: 'ตั้งค่ารายงาน', value: 'settings' },
@@ -1051,6 +1080,90 @@ function buildPrintableSavingsReportHtml({
     </html>`;
 }
 
+interface PrintableTableReportOptions {
+  columns: string[];
+  dateFrom: string;
+  dateTo: string;
+  reportIdentity: SchoolReportIdentity;
+  rows: Array<Array<number | string | null | undefined>>;
+  schoolName: string;
+  subtitle: string;
+  teacherName: string;
+  title: string;
+  workspaceName: string;
+}
+
+function buildPrintableTableReportHtml({
+  columns,
+  dateFrom,
+  dateTo,
+  reportIdentity,
+  rows,
+  schoolName,
+  subtitle,
+  teacherName,
+  title,
+  workspaceName,
+}: PrintableTableReportOptions) {
+  const logo = reportIdentity.schoolLogoDataUrl
+    ? `<img class="logo" src="${escapeHtml(reportIdentity.schoolLogoDataUrl)}" alt="โลโก้โรงเรียน" />`
+    : '<div class="logo-placeholder">ตราโรงเรียน</div>';
+  const tableRows = rows.length > 0
+    ? rows.map((row, index) => `<tr><td class="center">${index + 1}</td>${row.map((cell) => `<td>${escapeHtml(String(cell ?? '-'))}</td>`).join('')}</tr>`).join('')
+    : `<tr><td class="empty" colspan="${columns.length + 1}">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</td></tr>`;
+
+  return `<!doctype html>
+    <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { margin: 12mm; size: A4 landscape; }
+          * { box-sizing: border-box; }
+          body { color: #0f172a; font-family: "Sarabun", "Noto Sans Thai", Tahoma, sans-serif; font-size: 11px; margin: 0; }
+          .header { align-items: center; display: grid; gap: 12px; grid-template-columns: 74px 1fr 74px; margin-bottom: 12px; text-align: center; }
+          .logo, .logo-placeholder { height: 62px; margin: auto; width: 62px; }
+          .logo { object-fit: contain; }
+          .logo-placeholder { align-items: center; border: 1px dashed #94a3b8; border-radius: 50%; color: #64748b; display: flex; font-size: 9px; justify-content: center; }
+          h1 { font-size: 20px; margin: 0 0 2px; }
+          .school { font-size: 14px; font-weight: 700; }
+          .meta { color: #475569; margin-top: 3px; }
+          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+          th, td { border: 1px solid #64748b; padding: 5px 4px; text-align: left; vertical-align: top; word-break: break-word; }
+          th { background: #e2e8f0; font-weight: 800; text-align: center; }
+          th:first-child, td:first-child { width: 34px; }
+          .center { text-align: center; }
+          .empty { color: #64748b; padding: 18px; text-align: center; }
+          .signatures { display: grid; gap: 80px; grid-template-columns: 1fr 1fr; margin: 34px 55px 0; text-align: center; }
+          .signature-line { border-bottom: 1px dotted #475569; display: inline-block; min-width: 180px; }
+          .role { color: #475569; margin-top: 4px; }
+          .credit { color: #94a3b8; font-size: 9px; margin-top: 18px; text-align: right; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>${logo}</div>
+          <div>
+            <h1>${escapeHtml(title)}</h1>
+            <div class="school">${escapeHtml(reportIdentity.schoolName || schoolName)}</div>
+            <div class="meta">${escapeHtml(reportIdentity.classroomName || workspaceName)} | ${escapeHtml(subtitle)}</div>
+            <div class="meta">ช่วงวันที่ ${escapeHtml(dateFrom)} ถึง ${escapeHtml(dateTo)} | ปีการศึกษา ${escapeHtml(reportIdentity.academicYear || '-')}</div>
+          </div>
+          <div></div>
+        </div>
+        <table>
+          <thead><tr><th>ที่</th>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+        <div class="signatures">
+          <div><span>ลงชื่อ</span> <span class="signature-line"></span><div>(${escapeHtml(reportIdentity.teacherName || teacherName)})</div><div class="role">ครูประจำชั้น</div></div>
+          <div><span>ลงชื่อ</span> <span class="signature-line"></span><div>(${escapeHtml(reportIdentity.directorName || '................................................')})</div><div class="role">ผู้อำนวยการโรงเรียน</div></div>
+        </div>
+        <div class="credit">Created by MIKPURINUT</div>
+      </body>
+    </html>`;
+}
+
 export function ReportsPage({ session }: ReportsPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1069,6 +1182,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   const [scoreEntries, setScoreEntries] = useState<ScoreEntryRow[]>(demoScoreEntries);
   const [behaviorRecords, setBehaviorRecords] = useState<BehaviorRecordRow[]>(demoBehaviorRecords);
   const [homeVisits, setHomeVisits] = useState<HomeVisitReportRow[]>(demoHomeVisits);
+  const [healthRecords, setHealthRecords] = useState<StudentHealthRecordRow[]>(demoHealthRecords);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
   const [reportView, setReportView] = useState<ReportView>(initialReportView);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(initialReportPeriod);
@@ -1172,6 +1286,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         setScoreEntries(demoScoreEntries);
         setBehaviorRecords(demoBehaviorRecords);
         setHomeVisits(demoHomeVisits);
+        setHealthRecords(demoHealthRecords);
         setCoreMetrics({
           attendance: {
             presentRate: 67,
@@ -1270,6 +1385,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         { data: transactionRows, error: transactionError },
         { data: behaviorRows, error: behaviorError },
         { data: homeVisitRows, error: homeVisitError },
+        { data: healthRows, error: healthError },
       ] = await Promise.all([
         supabase
           .from('score_assessments')
@@ -1305,15 +1421,24 @@ export function ReportsPage({ session }: ReportsPageProps) {
           .select('id,student_id,academic_year,term,status,completion_percent,visited_at')
           .eq('workspace_id', session.workspace.id)
           .limit(1000),
+        supabase
+          .from('student_health_records')
+          .select('id,student_id,record_date,record_type,status,weight_kg,height_cm,bmi,inspection_results,note')
+          .eq('workspace_id', session.workspace.id)
+          .gte('record_date', dateFrom)
+          .lte('record_date', dateTo)
+          .order('record_date', { ascending: false })
+          .limit(3000),
       ]);
 
-      if (assessmentError || accountError || transactionError || behaviorError || homeVisitError) {
+      if (assessmentError || accountError || transactionError || behaviorError || homeVisitError || healthError) {
         setNotice(
           assessmentError?.message ||
             accountError?.message ||
             transactionError?.message ||
             behaviorError?.message ||
             homeVisitError?.message ||
+            healthError?.message ||
             'โหลดข้อมูลรายงานบางส่วนไม่สำเร็จ',
         );
       }
@@ -1342,12 +1467,14 @@ export function ReportsPage({ session }: ReportsPageProps) {
       const nextSavingsTransactions = (transactionRows || []) as SavingsTransactionRow[];
       const nextBehaviorRecords = (behaviorRows || []) as BehaviorRecordRow[];
       const nextHomeVisits = (homeVisitRows || []) as HomeVisitReportRow[];
+      const nextHealthRecords = (healthRows || []) as StudentHealthRecordRow[];
       setScoreAssessments(nextAssessments);
       setScoreEntries(nextScoreEntries);
       setSavingsAccounts(nextSavingsAccounts);
       setSavingsTransactions(nextSavingsTransactions);
       setBehaviorRecords(nextBehaviorRecords);
       setHomeVisits(nextHomeVisits);
+      setHealthRecords(nextHealthRecords);
 
       const scorePercents = nextScoreEntries
         .map((row) => {
@@ -1593,6 +1720,38 @@ export function ReportsPage({ session }: ReportsPageProps) {
     () => behaviorRecords.filter((record) => classroomStudentIds.has(record.student_id)),
     [behaviorRecords, classroomStudentIds],
   );
+  const classroomHealthRecords = useMemo(
+    () => healthRecords.filter((record) => classroomStudentIds.has(record.student_id)),
+    [classroomStudentIds, healthRecords],
+  );
+  const healthSummaryRows = useMemo(
+    () => classroomStudents.map((student) => {
+      const records = classroomHealthRecords.filter((record) => record.student_id === student.id);
+      const summarizeRoutine = (recordType: HealthRecordType) => {
+        const routineRecords = records.filter((record) => record.record_type === recordType);
+        return {
+          completed: routineRecords.filter((record) => record.status === 'completed').length,
+          total: routineRecords.filter((record) => record.status !== 'exempt' && record.status !== 'not_checked').length,
+        };
+      };
+      const latestGrowth = records.find((record) => record.record_type === 'growth') || null;
+      const latestHygiene = records.find((record) => record.record_type === 'hygiene') || null;
+      const attentionItems = Object.entries(latestHygiene?.inspection_results || {})
+        .filter(([, status]) => status === 'attention')
+        .map(([key]) => ({ hair: 'ผม', nails: 'เล็บ', skin: 'ผิวหนัง', teeth: 'ฟัน', uniform: 'เครื่องแต่งกาย', ears: 'หู', eyes: 'ตา' })[key] || key);
+
+      return {
+        attentionItems,
+        brushing: summarizeRoutine('toothbrushing'),
+        latestGrowth,
+        latestHygiene,
+        lunch: summarizeRoutine('lunch'),
+        milk: summarizeRoutine('milk'),
+        student,
+      };
+    }),
+    [classroomHealthRecords, classroomStudents],
+  );
   const selectedStudentAttendanceRecords = useMemo(
     () => (selectedStudent ? attendanceRecords.filter((record) => record.student_id === selectedStudent.id) : []),
     [attendanceRecords, selectedStudent],
@@ -1636,6 +1795,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
         ? classroomSavingsTransactions.length
         : reportView === 'scores'
           ? scoreAssessmentRows.length
+          : reportView === 'health'
+            ? classroomHealthRecords.length
           : reportView === 'behavior'
             ? behaviorReportRows.length
             : reportView === 'individual' && selectedStudent
@@ -1645,6 +1806,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
     ((reportView === 'attendance' && monthlyAttendanceGrid.rows.length > 0) ||
       (reportView === 'subject-attendance' && activeAttendanceGrid.rows.length > 0)) ||
     (reportView === 'savings' && monthlySavingsGrid.rows.length > 0);
+  const printableReport = reportView !== 'settings' && activeReportRowCount > 0;
   const readinessItems = [
     { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
     { label: 'เลือกห้อง/ช่วงข้อมูล', ready: Boolean(classroomId && dateFrom && dateTo) },
@@ -1661,6 +1823,119 @@ export function ReportsPage({ session }: ReportsPageProps) {
       setSelectedStudentId(students[0]?.id || '');
     }
   }, [selectedStudentId, students]);
+
+  function buildActiveReportHtml() {
+    const common = {
+      dateFrom,
+      dateTo,
+      reportIdentity,
+      schoolName: session.workspace?.schoolName || 'Demo Workspace',
+      teacherName: session.profile.displayName,
+      workspaceName: selectedClassroom?.name || session.workspace?.name || 'Demo Workspace',
+    };
+
+    if (reportView === 'savings') {
+      return buildPrintableSavingsReportHtml({
+        dateFrom,
+        savingsGrid: monthlySavingsGrid,
+        schoolName: common.schoolName,
+        teacherName: common.teacherName,
+        workspaceName: common.workspaceName,
+        reportIdentity,
+      });
+    }
+
+    if (reportView === 'attendance' || reportView === 'subject-attendance') {
+      return buildPrintableReportHtml({
+        attendanceGrid: activeAttendanceGrid,
+        dateFrom,
+        schoolName: common.schoolName,
+        teacherName: common.teacherName,
+        workspaceName: common.workspaceName,
+        reportIdentity,
+      });
+    }
+
+    if (reportView === 'scores') {
+      return buildPrintableTableReportHtml({
+        ...common,
+        columns: ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'],
+        rows: scoreAssessmentRows.map((row) => [
+          row.assessment.assessment_date,
+          row.assessment.subject_name,
+          row.assessment.title,
+          scoreCategoryLabels[row.assessment.category],
+          row.assessment.max_score,
+          row.averageScore,
+          `${row.averagePercent}%`,
+          row.enteredCount,
+          row.missingCount,
+        ]),
+        subtitle: `${periodLabel} | สรุป ${scoreAssessmentRows.length} ชุดคะแนน`,
+        title: 'รายงานสรุปคะแนนประจำชั้น',
+      });
+    }
+
+    if (reportView === 'health') {
+      return buildPrintableTableReportHtml({
+        ...common,
+        columns: ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'],
+        rows: healthSummaryRows.map((row) => [
+          row.student.student_code || '-',
+          `${row.student.first_name} ${row.student.last_name}`,
+          `${row.brushing.completed}/${row.brushing.total}`,
+          `${row.milk.completed}/${row.milk.total}`,
+          `${row.lunch.completed}/${row.lunch.total}`,
+          row.latestGrowth?.weight_kg ? `${row.latestGrowth.weight_kg} กก.` : '-',
+          row.latestGrowth?.height_cm ? `${row.latestGrowth.height_cm} ซม.` : '-',
+          row.latestGrowth?.bmi ?? '-',
+          row.latestHygiene?.record_date || '-',
+          row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
+        ]),
+        subtitle: `${periodLabel} | กิจวัตรที่ทำสำเร็จ/จำนวนครั้งที่บันทึก`,
+        title: 'รายงานสุขภาพและกิจวัตรนักเรียน',
+      });
+    }
+
+    if (reportView === 'behavior') {
+      return buildPrintableTableReportHtml({
+        ...common,
+        columns: ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'],
+        rows: behaviorReportRows.map((row) => {
+          const student = studentById.get(row.student_id);
+          return [
+            row.behavior_date,
+            student?.student_code || '-',
+            student ? `${student.first_name} ${student.last_name}` : '-',
+            toneLabels[row.tone],
+            row.category,
+            row.points,
+            followUpLabels[row.follow_up_status],
+            row.description,
+          ];
+        }),
+        subtitle: `${periodLabel} | คะแนนรวม ${coreMetrics.behavior.totalPoints} | ต้องติดตาม ${coreMetrics.behavior.followUps} รายการ`,
+        title: 'รายงานพฤติกรรมและเคสดูแลนักเรียน',
+      });
+    }
+
+    return buildPrintableTableReportHtml({
+      ...common,
+      columns: ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'],
+      rows: selectedStudent
+        ? [
+            ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
+            ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${dateFrom} ถึง ${dateTo}`],
+            ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
+            ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
+            ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
+            ['เยี่ยมบ้าน กสศ.01', `${selectedHomeVisit?.completion_percent || 0}%`, selectedHomeVisit?.status || 'ยังไม่มีข้อมูล'],
+          ]
+        : [],
+      subtitle: `${periodLabel} | ${selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}`,
+      title: 'รายงานสรุปรายบุคคล',
+    });
+  }
 
   function exportCsv() {
     const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'เครดิต'];
@@ -1688,25 +1963,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportExcel() {
-    const activeIdentity = reportIdentity;
-    const html =
-      reportView === 'savings'
-        ? buildPrintableSavingsReportHtml({
-            dateFrom,
-            savingsGrid: monthlySavingsGrid,
-            schoolName: session.workspace?.schoolName || 'Demo Workspace',
-            teacherName: session.profile.displayName,
-            workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity: activeIdentity,
-          })
-        : buildPrintableReportHtml({
-            attendanceGrid: activeAttendanceGrid,
-            dateFrom,
-            schoolName: session.workspace?.schoolName || 'Demo Workspace',
-            teacherName: session.profile.displayName,
-            workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity: activeIdentity,
-          });
+    const html = buildActiveReportHtml();
 
     downloadBlob(
       `classcare-${reportView}-monthly-${dateFrom.slice(0, 7)}.xls`,
@@ -1740,6 +1997,22 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 subjectName: row.assessment.subject_name,
                 title: row.assessment.title,
               }))
+            : reportView === 'health'
+              ? healthSummaryRows.map((row) => ({
+                  bmi: row.latestGrowth?.bmi ?? null,
+                  brushingCompleted: row.brushing.completed,
+                  brushingRecorded: row.brushing.total,
+                  heightCm: row.latestGrowth?.height_cm ?? null,
+                  hygieneAttentionItems: row.attentionItems,
+                  hygieneDate: row.latestHygiene?.record_date ?? null,
+                  lunchCompleted: row.lunch.completed,
+                  lunchRecorded: row.lunch.total,
+                  milkCompleted: row.milk.completed,
+                  milkRecorded: row.milk.total,
+                  studentCode: row.student.student_code,
+                  studentName: `${row.student.first_name} ${row.student.last_name}`,
+                  weightKg: row.latestGrowth?.weight_kg ?? null,
+                }))
             : reportView === 'behavior'
               ? behaviorReportRows.map((row) => {
                   const student = studentById.get(row.student_id);
@@ -1804,25 +2077,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
       return;
     }
 
-    const activeIdentity = reportIdentity;
-    const html =
-      reportView === 'savings'
-        ? buildPrintableSavingsReportHtml({
-            dateFrom,
-            savingsGrid: monthlySavingsGrid,
-            schoolName: session.workspace?.schoolName || 'Demo Workspace',
-            teacherName: session.profile.displayName,
-            workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity: activeIdentity,
-          })
-        : buildPrintableReportHtml({
-            attendanceGrid: activeAttendanceGrid,
-            dateFrom,
-            schoolName: session.workspace?.schoolName || 'Demo Workspace',
-            teacherName: session.profile.displayName,
-            workspaceName: session.workspace?.name || 'Demo Workspace',
-            reportIdentity: activeIdentity,
-          });
+    const html = buildActiveReportHtml();
 
     printWindow.document.open();
     printWindow.document.write(html);
@@ -1867,7 +2122,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
         <div className="flex flex-wrap gap-2">
           <button
             className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!exportableAttendance}
+            disabled={!printableReport}
             onClick={printReport}
             type="button"
           >
@@ -1885,7 +2140,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
           </button>
           <button
             className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={!exportableAttendance}
+            disabled={!printableReport}
             onClick={exportExcel}
             type="button"
           >
@@ -2295,6 +2550,62 @@ export function ReportsPage({ session }: ReportsPageProps) {
                 </div>
               ) : null}
             </>
+          ) : null}
+
+          {reportView === 'health' ? (
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'นักเรียนในรายงาน', value: healthSummaryRows.length, detail: `${classroomHealthRecords.length} บันทึกในช่วงนี้` },
+                  { label: 'แปรงฟันสำเร็จ', value: healthSummaryRows.reduce((sum, row) => sum + row.brushing.completed, 0), detail: 'จำนวนครั้งที่ทำสำเร็จ' },
+                  { label: 'ดื่มนมสำเร็จ', value: healthSummaryRows.reduce((sum, row) => sum + row.milk.completed, 0), detail: 'จำนวนครั้งที่ทำสำเร็จ' },
+                  { label: 'ต้องติดตามสุขอนามัย', value: healthSummaryRows.filter((row) => row.attentionItems.length > 0).length, detail: 'นักเรียนที่มีจุดต้องติดตามล่าสุด' },
+                ].map((item) => (
+                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
+                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
+                    <p className="mt-2 text-4xl font-black text-slate-950">{item.value.toLocaleString('th-TH')}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                <table className="min-w-[1060px] divide-y divide-slate-100 text-left text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="text-xs font-black uppercase text-slate-500">
+                      <th className="px-3 py-3">นักเรียน</th>
+                      <th className="px-3 py-3 text-center">แปรงฟัน</th>
+                      <th className="px-3 py-3 text-center">ดื่มนม</th>
+                      <th className="px-3 py-3 text-center">อาหารกลางวัน</th>
+                      <th className="px-3 py-3 text-right">น้ำหนัก</th>
+                      <th className="px-3 py-3 text-right">ส่วนสูง</th>
+                      <th className="px-3 py-3 text-right">BMI</th>
+                      <th className="px-3 py-3">ตรวจล่าสุด</th>
+                      <th className="px-3 py-3">จุดติดตาม</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {healthSummaryRows.map((row) => (
+                      <tr className="hover:bg-emerald-50/40" key={row.student.id}>
+                        <td className="px-3 py-3"><p className="font-black text-slate-950">{row.student.first_name} {row.student.last_name}</p><p className="text-xs font-bold text-slate-500">{row.student.student_code || '-'}</p></td>
+                        <td className="px-3 py-3 text-center font-black text-cyan-700">{row.brushing.completed}/{row.brushing.total}</td>
+                        <td className="px-3 py-3 text-center font-black text-cyan-700">{row.milk.completed}/{row.milk.total}</td>
+                        <td className="px-3 py-3 text-center font-black text-cyan-700">{row.lunch.completed}/{row.lunch.total}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-700">{row.latestGrowth?.weight_kg ?? '-'}{row.latestGrowth?.weight_kg ? ' กก.' : ''}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-700">{row.latestGrowth?.height_cm ?? '-'}{row.latestGrowth?.height_cm ? ' ซม.' : ''}</td>
+                        <td className="px-3 py-3 text-right font-black text-emerald-700">{row.latestGrowth?.bmi ?? '-'}</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.latestHygiene?.record_date || '-'}</td>
+                        <td className="px-3 py-3 font-bold text-slate-600">{row.attentionItems.join(', ') || row.latestHygiene?.note || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isLoading && classroomHealthRecords.length === 0 ? (
+                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">ยังไม่มีบันทึกสุขภาพหรือกิจวัตรในช่วงเวลาที่เลือก</div>
+              ) : null}
+            </div>
           ) : null}
 
           {reportView === 'scores' ? (

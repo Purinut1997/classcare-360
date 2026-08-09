@@ -117,6 +117,7 @@ const dashboardSchemaChecks = await Promise.all([
   assertTableShape('student_care_cases', 'id,student_id,summary,status,risk_level'),
   assertTableShape('score_entries', 'student_id,score,assessment_id'),
   assertTableShape('savings_accounts', 'student_id,balance,status'),
+  assertTableShape('student_health_records', 'student_id,record_date,record_type,status,weight_kg,height_cm,bmi,inspection_results'),
 ]);
 const workspaceMemberRpcChecks = await Promise.all([
   assertRpcExists('can_manage_workspace_members', { target_workspace_id: NIL_UUID }),
