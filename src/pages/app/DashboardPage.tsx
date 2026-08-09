@@ -3,11 +3,16 @@ import {
   ArrowRight,
   CalendarClock,
   ChevronDown,
+  ClipboardCheck,
   ClipboardList,
   FileSpreadsheet,
   HeartHandshake,
+  Scale,
   School,
+  ShieldCheck,
+  Sparkles,
   UserPlus,
+  Utensils,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -88,6 +93,48 @@ interface SubjectAttendanceSummary {
   total: number;
 }
 
+type HealthReportType = 'toothbrushing' | 'milk' | 'lunch' | 'growth' | 'hygiene';
+
+interface HealthRecordSummaryRow {
+  bmi: number | null;
+  height_cm: number | null;
+  inspection_results: Record<string, string> | null;
+  record_date: string;
+  record_type: HealthReportType;
+  status: string;
+  student_id: string;
+  weight_kg: number | null;
+}
+
+interface HealthReportMetric {
+  attention: number;
+  cadence: string;
+  completed: number;
+  detail: string;
+  icon: typeof Sparkles;
+  key: HealthReportType;
+  label: string;
+  percent: number;
+  recorded: number;
+  tone: string;
+  total: number;
+}
+
+const healthReportConfigs: Array<Pick<HealthReportMetric, 'cadence' | 'icon' | 'key' | 'label' | 'tone'>> = [
+  { cadence: 'วันนี้', icon: Sparkles, key: 'toothbrushing', label: 'แปรงฟัน', tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
+  { cadence: 'วันนี้', icon: ShieldCheck, key: 'milk', label: 'ดื่มนม', tone: 'bg-sky-50 text-sky-700 ring-sky-100' },
+  { cadence: 'วันนี้', icon: Utensils, key: 'lunch', label: 'อาหารกลางวัน', tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
+  { cadence: 'ข้อมูลล่าสุด', icon: Scale, key: 'growth', label: 'น้ำหนัก–ส่วนสูง–BMI', tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
+  { cadence: 'ข้อมูลล่าสุด', icon: ClipboardCheck, key: 'hygiene', label: 'ตรวจสุขภาพ', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+];
+
+function formatThaiRecordDate(value: string | undefined) {
+  if (!value) return 'ยังไม่มีข้อมูล';
+  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(
+    new Date(`${value}T12:00:00+07:00`),
+  );
+}
+
 const emptyAnalyticsData: ClassroomAnalyticsData = {
   attendance: {
     absent: 0,
@@ -133,6 +180,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
   const [watchlistStudents, setWatchlistStudents] = useState<WatchlistStudentItem[]>([]);
   const [subjectAttendanceSummaries, setSubjectAttendanceSummaries] = useState<SubjectAttendanceSummary[]>([]);
+  const [dailyHealthRecords, setDailyHealthRecords] = useState<HealthRecordSummaryRow[]>([]);
+  const [latestHealthRecords, setLatestHealthRecords] = useState<HealthRecordSummaryRow[]>([]);
+  const [activeClassroomStudentIds, setActiveClassroomStudentIds] = useState<string[]>([]);
+  const [healthReportsLoading, setHealthReportsLoading] = useState(false);
   const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName));
 
   const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
@@ -248,6 +299,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       if (!supabase || !session.workspace || !selectedClassroomId) {
         setAnalyticsData(emptyAnalyticsData);
         setWatchlistStudents([]);
+        setActiveClassroomStudentIds([]);
         return;
       }
 
@@ -291,7 +343,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         { data: homeVisitRows },
         { data: careCaseRows },
       ] = await Promise.all([
-        supabase.from('students').select('id, student_code, first_name, last_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId),
+        supabase.from('students').select('id, student_code, first_name, last_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('status', 'active'),
         attendanceRecordsPromise,
         supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
         supabase.from('savings_transactions').select('student_id, amount, transaction_type').eq('workspace_id', session.workspace.id),
@@ -306,6 +358,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       const studentMap = new Map((studentRows || []).map((s) => [s.id, s]));
       const studentIds = new Set(studentMap.keys());
+      setActiveClassroomStudentIds(Array.from(studentIds));
       const studentsCount = studentIds.size;
       const attendanceSessions = (attendanceSessionRows || []) as AttendanceSessionRow[];
       const todayAttendanceSessionIds = new Set(
@@ -475,6 +528,51 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [classrooms, selectedClassroomId, session.workspace]);
 
+  // Load daily routines and the latest periodic health snapshots for the selected classroom.
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadHealthReportSummary() {
+      if (!supabase || !session.workspace || !selectedClassroomId) {
+        setDailyHealthRecords([]);
+        setLatestHealthRecords([]);
+        setHealthReportsLoading(false);
+        return;
+      }
+
+      setHealthReportsLoading(true);
+      const today = getBangkokDate();
+      const fields = 'student_id,record_type,status,record_date,weight_kg,height_cm,bmi,inspection_results';
+      const [{ data: dailyRows }, { data: snapshotRows }] = await Promise.all([
+        supabase
+          .from('student_health_records')
+          .select(fields)
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', selectedClassroomId)
+          .eq('record_date', today)
+          .in('record_type', ['toothbrushing', 'milk', 'lunch']),
+        supabase
+          .from('student_health_records')
+          .select(fields)
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', selectedClassroomId)
+          .in('record_type', ['growth', 'hygiene'])
+          .order('record_date', { ascending: false })
+          .limit(1000),
+      ]);
+
+      if (!isMounted) return;
+      setDailyHealthRecords((dailyRows || []) as HealthRecordSummaryRow[]);
+      setLatestHealthRecords((snapshotRows || []) as HealthRecordSummaryRow[]);
+      setHealthReportsLoading(false);
+    }
+
+    void loadHealthReportSummary();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedClassroomId, session.workspace]);
+
   // Load Pending Join Requests
   useEffect(() => {
     let isMounted = true;
@@ -506,6 +604,50 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
   const selectedClassroom = classrooms.find((c) => c.id === selectedClassroomId);
 
+  const healthReportMetrics = useMemo<HealthReportMetric[]>(() => {
+    const total = analyticsData.dataCompleteness.studentsCount;
+    const activeStudentIds = new Set(activeClassroomStudentIds);
+    const latestByStudentAndType = new Map<string, HealthRecordSummaryRow>();
+    latestHealthRecords.filter((record) => activeStudentIds.has(record.student_id)).forEach((record) => {
+      const key = `${record.record_type}:${record.student_id}`;
+      if (!latestByStudentAndType.has(key)) latestByStudentAndType.set(key, record);
+    });
+
+    return healthReportConfigs.map((config) => {
+      const records = config.cadence === 'วันนี้'
+        ? dailyHealthRecords.filter((record) => activeStudentIds.has(record.student_id) && record.record_type === config.key)
+        : Array.from(latestByStudentAndType.values()).filter((record) => record.record_type === config.key);
+      const uniqueRecords = Array.from(new Map(records.map((record) => [record.student_id, record])).values());
+      const recorded = uniqueRecords.length;
+      const completed = config.key === 'growth'
+        ? uniqueRecords.filter((record) => record.weight_kg !== null && record.height_cm !== null && record.bmi !== null).length
+        : uniqueRecords.filter((record) => ['completed', 'normal'].includes(record.status)).length;
+      const attention = uniqueRecords.filter((record) => ['missed', 'attention'].includes(record.status)).length;
+      const latestDate = uniqueRecords.reduce<string | undefined>(
+        (latest, record) => (!latest || record.record_date > latest ? record.record_date : latest),
+        undefined,
+      );
+      return {
+        ...config,
+        attention,
+        completed,
+        detail: config.cadence === 'วันนี้' ? `ประจำวันที่ ${formatThaiRecordDate(getBangkokDate())}` : `ล่าสุด ${formatThaiRecordDate(latestDate)}`,
+        percent: total > 0 ? Math.min(100, Math.round((recorded / total) * 100)) : 0,
+        recorded,
+        total,
+      };
+    });
+  }, [activeClassroomStudentIds, analyticsData.dataCompleteness.studentsCount, dailyHealthRecords, latestHealthRecords]);
+
+  const completedHealthReportCount = healthReportMetrics.filter(
+    (metric) => metric.total > 0 && metric.recorded >= metric.total,
+  ).length;
+  const completedDailyRoutineCount = healthReportMetrics.filter(
+    (metric) => metric.cadence === 'วันนี้' && metric.total > 0 && metric.recorded >= metric.total,
+  ).length;
+  const healthReportPath = (mode: HealthReportType) =>
+    `/app/dashboard?view=student-health&healthMode=${mode}${selectedClassroomId ? `&classroomId=${selectedClassroomId}` : ''}`;
+
   const dynamicTodayTasks = [
     {
       detail: 'บันทึกสถานะนักเรียนก่อนเริ่มงานช่วงเช้า',
@@ -522,6 +664,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
       path: '/app/dashboard?view=scores&scoreView=entry',
       status: `${analyticsData.scores.assessmentCount} ชุดคะแนน`,
       tone: 'text-sky-700 bg-sky-50',
+    },
+    {
+      detail: 'แปรงฟัน ดื่มนม และอาหารกลางวันของนักเรียนทั้งห้อง',
+      icon: Sparkles,
+      label: 'บันทึกสุขภาพและกิจวัตร',
+      path: healthReportPath('toothbrushing'),
+      status: `${completedDailyRoutineCount}/3 รายงาน`,
+      tone: completedDailyRoutineCount === 3 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50',
     },
     {
       detail: 'ทบทวนนักเรียนที่มีสถานะติดตาม',
@@ -614,6 +764,64 @@ export function DashboardPage({ session }: DashboardPageProps) {
           </Link>
         </section>
       ) : null}
+
+      <section className="mt-5 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 bg-gradient-to-r from-cyan-50/80 via-white to-emerald-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-700">
+              <ClipboardCheck size={16} aria-hidden="true" /> Health reporting
+            </div>
+            <h2 className="mt-1 text-xl font-black text-slate-950">รายงานสุขภาพและกิจวัตรนักเรียน</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">เห็นรายการที่บันทึกครบและรายการที่ต้องติดตามของ {selectedClassroom?.name || 'ห้องที่เลือก'} ในจุดเดียว</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-white px-4 py-2 text-right shadow-sm ring-1 ring-slate-200">
+              <p className="text-[10px] font-black uppercase text-slate-400">ความพร้อมรายงาน</p>
+              <p className="text-lg font-black text-slate-950">{completedHealthReportCount}<span className="text-sm text-slate-400">/5 หมวด</span></p>
+            </div>
+            <Link className="inline-flex items-center gap-1 text-sm font-black text-cyan-800 hover:underline" to={healthReportPath('toothbrushing')}>
+              เปิดแบบบันทึก <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-5">
+          {healthReportMetrics.map((metric) => {
+            const Icon = metric.icon;
+            const isComplete = metric.total > 0 && metric.recorded >= metric.total;
+            return (
+              <Link
+                aria-label={`เปิดแบบบันทึก${metric.label}`}
+                className="group bg-white p-5 transition hover:bg-slate-50"
+                key={metric.key}
+                to={healthReportPath(metric.key)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className={`grid h-10 w-10 place-items-center rounded-2xl ring-1 ${metric.tone}`}>
+                    <Icon size={19} aria-hidden="true" />
+                  </span>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {healthReportsLoading ? 'กำลังโหลด' : isComplete ? 'ครบแล้ว' : metric.cadence}
+                  </span>
+                </div>
+                <h3 className="mt-4 min-h-10 text-sm font-black leading-5 text-slate-950">{metric.label}</h3>
+                <p className="mt-1 text-[11px] font-bold text-slate-500">{metric.detail}</p>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div><span className="text-2xl font-black text-slate-950">{metric.recorded}</span><span className="text-xs font-black text-slate-400">/{metric.total} คน</span></div>
+                  <span className="text-sm font-black text-cyan-700">{metric.percent}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className={`h-full rounded-full transition-all ${isComplete ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${metric.percent}%` }} />
+                </div>
+                <div className="mt-3 flex items-center justify-between text-[11px] font-black">
+                  <span className="text-emerald-700">เรียบร้อย {metric.completed}</span>
+                  <span className={metric.attention > 0 ? 'text-rose-700' : 'text-slate-400'}>ติดตาม {metric.attention}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
         <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">

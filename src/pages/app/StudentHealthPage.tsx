@@ -11,6 +11,7 @@ import {
   Sparkles,
   Utensils,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { writeAuditLog } from '../../lib/auditLog';
@@ -113,7 +114,11 @@ function calculateBmi(weight: string, height: string) {
 
 export function StudentHealthPage({ session }: StudentHealthPageProps) {
   const feedback = useSystemFeedback();
-  const [mode, setMode] = useState<HealthMode>('toothbrushing');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedMode = searchParams.get('healthMode');
+  const requestedClassroomId = searchParams.get('classroomId');
+  const initialMode = modeOptions.some((option) => option.value === requestedMode) ? requestedMode as HealthMode : 'toothbrushing';
+  const [mode, setMode] = useState<HealthMode>(initialMode);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
@@ -182,12 +187,15 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       const nextStudents = (studentRows || []) as StudentRow[];
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);
-      setClassroomId(getClassroomWithStudents(nextClassrooms, nextStudents));
+      const linkedClassroomId = requestedClassroomId && nextClassrooms.some((classroom) => classroom.id === requestedClassroomId)
+        ? requestedClassroomId
+        : getClassroomWithStudents(nextClassrooms, nextStudents);
+      setClassroomId(linkedClassroomId);
       setIsLoading(false);
     }
     void loadBaseData();
     return () => { mounted = false; };
-  }, [session.workspace]);
+  }, [requestedClassroomId, session.workspace]);
 
   useEffect(() => {
     const defaultRoutine = createRoutineState(classroomStudents);
@@ -240,6 +248,14 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
   function markAllRoutine(status: RoutineStatus) {
     if (!routineModes.includes(mode as RoutineMode)) return;
     setRoutineMarks((current) => ({ ...current, [mode]: createRoutineState(classroomStudents, status) }));
+  }
+
+  function selectMode(nextMode: HealthMode) {
+    setMode(nextMode);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('healthMode', nextMode);
+    if (classroomId) nextParams.set('classroomId', classroomId);
+    setSearchParams(nextParams, { replace: true });
   }
 
   function markAllInspection(status: InspectionStatus) {
@@ -352,13 +368,13 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
         {modeOptions.map((option) => {
           const Icon = option.icon;
           const active = mode === option.value;
-          return <button className={`nexus-card p-4 text-left transition ${active ? 'ring-2 ring-cyan-400' : 'hover:-translate-y-0.5'}`} key={option.value} onClick={() => setMode(option.value)} type="button"><span className={`grid h-10 w-10 place-items-center rounded-2xl ${active ? 'bg-cyan-600 text-white' : 'bg-cyan-50 text-cyan-700'}`}><Icon size={19} /></span><strong className="mt-3 block text-sm font-black text-slate-950">{option.label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{option.body}</span></button>;
+          return <button className={`nexus-card p-4 text-left transition ${active ? 'ring-2 ring-cyan-400' : 'hover:-translate-y-0.5'}`} key={option.value} onClick={() => selectMode(option.value)} type="button"><span className={`grid h-10 w-10 place-items-center rounded-2xl ${active ? 'bg-cyan-600 text-white' : 'bg-cyan-50 text-cyan-700'}`}><Icon size={19} /></span><strong className="mt-3 block text-sm font-black text-slate-950">{option.label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{option.body}</span></button>;
         })}
       </section>
 
       <section className="mt-5 nexus-card p-4 sm:p-5">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-          <label><span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span><select className="nexus-field mt-2" value={classroomId} onChange={(event) => setClassroomId(event.target.value)}>{classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name} • {classroom.academic_year || 'ไม่ระบุปี'}</option>)}</select></label>
+          <label><span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span><select className="nexus-field mt-2" value={classroomId} onChange={(event) => { setClassroomId(event.target.value); const nextParams = new URLSearchParams(searchParams); nextParams.set('classroomId', event.target.value); setSearchParams(nextParams, { replace: true }); }}>{classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name} • {classroom.academic_year || 'ไม่ระบุปี'}</option>)}</select></label>
           <label><span className="text-xs font-black uppercase text-slate-500">วันที่บันทึก</span><input className="nexus-field mt-2" type="date" value={recordDate} onChange={(event) => setRecordDate(event.target.value)} /></label>
           <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading || isSaving} onClick={() => void saveRecords()} type="button"><Save size={17} />{isSaving ? 'กำลังบันทึก...' : 'บันทึกทั้งห้อง'}</button>
         </div>
