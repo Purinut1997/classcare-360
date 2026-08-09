@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -51,44 +51,53 @@ function getRoleOperationSetupNotice(actionLabel: string, detail?: string) {
   return `${actionLabel}ไม่สำเร็จ เพราะ production ยังไม่มี RPC ชุดจัดการบทบาท ให้รัน supabase/migrations/0021_role_operations_control_center.sql ใน Supabase SQL Editor แล้วลองใหม่.${suffix}`;
 }
 
-const controlCenterSections = [
+type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'health' | 'audit';
+
+const controlCenterSections: Array<{
+  body: string;
+  icon: typeof ShieldCheck;
+  key: SuperadminSection;
+  label: string;
+}> = [
   {
     body: 'จำนวน workspace active, นักเรียน, สมาชิก, admin และคำขอสำคัญล่าสุด',
-    href: '#superadmin-overview',
     icon: ShieldCheck,
+    key: 'overview',
     label: 'ภาพรวมระบบ',
   },
   {
     body: 'ค้นหาโรงเรียน เข้าใช้งานแทน เก็บถาวร ลบ และเตรียม flow รวม workspace ซ้ำ',
-    href: '#superadmin-workspaces',
     icon: Building2,
+    key: 'workspaces',
     label: 'โรงเรียน / Workspace',
   },
   {
     body: 'ค้นหาอีเมล เพิ่ม Admin/Superadmin ปิดสิทธิ์ และมองเห็นผู้ดูแลทั้งหมด',
-    href: '#superadmin-users',
     icon: Users,
+    key: 'users',
     label: 'ผู้ใช้และสิทธิ์',
   },
   {
     body: 'ดู subscription, payment pending, QR และเตรียม override VIP ราย workspace',
-    href: '#superadmin-billing',
     icon: Banknote,
+    key: 'billing',
     label: 'แพ็กเกจ / VIP',
   },
   {
     body: 'ตรวจ env, migrations, RLS, storage, Edge Functions และ Cloudflare readiness',
-    href: '#superadmin-health',
     icon: AlertTriangle,
+    key: 'health',
     label: 'System Health',
   },
   {
     body: 'ดู log สำคัญ ใครลบอะไร ใครอนุมัติใคร และ export ข้อมูลเพื่อ debug',
-    href: '#superadmin-audit',
     icon: FileUp,
+    key: 'audit',
     label: 'Audit & Support',
   },
 ];
+
+const superadminSectionKeys = new Set<SuperadminSection>(controlCenterSections.map((section) => section.key));
 
 const roleCapabilityMatrix = [
   {
@@ -428,6 +437,12 @@ const isDevelopmentDemo =
   import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 
 export function SuperadminDashboard({ embedded = false }: SuperadminDashboardProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSection = searchParams.get('section');
+  const activeSection =
+    requestedSection && superadminSectionKeys.has(requestedSection as SuperadminSection)
+      ? (requestedSection as SuperadminSection)
+      : 'overview';
   const systemUsesSupabase = isSupabaseReady && !isDevelopmentDemo;
   const [adminRows, setAdminRows] = useState<AdminAccessRow[]>([]);
   const [adminEmail, setAdminEmail] = useState('');
@@ -497,6 +512,18 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       return matchesStatus && (!normalizedQuery || searchTarget.includes(normalizedQuery));
     });
   }, [workspaceFilter, workspaceQuery, workspaces]);
+
+  function openSection(section: SuperadminSection) {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('view', 'superadmin-dashboard');
+    if (section === 'overview') {
+      nextSearchParams.delete('section');
+    } else {
+      nextSearchParams.set('section', section);
+    }
+    setSearchParams(nextSearchParams);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   async function loadSuperadminData() {
     if (!supabase || isDevelopmentDemo) {
@@ -1328,28 +1355,31 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
         <nav aria-label="เมนูย่อย Superadmin" className="sticky top-2 z-20 mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 px-2 shadow-sm backdrop-blur">
           <div className="flex min-w-max items-center">
-            {controlCenterSections.map((section, index) => {
+            {controlCenterSections.map((section) => {
               const Icon = section.icon;
               return (
-                <a
+                <button
+                  aria-current={activeSection === section.key ? 'page' : undefined}
                   className={`inline-flex h-12 items-center gap-2 border-b-2 px-3 text-xs font-black transition sm:px-4 ${
-                    index === 0
+                    activeSection === section.key
                       ? 'border-cyan-500 text-cyan-700'
                       : 'border-transparent text-slate-600 hover:border-slate-200 hover:text-slate-950'
                   }`}
-                  href={section.href}
-                  key={section.href}
+                  key={section.key}
+                  onClick={() => openSection(section.key)}
                   title={section.body}
+                  type="button"
                 >
                   <Icon size={15} aria-hidden="true" />
                   {section.label}
-                </a>
+                </button>
               );
             })}
           </div>
         </nav>
 
-        <div id="superadmin-overview" className="nexus-card mt-3 grid scroll-mt-24 overflow-hidden sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-slate-200">
+        {activeSection === 'overview' ? (
+        <div className="nexus-card mt-3 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-slate-200">
           {[
             { icon: Building2, label: 'Workspace ที่ใช้งาน', meta: `${archivedWorkspaceCount} เก็บถาวร`, value: activeWorkspaceCount },
             { icon: GraduationCap, label: 'นักเรียนทั้งหมด', meta: `${activeWorkspaceCount} workspace`, value: totalStudentCount },
@@ -1373,6 +1403,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
             );
           })}
         </div>
+        ) : null}
 
         {notice ? (
           <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
@@ -1381,8 +1412,61 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         ) : null}
 
+        {activeSection === 'overview' ? (
+          <section className="nexus-card mt-5 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Action Summary</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">สรุปงานที่ต้องดำเนินการ</h2>
+            </div>
+            <div className="grid divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+              {[
+                {
+                  body: 'เปิดคิวเพื่อตรวจสอบและอนุมัติรายการ',
+                  count: pendingPaymentCount,
+                  dotClass: 'bg-rose-500',
+                  label: 'การชำระเงินรอตรวจ',
+                  section: 'billing' as SuperadminSection,
+                },
+                {
+                  body: 'ตรวจสอบสถานะก่อนกู้คืนหรือลบถาวร',
+                  count: archivedWorkspaceCount,
+                  dotClass: 'bg-slate-400',
+                  label: 'Workspace เก็บถาวร',
+                  section: 'workspaces' as SuperadminSection,
+                },
+                {
+                  body: systemUsesSupabase ? 'บริการหลักเชื่อมต่อพร้อมใช้งาน' : 'กำลังแสดงข้อมูลสำหรับตรวจสอบหน้าจอ',
+                  count: systemUsesSupabase ? 'ปกติ' : 'Demo',
+                  dotClass: systemUsesSupabase ? 'bg-emerald-500' : 'bg-amber-500',
+                  label: 'สถานะระบบ',
+                  section: 'health' as SuperadminSection,
+                },
+              ].map((item) => (
+                <button
+                  className="flex items-center justify-between gap-4 px-5 py-5 text-left transition hover:bg-slate-50"
+                  key={item.label}
+                  onClick={() => openSection(item.section)}
+                  type="button"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${item.dotClass}`} />
+                    <div>
+                      <p className="text-sm font-black text-slate-900">{item.label}</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.body}</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-black tabular-nums text-slate-700">
+                    {item.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activeSection === 'workspaces' ? (
         <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px] xl:items-start">
-        <section id="superadmin-workspaces" className="scroll-mt-24 nexus-card overflow-hidden p-4 sm:p-5">
+        <section className="nexus-card overflow-hidden p-4 sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="nexus-kicker">
@@ -1591,7 +1675,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               <h2 className="mt-1 text-lg font-black text-slate-950">งานที่ต้องตรวจสอบ</h2>
             </div>
             <div className="divide-y divide-slate-200">
-              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-billing">
+              <button className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50" onClick={() => openSection('billing')} type="button">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" />
                   <div className="min-w-0">
@@ -1600,8 +1684,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   </div>
                 </div>
                 <span className="rounded-lg bg-rose-50 px-2.5 py-1 text-sm font-black tabular-nums text-rose-700">{pendingPaymentCount}</span>
-              </a>
-              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-users">
+              </button>
+              <button className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50" onClick={() => openSection('users')} type="button">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-500" />
                   <div className="min-w-0">
@@ -1610,8 +1694,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   </div>
                 </div>
                 <span className="rounded-lg bg-cyan-50 px-2.5 py-1 text-sm font-black tabular-nums text-cyan-700">{adminRows.length}</span>
-              </a>
-              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-workspaces">
+              </button>
+              <button className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50" onClick={() => openSection('workspaces')} type="button">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <div className="min-w-0">
@@ -1620,8 +1704,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   </div>
                 </div>
                 <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-black tabular-nums text-slate-700">{archivedWorkspaceCount}</span>
-              </a>
-              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-health">
+              </button>
+              <button className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50" onClick={() => openSection('health')} type="button">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${systemUsesSupabase ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                   <div className="min-w-0">
@@ -1630,12 +1714,15 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   </div>
                 </div>
                 <span className={`text-xs font-black ${systemUsesSupabase ? 'text-emerald-700' : 'text-amber-700'}`}>{systemUsesSupabase ? 'ปกติ' : 'Demo'}</span>
-              </a>
+              </button>
             </div>
           </aside>
         </div>
+        ) : null}
 
-        <section id="superadmin-users" className="mt-5 grid scroll-mt-24 gap-5">
+        {activeSection === 'users' ? (
+        <>
+        <section className="mt-5 grid gap-5">
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <UserPlus size={18} aria-hidden="true" />
@@ -1806,7 +1893,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </section>
 
-        <section className="mt-5 scroll-mt-24 nexus-card p-4 sm:p-5">
+        <section className="mt-5 nexus-card p-4 sm:p-5">
           <div className="nexus-kicker">
             <ShieldCheck size={18} aria-hidden="true" />
             Role Capability Matrix
@@ -1838,8 +1925,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
             ))}
           </div>
         </section>
+        </>
+        ) : null}
 
-        <section id="superadmin-billing" className="mt-5 grid scroll-mt-24 gap-5">
+        {activeSection === 'billing' ? (
+        <section className="mt-5 grid gap-5">
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -2135,9 +2225,12 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
             </div>
           </aside>
         </section>
+        ) : null}
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-2">
-          <div id="superadmin-health" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+        {activeSection === 'health' || activeSection === 'audit' ? (
+        <section className="mt-5 grid gap-5">
+          {activeSection === 'health' ? (
+          <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <AlertTriangle size={18} aria-hidden="true" />
               System Health
@@ -2178,8 +2271,10 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               <ArrowLeft className="rotate-180" size={17} aria-hidden="true" />
             </Link>
           </div>
+          ) : null}
 
-          <div id="superadmin-audit" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+          {activeSection === 'audit' ? (
+          <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <FileUp size={18} aria-hidden="true" />
               Audit & Support
@@ -2219,7 +2314,9 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               </button>
             </div>
           </div>
+          ) : null}
         </section>
+        ) : null}
 
         <footer className="mt-6 text-center text-xs font-bold text-slate-500">
           Created by MIKPURINUT
