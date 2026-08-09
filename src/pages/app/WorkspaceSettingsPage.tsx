@@ -34,9 +34,12 @@ interface WorkspaceMemberRow {
 }
 
 interface SafeDeleteResult {
+  affected_students?: number;
   deleted?: boolean;
   reason?: string;
 }
+
+type ClassroomStudentStrategy = 'detach' | 'archive';
 
 interface PublicReportPolicy {
   attendance: boolean;
@@ -130,11 +133,12 @@ function getRpcErrorMessage(actionLabel: string, error: { code?: string; message
     error.code === 'PGRST202' ||
     message.includes('schema cache') ||
     message.includes('Could not find the function') ||
+    message.includes('delete_classroom_with_student_strategy') ||
     message.includes('delete_classroom_safely') ||
     message.includes('delete_workspace_safely');
 
   if (isMissingRpc) {
-    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ลบถาวรชุดล่าสุด ให้รัน supabase/migrations/0020_harden_destructive_action_rpcs.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
+    return `${actionLabel}ไม่สำเร็จ: Supabase project ยังไม่มี RPC ชุดล่าสุด ให้รัน migrations ถึง 0039_classroom_student_cleanup_strategy.sql ใน SQL Editor แล้ว reload schema cache ก่อนลองใหม่`;
   }
 
   if (error.code === '42501' || message.includes('not allowed')) {
@@ -148,6 +152,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   const initialReportIdentity = loadSchoolReportIdentity();
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<Record<string, number>>({});
+  const [classroomDeleteStrategy, setClassroomDeleteStrategy] = useState<ClassroomStudentStrategy>('archive');
+  const [pendingClassroomDelete, setPendingClassroomDelete] = useState<ClassroomRow | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>(demoMembers);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -558,17 +564,16 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(false);
   }
 
-  async function deleteClassroomPermanently(classroom: ClassroomRow) {
+  async function deleteClassroomPermanently(
+    classroom: ClassroomRow,
+    studentStrategy: ClassroomStudentStrategy,
+  ) {
     if (!canUseDestructiveActions) {
       setNotice('เฉพาะ Superadmin หรือเจ้าของ workspace เท่านั้นที่ลบห้องเรียนได้');
       return;
     }
 
     const studentCount = classroomStudentCounts[classroom.id] || 0;
-    const confirmed = window.confirm(
-      `ลบห้องเรียน "${classroom.name}" ถาวรหรือไม่?\n\nนักเรียน ${studentCount} คนในห้องนี้จะไม่ถูกลบ แต่จะถูกปลดออกจากห้องเรียนนี้และไปอยู่สถานะ “ยังไม่ผูกห้อง”`,
-    );
-    if (!confirmed) return;
 
     setIsSubmitting(true);
     setNotice(null);
@@ -580,12 +585,18 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         delete next[classroom.id];
         return next;
       });
-      setNotice('ลบห้องเรียนออกจากโหมดตัวอย่างแล้ว');
+      setPendingClassroomDelete(null);
+      setNotice(
+        studentStrategy === 'archive'
+          ? `ลบห้องเรียนและเก็บนักเรียน ${studentCount} คนเป็นประวัติในโหมดตัวอย่างแล้ว`
+          : `ลบห้องเรียนและย้ายนักเรียน ${studentCount} คนไปยัง “ยังไม่ผูกห้อง” ในโหมดตัวอย่างแล้ว`,
+      );
       setIsSubmitting(false);
       return;
     }
 
-    const rpcResult = await supabase.rpc('delete_classroom_safely', {
+    const rpcResult = await supabase.rpc('delete_classroom_with_student_strategy', {
+      student_strategy: studentStrategy,
       target_classroom_id: classroom.id,
     });
 
@@ -626,11 +637,17 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       metadata: {
         name: classroom.name,
         student_count: studentCount,
+        student_strategy: studentStrategy,
       },
       riskLevel: 'high',
       source: 'workspace_settings',
     });
-    setNotice(`ลบห้องเรียน ${classroom.name} ถาวรแล้ว`);
+    setPendingClassroomDelete(null);
+    setNotice(
+      studentStrategy === 'archive'
+        ? `ลบห้องเรียน ${classroom.name} และเก็บนักเรียน ${studentCount} คนเป็นประวัติแล้ว`
+        : `ลบห้องเรียน ${classroom.name} และย้ายนักเรียน ${studentCount} คนไปยัง “ยังไม่ผูกห้อง” แล้ว`,
+    );
     setIsSubmitting(false);
   }
 
@@ -1322,7 +1339,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                     <button
                       className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={isSubmitting || !canUseDestructiveActions}
-                      onClick={() => void deleteClassroomPermanently(classroom)}
+                      onClick={() => {
+                        setClassroomDeleteStrategy('archive');
+                        setPendingClassroomDelete(classroom);
+                      }}
                       title="ลบห้องเรียนถาวร"
                       type="button"
                     >
@@ -1584,6 +1604,94 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </div>
         </div>
       </section>
+      ) : null}
+
+      {pendingClassroomDelete ? (
+        <div
+          aria-labelledby="delete-classroom-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          role="dialog"
+        >
+          <div className="w-full max-w-xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+              <div className="flex items-start gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-700">
+                  <Trash2 size={20} aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">ลบห้องเรียนถาวร</p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950" id="delete-classroom-title">
+                    {pendingClassroomDelete.name}
+                  </h2>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                    ห้องนี้มีนักเรียน {classroomStudentCounts[pendingClassroomDelete.id] || 0} คน กรุณาเลือกวิธีจัดการรายชื่อก่อนลบห้อง
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:p-6">
+              <label className={`cursor-pointer rounded-2xl border p-4 transition ${classroomDeleteStrategy === 'archive' ? 'border-cyan-400 bg-cyan-50 ring-2 ring-cyan-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <span className="flex items-start gap-3">
+                  <input
+                    checked={classroomDeleteStrategy === 'archive'}
+                    className="mt-1 h-4 w-4 accent-cyan-600"
+                    name="classroom-student-strategy"
+                    onChange={() => setClassroomDeleteStrategy('archive')}
+                    type="radio"
+                    value="archive"
+                  />
+                  <span>
+                    <span className="block text-sm font-black text-slate-950">เก็บนักเรียนเป็นประวัติ (แนะนำ)</span>
+                    <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                      นักเรียนจะไม่แสดงในยอดกำลังเรียน ข้อมูลประจำตัวยังคงอยู่และสามารถกู้คืนสถานะได้
+                    </span>
+                  </span>
+                </span>
+              </label>
+
+              <label className={`cursor-pointer rounded-2xl border p-4 transition ${classroomDeleteStrategy === 'detach' ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <span className="flex items-start gap-3">
+                  <input
+                    checked={classroomDeleteStrategy === 'detach'}
+                    className="mt-1 h-4 w-4 accent-amber-600"
+                    name="classroom-student-strategy"
+                    onChange={() => setClassroomDeleteStrategy('detach')}
+                    type="radio"
+                    value="detach"
+                  />
+                  <span>
+                    <span className="block text-sm font-black text-slate-950">ย้ายไป “ยังไม่ผูกห้อง”</span>
+                    <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                      นักเรียนยังเป็นกำลังเรียนและยังถูกนับใน Dashboard เพื่อรอจัดเข้าห้องใหม่
+                    </span>
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+              <button
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                disabled={isSubmitting}
+                onClick={() => setPendingClassroomDelete(null)}
+                type="button"
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-rose-700 px-4 text-sm font-black text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting}
+                onClick={() => void deleteClassroomPermanently(pendingClassroomDelete, classroomDeleteStrategy)}
+                type="button"
+              >
+                <Trash2 size={16} aria-hidden="true" />
+                {isSubmitting ? 'กำลังดำเนินการ...' : 'ยืนยันลบห้องเรียน'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {notice ? (

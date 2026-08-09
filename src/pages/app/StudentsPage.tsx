@@ -35,6 +35,7 @@ import {
   formatThaiOfficialDate,
 } from '../../lib/officialReport';
 import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
+import { canManageWorkspace } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -1300,6 +1301,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
     () => students.filter((student) => !student.classroom_id || !classrooms.some((classroom) => classroom.id === student.classroom_id)),
     [classrooms, students],
   );
+  const activeStudentsWithoutClassroom = useMemo(
+    () => studentsWithoutClassroom.filter((student) => student.status === 'active'),
+    [studentsWithoutClassroom],
+  );
 
   const studentsWithBlankIdentity = useMemo(
     () =>
@@ -2160,6 +2165,68 @@ export function StudentsPage({ session }: StudentsPageProps) {
       riskLevel: status === 'archived' ? 'normal' : 'low',
     });
     setNotice(`เปลี่ยนสถานะเป็น ${statusLabels[status]} สำเร็จ`);
+  }
+
+  async function archiveStudentsWithoutClassroom() {
+    if (!canManageWorkspace(session.profile.role)) {
+      setNotice('เฉพาะเจ้าของ workspace หรือ Superadmin เท่านั้นที่เก็บนักเรียนเป็นชุดได้');
+      return;
+    }
+
+    const targetStudents = activeStudentsWithoutClassroom;
+    if (targetStudents.length === 0) {
+      setNotice('ไม่มีนักเรียนกำลังเรียนที่อยู่ในสถานะ “ยังไม่ผูกห้อง”');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `เก็บนักเรียนที่ยังไม่ผูกห้อง ${targetStudents.length} คนเป็นประวัติหรือไม่?\n\nรายชื่อจะไม่ถูกนับใน Dashboard แต่ข้อมูลยังอยู่และสามารถกู้คืนได้`,
+    );
+    if (!confirmed) return;
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    const targetIds = new Set(targetStudents.map((student) => student.id));
+    if (!supabase || !session.workspace) {
+      setStudents((current) =>
+        current.map((student) => (targetIds.has(student.id) ? { ...student, status: 'archived' } : student)),
+      );
+      setRosterStatusFilter('archived');
+      setNotice(`เก็บนักเรียนที่ยังไม่ผูกห้อง ${targetStudents.length} คนเป็นประวัติในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc('archive_unassigned_students', {
+      target_workspace_id: session.workspace.id,
+    });
+
+    if (error) {
+      setNotice(`เก็บนักเรียนเป็นประวัติไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = data as { archived_students?: number } | null;
+    const archivedCount = result?.archived_students ?? 0;
+    const archivedIds = targetIds;
+    setStudents((current) =>
+      current.map((student) => (archivedIds.has(student.id) ? { ...student, status: 'archived' } : student)),
+    );
+    await writeAuditLog({
+      action: 'students.unassigned_archived',
+      entityId: session.workspace.id,
+      entityTable: 'students',
+      metadata: {
+        archived_count: archivedCount,
+        student_ids: [...archivedIds],
+      },
+      riskLevel: 'normal',
+    });
+    setRosterStatusFilter('archived');
+    setNotice(`เก็บนักเรียนที่ยังไม่ผูกห้อง ${archivedCount} คนเป็นประวัติแล้ว Dashboard จะไม่นับรายชื่อกลุ่มนี้`);
+    setIsSubmitting(false);
   }
 
   async function deleteStudentPermanently(student: StudentRow) {
@@ -3338,6 +3405,45 @@ export function StudentsPage({ session }: StudentsPageProps) {
               แสดง {filteredStudents.length}/{students.length}
             </div>
           </div>
+
+          {activeStudentsWithoutClassroom.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 shrink-0 text-amber-700" size={18} aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-black text-amber-900">
+                    นักเรียนยังไม่ผูกห้อง {activeStudentsWithoutClassroom.length} คน
+                  </p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-amber-800">
+                    รายชื่อกลุ่มนี้ยังเป็น “กำลังเรียน” จึงยังถูกนับใน Dashboard สามารถจัดเข้าห้องใหม่หรือเก็บเป็นประวัติได้
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 transition hover:bg-amber-100"
+                  onClick={() => {
+                    setRosterClassroomFilter('');
+                    setRosterStatusFilter('active');
+                  }}
+                  type="button"
+                >
+                  ดูรายชื่อ
+                </button>
+                {canManageWorkspace(session.profile.role) ? (
+                  <button
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-3 text-xs font-black text-white transition hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isSubmitting}
+                    onClick={() => void archiveStudentsWithoutClassroom()}
+                    type="button"
+                  >
+                    <Archive size={15} aria-hidden="true" />
+                    เก็บถาวรทั้งหมด
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-left">
