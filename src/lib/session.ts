@@ -266,7 +266,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
 
 export function useAppSession(search: string): UseAppSessionResult {
   const demoMode = useMemo(() => new URLSearchParams(search).get(demoModeQueryKey), [search]);
-  const forcedDemo = !supabase && demoMode !== null;
+  const forcedDemo = import.meta.env.DEV && demoMode !== null;
   const [session, setSession] = useState<AppSessionContext | null>(() =>
     !supabase || forcedDemo ? getDemoSession(demoMode) : null,
   );

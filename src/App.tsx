@@ -574,6 +574,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
         allowedRoles={allowedRoles}
         featureName={activeNavItem.label}
         moduleKey={activeNavItem.moduleKey}
+        requireWorkspace={false}
         session={session}
       >
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>

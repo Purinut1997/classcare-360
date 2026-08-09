@@ -424,7 +424,11 @@ interface SuperadminDashboardProps {
   embedded?: boolean;
 }
 
+const isDevelopmentDemo =
+  import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+
 export function SuperadminDashboard({ embedded = false }: SuperadminDashboardProps) {
+  const systemUsesSupabase = isSupabaseReady && !isDevelopmentDemo;
   const [adminRows, setAdminRows] = useState<AdminAccessRow[]>([]);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminLevel, setAdminLevel] = useState<AdminLevel>('admin');
@@ -449,9 +453,9 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [workspaceFilter, setWorkspaceFilter] = useState<WorkspaceDirectoryFilter>('active');
   const [activeFilter, setActiveFilter] = useState<'all' | PaymentStatus>('pending_review');
   const [notice, setNotice] = useState<string | null>(
-    isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อเชื่อมคิวตรวจสลิปจริง',
+    systemUsesSupabase ? null : 'โหมดตัวอย่าง: ข้อมูลในหน้านี้ใช้สำหรับตรวจสอบหน้าจอและขั้นตอนการทำงาน',
   );
-  const [isLoading, setIsLoading] = useState(Boolean(supabase));
+  const [isLoading, setIsLoading] = useState(Boolean(supabase) && !isDevelopmentDemo);
   const [isQrSubmitting, setIsQrSubmitting] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [workspaceActionId, setWorkspaceActionId] = useState<string | null>(null);
@@ -461,8 +465,10 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [recoveryAction, setRecoveryAction] = useState<string | null>(null);
 
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
+  const archivedWorkspaceCount = workspaces.length - activeWorkspaceCount;
   const totalStudentCount = workspaces.reduce((sum, workspace) => sum + workspace.studentCount, 0);
   const totalMemberCount = workspaces.reduce((sum, workspace) => sum + workspace.memberCount, 0);
+  const pendingPaymentCount = payments.filter((payment) => payment.status === 'pending_review').length;
 
   const filteredPayments = useMemo(
     () => (activeFilter === 'all' ? payments : payments.filter((payment) => payment.status === activeFilter)),
@@ -493,7 +499,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   }, [workspaceFilter, workspaceQuery, workspaces]);
 
   async function loadSuperadminData() {
-    if (!supabase) {
+    if (!supabase || isDevelopmentDemo) {
       setPayments(demoPayments);
       setQrRows(demoQrRows);
       setSubscriptions(demoSubscriptions);
@@ -1274,88 +1280,93 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           กลับหน้าแอป
         </Link>
       ) : null}
-      <section className="mx-auto max-w-7xl">
-        <div className="nexus-card overflow-hidden">
-          <div className="grid gap-0">
-            <div className="p-6 sm:p-8">
-              <div className="nexus-kicker">
-                <ShieldCheck size={18} aria-hidden="true" />
-                Superadmin
+      <section className="mx-auto max-w-[1480px]">
+        <header className="nexus-card overflow-hidden border-slate-200/80">
+          <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-cyan-200 bg-cyan-50 text-cyan-700">
+                <ShieldCheck size={25} aria-hidden="true" />
               </div>
-              <h1 className="mt-5 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
-                Superadmin Dashboard
-              </h1>
-              <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-slate-600">
-                ศูนย์ผู้ดูแลระบบสำหรับตรวจ workspace โรงเรียน สมาชิก และสิทธิ์ผู้ใช้ก่อนใช้งานจริง ส่วนระบบเงินเก็บไว้เป็นงานภายหลัง
-              </p>
-              <div className="mt-7 flex flex-wrap gap-3">
-                <button
-                  className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={isLoading}
-                  onClick={() => void loadSuperadminData()}
-                  type="button"
-                >
-                  <RefreshCw size={17} aria-hidden="true" />
-                  รีเฟรชข้อมูล
-                </button>
-                <span className="nexus-pill inline-flex h-11 items-center gap-2 px-4 text-sm font-black text-slate-700">
-                  {isSupabaseReady ? 'Supabase ready' : 'Demo mode'}
-                </span>
-                {!embedded ? (
-                  <Link
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-                    to="/app/dashboard"
-                  >
-                    <ArrowLeft size={17} aria-hidden="true" />
-                    กลับหน้า ClassCare
-                  </Link>
-                ) : null}
-                <Link
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-                  to="/app/select-workspace"
-                >
-                  เลือก/สร้าง workspace
-                </Link>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-700">Superadmin / System Operations</p>
+                <h1 className="mt-1 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">ศูนย์ควบคุมระบบ</h1>
+                <p className="mt-1 max-w-2xl text-sm font-bold leading-6 text-slate-600">
+                  กำกับดูแล Workspace ผู้ใช้ สิทธิ์ และความพร้อมของระบบจากจุดเดียว
+                </p>
               </div>
             </div>
-
-            <div className="relative overflow-hidden border-t border-slate-100 bg-slate-950 p-6 text-white xl:border-l xl:border-t-0 sm:p-8">
-              <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-cyan-300/20 blur-2xl" />
-              <p className="relative text-sm font-black text-cyan-200">System Guard</p>
-              <div className="relative mt-5 grid gap-3">
-                {[
-                  'ทุกข้อมูลห้องเรียนต้องผูก workspace_id',
-                  'Superadmin เข้าใช้งานห้องเรียนได้จาก shell เดียวกับครู',
-                  'ระบบเงินถูกแยกไว้ด้านล่าง ไม่ใช่ flow หลักตอนตั้งระบบ',
-                ].map((item) => (
-                  <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur" key={item}>
-                    <CheckCircle2 className="mt-0.5 shrink-0 text-cyan-300" size={18} aria-hidden="true" />
-                    <p className="text-sm font-bold leading-6 text-slate-100">{item}</p>
-                  </div>
-                ))}
-              </div>
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">
+                <span className={`h-2 w-2 rounded-full ${systemUsesSupabase ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                {systemUsesSupabase ? 'Supabase พร้อมใช้งาน' : 'โหมดตัวอย่าง'}
+              </span>
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700"
+                to="/app/dashboard?view=setup"
+              >
+                System Readiness
+              </Link>
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700"
+                to="/app/select-workspace"
+              >
+                เลือก Workspace
+              </Link>
+              <button
+                aria-label="รีเฟรชข้อมูล Superadmin"
+                className="blue-action inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={isLoading}
+                onClick={() => void loadSuperadminData()}
+                type="button"
+              >
+                <RefreshCw className={isLoading ? 'animate-spin' : ''} size={16} aria-hidden="true" />
+                <span className="sm:hidden">รีเฟรช</span>
+              </button>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div id="superadmin-overview" className="mt-5 grid scroll-mt-24 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <nav aria-label="เมนูย่อย Superadmin" className="sticky top-2 z-20 mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 px-2 shadow-sm backdrop-blur">
+          <div className="flex min-w-max items-center">
+            {controlCenterSections.map((section, index) => {
+              const Icon = section.icon;
+              return (
+                <a
+                  className={`inline-flex h-12 items-center gap-2 border-b-2 px-3 text-xs font-black transition sm:px-4 ${
+                    index === 0
+                      ? 'border-cyan-500 text-cyan-700'
+                      : 'border-transparent text-slate-600 hover:border-slate-200 hover:text-slate-950'
+                  }`}
+                  href={section.href}
+                  key={section.href}
+                  title={section.body}
+                >
+                  <Icon size={15} aria-hidden="true" />
+                  {section.label}
+                </a>
+              );
+            })}
+          </div>
+        </nav>
+
+        <div id="superadmin-overview" className="nexus-card mt-3 grid scroll-mt-24 overflow-hidden sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-slate-200">
           {[
-            { icon: Building2, label: 'workspace active', value: activeWorkspaceCount },
-            { icon: GraduationCap, label: 'นักเรียนทั้งหมด', value: totalStudentCount },
-            { icon: Users, label: 'สมาชิก workspace', value: totalMemberCount },
-            { icon: ShieldCheck, label: 'ผู้ดูแลระบบ', value: adminRows.length },
+            { icon: Building2, label: 'Workspace ที่ใช้งาน', meta: `${archivedWorkspaceCount} เก็บถาวร`, value: activeWorkspaceCount },
+            { icon: GraduationCap, label: 'นักเรียนทั้งหมด', meta: `${activeWorkspaceCount} workspace`, value: totalStudentCount },
+            { icon: Users, label: 'สมาชิกทั้งหมด', meta: 'ทุก workspace', value: totalMemberCount },
+            { icon: ShieldCheck, label: 'ผู้ดูแลระบบ', meta: 'Admin และ Superadmin', value: adminRows.length },
           ].map((item) => {
             const Icon = item.icon;
-
             return (
-              <div className="nexus-card p-4 transition hover:-translate-y-1" key={item.label}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-3xl font-black text-slate-950">{item.value}</p>
-                    <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
-                  </div>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-cyan-200">
-                    <Icon size={20} aria-hidden="true" />
+              <div className="flex items-center gap-3 border-b border-slate-200 p-4 last:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:nth-child(odd)]:border-r-0" key={item.label}>
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-cyan-200">
+                  <Icon size={18} aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-slate-500">{item.label}</p>
+                  <div className="mt-0.5 flex items-baseline gap-2">
+                    <p className="text-2xl font-black tabular-nums text-slate-950">{item.value.toLocaleString('th-TH')}</p>
+                    <span className="truncate text-[10px] font-bold text-slate-400">{item.meta}</span>
                   </div>
                 </div>
               </div>
@@ -1370,59 +1381,15 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         ) : null}
 
-        <section className="mt-5 nexus-card p-4 sm:p-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="nexus-kicker">
-                <ShieldCheck size={18} aria-hidden="true" />
-                Superadmin Control Center
-              </div>
-              <h2 className="mt-4 text-2xl font-black text-slate-950">ศูนย์ควบคุมระบบหลัก</h2>
-              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
-                ใช้เมนูย่อยนี้แทนการเลื่อนหายาว ๆ: เริ่มจากภาพรวม แล้วเจาะไป workspace, ผู้ใช้, VIP, สุขภาพระบบ และ audit/debug
-              </p>
-            </div>
-            <Link
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-              to="/app/dashboard?view=setup"
-            >
-              เปิด System Readiness
-            </Link>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {controlCenterSections.map((section) => {
-              const Icon = section.icon;
-
-              return (
-                <a
-                  className="group rounded-[24px] border border-slate-200 bg-white/86 p-4 shadow-sm transition hover:-translate-y-1 hover:border-cyan-200 hover:shadow-[0_20px_48px_rgba(14,165,233,0.12)]"
-                  href={section.href}
-                  key={section.href}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-950 text-cyan-200 transition group-hover:bg-cyan-600 group-hover:text-white">
-                      <Icon size={20} aria-hidden="true" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-base font-black text-slate-950">{section.label}</h3>
-                      <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{section.body}</p>
-                    </div>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        </section>
-
-        <section id="superadmin-workspaces" className="mt-5 scroll-mt-24 nexus-card p-4 sm:p-5">
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px] xl:items-start">
+        <section id="superadmin-workspaces" className="scroll-mt-24 nexus-card overflow-hidden p-4 sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="nexus-kicker">
                 <School size={18} aria-hidden="true" />
                 Workspace Directory
               </div>
-              <h2 className="mt-4 text-2xl font-black text-slate-950">โรงเรียนและห้องเรียนล่าสุด</h2>
+              <h2 className="mt-3 text-2xl font-black text-slate-950">ทะเบียนโรงเรียนและ Workspace</h2>
               <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
                 Superadmin ใช้ส่วนนี้เพื่อตรวจว่าแต่ละ workspace อยู่โรงเรียนไหน มีสมาชิกกี่คน และเข้าใช้งานภาพรวมห้องเรียนได้จากระบบเดียวกัน
               </p>
@@ -1472,9 +1439,71 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
             แสดง {filteredWorkspaces.length} จาก {workspaces.length} workspace
           </div>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          <div className="mt-4 hidden overflow-x-auto rounded-xl border border-slate-200 lg:block">
+            <table className="w-full min-w-[700px] border-collapse text-left">
+              <thead className="bg-slate-50 text-[11px] font-black text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">โรงเรียน / ห้องเรียน</th>
+                  <th className="px-4 py-3">เจ้าของ</th>
+                  <th className="px-4 py-3 text-center">ห้อง</th>
+                  <th className="px-4 py-3 text-center">นักเรียน</th>
+                  <th className="px-4 py-3 text-center">สมาชิก</th>
+                  <th className="px-4 py-3">สถานะ</th>
+                  <th className="px-4 py-3 text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {filteredWorkspaces.map((workspace) => (
+                  <tr className="align-middle transition hover:bg-cyan-50/40" key={workspace.id}>
+                    <td className="px-4 py-3">
+                      <p className="max-w-[260px] truncate text-sm font-black text-slate-950">{workspace.schoolName}</p>
+                      <p className="mt-0.5 max-w-[260px] truncate text-xs font-bold text-slate-500">
+                        {workspace.name} · {workspace.classroomName} · ปี {workspace.academicYear}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="max-w-[190px] truncate text-xs font-black text-slate-700">{workspace.ownerName}</p>
+                      <p className="mt-0.5 max-w-[190px] truncate text-[11px] font-bold text-slate-400">{workspace.ownerEmail}</p>
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm font-black tabular-nums text-slate-700">{workspace.classroomCount}</td>
+                    <td className="px-4 py-3 text-center text-sm font-black tabular-nums text-slate-700">{workspace.studentCount}</td>
+                    <td className="px-4 py-3 text-center text-sm font-black tabular-nums text-slate-700">{workspace.memberCount}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-black ${workspace.archivedAt ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${workspace.archivedAt ? 'bg-slate-400' : 'bg-emerald-500'}`} />
+                        {workspace.archivedAt ? 'เก็บถาวร' : 'ใช้งานอยู่'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <details className="relative inline-block text-left">
+                        <summary className="inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700">
+                          จัดการ
+                        </summary>
+                        <div className="absolute right-0 z-30 mt-2 grid w-52 gap-1 rounded-xl border border-slate-200 bg-white p-2 text-left shadow-xl">
+                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-cyan-700 hover:bg-cyan-50" onClick={() => openWorkspace(workspace.id)} type="button">
+                            <Building2 size={15} aria-hidden="true" /> เข้าใช้งาน
+                          </button>
+                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void setWorkspaceArchived(workspace, !workspace.archivedAt)} type="button">
+                            <Archive size={15} aria-hidden="true" /> {workspace.archivedAt ? 'กู้คืน Workspace' : 'เก็บถาวร'}
+                          </button>
+                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-amber-700 hover:bg-amber-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void grantLifetimeVip(workspace)} type="button">
+                            <Crown size={15} aria-hidden="true" /> VIP lifetime
+                          </button>
+                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void deleteWorkspacePermanently(workspace)} type="button">
+                            <Trash2 size={15} aria-hidden="true" /> ลบถาวร
+                          </button>
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:hidden">
             {filteredWorkspaces.map((workspace) => (
-              <article className="nexus-muted-box p-4" key={workspace.id}>
+              <article className="rounded-xl border border-slate-200 bg-white p-4" key={workspace.id}>
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1485,9 +1514,9 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                         ปี {workspace.academicYear}
                       </span>
                     </div>
-                    <h3 className="mt-3 truncate text-xl font-black text-slate-950">{workspace.name}</h3>
+                    <h3 className="mt-3 truncate text-base font-black text-slate-950">{workspace.schoolName}</h3>
                     <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                      {workspace.schoolName} | ห้อง {workspace.classroomName}
+                      {workspace.name} | ห้อง {workspace.classroomName}
                     </p>
                     <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
                       เจ้าของ: {workspace.ownerName} | {workspace.ownerEmail}
@@ -1555,6 +1584,56 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
             ) : null}
           </div>
         </section>
+
+          <aside className="nexus-card overflow-hidden xl:sticky xl:top-16">
+            <div className="border-b border-slate-200 px-4 py-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Operations Queue</p>
+              <h2 className="mt-1 text-lg font-black text-slate-950">งานที่ต้องตรวจสอบ</h2>
+            </div>
+            <div className="divide-y divide-slate-200">
+              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-billing">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-800">คิวตรวจการชำระเงิน</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-500">รอการอนุมัติหรือปฏิเสธ</p>
+                  </div>
+                </div>
+                <span className="rounded-lg bg-rose-50 px-2.5 py-1 text-sm font-black tabular-nums text-rose-700">{pendingPaymentCount}</span>
+              </a>
+              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-users">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-800">ผู้ดูแลและสิทธิ์</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-500">บัญชีที่มีสิทธิ์ระดับระบบ</p>
+                  </div>
+                </div>
+                <span className="rounded-lg bg-cyan-50 px-2.5 py-1 text-sm font-black tabular-nums text-cyan-700">{adminRows.length}</span>
+              </a>
+              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-workspaces">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-slate-400" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-800">Workspace เก็บถาวร</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-500">ตรวจสอบก่อนลบถาวร</p>
+                  </div>
+                </div>
+                <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-black tabular-nums text-slate-700">{archivedWorkspaceCount}</span>
+              </a>
+              <a className="flex items-center justify-between gap-3 px-4 py-4 transition hover:bg-slate-50" href="#superadmin-health">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${systemUsesSupabase ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-800">System Status</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-500">ฐานข้อมูลและบริการหลัก</p>
+                  </div>
+                </div>
+                <span className={`text-xs font-black ${systemUsesSupabase ? 'text-emerald-700' : 'text-amber-700'}`}>{systemUsesSupabase ? 'ปกติ' : 'Demo'}</span>
+              </a>
+            </div>
+          </aside>
+        </div>
 
         <section id="superadmin-users" className="mt-5 grid scroll-mt-24 gap-5">
           <div className="nexus-card p-4 sm:p-5">
