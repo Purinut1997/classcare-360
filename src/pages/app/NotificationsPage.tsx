@@ -11,6 +11,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 
+import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -433,7 +434,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             <div>
               <p className="text-sm font-black text-cyan-700">Inbox</p>
               <h2 className="mt-1 text-2xl font-black text-slate-950">
-                {isLoading ? 'กำลังโหลดแจ้งเตือน' : `${filteredNotifications.length} รายการ`}
+                {isLoading ? <NexusAuroraInline label="กำลังโหลดแจ้งเตือน" /> : `${filteredNotifications.length} รายการ`}
               </h2>
             </div>
             <div className="rounded-2xl bg-white/80 px-4 py-3 text-xs font-black text-slate-500 ring-1 ring-slate-200">

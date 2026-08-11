@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 
 import { getBangkokDate } from '../../lib/date';
 import { supabase } from '../../lib/supabaseClient';
@@ -657,7 +658,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
               : 'border-[#ead8bd] bg-white/80 text-slate-600'
         }`}
       >
-        Supabase sync: {sync.message}
+        {sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : <>Supabase sync: {sync.message}</>}
       </div>
 
       <section className="app-content-grid xl:grid-cols-[1.05fr_0.95fr]">

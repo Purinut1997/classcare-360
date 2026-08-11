@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { ArrowRight, Building2, CalendarDays, CheckCircle2, Clock3, GraduationCap, Pencil, Plus, Save, School, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { NexusAuroraLoader } from '../../components/system/NexusAuroraLoader';
 import { roleLabels } from '../../lib/roles';
 import { setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -397,9 +398,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
         <div className={`mt-6 grid gap-5 ${canCreateWorkspace ? 'lg:grid-cols-[minmax(0,1fr)_410px]' : ''}`}>
           <div className="grid gap-3">
             {isLoadingWorkspaces ? (
-              <div className="glass-panel rounded-[2rem] p-5 text-sm font-black text-slate-600">
-                กำลังโหลด workspace ที่คุณมีสิทธิ์ใช้งาน...
-              </div>
+              <NexusAuroraLoader message="กำลังตรวจสอบโรงเรียน ห้องเรียน และสิทธิ์ของบัญชีนี้" title="กำลังโหลด Workspace" />
             ) : null}
 
             {!isLoadingWorkspaces && availableWorkspaces.length === 0 && joinableWorkspaces.length === 0 ? (

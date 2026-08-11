@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 
 import {
   buildOfficialDocumentCode,
@@ -610,7 +611,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               : 'border-[#ead8bd] bg-white/80 text-slate-600'
         }`}
       >
-        {sync.message}
+        {sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : sync.message}
       </div>
 
       <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.45fr)]">

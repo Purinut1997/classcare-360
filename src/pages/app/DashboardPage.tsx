@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
 import { canManageWorkspace } from '../../lib/roles';
@@ -801,7 +802,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
                     <Icon size={19} aria-hidden="true" />
                   </span>
                   <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {healthReportsLoading ? 'กำลังโหลด' : isComplete ? 'ครบแล้ว' : metric.cadence}
+                    {healthReportsLoading ? <NexusAuroraInline label="กำลังโหลด" /> : isComplete ? 'ครบแล้ว' : metric.cadence}
                   </span>
                 </div>
                 <h3 className="mt-4 min-h-10 text-sm font-black leading-5 text-slate-950">{metric.label}</h3>

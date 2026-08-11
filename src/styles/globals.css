@@ -854,6 +854,44 @@ body { background: #f6f7f9; color: #0f172a; }
   animation: system-progress 1.2s ease-in-out infinite;
 }
 
+.nexus-aurora-panel-loader {
+  @apply relative flex min-h-24 items-center gap-4 overflow-hidden rounded-2xl border px-4 py-4;
+  color: #dff8ff;
+  border-color: rgb(34 199 232 / 0.2);
+  background:
+    radial-gradient(circle at 92% 0%, rgb(34 199 232 / 0.18), transparent 45%),
+    linear-gradient(145deg, #102b43, #091b2e);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 16px 36px rgb(2 8 23 / 0.14);
+}
+.nexus-aurora-panel-loader strong { @apply block text-sm font-black; }
+.nexus-aurora-panel-loader small { @apply mt-1 block text-xs font-bold leading-5; color: #8fb1c8; }
+.nexus-aurora-mini-orbit {
+  @apply relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl;
+  border: 1px solid rgb(34 199 232 / 0.28);
+  box-shadow: inset 0 0 18px rgb(34 199 232 / 0.08);
+  animation: system-logo-orbit 2.2s linear infinite;
+}
+.nexus-aurora-mini-orbit::before {
+  content: '';
+  @apply absolute inset-1 rounded-xl;
+  border-top: 2px solid #22c7e8;
+  border-right: 2px solid #34d399;
+}
+.nexus-aurora-mini-orbit i { @apply h-2 w-2 rounded-full; background: #67e8f9; box-shadow: 0 0 14px #22d3ee; }
+.nexus-aurora-dots { @apply ml-auto flex shrink-0 items-center gap-1.5; }
+.nexus-aurora-dots i { @apply h-1.5 w-1.5 rounded-full; background: #22c7e8; animation: nexus-aurora-dot 1.15s ease-in-out infinite; }
+.nexus-aurora-dots i:nth-child(2) { animation-delay: 0.16s; background: #2dd4bf; }
+.nexus-aurora-dots i:nth-child(3) { animation-delay: 0.32s; background: #34d399; }
+
+.nexus-aurora-inline { @apply inline-flex items-center gap-2 whitespace-nowrap font-black; }
+.nexus-aurora-inline > i {
+  @apply relative h-3.5 w-3.5 shrink-0 rounded-full;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  box-shadow: 0 0 10px rgb(34 199 232 / 0.3);
+  animation: system-logo-orbit 0.85s linear infinite;
+}
+
 .system-toast-stack {
   @apply pointer-events-none fixed bottom-5 right-4 z-[110] flex w-[min(27rem,calc(100vw-2rem))] flex-col gap-3 sm:right-5;
 }
@@ -930,6 +968,10 @@ body { background: #f6f7f9; color: #0f172a; }
 @keyframes system-step-pulse {
   50% { transform: scale(0.72); opacity: 0.65; }
 }
+@keyframes nexus-aurora-dot {
+  0%, 70%, 100% { opacity: 0.3; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-3px); }
+}
 @keyframes system-toast-in {
   from { opacity: 0; transform: translateY(12px) scale(0.98); }
 }
@@ -939,7 +981,10 @@ body { background: #f6f7f9; color: #0f172a; }
   .system-loading-progress span { animation-duration: 3s; }
   .system-loading-aurora,
   .system-loading-orbit-dot,
-  .system-loading-steps .is-active i { animation: none; }
+  .system-loading-steps .is-active i,
+  .nexus-aurora-mini-orbit,
+  .nexus-aurora-dots i,
+  .nexus-aurora-inline > i { animation: none; }
   .system-toast,
   .system-loading-overlay { animation: none; }
 }

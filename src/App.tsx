@@ -11,7 +11,7 @@ import { canUseModule, getEntitlementSummary } from './lib/entitlements';
 import { canManageWorkspace, roleLabels } from './lib/roles';
 import { useAppSession } from './lib/session';
 import { isSupabaseReady } from './lib/supabaseClient';
-import { AppLogo } from './components/brand/AppLogo';
+import { NexusAuroraLoader } from './components/system/NexusAuroraLoader';
 import { AppShell } from './layouts/AppShell';
 import { appNavItems, appViewCopy, superadminNavItem } from './routes/appRoutes';
 import { RequireRouteAccess } from './routes/RouteGuards';
@@ -220,20 +220,7 @@ function getAllowedRolesForNavItem(key: string) {
 }
 
 function SessionStateScreen({ detail, title }: { detail: string; title: string }) {
-  return (
-    <main className="route-loading-screen">
-      <section className="route-loading-card">
-        <div className="system-loading-logo mx-auto">
-          <span className="system-loading-orbit" />
-          <AppLogo className="h-16 w-16 rounded-2xl bg-white p-1.5 shadow-xl" />
-        </div>
-        <h1 className="mt-5 text-3xl font-black text-slate-950">{title}</h1>
-        <p className="mt-3 text-sm font-bold leading-6 text-slate-600">{detail}</p>
-        <div className="system-loading-progress mx-auto mt-6 max-w-sm"><span /></div>
-        <p className="mt-6 text-xs font-bold text-slate-500">Created by MIKPURINUT</p>
-      </section>
-    </main>
-  );
+  return <NexusAuroraLoader message={detail} title={title} variant="page" />;
 }
 
 function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, Filter, History, Search, ShieldCheck } from 'lucide-react';
 
+import { NexusAuroraLoader } from '../../components/system/NexusAuroraLoader';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -360,9 +361,7 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
 
         <div className="mt-4 grid gap-3">
           {isLoading ? (
-            <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500 ring-1 ring-slate-100">
-              กำลังโหลด audit log...
-            </div>
+            <NexusAuroraLoader message="กำลังรวบรวมประวัติการทำงานและความเสี่ยงล่าสุด" title="กำลังโหลด Audit Log" />
           ) : filteredLogs.length > 0 ? (
             filteredLogs.map((log) => (
               <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={log.id}>

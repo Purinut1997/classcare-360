@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, DoorOpen, GraduationCap, LoaderCircle, Search, Users } from 'lucide-react';
+import { BookOpen, ChevronRight, DoorOpen, GraduationCap, Search, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { supabase } from '../../lib/supabaseClient';
+import { NexusAuroraInline } from '../system/NexusAuroraLoader';
 import type { AppNavItem } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
 
@@ -112,7 +113,7 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
         <div className="app-global-search-hint"><span>{normalizedQuery ? 'ผลการค้นหา' : 'ไปยังส่วนต่าง ๆ อย่างรวดเร็ว'}</span><span>Esc เพื่อปิด</span></div>
         {menuResults.length > 0 ? <section aria-label="เมนูระบบ"><p className="app-global-search-section-title">เมนูและรายงาน</p>{menuResults.map((item) => { const Icon = item.icon; return <button className="app-global-search-result" key={item.key} onClick={() => openMenu(item.path)} type="button"><span className="app-global-search-result-icon"><Icon size={16} /></span><span className="min-w-0 flex-1 text-left"><strong>{item.label}</strong><small>เปิดหน้า{item.label}</small></span><ChevronRight size={16} aria-hidden="true" /></button>; })}</section> : null}
         {normalizedQuery.length >= 2 ? <>
-          {isLoading ? <p className="app-global-search-loading"><LoaderCircle size={15} className="animate-spin" /> กำลังค้นหาใน workspace นี้</p> : null}
+          {isLoading ? <p className="app-global-search-loading"><NexusAuroraInline label="กำลังค้นหาใน workspace นี้" /></p> : null}
           {studentResults.length > 0 ? <section aria-label="นักเรียน"><p className="app-global-search-section-title">นักเรียน</p>{studentResults.map((student) => <button className="app-global-search-result" key={student.id} onClick={() => openStudent(student)} type="button"><span className="app-global-search-result-icon"><Users size={16} /></span><span className="min-w-0 flex-1 text-left"><strong>{`${student.first_name} ${student.last_name}`}</strong><small>{[student.student_code, student.nickname].filter(Boolean).join(' · ') || 'เปิดข้อมูลนักเรียน'}</small></span><ChevronRight size={16} aria-hidden="true" /></button>)}</section> : null}
           {classroomResults.length > 0 ? <section aria-label="ห้องเรียน"><p className="app-global-search-section-title">ห้องเรียน</p>{classroomResults.map((classroom) => <button className="app-global-search-result" key={classroom.id} onClick={() => openClassroom(classroom)} type="button"><span className="app-global-search-result-icon"><DoorOpen size={16} /></span><span className="min-w-0 flex-1 text-left"><strong>{classroom.name}</strong><small>เปิดรายชื่อนักเรียนในห้อง</small></span><ChevronRight size={16} aria-hidden="true" /></button>)}</section> : null}
           {!isLoading && !hasWorkspaceResults && menuResults.length === 0 ? <p className="app-global-search-empty"><BookOpen size={17} /> ไม่พบผลลัพธ์ที่ตรงกัน</p> : null}

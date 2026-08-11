@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, CheckCircle2, Eye, FileSpreadsheet, LoaderCircle,
+  AlertTriangle, CheckCircle2, Eye, FileSpreadsheet,
   MessageSquareText, Play, Send, ShieldCheck, Sparkles, XCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
+import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -175,7 +176,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
         <div className="hero-actions">
           <button className="button button-secondary" disabled={busy} onClick={() => void seedRules()}><Sparkles size={17} /> ติดตั้งกฎมาตรฐาน</button>
           <button className="button button-primary" disabled={busy} onClick={() => void evaluate()}>
-            {busy ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />} ประเมินตอนนี้
+            {busy ? <NexusAuroraInline label="กำลังประเมิน" /> : <><Play size={17} /> ประเมินตอนนี้</>}
           </button>
         </div>
       </section>

@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 
 import { AppLogo } from '../../components/brand/AppLogo';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 
 interface PublicReportSchool {
@@ -312,7 +313,7 @@ export function PublicReportLookupPage() {
                 type="submit"
               >
                 <Search size={18} aria-hidden="true" />
-                {isLoading ? 'กำลังค้นหา' : 'ดูรายงาน'}
+                {isLoading ? <NexusAuroraInline label="กำลังค้นหา" /> : 'ดูรายงาน'}
               </button>
             </form>
 
