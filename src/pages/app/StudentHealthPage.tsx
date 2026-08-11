@@ -12,6 +12,7 @@ import {
   Utensils,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { writeAuditLog } from '../../lib/auditLog';
@@ -375,7 +376,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       <section className="mt-5 nexus-card p-4 sm:p-5">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <label><span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span><select className="nexus-field mt-2" value={classroomId} onChange={(event) => { setClassroomId(event.target.value); const nextParams = new URLSearchParams(searchParams); nextParams.set('classroomId', event.target.value); setSearchParams(nextParams, { replace: true }); }}>{classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name} • {classroom.academic_year || 'ไม่ระบุปี'}</option>)}</select></label>
-          <label><span className="text-xs font-black uppercase text-slate-500">วันที่บันทึก</span><input className="nexus-field mt-2" type="date" value={recordDate} onChange={(event) => setRecordDate(event.target.value)} /></label>
+          <label><span className="text-xs font-black uppercase text-slate-500">วันที่บันทึก</span><ThaiDatePicker className="mt-2" value={recordDate} onValueChange={setRecordDate} /></label>
           <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading || isSaving} onClick={() => void saveRecords()} type="button"><Save size={17} />{isSaving ? 'กำลังบันทึก...' : 'บันทึกทั้งห้อง'}</button>
         </div>
       </section>

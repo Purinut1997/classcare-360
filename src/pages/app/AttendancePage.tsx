@@ -14,6 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -706,12 +707,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   วันที่
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setAttendanceDate(event.target.value)}
-                    type="date"
-                    value={attendanceDate}
-                  />
+                  <ThaiDatePicker className="h-11 px-3" onValueChange={setAttendanceDate} value={attendanceDate} />
                 </label>
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   {mode === 'homeroom' ? 'ช่วงเวลา' : 'คาบเรียน'}
@@ -824,7 +820,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             <div className="mt-4 flex flex-wrap items-end gap-2 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
               <label className="grid gap-1 text-xs font-black text-slate-600">
                 แก้ไขวันที่บันทึกย้อนหลัง
-                <input className="nexus-field h-9 w-44 bg-white px-3" onChange={(event) => setEditSessionDate(event.target.value)} type="date" value={editSessionDate || attendanceSession.attendance_date} />
+                <ThaiDatePicker className="h-9 w-52 bg-white px-3" onValueChange={setEditSessionDate} value={editSessionDate || attendanceSession.attendance_date} />
               </label>
               <button className="inline-flex h-9 items-center justify-center rounded-xl bg-sky-700 px-3 text-xs font-black text-white disabled:bg-slate-300" disabled={isSubmitting || editSessionDate === attendanceSession.attendance_date} onClick={() => void handleCorrectSessionDate()} type="button">
                 บันทึกวันที่ใหม่

@@ -18,6 +18,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -1357,12 +1358,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">วันที่</span>
-                  <input
-                    className="nexus-field mt-2 h-11 px-3"
-                    onChange={(event) => setForm((current) => ({ ...current, assessmentDate: event.target.value }))}
-                    type="date"
-                    value={form.assessmentDate}
-                  />
+                  <ThaiDatePicker className="mt-2 h-11 px-3" onValueChange={(value) => setForm((current) => ({ ...current, assessmentDate: value }))} value={form.assessmentDate} />
                 </label>
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">ประเภท</span>
@@ -1962,7 +1958,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <div className="mt-4 flex flex-wrap items-end gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
                 <label className="grid gap-1 text-xs font-black text-slate-600">
                   แก้ไขวันที่บันทึกคะแนนย้อนหลัง
-                  <input className="nexus-field h-9 w-44 bg-white px-3" onChange={(event) => setCorrectedAssessmentDate(event.target.value)} type="date" value={correctedAssessmentDate || selectedAssessment.assessment_date} />
+                  <ThaiDatePicker className="h-9 w-52 bg-white px-3" onValueChange={setCorrectedAssessmentDate} value={correctedAssessmentDate || selectedAssessment.assessment_date} />
                 </label>
                 <button className="inline-flex h-9 items-center justify-center rounded-xl bg-cyan-700 px-3 text-xs font-black text-white disabled:bg-slate-300" disabled={isSubmitting || (correctedAssessmentDate || selectedAssessment.assessment_date) === selectedAssessment.assessment_date} onClick={() => void handleCorrectAssessmentDate()} type="button">
                   บันทึกวันที่ใหม่

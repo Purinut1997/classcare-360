@@ -14,6 +14,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { getBangkokDate } from '../../lib/date';
 import { supabase } from '../../lib/supabaseClient';
@@ -822,7 +823,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           <div className="app-form-grid mt-5">
             <FieldLabel>
               วันที่
-              <input className="nexus-field mt-2 h-12 px-4" type="date" value={calendarDraft.date} onChange={(event) => setCalendarDraft((current) => ({ ...current, date: event.target.value }))} />
+              <ThaiDatePicker className="mt-2 h-12 px-4" value={calendarDraft.date} onValueChange={(value) => setCalendarDraft((current) => ({ ...current, date: value }))} />
             </FieldLabel>
             <FieldLabel>
               ประเภท

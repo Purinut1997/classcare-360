@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
+import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
 
 import { writeAuditLog } from "../../lib/auditLog";
 import { getBangkokDate } from "../../lib/date";
@@ -608,7 +609,23 @@ export function ClassroomOperationsPage({
     if (error) setNotice(error.message);
     else {
       const result = (data || {}) as { assignments?: number; school_days?: number };
-      setNotice(`จัดเวรสำเร็จ ${result.assignments || 0} รายการ ครอบคลุม ${result.school_days || 0} วันเรียน ระบบข้ามวันหยุดตามปฏิทินโรงเรียนแล้ว`);
+      const refreshed = await supabase
+        .from("duty_assignments")
+        .select("id,duty_task_id,duty_date,student_id,substitute_student_id,status")
+        .eq("workspace_id", session.workspace.id)
+        .gte("duty_date", range.start)
+        .lte("duty_date", range.end)
+        .order("duty_date");
+      if (refreshed.error) {
+        setNotice(`จัดเวรแล้ว แต่โหลดผลล่าสุดไม่สำเร็จ: ${refreshed.error.message}`);
+      } else {
+        const refreshedRows = (refreshed.data || []) as DutyAssignment[];
+        setAssignments((current) => [
+          ...current.filter((item) => item.duty_date < range.start || item.duty_date > range.end),
+          ...refreshedRows,
+        ]);
+        setNotice(`จัดเวรสำเร็จ ${result.assignments || 0} รายการ ครอบคลุม ${result.school_days || 0} วันเรียน ระบบข้ามวันหยุดตามปฏิทินโรงเรียนแล้ว`);
+      }
       setDutyGeneratorOpen(false);
       await writeAuditLog(session, {
         action: "duty.range_generated",
@@ -1129,12 +1146,7 @@ export function ClassroomOperationsPage({
                 </label>
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   สัปดาห์
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWeekStart(event.target.value)}
-                    type="date"
-                    value={weekStart}
-                  />
+                  <ThaiDatePicker className="h-11 px-3" onValueChange={setWeekStart} value={weekStart} />
                 </label>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1474,11 +1486,11 @@ function DutyGenerationDialog({
           </div>
 
           <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:bg-black/20">
-            {scope === "day" ? <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">วันที่ต้องการจัดเวร<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, day: event.target.value })} type="date" value={dates.day} /></label> : null}
-            {scope === "month" ? <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">เดือนที่ต้องการจัดเวร<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, month: event.target.value })} type="month" value={dates.month} /></label> : null}
+            {scope === "day" ? <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">วันที่ต้องการจัดเวร<ThaiDatePicker className="h-11 px-3" onValueChange={(value) => onDates({ ...dates, day: value })} value={dates.day} /></label> : null}
+            {scope === "month" ? <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">เดือนที่ต้องการจัดเวร<ThaiDatePicker className="h-11 px-3" mode="month" onValueChange={(value) => onDates({ ...dates, month: value })} value={dates.month} /></label> : null}
             {scope === "term" ? <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">เปิดภาคเรียน<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, termStart: event.target.value })} type="date" value={dates.termStart} /></label>
-              <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">สิ้นสุดภาคเรียน<input className="nexus-field h-11 px-3" onChange={(event) => onDates({ ...dates, termEnd: event.target.value })} type="date" value={dates.termEnd} /></label>
+              <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">เปิดภาคเรียน<ThaiDatePicker className="h-11 px-3" onValueChange={(value) => onDates({ ...dates, termStart: value })} value={dates.termStart} /></label>
+              <label className="grid gap-2 text-sm font-black text-slate-700 dark:text-slate-200">สิ้นสุดภาคเรียน<ThaiDatePicker className="h-11 px-3" onValueChange={(value) => onDates({ ...dates, termEnd: value })} value={dates.termEnd} /></label>
             </div> : null}
           </div>
 
@@ -1828,12 +1840,7 @@ function LocksPanel({
           </label>
           <label className="grid gap-2 text-sm font-black text-slate-700">
             เดือน
-            <input
-              className="nexus-field h-11 px-3"
-              onChange={(e) => onForm({ ...form, month: e.target.value })}
-              type="month"
-              value={form.month}
-            />
+            <ThaiDatePicker className="h-11 px-3" mode="month" onValueChange={(value) => onForm({ ...form, month: value })} value={form.month} />
           </label>
           <label className="grid gap-2 text-sm font-black text-slate-700">
             เหตุผล

@@ -16,6 +16,7 @@ import {
 import { Link } from 'react-router-dom';
 
 import { AppLogo } from '../../components/brand/AppLogo';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 
 interface PublicReportSchool {
@@ -302,12 +303,7 @@ export function PublicReportLookupPage() {
 
               <label className="grid gap-2 text-sm font-bold text-slate-800">
                 วันเดือนปีเกิด
-                <input
-                  className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setBirthDate(event.target.value)}
-                  type="date"
-                  value={birthDate}
-                />
+                <ThaiDatePicker appearance="light" className="h-12 px-4 text-sm" onValueChange={setBirthDate} value={birthDate} />
               </label>
 
               <button

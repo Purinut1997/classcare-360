@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, ImagePlus, Printer, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { getBangkokDate } from '../../lib/date';
 import {
@@ -2542,12 +2543,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
               {reportPeriod === 'month' ? (
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   เดือนรายงาน
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setReportMonth(event.target.value)}
-                    type="month"
-                    value={reportMonth}
-                  />
+                  <ThaiDatePicker className="h-11 px-3" mode="month" onValueChange={setReportMonth} value={reportMonth} />
                 </label>
               ) : null}
 
@@ -2639,21 +2635,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-2 text-sm font-black text-slate-700">
                       เริ่มเทอม
-                      <input
-                        className="nexus-field h-11 px-3"
-                        onChange={(event) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], start: event.target.value } }))}
-                        type="date"
-                        value={termRanges[selectedTerm].start}
-                      />
+                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], start: value } }))} value={termRanges[selectedTerm].start} />
                     </label>
                     <label className="grid gap-2 text-sm font-black text-slate-700">
                       สิ้นสุดเทอม
-                      <input
-                        className="nexus-field h-11 px-3"
-                        onChange={(event) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], end: event.target.value } }))}
-                        type="date"
-                        value={termRanges[selectedTerm].end}
-                      />
+                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], end: value } }))} value={termRanges[selectedTerm].end} />
                     </label>
                   </div>
                 </div>
@@ -2686,11 +2672,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   จากวันที่
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} />
+                  <ThaiDatePicker className="h-11 px-3" onValueChange={setDateFrom} value={dateFrom} />
                 </label>
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ถึงวันที่
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setDateTo(event.target.value)} type="date" value={dateTo} />
+                  <ThaiDatePicker className="h-11 px-3" onValueChange={setDateTo} value={dateTo} />
                 </label>
               </div>
 
@@ -3244,21 +3230,11 @@ export function ReportsPage({ session }: ReportsPageProps) {
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-2 text-sm font-black text-slate-700">
                       เริ่ม
-                      <input
-                        className="nexus-field h-11 px-3"
-                        onChange={(event) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], start: event.target.value } }))}
-                        type="date"
-                        value={termRanges[term].start}
-                      />
+                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], start: value } }))} value={termRanges[term].start} />
                     </label>
                     <label className="grid gap-2 text-sm font-black text-slate-700">
                       สิ้นสุด
-                      <input
-                        className="nexus-field h-11 px-3"
-                        onChange={(event) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], end: event.target.value } }))}
-                        type="date"
-                        value={termRanges[term].end}
-                      />
+                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], end: value } }))} value={termRanges[term].end} />
                     </label>
                   </div>
                 </article>

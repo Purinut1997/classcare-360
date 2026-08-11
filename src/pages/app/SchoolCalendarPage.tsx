@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import {
   buildOfficialDocumentCode,
@@ -663,12 +664,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
             <div className="mt-5 grid gap-4">
               <FieldLabel>
                 วันที่
-                <input
-                  className="nexus-field mt-2 h-12 px-4"
-                  type="date"
-                  value={draft.date}
-                  onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))}
-                />
+                <ThaiDatePicker className="mt-2 h-12 px-4" value={draft.date} onValueChange={(value) => setDraft((current) => ({ ...current, date: value }))} />
               </FieldLabel>
               <FieldLabel>
                 ประเภทวัน
@@ -796,12 +792,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
             <div className="mt-5 grid gap-4">
               <FieldLabel>
                 วันที่
-                <input
-                  className="nexus-field mt-2 h-12 px-4"
-                  type="date"
-                  value={draft.date}
-                  onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))}
-                />
+                <ThaiDatePicker className="mt-2 h-12 px-4" value={draft.date} onValueChange={(value) => setDraft((current) => ({ ...current, date: value }))} />
               </FieldLabel>
               <FieldLabel>
                 ประเภทวัน

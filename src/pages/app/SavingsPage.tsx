@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -518,7 +519,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">วันที่</span>
-                  <input className="nexus-field mt-2" onChange={(event) => setForm((current) => ({ ...current, transactionDate: event.target.value }))} type="date" value={form.transactionDate} />
+                  <ThaiDatePicker className="mt-2" onValueChange={(value) => setForm((current) => ({ ...current, transactionDate: value }))} value={form.transactionDate} />
                 </label>
                 <label className="block">
                   <span className="text-xs font-black uppercase text-slate-500">จำนวนเงิน</span>

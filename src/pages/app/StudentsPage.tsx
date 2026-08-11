@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import {
   AlertTriangle,
   Archive,
@@ -3791,12 +3792,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="grid gap-2 text-sm font-black text-slate-700">
                     วันเกิดนักเรียน
-                    <input
-                      className="nexus-field h-11 px-3"
-                      onChange={(event) => setStudentForm((current) => ({ ...current, birthDate: event.target.value }))}
-                      type="date"
-                      value={studentForm.birthDate}
-                    />
+                    <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setStudentForm((current) => ({ ...current, birthDate: value }))} value={studentForm.birthDate} />
                   </label>
 
                   <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -3969,12 +3965,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
               <div className="home-visit-grid mt-4">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   วันที่เยี่ยมบ้าน
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => updateHomeVisitField('visitDate', event.target.value)}
-                    type="date"
-                    value={homeVisitForm.visitDate}
-                  />
+                  <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => updateHomeVisitField('visitDate', value)} value={homeVisitForm.visitDate} />
                 </label>
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ผู้ปกครอง
@@ -5621,12 +5612,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     </label>
                     <label className="grid gap-1 text-xs font-black text-slate-700">
                       วันเกิด
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, birthDate: e.target.value }))}
-                        type="date"
-                        value={studentForm.birthDate}
-                      />
+                      <ThaiDatePicker className="h-10 px-3 text-sm" onValueChange={(value) => setStudentForm((current) => ({ ...current, birthDate: value }))} value={studentForm.birthDate} />
                     </label>
                   </div>
 
