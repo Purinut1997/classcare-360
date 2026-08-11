@@ -133,8 +133,17 @@ const workspaceMemberRpcChecks = await Promise.all([
     next_status: 'active',
   }),
 ]);
+const publicReportRpcChecks = await Promise.all([
+  assertRpcExists('get_public_report_schools'),
+  assertRpcExists('lookup_public_student_report', {
+    target_workspace_id: NIL_UUID,
+    citizen_id: '0000000000000',
+    target_birth_date: '2000-01-01',
+  }),
+]);
 const failedDashboardChecks = dashboardSchemaChecks.filter((check) => !check.ok);
 const missingWorkspaceMemberRpcs = workspaceMemberRpcChecks.filter((check) => !check.ok);
+const missingPublicReportRpcs = publicReportRpcChecks.filter((check) => !check.ok);
 
 if (missingDestructiveRpcs.length > 0) {
   console.error('Supabase action RPCs are missing:');
@@ -146,9 +155,9 @@ if (missingDestructiveRpcs.length > 0) {
   process.exit(1);
 }
 
-if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0) {
+if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0) {
   console.error('Supabase dashboard schema is incomplete:');
-  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs]) {
+  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs]) {
     console.error(`- ${check.name}: ${check.reason}`);
   }
   console.error('');
@@ -161,3 +170,4 @@ console.log(`Plans visible through anon key: ${data?.map((plan) => plan.code).jo
 console.log(`Action RPCs visible: ${destructiveRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Dashboard tables visible: ${dashboardSchemaChecks.map((check) => check.name).join(', ')}`);
 console.log(`Workspace member RPCs visible: ${workspaceMemberRpcChecks.map((check) => check.name).join(', ')}`);
+console.log(`Public report RPCs visible: ${publicReportRpcChecks.map((check) => check.name).join(', ')}`);

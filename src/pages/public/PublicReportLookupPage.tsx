@@ -1,13 +1,15 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   CalendarDays,
   ChevronLeft,
   Clock3,
   FileText,
   GraduationCap,
   HeartHandshake,
+  Eye,
+  LockKeyhole,
   Search,
-  ShieldCheck,
   UserRound,
   WalletCards,
 } from 'lucide-react';
@@ -93,6 +95,20 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, '').slice(0, 13);
 }
 
+function publicReportErrorCopy(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('get_public_report_schools') || normalized.includes('schema cache')) {
+    return 'ระบบรายงานกำลังปรับปรุงการเชื่อมต่อ กรุณาลองใหม่อีกครั้งในภายหลัง';
+  }
+
+  if (normalized.includes('failed to fetch') || normalized.includes('network')) {
+    return 'เชื่อมต่อระบบรายงานไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง';
+  }
+
+  return 'ไม่สามารถโหลดข้อมูลรายงานได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
+}
+
 function metric(label: string, value: string | number, tone = 'slate') {
   const toneClass =
     tone === 'green'
@@ -114,11 +130,11 @@ function metric(label: string, value: string | number, tone = 'slate') {
 function sectionTitle(icon: ReactNode, label: string, title: string) {
   return (
     <div className="mb-4 flex items-start gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#fff0c8] text-[#a76512] ring-1 ring-[#f3d28f]">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
         {icon}
       </div>
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#a76512]">{label}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">{label}</p>
         <h2 className="text-2xl font-black text-slate-950">{title}</h2>
       </div>
     </div>
@@ -143,7 +159,7 @@ export function PublicReportLookupPage() {
       if (!isMounted) return;
 
       if (rpcError) {
-        setError(`โหลดรายชื่อโรงเรียนไม่สำเร็จ: ${rpcError.message}`);
+        setError(publicReportErrorCopy(rpcError.message));
         setSchools([]);
         setSelectedWorkspaceId('');
         return;
@@ -212,7 +228,7 @@ export function PublicReportLookupPage() {
     setIsLoading(false);
 
     if (rpcError) {
-      setError(`ค้นหารายงานไม่สำเร็จ: ${rpcError.message}`);
+      setError(publicReportErrorCopy(rpcError.message));
       return;
     }
 
@@ -224,9 +240,9 @@ export function PublicReportLookupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#fff8ed] text-slate-950">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-6 sm:px-8 lg:px-10">
-        <header className="flex flex-col gap-4 rounded-[28px] border border-[#efd4aa] bg-white/88 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <main className="min-h-screen bg-[#f7f9fc] text-slate-950">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
+        <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-1 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <Link className="flex items-center gap-3" to="/">
             <AppLogo className="h-12 w-12 rounded-2xl bg-white object-contain p-1 ring-1 ring-slate-200" />
             <div>
@@ -239,28 +255,24 @@ export function PublicReportLookupPage() {
               <ChevronLeft size={17} aria-hidden="true" />
               กลับหน้าแรก
             </Link>
-            <Link className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#3f2a16] px-5 text-sm font-black text-white shadow-sm" to="/login">
+            <Link className="inline-flex h-11 items-center justify-center rounded-xl bg-[#06152d] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0c2953]" to="/login">
               เข้าสู่ระบบครู
             </Link>
           </div>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm lg:p-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#f0cf89] bg-[#fff1ca] px-4 py-2 text-sm font-black text-[#92570f]">
-              <ShieldCheck size={16} aria-hidden="true" />
-              Public Report
-            </div>
-            <h1 className="mt-5 text-4xl font-black leading-tight sm:text-5xl">ดูรายงานนักเรียนด้วยเลขบัตรและวันเกิด</h1>
-            <p className="mt-4 max-w-2xl text-sm font-bold leading-6 text-slate-600">
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(290px,0.65fr)] lg:items-start">
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-9">
+            <h1 className="text-4xl font-black leading-[1.12] tracking-tight text-[#06152d] sm:text-5xl">ดูรายงานนักเรียนด้วยเลขบัตรและวันเกิด</h1>
+            <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600 sm:text-base">
               เลือกโรงเรียน กรอกเลขบัตรประชาชน 13 หลัก และวันเกิดของนักเรียน ระบบจะแสดงเฉพาะข้อมูลที่โรงเรียนเปิดไว้เท่านั้น
             </p>
 
             <form className="mt-6 grid gap-4" onSubmit={(event) => void submitLookup(event)}>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
+              <label className="grid gap-2 text-sm font-bold text-slate-800">
                 โรงเรียน
                 <select
-                  className="h-12 rounded-2xl border border-[#e7c995] bg-white px-4 text-sm font-black outline-none focus:border-[#d98c1b] focus:ring-4 focus:ring-[#f9d684]/40"
+                  className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
                   onChange={(event) => setSelectedWorkspaceId(event.target.value)}
                   value={selectedWorkspaceId}
                 >
@@ -276,10 +288,10 @@ export function PublicReportLookupPage() {
                 </select>
               </label>
 
-              <label className="grid gap-2 text-sm font-black text-slate-700">
+              <label className="grid gap-2 text-sm font-bold text-slate-800">
                 เลขบัตรประชาชนนักเรียน
                 <input
-                  className="h-12 rounded-2xl border border-[#e7c995] bg-white px-4 text-sm font-black tracking-[0.08em] outline-none focus:border-[#d98c1b] focus:ring-4 focus:ring-[#f9d684]/40"
+                  className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold tracking-[0.08em] outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
                   inputMode="numeric"
                   maxLength={13}
                   onChange={(event) => setCitizenId(onlyDigits(event.target.value))}
@@ -288,10 +300,10 @@ export function PublicReportLookupPage() {
                 />
               </label>
 
-              <label className="grid gap-2 text-sm font-black text-slate-700">
+              <label className="grid gap-2 text-sm font-bold text-slate-800">
                 วันเดือนปีเกิด
                 <input
-                  className="h-12 rounded-2xl border border-[#e7c995] bg-white px-4 text-sm font-black outline-none focus:border-[#d98c1b] focus:ring-4 focus:ring-[#f9d684]/40"
+                  className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
                   onChange={(event) => setBirthDate(event.target.value)}
                   type="date"
                   value={birthDate}
@@ -299,8 +311,8 @@ export function PublicReportLookupPage() {
               </label>
 
               <button
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#ffd36e] to-[#df870f] px-5 text-sm font-black text-[#21160a] shadow-[0_16px_35px_rgba(223,135,15,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isLoading || !schools.length}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-black text-[#06152d] shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+                disabled={isLoading || !schools.length || citizenId.length !== 13 || !birthDate}
                 type="submit"
               >
                 <Search size={18} aria-hidden="true" />
@@ -309,32 +321,34 @@ export function PublicReportLookupPage() {
             </form>
 
             {error ? (
-              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black leading-6 text-amber-900">
-                {error}
+              <div className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold leading-6 text-rose-900" role="alert">
+                <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+                <span>{error}</span>
               </div>
             ) : null}
           </div>
 
-          <div className="rounded-[34px] border border-[#efd4aa] bg-[#100b07] p-6 text-white shadow-sm lg:p-8">
-            <p className="text-sm font-black uppercase tracking-[0.22em] text-[#ffd36e]">Privacy Guard</p>
-            <h2 className="mt-4 text-3xl font-black leading-tight">ค้นหาแบบไม่เปิดฐานข้อมูลทั้งโรงเรียน</h2>
-            <div className="mt-6 grid gap-3">
+          <aside className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm lg:p-7">
+            <h2 className="text-xl font-black text-[#06152d]">รายงานนี้ปลอดภัยและเป็นส่วนตัว</h2>
+            <p className="mt-3 text-sm font-medium leading-6 text-slate-600">ข้อมูลของนักเรียนแสดงตามสิทธิ์ที่โรงเรียนกำหนด และใช้เพื่อการติดตามผลเฉพาะผู้ที่มีข้อมูลตรงกันเท่านั้น</p>
+            <div className="mt-6 grid gap-5">
               {[
-                'หน้า public ไม่เห็นเลขบัตรจริง เพราะระบบเทียบด้วย hash จากเลขบัตร + วันเกิด + workspace',
-                'โรงเรียนเลือกเองว่าจะเปิด เวลาเรียน คะแนน เงินออม พฤติกรรม เยี่ยมบ้าน หรือผู้ปกครอง',
-                'ถ้าครูยังไม่ได้บันทึกวันเกิดและเลขบัตรของนักเรียน จะค้นหาไม่เจอ',
-              ].map((item) => (
-                <div className="rounded-[22px] border border-white/12 bg-white/8 p-4 text-sm font-bold leading-6 text-slate-100" key={item}>
-                  {item}
+                { body: 'เข้ารหัสข้อมูลและปกป้องตามมาตรฐานสากล', icon: LockKeyhole, title: 'ปลอดภัย' },
+                { body: 'แสดงเฉพาะข้อมูลที่โรงเรียนเปิดให้ดู', icon: Eye, title: 'เฉพาะที่ได้รับอนุญาต' },
+                { body: 'ข้อมูลอิงจากการบันทึกล่าสุดของโรงเรียน', icon: Clock3, title: 'อัปเดตเป็นปัจจุบัน' },
+              ].map(({ body, icon: Icon, title }) => (
+                <div className="flex gap-3" key={title}>
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100"><Icon size={20} /></span>
+                  <div><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{body}</p></div>
                 </div>
               ))}
             </div>
-          </div>
+          </aside>
         </section>
 
         {result?.ok && result.student ? (
           <section className="grid gap-5">
-            <div className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-sm font-black text-cyan-700">{result.workspace?.school_name}</p>
@@ -353,7 +367,7 @@ export function PublicReportLookupPage() {
 
             <div className="grid gap-5 xl:grid-cols-2">
               {result.attendance ? (
-                <section className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                   {sectionTitle(<Clock3 size={20} />, 'Attendance', 'เวลาเรียน')}
                   <div className="grid gap-3 sm:grid-cols-4">
                     {metric('มา', result.attendance.present, 'green')}
@@ -365,7 +379,7 @@ export function PublicReportLookupPage() {
               ) : null}
 
               {result.scores ? (
-                <section className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                   {sectionTitle(<GraduationCap size={20} />, 'Scores', 'คะแนน')}
                   <div className="grid gap-3 sm:grid-cols-2">
                     {metric('รายการคะแนน', result.scores.entries)}
@@ -375,14 +389,14 @@ export function PublicReportLookupPage() {
               ) : null}
 
               {result.savings ? (
-                <section className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                   {sectionTitle(<WalletCards size={20} />, 'Savings', 'เงินออม')}
                   {metric('ยอดเงินออมคงเหลือ', `฿${result.savings.balance.toLocaleString('th-TH')}`, 'green')}
                 </section>
               ) : null}
 
               {result.behavior ? (
-                <section className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                   {sectionTitle(<HeartHandshake size={20} />, 'Care', 'พฤติกรรมและเคสดูแล')}
                   <div className="grid gap-3 sm:grid-cols-3">
                     {metric('เชิงบวก', result.behavior.positive, 'green')}
@@ -393,7 +407,7 @@ export function PublicReportLookupPage() {
               ) : null}
 
               {result.home_visit ? (
-                <section className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                   {sectionTitle(<FileText size={20} />, 'Home Visit', 'แบบเยี่ยมบ้าน')}
                   <div className="grid gap-3 sm:grid-cols-2">
                     {metric('สถานะ', result.home_visit.status || '-')}
@@ -403,7 +417,7 @@ export function PublicReportLookupPage() {
               ) : null}
 
               {result.guardians ? (
-                <section className="rounded-[34px] border border-[#efd4aa] bg-white p-6 shadow-sm">
+                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                   {sectionTitle(<UserRound size={20} />, 'Guardian', 'ผู้ปกครอง')}
                   <div className="grid gap-3">
                     {result.guardians.length ? (
@@ -424,10 +438,10 @@ export function PublicReportLookupPage() {
             </div>
           </section>
         ) : (
-          <section className="rounded-[34px] border border-[#efd4aa] bg-white/80 p-6 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <CalendarDays className="text-[#a76512]" size={22} aria-hidden="true" />
-              <p className="text-sm font-black text-slate-600">กรอกข้อมูลด้านบนเพื่อดูรายงานที่โรงเรียนอนุญาต</p>
+              <CalendarDays className="text-cyan-700" size={22} aria-hidden="true" />
+              <p className="text-sm font-semibold text-slate-600">กรอกข้อมูลด้านบนเพื่อดูรายงานที่โรงเรียนอนุญาต</p>
             </div>
           </section>
         )}
