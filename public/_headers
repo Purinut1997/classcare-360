@@ -1,0 +1,2 @@
+/support
+  Content-Security-Policy: frame-ancestors 'self' https://mediaplatform.pages.dev http://localhost:5173 http://127.0.0.1:5173

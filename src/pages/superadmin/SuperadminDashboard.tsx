@@ -11,6 +11,7 @@ import {
   FileUp,
   GraduationCap,
   KeyRound,
+  MessageSquare,
   QrCode,
   RefreshCw,
   School,
@@ -24,6 +25,7 @@ import {
 import { buildPromptPayPayload, dataUrlToFile, promptPayPayloadToPngDataUrl } from '../../lib/promptpay';
 import { setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 
 type PaymentStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'expired';
 type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'suspended' | 'cancelled' | 'refunded';
@@ -51,7 +53,7 @@ function getRoleOperationSetupNotice(actionLabel: string, detail?: string) {
   return `${actionLabel}ไม่สำเร็จ เพราะ production ยังไม่มี RPC ชุดจัดการบทบาท ให้รัน supabase/migrations/0021_role_operations_control_center.sql ใน Supabase SQL Editor แล้วลองใหม่.${suffix}`;
 }
 
-type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'health' | 'audit';
+type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'support' | 'health' | 'audit';
 
 const controlCenterSections: Array<{
   body: string;
@@ -82,6 +84,12 @@ const controlCenterSections: Array<{
     icon: Banknote,
     key: 'billing',
     label: 'แพ็กเกจ / VIP',
+  },
+  {
+    body: 'รับเรื่องจาก ClassCare และหน้าเว็บสาธารณะ ตอบกลับ จัดลำดับ และติดตามจนจบ',
+    icon: MessageSquare,
+    key: 'support',
+    label: 'Support Inbox',
   },
   {
     body: 'ตรวจ env, migrations, RLS, storage, Edge Functions และ Cloudflare readiness',
@@ -2226,6 +2234,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </aside>
         </section>
         ) : null}
+
+        {activeSection === 'support' ? <SuperadminSupportInbox /> : null}
 
         {activeSection === 'health' || activeSection === 'audit' ? (
         <section className="mt-5 grid gap-5">

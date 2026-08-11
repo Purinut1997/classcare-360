@@ -4,6 +4,7 @@ import { ContextNav } from '../components/dashboard/ContextNav';
 import { MobileNav } from '../components/dashboard/MobileNav';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { Topbar } from '../components/dashboard/Topbar';
+import { SupportChat } from '../components/support/SupportChat';
 import type { AppNavItem } from '../routes/appRoutes';
 import type { AppSessionContext } from '../types/core';
 
@@ -58,6 +59,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         {children}
       </div>
       <MobileNav activeView={activeView} navItems={navItems} />
+      {session ? <SupportChat activeLabel={activeLabel} activeView={activeView} session={session} /> : null}
     </div>
   );
 }

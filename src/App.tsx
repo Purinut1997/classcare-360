@@ -34,6 +34,9 @@ const PricingPage = lazy(() =>
 const PublicReportLookupPage = lazy(() =>
   import('./pages/public/PublicReportLookupPage').then((module) => ({ default: module.PublicReportLookupPage })),
 );
+const PublicSupportPage = lazy(() =>
+  import('./pages/public/PublicSupportPage').then((module) => ({ default: module.PublicSupportPage })),
+);
 const AuditCenterPage = lazy(() =>
   import('./pages/app/AuditCenterPage').then((module) => ({ default: module.AuditCenterPage })),
 );
@@ -735,6 +738,7 @@ function AppRoutes() {
       />
       <Route element={<PricingPage />} path="/pricing" />
       <Route element={<PublicReportLookupPage />} path="/public/report" />
+      <Route element={<PublicSupportPage />} path="/support" />
       <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />
       <Route element={<AppDashboardRoute session={session} />} path="/app/dashboard" />
       <Route element={<WorkspaceSetupRoute session={session} />} path="/app/select-workspace" />
