@@ -830,9 +830,10 @@ function buildPrintableReportHtml({
             color: #94a3b8;
           }
           ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
-          .summary-card { background: #fff; border: 1px solid #666; border-radius: 0; }
+          .summary-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2.5mm; }
           .summary-card span, .summary-card strong, .present, .late, .leave, .absent { color: #111; }
-          th, .weekend, .sum, .total, tfoot td { background: #e9e9e9 !important; color: #111; }
+          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; }
+          .weekend, .sum, .total, tfoot td { background: #e6f7fb !important; color: #0f2742 !important; }
           th.name, td.name { width: 42mm; }
         </style>
       </head>
@@ -1049,9 +1050,10 @@ function buildPrintableSavingsReportHtml({
             color: #94a3b8;
           }
           ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
-          .summary-card { background: #fff; border: 1px solid #666; border-radius: 0; }
+          .summary-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2.5mm; }
           .summary-card span, .summary-card strong, .month-total, .balance-total { color: #111; }
-          th, .weekend, .sum, .month-total, .balance-total, .total, tfoot td { background: #e9e9e9 !important; color: #111; }
+          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; }
+          .weekend, .sum, .month-total, .balance-total, .total, tfoot td { background: #e6f7fb !important; color: #0f2742 !important; }
           th.name, td.name { width: 42mm; }
         </style>
       </head>

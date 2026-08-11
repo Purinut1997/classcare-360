@@ -346,9 +346,10 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     reportWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>ปฏิทินโรงเรียน ${escapeOfficialHtml(currentMonthText)}</title><style>
       ${buildOfficialReportCss({ dense: false, marginMm: 14, orientation: 'portrait' })}
       .calendar-summary { display: grid; gap: 2mm; grid-template-columns: repeat(4, 1fr); margin: 3mm 0; }
-      .calendar-summary div { border: 1px solid #555; padding: 2mm; text-align: center; }
-      .calendar-summary span { display: block; font-size: 10pt; }
-      .calendar-summary strong { display: block; font-size: 15pt; }
+      .calendar-summary div { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2.5mm; padding: 2mm; text-align: center; }
+      .calendar-summary div:first-child { background: #ecfeff; border-color: #a5f3fc; }
+      .calendar-summary span { color: #475569; display: block; font-size: 10pt; }
+      .calendar-summary strong { color: #0f2742; display: block; font-size: 15pt; }
     </style></head><body><main class="official-sheet">
       ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity, schoolName, subtitle: `ประจำเดือน${currentMonthText}`, title: 'ปฏิทินกิจกรรมและวันสำคัญของโรงเรียน' })}
       <section class="calendar-summary"><div><span>รายการทั้งหมด</span><strong>${stats.total}</strong></div><div><span>วันหยุด</span><strong>${stats.holiday}</strong></div><div><span>วันสอบ</span><strong>${stats.exam}</strong></div><div><span>กระทบเช็กชื่อ</span><strong>${stats.attendanceImpact}</strong></div></section>

@@ -991,9 +991,10 @@ function renderHomeVisitPrintHtml({
     .muted { color: #64748b; font-size: 11px; }
     ${buildOfficialReportCss({ dense: false, marginMm: 14, orientation: 'portrait' })}
     .page { min-height: 270mm; }
-    .section h2 { background: #e9e9e9; border: 1px solid #555; border-radius: 0; color: #111; }
-    .field, .photo-box, .cert { border-color: #555; border-radius: 0; }
-    th { background: #e9e9e9; }
+    .section h2 { background: #e6f7fb; border: 1px solid #a5d8e6; border-left: 1.4mm solid #0891b2; border-radius: 2mm; color: #0f2742; }
+    .field, .photo-box, .cert { border-color: #cbd5e1; border-radius: 2.5mm; }
+    th { background: #e6f7fb; color: #0f2742; }
+    thead th { border-top: .8mm solid #0f2742; }
     @media print { button { display: none; } .page { page-break-after: always; } }
   </style>
 </head>

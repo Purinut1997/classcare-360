@@ -560,11 +560,11 @@ export function ClassroomOperationsPage({
     reportWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8" />
       <title>ตารางเวร ${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</title>
       <style>
-        @page { size: A4 landscape; margin: 8mm; }
+        @page { size: A4 landscape; margin: 12mm; }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
         body { color: #101828; font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, sans-serif; font-size: 10.5pt; line-height: 1.12; }
-        .sheet { display: grid; grid-template-rows: auto auto auto 1fr auto auto auto; height: 194mm; margin: 0 auto; overflow: hidden; position: relative; width: 281mm; }
+        .sheet { display: grid; grid-template-rows: auto auto auto 1fr auto auto auto; height: 186mm; margin: 0 auto; overflow: hidden; position: relative; width: 273mm; }
         header { align-items: center; border-bottom: 2.5px solid #155eef; display: grid; grid-template-columns: 62px 1fr 62px; min-height: 64px; padding: 0 0 7px; }
         .logo { height: 54px; object-fit: contain; width: 54px; }
         .header-copy { text-align: center; }
@@ -572,18 +572,22 @@ export function ClassroomOperationsPage({
         .school { font-size: 13px; font-weight: 700; margin-top: 3px; }
         .period { color: #344054; font-size: 11px; font-weight: 700; margin-top: 3px; }
         .meta { display: grid; gap: 6px; grid-template-columns: 1.15fr .8fr 1fr 1.15fr; margin: 8px 0; }
-        .meta div { background: #eff6ff; border: 1px solid #b9d5ff; border-radius: 8px; min-height: 41px; padding: 5px 8px; }
+        .meta div { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 7px; min-height: 38px; padding: 5px 8px; }
         .meta span { color: #475467; display: block; font-size: 9px; }
         .meta strong { color: #101828; display: block; font-size: 12px; margin-top: 2px; }
-        table { border-collapse: collapse; table-layout: fixed; width: 100%; }
-        thead th { background: #dbeafe; border: 1px solid #475467; color: #12366b; font-size: 10.5px; height: 35px; padding: 4px; text-align: center; }
-        thead th:first-child { background: #eaf2ff; color: #101828; text-align: left; width: 27mm; }
-        tbody th, tbody td { border: 1px solid #667085; padding: 5px; vertical-align: top; }
-        tbody th { background: #f4f7fb; font-size: 10.5px; text-align: left; }
+        table { border: 1px solid #b8c7d9; border-collapse: separate; border-radius: 8px; border-spacing: 0; overflow: hidden; table-layout: fixed; width: 100%; }
+        thead th { background: #e6f7fb; border-bottom: 1px solid #b8c7d9; border-right: 1px solid #b8c7d9; border-top: 3px solid #0f2742; color: #0f2742; font-size: 10.5px; height: 34px; padding: 4px; text-align: center; }
+        thead th:last-child { border-right: 0; }
+        thead th:first-child { background: #d7f1f7; color: #0f2742; text-align: left; width: 27mm; }
+        tbody th, tbody td { border-bottom: 1px solid #d8e1eb; border-right: 1px solid #d8e1eb; padding: 5px; vertical-align: top; }
+        tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+        tbody tr > :last-child { border-right: 0; }
+        tbody tr:nth-child(even) td { background: #f8fafc; }
+        tbody th { background: #e6f7fb; color: #0f2742; font-size: 10.5px; text-align: left; }
         tbody th strong, tbody th small { display: block; }
         tbody th small { color: #667085; font-size: 8.5px; margin-top: 2px; }
         tbody td { height: ${uniqueTasks.filter((task) => task.is_active).length > 6 ? "13mm" : "16mm"}; text-align: center; }
-        .student { align-items: baseline; background: #fff; border: 1px solid #d0d5dd; border-radius: 10px; display: flex; gap: 4px; justify-content: center; margin-bottom: 3px; padding: 3px 5px; }
+        .student { align-items: baseline; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 6px; display: flex; gap: 4px; justify-content: center; margin-bottom: 3px; padding: 3px 5px; }
         .student:last-child { margin-bottom: 0; }
         .student b { color: #155eef; font-size: 8.5px; white-space: nowrap; }
         .student span { font-size: 9.5px; font-weight: 700; }
@@ -597,8 +601,8 @@ export function ClassroomOperationsPage({
         .signature .line { border-bottom: 1px dotted #344054; display: inline-block; min-width: 160px; }
         .signature p { margin: 2px 0 0; }
         .generated { bottom: 0; color: #98a2b3; font-size: 7.5px; position: absolute; right: 0; }
-        ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: "landscape" })}
-        .official-sheet { height: 194mm; min-height: 0; width: 281mm; }
+        ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: "landscape" })}
+        .official-sheet { height: 186mm; min-height: 0; width: 273mm; }
         .official-header { gap: 5mm; grid-template-columns: 18mm 1fr 18mm; padding-bottom: 1.5mm; }
         .official-logo-frame { height: 15mm; width: 15mm; }
         .official-logo { height: 14mm; width: 14mm; }
@@ -611,13 +615,11 @@ export function ClassroomOperationsPage({
         .official-signature-line { min-width: 32mm; }
         .official-signature-name, .official-signature-role { margin-top: .2mm; }
         .official-footer { font-size: 7.5pt; position: static; }
-        .meta div, .student, .summary { background: #fff; border-color: #555; border-radius: 0; }
-        thead th, thead th:first-child, tbody th { background: #e9e9e9; color: #111; }
         @media print { .sheet { break-after: avoid; break-inside: avoid; margin: 0; page-break-after: avoid; page-break-inside: avoid; } }
       </style></head><body><main class="sheet official-sheet">
         ${buildOfficialHeaderHtml({ classroomName, dateFrom: normalizedPrintWeek, dateTo: weekEnd, documentCode, identity: { ...identity, schoolLogoDataUrl: logo }, schoolName, subtitle: `ปีการศึกษา ${classroom?.academic_year || session.workspace.academicYear}`, title: "ตารางเวรประจำสัปดาห์" })}
         <section class="meta"><div><span>โรงเรียน</span><strong>${escapeDutyHtml(schoolName)}</strong></div><div><span>ห้องเรียน</span><strong>${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</strong></div><div><span>ครูประจำชั้น</span><strong>${escapeDutyHtml(teacherName)}</strong></div><div><span>ช่วงวันที่</span><strong>${dateLabel(normalizedPrintWeek)} – ${dateLabel(weekEnd)}</strong></div></section>
-        <table><thead><tr><th>หน้าที่เวร</th>${reportDays.map(({ date, label }) => `<th>${escapeDutyHtml(label)}<br />${dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</th>`).join("")}</tr></thead><tbody>${taskRows || `<tr><td colspan="${reportDays.length + 1}" class="empty">ยังไม่มีหน้าที่เวรในสัปดาห์นี้</td></tr>`}</tbody></table>
+        <table class="duty-print-table"><thead><tr><th>หน้าที่เวร</th>${reportDays.map(({ date, label }) => `<th>${escapeDutyHtml(label)}<br />${dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</th>`).join("")}</tr></thead><tbody>${taskRows || `<tr><td colspan="${reportDays.length + 1}" class="empty">ยังไม่มีหน้าที่เวรในสัปดาห์นี้</td></tr>`}</tbody></table>
         <div class="official-certification">สรุปหน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน · ขอรับรองว่าตารางเวรฉบับนี้ได้รับการตรวจสอบแล้ว</div>
         ${buildOfficialSignaturesHtml([
           { name: teacherName, role: "ผู้จัดทำ / ครูประจำชั้น" },

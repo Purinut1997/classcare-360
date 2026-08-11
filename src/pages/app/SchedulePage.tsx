@@ -492,25 +492,29 @@ export function SchedulePage({ session }: SchedulePageProps) {
           src: url('/fonts/THSarabun-BoldItalic.ttf') format('truetype');
         }
         @media print {
-          @page { size: A4 landscape; margin: 8mm; }
-          html, body { background: #fff !important; font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; }
+          @page { size: A4 landscape; margin: 12mm; }
+          html, body { background: #fff !important; font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .app-sidebar, .app-shell-sidebar, .app-topbar, .app-mobile-nav, .print-hidden, .no-print { display: none !important; }
           .app-page { padding: 0 !important; background: #fff !important; }
           .app-page > :not(.schedule-print-sheet) { display: none !important; }
           .classcare-grid-bg { background: #fff !important; overflow: visible !important; }
           .classcare-grid-bg > .pointer-events-none,
           .classcare-grid-bg > .fixed { display: none !important; }
-          .schedule-print-sheet { box-sizing: border-box !important; display: block !important; width: 281mm !important; min-height: 0 !important; padding: 0 !important; color: #111 !important; font-size: 16pt !important; line-height: 1 !important; }
+          .schedule-print-sheet { box-sizing: border-box !important; display: block !important; width: 273mm !important; min-height: 0 !important; margin: 0 auto !important; padding: 0 !important; color: #0f172a !important; font-size: 16pt !important; line-height: 1 !important; }
           .schedule-print-sheet, .schedule-print-sheet * { font-family: 'TH Sarabun New', 'TH Sarabun PSK', 'Noto Sans Thai', sans-serif !important; }
           .schedule-print-sheet > div { min-height: 0 !important; }
           .schedule-screen { display: none !important; }
           .schedule-print-title { font-size: 21pt !important; line-height: 1.08 !important; }
           .schedule-print-subtitle { margin-top: 1mm !important; font-size: 17pt !important; line-height: 1.08 !important; }
           .schedule-print-teacher { margin-top: 1mm !important; font-size: 16pt !important; line-height: 1.08 !important; }
-          .schedule-print-meta { border-bottom: 1px solid #444 !important; border-top: 1px solid #444 !important; display: flex !important; font-size: 12.5pt !important; justify-content: space-between !important; margin-top: 3mm !important; padding: 1mm 0 !important; }
-          .schedule-print-table { margin-top: 4mm !important; font-size: 15pt !important; line-height: 1.02 !important; table-layout: fixed !important; }
-          .schedule-print-table th, .schedule-print-table td { padding: 2.5px !important; }
-          .schedule-print-table thead th { font-size: 15.5pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
+          .schedule-print-meta { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 2.5mm !important; display: flex !important; font-size: 12.5pt !important; justify-content: space-between !important; margin-top: 3mm !important; padding: 1.5mm 2.5mm !important; }
+          .schedule-print-table { border: 1px solid #b8c7d9 !important; border-collapse: separate !important; border-radius: 2.5mm !important; border-spacing: 0 !important; margin-top: 4mm !important; overflow: hidden !important; font-size: 15pt !important; line-height: 1.02 !important; table-layout: fixed !important; }
+          .schedule-print-table th, .schedule-print-table td { border: 0 !important; border-bottom: 1px solid #d8e1eb !important; border-right: 1px solid #d8e1eb !important; padding: 2.5px !important; }
+          .schedule-print-table tr > :last-child { border-right: 0 !important; }
+          .schedule-print-table tbody tr:last-child > * { border-bottom: 0 !important; }
+          .schedule-print-table thead th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-size: 15.5pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
+          .schedule-print-table tbody th { background: #e6f7fb !important; color: #0f2742 !important; }
+          .schedule-print-table tbody tr:nth-child(even) td { background: #f8fafc !important; }
           .schedule-print-table thead span { font-size: 13.5pt !important; line-height: 1 !important; }
           .schedule-print-day { width: 24mm !important; }
           .schedule-print-day-label { font-size: 16.5pt !important; line-height: 1.05 !important; }
@@ -521,7 +525,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
           .schedule-print-lunch { width: 16mm !important; font-size: 14pt !important; line-height: 1 !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.06em; }
           .schedule-print-signatures { margin-top: 5mm !important; font-size: 15pt !important; line-height: 1.08 !important; }
           .schedule-print-signatures p + p { margin-top: 1mm !important; }
-          .schedule-print-certification { border: 1px solid #555 !important; font-size: 12.5pt !important; margin-top: 3mm !important; padding: 1.5mm 2mm !important; }
+          .schedule-print-certification { background: #f0fdfa !important; border: 1px solid #99f6e4 !important; border-left: 1.4mm solid #0891b2 !important; border-radius: 2mm !important; color: #134e4a !important; font-size: 12.5pt !important; margin-top: 3mm !important; padding: 1.5mm 2mm !important; }
           .schedule-print-footer { border-top: 1px solid #666 !important; display: flex !important; font-size: 9pt !important; justify-content: space-between !important; margin-top: 4mm !important; padding-top: 1mm !important; }
         }
       `}</style>
