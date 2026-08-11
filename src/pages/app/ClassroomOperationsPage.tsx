@@ -190,6 +190,10 @@ function dutyTaskKey(name: string) {
   return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]+/g, "").toLocaleLowerCase("th");
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json;charset=utf-8",
@@ -254,6 +258,8 @@ export function ClassroomOperationsPage({
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [designerOpen, setDesignerOpen] = useState(false);
   const [selectedDutyDate, setSelectedDutyDate] = useState(weekStart);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printWeekStart, setPrintWeekStart] = useState(weekStart);
   const [dutyGeneratorOpen, setDutyGeneratorOpen] = useState(false);
   const [dutyGenerationScope, setDutyGenerationScope] = useState<DutyGenerationScope>("day");
   const [dutyGenerationDates, setDutyGenerationDates] = useState(() => {
@@ -348,7 +354,7 @@ export function ClassroomOperationsPage({
   useEffect(() => {
     let active = true;
     async function load() {
-      if (!supabase || !session.workspace) return;
+      if (!supabase || !session.workspace || !isUuid(session.workspace.id)) return;
       setBusy(true);
       const workspaceId = session.workspace.id;
       const results = await Promise.all([
@@ -473,22 +479,54 @@ export function ClassroomOperationsPage({
     window.location.reload();
   }
 
-  function printDutyReport() {
+  function openPrintDialog() {
+    setPrintWeekStart(mondayOf(new Date(`${weekStart}T12:00:00`)));
+    setPrintDialogOpen(true);
+  }
+
+  async function printDutyReport() {
     if (!session.workspace || !classroomId) return;
+    const normalizedPrintWeek = mondayOf(new Date(`${printWeekStart}T12:00:00`));
     const reportWindow = window.open("", "classcare-duty-report", "width=1200,height=820");
     if (!reportWindow) {
       setNotice("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต Pop-up สำหรับเว็บไซต์นี้แล้วลองอีกครั้ง");
       return;
     }
     reportWindow.opener = null;
+    reportWindow.document.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>กำลังเตรียมตารางเวร</title></head><body style="font-family:Tahoma,sans-serif;padding:32px;color:#0f172a">กำลังเตรียมเอกสาร A4...</body></html>');
+    reportWindow.document.close();
 
     const identity = loadSchoolReportIdentity();
     const classroom = classrooms.find((item) => item.id === classroomId);
     const reportDays = displayedDutyDays.map((day) => ({
       ...day,
-      date: addDays(weekStart, day.value - 1),
+      date: addDays(normalizedPrintWeek, day.value - 1),
     }));
-    const weekEnd = reportDays[reportDays.length - 1]?.date || addDays(weekStart, 4);
+    const weekEnd = reportDays[reportDays.length - 1]?.date || addDays(normalizedPrintWeek, 4);
+    let reportAssignments = assignments.filter(
+      (item) =>
+        classroomTaskIds.has(item.duty_task_id) &&
+        item.duty_date >= normalizedPrintWeek &&
+        item.duty_date <= addDays(normalizedPrintWeek, 6),
+    );
+    if (supabase && classroomTaskIds.size && isUuid(session.workspace.id)) {
+      setBusy(true);
+      const result = await supabase
+        .from("duty_assignments")
+        .select("id,duty_task_id,duty_date,student_id,substitute_student_id,status")
+        .eq("workspace_id", session.workspace.id)
+        .in("duty_task_id", Array.from(classroomTaskIds))
+        .gte("duty_date", normalizedPrintWeek)
+        .lte("duty_date", addDays(normalizedPrintWeek, 6))
+        .order("duty_date");
+      setBusy(false);
+      if (result.error) {
+        reportWindow.close();
+        setNotice(`ไม่สามารถเตรียมข้อมูลสำหรับพิมพ์ได้: ${result.error.message}`);
+        return;
+      }
+      reportAssignments = (result.data || []) as DutyAssignment[];
+    }
     const dateLabel = (value: string, options?: Intl.DateTimeFormatOptions) =>
       new Intl.DateTimeFormat("th-TH", options || { day: "numeric", month: "short", year: "numeric" })
         .format(new Date(`${value}T12:00:00`));
@@ -496,7 +534,7 @@ export function ClassroomOperationsPage({
       .filter((task) => task.is_active)
       .map((task) => {
         const cells = reportDays.map(({ date }) => {
-          const list = roomAssignments.filter(
+          const list = reportAssignments.filter(
             (item) => (taskAliasIds.get(task.id) || [task.id]).includes(item.duty_task_id) && item.duty_date === date,
           );
           if (!list.length) return '<td><span class="empty">— ไม่มีเวร —</span></td>';
@@ -508,24 +546,25 @@ export function ClassroomOperationsPage({
         }).join("");
         return `<tr><th><strong>${escapeDutyHtml(task.name)}</strong>${task.location ? `<small>${escapeDutyHtml(task.location)}</small>` : ""}</th>${cells}</tr>`;
       }).join("");
-    const assignmentCount = roomAssignments.length;
-    const assignedStudentCount = new Set(roomAssignments.map((item) => item.student_id)).size;
+    const assignmentCount = reportAssignments.length;
+    const assignedStudentCount = new Set(reportAssignments.map((item) => item.student_id)).size;
     const teacherName = identity.teacherName || session.profile.displayName || "................................................";
     const schoolName = identity.schoolName && identity.schoolName !== "โรงเรียนตัวอย่าง ClassCare"
       ? identity.schoolName
       : session.workspace.schoolName;
     const logo = identity.schoolLogoDataUrl || "/brand/classcare-360-icon-128.png";
     const classroomName = classroom?.name || session.workspace.classroomName;
-    const documentCode = buildOfficialDocumentCode("CC-DTY", weekStart, classroomName);
+    const documentCode = buildOfficialDocumentCode("CC-DTY", normalizedPrintWeek, classroomName);
 
+    reportWindow.document.open();
     reportWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8" />
       <title>ตารางเวร ${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</title>
       <style>
         @page { size: A4 landscape; margin: 8mm; }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
-        body { color: #101828; font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, sans-serif; font-size: 11px; line-height: 1.25; }
-        .sheet { width: 281mm; min-height: 194mm; margin: 0 auto; position: relative; }
+        body { color: #101828; font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, sans-serif; font-size: 10.5pt; line-height: 1.12; }
+        .sheet { display: grid; grid-template-rows: auto auto auto 1fr auto auto auto; height: 194mm; margin: 0 auto; overflow: hidden; position: relative; width: 281mm; }
         header { align-items: center; border-bottom: 2.5px solid #155eef; display: grid; grid-template-columns: 62px 1fr 62px; min-height: 64px; padding: 0 0 7px; }
         .logo { height: 54px; object-fit: contain; width: 54px; }
         .header-copy { text-align: center; }
@@ -543,7 +582,7 @@ export function ClassroomOperationsPage({
         tbody th { background: #f4f7fb; font-size: 10.5px; text-align: left; }
         tbody th strong, tbody th small { display: block; }
         tbody th small { color: #667085; font-size: 8.5px; margin-top: 2px; }
-        tbody td { height: 19mm; text-align: center; }
+        tbody td { height: ${uniqueTasks.filter((task) => task.is_active).length > 6 ? "13mm" : "16mm"}; text-align: center; }
         .student { align-items: baseline; background: #fff; border: 1px solid #d0d5dd; border-radius: 10px; display: flex; gap: 4px; justify-content: center; margin-bottom: 3px; padding: 3px 5px; }
         .student:last-child { margin-bottom: 0; }
         .student b { color: #155eef; font-size: 8.5px; white-space: nowrap; }
@@ -558,14 +597,26 @@ export function ClassroomOperationsPage({
         .signature .line { border-bottom: 1px dotted #344054; display: inline-block; min-width: 160px; }
         .signature p { margin: 2px 0 0; }
         .generated { bottom: 0; color: #98a2b3; font-size: 7.5px; position: absolute; right: 0; }
-        ${buildOfficialReportCss({ dense: true, marginMm: 10, orientation: "landscape" })}
-        .sheet { width: auto; }
+        ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: "landscape" })}
+        .official-sheet { height: 194mm; min-height: 0; width: 281mm; }
+        .official-header { gap: 5mm; grid-template-columns: 18mm 1fr 18mm; padding-bottom: 1.5mm; }
+        .official-logo-frame { height: 15mm; width: 15mm; }
+        .official-logo { height: 14mm; width: 14mm; }
+        .official-title { font-size: 15.5pt; }
+        .official-school { font-size: 12pt; margin-top: .4mm; }
+        .official-subtitle { font-size: 10pt; margin-top: .3mm; }
+        .official-meta { font-size: 8.5pt; gap: .5mm 5mm; margin-bottom: 1.5mm; padding: 1mm 0; }
+        .official-certification { font-size: 9pt; margin-top: 1.5mm; padding: 1mm 2mm; }
+        .official-signatures { align-self: end; font-size: 9pt; gap: 6mm; margin: 3mm 5mm 5mm; }
+        .official-signature-line { min-width: 32mm; }
+        .official-signature-name, .official-signature-role { margin-top: .2mm; }
+        .official-footer { font-size: 7.5pt; position: static; }
         .meta div, .student, .summary { background: #fff; border-color: #555; border-radius: 0; }
         thead th, thead th:first-child, tbody th { background: #e9e9e9; color: #111; }
-        @media print { .sheet { margin: 0; } }
+        @media print { .sheet { break-after: avoid; break-inside: avoid; margin: 0; page-break-after: avoid; page-break-inside: avoid; } }
       </style></head><body><main class="sheet official-sheet">
-        ${buildOfficialHeaderHtml({ classroomName, dateFrom: weekStart, dateTo: weekEnd, documentCode, identity: { ...identity, schoolLogoDataUrl: logo }, schoolName, subtitle: `ปีการศึกษา ${classroom?.academic_year || session.workspace.academicYear}`, title: "ตารางเวรประจำสัปดาห์" })}
-        <section class="meta"><div><span>โรงเรียน</span><strong>${escapeDutyHtml(schoolName)}</strong></div><div><span>ห้องเรียน</span><strong>${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</strong></div><div><span>ครูประจำชั้น</span><strong>${escapeDutyHtml(teacherName)}</strong></div><div><span>ช่วงวันที่</span><strong>${dateLabel(weekStart)} – ${dateLabel(weekEnd)}</strong></div></section>
+        ${buildOfficialHeaderHtml({ classroomName, dateFrom: normalizedPrintWeek, dateTo: weekEnd, documentCode, identity: { ...identity, schoolLogoDataUrl: logo }, schoolName, subtitle: `ปีการศึกษา ${classroom?.academic_year || session.workspace.academicYear}`, title: "ตารางเวรประจำสัปดาห์" })}
+        <section class="meta"><div><span>โรงเรียน</span><strong>${escapeDutyHtml(schoolName)}</strong></div><div><span>ห้องเรียน</span><strong>${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</strong></div><div><span>ครูประจำชั้น</span><strong>${escapeDutyHtml(teacherName)}</strong></div><div><span>ช่วงวันที่</span><strong>${dateLabel(normalizedPrintWeek)} – ${dateLabel(weekEnd)}</strong></div></section>
         <table><thead><tr><th>หน้าที่เวร</th>${reportDays.map(({ date, label }) => `<th>${escapeDutyHtml(label)}<br />${dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</th>`).join("")}</tr></thead><tbody>${taskRows || `<tr><td colspan="${reportDays.length + 1}" class="empty">ยังไม่มีหน้าที่เวรในสัปดาห์นี้</td></tr>`}</tbody></table>
         <div class="official-certification">สรุปหน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน · ขอรับรองว่าตารางเวรฉบับนี้ได้รับการตรวจสอบแล้ว</div>
         ${buildOfficialSignaturesHtml([
@@ -577,6 +628,7 @@ export function ClassroomOperationsPage({
       </main></body></html>`);
     reportWindow.document.close();
     reportWindow.focus();
+    setPrintDialogOpen(false);
     window.setTimeout(() => reportWindow.print(), 350);
   }
 
@@ -1160,7 +1212,7 @@ export function ClassroomOperationsPage({
                 </button>
                 <button
                   className="dark-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black"
-                  onClick={printDutyReport}
+                  onClick={openPrintDialog}
                   type="button"
                 >
                   <Printer size={17} />
@@ -1261,6 +1313,80 @@ export function ClassroomOperationsPage({
               studentCount={roomStudents.length}
               taskCount={uniqueTasks.filter((task) => task.is_active && task.rotation_strategy !== "manual").length}
             />
+          ) : null}
+          {printDialogOpen ? (
+            <div
+              aria-labelledby="duty-print-title"
+              aria-modal="true"
+              className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+              role="dialog"
+            >
+              <div className="w-full max-w-xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl shadow-slate-950/30">
+                <header className="relative overflow-hidden bg-slate-950 px-6 py-6 text-white sm:px-7">
+                  <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
+                  <div className="relative flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20">
+                        <Printer size={22} />
+                      </span>
+                      <div>
+                        <h2 className="text-xl font-black" id="duty-print-title">เตรียมพิมพ์ตารางเวร</h2>
+                        <p className="mt-1 text-sm font-bold text-slate-300">เลือกสัปดาห์ที่ต้องการ ระบบจะจัดหน้า A4 แนวนอนให้อัตโนมัติ</p>
+                      </div>
+                    </div>
+                    <button
+                      aria-label="ปิดหน้าต่างเตรียมพิมพ์"
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/15 text-slate-300 transition hover:bg-white/10 hover:text-white"
+                      onClick={() => setPrintDialogOpen(false)}
+                      type="button"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </header>
+
+                <div className="p-6 sm:p-7">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      วันเริ่มต้นของสัปดาห์
+                      <ThaiDatePicker
+                        className="h-12 bg-white px-3"
+                        onValueChange={(value) => setPrintWeekStart(mondayOf(new Date(`${value}T12:00:00`)))}
+                        value={printWeekStart}
+                      />
+                    </label>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <button className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:border-cyan-300 hover:text-cyan-800" onClick={() => setPrintWeekStart((current) => addDays(current, -7))} type="button">สัปดาห์ก่อน</button>
+                      <button className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 hover:bg-cyan-100" onClick={() => setPrintWeekStart(mondayOf())} type="button">สัปดาห์นี้</button>
+                      <button className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:border-cyan-300 hover:text-cyan-800" onClick={() => setPrintWeekStart((current) => addDays(current, 7))} type="button">สัปดาห์ถัดไป</button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-4 rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+                      <CalendarRange size={21} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-cyan-700">ช่วงที่จะพิมพ์</p>
+                      <p className="mt-1 text-base font-black text-slate-950">
+                        {new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${printWeekStart}T12:00:00`))}
+                        {" – "}
+                        {new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${addDays(printWeekStart, 6)}T12:00:00`))}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">ห้อง {classrooms.find((room) => room.id === classroomId)?.name || session.workspace?.classroomName || "-"} · A4 แนวนอน · 1 หน้า</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button className="h-11 rounded-2xl border border-slate-200 px-5 text-sm font-black text-slate-600 hover:bg-slate-50" onClick={() => setPrintDialogOpen(false)} type="button">ยกเลิก</button>
+                    <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black disabled:opacity-60" disabled={busy} onClick={() => void printDutyReport()} type="button">
+                      <Printer size={17} />
+                      เปิดตัวอย่างก่อนพิมพ์
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
           <aside className="grid content-start gap-4">
             <div className="nexus-card p-5">
