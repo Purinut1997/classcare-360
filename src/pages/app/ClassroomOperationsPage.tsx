@@ -1461,8 +1461,8 @@ function DutyGenerationDialog({
     : "-";
 
   return (
-    <div aria-labelledby="duty-generator-title" aria-modal="true" className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-md" role="dialog">
-      <div className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/15 bg-white shadow-2xl dark:bg-[#171a16]">
+    <div aria-labelledby="duty-generator-title" aria-modal="true" className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-slate-950/65 p-4 backdrop-blur-md" role="dialog">
+      <div className="my-auto w-full max-w-3xl overflow-visible rounded-[28px] border border-white/15 bg-white shadow-2xl dark:bg-[#171a16]">
         <div className="flex items-start justify-between gap-5 border-b border-slate-200 bg-gradient-to-br from-slate-950 to-slate-900 p-5 text-white sm:p-7">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-lime-300">Smart duty rotation</p>

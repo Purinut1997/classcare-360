@@ -65,6 +65,7 @@ export function ThaiDatePicker({
   const selected = parseValue(value, mode);
   const today = new Date();
   const [isOpen, setIsOpen] = useState(false);
+  const [openAbove, setOpenAbove] = useState(false);
   const [viewMonth, setViewMonth] = useState(selected?.month ?? today.getMonth());
   const [viewYear, setViewYear] = useState(selected?.year ?? today.getFullYear());
   const adaptiveSurface = appearance === 'adaptive';
@@ -93,6 +94,13 @@ export function ThaiDatePicker({
 
   function openPicker() {
     if (disabled) return;
+    if (!isOpen && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const estimatedPickerHeight = mode === 'month' ? 250 : 360;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setOpenAbove(spaceBelow < estimatedPickerHeight && spaceAbove > spaceBelow);
+    }
     if (selected) {
       setViewMonth(selected.month);
       setViewYear(selected.year);
@@ -137,7 +145,7 @@ export function ThaiDatePicker({
       </button>
 
       {isOpen ? (
-        <div aria-label={mode === 'month' ? 'เลือกเดือนแบบไทย' : 'เลือกวันที่แบบไทย'} className={`absolute left-0 z-[80] mt-2 w-[min(21rem,calc(100vw-4rem))] rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.22)] ${adaptiveSurface ? 'dark:border-slate-700 dark:bg-slate-900 dark:text-white' : ''}`} role="dialog">
+        <div aria-label={mode === 'month' ? 'เลือกเดือนแบบไทย' : 'เลือกวันที่แบบไทย'} className={`absolute left-0 z-[100] w-[min(21rem,calc(100vw-4rem))] rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.22)] ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'} ${adaptiveSurface ? 'dark:border-slate-700 dark:bg-slate-900 dark:text-white' : ''}`} role="dialog">
           <div className="flex items-center justify-between gap-2">
             {mode === 'date' ? (
               <button aria-label="เดือนก่อนหน้า" className={`grid h-9 w-9 place-items-center rounded-xl hover:bg-slate-100 ${adaptiveSurface ? 'dark:hover:bg-slate-800' : ''}`} onClick={() => moveMonth(-1)} type="button"><ChevronLeft size={18} /></button>
