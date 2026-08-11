@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import {
@@ -233,6 +234,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     attendancePolicy: 'normal' as AttendancePolicy,
   });
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const loadEvents = async () => {
     if (!supabase || !session.workspace?.id) {
@@ -276,6 +278,18 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     void loadEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.workspace?.id]);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedDate(null);
+        setEditingEvent(null);
+      }
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [selectedDate]);
 
   const monthCells = useMemo(() => buildMonthCells(currentMonth), [currentMonth]);
   const currentMonthText = `${thaiMonthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear() + 543}`;
@@ -363,8 +377,13 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
     setEvents((current) => [...current, nextEvent]);
     setDraft((current) => ({ ...current, title: '' }));
+    setSelectedDate(nextEvent.date);
 
     if (!supabase || !session.workspace?.id) {
+      const storageKey = getDataSafetyStorageKey(session);
+      const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      state.calendarRules = [...loadLocalCalendar(session), nextEvent];
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
       setSync({ status: 'local', message: 'บันทึกไว้ในหน้าเว็บก่อน เพราะยังไม่พร้อมเชื่อม Supabase' });
       return;
     }
@@ -448,6 +467,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       setEvents(updatedLocal);
       setSync({ status: 'local', message: 'แก้ไขรายการในเครื่องแล้ว' });
+      setSelectedDate(draft.date);
       setEditingEvent(null);
       return;
     }
@@ -472,6 +492,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
       setEvents((current) => current.map((event) => (event.id === editingEvent.id ? mapCalendarRow(data) : event)));
       setSync({ status: 'synced', message: 'แก้ไขวันพิเศษใน Supabase แล้ว' });
+      setSelectedDate(draft.date);
       setEditingEvent(null);
     } catch (error) {
       setSync({
@@ -482,6 +503,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   };
 
   const openEditModal = (event: CalendarEvent) => {
+    setSelectedDate(event.date);
     setEditingEvent(event);
     setDraft({
       date: event.date,
@@ -489,6 +511,18 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       type: event.type,
       attendancePolicy: event.attendancePolicy,
     });
+  };
+
+  const openDayDialog = (date: Date) => {
+    const dateText = toDateInput(date);
+    setSelectedDate(dateText);
+    setEditingEvent(null);
+    setDraft({ date: dateText, title: '', type: 'activity', attendancePolicy: 'normal' });
+  };
+
+  const closeDayDialog = () => {
+    setSelectedDate(null);
+    setEditingEvent(null);
   };
 
   return (
@@ -579,7 +613,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
         {sync.message}
       </div>
 
-      <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
+      <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.45fr)]">
         <div className="app-panel-pad">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -617,8 +651,9 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               const isToday = isSameDate(date, today);
 
               return (
-                <div
-                  className={`min-h-[118px] rounded-2xl border p-2 transition ${
+                <button
+                  aria-label={`เปิดรายละเอียดวันที่ ${toThaiDate(dateText)}${dayEvents.length ? ` มี ${dayEvents.length} รายการ` : ' ยังไม่มีรายการ'}`}
+                  className={`group min-h-[118px] rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-[0_14px_30px_rgba(8,145,178,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${
                     isToday
                       ? 'border-[#d89333] bg-[#fff1c9] shadow-[0_16px_34px_rgba(188,117,32,0.16)]'
                       : isCurrentMonth
@@ -626,6 +661,8 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                         : 'border-slate-100 bg-white/45 text-slate-300'
                   }`}
                   key={dateText}
+                  onClick={() => openDayDialog(date)}
+                  type="button"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-sm font-black ${isCurrentMonth ? 'text-slate-950' : 'text-slate-300'}`}>
@@ -648,66 +685,19 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                         +{dayEvents.length - 3} รายการ
                       </div>
                     ) : null}
+                    {!dayEvents.length && isCurrentMonth ? (
+                      <span className="mt-4 hidden text-[11px] font-black text-cyan-700 opacity-0 transition group-hover:block group-hover:opacity-100 sm:block">
+                        + เพิ่มรายการ
+                      </span>
+                    ) : null}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
 
         <div className="grid gap-5 content-start">
-          <div className="app-panel-pad">
-            <span className="nexus-kicker">
-              <Plus size={16} aria-hidden="true" />
-              เพิ่มวันในปฏิทิน
-            </span>
-            <div className="mt-5 grid gap-4">
-              <FieldLabel>
-                วันที่
-                <ThaiDatePicker className="mt-2 h-12 px-4" value={draft.date} onValueChange={(value) => setDraft((current) => ({ ...current, date: value }))} />
-              </FieldLabel>
-              <FieldLabel>
-                ประเภทวัน
-                <select
-                  className="nexus-field mt-2 h-12 px-4"
-                  value={draft.type}
-                  onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as CalendarType }))}
-                >
-                  <option value="activity">กิจกรรม</option>
-                  <option value="holiday">หยุดเรียน</option>
-                  <option value="exam">สอบ</option>
-                  <option value="makeup">เรียนชดเชย</option>
-                  <option value="custom">กำหนดเอง</option>
-                </select>
-              </FieldLabel>
-              <FieldLabel>
-                นโยบายเช็กชื่อ
-                <select
-                  className="nexus-field mt-2 h-12 px-4"
-                  value={draft.attendancePolicy}
-                  onChange={(event) => setDraft((current) => ({ ...current, attendancePolicy: event.target.value as AttendancePolicy }))}
-                >
-                  <option value="normal">เช็กชื่อตามปกติ</option>
-                  <option value="warn">เตือนก่อนเช็กชื่อ</option>
-                  <option value="skip">ไม่นับเป็นวันเรียน</option>
-                </select>
-              </FieldLabel>
-              <FieldLabel>
-                ชื่อรายการ
-                <input
-                  className="nexus-field mt-2 h-12 px-4"
-                  placeholder="เช่น สอบกลางภาค / กิจกรรมวันแม่"
-                  value={draft.title}
-                  onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-                />
-              </FieldLabel>
-              <button className="amber-action inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black" onClick={addEvent} type="button">
-                <Plus size={17} aria-hidden="true" />
-                บันทึกลงปฏิทิน
-              </button>
-            </div>
-          </div>
-
           <div className="app-panel-pad">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -770,26 +760,53 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
         </div>
       </section>
 
-      {/* Edit Modal */}
-      {editingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#ead8bd] bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-3">
+      {selectedDate ? createPortal((
+        <div className="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto bg-slate-950/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.currentTarget === event.target) closeDayDialog(); }}>
+          <section aria-labelledby="calendar-day-dialog-title" aria-modal="true" className="my-auto w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-[0_32px_100px_rgba(2,8,23,0.45)]" role="dialog">
+            <header className="flex items-start justify-between gap-4 bg-gradient-to-br from-slate-950 to-slate-900 px-5 py-5 text-white sm:px-7">
               <div>
-                <p className="text-sm font-black text-cyan-700">แก้ไขวันในปฏิทิน</p>
-                <h2 className="text-2xl font-black text-slate-950">{toThaiDate(editingEvent.date)}</h2>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">รายละเอียดวันในปฏิทิน</p>
+                <h2 className="mt-1 text-2xl font-black" id="calendar-day-dialog-title">{toThaiDate(selectedDate)}</h2>
+                <p className="mt-1 text-xs font-bold text-slate-400">{(eventsByDate[selectedDate] || []).length} รายการ · คลิกแก้ไขหรือลบรายการเดิมได้</p>
               </div>
-              <button
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600"
-                onClick={() => setEditingEvent(null)}
-                type="button"
-                aria-label="ปิด"
-              >
-                <X size={16} aria-hidden="true" />
+              <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 text-slate-300 transition hover:bg-white/10 hover:text-white" onClick={closeDayDialog} type="button" aria-label="ปิด">
+                <X size={18} aria-hidden="true" />
               </button>
-            </div>
+            </header>
 
-            <div className="mt-5 grid gap-4">
+            <div className="grid max-h-[calc(100vh-10rem)] gap-5 overflow-y-auto p-5 sm:grid-cols-[0.9fr_1.1fr] sm:p-7">
+              <div>
+                <p className="text-sm font-black text-slate-950">รายการของวันนี้</p>
+                <div className="mt-3 grid gap-2">
+                  {(eventsByDate[selectedDate] || []).length ? (eventsByDate[selectedDate] || []).map((event) => (
+                    <div className={`rounded-2xl border p-3 ${typeStyles[event.type]}`} key={event.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em]">{typeLabels[event.type]}</p>
+                          <h3 className="mt-1 text-sm font-black text-slate-950">{event.title}</h3>
+                          <p className="mt-1 text-[11px] font-bold opacity-75">{policyLabels[event.attendancePolicy]}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button aria-label={`แก้ไข ${event.title}`} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/80 text-slate-600" onClick={() => openEditModal(event)} type="button"><Pencil size={15} /></button>
+                          <button aria-label={`ลบ ${event.title}`} className="grid h-9 w-9 place-items-center rounded-full border border-rose-200 bg-white/80 text-rose-600" onClick={() => void removeEvent(event.id)} type="button"><Trash2 size={15} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">วันนี้ยังไม่มีรายการ<br />เพิ่มรายการแรกได้จากแบบฟอร์มด้านข้าง</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black text-cyan-700">{editingEvent ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่'}</p>
+                    <h3 className="text-lg font-black text-slate-950">{editingEvent ? editingEvent.title : 'กำหนดรายละเอียดของวันนี้'}</h3>
+                  </div>
+                  {editingEvent ? <button className="text-xs font-black text-slate-500 underline" onClick={() => { setEditingEvent(null); setDraft({ date: selectedDate, title: '', type: 'activity', attendancePolicy: 'normal' }); }} type="button">ยกเลิกแก้ไข</button> : null}
+                </div>
+            <div className="mt-4 grid gap-4">
               <FieldLabel>
                 วันที่
                 <ThaiDatePicker className="mt-2 h-12 px-4" value={draft.date} onValueChange={(value) => setDraft((current) => ({ ...current, date: value }))} />
@@ -829,27 +846,16 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                   onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
                 />
               </FieldLabel>
-              <div className="flex gap-2">
-                <button
-                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-5 text-sm font-black text-slate-700"
-                  onClick={() => setEditingEvent(null)}
-                  type="button"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  className="amber-action inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black"
-                  onClick={updateEvent}
-                  type="button"
-                >
-                  <Pencil size={17} aria-hidden="true" />
-                  บันทึกการแก้ไข
-                </button>
+              <button className="amber-action inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50" disabled={!draft.title.trim()} onClick={() => void (editingEvent ? updateEvent() : addEvent())} type="button">
+                {editingEvent ? <Pencil size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
+                {editingEvent ? 'บันทึกการแก้ไข' : 'เพิ่มรายการในวันนี้'}
+              </button>
+            </div>
               </div>
             </div>
-          </div>
+          </section>
         </div>
-      )}
+      ), document.querySelector('.app-shell') || document.body) : null}
     </main>
   );
 }
