@@ -579,14 +579,19 @@
   backdrop-filter: blur(14px) saturate(105%);
 }
 :root[data-theme="nexus"] .system-loading-card {
-  max-width: 23rem;
+  max-width: 30rem;
   color: var(--nx-ink);
   border-color: rgb(135 153 172 / 0.22);
-  border-radius: 1rem;
-  background: rgb(32 33 32 / 0.96);
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(155deg, rgb(13 32 51 / 0.98), rgb(5 18 32 / 0.98));
   box-shadow: 0 30px 80px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.045);
   backdrop-filter: blur(26px) saturate(115%);
 }
+:root[data-theme="nexus"] .system-loading-aurora-one { background: var(--nx-cyan); }
+:root[data-theme="nexus"] .system-loading-aurora-two { background: var(--nx-mint); opacity: 0.2; }
+:root[data-theme="nexus"] .system-loading-steps i { box-shadow: 0 0 0 4px #0b1d2f; }
+:root[data-theme="nexus"] .system-loading-steps .is-active i { box-shadow: 0 0 0 4px #0b1d2f, 0 0 16px rgb(34 199 232 / 0.85); }
 :root[data-theme="nexus"] .system-loading-orbit {
   border-radius: 1.15rem;
   border-color: rgb(199 255 49 / 0.14);

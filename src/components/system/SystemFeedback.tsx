@@ -386,15 +386,25 @@ export function SystemFeedbackProvider({ children }: { children: ReactNode }) {
       {activeOperation ? (
         <div aria-live="polite" aria-modal="true" className="system-loading-overlay" role="dialog">
           <div className="system-loading-card">
+            <div aria-hidden="true" className="system-loading-aurora system-loading-aurora-one" />
+            <div aria-hidden="true" className="system-loading-aurora system-loading-aurora-two" />
             <div className="system-loading-logo">
               <span className="system-loading-orbit" />
+              <span className="system-loading-orbit-dot" />
               <AppLogo className="h-16 w-16 rounded-2xl bg-white p-1.5 shadow-xl" />
             </div>
-            <p className="system-loading-eyebrow">CLASSCARE 360 กำลังดำเนินการ</p>
-            <h2>{activeOperation.title}</h2>
-            <p>{activeOperation.message || 'กรุณารอสักครู่ ระบบกำลังตรวจสอบและบันทึกข้อมูลให้ครบถ้วน'}</p>
-            <div className="system-loading-progress"><span /></div>
-            <small>อย่าปิดหน้านี้ระหว่างที่ระบบกำลังทำงาน</small>
+            <div className="system-loading-content">
+              <p className="system-loading-eyebrow">CLASSCARE 360 กำลังดำเนินการ</p>
+              <h2>{activeOperation.title}</h2>
+              <p>{activeOperation.message || 'กรุณารอสักครู่ ระบบกำลังตรวจสอบและบันทึกข้อมูลให้ครบถ้วน'}</p>
+              <div aria-label="ความคืบหน้าการดำเนินการ" className="system-loading-steps">
+                <span className="is-active"><i />ตรวจสอบข้อมูล</span>
+                <span><i />บันทึกการเปลี่ยนแปลง</span>
+                <span><i />เสร็จสิ้น</span>
+              </div>
+              <div className="system-loading-progress"><span /></div>
+              <small>อย่าปิดหน้านี้ระหว่างที่ระบบกำลังทำงาน</small>
+            </div>
           </div>
         </div>
       ) : null}
