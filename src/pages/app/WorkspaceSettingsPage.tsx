@@ -943,22 +943,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   }
 
   return (
-    <main className="app-page">
-      <section className="nexus-card overflow-hidden p-0">
-        <div className="bg-slate-950 p-5 text-white sm:p-6">
+    <main className="app-page workspace-settings-page">
+      <section className="workspace-settings-hero overflow-hidden">
+        <div className="workspace-settings-hero-main p-5 text-white sm:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-black text-cyan-100 ring-1 ring-cyan-200/20">
+              <div className="workspace-settings-eyebrow inline-flex items-center gap-2 text-xs font-black">
                 <School size={15} aria-hidden="true" />
                 Workspace Settings
               </div>
-              <h1 className="mt-4 text-3xl font-black sm:text-4xl">ตั้งค่าโรงเรียนและห้องเรียน</h1>
+              <h1 className="mt-3 text-3xl font-black sm:text-4xl">ตั้งค่าโรงเรียนและห้องเรียน</h1>
               <p className="mt-3 max-w-3xl text-sm font-bold leading-6 text-slate-300">
                 จัดข้อมูลพื้นฐานของ workspace ให้พร้อมก่อนใช้งาน Student 360, รายงาน, import/export และระบบผู้ปกครอง
               </p>
             </div>
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 ring-1 ring-white/20 transition hover:-translate-y-0.5 hover:bg-cyan-50"
+              className="workspace-settings-export inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black transition"
               onClick={exportSettingsSnapshot}
               type="button"
             >
@@ -968,22 +968,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </div>
         </div>
 
-        <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-4">
+        <div className="workspace-settings-stats grid grid-cols-6 sm:grid-cols-4">
           {[
             { label: 'โรงเรียน', value: workspaceForm.schoolName || '-' },
             { label: 'ปีการศึกษา', value: workspaceForm.academicYear || '-' },
             { label: 'ห้อง active', value: activeClassrooms.length },
             { label: 'รออนุมัติ', value: pendingMembers.length },
-          ].map((item) => (
-            <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={item.label}>
-              <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-              <p className="mt-2 text-2xl font-black text-slate-950">{item.value}</p>
+          ].map((item, index) => (
+            <article className={`workspace-settings-stat p-4 sm:col-span-1 sm:p-5 ${index === 0 ? 'col-span-6' : 'col-span-2'}`} key={item.label}>
+              <p className="text-xs font-black text-slate-400">{item.label}</p>
+              <p className="mt-1.5 truncate text-2xl font-black text-white">{item.value}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="nexus-card mt-5 p-4 sm:p-5">
+      <section className="workspace-settings-control mt-5 p-4 sm:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
@@ -1000,23 +1000,26 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </span>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {workspaceControlSections.map((section) => (
+        <div className="workspace-settings-nav mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          {workspaceControlSections.map((section, index) => (
             <a
-              className="rounded-[24px] border border-slate-200 bg-white/86 p-4 shadow-sm transition hover:-translate-y-1 hover:border-cyan-200 hover:shadow-[0_18px_42px_rgba(14,165,233,0.12)]"
+              className="workspace-settings-nav-card group p-4 transition"
               href={section.href}
               key={section.href}
             >
-              <p className="text-base font-black text-slate-950">{section.label}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-base font-black text-slate-950">{section.label}</p>
+                <span className="workspace-settings-nav-index">{String(index + 1).padStart(2, '0')}</span>
+              </div>
               <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{section.body}</p>
             </a>
           ))}
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5">
-        <div className="grid gap-5">
-          <form id="workspace-profile" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void saveWorkspaceSettings(event)}>
+      <section className="workspace-settings-workbench mt-5 grid gap-5 xl:grid-cols-12 xl:items-start">
+        <div className="workspace-settings-forms grid gap-5 xl:col-span-8 xl:grid-cols-2">
+          <form id="workspace-profile" className="workspace-settings-form workspace-profile-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <ShieldCheck size={16} aria-hidden="true" />
               ตั้งค่าโรงเรียนและผู้ลงนาม
@@ -1084,7 +1087,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                   />
                 </label>
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   ชื่อครูผู้สอน
                   <input
@@ -1133,7 +1136,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </button>
           </form>
 
-          <form id="public-report-policy" className="scroll-mt-24 nexus-card p-4 sm:p-5" onSubmit={(event) => void savePublicReportPolicy(event)}>
+          <form id="public-report-policy" className="workspace-settings-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void savePublicReportPolicy(event)}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
@@ -1203,7 +1206,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </button>
           </form>
 
-          <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void createClassroom(event)}>
+          <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void createClassroom(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <Plus size={16} aria-hidden="true" />
               เพิ่มห้องเรียน
@@ -1248,7 +1251,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </button>
           </form>
 
-          <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void addWorkspaceMember(event)}>
+          <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void addWorkspaceMember(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <UserPlus size={16} aria-hidden="true" />
               เพิ่มสมาชิก workspace
@@ -1293,7 +1296,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </form>
         </div>
 
-        <section id="workspace-classrooms" className="scroll-mt-24 nexus-card p-4 sm:p-5">
+        <section id="workspace-classrooms" className="workspace-classroom-panel scroll-mt-24 nexus-card p-4 sm:p-5 xl:sticky xl:top-24 xl:col-span-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-black text-cyan-700">Classrooms</p>

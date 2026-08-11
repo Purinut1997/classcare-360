@@ -270,6 +270,35 @@
   max-width: 1380px;
   padding-top: 2rem;
 }
+
+.app-shell.theme-dark .workspace-settings-hero {
+  border-color: #2b3948;
+  box-shadow: 0 24px 72px rgb(0 0 0 / 0.32);
+}
+.app-shell.theme-dark .workspace-settings-control {
+  background: linear-gradient(145deg, rgb(17 26 37 / 0.96), rgb(12 20 30 / 0.96)) !important;
+  border-color: #2b3948 !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 18px 48px rgb(0 0 0 / 0.2) !important;
+}
+.app-shell.theme-dark .workspace-settings-nav-card {
+  background: rgb(255 255 255 / 0.025) !important;
+  border-color: #2b3948 !important;
+  box-shadow: none !important;
+}
+.app-shell.theme-dark .workspace-settings-nav-card:hover {
+  background: rgb(34 211 238 / 0.05) !important;
+  border-color: rgb(34 211 238 / 0.35) !important;
+}
+.app-shell.theme-dark .workspace-settings-nav-index {
+  color: #9bf0ff !important;
+  background: rgb(34 211 238 / 0.09) !important;
+  border: 1px solid rgb(34 211 238 / 0.15);
+}
+.app-shell.theme-dark .workspace-settings-export {
+  color: #f8fafc !important;
+  background: rgb(255 255 255 / 0.08) !important;
+  border-color: rgb(255 255 255 / 0.14) !important;
+}
 .app-shell.theme-dark .app-page-header {
   border-color: var(--nx-line) !important;
   padding-bottom: 1.35rem;
