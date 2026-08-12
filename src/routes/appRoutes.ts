@@ -1,31 +1,4 @@
-import {
-  Archive,
-  Bell,
-  Building2,
-  CalendarDays,
-  CalendarRange,
-  CircleHelp,
-  ClipboardCheck,
-  ClipboardList,
-  DatabaseZap,
-  Dice5,
-  FileSpreadsheet,
-  GraduationCap,
-  History,
-  Heart,
-  HeartPulse,
-  KeyRound,
-  Home,
-  PiggyBank,
-  ServerCog,
-  School,
-  ShieldEllipsis,
-  ShieldCheck,
-  Sparkles,
-  Users,
-  Workflow,
-  type LucideIcon,
-} from 'lucide-react';
+import { Archive, Bell, Building2, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
 
 import type { ModuleKey } from '../types/core';
 
@@ -38,8 +11,20 @@ export interface AppNavItem {
 }
 
 export const appNavItems: AppNavItem[] = [
-  { key: 'overview', label: 'ภาพรวม', icon: Home, moduleKey: 'dashboard', path: '/app/dashboard' },
-  { key: 'students', label: 'นักเรียน', icon: Users, moduleKey: 'students', path: '/app/dashboard?view=students' },
+  {
+    key: 'overview',
+    label: 'ภาพรวม',
+    icon: Home,
+    moduleKey: 'dashboard',
+    path: '/app/dashboard',
+  },
+  {
+    key: 'students',
+    label: 'นักเรียน',
+    icon: Users,
+    moduleKey: 'students',
+    path: '/app/dashboard?view=students',
+  },
   {
     key: 'teacher-work',
     label: 'บันทึกการมาเรียน',
@@ -61,9 +46,27 @@ export const appNavItems: AppNavItem[] = [
     moduleKey: 'attendance',
     path: '/app/dashboard?view=schedule',
   },
-  { key: 'scores', label: 'ระบบคะแนน', icon: GraduationCap, moduleKey: 'scores', path: '/app/dashboard?view=scores' },
-  { key: 'savings', label: 'บันทึกเงินออม', icon: PiggyBank, moduleKey: 'savings', path: '/app/dashboard?view=savings' },
-  { key: 'behavior', label: 'บันทึกพฤติกรรม', icon: Heart, moduleKey: 'behavior', path: '/app/dashboard?view=behavior' },
+  {
+    key: 'scores',
+    label: 'ระบบคะแนน',
+    icon: GraduationCap,
+    moduleKey: 'scores',
+    path: '/app/dashboard?view=scores',
+  },
+  {
+    key: 'savings',
+    label: 'บันทึกเงินออม',
+    icon: PiggyBank,
+    moduleKey: 'savings',
+    path: '/app/dashboard?view=savings',
+  },
+  {
+    key: 'behavior',
+    label: 'บันทึกพฤติกรรม',
+    icon: Heart,
+    moduleKey: 'behavior',
+    path: '/app/dashboard?view=behavior',
+  },
   {
     key: 'classroom-operations',
     label: 'ตารางเวรและจิตพิสัย',
@@ -92,7 +95,20 @@ export const appNavItems: AppNavItem[] = [
     moduleKey: 'classroom_randomizer',
     path: '/app/dashboard?view=randomizer',
   },
-  { key: 'reports', label: 'รายงาน', icon: FileSpreadsheet, moduleKey: 'reports', path: '/app/dashboard?view=reports&reportView=attendance' },
+  {
+    key: 'reports',
+    label: 'รายงาน',
+    icon: FileSpreadsheet,
+    moduleKey: 'reports',
+    path: '/app/dashboard?view=reports&reportView=attendance',
+  },
+  {
+    key: 'daily-brief',
+    label: 'สรุปประจำวัน',
+    icon: FileCheck2,
+    moduleKey: 'reports',
+    path: '/app/dashboard?view=daily-brief',
+  },
   {
     key: 'school-calendar',
     label: 'ปฏิทินโรงเรียน',
@@ -170,7 +186,13 @@ export const appNavItems: AppNavItem[] = [
     moduleKey: 'support',
     path: '/app/dashboard?view=audit',
   },
-  { key: 'package', label: 'แพ็กเกจ', icon: Sparkles, moduleKey: 'payment', path: '/app/package' },
+  {
+    key: 'package',
+    label: 'แพ็กเกจ',
+    icon: Sparkles,
+    moduleKey: 'payment',
+    path: '/app/package',
+  },
 ];
 
 export const superadminNavItem: AppNavItem = {

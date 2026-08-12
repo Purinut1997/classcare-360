@@ -1,11 +1,7 @@
 ﻿import { lazy, Suspense, useMemo } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 
-import {
-  getInitialRouteForSession,
-  getPostAuthRouteForSession,
-  getRouteGuardPreview,
-} from './lib/auth';
+import { getInitialRouteForSession, getPostAuthRouteForSession, getRouteGuardPreview } from './lib/auth';
 import { appEnv } from './lib/env';
 import { canUseModule, getEntitlementSummary } from './lib/entitlements';
 import { canManageWorkspace, roleLabels } from './lib/roles';
@@ -20,100 +16,169 @@ import './styles/nexus.css';
 import type { AppSessionContext, WorkspaceRole } from './types/core';
 
 const CompleteProfilePage = lazy(() =>
-  import('./pages/auth/CompleteProfilePage').then((module) => ({ default: module.CompleteProfilePage })),
+  import('./pages/auth/CompleteProfilePage').then((module) => ({
+    default: module.CompleteProfilePage,
+  })),
 );
 const LoginPage = lazy(() =>
-  import('./pages/auth/LoginPage').then((module) => ({ default: module.LoginPage })),
+  import('./pages/auth/LoginPage').then((module) => ({
+    default: module.LoginPage,
+  })),
 );
 const LandingPage = lazy(() =>
-  import('./pages/marketing/LandingPage').then((module) => ({ default: module.LandingPage })),
+  import('./pages/marketing/LandingPage').then((module) => ({
+    default: module.LandingPage,
+  })),
 );
 const PricingPage = lazy(() =>
-  import('./pages/auth/PricingPage').then((module) => ({ default: module.PricingPage })),
+  import('./pages/auth/PricingPage').then((module) => ({
+    default: module.PricingPage,
+  })),
 );
 const PublicReportLookupPage = lazy(() =>
-  import('./pages/public/PublicReportLookupPage').then((module) => ({ default: module.PublicReportLookupPage })),
+  import('./pages/public/PublicReportLookupPage').then((module) => ({
+    default: module.PublicReportLookupPage,
+  })),
 );
 const PublicSupportPage = lazy(() =>
-  import('./pages/public/PublicSupportPage').then((module) => ({ default: module.PublicSupportPage })),
+  import('./pages/public/PublicSupportPage').then((module) => ({
+    default: module.PublicSupportPage,
+  })),
 );
 const AuditCenterPage = lazy(() =>
-  import('./pages/app/AuditCenterPage').then((module) => ({ default: module.AuditCenterPage })),
+  import('./pages/app/AuditCenterPage').then((module) => ({
+    default: module.AuditCenterPage,
+  })),
 );
 const AttendancePage = lazy(() =>
-  import('./pages/app/AttendancePage').then((module) => ({ default: module.AttendancePage })),
+  import('./pages/app/AttendancePage').then((module) => ({
+    default: module.AttendancePage,
+  })),
 );
 const StudentHealthPage = lazy(() =>
-  import('./pages/app/StudentHealthPage').then((module) => ({ default: module.StudentHealthPage })),
+  import('./pages/app/StudentHealthPage').then((module) => ({
+    default: module.StudentHealthPage,
+  })),
 );
 const AutomationCenterPage = lazy(() =>
-  import('./pages/app/AutomationCenterPage').then((module) => ({ default: module.AutomationCenterPage })),
+  import('./pages/app/AutomationCenterPage').then((module) => ({
+    default: module.AutomationCenterPage,
+  })),
 );
 const DashboardPage = lazy(() =>
-  import('./pages/app/DashboardPage').then((module) => ({ default: module.DashboardPage })),
+  import('./pages/app/DashboardPage').then((module) => ({
+    default: module.DashboardPage,
+  })),
 );
 const DataSafetyCenterPage = lazy(() =>
-  import('./pages/app/DataSafetyCenterPage').then((module) => ({ default: module.DataSafetyCenterPage })),
+  import('./pages/app/DataSafetyCenterPage').then((module) => ({
+    default: module.DataSafetyCenterPage,
+  })),
 );
 const ImportExportPage = lazy(() =>
-  import('./pages/app/ImportExportPage').then((module) => ({ default: module.ImportExportPage })),
+  import('./pages/app/ImportExportPage').then((module) => ({
+    default: module.ImportExportPage,
+  })),
 );
 const HelpCenterPage = lazy(() =>
-  import('./pages/app/HelpCenterPage').then((module) => ({ default: module.HelpCenterPage })),
+  import('./pages/app/HelpCenterPage').then((module) => ({
+    default: module.HelpCenterPage,
+  })),
 );
 const NotificationsPage = lazy(() =>
-  import('./pages/app/NotificationsPage').then((module) => ({ default: module.NotificationsPage })),
+  import('./pages/app/NotificationsPage').then((module) => ({
+    default: module.NotificationsPage,
+  })),
 );
 const PackagePage = lazy(() =>
-  import('./pages/app/PackagePage').then((module) => ({ default: module.PackagePage })),
+  import('./pages/app/PackagePage').then((module) => ({
+    default: module.PackagePage,
+  })),
 );
 const ReportsPage = lazy(() =>
-  import('./pages/app/ReportsPage').then((module) => ({ default: module.ReportsPage })),
+  import('./pages/app/ReportsPage').then((module) => ({
+    default: module.ReportsPage,
+  })),
+);
+const DailySchoolBriefPage = lazy(() =>
+  import('./pages/app/DailySchoolBriefPage').then((module) => ({
+    default: module.DailySchoolBriefPage,
+  })),
 );
 const SchoolCalendarPage = lazy(() =>
-  import('./pages/app/SchoolCalendarPage').then((module) => ({ default: module.SchoolCalendarPage })),
+  import('./pages/app/SchoolCalendarPage').then((module) => ({
+    default: module.SchoolCalendarPage,
+  })),
 );
 const SchedulePage = lazy(() =>
-  import('./pages/app/SchedulePage').then((module) => ({ default: module.SchedulePage })),
+  import('./pages/app/SchedulePage').then((module) => ({
+    default: module.SchedulePage,
+  })),
 );
 const ScoresPage = lazy(() =>
-  import('./pages/app/ScoresPage').then((module) => ({ default: module.ScoresPage })),
+  import('./pages/app/ScoresPage').then((module) => ({
+    default: module.ScoresPage,
+  })),
 );
 const SavingsPage = lazy(() =>
-  import('./pages/app/SavingsPage').then((module) => ({ default: module.SavingsPage })),
+  import('./pages/app/SavingsPage').then((module) => ({
+    default: module.SavingsPage,
+  })),
 );
 const BehaviorPage = lazy(() =>
-  import('./pages/app/BehaviorPage').then((module) => ({ default: module.BehaviorPage })),
+  import('./pages/app/BehaviorPage').then((module) => ({
+    default: module.BehaviorPage,
+  })),
 );
 const ClassroomOperationsPage = lazy(() =>
-  import('./pages/app/ClassroomOperationsPage').then((module) => ({ default: module.ClassroomOperationsPage })),
+  import('./pages/app/ClassroomOperationsPage').then((module) => ({
+    default: module.ClassroomOperationsPage,
+  })),
 );
 const RandomizerPage = lazy(() =>
-  import('./pages/app/RandomizerPage').then((module) => ({ default: module.RandomizerPage })),
+  import('./pages/app/RandomizerPage').then((module) => ({
+    default: module.RandomizerPage,
+  })),
 );
 const StudentsPage = lazy(() =>
-  import('./pages/app/StudentsPage').then((module) => ({ default: module.StudentsPage })),
+  import('./pages/app/StudentsPage').then((module) => ({
+    default: module.StudentsPage,
+  })),
 );
 const SystemSetupPage = lazy(() =>
-  import('./pages/app/SystemSetupPage').then((module) => ({ default: module.SystemSetupPage })),
+  import('./pages/app/SystemSetupPage').then((module) => ({
+    default: module.SystemSetupPage,
+  })),
 );
 const WorkspaceSettingsPage = lazy(() =>
-  import('./pages/app/WorkspaceSettingsPage').then((module) => ({ default: module.WorkspaceSettingsPage })),
+  import('./pages/app/WorkspaceSettingsPage').then((module) => ({
+    default: module.WorkspaceSettingsPage,
+  })),
 );
 const WorkspaceSetupPage = lazy(() =>
-  import('./pages/app/WorkspaceSetupPage').then((module) => ({ default: module.WorkspaceSetupPage })),
+  import('./pages/app/WorkspaceSetupPage').then((module) => ({
+    default: module.WorkspaceSetupPage,
+  })),
 );
 const NotFoundPage = lazy(() =>
-  import('./pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })),
+  import('./pages/NotFoundPage').then((module) => ({
+    default: module.NotFoundPage,
+  })),
 );
 const PortalHome = lazy(() =>
-  import('./pages/portal/PortalHome').then((module) => ({ default: module.PortalHome })),
+  import('./pages/portal/PortalHome').then((module) => ({
+    default: module.PortalHome,
+  })),
 );
 const PortalInvitationsPage = lazy(() =>
-  import('./pages/portal/PortalInvitationsPage').then((module) => ({ default: module.PortalInvitationsPage })),
+  import('./pages/portal/PortalInvitationsPage').then((module) => ({
+    default: module.PortalInvitationsPage,
+  })),
 );
 const SuperadminDashboard = lazy(() =>
-  import('./pages/superadmin/SuperadminDashboard').then((module) => ({ default: module.SuperadminDashboard })),
+  import('./pages/superadmin/SuperadminDashboard').then((module) => ({
+    default: module.SuperadminDashboard,
+  })),
 );
 
 const workspaceSelectionRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member', 'viewer'];
@@ -126,78 +191,10 @@ function getAppShellNavItems(session: AppSessionContext | null) {
   const navKeysByRole: Record<WorkspaceRole, string[]> = {
     parent: [],
     student: [],
-    viewer: ['overview', 'reports', 'help-center'],
-    teacher_member: [
-      'overview',
-      'students',
-      'teacher-work',
-      'student-health',
-      'schedule',
-      'scores',
-      'savings',
-      'behavior',
-      'classroom-operations',
-      'parent-access',
-      'automation',
-      'randomizer',
-      'reports',
-      'school-calendar',
-      'data-safety',
-      'help-center',
-      'notifications',
-      'period-locks',
-      'workspace-switch',
-    ],
-    teacher_owner: [
-      'overview',
-      'students',
-      'teacher-work',
-      'student-health',
-      'schedule',
-      'scores',
-      'savings',
-      'behavior',
-      'classroom-operations',
-      'parent-access',
-      'automation',
-      'randomizer',
-      'reports',
-      'school-calendar',
-      'import-export',
-      'data-safety',
-      'help-center',
-      'notifications',
-      'workspace-settings',
-      'period-locks',
-      'academic-year',
-      'workspace-switch',
-    ],
-    superadmin: [
-      'overview',
-      'students',
-      'teacher-work',
-      'student-health',
-      'schedule',
-      'scores',
-      'savings',
-      'behavior',
-      'classroom-operations',
-      'parent-access',
-      'automation',
-      'randomizer',
-      'reports',
-      'school-calendar',
-      'import-export',
-      'data-safety',
-      'help-center',
-      'notifications',
-      'workspace-settings',
-      'period-locks',
-      'academic-year',
-      'workspace-switch',
-      'setup',
-      'audit',
-    ],
+    viewer: ['overview', 'reports', 'daily-brief', 'help-center'],
+    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'savings', 'behavior', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'period-locks', 'workspace-switch'],
+    teacher_owner: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'savings', 'behavior', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch'],
+    superadmin: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'savings', 'behavior', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch', 'setup', 'audit'],
   };
 
   const allowedKeys = new Set(navKeysByRole[session.profile.role]);
@@ -208,6 +205,7 @@ function getAppShellNavItems(session: AppSessionContext | null) {
 
 function getAllowedRolesForNavItem(key: string) {
   if (key === 'reports') return reportViewerRoles;
+  if (key === 'daily-brief') return reportViewerRoles;
   if (key === 'help-center') return reportViewerRoles;
   if (key === 'audit') return ['superadmin'] as WorkspaceRole[];
   if (key === 'setup' || key === 'superadmin-dashboard') return ['superadmin'] as WorkspaceRole[];
@@ -231,24 +229,15 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   const requestedView = searchParams.get('view') || 'overview';
   const shellNavItems = getAppShellNavItems(session);
   const routeNavItems = [...appNavItems, superadminNavItem];
-  const activeNavItem =
-    routeNavItems.find((item) => item.key === requestedView) ?? appNavItems[0];
+  const activeNavItem = routeNavItems.find((item) => item.key === requestedView) ?? appNavItems[0];
   const activeCopy = appViewCopy[activeNavItem.key] ?? appViewCopy.overview;
   const allowedRoles = getAllowedRolesForNavItem(activeNavItem.key);
 
-  const guardPreview = useMemo(
-    () => (session ? getRouteGuardPreview(session, activeNavItem.moduleKey) : []),
-    [activeNavItem.moduleKey, session],
-  );
+  const guardPreview = useMemo(() => (session ? getRouteGuardPreview(session, activeNavItem.moduleKey) : []), [activeNavItem.moduleKey, session]);
 
   if (!session) {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         {null}
       </RequireRouteAccess>
     );
@@ -259,21 +248,11 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
   const activeModuleEnabled = canUseModule(session.subscription, activeNavItem.moduleKey);
 
-  const topbarBadges = [
-    'Phase 2 Foundation',
-    appEnv.timezone,
-    roleLabels[session.profile.role],
-    canManageCurrentWorkspace ? 'จัดการ workspace ได้' : 'ดูตามสิทธิ์',
-  ];
+  const topbarBadges = ['Phase 2 Foundation', appEnv.timezone, roleLabels[session.profile.role], canManageCurrentWorkspace ? 'จัดการ workspace ได้' : 'ดูตามสิทธิ์'];
 
   if (activeNavItem.key === 'students') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <StudentsPage session={session} />
         </AppShell>
@@ -283,12 +262,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'teacher-work') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <AttendancePage session={session} />
         </AppShell>
@@ -298,12 +272,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'student-health') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <StudentHealthPage session={session} />
         </AppShell>
@@ -313,12 +282,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'automation') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <AutomationCenterPage session={session} />
         </AppShell>
@@ -328,12 +292,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'schedule') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <SchedulePage session={session} />
         </AppShell>
@@ -343,12 +302,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'reports') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ReportsPage session={session} />
         </AppShell>
@@ -356,14 +310,19 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
     );
   }
 
+  if (activeNavItem.key === 'daily-brief') {
+    return (
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <DailySchoolBriefPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
   if (activeNavItem.key === 'school-calendar') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <SchoolCalendarPage session={session} />
         </AppShell>
@@ -373,12 +332,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'scores') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ScoresPage session={session} />
         </AppShell>
@@ -388,12 +342,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'savings') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <SavingsPage session={session} />
         </AppShell>
@@ -403,12 +352,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'behavior') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <BehaviorPage session={session} />
         </AppShell>
@@ -417,20 +361,9 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   }
 
   if (['classroom-operations', 'parent-access', 'period-locks', 'academic-year'].includes(activeNavItem.key)) {
-    const operationsMode = activeNavItem.key === 'parent-access'
-      ? 'parent'
-      : activeNavItem.key === 'period-locks'
-        ? 'locks'
-        : activeNavItem.key === 'academic-year'
-          ? 'year'
-          : 'duty';
+    const operationsMode = activeNavItem.key === 'parent-access' ? 'parent' : activeNavItem.key === 'period-locks' ? 'locks' : activeNavItem.key === 'academic-year' ? 'year' : 'duty';
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ClassroomOperationsPage mode={operationsMode} session={session} />
         </AppShell>
@@ -440,12 +373,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'randomizer') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <RandomizerPage session={session} />
         </AppShell>
@@ -455,12 +383,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'import-export') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ImportExportPage session={session} />
         </AppShell>
@@ -470,12 +393,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'data-safety') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <DataSafetyCenterPage session={session} />
         </AppShell>
@@ -485,12 +403,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'notifications') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <NotificationsPage session={session} />
         </AppShell>
@@ -500,12 +413,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'help-center') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <HelpCenterPage session={session} />
         </AppShell>
@@ -515,12 +423,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'setup') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <SystemSetupPage session={session} />
         </AppShell>
@@ -530,12 +433,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'workspace-settings') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <WorkspaceSettingsPage session={session} />
         </AppShell>
@@ -545,12 +443,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'audit') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <AuditCenterPage session={session} />
         </AppShell>
@@ -560,13 +453,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
   if (activeNavItem.key === 'superadmin-dashboard') {
     return (
-      <RequireRouteAccess
-        allowedRoles={allowedRoles}
-        featureName={activeNavItem.label}
-        moduleKey={activeNavItem.moduleKey}
-        requireWorkspace={false}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} requireWorkspace={false} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <SuperadminDashboard embedded />
         </AppShell>
@@ -575,25 +462,9 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   }
 
   return (
-    <RequireRouteAccess
-      allowedRoles={allowedRoles}
-      featureName={activeNavItem.label}
-      moduleKey={activeNavItem.moduleKey}
-      session={session}
-    >
+    <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
       <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
-        <DashboardPage
-          activeLabel={activeNavItem.label}
-          activeModules={entitlementSummary.activeModules}
-          badges={topbarBadges}
-          copy={activeCopy}
-          entitlementLabel={entitlementSummary.label}
-          guardPreview={guardPreview}
-          initialRoute={initialRoute}
-          isModuleEnabled={activeModuleEnabled}
-          session={session}
-          supabaseStatus={isSupabaseReady ? 'เชื่อม Supabase แล้ว' : 'รอ .env.local'}
-        />
+        <DashboardPage activeLabel={activeNavItem.label} activeModules={entitlementSummary.activeModules} badges={topbarBadges} copy={activeCopy} entitlementLabel={entitlementSummary.label} guardPreview={guardPreview} initialRoute={initialRoute} isModuleEnabled={activeModuleEnabled} session={session} supabaseStatus={isSupabaseReady ? 'เชื่อม Supabase แล้ว' : 'รอ .env.local'} />
       </AppShell>
     </RequireRouteAccess>
   );
@@ -601,12 +472,7 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
 
 function PackageRoute({ session }: { session: AppSessionContext | null }) {
   return (
-    <RequireRouteAccess
-      allowedRoles={getAllowedRolesForNavItem('package')}
-      featureName="จัดการแพ็กเกจ"
-      moduleKey="payment"
-      session={session}
-    >
+    <RequireRouteAccess allowedRoles={getAllowedRolesForNavItem('package')} featureName="จัดการแพ็กเกจ" moduleKey="payment" session={session}>
       <AppShell activeView="package" navItems={getAppShellNavItems(session)} session={session || undefined}>
         {session ? <PackagePage session={session} /> : null}
       </AppShell>
@@ -617,24 +483,14 @@ function PackageRoute({ session }: { session: AppSessionContext | null }) {
 function WorkspaceSetupRoute({ session }: { session: AppSessionContext | null }) {
   if (!session) {
     return (
-      <RequireRouteAccess
-        allowedRoles={workspaceSelectionRoles}
-        featureName="เลือกหรือสร้าง workspace"
-        requireWorkspace={false}
-        session={session}
-      >
+      <RequireRouteAccess allowedRoles={workspaceSelectionRoles} featureName="เลือกหรือสร้าง workspace" requireWorkspace={false} session={session}>
         {null}
       </RequireRouteAccess>
     );
   }
 
   return (
-    <RequireRouteAccess
-      allowedRoles={workspaceSelectionRoles}
-      featureName="เลือกหรือสร้าง workspace"
-      requireWorkspace={false}
-      session={session}
-    >
+    <RequireRouteAccess allowedRoles={workspaceSelectionRoles} featureName="เลือกหรือสร้าง workspace" requireWorkspace={false} session={session}>
       <WorkspaceSetupPage session={session} />
     </RequireRouteAccess>
   );
@@ -646,33 +502,15 @@ function SuperadminRoute({ session }: { session: AppSessionContext | null }) {
   }
 
   return (
-    <RequireRouteAccess
-      allowedRoles={['superadmin']}
-      featureName="Superadmin Dashboard"
-      requireWorkspace={false}
-      session={session}
-    >
+    <RequireRouteAccess allowedRoles={['superadmin']} featureName="Superadmin Dashboard" requireWorkspace={false} session={session}>
       {null}
     </RequireRouteAccess>
   );
 }
 
-function PortalRoute({
-  moduleKey,
-  role,
-  session,
-}: {
-  moduleKey: 'parent_portal' | 'student_portal';
-  role: 'parent' | 'student';
-  session: AppSessionContext | null;
-}) {
+function PortalRoute({ moduleKey, role, session }: { moduleKey: 'parent_portal' | 'student_portal'; role: 'parent' | 'student'; session: AppSessionContext | null }) {
   return (
-    <RequireRouteAccess
-      allowedRoles={[role]}
-      featureName={role === 'parent' ? 'Parent Portal' : 'Student Portal'}
-      moduleKey={moduleKey}
-      session={session}
-    >
+    <RequireRouteAccess allowedRoles={[role]} featureName={role === 'parent' ? 'Parent Portal' : 'Student Portal'} moduleKey={moduleKey} session={session}>
       {session ? <PortalHome portalRole={role} session={session} /> : null}
     </RequireRouteAccess>
   );
@@ -680,11 +518,7 @@ function PortalRoute({
 
 function PortalInvitationsRoute({ session }: { session: AppSessionContext | null }) {
   return (
-    <RequireRouteAccess
-      featureName="รับคำเชิญ Portal"
-      requireWorkspace={false}
-      session={session}
-    >
+    <RequireRouteAccess featureName="รับคำเชิญ Portal" requireWorkspace={false} session={session}>
       {session ? <PortalInvitationsPage session={session} /> : null}
     </RequireRouteAccess>
   );
@@ -695,21 +529,11 @@ function AppRoutes() {
   const { error, session, state } = useAppSession(location.search);
 
   if (state === 'loading' && location.pathname !== '/') {
-    return (
-      <SessionStateScreen
-        detail="กำลังตรวจ Supabase Auth, profile, workspace และ subscription เพื่อส่งต่อให้ route guard"
-        title="กำลังโหลดข้อมูลผู้ใช้"
-      />
-    );
+    return <SessionStateScreen detail="กำลังตรวจ Supabase Auth, profile, workspace และ subscription เพื่อส่งต่อให้ route guard" title="กำลังโหลดข้อมูลผู้ใช้" />;
   }
 
   if (state === 'error' && location.pathname !== '/') {
-    return (
-      <SessionStateScreen
-        detail={error || 'ตรวจสอบ .env.local, migration, RLS policy และการเชื่อมต่อ Supabase อีกครั้ง'}
-        title="โหลด session ไม่สำเร็จ"
-      />
-    );
+    return <SessionStateScreen detail={error || 'ตรวจสอบ .env.local, migration, RLS policy และการเชื่อมต่อ Supabase อีกครั้ง'} title="โหลด session ไม่สำเร็จ" />;
   }
 
   if (session?.profile.needsProfile && location.pathname !== '/auth/complete-profile') {
@@ -732,10 +556,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<LandingPage session={session} />} path="/" />
       <Route element={<LoginPage session={session} />} path="/login" />
-      <Route
-        element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />}
-        path="/auth/complete-profile"
-      />
+      <Route element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />} path="/auth/complete-profile" />
       <Route element={<PricingPage />} path="/pricing" />
       <Route element={<PublicReportLookupPage />} path="/public/report" />
       <Route element={<PublicSupportPage />} path="/support" />
@@ -755,14 +576,7 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense
-        fallback={
-          <SessionStateScreen
-            detail="กำลังเปิดหน้าและโหลดโมดูลที่จำเป็นสำหรับการใช้งาน"
-            title="กำลังโหลดหน้า"
-          />
-        }
-      >
+      <Suspense fallback={<SessionStateScreen detail="กำลังเปิดหน้าและโหลดโมดูลที่จำเป็นสำหรับการใช้งาน" title="กำลังโหลดหน้า" />}>
         <AppRoutes />
       </Suspense>
     </BrowserRouter>
@@ -770,4 +584,3 @@ function App() {
 }
 
 export default App;
-

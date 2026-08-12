@@ -1,42 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  CalendarClock,
-  ChevronDown,
-  ClipboardCheck,
-  ClipboardList,
-  FileSpreadsheet,
-  HeartHandshake,
-  Scale,
-  School,
-  ShieldCheck,
-  Sparkles,
-  UserPlus,
-  Utensils,
-} from 'lucide-react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { ArrowRight, CalendarClock, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, UserPlus, Utensils } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
 import { canManageWorkspace } from '../../lib/roles';
-import {
-  buildSchedulePeriods,
-  loadScheduleSettings,
-  makeScheduleCellKey,
-  type ScheduleSettings,
-} from '../../lib/scheduleSettings';
+import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type ScheduleSettings } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 import { StatsGrid } from '../../components/dashboard/StatsGrid';
-import {
-  StudentWatchlist,
-  type WatchlistStudentItem,
-} from '../../components/dashboard/StudentWatchlist';
-import {
-  ClassroomAnalyticsCharts,
-  type ClassroomAnalyticsData,
-} from '../../components/dashboard/ClassroomAnalyticsCharts';
+import { StudentWatchlist, type WatchlistStudentItem } from '../../components/dashboard/StudentWatchlist';
+import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -122,18 +97,50 @@ interface HealthReportMetric {
 }
 
 const healthReportConfigs: Array<Pick<HealthReportMetric, 'cadence' | 'icon' | 'key' | 'label' | 'tone'>> = [
-  { cadence: 'วันนี้', icon: Sparkles, key: 'toothbrushing', label: 'แปรงฟัน', tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
-  { cadence: 'วันนี้', icon: ShieldCheck, key: 'milk', label: 'ดื่มนม', tone: 'bg-sky-50 text-sky-700 ring-sky-100' },
-  { cadence: 'วันนี้', icon: Utensils, key: 'lunch', label: 'อาหารกลางวัน', tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
-  { cadence: 'ข้อมูลล่าสุด', icon: Scale, key: 'growth', label: 'น้ำหนัก–ส่วนสูง–BMI', tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
-  { cadence: 'ข้อมูลล่าสุด', icon: ClipboardCheck, key: 'hygiene', label: 'ตรวจสุขภาพ', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  {
+    cadence: 'วันนี้',
+    icon: Sparkles,
+    key: 'toothbrushing',
+    label: 'แปรงฟัน',
+    tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100',
+  },
+  {
+    cadence: 'วันนี้',
+    icon: ShieldCheck,
+    key: 'milk',
+    label: 'ดื่มนม',
+    tone: 'bg-sky-50 text-sky-700 ring-sky-100',
+  },
+  {
+    cadence: 'วันนี้',
+    icon: Utensils,
+    key: 'lunch',
+    label: 'อาหารกลางวัน',
+    tone: 'bg-amber-50 text-amber-700 ring-amber-100',
+  },
+  {
+    cadence: 'ข้อมูลล่าสุด',
+    icon: Scale,
+    key: 'growth',
+    label: 'น้ำหนัก–ส่วนสูง–BMI',
+    tone: 'bg-violet-50 text-violet-700 ring-violet-100',
+  },
+  {
+    cadence: 'ข้อมูลล่าสุด',
+    icon: ClipboardCheck,
+    key: 'hygiene',
+    label: 'ตรวจสุขภาพ',
+    tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+  },
 ];
 
 function formatThaiRecordDate(value: string | undefined) {
   if (!value) return 'ยังไม่มีข้อมูล';
-  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(
-    new Date(`${value}T12:00:00+07:00`),
-  );
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(`${value}T12:00:00+07:00`));
 }
 
 const emptyAnalyticsData: ClassroomAnalyticsData = {
@@ -185,6 +192,8 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [latestHealthRecords, setLatestHealthRecords] = useState<HealthRecordSummaryRow[]>([]);
   const [activeClassroomStudentIds, setActiveClassroomStudentIds] = useState<string[]>([]);
   const [healthReportsLoading, setHealthReportsLoading] = useState(false);
+  const [quickLog, setQuickLog] = useState('');
+  const [quickLogNotice, setQuickLogNotice] = useState<string | null>(null);
   const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName));
 
   const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
@@ -199,18 +208,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
         return;
       }
 
-      const { data } = await supabase
-        .from('workspace_schedule_settings')
-        .select('settings')
-        .eq('workspace_id', session.workspace.id)
-        .maybeSingle();
+      const { data } = await supabase.from('workspace_schedule_settings').select('settings').eq('workspace_id', session.workspace.id).maybeSingle();
 
       if (!isMounted) return;
       setWeeklySchedule(data?.settings && typeof data.settings === 'object' ? { ...fallback, ...(data.settings as ScheduleSettings) } : fallback);
     }
 
     void loadWeeklySchedule();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [session.workspace]);
 
   // Load Classrooms
@@ -218,11 +225,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     let isMounted = true;
     async function loadClassrooms() {
       if (!supabase || !session.workspace) return;
-      const { data } = await supabase
-        .from('classrooms')
-        .select('id, name, academic_year')
-        .eq('workspace_id', session.workspace.id)
-        .order('name', { ascending: true });
+      const { data } = await supabase.from('classrooms').select('id, name, academic_year').eq('workspace_id', session.workspace.id).order('name', { ascending: true });
 
       if (!isMounted) return;
       if (data && data.length > 0) {
@@ -246,24 +249,11 @@ export function DashboardPage({ session }: DashboardPageProps) {
         return;
       }
 
-      const [
-        { data: activeStudentRows, count: studentCount },
-        { count: classroomCount },
-        { count: careCaseCount },
-        { data: savingsRows },
-      ] = await Promise.all([
-        supabase.from('students').select('id,classroom_id', { count: 'exact' }).eq('workspace_id', session.workspace.id).eq('status', 'active'),
-        supabase.from('classrooms').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).eq('status', 'active'),
-        supabase.from('student_care_cases').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
-        supabase.from('savings_accounts').select('balance').eq('workspace_id', session.workspace.id).eq('status', 'active'),
-      ]);
+      const [{ data: activeStudentRows, count: studentCount }, { count: classroomCount }, { count: careCaseCount }, { data: savingsRows }] = await Promise.all([supabase.from('students').select('id,classroom_id', { count: 'exact' }).eq('workspace_id', session.workspace.id).eq('status', 'active'), supabase.from('classrooms').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).eq('status', 'active'), supabase.from('student_care_cases').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']), supabase.from('savings_accounts').select('balance').eq('workspace_id', session.workspace.id).eq('status', 'active')]);
 
       if (!isMounted) return;
 
-      const savingsBalance = (savingsRows || []).reduce(
-        (sum, row) => sum + Number((row as { balance?: number | string | null }).balance || 0),
-        0,
-      );
+      const savingsBalance = (savingsRows || []).reduce((sum, row) => sum + Number((row as { balance?: number | string | null }).balance || 0), 0);
       const countsByClassroom = new Map<string, number>();
       ((activeStudentRows || []) as Array<{ classroom_id: string | null }>).forEach((student) => {
         const key = student.classroom_id || 'unassigned';
@@ -275,14 +265,37 @@ export function DashboardPage({ session }: DashboardPageProps) {
         count: countsByClassroom.get(classroom.id) || 0,
       }));
       const unassignedCount = countsByClassroom.get('unassigned') || 0;
-      if (unassignedCount > 0) nextClassroomCounts.push({ classroomId: 'unassigned', classroomName: 'ยังไม่ระบุห้อง', count: unassignedCount });
+      if (unassignedCount > 0)
+        nextClassroomCounts.push({
+          classroomId: 'unassigned',
+          classroomName: 'ยังไม่ระบุห้อง',
+          count: unassignedCount,
+        });
       setClassroomStudentCounts(nextClassroomCounts);
 
       setStats([
-        { ...dashboardStats[0], detail: session.workspace.classroomName, value: String(studentCount ?? 0) },
-        { ...dashboardStats[1], detail: 'ห้องที่กำลังใช้งาน', label: 'ห้องเรียน', value: String(classroomCount ?? 0) },
-        { ...dashboardStats[2], detail: 'เปิดอยู่และกำลังติดตาม', value: String(careCaseCount ?? 0) },
-        { ...dashboardStats[3], value: savingsBalance.toLocaleString('th-TH', { maximumFractionDigits: 0 }) },
+        {
+          ...dashboardStats[0],
+          detail: session.workspace.classroomName,
+          value: String(studentCount ?? 0),
+        },
+        {
+          ...dashboardStats[1],
+          detail: 'ห้องที่กำลังใช้งาน',
+          label: 'ห้องเรียน',
+          value: String(classroomCount ?? 0),
+        },
+        {
+          ...dashboardStats[2],
+          detail: 'เปิดอยู่และกำลังติดตาม',
+          value: String(careCaseCount ?? 0),
+        },
+        {
+          ...dashboardStats[3],
+          value: savingsBalance.toLocaleString('th-TH', {
+            maximumFractionDigits: 0,
+          }),
+        },
       ]);
     }
 
@@ -308,42 +321,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const classroomName = targetClassroom ? targetClassroom.name : session.workspace.classroomName || 'ห้องเรียน';
 
       const today = getBangkokDate();
-      const trendDates = Array.from({ length: 7 }, (_, index) =>
-        getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)),
-      );
-      const { data: attendanceSessionRows } = await supabase
-        .from('attendance_sessions')
-        .select('id, attendance_date, period_label, subject_name')
-        .eq('workspace_id', session.workspace.id)
-        .eq('classroom_id', selectedClassroomId)
-        .gte('attendance_date', trendDates[0])
-        .lte('attendance_date', today)
-        .order('attendance_date', { ascending: true })
-        .order('period_label', { ascending: true });
+      const trendDates = Array.from({ length: 7 }, (_, index) => getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)));
+      const { data: attendanceSessionRows } = await supabase.from('attendance_sessions').select('id, attendance_date, period_label, subject_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).gte('attendance_date', trendDates[0]).lte('attendance_date', today).order('attendance_date', { ascending: true }).order('period_label', { ascending: true });
 
-      const allAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map(
-        (item) => item.id,
-      );
-      const attendanceRecordsPromise =
-        allAttendanceSessionIds.length > 0
-          ? supabase
-              .from('attendance_records')
-              .select('session_id, student_id, status')
-              .eq('workspace_id', session.workspace.id)
-              .in('session_id', allAttendanceSessionIds)
-          : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
+      const allAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map((item) => item.id);
+      const attendanceRecordsPromise = allAttendanceSessionIds.length > 0 ? supabase.from('attendance_records').select('session_id, student_id, status').eq('workspace_id', session.workspace.id).in('session_id', allAttendanceSessionIds) : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
 
-      const [
-        { data: studentRows },
-        { data: attendanceRows },
-        { data: savingsAccountRows },
-        { data: savingsTxRows },
-        { data: scoreAssessments },
-        { data: scoreEntries },
-        { data: behaviorRows },
-        { data: homeVisitRows },
-        { data: careCaseRows },
-      ] = await Promise.all([
+      const [{ data: studentRows }, { data: attendanceRows }, { data: savingsAccountRows }, { data: savingsTxRows }, { data: scoreAssessments }, { data: scoreEntries }, { data: behaviorRows }, { data: homeVisitRows }, { data: careCaseRows }] = await Promise.all([
         supabase.from('students').select('id, student_code, first_name, last_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('status', 'active'),
         attendanceRecordsPromise,
         supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
@@ -362,9 +346,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       setActiveClassroomStudentIds(Array.from(studentIds));
       const studentsCount = studentIds.size;
       const attendanceSessions = (attendanceSessionRows || []) as AttendanceSessionRow[];
-      const todayAttendanceSessionIds = new Set(
-        attendanceSessions.filter((item) => item.attendance_date === today).map((item) => item.id),
-      );
+      const todayAttendanceSessionIds = new Set(attendanceSessions.filter((item) => item.attendance_date === today).map((item) => item.id));
       const todayAttendanceRows = (attendanceRows || []).filter((row) => todayAttendanceSessionIds.has(row.session_id));
       const recordsBySession = new Map<string, AttendanceRecordSummaryRow[]>();
       (attendanceRows || []).forEach((row) => {
@@ -394,9 +376,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const classroomSavingsAccounts = (savingsAccountRows || []).filter((acc) => studentIds.has(acc.student_id));
       const activeSavingsAccounts = classroomSavingsAccounts.filter((acc) => Number(acc.balance || 0) > 0).length;
       const totalBalance = classroomSavingsAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
-      const monthlyDeposits = (savingsTxRows || [])
-        .filter((tx) => studentIds.has(tx.student_id) && tx.transaction_type === 'deposit')
-        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+      const monthlyDeposits = (savingsTxRows || []).filter((tx) => studentIds.has(tx.student_id) && tx.transaction_type === 'deposit').reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 
       // Real Behavior calculations
       let posPoints = 0;
@@ -520,7 +500,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
           };
         });
       setSubjectAttendanceSummaries(subjectSummaries);
-
     }
 
     void loadClassroomAnalytics();
@@ -544,23 +523,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       setHealthReportsLoading(true);
       const today = getBangkokDate();
       const fields = 'student_id,record_type,status,record_date,weight_kg,height_cm,bmi,inspection_results';
-      const [{ data: dailyRows }, { data: snapshotRows }] = await Promise.all([
-        supabase
-          .from('student_health_records')
-          .select(fields)
-          .eq('workspace_id', session.workspace.id)
-          .eq('classroom_id', selectedClassroomId)
-          .eq('record_date', today)
-          .in('record_type', ['toothbrushing', 'milk', 'lunch']),
-        supabase
-          .from('student_health_records')
-          .select(fields)
-          .eq('workspace_id', session.workspace.id)
-          .eq('classroom_id', selectedClassroomId)
-          .in('record_type', ['growth', 'hygiene'])
-          .order('record_date', { ascending: false })
-          .limit(1000),
-      ]);
+      const [{ data: dailyRows }, { data: snapshotRows }] = await Promise.all([supabase.from('student_health_records').select(fields).eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('record_date', today).in('record_type', ['toothbrushing', 'milk', 'lunch']), supabase.from('student_health_records').select(fields).eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).in('record_type', ['growth', 'hygiene']).order('record_date', { ascending: false }).limit(1000)]);
 
       if (!isMounted) return;
       setDailyHealthRecords((dailyRows || []) as HealthRecordSummaryRow[]);
@@ -585,7 +548,9 @@ export function DashboardPage({ session }: DashboardPageProps) {
       }
 
       const { data, error } = await supabase
-        .rpc('get_workspace_members', { target_workspace_id: session.workspace.id })
+        .rpc('get_workspace_members', {
+          target_workspace_id: session.workspace.id,
+        })
         .returns<WorkspaceMemberSummaryRow[]>();
 
       if (!isMounted) return;
@@ -609,25 +574,20 @@ export function DashboardPage({ session }: DashboardPageProps) {
     const total = analyticsData.dataCompleteness.studentsCount;
     const activeStudentIds = new Set(activeClassroomStudentIds);
     const latestByStudentAndType = new Map<string, HealthRecordSummaryRow>();
-    latestHealthRecords.filter((record) => activeStudentIds.has(record.student_id)).forEach((record) => {
-      const key = `${record.record_type}:${record.student_id}`;
-      if (!latestByStudentAndType.has(key)) latestByStudentAndType.set(key, record);
-    });
+    latestHealthRecords
+      .filter((record) => activeStudentIds.has(record.student_id))
+      .forEach((record) => {
+        const key = `${record.record_type}:${record.student_id}`;
+        if (!latestByStudentAndType.has(key)) latestByStudentAndType.set(key, record);
+      });
 
     return healthReportConfigs.map((config) => {
-      const records = config.cadence === 'วันนี้'
-        ? dailyHealthRecords.filter((record) => activeStudentIds.has(record.student_id) && record.record_type === config.key)
-        : Array.from(latestByStudentAndType.values()).filter((record) => record.record_type === config.key);
+      const records = config.cadence === 'วันนี้' ? dailyHealthRecords.filter((record) => activeStudentIds.has(record.student_id) && record.record_type === config.key) : Array.from(latestByStudentAndType.values()).filter((record) => record.record_type === config.key);
       const uniqueRecords = Array.from(new Map(records.map((record) => [record.student_id, record])).values());
       const recorded = uniqueRecords.length;
-      const completed = config.key === 'growth'
-        ? uniqueRecords.filter((record) => record.weight_kg !== null && record.height_cm !== null && record.bmi !== null).length
-        : uniqueRecords.filter((record) => ['completed', 'normal'].includes(record.status)).length;
+      const completed = config.key === 'growth' ? uniqueRecords.filter((record) => record.weight_kg !== null && record.height_cm !== null && record.bmi !== null).length : uniqueRecords.filter((record) => ['completed', 'normal'].includes(record.status)).length;
       const attention = uniqueRecords.filter((record) => ['missed', 'attention'].includes(record.status)).length;
-      const latestDate = uniqueRecords.reduce<string | undefined>(
-        (latest, record) => (!latest || record.record_date > latest ? record.record_date : latest),
-        undefined,
-      );
+      const latestDate = uniqueRecords.reduce<string | undefined>((latest, record) => (!latest || record.record_date > latest ? record.record_date : latest), undefined);
       return {
         ...config,
         attention,
@@ -640,14 +600,9 @@ export function DashboardPage({ session }: DashboardPageProps) {
     });
   }, [activeClassroomStudentIds, analyticsData.dataCompleteness.studentsCount, dailyHealthRecords, latestHealthRecords]);
 
-  const completedHealthReportCount = healthReportMetrics.filter(
-    (metric) => metric.total > 0 && metric.recorded >= metric.total,
-  ).length;
-  const completedDailyRoutineCount = healthReportMetrics.filter(
-    (metric) => metric.cadence === 'วันนี้' && metric.total > 0 && metric.recorded >= metric.total,
-  ).length;
-  const healthReportPath = (mode: HealthReportType) =>
-    `/app/dashboard?view=student-health&healthMode=${mode}${selectedClassroomId ? `&classroomId=${selectedClassroomId}` : ''}`;
+  const completedHealthReportCount = healthReportMetrics.filter((metric) => metric.total > 0 && metric.recorded >= metric.total).length;
+  const completedDailyRoutineCount = healthReportMetrics.filter((metric) => metric.cadence === 'วันนี้' && metric.total > 0 && metric.recorded >= metric.total).length;
+  const healthReportPath = (mode: HealthReportType) => `/app/dashboard?view=student-health&healthMode=${mode}${selectedClassroomId ? `&classroomId=${selectedClassroomId}` : ''}`;
 
   const dynamicTodayTasks = [
     {
@@ -692,6 +647,24 @@ export function DashboardPage({ session }: DashboardPageProps) {
     },
   ];
 
+  async function submitQuickLog(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase || !session.workspace?.id || !quickLog.trim()) return;
+    const { error } = await supabase.from('daily_brief_logs').insert({
+      workspace_id: session.workspace.id,
+      classroom_id: selectedClassroomId || null,
+      log_date: getBangkokDate(),
+      log_type: 'quick',
+      body: quickLog.trim(),
+      created_by: session.profile.id,
+    });
+    if (error) setQuickLogNotice(error.message.includes('daily_brief_logs') ? 'กรุณาติดตั้ง migration 0044 เพื่อเปิด Quick Log' : 'บันทึกไม่สำเร็จ');
+    else {
+      setQuickLog('');
+      setQuickLogNotice('เพิ่มลง Daily Brief วันนี้แล้ว');
+    }
+  }
+
   return (
     <main className="app-page dashboard-premium">
       <div className="app-page-header dashboard-hero flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -714,11 +687,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
               <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 px-3.5 shadow-sm">
                 <School className="text-teal-700" size={17} aria-hidden="true" />
                 <span className="text-xs font-black text-slate-500">เลือกห้อง:</span>
-                <select
-                  className="bg-transparent text-sm font-black text-slate-900 focus:outline-none cursor-pointer pr-4"
-                  value={selectedClassroomId}
-                  onChange={(e) => setSelectedClassroomId(e.target.value)}
-                >
+                <select className="bg-transparent text-sm font-black text-slate-900 focus:outline-none cursor-pointer pr-4" value={selectedClassroomId} onChange={(e) => setSelectedClassroomId(e.target.value)}>
                   {classrooms.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.academic_year || '2569'})
@@ -730,26 +699,37 @@ export function DashboardPage({ session }: DashboardPageProps) {
             </div>
           ) : null}
 
-          <Link
-            className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black transition hover:-translate-y-0.5 shadow-sm"
-            to="/app/dashboard?view=teacher-work"
-          >
+          <Link className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black transition hover:-translate-y-0.5 shadow-sm" to="/app/dashboard?view=teacher-work">
             <CalendarClock size={18} aria-hidden="true" />
             เช็กเวลาเรียน
           </Link>
         </div>
       </div>
 
+      <form className="mt-4 flex flex-col gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/80 p-3 sm:flex-row sm:items-center" onSubmit={submitQuickLog}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-cyan-700 shadow-sm">
+          <MessageSquarePlus size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <label className="sr-only" htmlFor="dashboard-quick-log">
+            Quick Log
+          </label>
+          <input className="h-10 w-full bg-transparent px-2 text-sm font-bold text-slate-900 outline-none placeholder:text-slate-500" id="dashboard-quick-log" onChange={(event) => setQuickLog(event.target.value)} placeholder="บันทึกสั้น ๆ เช่น นักเรียน 2 คนลาป่วย" value={quickLog} />
+          {quickLogNotice ? <p className="px-2 text-[10px] font-black text-cyan-800">{quickLogNotice}</p> : null}
+        </div>
+        <button className="daily-primary-action justify-center" disabled={!quickLog.trim()}>
+          เพิ่ม Quick Log
+        </button>
+        <Link className="daily-secondary-action justify-center" to={`/app/dashboard?view=daily-brief&date=${getBangkokDate()}`}>
+          เปิดสรุปวันนี้
+        </Link>
+      </form>
+
       {/* Main Workspace Metrics */}
       <StatsGrid stats={stats} />
 
       {/* Classroom Dataset Status & Analytics Charts Section */}
-      <ClassroomAnalyticsCharts
-        classroomDistribution={classroomStudentCounts}
-        data={analyticsData}
-        onSelectClassroom={setSelectedClassroomId}
-        selectedClassroomId={selectedClassroomId}
-      />
+      <ClassroomAnalyticsCharts classroomDistribution={classroomStudentCounts} data={analyticsData} onSelectClassroom={setSelectedClassroomId} selectedClassroomId={selectedClassroomId} />
 
       {pendingJoinRequestCount > 0 ? (
         <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center">
@@ -778,7 +758,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-white px-4 py-2 text-right shadow-sm ring-1 ring-slate-200">
               <p className="text-[10px] font-black uppercase text-slate-400">ความพร้อมรายงาน</p>
-              <p className="text-lg font-black text-slate-950">{completedHealthReportCount}<span className="text-sm text-slate-400">/5 หมวด</span></p>
+              <p className="text-lg font-black text-slate-950">
+                {completedHealthReportCount}
+                <span className="text-sm text-slate-400">/5 หมวด</span>
+              </p>
             </div>
             <Link className="inline-flex items-center gap-1 text-sm font-black text-cyan-800 hover:underline" to={healthReportPath('toothbrushing')}>
               เปิดแบบบันทึก <ArrowRight size={15} aria-hidden="true" />
@@ -791,24 +774,20 @@ export function DashboardPage({ session }: DashboardPageProps) {
             const Icon = metric.icon;
             const isComplete = metric.total > 0 && metric.recorded >= metric.total;
             return (
-              <Link
-                aria-label={`เปิดแบบบันทึก${metric.label}`}
-                className="group bg-white p-5 transition hover:bg-slate-50"
-                key={metric.key}
-                to={healthReportPath(metric.key)}
-              >
+              <Link aria-label={`เปิดแบบบันทึก${metric.label}`} className="group bg-white p-5 transition hover:bg-slate-50" key={metric.key} to={healthReportPath(metric.key)}>
                 <div className="flex items-start justify-between gap-3">
                   <span className={`grid h-10 w-10 place-items-center rounded-2xl ring-1 ${metric.tone}`}>
                     <Icon size={19} aria-hidden="true" />
                   </span>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {healthReportsLoading ? <NexusAuroraInline label="กำลังโหลด" /> : isComplete ? 'ครบแล้ว' : metric.cadence}
-                  </span>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{healthReportsLoading ? <NexusAuroraInline label="กำลังโหลด" /> : isComplete ? 'ครบแล้ว' : metric.cadence}</span>
                 </div>
                 <h3 className="mt-4 min-h-10 text-sm font-black leading-5 text-slate-950">{metric.label}</h3>
                 <p className="mt-1 text-[11px] font-bold text-slate-500">{metric.detail}</p>
                 <div className="mt-4 flex items-end justify-between gap-3">
-                  <div><span className="text-2xl font-black text-slate-950">{metric.recorded}</span><span className="text-xs font-black text-slate-400">/{metric.total} คน</span></div>
+                  <div>
+                    <span className="text-2xl font-black text-slate-950">{metric.recorded}</span>
+                    <span className="text-xs font-black text-slate-400">/{metric.total} คน</span>
+                  </div>
                   <span className="text-sm font-black text-cyan-700">{metric.percent}%</span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -838,9 +817,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
               const Icon = task.icon;
               return (
                 <Link className="group flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={task.label} to={task.path}>
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-600">
-                    {index + 1}
-                  </span>
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-600">{index + 1}</span>
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-600 group-hover:bg-amber-50 group-hover:text-amber-700">
                     <Icon size={18} aria-hidden="true" />
                   </span>
@@ -867,13 +844,35 @@ export function DashboardPage({ session }: DashboardPageProps) {
               <ClipboardList className="text-cyan-700" size={19} aria-hidden="true" />
               <h2 className="text-lg font-black text-slate-950">การเข้าเรียนรายวิชาวันนี้</h2>
             </div>
-            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=reports&reportView=subject-attendance">ดูทั้งหมด <ArrowRight className="inline" size={14} /></Link>
+            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=reports&reportView=subject-attendance">
+              ดูทั้งหมด <ArrowRight className="inline" size={14} />
+            </Link>
           </div>
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
             {subjectAttendanceSummaries.length > 0 ? (
               <table className="min-w-[520px] w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500"><tr className="font-black"><th className="px-3 py-2.5">รายวิชา</th><th className="px-3 py-2.5">คาบ</th><th className="px-3 py-2.5 text-center">มา</th><th className="px-3 py-2.5 text-center">ขาด</th><th className="px-3 py-2.5 text-center">สาย</th><th className="px-3 py-2.5 text-center">รวม</th></tr></thead>
-                <tbody>{subjectAttendanceSummaries.map((item) => <tr className="border-t border-slate-100 font-bold text-slate-700" key={item.id}><td className="px-3 py-3 font-black text-slate-900">{item.subjectName}</td><td className="px-3 py-3 text-slate-500">{item.periodLabel}</td><td className="px-3 py-3 text-center text-emerald-700">{item.present}</td><td className="px-3 py-3 text-center text-rose-600">{item.absent}</td><td className="px-3 py-3 text-center text-amber-700">{item.late}</td><td className="px-3 py-3 text-center">{item.total}</td></tr>)}</tbody>
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr className="font-black">
+                    <th className="px-3 py-2.5">รายวิชา</th>
+                    <th className="px-3 py-2.5">คาบ</th>
+                    <th className="px-3 py-2.5 text-center">มา</th>
+                    <th className="px-3 py-2.5 text-center">ขาด</th>
+                    <th className="px-3 py-2.5 text-center">สาย</th>
+                    <th className="px-3 py-2.5 text-center">รวม</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subjectAttendanceSummaries.map((item) => (
+                    <tr className="border-t border-slate-100 font-bold text-slate-700" key={item.id}>
+                      <td className="px-3 py-3 font-black text-slate-900">{item.subjectName}</td>
+                      <td className="px-3 py-3 text-slate-500">{item.periodLabel}</td>
+                      <td className="px-3 py-3 text-center text-emerald-700">{item.present}</td>
+                      <td className="px-3 py-3 text-center text-rose-600">{item.absent}</td>
+                      <td className="px-3 py-3 text-center text-amber-700">{item.late}</td>
+                      <td className="px-3 py-3 text-center">{item.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             ) : (
               <div className="p-6 text-center text-sm font-bold text-slate-400">ยังไม่มีการเช็กเวลาเรียนรายวิชาในวันนี้</div>
@@ -887,14 +886,35 @@ export function DashboardPage({ session }: DashboardPageProps) {
               <CalendarClock className="text-cyan-700" size={19} aria-hidden="true" />
               <h2 className="text-lg font-black text-slate-950">ตารางสอนประจำสัปดาห์</h2>
             </div>
-            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=schedule">จัดการตาราง <ArrowRight className="inline" size={14} /></Link>
+            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=schedule">
+              จัดการตาราง <ArrowRight className="inline" size={14} />
+            </Link>
           </div>
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
             <div className="min-w-[560px]">
               <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-200 bg-slate-50 text-[11px] font-black text-slate-500">
-                <span className="p-2.5">เวลา</span>{weeklySchedule.activeDays.slice(0, 5).map((day) => <span className="p-2.5 text-center" key={day}>{day}</span>)}
+                <span className="p-2.5">เวลา</span>
+                {weeklySchedule.activeDays.slice(0, 5).map((day) => (
+                  <span className="p-2.5 text-center" key={day}>
+                    {day}
+                  </span>
+                ))}
               </div>
-              {weeklyPeriods.map((period) => <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-100 last:border-b-0" key={period.index}><span className="p-2 text-[10px] font-black text-slate-500">{period.start}-{period.end}</span>{weeklySchedule.activeDays.slice(0, 5).map((day) => { const cell = weeklySchedule.cells[makeScheduleCellKey(day, period.index)]; return <div className="border-l border-slate-100 p-1.5" key={`${day}-${period.index}`}>{cell?.subject ? <div className="min-h-9 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-1 text-center text-[10px] font-black leading-4 text-sky-900">{cell.subject}</div> : null}</div>; })}</div>)}
+              {weeklyPeriods.map((period) => (
+                <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-100 last:border-b-0" key={period.index}>
+                  <span className="p-2 text-[10px] font-black text-slate-500">
+                    {period.start}-{period.end}
+                  </span>
+                  {weeklySchedule.activeDays.slice(0, 5).map((day) => {
+                    const cell = weeklySchedule.cells[makeScheduleCellKey(day, period.index)];
+                    return (
+                      <div className="border-l border-slate-100 p-1.5" key={`${day}-${period.index}`}>
+                        {cell?.subject ? <div className="min-h-9 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-1 text-center text-[10px] font-black leading-4 text-sky-900">{cell.subject}</div> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         </article>

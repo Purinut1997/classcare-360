@@ -66,6 +66,12 @@ interface GuardianNotificationTarget {
   student_id: string;
 }
 
+interface CalendarAttendancePolicy {
+  affects_attendance: boolean;
+  day_type: string;
+  title: string;
+}
+
 const demoClassrooms: ClassroomRow[] = [
   { academic_year: '2569', id: 'demo-classroom', name: 'ป.5/1' },
 ];
@@ -149,6 +155,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อบันทึกเวลาเรียนลง Supabase จริง',
   );
+  const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
 
   const classroomStudents = useMemo(
     () => students.filter((student) => student.classroom_id === classroomId),
@@ -254,6 +261,29 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setPeriodLabel(mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
   }, [mode]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadCalendarPolicy() {
+      if (!supabase || !session.workspace?.id) {
+        setCalendarPolicy(null);
+        return;
+      }
+      const { data } = await supabase
+        .from('school_calendar_days')
+        .select('title,day_type,affects_attendance')
+        .eq('workspace_id', session.workspace.id)
+        .eq('calendar_date', attendanceDate)
+        .in('day_type', ['holiday', 'closed'])
+        .limit(1)
+        .maybeSingle();
+      if (active) setCalendarPolicy((data as CalendarAttendancePolicy | null) || null);
+    }
+    void loadCalendarPolicy();
+    return () => {
+      active = false;
+    };
+  }, [attendanceDate, session.workspace?.id]);
+
   async function loadSessionRecords(nextSession: AttendanceSessionRow) {
     if (!supabase || !session.workspace) return;
 
@@ -275,6 +305,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
     event.preventDefault();
     setIsSubmitting(true);
     setNotice(null);
+
+    if (calendarPolicy && !calendarPolicy.affects_attendance) {
+      setNotice(`วันที่เลือกเป็น ${calendarPolicy.title} ระบบจึงไม่สร้างรอบเช็กชื่อตามปฏิทินโรงเรียน`);
+      setIsSubmitting(false);
+      return;
+    }
 
     if (!classroomId) {
       setNotice('กรุณาเลือกห้องเรียนก่อนเริ่มเช็คเวลา');
