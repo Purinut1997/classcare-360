@@ -13,6 +13,11 @@ import type {
 type SessionLoadState = 'demo' | 'loading' | 'ready' | 'error';
 
 export const activeWorkspaceStorageKey = 'classcare360.activeWorkspaceId';
+const sessionRefreshEvent = 'classcare:session-refresh';
+
+export function requestAppSessionRefresh() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(sessionRefreshEvent));
+}
 
 interface UseAppSessionResult {
   error: string | null;
@@ -308,9 +313,15 @@ export function useAppSession(search: string): UseAppSessionResult {
       void loadSession();
     });
 
+    const handleSessionRefresh = () => {
+      void loadSession();
+    };
+    window.addEventListener(sessionRefreshEvent, handleSessionRefresh);
+
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      window.removeEventListener(sessionRefreshEvent, handleSessionRefresh);
     };
   }, [demoMode, forcedDemo]);
 

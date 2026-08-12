@@ -3,6 +3,7 @@ import { ArrowRight, BadgeCheck, Building2, CheckCircle2, GraduationCap, ShieldC
 import { useNavigate } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { requestAppSessionRefresh } from '../../lib/session';
 import type { WorkspaceRole } from '../../types/core';
 
 const roleOptions: Array<{ description: string; label: string; value: Exclude<WorkspaceRole, 'superadmin'> }> = [
@@ -91,6 +92,7 @@ export function CompleteProfilePage() {
         : 'บันทึก profile สำเร็จ กำลังไปเลือกหรือสร้าง workspace',
     );
     setIsSubmitting(false);
+    requestAppSessionRefresh();
     navigate(getNextRouteAfterProfile(role));
   }
 
