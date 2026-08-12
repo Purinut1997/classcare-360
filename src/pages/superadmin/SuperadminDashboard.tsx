@@ -644,43 +644,33 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
     setAdminNotice(null);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setAdminNotice(userError?.message || 'กรุณาเข้าสู่ระบบ SuperAdmin อีกครั้ง');
-      return;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id,email,display_name')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
-
-    if (profileError || !profile) {
-      setAdminNotice(profileError?.message || 'ยังไม่พบ profile ของอีเมลนี้ ให้ผู้ใช้สมัคร/Complete Profile ก่อน');
-      return;
-    }
-
-    const { error: adminError } = await supabase.from('superadmin_profiles').upsert(
-      {
-        created_by: user.id,
-        is_active: true,
-        level: adminLevel,
-        profile_id: profile.id,
-      },
-      { onConflict: 'profile_id' },
-    );
+    const { data, error: adminError } = await supabase.rpc('grant_admin_access_by_email', {
+      target_email: normalizedEmail,
+      target_level: adminLevel,
+    });
 
     if (adminError) {
-      setAdminNotice(adminError.message);
+      setAdminNotice(
+        isMissingRpcFunction(adminError)
+          ? getRoleOperationSetupNotice('เพิ่มสิทธิ์ Admin', adminError.message)
+          : adminError.message === 'not_allowed'
+            ? 'บัญชีปัจจุบันไม่มีสิทธิ์ SuperAdmin สำหรับเพิ่มผู้ดูแลระบบ'
+            : adminError.message,
+      );
       return;
     }
 
-    setAdminNotice(`เพิ่ม ${adminLevel === 'superadmin' ? 'SuperAdmin' : 'Admin'} ให้ ${profile.email} สำเร็จ พร้อม VIP ตลอดชีพ`);
+    const result = data as { email?: string; granted?: boolean; reason?: string } | null;
+    if (!result?.granted) {
+      setAdminNotice(
+        result?.reason === 'profile_not_found'
+          ? 'ยังไม่พบ Profile ของอีเมลนี้ กรุณาให้ผู้ใช้สมัครและกรอกข้อมูลบัญชีให้เสร็จก่อน'
+          : `เพิ่มสิทธิ์ไม่สำเร็จ${result?.reason ? `: ${result.reason}` : ''}`,
+      );
+      return;
+    }
+
+    setAdminNotice(`เพิ่ม ${adminLevel === 'superadmin' ? 'SuperAdmin' : 'Admin'} ให้ ${result.email || normalizedEmail} สำเร็จ พร้อม VIP ตลอดชีพ`);
     setAdminEmail('');
     void loadSuperadminData();
   }
