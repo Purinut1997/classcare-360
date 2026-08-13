@@ -3,6 +3,7 @@ import { canUseModule } from './entitlements';
 
 export type DemoSessionMode =
   | 'teacher'
+  | 'teacher-readonly'
   | 'free'
   | 'expired'
   | 'no-workspace'
@@ -14,12 +15,38 @@ export type DemoSessionMode =
 
 export const demoSessions: Record<Exclude<DemoSessionMode, 'signed-out'>, AppSessionContext> = {
   teacher: {
+    primaryWorkspaceId: 'demo-workspace',
     profile: {
       id: 'demo-teacher',
       email: 'teacher@classcare.local',
       displayName: 'ครูประจำชั้น',
       accountStatus: 'active',
       role: 'teacher_owner',
+    },
+    workspace: {
+      id: 'demo-workspace',
+      name: 'ห้องเรียนตัวอย่าง',
+      schoolName: 'โรงเรียนตัวอย่าง ClassCare',
+      academicYear: '2569',
+      classroomName: 'ป.5/2',
+    },
+    subscription: {
+      planCode: 'VIP_YEARLY',
+      status: 'active',
+      endsAt: '2027-06-24T00:00:00+07:00',
+    },
+    workspaceCount: 2,
+  },
+  'teacher-readonly': {
+    permissions: {
+      'students.write': false,
+    },
+    profile: {
+      id: 'demo-readonly-teacher',
+      email: 'readonly.teacher@classcare.local',
+      displayName: 'ครูผู้ดูข้อมูล',
+      accountStatus: 'active',
+      role: 'teacher_member',
     },
     workspace: {
       id: 'demo-workspace',
@@ -184,6 +211,7 @@ export function getDemoSession(mode: string | null): AppSessionContext | null {
 
 export const demoModeOptions: Array<{ label: string; mode: DemoSessionMode }> = [
   { label: 'ครู VIP', mode: 'teacher' },
+  { label: 'ครูอ่านอย่างเดียว', mode: 'teacher-readonly' },
   { label: 'Free Login', mode: 'free' },
   { label: 'หมดอายุ', mode: 'expired' },
   { label: 'ยังไม่มี workspace', mode: 'no-workspace' },

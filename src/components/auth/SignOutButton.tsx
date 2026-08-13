@@ -9,9 +9,12 @@ interface SignOutButtonProps {
 
 export function SignOutButton({ className = '' }: SignOutButtonProps) {
   async function handleSignOut() {
-    setStoredActiveWorkspaceId(null);
     if (supabase) {
+      const { data: { user } } = await supabase.auth.getUser();
+      setStoredActiveWorkspaceId(null, user?.id);
       await supabase.auth.signOut();
+    } else {
+      setStoredActiveWorkspaceId(null);
     }
     window.location.assign('/login');
   }

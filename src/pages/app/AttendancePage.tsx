@@ -146,7 +146,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [editSessionDate, setEditSessionDate] = useState('');
   const [periodLabel, setPeriodLabel] = useState('เช้า');
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
-  const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule());
+  const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule(session.workspace?.id));
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>(() => createDefaultMarks(demoStudents));
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
@@ -256,10 +256,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
   useEffect(() => {
     setAttendanceSession(null);
     setRecords([]);
-    setScheduleOptions(getAttendanceOptionsFromSchedule());
+    setScheduleOptions(getAttendanceOptionsFromSchedule(session.workspace?.id));
     setSubjectName(modeCopy[mode].subject);
     setPeriodLabel(mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
-  }, [mode]);
+  }, [mode, session.workspace?.id]);
 
   useEffect(() => {
     let active = true;

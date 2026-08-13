@@ -1,10 +1,10 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { ArrowRight, Building2, CalendarDays, CheckCircle2, Clock3, GraduationCap, Pencil, Plus, Save, School, X } from 'lucide-react';
+import { ArrowRight, Building2, CalendarDays, CheckCircle2, GraduationCap, Pencil, Plus, Save, School, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { NexusAuroraLoader } from '../../components/system/NexusAuroraLoader';
 import { roleLabels } from '../../lib/roles';
-import { setStoredActiveWorkspaceId } from '../../lib/session';
+import { activateWorkspace, setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
 
@@ -16,15 +16,10 @@ interface WorkspaceOption {
   academicYear: string;
   classroomName: string;
   id: string;
-  membershipStatus?: WorkspaceAccessStatus | null;
   name: string;
-  ownerEmail?: string;
-  ownerName?: string;
   role?: Exclude<WorkspaceRole, 'superadmin'>;
   schoolName: string;
 }
-
-type WorkspaceAccessStatus = 'invited' | 'active' | 'suspended' | 'removed';
 
 interface MembershipWorkspaceRow {
   role: Exclude<WorkspaceRole, 'superadmin'>;
@@ -40,16 +35,15 @@ interface MembershipWorkspaceRow {
   } | null;
 }
 
-interface JoinableWorkspaceRow {
-  academic_year: string | null;
-  classroom_name: string | null;
-  membership_role: Exclude<WorkspaceRole, 'superadmin'> | null;
-  membership_status: WorkspaceAccessStatus | null;
-  name: string;
-  owner_display_name: string | null;
-  owner_email: string | null;
-  school_name: string | null;
+interface TeacherInvitationRow {
+  assigned_classroom_ids: string[];
+  created_at: string;
+  expires_at: string;
+  invitation_id: string;
+  role: 'teacher_member' | 'viewer';
+  school_name: string;
   workspace_id: string;
+  workspace_name: string;
 }
 
 const demoWorkspaces: WorkspaceOption[] = [
@@ -69,21 +63,33 @@ const demoWorkspaces: WorkspaceOption[] = [
   },
 ];
 
-function normalizeSchoolName(value: string | null | undefined) {
-  return (value || '').trim().toLocaleLowerCase('th-TH').replace(/\s+/g, ' ');
-}
+const demoTeacherInvitations: TeacherInvitationRow[] = [{
+  assigned_classroom_ids: ['demo-classroom'],
+  created_at: new Date().toISOString(),
+  expires_at: new Date(Date.now() + 14 * 86400000).toISOString(),
+  invitation_id: 'demo-teacher-invitation',
+  role: 'teacher_member',
+  school_name: 'โรงเรียนตัวอย่าง ClassCare',
+  workspace_id: 'demo-invited-workspace',
+  workspace_name: 'Workspace ครูประจำชั้น',
+}];
 
 export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const demoQuery = searchParams.get('demo');
+  const isDevelopmentDemo = import.meta.env.DEV && demoQuery !== null;
+  const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const preferredSchoolName = session.profile.schoolName || session.workspace?.schoolName || '';
   const [workspaceName, setWorkspaceName] = useState('ห้องเรียนของฉัน');
   const [schoolName, setSchoolName] = useState(preferredSchoolName || 'โรงเรียนตัวอย่าง ClassCare');
   const [academicYear, setAcademicYear] = useState('2569');
   const [classroomName, setClassroomName] = useState('ป.5/2');
   const [availableWorkspaces, setAvailableWorkspaces] = useState<WorkspaceOption[]>(demoWorkspaces);
-  const [joinableWorkspaces, setJoinableWorkspaces] = useState<WorkspaceOption[]>([]);
-  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(Boolean(supabase));
+  const [teacherInvitations, setTeacherInvitations] = useState<TeacherInvitationRow[]>(
+    demoQuery === 'no-workspace' ? demoTeacherInvitations : [],
+  );
+  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(Boolean(useRealBackend));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestingWorkspaceId, setRequestingWorkspaceId] = useState<string | null>(null);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
@@ -92,10 +98,9 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     isSupabaseReady ? null : 'โหมดตัวอย่าง: การสร้าง workspace จริงต้อง insert ผ่าน Supabase และ RLS',
   );
 
-  const demoQuery = searchParams.get('demo');
-  const dashboardTarget = demoQuery && !supabase ? `/app/dashboard?demo=${demoQuery}` : '/app/dashboard';
-  const canCreateWorkspace = session.profile.role === 'teacher_owner' || session.profile.role === 'superadmin';
-  const canRequestWorkspaceAccess = session.profile.role === 'teacher_owner' || session.profile.role === 'teacher_member';
+  const dashboardTarget = demoQuery ? `/app/dashboard?demo=${demoQuery}` : '/app/dashboard';
+  const canCreateWorkspace = session.profile.role === 'superadmin'
+    || (session.profile.role === 'teacher_owner' && !session.primaryWorkspaceId);
 
   useEffect(() => {
     if (preferredSchoolName) {
@@ -107,15 +112,19 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     let isMounted = true;
 
     async function loadWorkspaces() {
-      if (!supabase) {
-        setAvailableWorkspaces(demoWorkspaces);
+      if (!useRealBackend || !supabase) {
+        setAvailableWorkspaces(demoQuery === 'no-workspace' ? [] : demoWorkspaces);
+        setTeacherInvitations(demoQuery === 'no-workspace' ? demoTeacherInvitations : []);
         setIsLoadingWorkspaces(false);
         return;
       }
 
       setIsLoadingWorkspaces(true);
 
-      const [{ data, error }, { data: joinableRows, error: joinableError }] = await Promise.all([
+      const [
+        { data, error },
+        { data: invitationRows, error: invitationError },
+      ] = await Promise.all([
         supabase
           .from('workspace_memberships')
           .select('workspace_id,role,workspaces(id,name,school_name,academic_year,settings)')
@@ -123,7 +132,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
           .eq('status', 'active')
           .order('created_at', { ascending: true })
           .returns<MembershipWorkspaceRow[]>(),
-        supabase.rpc('list_joinable_school_workspaces').returns<JoinableWorkspaceRow[]>(),
+        supabase.rpc('list_my_workspace_teacher_invitations').returns<TeacherInvitationRow[]>(),
       ]);
 
       if (!isMounted) return;
@@ -131,12 +140,10 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
       if (error) {
         setNotice(error.message);
         setAvailableWorkspaces([]);
-        setJoinableWorkspaces([]);
         setIsLoadingWorkspaces(false);
         return;
       }
 
-      const profileSchoolKey = normalizeSchoolName(preferredSchoolName);
       const allWorkspaces = (data || [])
         .filter((membership) => membership.workspaces)
         .map((membership) => ({
@@ -146,38 +153,22 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
           name: membership.workspaces?.name || 'ไม่ระบุ workspace',
           role: membership.role,
           schoolName: membership.workspaces?.school_name || 'ยังไม่ได้ระบุโรงเรียน',
-        }));
-      const nextWorkspaces = profileSchoolKey
-        ? allWorkspaces.filter((workspace) => normalizeSchoolName(workspace.schoolName) === profileSchoolKey)
-        : allWorkspaces;
+        }))
+        .sort((left, right) => {
+          const leftPrimary = left.id === session.primaryWorkspaceId ? 0 : 1;
+          const rightPrimary = right.id === session.primaryWorkspaceId ? 0 : 1;
+          if (leftPrimary !== rightPrimary) return leftPrimary - rightPrimary;
+          return `${left.schoolName} ${left.name}`.localeCompare(`${right.schoolName} ${right.name}`, 'th');
+        });
 
-      if (profileSchoolKey && allWorkspaces.length > nextWorkspaces.length) {
-        setNotice(`แสดงเฉพาะ workspace ของโรงเรียน ${preferredSchoolName} ตามข้อมูล profile`);
-      }
-
-      if (joinableError) {
-        setNotice(`ยังโหลดคำขอเข้า workspace ไม่ได้: ${joinableError.message} | โปรดรัน tmp/supabase-workspace-join-requests.sql`);
-        setJoinableWorkspaces([]);
+      if (invitationError) {
+        setNotice(`ยังโหลดคำเชิญครูไม่ได้: ${invitationError.message}`);
+        setTeacherInvitations([]);
       } else {
-        const activeIds = new Set(nextWorkspaces.map((workspace) => workspace.id));
-        const joinableWorkspaceRows = Array.isArray(joinableRows) ? (joinableRows as JoinableWorkspaceRow[]) : [];
-        const nextJoinableWorkspaces = joinableWorkspaceRows
-          .filter((workspace) => !activeIds.has(workspace.workspace_id))
-          .map((workspace) => ({
-            academicYear: workspace.academic_year || 'ยังไม่ได้ระบุปีการศึกษา',
-            classroomName: workspace.classroom_name || 'ยังไม่ได้ระบุห้องเรียน',
-            id: workspace.workspace_id,
-            membershipStatus: workspace.membership_status,
-            name: workspace.name || 'ไม่ระบุ workspace',
-            ownerEmail: workspace.owner_email || '-',
-            ownerName: workspace.owner_display_name || 'ไม่ระบุเจ้าของ',
-            role: workspace.membership_role || undefined,
-            schoolName: workspace.school_name || 'ยังไม่ได้ระบุโรงเรียน',
-          }));
-        setJoinableWorkspaces(nextJoinableWorkspaces);
+        setTeacherInvitations((invitationRows || []) as TeacherInvitationRow[]);
       }
 
-      setAvailableWorkspaces(nextWorkspaces);
+      setAvailableWorkspaces(allWorkspaces);
       setIsLoadingWorkspaces(false);
     }
 
@@ -186,17 +177,21 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [preferredSchoolName, session.profile.id]);
+  }, [demoQuery, session.primaryWorkspaceId, session.profile.id, useRealBackend]);
 
-  function handleSelectWorkspace(workspace: WorkspaceOption) {
-    setStoredActiveWorkspaceId(workspace.id);
-
-    if (!supabase) {
+  async function handleSelectWorkspace(workspace: WorkspaceOption) {
+    if (!useRealBackend || !supabase) {
+      setStoredActiveWorkspaceId(workspace.id, session.profile.id);
       navigate(dashboardTarget);
       return;
     }
 
-    window.location.assign('/app/dashboard');
+    try {
+      await activateWorkspace(session.profile.id, workspace.id);
+      window.location.assign('/app/dashboard');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'สลับพื้นที่ทำงานไม่สำเร็จ');
+    }
   }
 
   async function saveWorkspaceName(workspace: WorkspaceOption) {
@@ -205,7 +200,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
       setNotice('กรุณากรอกชื่อ workspace');
       return;
     }
-    if (!supabase) {
+    if (!useRealBackend || !supabase) {
       setAvailableWorkspaces((current) => current.map((item) => item.id === workspace.id ? { ...item, name: nextName } : item));
       setEditingWorkspaceId(null);
       return;
@@ -221,45 +216,35 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     setIsSubmitting(false);
   }
 
-  async function requestWorkspaceAccess(workspace: WorkspaceOption) {
-    setRequestingWorkspaceId(workspace.id);
+  async function acceptTeacherInvitation(invitation: TeacherInvitationRow) {
+    setRequestingWorkspaceId(invitation.workspace_id);
     setNotice(null);
-
-    if (!supabase) {
-      setJoinableWorkspaces((current) =>
-        current.map((item) => (item.id === workspace.id ? { ...item, membershipStatus: 'invited' } : item)),
-      );
-      setNotice('โหมดตัวอย่าง: ส่งคำขอเข้า workspace แล้ว เจ้าของ workspace จะต้องอนุมัติก่อนใช้งานจริง');
+    if (!useRealBackend || !supabase) {
+      setTeacherInvitations((current) => current.filter((item) => item.invitation_id !== invitation.invitation_id));
+      setNotice('รับคำเชิญในโหมดตัวอย่างแล้ว คุณใช้ VIP ของ Workspace โดยไม่ต้องสมัครเพิ่ม');
       setRequestingWorkspaceId(null);
       return;
     }
-
-    const { error } = await supabase.rpc('request_workspace_access', {
-      target_workspace_id: workspace.id,
+    const { error } = await supabase.rpc('accept_workspace_teacher_invitation', {
+      target_invitation_id: invitation.invitation_id,
     });
-
     if (error) {
-      const message = error.message.includes('school_mismatch')
-        ? 'ขอเข้าไม่ได้: workspace นี้ไม่ได้อยู่โรงเรียนเดียวกับข้อมูล profile'
-        : error.message.includes('profile_school_required')
-          ? 'กรุณากรอกชื่อโรงเรียนใน Complete Profile ก่อนขอเข้า workspace'
-          : error.message.includes('membership_suspended')
-            ? 'บัญชีนี้ถูกพักสิทธิ์ใน workspace นี้ โปรดติดต่อเจ้าของ workspace'
-            : error.message.includes('workspace_archived')
-              ? 'workspace นี้ถูกเก็บถาวรแล้ว'
-              : error.message.includes('Could not find the function') || error.message.includes('function')
-                ? 'ยังไม่ได้ติดตั้งระบบขอเข้า workspace โปรดรัน tmp/supabase-workspace-join-requests.sql ใน Supabase SQL Editor'
-                : error.message;
-      setNotice(message);
+      const messages: Record<string, string> = {
+        invitation_email_mismatch: 'คำเชิญนี้ไม่ได้ส่งถึงอีเมลของบัญชีปัจจุบัน',
+        invitation_expired: 'คำเชิญนี้หมดอายุแล้ว กรุณาให้เจ้าของ Workspace ส่งใหม่',
+        invitation_not_pending: 'คำเชิญนี้ถูกรับหรือยกเลิกไปแล้ว',
+      };
+      setNotice(messages[error.message] || error.message);
       setRequestingWorkspaceId(null);
       return;
     }
-
-    setJoinableWorkspaces((current) =>
-      current.map((item) => (item.id === workspace.id ? { ...item, membershipStatus: 'invited' } : item)),
-    );
-    setNotice(`ส่งคำขอเข้า ${workspace.name} แล้ว รอเจ้าของ workspace อนุมัติก่อนเข้าใช้งาน`);
-    setRequestingWorkspaceId(null);
+    try {
+      await activateWorkspace(session.profile.id, invitation.workspace_id);
+      window.location.assign('/app/dashboard');
+    } catch (activateError) {
+      setNotice(activateError instanceof Error ? activateError.message : 'รับคำเชิญแล้ว แต่เปิด Workspace ไม่สำเร็จ');
+      setRequestingWorkspaceId(null);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -267,19 +252,8 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase) {
+    if (!useRealBackend || !supabase) {
       setNotice(`โหมดตัวอย่าง: เตรียมสร้าง ${workspaceName} (${classroomName}/${academicYear}) แล้ว`);
-      setIsSubmitting(false);
-      return;
-    }
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setNotice(userError?.message || 'กรุณาเข้าสู่ระบบก่อนสร้าง workspace');
       setIsSubmitting(false);
       return;
     }
@@ -295,75 +269,39 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
       return;
     }
 
-    const { data: workspace, error: workspaceError } = await supabase
-      .from('workspaces')
-      .insert({
-        name: cleanedWorkspaceName,
-        school_name: cleanedSchoolName,
-        owner_profile_id: user.id,
-        academic_year: cleanedAcademicYear,
-        settings: {
-          classroom_name: cleanedClassroomName,
-        },
-      })
-      .select('id')
-      .single();
-
-    if (workspaceError) {
-      setNotice(workspaceError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    const { error: membershipError } = await supabase.from('workspace_memberships').insert({
-      workspace_id: workspace.id,
-      profile_id: user.id,
-      role: 'teacher_owner',
-      status: 'active',
-      joined_at: new Date().toISOString(),
+    const { data, error } = await supabase.rpc('create_primary_workspace', {
+      workspace_name: cleanedWorkspaceName,
+      school_name: cleanedSchoolName,
+      academic_year: cleanedAcademicYear,
+      first_classroom_name: cleanedClassroomName,
+      school_code: null,
     });
 
-    if (membershipError) {
-      setNotice(membershipError.message);
+    if (error) {
+      const message = error.message.includes('workspace_owner_limit_reached')
+        ? 'บัญชีนี้มี Workspace หลักอยู่แล้ว สามารถเพิ่มห้องหรือรับคำเชิญเข้าโรงเรียนอื่นได้'
+        : error.message.includes('workspace_fields_required')
+          ? 'กรุณากรอกข้อมูลโรงเรียนและห้องแรกให้ครบ'
+          : error.message;
+      setNotice(message);
       setIsSubmitting(false);
       return;
     }
 
-    const { data: trialPlan, error: planError } = await supabase
-      .from('plans')
-      .select('id')
-      .eq('code', 'TRIAL_30')
-      .single();
-
-    if (planError || !trialPlan) {
-      setNotice(planError?.message || 'ไม่พบแผน TRIAL_30 โปรดรัน supabase/seed.sql');
+    const result = data as { trial_days?: number | null; workspace_id?: string } | null;
+    if (!result?.workspace_id) {
+      setNotice('สร้างพื้นที่ทำงานไม่สำเร็จ: ฐานข้อมูลไม่คืน Workspace ใหม่');
       setIsSubmitting(false);
       return;
     }
 
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 30);
-
-    const { error: subscriptionError } = await supabase.from('subscriptions').insert({
-      workspace_id: workspace.id,
-      profile_id: user.id,
-      plan_id: trialPlan.id,
-      status: 'trial',
-      starts_at: new Date().toISOString(),
-      ends_at: trialEndsAt.toISOString(),
-      trial_used: true,
-      source: 'onboarding',
-    });
-
-    if (subscriptionError) {
-      setNotice(subscriptionError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    setNotice('สร้าง workspace และเปิดทดลองใช้ 30 วันสำเร็จ');
+    setNotice(
+      result.trial_days
+        ? `สร้างพื้นที่ทำงานและเปิดทดลองใช้ ${result.trial_days} วันสำเร็จ`
+        : 'สร้างพื้นที่ทำงานสำเร็จ',
+    );
     setIsSubmitting(false);
-    setStoredActiveWorkspaceId(workspace.id);
+    setStoredActiveWorkspaceId(result.workspace_id, session.profile.id);
     window.location.assign('/app/dashboard');
   }
 
@@ -382,11 +320,9 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
             <p className="mt-3 max-w-2xl text-base font-bold leading-8 text-slate-600">
               {session.profile.displayName} | {session.profile.email}
             </p>
-            {preferredSchoolName ? (
-              <p className="mt-2 inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-cyan-100">
-                แสดงเฉพาะ workspace ของ {preferredSchoolName}
-              </p>
-            ) : null}
+            <p className="mt-2 inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-cyan-100">
+              Workspace หลัก 1 แห่ง · เข้าร่วมแห่งอื่นได้เมื่อได้รับคำเชิญ
+            </p>
           </div>
 
           <Link className="dark-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" to={dashboardTarget}>
@@ -401,11 +337,25 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
               <NexusAuroraLoader message="กำลังตรวจสอบโรงเรียน ห้องเรียน และสิทธิ์ของบัญชีนี้" title="กำลังโหลด Workspace" />
             ) : null}
 
-            {!isLoadingWorkspaces && availableWorkspaces.length === 0 && joinableWorkspaces.length === 0 ? (
+            {!isLoadingWorkspaces && teacherInvitations.map((invitation) => (
+              <article className="rounded-[2rem] border border-amber-200 bg-amber-50/90 p-5 shadow-sm" key={invitation.invitation_id}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black text-amber-700">คำเชิญจาก Workspace</p>
+                    <h2 className="mt-2 text-2xl font-black text-slate-950">{invitation.workspace_name}</h2>
+                    <p className="mt-2 text-sm font-bold text-slate-600">{invitation.school_name} · {roleLabels[invitation.role]} · {invitation.assigned_classroom_ids.length} ห้อง</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">รับแล้วใช้สิทธิ์ Free/VIP ของ Workspace นี้ทันที ไม่ต้องซื้อ VIP แยก</p>
+                  </div>
+                  <button className="blue-action inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-black" disabled={requestingWorkspaceId === invitation.workspace_id} onClick={() => void acceptTeacherInvitation(invitation)} type="button">
+                    {requestingWorkspaceId === invitation.workspace_id ? 'กำลังรับคำเชิญ' : 'รับคำเชิญ'}
+                  </button>
+                </div>
+              </article>
+            ))}
+
+            {!isLoadingWorkspaces && availableWorkspaces.length === 0 && teacherInvitations.length === 0 ? (
               <div className="glass-panel rounded-[2rem] p-5 text-sm font-black leading-6 text-slate-600">
-                {preferredSchoolName
-                  ? `ยังไม่มี workspace ของ ${preferredSchoolName} ที่ผูกกับบัญชีนี้ สร้าง workspace ใหม่ทางฟอร์มด้านขวาเพื่อเริ่มใช้งาน`
-                  : 'ยังไม่มี workspace ที่ผูกกับบัญชีนี้ สร้าง workspace ใหม่ทางฟอร์มด้านขวาเพื่อเริ่มใช้งาน'}
+                ยังไม่มี Workspace ที่ผูกกับบัญชีนี้ เจ้าของสร้าง Workspace หลักได้ 1 แห่ง ส่วนครูร่วมให้รอรับคำเชิญจากเจ้าของ
               </div>
             ) : null}
 
@@ -447,6 +397,9 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
                           {roleLabels[workspace.role]}
                         </span>
                       ) : null}
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black ring-1 ${workspace.id === session.primaryWorkspaceId ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-violet-50 text-violet-700 ring-violet-100'}`}>
+                        {workspace.id === session.primaryWorkspaceId ? 'Workspace หลัก' : 'เข้าร่วมผ่านคำเชิญ'}
+                      </span>
                     </div>
                   </div>
                   <button
@@ -460,62 +413,6 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
               </article>
             ))}
 
-            {!isLoadingWorkspaces && canRequestWorkspaceAccess && joinableWorkspaces.length > 0 ? (
-              <section className="glass-panel rounded-[2rem] p-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
-                    <Clock3 size={18} aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-slate-950">ขอเข้า workspace ของโรงเรียนนี้</h2>
-                    <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                      ส่งคำขอแล้วต้องรอเจ้าของ workspace อนุมัติก่อน ระบบจะยังไม่เปิดข้อมูลห้องเรียนให้บัญชีนี้
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3">
-                  {joinableWorkspaces.map((workspace) => {
-                    const isPending = workspace.membershipStatus === 'invited';
-                    const isBlocked = workspace.membershipStatus === 'suspended';
-
-                    return (
-                      <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={workspace.id}>
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <p className="text-sm font-black text-cyan-700">{workspace.schoolName}</p>
-                            <h3 className="mt-1 truncate text-lg font-black text-slate-950">{workspace.name}</h3>
-                            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-                              ห้อง {workspace.classroomName} | ปี {workspace.academicYear} | เจ้าของ {workspace.ownerName}
-                            </p>
-                          </div>
-                          <button
-                            className={`inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-4 text-sm font-black transition ${
-                              isPending
-                                ? 'border border-amber-100 bg-amber-50 text-amber-700'
-                                : isBlocked
-                                  ? 'border border-slate-200 bg-slate-100 text-slate-400'
-                                  : 'bg-slate-950 text-white shadow-lg shadow-slate-950/15 hover:-translate-y-0.5'
-                            }`}
-                            disabled={Boolean(requestingWorkspaceId) || isPending || isBlocked}
-                            onClick={() => void requestWorkspaceAccess(workspace)}
-                            type="button"
-                          >
-                            {requestingWorkspaceId === workspace.id
-                              ? 'กำลังส่งคำขอ'
-                              : isPending
-                                ? 'รออนุมัติ'
-                                : isBlocked
-                                  ? 'ถูกพักสิทธิ์'
-                                  : 'ขอเข้าร่วม'}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
           </div>
 
           {canCreateWorkspace ? (
@@ -607,16 +504,33 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
                 <Building2 size={16} aria-hidden="true" />
                 Workspace Access
               </div>
-              <h2 className="mt-4 text-2xl font-black text-slate-950">บัญชีนี้รอรับสิทธิ์จากเจ้าของ workspace</h2>
-              <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
-                บทบาท {roleLabels[session.profile.role]} ไม่สามารถสร้าง workspace เองได้ ต้องให้เจ้าของ workspace หรือผู้ดูแลระบบเพิ่มสิทธิ์ก่อน ระบบจึงจะแสดงห้องเรียนหรือรายงานที่เกี่ยวข้อง
-              </p>
-              <Link
-                className="mt-5 inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-                to="/auth/complete-profile"
-              >
-                กลับไปตรวจ profile
-              </Link>
+              {session.primaryWorkspaceId ? (
+                <>
+                  <h2 className="mt-4 text-2xl font-black text-slate-950">บัญชีนี้มี Workspace หลักแล้ว</h2>
+                  <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+                    เจ้าของมี Workspace หลักได้ 1 แห่ง ให้เลือกจากรายการด้านซ้าย หรือเข้าแดชบอร์ดเพื่อเพิ่มห้อง เชิญครู หรือจัดการสิทธิ์
+                  </p>
+                  <Link
+                    className="blue-action mt-5 inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-black"
+                    to={dashboardTarget}
+                  >
+                    เข้าแดชบอร์ด
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <h2 className="mt-4 text-2xl font-black text-slate-950">บัญชีนี้รอรับคำเชิญจากเจ้าของ Workspace</h2>
+                  <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+                    บทบาท {roleLabels[session.profile.role]} ไม่สามารถสร้าง Workspace เองได้ เจ้าของต้องเชิญด้วยอีเมลและกำหนดห้องที่อนุญาต เมื่อรับคำเชิญแล้วจึงจะเห็นข้อมูลตามสิทธิ์
+                  </p>
+                  <Link
+                    className="mt-5 inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                    to="/auth/complete-profile"
+                  >
+                    กลับไปตรวจ profile
+                  </Link>
+                </>
+              )}
             </aside>
           )}
         </div>

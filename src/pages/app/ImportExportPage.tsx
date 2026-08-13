@@ -1,8 +1,9 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Archive, Download, FileUp, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Archive, ClipboardCheck, Download, FileUp, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -10,9 +11,13 @@ interface ImportExportPageProps {
   session: AppSessionContext;
 }
 
+const isDevelopmentDemo =
+  import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+
 interface ClassroomRow {
   id: string;
   name: string;
+  status: 'active' | 'archived';
 }
 
 interface StudentExportRow {
@@ -28,6 +33,24 @@ interface StudentExportRow {
   nickname: string | null;
   status?: 'active' | 'transferred' | 'graduated' | 'inactive' | 'archived';
   student_code: string | null;
+}
+
+type RosterReviewClassification =
+  | 'pending'
+  | 'belongs_here'
+  | 'duplicate'
+  | 'wrong_workspace'
+  | 'transferred'
+  | 'graduated'
+  | 'inactive';
+
+interface StudentRosterReviewRow {
+  classification: RosterReviewClassification;
+  id: string;
+  note: string | null;
+  reviewed_at: string | null;
+  student_id: string | null;
+  workspace_id: string;
 }
 
 interface PreviewRow {
@@ -124,6 +147,15 @@ const studentStatusLabels: Record<NonNullable<StudentExportRow['status']>, strin
   inactive: 'พักใช้งาน',
   transferred: 'ย้ายออก',
 };
+const rosterReviewLabels: Record<RosterReviewClassification, string> = {
+  pending: 'รอตรวจ',
+  belongs_here: 'เป็นนักเรียนของโรงเรียนนี้',
+  duplicate: 'ข้อมูลซ้ำ',
+  wrong_workspace: 'มาจากอีกโรงเรียน',
+  transferred: 'ย้ายออกแล้ว',
+  graduated: 'จบการศึกษาแล้ว',
+  inactive: 'พักใช้งาน',
+};
 const guardianTemplateHeaders = [
   'student_code',
   'relation',
@@ -134,7 +166,7 @@ const guardianTemplateHeaders = [
   'create_portal_invite',
 ];
 
-const demoClassrooms: ClassroomRow[] = [{ id: 'demo-classroom', name: 'ป.5/2' }];
+const demoClassrooms: ClassroomRow[] = [{ id: 'demo-classroom', name: 'ป.5/2', status: 'active' }];
 
 const demoStudents: StudentExportRow[] = [
   { classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', id: 'demo-student-1', last_name: 'ใจดี', nickname: 'นัท', student_code: '001' },
@@ -505,11 +537,13 @@ function isWorkspaceBackupPackage(value: unknown): value is WorkspaceBackupPacka
 }
 
 export function ImportExportPage({ session }: ImportExportPageProps) {
+  const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const dmcFileInputRef = useRef<HTMLInputElement | null>(null);
   const studentCsvInputRef = useRef<HTMLInputElement | null>(null);
   const guardianCsvInputRef = useRef<HTMLInputElement | null>(null);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentExportRow[]>(demoStudents);
+  const [rosterReviews, setRosterReviews] = useState<StudentRosterReviewRow[]>([]);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [dmcRows, setDmcRows] = useState<PreviewRow[]>([]);
   const [dmcClassOptions, setDmcClassOptions] = useState<DmcClassOption[]>([]);
@@ -524,7 +558,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [guardianPreviewRows, setGuardianPreviewRows] = useState<GuardianPreviewRow[]>([]);
   const [backups, setBackups] = useState<BackupRow[]>([]);
   const [backupPackagePreview, setBackupPackagePreview] = useState<WorkspaceBackupPackage | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
+  const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อ import/export/backup กับ Supabase จริง',
@@ -532,7 +566,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [studentManageQuery, setStudentManageQuery] = useState('');
   const [studentManageClassroomId, setStudentManageClassroomId] = useState('all');
   const [studentManageStatus, setStudentManageStatus] = useState<StudentExportRow['status'] | 'all'>('all');
+  const [studentManageReview, setStudentManageReview] = useState<RosterReviewClassification | 'all'>('all');
   const [selectedManagedStudentIds, setSelectedManagedStudentIds] = useState<string[]>([]);
+  const [reviewClassification, setReviewClassification] = useState<RosterReviewClassification>('belongs_here');
+  const [reviewNote, setReviewNote] = useState('');
 
   const classroomNameById = useMemo(
     () => Object.fromEntries(classrooms.map((classroom) => [classroom.id, classroom.name])),
@@ -551,16 +588,27 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const validPreviewRows = previewRows.filter(
     (row) => row.errors.length === 0 && !row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')),
   );
+  const effectivePlanCode = getEffectivePlanCode(session.subscription);
+  const workspaceLimits = planLimits[effectivePlanCode];
+  const activeStudentCount = students.filter((student) => (student.status || 'active') === 'active').length;
+  const activeClassroomCount = classrooms.filter((classroom) => classroom.status === 'active').length;
   const invalidPreviewRows = previewRows.filter(
     (row) => row.errors.length > 0 || row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')),
+  );
+  const rosterReviewByStudentId = useMemo(
+    () => new Map(rosterReviews.filter((review) => review.student_id).map((review) => [review.student_id as string, review])),
+    [rosterReviews],
   );
   const managedStudents = useMemo(() => {
     const normalizedQuery = studentManageQuery.trim().toLowerCase();
 
     return students.filter((student) => {
       const status = student.status || 'active';
+      const review = rosterReviewByStudentId.get(student.id);
+      const classification = review?.classification || 'pending';
       if (studentManageStatus !== 'all' && status !== studentManageStatus) return false;
       if (studentManageClassroomId !== 'all' && student.classroom_id !== studentManageClassroomId) return false;
+      if (studentManageReview !== 'all' && classification !== studentManageReview) return false;
       if (!normalizedQuery) return true;
 
       const haystack = [
@@ -570,6 +618,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         student.nickname,
         classroomNameById[student.classroom_id || ''],
         studentStatusLabels[status],
+        rosterReviewLabels[classification],
+        review?.note,
       ]
         .filter(Boolean)
         .join(' ')
@@ -577,7 +627,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
       return haystack.includes(normalizedQuery);
     });
-  }, [classroomNameById, studentManageClassroomId, studentManageQuery, studentManageStatus, students]);
+  }, [classroomNameById, rosterReviewByStudentId, studentManageClassroomId, studentManageQuery, studentManageReview, studentManageStatus, students]);
+  const archivedPendingReviewCount = students.filter(
+    (student) => (student.status || 'active') === 'archived' && !rosterReviewByStudentId.has(student.id),
+  ).length;
+  const reviewedDuplicateCount = rosterReviews.filter((review) => review.student_id && review.classification === 'duplicate').length;
+  const reviewedWrongWorkspaceCount = rosterReviews.filter((review) => review.student_id && review.classification === 'wrong_workspace').length;
+  const selectedStudentsCanDelete = selectedManagedStudentIds.length > 0 && selectedManagedStudentIds.every((studentId) => {
+    const student = students.find((row) => row.id === studentId);
+    return student?.status === 'archived' && rosterReviewByStudentId.get(studentId)?.classification === 'duplicate';
+  });
   const studentsByCode = useMemo(
     () =>
       new Map(
@@ -594,9 +653,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     let isMounted = true;
 
     async function loadData() {
-      if (!supabase || !session.workspace) {
+      if (!useRealBackend || !supabase || !session.workspace) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
+        setRosterReviews([]);
         setBackups([]);
         setIsLoading(false);
         return;
@@ -609,10 +669,11 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         { data: classroomRows, error: classroomError },
         { data: studentRows, error: studentError },
         { data: backupRows, error: backupError },
+        { data: reviewRows, error: reviewError },
       ] = await Promise.all([
         supabase
           .from('classrooms')
-          .select('id,name')
+          .select('id,name,status')
           .eq('workspace_id', session.workspace.id)
           .order('name', { ascending: true }),
         supabase
@@ -626,12 +687,18 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false })
           .limit(8),
+        supabase
+          .from('student_roster_reviews')
+          .select('id,workspace_id,student_id,classification,note,reviewed_at')
+          .eq('workspace_id', session.workspace.id)
+          .not('student_id', 'is', null)
+          .order('updated_at', { ascending: false }),
       ]);
 
       if (!isMounted) return;
 
-      if (classroomError || studentError || backupError) {
-        setNotice(classroomError?.message || studentError?.message || backupError?.message || 'โหลดข้อมูล import/export ไม่สำเร็จ');
+      if (classroomError || studentError || backupError || reviewError) {
+        setNotice(classroomError?.message || studentError?.message || backupError?.message || reviewError?.message || 'โหลดข้อมูล import/export ไม่สำเร็จ');
         setIsLoading(false);
         return;
       }
@@ -639,6 +706,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       setClassrooms((classroomRows || []) as ClassroomRow[]);
       setStudents((studentRows || []) as StudentExportRow[]);
       setBackups((backupRows || []) as BackupRow[]);
+      setRosterReviews((reviewRows || []) as StudentRosterReviewRow[]);
       setIsLoading(false);
     }
 
@@ -647,7 +715,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [session.workspace, useRealBackend]);
 
   function exportTemplate() {
     const sample = ['001', 'สมชาย', 'รักเรียน', 'ชาย', session.workspace?.classroomName || 'ป.5/2'];
@@ -781,10 +849,27 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
   async function ensureClassroomByName(classroomName: string, gradeLevel?: string) {
     const existing = classrooms.find((classroom) => classroom.name === classroomName);
-    if (existing) return existing.id;
+    if (existing?.status === 'active') return existing.id;
 
-    if (!supabase || !session.workspace) {
-      const localClassroom = { id: `demo-classroom-${Date.now()}-${classroomName}`, name: classroomName };
+    if (existing) {
+      if (!useRealBackend || !supabase || !session.workspace) {
+        setClassrooms((current) => current.map((classroom) => classroom.id === existing.id ? { ...classroom, status: 'active' } : classroom));
+        return existing.id;
+      }
+      const { data, error } = await supabase
+        .from('classrooms')
+        .update({ status: 'active' })
+        .eq('id', existing.id)
+        .eq('workspace_id', session.workspace.id)
+        .select('id,name,status')
+        .single();
+      if (error) throw error;
+      setClassrooms((current) => current.map((classroom) => classroom.id === existing.id ? (data as ClassroomRow) : classroom));
+      return existing.id;
+    }
+
+    if (!useRealBackend || !supabase || !session.workspace) {
+      const localClassroom: ClassroomRow = { id: `demo-classroom-${Date.now()}-${classroomName}`, name: classroomName, status: 'active' };
       setClassrooms((current) => [...current, localClassroom]);
       return localClassroom.id;
     }
@@ -798,7 +883,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         name: classroomName,
         workspace_id: session.workspace.id,
       })
-      .select('id,name')
+      .select('id,name,status')
       .single();
 
     if (error) throw error;
@@ -817,6 +902,71 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     setSelectedManagedStudentIds(managedStudents.map((student) => student.id));
   }
 
+  async function saveManagedStudentReview(studentIds: string[]) {
+    if (studentIds.length === 0) {
+      setNotice('กรุณาเลือกรายชื่อก่อนบันทึกผลตรวจ');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    const now = new Date().toISOString();
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setRosterReviews((current) => {
+        const byStudentId = new Map(current.filter((review) => review.student_id).map((review) => [review.student_id as string, review]));
+        for (const studentId of studentIds) {
+          byStudentId.set(studentId, {
+            classification: reviewClassification,
+            id: `demo-review-${studentId}`,
+            note: reviewNote.trim() || null,
+            reviewed_at: reviewClassification === 'pending' ? null : now,
+            student_id: studentId,
+            workspace_id: session.workspace?.id || 'demo-workspace',
+          });
+        }
+        return [...byStudentId.values()];
+      });
+      setSelectedManagedStudentIds([]);
+      setReviewNote('');
+      setNotice(`บันทึกผลตรวจ ${studentIds.length} รายการในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { error } = await supabase.rpc('set_student_roster_reviews', {
+      target_classification: reviewClassification,
+      target_note: reviewNote.trim() || null,
+      target_student_ids: studentIds,
+      target_workspace_id: session.workspace.id,
+    });
+
+    if (error) {
+      setNotice(`บันทึกผลตรวจไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error: reloadError } = await supabase
+      .from('student_roster_reviews')
+      .select('id,workspace_id,student_id,classification,note,reviewed_at')
+      .eq('workspace_id', session.workspace.id)
+      .not('student_id', 'is', null)
+      .order('updated_at', { ascending: false });
+
+    if (reloadError) {
+      setNotice(`บันทึกแล้ว แต่โหลดผลตรวจซ้ำไม่สำเร็จ: ${reloadError.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    setRosterReviews((data || []) as StudentRosterReviewRow[]);
+    setSelectedManagedStudentIds([]);
+    setReviewNote('');
+    setNotice(`บันทึกผลตรวจ ${studentIds.length} รายการเป็น “${rosterReviewLabels[reviewClassification]}” แล้ว`);
+    setIsSubmitting(false);
+  }
+
   async function updateManagedStudentStatus(studentIds: string[], status: NonNullable<StudentExportRow['status']>) {
     if (studentIds.length === 0) {
       setNotice('กรุณาเลือกรายชื่อก่อนจัดการ');
@@ -826,7 +976,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) => current.map((student) => (studentIds.includes(student.id) ? { ...student, status } : student)));
       setSelectedManagedStudentIds([]);
       setNotice(`เปลี่ยนสถานะ ${studentIds.length} รายชื่อเป็น ${studentStatusLabels[status]} ในโหมดตัวอย่างแล้ว`);
@@ -872,6 +1022,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
+    const canDelete = studentIds.every((studentId) => {
+      const student = students.find((row) => row.id === studentId);
+      return student?.status === 'archived' && rosterReviewByStudentId.get(studentId)?.classification === 'duplicate';
+    });
+    if (!canDelete) {
+      setNotice('ลบถาวรได้เฉพาะรายการที่เก็บถาวร และบันทึกผลตรวจว่า “ข้อมูลซ้ำ” แล้วเท่านั้น');
+      return;
+    }
+
     const confirmed = window.confirm(
       `ลบนักเรียน ${studentIds.length} รายชื่อถาวรหรือไม่?\n\nใช้เฉพาะกรณีนำเข้าซ้ำหรือนำเข้าผิด ถ้าไม่แน่ใจให้ใช้ “เก็บถาวร” ก่อน`,
     );
@@ -880,19 +1039,19 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
+      setRosterReviews((current) => current.filter((review) => !review.student_id || !studentIds.includes(review.student_id)));
       setSelectedManagedStudentIds([]);
       setNotice(`ลบ ${studentIds.length} รายชื่อออกจากโหมดตัวอย่างแล้ว`);
       setIsSubmitting(false);
       return;
     }
 
-    const { error } = await supabase
-      .from('students')
-      .delete()
-      .in('id', studentIds)
-      .eq('workspace_id', session.workspace.id);
+    const { error } = await supabase.rpc('delete_reviewed_duplicate_students', {
+      target_student_ids: studentIds,
+      target_workspace_id: session.workspace.id,
+    });
 
     if (error) {
       setNotice(`ลบถาวรไม่สำเร็จ: ${error.message} | ใช้เก็บถาวรได้ทันทีถ้า RLS ยังไม่อนุญาต delete`);
@@ -901,6 +1060,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     }
 
     setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
+    setRosterReviews((current) => current.filter((review) => !review.student_id || !studentIds.includes(review.student_id)));
     setSelectedManagedStudentIds([]);
     await writeAuditLog(session, {
       action: 'import_job.students_deleted',
@@ -923,6 +1083,21 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
     if (validPreviewRows.length === 0) {
       setNotice('ไม่มีแถวที่พร้อม import');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const newActiveStudents = validPreviewRows.filter((row) => !row.studentCode || !studentsByCode.has(row.studentCode)).length;
+    const requestedClassroomNames = new Set(validPreviewRows.map((row) => row.classroomName.trim()).filter(Boolean));
+    const existingClassroomNames = new Set(classrooms.filter((classroom) => classroom.status === 'active').map((classroom) => classroom.name));
+    const newActiveClassrooms = [...requestedClassroomNames].filter((name) => !existingClassroomNames.has(name)).length;
+    if (activeStudentCount + newActiveStudents > workspaceLimits.activeStudents) {
+      setNotice(`นำเข้าไม่ได้: จะมีนักเรียน active ${activeStudentCount + newActiveStudents} คน แต่แพ็กเกจ ${planLabels[effectivePlanCode]} รองรับ ${workspaceLimits.activeStudents} คน`);
+      setIsSubmitting(false);
+      return;
+    }
+    if (activeClassroomCount + newActiveClassrooms > workspaceLimits.activeClassrooms) {
+      setNotice(`นำเข้าไม่ได้: ต้องสร้างห้องใหม่ ${newActiveClassrooms} ห้อง ซึ่งเกินโควตา ${workspaceLimits.activeClassrooms} ห้องของแพ็กเกจ ${planLabels[effectivePlanCode]}`);
       setIsSubmitting(false);
       return;
     }
@@ -960,7 +1135,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         });
       }
 
-      if (!supabase || !session.workspace) {
+      if (!useRealBackend || !supabase || !session.workspace) {
         setStudents((current) => [
           ...rowsToInsert.map((row, index) => ({
             classroom_id: row.classroom_id,
@@ -1127,7 +1302,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const insertedCount = rowsToInsert.length - updatedCount;
       setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'import ไม่สำเร็จ');
+      setNotice(error instanceof Error ? getWorkspaceLimitErrorMessage(error.message, effectivePlanCode) : 'import ไม่สำเร็จ');
     }
 
     setIsSubmitting(false);
@@ -1171,7 +1346,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         workspace_id: session.workspace?.id || 'demo-workspace',
       }));
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setGuardianPreviewRows([]);
       setNotice(`import ผู้ปกครอง ${guardianRows.length} รายการ และเตรียมคำเชิญ ${invitationRows.length} รายการในโหมดตัวอย่างแล้ว`);
       setIsSubmitting(false);
@@ -1265,7 +1440,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       },
     };
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const localBackup = {
         created_at: new Date().toISOString(),
         id: `demo-backup-${Date.now()}`,
@@ -1723,8 +1898,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </button>
                 <button
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
+                  disabled={isSubmitting || !selectedStudentsCanDelete}
                   onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
+                  title={selectedStudentsCanDelete ? 'ลบรายการซ้ำที่ตรวจและเก็บถาวรแล้ว' : 'ต้องจัดประเภทเป็นข้อมูลซ้ำ และเก็บถาวรก่อน'}
                   type="button"
                 >
                   <Trash2 size={15} aria-hidden="true" />
@@ -1733,7 +1909,60 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 2xl:grid-cols-[minmax(220px,1fr)_220px_180px_auto] 2xl:items-center">
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="nexus-muted-box p-4">
+                <p className="text-xs font-black uppercase text-slate-500">เก็บถาวรที่ยังไม่ตรวจ</p>
+                <p className="mt-1 text-2xl font-black text-amber-700">{archivedPendingReviewCount}</p>
+              </div>
+              <div className="nexus-muted-box p-4">
+                <p className="text-xs font-black uppercase text-slate-500">ยืนยันว่าซ้ำ</p>
+                <p className="mt-1 text-2xl font-black text-rose-700">{reviewedDuplicateCount}</p>
+              </div>
+              <div className="nexus-muted-box p-4">
+                <p className="text-xs font-black uppercase text-slate-500">มาจากอีกโรงเรียน</p>
+                <p className="mt-1 text-2xl font-black text-cyan-700">{reviewedWrongWorkspaceCount}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-4">
+              <div className="flex items-start gap-3">
+                <ClipboardCheck className="mt-0.5 shrink-0 text-cyan-700" size={20} aria-hidden="true" />
+                <div>
+                  <h3 className="font-black text-slate-950">บันทึกผลตรวจรายชื่อที่เลือก</h3>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
+                    การระบุว่ามาจากอีกโรงเรียนจะยังไม่ลบข้อมูล ส่วนลบถาวรใช้ได้เฉพาะรายการซ้ำที่เก็บถาวรแล้ว
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 xl:grid-cols-[260px_minmax(220px,1fr)_auto]">
+                <select
+                  className="nexus-field h-11 px-3"
+                  onChange={(event) => setReviewClassification(event.target.value as RosterReviewClassification)}
+                  value={reviewClassification}
+                >
+                  {Object.entries(rosterReviewLabels).filter(([value]) => value !== 'pending').map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <input
+                  className="nexus-field h-11 px-3"
+                  onChange={(event) => setReviewNote(event.target.value)}
+                  placeholder="หมายเหตุหรือหลักฐาน (ไม่บังคับ)"
+                  value={reviewNote}
+                />
+                <button
+                  className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
+                  onClick={() => void saveManagedStudentReview(selectedManagedStudentIds)}
+                  type="button"
+                >
+                  <ClipboardCheck size={17} aria-hidden="true" />
+                  บันทึกผลตรวจ {selectedManagedStudentIds.length || ''}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 2xl:grid-cols-[minmax(220px,1fr)_200px_160px_210px_auto] 2xl:items-center">
               <label className="relative block min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
                 <input
@@ -1768,6 +1997,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <option value="transferred">ย้ายออก</option>
                 <option value="graduated">จบแล้ว</option>
               </select>
+              <select
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setStudentManageReview(event.target.value as RosterReviewClassification | 'all')}
+                value={studentManageReview}
+              >
+                <option value="all">ทุกผลตรวจ</option>
+                {Object.entries(rosterReviewLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
               <div className="nexus-pill inline-flex h-11 items-center justify-center px-3 text-xs font-black text-slate-600">
                 เลือกแล้ว {selectedManagedStudentIds.length} คน
               </div>
@@ -1782,6 +2021,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                     <th className="px-3 py-3">นักเรียน</th>
                     <th className="px-3 py-3">ห้องเรียน</th>
                     <th className="px-3 py-3">สถานะ</th>
+                    <th className="px-3 py-3">ผลตรวจ</th>
                     <th className="px-3 py-3 text-right">จัดการ</th>
                   </tr>
                 </thead>
@@ -1789,6 +2029,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   {managedStudents.map((student) => {
                     const status = student.status || 'active';
                     const checked = selectedManagedStudentIds.includes(student.id);
+                    const review = rosterReviewByStudentId.get(student.id);
+                    const classification = review?.classification || 'pending';
 
                     return (
                       <tr className={checked ? 'bg-amber-50/80' : 'hover:bg-amber-50/40'} key={student.id}>
@@ -1815,6 +2057,12 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                             {studentStatusLabels[status]}
                           </span>
                         </td>
+                        <td className="min-w-52 px-3 py-3">
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${classification === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-200' : classification === 'duplicate' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-cyan-50 text-cyan-700 ring-cyan-200'}`}>
+                            {rosterReviewLabels[classification]}
+                          </span>
+                          {review?.note ? <p className="mt-2 text-xs font-bold text-slate-500">{review.note}</p> : null}
+                        </td>
                         <td className="whitespace-nowrap px-3 py-3">
                           <div className="flex justify-end gap-2">
                             <button
@@ -1826,9 +2074,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                               {status === 'archived' ? <RotateCcw size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}
                             </button>
                             <button
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
+                              disabled={status !== 'archived' || classification !== 'duplicate'}
                               onClick={() => void deleteManagedStudents([student.id])}
-                              title="ลบถาวร"
+                              title={status === 'archived' && classification === 'duplicate' ? 'ลบข้อมูลซ้ำถาวร' : 'ต้องเก็บถาวรและยืนยันว่าซ้ำก่อน'}
                               type="button"
                             >
                               <Trash2 size={16} aria-hidden="true" />

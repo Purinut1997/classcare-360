@@ -133,6 +133,19 @@ const workspaceMemberRpcChecks = await Promise.all([
     next_status: 'active',
   }),
 ]);
+const rosterSafetyChecks = await Promise.all([
+  assertTableShape('student_roster_reviews', 'workspace_id,student_id,classification,note,reviewed_at'),
+  assertRpcExists('set_student_roster_reviews', {
+    target_workspace_id: NIL_UUID,
+    target_student_ids: [NIL_UUID],
+    target_classification: 'pending',
+    target_note: null,
+  }),
+  assertRpcExists('delete_reviewed_duplicate_students', {
+    target_workspace_id: NIL_UUID,
+    target_student_ids: [NIL_UUID],
+  }),
+]);
 const publicReportRpcChecks = await Promise.all([
   assertRpcExists('get_public_report_schools'),
   assertRpcExists('lookup_public_student_report', {
@@ -144,6 +157,7 @@ const publicReportRpcChecks = await Promise.all([
 const failedDashboardChecks = dashboardSchemaChecks.filter((check) => !check.ok);
 const missingWorkspaceMemberRpcs = workspaceMemberRpcChecks.filter((check) => !check.ok);
 const missingPublicReportRpcs = publicReportRpcChecks.filter((check) => !check.ok);
+const missingRosterSafetyChecks = rosterSafetyChecks.filter((check) => !check.ok);
 
 if (missingDestructiveRpcs.length > 0) {
   console.error('Supabase action RPCs are missing:');
@@ -155,9 +169,9 @@ if (missingDestructiveRpcs.length > 0) {
   process.exit(1);
 }
 
-if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0) {
+if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0 || missingRosterSafetyChecks.length > 0) {
   console.error('Supabase dashboard schema is incomplete:');
-  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs]) {
+  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs, ...missingRosterSafetyChecks]) {
     console.error(`- ${check.name}: ${check.reason}`);
   }
   console.error('');
@@ -171,3 +185,4 @@ console.log(`Action RPCs visible: ${destructiveRpcChecks.map((check) => check.na
 console.log(`Dashboard tables visible: ${dashboardSchemaChecks.map((check) => check.name).join(', ')}`);
 console.log(`Workspace member RPCs visible: ${workspaceMemberRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Public report RPCs visible: ${publicReportRpcChecks.map((check) => check.name).join(', ')}`);
+console.log(`Roster safety layer visible: ${rosterSafetyChecks.map((check) => check.name).join(', ')}`);

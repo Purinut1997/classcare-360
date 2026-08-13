@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 import { getBangkokDate } from '../../lib/date';
+import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
 import {
   buildOfficialDocumentCode,
   buildOfficialFooterHtml,
@@ -36,13 +37,16 @@ import {
   formatThaiOfficialDate,
 } from '../../lib/officialReport';
 import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
-import { canManageWorkspace } from '../../lib/roles';
+import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
 interface StudentsPageProps {
   session: AppSessionContext;
 }
+
+const isDevelopmentDemo =
+  import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 
 type StudentStatus = 'active' | 'transferred' | 'graduated' | 'inactive' | 'archived';
 type ConsentStatus = 'pending' | 'granted' | 'revoked';
@@ -614,6 +618,8 @@ function getAuditRiskTone(riskLevel: AuditRiskLevel) {
 }
 
 function QualityList({
+  allowArchive,
+  allowDelete,
   classrooms,
   emptyLabel,
   onArchive,
@@ -622,6 +628,8 @@ function QualityList({
   students,
   title,
 }: {
+  allowArchive: boolean;
+  allowDelete: boolean;
   classrooms: ClassroomRow[];
   emptyLabel: string;
   onArchive: (student: StudentRow) => void;
@@ -664,14 +672,16 @@ function QualityList({
                   เลือกคนนี้
                 </button>
                 <button
-                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5"
+                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!allowArchive}
                   onClick={() => onArchive(student)}
                   type="button"
                 >
                   {student.status === 'archived' ? 'กู้คืน' : 'เก็บถาวร'}
                 </button>
                 <button
-                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5"
+                  className="inline-flex h-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!allowDelete}
                   onClick={() => onDelete(student)}
                   type="button"
                 >
@@ -903,6 +913,7 @@ function renderHomeVisitPrintHtml({
   guardian,
   schoolName,
   student,
+  workspaceId,
 }: {
   classroom: ClassroomRow | null;
   completion: number;
@@ -910,10 +921,11 @@ function renderHomeVisitPrintHtml({
   guardian: GuardianRow | null;
   schoolName: string;
   student: StudentRow;
+  workspaceId?: string | null;
 }) {
   const studentName = `${student.first_name} ${student.last_name}`;
   const classroomLabel = classroom ? `${classroom.name} ${classroom.academic_year ? `ปีการศึกษา ${classroom.academic_year}` : ''}` : '-';
-  const identity = loadSchoolReportIdentity();
+  const identity = loadSchoolReportIdentity(workspaceId);
   const reportDate = form.visitDate || getBangkokDate();
   const documentCode = buildOfficialDocumentCode('CC-HOV', reportDate, student.student_code);
   const rows = [
@@ -1120,6 +1132,7 @@ function nullableValue(value: string) {
 }
 
 export function StudentsPage({ session }: StudentsPageProps) {
+  const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const [searchParams] = useSearchParams();
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
@@ -1163,7 +1176,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   );
   const [homeVisitOutdoorFile, setHomeVisitOutdoorFile] = useState<File | null>(null);
   const [homeVisitIndoorFile, setHomeVisitIndoorFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
+  const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อบันทึกนักเรียนลง Supabase จริง',
@@ -1267,6 +1280,15 @@ export function StudentsPage({ session }: StudentsPageProps) {
     () => students.filter((student) => student.status === 'active'),
     [students],
   );
+  const activeClassrooms = useMemo(
+    () => classrooms.filter((classroom) => classroom.status === 'active'),
+    [classrooms],
+  );
+  const effectivePlanCode = getEffectivePlanCode(session.subscription);
+  const workspaceLimits = planLimits[effectivePlanCode];
+  const studentLimitReached = activeStudents.length >= workspaceLimits.activeStudents;
+  const classroomLimitReached = activeClassrooms.length >= workspaceLimits.activeClassrooms;
+  const canWriteRoster = canWriteStudentRoster(session);
 
   const careStudents = useMemo(
     () => students.filter((student) => Object.keys(student.care_flags).length > 0),
@@ -1400,7 +1422,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     let isMounted = true;
 
     async function loadRoster() {
-      if (!supabase || !session.workspace) {
+      if (!useRealBackend || !supabase || !session.workspace) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
         setGuardians(demoGuardians);
@@ -1497,7 +1519,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       setCareCases((careCaseRows || []) as StudentCareCaseRow[]);
       setHomeVisits(homeVisitError ? [] : ((homeVisitRows || []) as StudentHomeVisitRow[]));
       setAuditLogs(auditLogError ? [] : ((auditLogRows || []) as AuditLogRow[]));
-      setStudentForm(emptyStudentForm(nextClassrooms[0]?.id || ''));
+      setStudentForm(emptyStudentForm(nextClassrooms.find((classroom) => classroom.status === 'active')?.id || ''));
       setSelectedStudentId(nextStudents[0]?.id || '');
       if (homeVisitError) {
         setNotice('ยังไม่ได้รัน migration student_home_visits จึงแสดงแบบเยี่ยมบ้านจาก care_flags ชั่วคราว');
@@ -1510,15 +1532,19 @@ export function StudentsPage({ session }: StudentsPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.profile.id, session.workspace]);
+  }, [session.profile.id, session.workspace, useRealBackend]);
 
-  function resetStudentForm(nextClassroomId = classrooms[0]?.id || '') {
+  function resetStudentForm(nextClassroomId = classrooms.find((classroom) => classroom.status === 'active')?.id || '') {
     setEditingStudentId(null);
     setIsEditModalOpen(false);
     setStudentForm(emptyStudentForm(nextClassroomId));
   }
 
   function startEditStudent(student: StudentRow) {
+    if (!canWriteRoster) {
+      setNotice('บัญชีนี้ดูรายชื่อได้ แต่ไม่ได้รับสิทธิ์เพิ่มหรือแก้ไขข้อมูลนักเรียน');
+      return;
+    }
     const metadata = student.metadata || {};
     const address = objectValue(metadata.dmc_address);
     const guardian = objectValue(metadata.dmc_guardian);
@@ -1595,7 +1621,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     if (!trimmedPhone && !displayName) return;
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       if (primaryStudentGuardian) {
         setGuardians((current) =>
           current.map((item) =>
@@ -1676,7 +1702,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     metadata?: Record<string, unknown>;
     riskLevel?: AuditRiskLevel;
   }) {
-    if (!supabase || !session.workspace) return;
+    if (!useRealBackend || !supabase || !session.workspace) return;
 
     const payload = {
       action,
@@ -1744,8 +1770,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
   }
 
   async function ensureClassroom() {
-    if (!supabase || !session.workspace) return studentForm.classroomId;
+    if (!useRealBackend || !supabase || !session.workspace) return studentForm.classroomId;
     if (studentForm.classroomId) return studentForm.classroomId;
+    const existingActiveClassroom = classrooms.find((classroom) => classroom.status === 'active');
+    if (existingActiveClassroom) {
+      setStudentForm((current) => ({ ...current, classroomId: existingActiveClassroom.id }));
+      return existingActiveClassroom.id;
+    }
 
     const { data, error } = await supabase
       .from('classrooms')
@@ -1771,6 +1802,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
+    if (!canManageWorkspace(session.profile.role)) {
+      setNotice('เฉพาะเจ้าของ Workspace หรือ Superadmin เท่านั้นที่เพิ่มห้องเรียนได้');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (classroomLimitReached) {
+      setNotice(`แพ็กเกจ ${planLabels[effectivePlanCode]} ใช้ห้อง active ได้ ${workspaceLimits.activeClassrooms} ห้อง กรุณาเก็บห้องเดิมหรืออัปเกรดแพ็กเกจ`);
+      setIsSubmitting(false);
+      return;
+    }
+
     const trimmedName = classroomName.trim();
     if (!trimmedName) {
       setNotice('กรุณากรอกชื่อห้องเรียน');
@@ -1778,7 +1821,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const localClassroom: ClassroomRow = {
         academic_year: academicYear.trim() || null,
         grade_level: gradeLevel.trim() || null,
@@ -1806,7 +1849,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .single();
 
     if (error) {
-      setNotice(error.message);
+      setNotice(getWorkspaceLimitErrorMessage(error.message, effectivePlanCode));
       setIsSubmitting(false);
       return;
     }
@@ -1822,6 +1865,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
     event.preventDefault();
     setIsSubmitting(true);
     setNotice(null);
+
+    if (!canWriteRoster) {
+      setNotice('บัญชีนี้ไม่ได้รับสิทธิ์เพิ่มหรือแก้ไขข้อมูลนักเรียน');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!editingStudentId && studentLimitReached) {
+      setNotice(`แพ็กเกจ ${planLabels[effectivePlanCode]} ใช้นักเรียน active ได้ ${workspaceLimits.activeStudents} คน กรุณาเก็บรายชื่อเดิมหรืออัปเกรดแพ็กเกจ`);
+      setIsSubmitting(false);
+      return;
+    }
 
     const trimmedFirstName = studentForm.firstName.trim();
     const trimmedLastName = studentForm.lastName.trim();
@@ -1885,7 +1940,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       dmc_school_name: nullableValue(studentForm.schoolName),
     };
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       if (editingStudentId) {
         setStudents((current) =>
           current.map((student) =>
@@ -2030,7 +2085,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
       resetStudentForm(targetClassroomId);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'บันทึกนักเรียนไม่สำเร็จ');
+      setNotice(error instanceof Error ? getWorkspaceLimitErrorMessage(error.message, effectivePlanCode) : 'บันทึกนักเรียนไม่สำเร็จ');
     }
 
     setIsSubmitting(false);
@@ -2039,6 +2094,19 @@ export function StudentsPage({ session }: StudentsPageProps) {
   async function createDemoStudentsForCurrentWorkspace() {
     setIsSubmitting(true);
     setNotice(null);
+
+    if (!canWriteRoster) {
+      setNotice('บัญชีนี้ไม่ได้รับสิทธิ์เพิ่มรายชื่อนักเรียน');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const remainingStudentSlots = Math.max(workspaceLimits.activeStudents - activeStudents.length, 0);
+    if (remainingStudentSlots === 0) {
+      setNotice(`ใช้โควตานักเรียน active ครบ ${workspaceLimits.activeStudents} คนตามแพ็กเกจ ${planLabels[effectivePlanCode]} แล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
 
     const targetClassroomId =
       rosterClassroomFilter !== 'all'
@@ -2065,7 +2133,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       ['เด็กหญิง', 'กมลชนก', 'เพียรดี', 'เมย์'],
     ];
 
-    const rows = demoRoster.map(([prefix, firstName, lastName, nickname], index) => ({
+    const rows = demoRoster.slice(0, remainingStudentSlots).map(([prefix, firstName, lastName, nickname], index) => ({
       care_flags: index % 4 === 0 ? { priority: 'watch', tags: ['ทดลองติดตาม'] } : {},
       classroom_id: targetClassroomId,
       first_name: `${prefix}${firstName}`,
@@ -2081,7 +2149,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       workspace_id: session.workspace?.id || 'demo-workspace',
     }));
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const nextStudents = rows.map((row, index) => ({
         care_flags: row.care_flags,
         classroom_id: row.classroom_id,
@@ -2107,7 +2175,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata');
 
     if (error) {
-      setNotice(`เพิ่มข้อมูลทดลองไม่สำเร็จ: ${error.message}`);
+      setNotice(`เพิ่มข้อมูลทดลองไม่สำเร็จ: ${getWorkspaceLimitErrorMessage(error.message, effectivePlanCode)}`);
       setIsSubmitting(false);
       return;
     }
@@ -2135,7 +2203,17 @@ export function StudentsPage({ session }: StudentsPageProps) {
   async function updateStudentStatus(student: StudentRow, status: StudentStatus) {
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!canWriteRoster) {
+      setNotice('บัญชีนี้ดูสถานะได้ แต่ไม่ได้รับสิทธิ์เปลี่ยนสถานะนักเรียน');
+      return;
+    }
+
+    if (status === 'active' && student.status !== 'active' && studentLimitReached) {
+      setNotice(`ไม่สามารถนำกลับมาเป็นกำลังเรียนได้ เพราะใช้โควตาครบ ${workspaceLimits.activeStudents} คนแล้ว`);
+      return;
+    }
+
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) => current.map((item) => (item.id === student.id ? { ...item, status } : item)));
       setNotice(`เปลี่ยนสถานะเป็น ${statusLabels[status]} ในโหมดตัวอย่างแล้ว`);
       return;
@@ -2150,7 +2228,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .single();
 
     if (error) {
-      setNotice(error.message);
+      setNotice(getWorkspaceLimitErrorMessage(error.message, effectivePlanCode));
       return;
     }
 
@@ -2190,7 +2268,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     setNotice(null);
 
     const targetIds = new Set(targetStudents.map((student) => student.id));
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) =>
         current.map((student) => (targetIds.has(student.id) ? { ...student, status: 'archived' } : student)),
       );
@@ -2240,7 +2318,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) => current.filter((item) => item.id !== student.id));
       if (selectedStudentId === student.id) {
         const nextStudent = students.find((item) => item.id !== student.id);
@@ -2317,7 +2395,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       urgent: carePriority === 'urgent',
     };
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const localCareCase: StudentCareCaseRow = {
         case_type: trimmedType,
         closed_at: null,
@@ -2437,7 +2515,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       summary: trimmedSummary,
     };
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setCareCases((current) => current.map((item) => (item.id === careCase.id ? nextCareCase : item)));
       resetCareCaseEdit();
       setNotice('แก้ไขรายละเอียดเคสในโหมดตัวอย่างแล้ว');
@@ -2494,7 +2572,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       status,
     };
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setCareCases((current) => current.map((item) => (item.id === careCase.id ? nextCareCase : item)));
       setNotice(`เปลี่ยนสถานะเคสเป็น ${careCaseStatusLabels[status]} ในโหมดตัวอย่างแล้ว`);
       setIsSubmitting(false);
@@ -2583,7 +2661,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   }
 
   async function uploadHomeVisitPhoto(file: File, photoKind: 'indoor' | 'outdoor') {
-    if (!supabase || !session.workspace || !selectedStudent) return null;
+    if (!useRealBackend || !supabase || !session.workspace || !selectedStudent) return null;
 
     const optimizedFile = await optimizeHomeVisitPhoto(file);
     const bucket = 'home-visit-photos';
@@ -2640,7 +2718,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       indoorPhotoLabel: homeVisitIndoorFile?.name || homeVisitForm.indoorPhotoLabel,
       outdoorPhotoLabel: homeVisitOutdoorFile?.name || homeVisitForm.outdoorPhotoLabel,
     };
-    if (supabase && session.workspace) {
+    if (useRealBackend && supabase && session.workspace) {
       try {
         const [outdoorFileId, indoorFileId] = await Promise.all([
           homeVisitOutdoorFile ? uploadHomeVisitPhoto(homeVisitOutdoorFile, 'outdoor') : Promise.resolve(null),
@@ -2697,7 +2775,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       visited_at: nextHomeVisit.visitDate || null,
     };
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) =>
         current.map((student) =>
           student.id === selectedStudent.id ? { ...student, care_flags: nextCareFlags } : student,
@@ -2843,6 +2921,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         guardian: primaryGuardian,
         schoolName: session.workspace?.schoolName || session.workspace?.name || 'โรงเรียนตัวอย่าง ClassCare',
         student: selectedStudent,
+        workspaceId: session.workspace?.id,
       }),
     );
     printWindow.document.close();
@@ -2867,7 +2946,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const localGuardian: GuardianRow = {
         consent_status: guardianConsent,
         display_name: trimmedName,
@@ -2934,7 +3013,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     const relation = inviteRelation.trim() || (inviteRole === 'student' ? 'บัญชีนักเรียน' : 'ผู้ปกครอง');
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const localInvite: PortalInvitationRow = {
         created_at: new Date().toISOString(),
         id: `demo-portal-invite-${Date.now()}`,
@@ -2985,7 +3064,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   async function updatePortalInvitationStatus(invite: PortalInvitationRow, status: PortalInviteStatus) {
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setPortalInvitations((current) => current.map((item) => (item.id === invite.id ? { ...item, status } : item)));
       setNotice(`เปลี่ยนสถานะคำเชิญเป็น ${portalInviteStatusLabels[status]} ในโหมดตัวอย่างแล้ว`);
       return;
@@ -3026,7 +3105,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const existingLink = studentLinks.find((link) => link.student_id === selectedStudent.id);
       const nextLink: StudentProfileLinkRow = {
         id: existingLink?.id || `demo-student-link-${Date.now()}`,
@@ -3091,7 +3170,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   async function updateStudentLinkStatus(link: StudentProfileLinkRow, status: StudentLinkStatus) {
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setStudentLinks((current) => current.map((item) => (item.id === link.id ? { ...item, status } : item)));
       setNotice(`เปลี่ยนสถานะบัญชีนักเรียนเป็น ${studentLinkStatusLabels[status]} ในโหมดตัวอย่างแล้ว`);
       return;
@@ -3149,6 +3228,23 @@ export function StudentsPage({ session }: StudentsPageProps) {
           {notice}
         </div>
       ) : null}
+
+      <section className="nexus-card mt-5 p-4" aria-label="โควตานักเรียน Workspace">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-700">{planLabels[effectivePlanCode]}</p>
+            <p className="mt-1 text-sm font-black text-slate-950">นักเรียน active {activeStudents.length} / {workspaceLimits.activeStudents} คน</p>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 sm:max-w-xs">
+            <div
+              className={`h-full rounded-full ${studentLimitReached ? 'bg-rose-500' : 'bg-cyan-500'}`}
+              style={{ width: `${Math.min((activeStudents.length / Math.max(workspaceLimits.activeStudents, 1)) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+        {studentLimitReached ? <p className="mt-2 text-xs font-bold text-rose-700">เก็บนักเรียนที่ย้ายออก/จบแล้วเป็นประวัติ หรืออัปเกรดแพ็กเกจก่อนเพิ่มรายชื่อใหม่</p> : null}
+        {!canWriteRoster ? <p className="mt-2 text-xs font-bold text-amber-700">โหมดอ่านอย่างเดียว: เจ้าของ Workspace ยังไม่ได้เปิดสิทธิ์เพิ่มและแก้ไขรายชื่อนักเรียนให้บัญชีนี้</p> : null}
+      </section>
 
       <nav
         aria-label="เมนูย่อย Student 360"
@@ -3290,6 +3386,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <QualityList
+                  allowArchive={canWriteRoster}
+                  allowDelete={canManageWorkspace(session.profile.role)}
                   classrooms={classrooms}
                   emptyLabel="ไม่พบนักเรียนที่ไม่มีห้อง"
                   onArchive={(student) => void updateStudentStatus(student, 'archived')}
@@ -3299,6 +3397,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   title="นักเรียนไม่มีห้องหรือห้องถูกลบ"
                 />
                 <QualityList
+                  allowArchive={canWriteRoster}
+                  allowDelete={canManageWorkspace(session.profile.role)}
                   classrooms={classrooms}
                   emptyLabel="ไม่พบข้อมูลชื่อ/รหัสว่าง"
                   onArchive={(student) => void updateStudentStatus(student, 'archived')}
@@ -3349,6 +3449,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
 
             <QualityList
+              allowArchive={canWriteRoster}
+              allowDelete={canManageWorkspace(session.profile.role)}
               classrooms={classrooms}
               emptyLabel="ไม่มีนักเรียนที่ถูกซ่อนด้วยสถานะ"
               onArchive={(student) => void updateStudentStatus(student, 'active')}
@@ -3493,7 +3595,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       <td className="whitespace-nowrap px-3 py-3">
                         <div className="flex justify-end gap-2">
                           <button
-                            className="nexus-icon-button h-9 w-9"
+                            className="nexus-icon-button h-9 w-9 disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={!canWriteRoster}
                             onClick={() => startEditStudent(student)}
                             type="button"
                             title="แก้ไขนักเรียน"
@@ -3501,7 +3604,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
                             <Edit3 size={16} aria-hidden="true" />
                           </button>
                           <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-100 bg-white/85 text-rose-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-100 bg-white/85 text-rose-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={!canWriteRoster}
                             onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
                             type="button"
                             title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บถาวร'}
@@ -3509,7 +3613,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
                             <Archive size={16} aria-hidden="true" />
                           </button>
                           <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={!canManageWorkspace(session.profile.role)}
                             onClick={() => void deleteStudentPermanently(student)}
                             type="button"
                             title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
@@ -3535,7 +3640,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
               {students.length === 0 ? (
                 <button
                   className="blue-action mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={isSubmitting || classrooms.length === 0}
+                  disabled={isSubmitting || classrooms.length === 0 || studentLimitReached}
                   onClick={() => void createDemoStudentsForCurrentWorkspace()}
                   type="button"
                 >
@@ -3575,12 +3680,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   onChange={(event) => setStudentForm((current) => ({ ...current, classroomId: event.target.value }))}
                   value={studentForm.classroomId}
                 >
-                  {classrooms.map((classroom) => (
+                  {activeClassrooms.map((classroom) => (
                     <option key={classroom.id} value={classroom.id}>
                       {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
                     </option>
                   ))}
-                  {classrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
+                  {activeClassrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
                 </select>
               </label>
 
@@ -3819,7 +3924,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             <div className="mt-4 flex gap-2">
               <button
                 className="blue-action inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={isSubmitting}
+                disabled={isSubmitting || studentLimitReached || !canWriteRoster}
                 type="submit"
               >
                 {isSubmitting ? 'กำลังบันทึก' : 'บันทึกนักเรียน'}
@@ -3864,7 +3969,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
             <button
               className="nexus-pill mt-4 inline-flex h-11 w-full items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5"
-              disabled={isSubmitting}
+              disabled={isSubmitting || classroomLimitReached || !canManageWorkspace(session.profile.role)}
               type="submit"
             >
               เพิ่มห้องเรียน
@@ -4617,7 +4722,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
             {selectedStudent ? (
               <button
-                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!canWriteRoster}
                 onClick={() => startEditStudent(selectedStudent)}
                 type="button"
               >
@@ -5801,7 +5907,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 </button>
                 <button
                   className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition hover:-translate-y-0.5"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !canWriteRoster}
                   type="submit"
                 >
                   <Save size={18} aria-hidden="true" />

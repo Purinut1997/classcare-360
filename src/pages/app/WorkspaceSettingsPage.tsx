@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from '
 import { AlertTriangle, Archive, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { getEffectivePlanCode, planLabels, planLimits } from '../../lib/entitlements';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -31,6 +32,16 @@ interface WorkspaceMemberRow {
   profile_id: string;
   role: Exclude<WorkspaceRole, 'superadmin'>;
   status: MemberStatus;
+}
+
+interface TeacherInvitationRow {
+  assigned_classroom_ids: string[];
+  created_at: string;
+  expires_at: string;
+  id: string;
+  invite_email: string;
+  role: ManageableMemberRole;
+  status: 'invited' | 'accepted' | 'revoked' | 'expired';
 }
 
 interface SafeDeleteResult {
@@ -88,6 +99,9 @@ const memberRoleOptions: Array<{ label: string; value: ManageableMemberRole }> =
   { label: 'ครูร่วม', value: 'teacher_member' },
   { label: 'ผู้ดูรายงาน', value: 'viewer' },
 ];
+
+const isDevelopmentDemo =
+  import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 
 const workspaceControlSections = [
   {
@@ -149,13 +163,16 @@ function getRpcErrorMessage(actionLabel: string, error: { code?: string; message
 }
 
 export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
-  const initialReportIdentity = loadSchoolReportIdentity();
+  const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
+  const initialReportIdentity = loadSchoolReportIdentity(session.workspace?.id);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<Record<string, number>>({});
+  const [activeStudentCount, setActiveStudentCount] = useState(0);
   const [classroomDeleteStrategy, setClassroomDeleteStrategy] = useState<ClassroomStudentStrategy>('archive');
   const [pendingClassroomDelete, setPendingClassroomDelete] = useState<ClassroomRow | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>(demoMembers);
-  const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
+  const [teacherInvitations, setTeacherInvitations] = useState<TeacherInvitationRow[]>([]);
+  const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMemberSubmitting, setIsMemberSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -164,6 +181,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   const [memberNotice, setMemberNotice] = useState<string | null>(null);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState<ManageableMemberRole>('teacher_member');
+  const [invitedClassroomIds, setInvitedClassroomIds] = useState<string[]>([]);
   const [workspaceForm, setWorkspaceForm] = useState({
     academicYear: session.workspace?.academicYear || '2569',
     academicHeadName: initialReportIdentity.academicHeadName,
@@ -191,10 +209,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     let isMounted = true;
 
     async function loadSettings() {
-      if (!supabase || !session.workspace) {
+      if (!useRealBackend || !supabase || !session.workspace) {
         setClassrooms(demoClassrooms);
         setClassroomStudentCounts({ [demoClassrooms[0].id]: 0 });
+        setActiveStudentCount(0);
         setMembers(demoMembers);
+        setTeacherInvitations([]);
         setIsLoading(false);
         return;
       }
@@ -207,6 +227,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         { data: classroomRows, error: classroomError },
         { data: studentRows, error: studentError },
         { data: memberRows, error: memberError },
+        { data: invitationRows, error: invitationError },
       ] = await Promise.all([
         supabase
           .from('workspaces')
@@ -221,11 +242,17 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           .order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('classroom_id')
+          .select('classroom_id,status')
           .eq('workspace_id', session.workspace.id),
         supabase.rpc('get_workspace_members', {
           target_workspace_id: session.workspace.id,
         }),
+        supabase
+          .from('workspace_teacher_invitations')
+          .select('id,invite_email,role,status,assigned_classroom_ids,expires_at,created_at')
+          .eq('workspace_id', session.workspace.id)
+          .eq('status', 'invited')
+          .order('created_at', { ascending: false }),
       ]);
 
       if (!isMounted) return;
@@ -243,6 +270,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         setMemberNotice(null);
         setMembers((memberRows || []) as WorkspaceMemberRow[]);
       }
+      if (invitationError) {
+        setMemberNotice(`ยังโหลดคำเชิญครูไม่ได้: ${invitationError.message}`);
+        setTeacherInvitations([]);
+      } else {
+        setTeacherInvitations((invitationRows || []) as TeacherInvitationRow[]);
+      }
 
       const settings = (workspaceRow?.settings || {}) as Record<string, unknown> & {
         classroom_name?: string;
@@ -256,7 +289,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         }>;
       };
       const reportIdentity = {
-        ...loadSchoolReportIdentity(),
+        ...loadSchoolReportIdentity(session.workspace.id),
         ...(settings.report_identity || {}),
       };
       setWorkspaceSettingsJson(settings);
@@ -284,19 +317,21 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
         schoolName: workspaceRow?.school_name || session.workspace.schoolName,
         teacherName: reportIdentity.teacherName || '',
-      });
+      }, session.workspace.id);
       setClassroomForm((current) => ({
         ...current,
         academicYear: workspaceRow?.academic_year || session.workspace?.academicYear || current.academicYear,
         name: settings.classroom_name || session.workspace?.classroomName || current.name,
       }));
       setClassrooms((classroomRows || []) as ClassroomRow[]);
-      const nextCounts = ((studentRows || []) as Array<{ classroom_id: string | null }>).reduce<Record<string, number>>((counts, student) => {
+      const typedStudents = (studentRows || []) as Array<{ classroom_id: string | null; status: string }>;
+      const nextCounts = typedStudents.reduce<Record<string, number>>((counts, student) => {
         if (!student.classroom_id) return counts;
         counts[student.classroom_id] = (counts[student.classroom_id] || 0) + 1;
         return counts;
       }, {});
       setClassroomStudentCounts(nextCounts);
+      setActiveStudentCount(typedStudents.filter((student) => student.status === 'active').length);
       setIsLoading(false);
     }
 
@@ -305,7 +340,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [session.workspace, useRealBackend]);
 
   const activeClassrooms = useMemo(
     () => classrooms.filter((classroom) => classroom.status === 'active'),
@@ -323,6 +358,11 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     () => members.filter((member) => member.status !== 'invited'),
     [members],
   );
+  const effectivePlanCode = getEffectivePlanCode(session.subscription);
+  const workspaceLimits = planLimits[effectivePlanCode];
+  const collaboratorCount = activeMembers.filter((member) => member.role !== 'teacher_owner').length + teacherInvitations.length;
+  const classroomLimitReached = activeClassrooms.length >= workspaceLimits.activeClassrooms;
+  const collaboratorLimitReached = collaboratorCount >= workspaceLimits.collaborators;
   const canUseDestructiveActions = canManageWorkspace(session.profile.role);
 
   async function saveWorkspaceSettings(event: FormEvent<HTMLFormElement>) {
@@ -358,9 +398,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setWorkspaceForm(nextWorkspace);
-      saveSchoolReportIdentity(reportIdentity);
+      saveSchoolReportIdentity(reportIdentity, session.workspace?.id);
       setNotice('บันทึกตั้งค่าโรงเรียนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return;
@@ -409,7 +449,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       public_report: publicReportPolicy,
       report_identity: reportIdentity,
     }));
-    saveSchoolReportIdentity(reportIdentity);
+    saveSchoolReportIdentity(reportIdentity, session.workspace.id);
     setIsSubmitting(false);
   }
 
@@ -418,7 +458,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setWorkspaceSettingsJson((current) => ({ ...current, public_report: publicReportPolicy }));
       setNotice('บันทึกการเปิดรายงานหน้าแรกในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
@@ -461,6 +501,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
+    if (classroomLimitReached) {
+      setNotice(`แพ็กเกจ ${planLabels[effectivePlanCode]} ใช้ห้อง active ได้ ${workspaceLimits.activeClassrooms} ห้อง กรุณาเก็บห้องเดิมหรืออัปเกรดแพ็กเกจ`);
+      setIsSubmitting(false);
+      return;
+    }
+
     const nextClassroom = {
       academic_year: classroomForm.academicYear.trim(),
       grade_level: classroomForm.gradeLevel.trim() || null,
@@ -474,7 +520,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const classroom = { ...nextClassroom, id: `demo-classroom-${Date.now()}` };
       setClassrooms((current) => [classroom, ...current]);
       setNotice('เพิ่มห้องเรียนในโหมดตัวอย่างแล้ว');
@@ -493,7 +539,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       .single();
 
     if (error) {
-      setNotice(error.message);
+      setNotice(error.message.includes('workspace_classroom_limit_reached')
+        ? `ใช้ห้อง active ครบ ${workspaceLimits.activeClassrooms} ห้องตามแพ็กเกจแล้ว`
+        : error.message);
       setIsSubmitting(false);
       return;
     }
@@ -526,7 +574,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setClassrooms((current) => current.map((item) => (item.id === classroom.id ? { ...item, status } : item)));
       setNotice(`เปลี่ยนสถานะห้องเรียนเป็น ${status === 'active' ? 'active' : 'archived'} ในโหมดตัวอย่างแล้ว`);
       setIsSubmitting(false);
@@ -578,7 +626,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setClassrooms((current) => current.filter((item) => item.id !== classroom.id));
       setClassroomStudentCounts((current) => {
         const next = { ...current };
@@ -666,7 +714,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase) {
+    if (!useRealBackend || !supabase) {
       setNotice('เก็บถาวร workspace ในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return;
@@ -722,7 +770,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase) {
+    if (!useRealBackend || !supabase) {
       setNotice('ลบ workspace ในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return;
@@ -768,6 +816,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsMemberSubmitting(true);
     setMemberNotice(null);
 
+    if (collaboratorLimitReached) {
+      setMemberNotice(`แพ็กเกจ ${planLabels[effectivePlanCode]} เชิญผู้ร่วมงานได้ ${workspaceLimits.collaborators} คน กรุณาถอนคำเชิญเดิมหรืออัปเกรดแพ็กเกจ`);
+      setIsMemberSubmitting(false);
+      return;
+    }
+
     const email = memberEmail.trim().toLowerCase();
     if (!email) {
       setMemberNotice('กรุณากรอกอีเมลผู้ใช้ที่สมัครและ Complete Profile แล้ว');
@@ -775,24 +829,27 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
-      const localMember: WorkspaceMemberRow = {
+    if (!useRealBackend || !supabase || !session.workspace) {
+      const localInvitation: TeacherInvitationRow = {
+        assigned_classroom_ids: invitedClassroomIds,
         created_at: new Date().toISOString(),
-        display_name: email,
-        email,
-        joined_at: new Date().toISOString(),
-        profile_id: `demo-member-${Date.now()}`,
+        expires_at: new Date(Date.now() + 14 * 86400000).toISOString(),
+        id: `demo-invitation-${Date.now()}`,
+        invite_email: email,
         role: memberRole,
-        status: 'active',
+        status: 'invited',
       };
-      setMembers((current) => [localMember, ...current]);
+      setTeacherInvitations((current) => [localInvitation, ...current]);
       setMemberEmail('');
-      setMemberNotice('เพิ่มสมาชิกในโหมดตัวอย่างแล้ว');
+      setInvitedClassroomIds([]);
+      setMemberNotice('ส่งคำเชิญครูในโหมดตัวอย่างแล้ว ผู้รับต้องกดยอมรับก่อน');
       setIsMemberSubmitting(false);
       return;
     }
 
-    const { data, error } = await supabase.rpc('add_workspace_member_by_email', {
+    const { data, error } = await supabase.rpc('create_workspace_teacher_invitation', {
+      expires_in_days: 14,
+      target_classroom_ids: invitedClassroomIds,
       target_email: email,
       target_role: memberRole,
       target_workspace_id: session.workspace.id,
@@ -800,34 +857,50 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
     if (error) {
       const message = error.message.includes('profile_not_found')
-        ? 'ยังไม่พบ profile ของอีเมลนี้ ให้ผู้ใช้สมัครและ Complete Profile ก่อน'
+        ? 'ยังไม่พบ profile ของอีเมลนี้'
         : error.message.includes('not_allowed')
           ? 'บัญชีนี้ไม่มีสิทธิ์จัดการสมาชิก workspace'
+          : error.message.includes('already_active_member')
+            ? 'อีเมลนี้เป็นสมาชิกที่ใช้งานอยู่แล้ว'
+            : error.message.includes('workspace_collaborator_limit_reached')
+              ? `ใช้โควตาผู้ร่วมงานครบ ${workspaceLimits.collaborators} คนตามแพ็กเกจแล้ว`
           : error.message;
       setMemberNotice(message);
       setIsMemberSubmitting(false);
       return;
     }
 
-    const addedMember = (data || [])[0] as WorkspaceMemberRow | undefined;
-    if (addedMember) {
-      setMembers((current) => [addedMember, ...current.filter((member) => member.profile_id !== addedMember.profile_id)]);
+    const invitation = (data || [])[0] as TeacherInvitationRow | undefined;
+    if (invitation) {
+      setTeacherInvitations((current) => [
+        invitation,
+        ...current.filter((item) => item.id !== invitation.id && item.invite_email !== invitation.invite_email),
+      ]);
     }
 
-    await writeAuditLog(session, {
-      action: 'workspace_member.added',
-      entityId: session.workspace.id,
-      entityTable: 'workspace_memberships',
-      metadata: {
-        email,
-        role: memberRole,
-      },
-      riskLevel: 'normal',
-      source: 'workspace_settings',
-    });
-
     setMemberEmail('');
-    setMemberNotice(`เพิ่ม ${roleLabels[memberRole]} สำเร็จ`);
+    setInvitedClassroomIds([]);
+    setMemberNotice(`ส่งคำเชิญ ${roleLabels[memberRole]} สำเร็จ ผู้รับไม่ต้องซื้อ VIP เพิ่ม`);
+    setIsMemberSubmitting(false);
+  }
+
+  async function revokeTeacherInvitation(invitation: TeacherInvitationRow) {
+    setIsMemberSubmitting(true);
+    setMemberNotice(null);
+    if (!useRealBackend || !supabase) {
+      setTeacherInvitations((current) => current.filter((item) => item.id !== invitation.id));
+      setMemberNotice('ยกเลิกคำเชิญในโหมดตัวอย่างแล้ว');
+      setIsMemberSubmitting(false);
+      return;
+    }
+    const { error } = await supabase.rpc('revoke_workspace_teacher_invitation', {
+      target_invitation_id: invitation.id,
+    });
+    if (error) setMemberNotice(error.message);
+    else {
+      setTeacherInvitations((current) => current.filter((item) => item.id !== invitation.id));
+      setMemberNotice(`ยกเลิกคำเชิญ ${invitation.invite_email} แล้ว`);
+    }
     setIsMemberSubmitting(false);
   }
 
@@ -835,7 +908,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setIsMemberSubmitting(true);
     setMemberNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       setMembers((current) =>
         current.map((item) => (item.profile_id === member.profile_id ? { ...item, status: nextStatus } : item)),
       );
@@ -980,6 +1053,36 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               <p className="mt-1.5 truncate text-2xl font-black text-white">{item.value}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="nexus-card mt-5 p-4 sm:p-5" aria-label="โควตาแพ็กเกจ Workspace">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-black text-cyan-700">Workspace quota</p>
+            <h2 className="mt-1 text-xl font-black text-slate-950">{planLabels[effectivePlanCode]}</h2>
+          </div>
+          <p className="text-xs font-bold text-slate-500">เมื่อ Trial/VIP หมดอายุ ข้อมูลเดิมยังอยู่และระบบจะกลับเป็น Free อัตโนมัติ</p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {[
+            { label: 'ห้อง active', used: activeClassrooms.length, limit: workspaceLimits.activeClassrooms },
+            { label: 'นักเรียน active', used: activeStudentCount, limit: workspaceLimits.activeStudents },
+            { label: 'ผู้ร่วมงาน + คำเชิญ', used: collaboratorCount, limit: workspaceLimits.collaborators },
+          ].map((quota) => {
+            const ratio = Math.min((quota.used / Math.max(quota.limit, 1)) * 100, 100);
+            return (
+              <article className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100" key={quota.label}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-black text-slate-500">{quota.label}</p>
+                  <p className="text-sm font-black text-slate-950">{quota.used} / {quota.limit}</p>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div className={`h-full rounded-full ${ratio >= 100 ? 'bg-rose-500' : 'bg-cyan-500'}`} style={{ width: `${ratio}%` }} />
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -1243,7 +1346,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </div>
             <button
               className="dark-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={isSubmitting || isLoading}
+              disabled={isSubmitting || isLoading || classroomLimitReached}
               type="submit"
             >
               <Plus size={17} aria-hidden="true" />
@@ -1254,10 +1357,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void addWorkspaceMember(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <UserPlus size={16} aria-hidden="true" />
-              เพิ่มสมาชิก workspace
+              เชิญครูเข้า Workspace
             </div>
             <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-              เพิ่มได้เฉพาะผู้ใช้ที่สมัครและ Complete Profile แล้ว ระบบจะไม่เปิดรายชื่อผู้ใช้ทั้งระบบให้ค้นเอง
+              ผู้รับสมัครภายหลังได้และไม่ต้องซื้อ VIP เพิ่ม เพราะใช้แพ็กเกจของ Workspace นี้
             </p>
             <div className="mt-4 grid gap-3">
               <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -1284,15 +1387,47 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                   ))}
                 </select>
               </label>
+              <fieldset className="rounded-3xl border border-slate-200 bg-white/70 p-3">
+                <legend className="px-2 text-sm font-black text-slate-700">ห้องที่อนุญาต</legend>
+                <p className="mb-3 text-xs font-bold leading-5 text-slate-500">ไม่เลือกห้อง = ยังไม่เห็นข้อมูลนักเรียน จัดเพิ่มภายหลังได้</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {activeClassrooms.map((classroom) => (
+                    <label className="flex cursor-pointer items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700" key={classroom.id}>
+                      <input
+                        checked={invitedClassroomIds.includes(classroom.id)}
+                        className="h-4 w-4 accent-cyan-600"
+                        onChange={(event) => setInvitedClassroomIds((current) => event.target.checked ? [...current, classroom.id] : current.filter((id) => id !== classroom.id))}
+                        type="checkbox"
+                      />
+                      {classroom.name}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             </div>
             <button
               className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={isMemberSubmitting || isLoading}
+              disabled={isMemberSubmitting || isLoading || collaboratorLimitReached}
               type="submit"
             >
               <UserPlus size={17} aria-hidden="true" />
-              เพิ่มสมาชิก
+              ส่งคำเชิญ
             </button>
+
+            {teacherInvitations.length > 0 ? (
+              <div className="mt-4 grid gap-2">
+                <p className="text-xs font-black text-slate-500">คำเชิญที่รอรับ</p>
+                {teacherInvitations.map((invitation) => (
+                  <div className="flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 ring-1 ring-amber-100 sm:flex-row sm:items-center sm:justify-between" key={invitation.id}>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-slate-900">{invitation.invite_email}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{roleLabels[invitation.role]} · {invitation.assigned_classroom_ids.length} ห้อง · หมดอายุ {new Date(invitation.expires_at).toLocaleDateString('th-TH')}</p>
+                    </div>
+                    <button className="h-9 rounded-xl bg-white px-3 text-xs font-black text-rose-700 ring-1 ring-rose-100" disabled={isMemberSubmitting} onClick={() => void revokeTeacherInvitation(invitation)} type="button">ยกเลิก</button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </form>
         </div>
 
@@ -1505,7 +1640,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </div>
       </section>
 
-      {canUseDestructiveActions ? <MemberAccessControl classrooms={activeClassrooms} session={session} /> : null}
+      {canUseDestructiveActions && useRealBackend ? <MemberAccessControl classrooms={activeClassrooms} session={session} /> : null}
 
       {memberNotice ? (
         <div className="mt-5 flex gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/90 p-3 text-sm font-bold leading-6 text-cyan-900 shadow-sm">

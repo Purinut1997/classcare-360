@@ -198,6 +198,9 @@ function getAppShellNavItems(session: AppSessionContext | null) {
   };
 
   const allowedKeys = new Set(navKeysByRole[session.profile.role]);
+  if (session.profile.role !== 'superadmin' && (session.workspaceCount ?? 0) <= 1) {
+    allowedKeys.delete('workspace-switch');
+  }
   const visibleItems = appNavItems.filter((item) => allowedKeys.has(item.key));
 
   return session.profile.role === 'superadmin' ? [...visibleItems, superadminNavItem] : visibleItems;

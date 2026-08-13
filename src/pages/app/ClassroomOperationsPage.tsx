@@ -496,7 +496,7 @@ export function ClassroomOperationsPage({
     reportWindow.document.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>กำลังเตรียมตารางเวร</title></head><body style="font-family:Tahoma,sans-serif;padding:32px;color:#0f172a">กำลังเตรียมเอกสาร A4...</body></html>');
     reportWindow.document.close();
 
-    const identity = loadSchoolReportIdentity();
+    const identity = loadSchoolReportIdentity(session.workspace?.id);
     const classroom = classrooms.find((item) => item.id === classroomId);
     const reportDays = displayedDutyDays.map((day) => ({
       ...day,

@@ -23,9 +23,10 @@ import {
 } from 'lucide-react';
 
 import { buildPromptPayPayload, dataUrlToFile, promptPayPayloadToPngDataUrl } from '../../lib/promptpay';
-import { setStoredActiveWorkspaceId } from '../../lib/session';
+import { activateWorkspace, setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { SuperadminSupportInbox } from './SuperadminSupportInbox';
+import { VipAccessManager } from './VipAccessManager';
 
 type PaymentStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'expired';
 type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'suspended' | 'cancelled' | 'refunded';
@@ -185,6 +186,15 @@ interface AdminAccessRow {
   profileId: string;
 }
 
+interface AdminCandidateRow {
+  accountStatus: string;
+  currentLevel: AdminLevel | null;
+  displayName: string;
+  email: string;
+  isAdminActive: boolean;
+  profileId: string;
+}
+
 interface WorkspaceAdminRow {
   academicYear: string;
   archivedAt: string | null;
@@ -199,6 +209,25 @@ interface WorkspaceAdminRow {
   schoolName: string;
   studentCount: number;
 }
+
+const demoAdminCandidates: AdminCandidateRow[] = [
+  {
+    accountStatus: 'active',
+    currentLevel: null,
+    displayName: 'ครูตัวอย่าง ClassCare',
+    email: 'teacher@classcare.demo',
+    isAdminActive: false,
+    profileId: 'demo-teacher-candidate',
+  },
+  {
+    accountStatus: 'active',
+    currentLevel: 'admin',
+    displayName: 'ผู้ดูแลตัวอย่าง',
+    email: 'admin@classcare.demo',
+    isAdminActive: true,
+    profileId: 'demo-admin-candidate',
+  },
+];
 
 const statusLabels: Record<PaymentStatus, string> = {
   approved: 'อนุมัติแล้ว',
@@ -453,7 +482,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       : 'overview';
   const systemUsesSupabase = isSupabaseReady && !isDevelopmentDemo;
   const [adminRows, setAdminRows] = useState<AdminAccessRow[]>([]);
-  const [adminEmail, setAdminEmail] = useState('');
+  const [adminCandidates, setAdminCandidates] = useState<AdminCandidateRow[]>(demoAdminCandidates);
+  const [adminProfileId, setAdminProfileId] = useState('');
   const [adminLevel, setAdminLevel] = useState<AdminLevel>('admin');
   const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const [qrForm, setQrForm] = useState({
@@ -539,6 +569,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       setQrRows(demoQrRows);
       setSubscriptions(demoSubscriptions);
       setWorkspaces(demoWorkspaces);
+      setAdminCandidates(demoAdminCandidates);
       setIsLoading(false);
       return;
     }
@@ -554,6 +585,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       { data: subscriptionRows, error: subscriptionError },
       { data: adminData, error: adminError },
       { data: workspaceRows, error: workspaceError },
+      { data: adminCandidateData, error: adminCandidateError },
     ] = await Promise.all([
       activeSupabase
         .from('payment_requests')
@@ -580,6 +612,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         .select('id,name,school_name,academic_year,settings,owner_profile_id,created_at,archived_at,owner_profile:profiles!workspaces_owner_profile_id_fkey(email,display_name)')
         .order('created_at', { ascending: false })
         .limit(12),
+      activeSupabase.rpc('list_admin_access_candidates', { search_text: null }),
     ]);
 
     if (paymentError || qrError || subscriptionError || adminError || workspaceError) {
@@ -605,6 +638,16 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     setQrRows(((qrData || []) as Record<string, unknown>[]).map(mapQrRow));
     setSubscriptions(((subscriptionRows || []) as Record<string, unknown>[]).map(mapSubscriptionRow));
     setAdminRows(((adminData || []) as Record<string, unknown>[]).map(mapAdminRow));
+    if (!adminCandidateError) {
+      setAdminCandidates(((adminCandidateData || []) as Record<string, unknown>[]).map((row) => ({
+        accountStatus: String(row.account_status || ''),
+        currentLevel: row.current_level === 'admin' || row.current_level === 'superadmin' ? row.current_level : null,
+        displayName: String(row.display_name || row.email || 'ผู้ใช้ ClassCare'),
+        email: String(row.email || ''),
+        isAdminActive: Boolean(row.is_admin_active),
+        profileId: String(row.profile_id || ''),
+      })));
+    }
     const mappedWorkspaces = ((workspaceRows || []) as Record<string, unknown>[]).map(mapWorkspaceRow);
     const workspacesWithCounts = await Promise.all(
       mappedWorkspaces.map(async (workspace) => {
@@ -631,16 +674,18 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   }, []);
 
   async function grantAdminAccess() {
-    if (!supabase) {
-      setAdminNotice('โหมดตัวอย่าง: พร้อมเพิ่ม admin หลังเชื่อม Supabase');
+    if (!supabase || isDevelopmentDemo) {
+      setAdminNotice('โหมดตัวอย่าง: ตรวจขั้นตอนการเลือกผู้ใช้แล้ว โดยยังไม่เปลี่ยนสิทธิ์จริง');
       return;
     }
 
-    const normalizedEmail = adminEmail.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setAdminNotice('กรุณากรอกอีเมลผู้ใช้ที่สมัครและมี profile แล้ว');
+    const selectedCandidate = adminCandidates.find((candidate) => candidate.profileId === adminProfileId);
+    if (!selectedCandidate) {
+      setAdminNotice('กรุณาเลือกผู้ใช้ ClassCare ที่ต้องการกำหนดสิทธิ์');
       return;
     }
+
+    const normalizedEmail = selectedCandidate.email.trim().toLowerCase();
 
     setAdminNotice(null);
 
@@ -671,7 +716,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     }
 
     setAdminNotice(`เพิ่ม ${adminLevel === 'superadmin' ? 'SuperAdmin' : 'Admin'} ให้ ${result.email || normalizedEmail} สำเร็จ พร้อม VIP ตลอดชีพ`);
-    setAdminEmail('');
+    setAdminProfileId('');
     void loadSuperadminData();
   }
 
@@ -1155,9 +1200,21 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     void loadSuperadminData();
   }
 
-  function openWorkspace(workspaceId: string) {
-    setStoredActiveWorkspaceId(workspaceId);
-    window.location.href = '/app/dashboard';
+  async function openWorkspace(workspaceId: string) {
+    if (!supabase || isDevelopmentDemo) {
+      setStoredActiveWorkspaceId(workspaceId, 'demo-superadmin');
+      window.location.href = '/app/dashboard?demo=superadmin';
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+      await activateWorkspace(user.id, workspaceId);
+      window.location.href = '/app/dashboard';
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'เข้าใช้งาน Workspace ไม่สำเร็จ');
+    }
   }
 
   async function setWorkspaceArchived(workspace: WorkspaceAdminRow, shouldArchive: boolean) {
@@ -1522,7 +1579,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
 
           <div className="mt-4 hidden overflow-x-auto rounded-xl border border-slate-200 lg:block">
-            <table className="w-full min-w-[700px] border-collapse text-left">
+            <table className="w-full min-w-[980px] border-collapse text-left">
               <thead className="bg-slate-50 text-[11px] font-black text-slate-500">
                 <tr>
                   <th className="px-4 py-3">โรงเรียน / ห้องเรียน</th>
@@ -1556,26 +1613,21 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                         {workspace.archivedAt ? 'เก็บถาวร' : 'ใช้งานอยู่'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <details className="relative inline-block text-left">
-                        <summary className="inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700">
-                          จัดการ
-                        </summary>
-                        <div className="absolute right-0 z-30 mt-2 grid w-52 gap-1 rounded-xl border border-slate-200 bg-white p-2 text-left shadow-xl">
-                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-cyan-700 hover:bg-cyan-50" onClick={() => openWorkspace(workspace.id)} type="button">
-                            <Building2 size={15} aria-hidden="true" /> เข้าใช้งาน
-                          </button>
-                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void setWorkspaceArchived(workspace, !workspace.archivedAt)} type="button">
-                            <Archive size={15} aria-hidden="true" /> {workspace.archivedAt ? 'กู้คืน Workspace' : 'เก็บถาวร'}
-                          </button>
-                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-amber-700 hover:bg-amber-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void grantLifetimeVip(workspace)} type="button">
-                            <Crown size={15} aria-hidden="true" /> VIP lifetime
-                          </button>
-                          <button className="flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void deleteWorkspacePermanently(workspace)} type="button">
-                            <Trash2 size={15} aria-hidden="true" /> ลบถาวร
-                          </button>
-                        </div>
-                      </details>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5 whitespace-nowrap">
+                        <button aria-label={`เข้าใช้งาน ${workspace.schoolName}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-cyan-50 px-3 text-xs font-black text-cyan-700 hover:bg-cyan-100" onClick={() => openWorkspace(workspace.id)} type="button">
+                          <Building2 size={15} aria-hidden="true" /> เข้าใช้
+                        </button>
+                        <button aria-label={`${workspace.archivedAt ? 'กู้คืน' : 'เก็บถาวร'} ${workspace.schoolName}`} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void setWorkspaceArchived(workspace, !workspace.archivedAt)} title={workspace.archivedAt ? 'กู้คืน Workspace' : 'เก็บถาวร'} type="button">
+                          <Archive size={15} aria-hidden="true" />
+                        </button>
+                        <button aria-label={`ให้ VIP ${workspace.schoolName}`} className="inline-flex h-9 items-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-amber-700 hover:bg-amber-100 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void grantLifetimeVip(workspace)} title="VIP lifetime" type="button">
+                          <Crown size={15} aria-hidden="true" />
+                        </button>
+                        <button aria-label={`ลบ ${workspace.schoolName} ถาวร`} className="inline-flex h-9 items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-rose-700 hover:bg-rose-100 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void deleteWorkspacePermanently(workspace)} title="ลบถาวร" type="button">
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1726,21 +1778,26 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               <UserPlus size={18} aria-hidden="true" />
               Admin Lifetime VIP
             </div>
-            <h2 className="mt-4 text-2xl font-black text-slate-950">เพิ่ม Admin เอง</h2>
+            <h2 className="mt-4 text-2xl font-black text-slate-950">กำหนดผู้ดูแลจากผู้ใช้ในระบบ</h2>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              Admin และ SuperAdmin จะได้สิทธิ์ VIP ตลอดชีพ และสามารถเข้าใช้ระบบห้องเรียนได้
+              เลือกบัญชีที่สมัคร ClassCare แล้ว ระบบจะแสดงชื่อและอีเมลให้ตรวจสอบก่อนกำหนดสิทธิ์
             </p>
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-2 text-sm font-black text-slate-700">
-                อีเมลผู้ใช้
-                <input
+                ผู้ใช้ ClassCare
+                <select
                   className="h-12 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                  onChange={(event) => setAdminEmail(event.target.value)}
-                  placeholder="admin@example.com"
-                  type="email"
-                  value={adminEmail}
-                />
+                  onChange={(event) => setAdminProfileId(event.target.value)}
+                  value={adminProfileId}
+                >
+                  <option value="">เลือกชื่อผู้ใช้…</option>
+                  {adminCandidates.map((candidate) => (
+                    <option disabled={candidate.isAdminActive} key={candidate.profileId} value={candidate.profileId}>
+                      {candidate.displayName} · {candidate.email}{candidate.isAdminActive ? ` · เป็น ${candidate.currentLevel || 'admin'} แล้ว` : ''}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="grid gap-2 text-sm font-black text-slate-700">
                 ระดับสิทธิ์
@@ -1928,6 +1985,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
         {activeSection === 'billing' ? (
         <section className="mt-5 grid gap-5">
+          <VipAccessManager />
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>

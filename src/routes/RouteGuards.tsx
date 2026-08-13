@@ -9,7 +9,7 @@ import {
   type DemoSessionMode,
 } from '../lib/auth';
 import { canUseModule } from '../lib/entitlements';
-import { roleLabels } from '../lib/roles';
+import { canManageWorkspace, roleLabels } from '../lib/roles';
 import type { AppSessionContext, ModuleKey, WorkspaceRole } from '../types/core';
 
 type RouteGuardReason =
@@ -86,8 +86,8 @@ function evaluateRouteAccess({
     return {
       passed: false,
       reason: 'module-denied',
-      title: 'สิทธิ์ระบบยังไม่พร้อมสำหรับโมดูลนี้',
-      detail: 'ตรวจ workspace, บทบาทผู้ใช้ และสถานะระบบให้พร้อมก่อนเปิดโมดูลหลักในห้องเรียนจริง',
+      title: 'แพ็กเกจปัจจุบันยังไม่รวมโมดูลนี้',
+      detail: 'ข้อมูลและบัญชีของคุณยังปกติ สามารถอัปเกรด VIP หรือใช้โค้ดเพิ่มวันเพื่อเปิดโมดูลพรีเมียมของ Workspace นี้',
     };
   }
 
@@ -111,30 +111,64 @@ function getPrimaryAction(reason?: RouteGuardReason, currentPath = '', currentSe
     const redirectTarget = encodeURIComponent(`${currentPath}${currentSearch}`);
     return { label: 'ไปหน้าเข้าสู่ระบบ', to: `/login?redirect=${redirectTarget}` };
   }
-  if (reason === 'workspace-required') return { label: 'เลือก workspace', to: `/app/select-workspace${currentSearch}` };
-  if (reason === 'module-denied') return { label: 'ตรวจระบบ', to: '/app/dashboard?view=setup' };
-  return { label: 'กลับแดชบอร์ด', to: `/app/dashboard${currentSearch}` };
+  if (reason === 'workspace-required') {
+    const demoMode = new URLSearchParams(currentSearch).get('demo');
+    return { label: 'เลือก workspace', to: `/app/select-workspace${demoMode ? `?demo=${encodeURIComponent(demoMode)}` : ''}` };
+  }
+  if (reason === 'module-denied') {
+    const demoMode = new URLSearchParams(currentSearch).get('demo');
+    return { label: 'ดูแพ็กเกจ / ใช้โค้ด VIP', to: `/app/package${demoMode ? `?demo=${encodeURIComponent(demoMode)}` : ''}` };
+  }
+  return { label: 'กลับแดชบอร์ด', to: getDashboardPath(currentSearch) };
 }
 
 function getModeLink(pathname: string, search: string, mode: DemoSessionMode) {
   return `${pathname}${getDemoModeSearch(search, mode)}`;
 }
 
+function getDashboardPath(search: string) {
+  const demoMode = new URLSearchParams(search).get('demo');
+  return `/app/dashboard${demoMode ? `?demo=${encodeURIComponent(demoMode)}` : ''}`;
+}
+
+function getSecondaryAction(reason: RouteGuardReason | undefined, search: string, session: AppSessionContext | null) {
+  if (reason === 'module-denied') return { label: 'กลับภาพรวม', to: getDashboardPath(search) };
+  if (reason === 'role-denied' && session && canManageWorkspace(session.profile.role)) {
+    const demoMode = new URLSearchParams(search).get('demo');
+    return {
+      label: 'ศูนย์จัดการโรงเรียน',
+      to: `/app/dashboard?view=workspace-settings${demoMode ? `&demo=${encodeURIComponent(demoMode)}` : ''}`,
+    };
+  }
+  if (reason === 'role-denied' && session) {
+    const demoMode = new URLSearchParams(search).get('demo');
+    return {
+      label: 'เปิดคู่มือใช้งาน',
+      to: `/app/dashboard?view=help-center${demoMode ? `&demo=${encodeURIComponent(demoMode)}` : ''}`,
+    };
+  }
+  return null;
+}
+
 export function RouteGuardNotice({
   featureName,
   result,
+  session,
 }: {
   featureName: string;
   result: RouteGuardResult;
+  session: AppSessionContext | null;
 }) {
   const location = useLocation();
   const Icon = getReasonIcon(result.reason);
   const primaryAction = getPrimaryAction(result.reason, location.pathname, location.search);
+  const secondaryAction = getSecondaryAction(result.reason, location.search, session);
+  const showDemoTools = import.meta.env.DEV;
 
   return (
     <main className="classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
       <section className="glass-panel mx-auto max-w-5xl overflow-hidden rounded-[2rem]">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className={showDemoTools ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px]' : 'grid gap-0'}>
           <div className="p-6 sm:p-8">
             <div className="inline-flex h-11 items-center gap-2 rounded-full bg-amber-50 px-4 text-sm font-black text-amber-700 ring-1 ring-amber-100">
               <Icon size={18} aria-hidden="true" />
@@ -155,33 +189,37 @@ export function RouteGuardNotice({
                 {primaryAction.label}
               </Link>
               {result.reason !== 'signed-out' ? <SignOutButton className="h-12" /> : null}
-              <Link
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-                to="/app/dashboard?view=setup"
-              >
-                ตั้งค่าระบบ
-              </Link>
+              {secondaryAction ? (
+                <Link
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                  to={secondaryAction.to}
+                >
+                  {secondaryAction.label}
+                </Link>
+              ) : null}
             </div>
           </div>
 
-          <aside className="relative overflow-hidden border-t border-slate-100 bg-slate-950 p-6 text-white lg:border-l lg:border-t-0 sm:p-8">
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:34px_34px]" />
-            <p className="relative text-sm font-black text-cyan-200">ทดสอบสถานะ demo</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {demoModeOptions.map((option) => (
-                <Link
-                  className="relative rounded-2xl bg-white/10 px-3 py-2 text-center text-xs font-black text-slate-100 transition hover:-translate-y-0.5 hover:bg-white/20"
-                  key={option.mode}
-                  to={getModeLink(location.pathname, location.search, option.mode)}
-                >
-                  {option.label}
-                </Link>
-              ))}
-            </div>
-            <p className="relative mt-5 rounded-3xl bg-cyan-300/10 p-3 text-xs font-bold leading-6 text-cyan-50">
-              Guard ฝั่ง frontend ใช้เพื่อ UX เท่านั้น ส่วนข้อมูลจริงยังต้องถูกบังคับซ้ำด้วย Supabase RLS และ Edge Functions
-            </p>
-          </aside>
+          {showDemoTools ? (
+            <aside className="relative overflow-hidden border-t border-slate-100 bg-slate-950 p-6 text-white lg:border-l lg:border-t-0 sm:p-8">
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:34px_34px]" />
+              <p className="relative text-sm font-black text-cyan-200">ทดสอบสถานะ demo</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {demoModeOptions.map((option) => (
+                  <Link
+                    className="relative rounded-2xl bg-white/10 px-3 py-2 text-center text-xs font-black text-slate-100 transition hover:-translate-y-0.5 hover:bg-white/20"
+                    key={option.mode}
+                    to={getModeLink(location.pathname, location.search, option.mode)}
+                  >
+                    {option.label}
+                  </Link>
+                ))}
+              </div>
+              <p className="relative mt-5 rounded-3xl bg-cyan-300/10 p-3 text-xs font-bold leading-6 text-cyan-50">
+                Guard ฝั่ง frontend ใช้เพื่อ UX เท่านั้น ส่วนข้อมูลจริงยังต้องถูกบังคับซ้ำด้วย Supabase RLS และ Edge Functions
+              </p>
+            </aside>
+          ) : null}
         </div>
       </section>
 
@@ -208,7 +246,7 @@ export function RequireRouteAccess({
   });
 
   if (!result.passed) {
-    return <RouteGuardNotice featureName={featureName} result={result} />;
+    return <RouteGuardNotice featureName={featureName} result={result} session={session} />;
   }
 
   return children;

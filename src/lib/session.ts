@@ -38,6 +38,7 @@ interface ProfileRow {
 }
 
 interface MembershipRow {
+  permissions: Record<string, boolean> | null;
   role: Exclude<WorkspaceRole, 'superadmin'>;
   workspace_id: string;
   workspaces: {
@@ -59,6 +60,11 @@ interface SubscriptionRow {
   status: SubscriptionStatus;
 }
 
+interface WorkspacePreferenceRow {
+  last_active_workspace_id: string | null;
+  primary_workspace_id: string | null;
+}
+
 const defaultSubscription = {
   planCode: 'FREE_LOGIN' as const,
   status: 'active' as const,
@@ -71,19 +77,40 @@ const lifetimeVipSubscription = {
   endsAt: null,
 };
 
-function getStoredActiveWorkspaceId() {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(activeWorkspaceStorageKey);
+function getActiveWorkspaceStorageKey(profileId: string) {
+  return `${activeWorkspaceStorageKey}.${profileId}`;
 }
 
-export function setStoredActiveWorkspaceId(workspaceId: string | null) {
+function getStoredActiveWorkspaceId(profileId: string) {
+  if (typeof window === 'undefined') return null;
+  return (
+    window.localStorage.getItem(getActiveWorkspaceStorageKey(profileId)) ||
+    window.localStorage.getItem(activeWorkspaceStorageKey)
+  );
+}
+
+export function setStoredActiveWorkspaceId(workspaceId: string | null, profileId?: string | null) {
   if (typeof window === 'undefined') return;
 
+  const storageKey = profileId ? getActiveWorkspaceStorageKey(profileId) : activeWorkspaceStorageKey;
+
   if (workspaceId) {
-    window.localStorage.setItem(activeWorkspaceStorageKey, workspaceId);
+    window.localStorage.setItem(storageKey, workspaceId);
   } else {
-    window.localStorage.removeItem(activeWorkspaceStorageKey);
+    window.localStorage.removeItem(storageKey);
   }
+
+  if (profileId) window.localStorage.removeItem(activeWorkspaceStorageKey);
+}
+
+export async function activateWorkspace(profileId: string, workspaceId: string) {
+  setStoredActiveWorkspaceId(workspaceId, profileId);
+  if (!supabase) return;
+
+  const { error } = await supabase.rpc('set_active_workspace', {
+    target_workspace_id: workspaceId,
+  });
+  if (error) throw error;
 }
 
 function getMetadataName(metadata: Record<string, unknown> | undefined) {
@@ -151,10 +178,18 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
 
   if (superadminError) throw superadminError;
 
+  const { data: workspacePreference, error: preferenceError } = await supabase
+    .from('profile_workspace_preferences')
+    .select('primary_workspace_id,last_active_workspace_id')
+    .eq('profile_id', user.id)
+    .maybeSingle<WorkspacePreferenceRow>();
+
+  if (preferenceError) throw preferenceError;
+
   if (superadminProfile) {
     const { data: memberships, error: membershipError } = await supabase
       .from('workspace_memberships')
-      .select('workspace_id,role,workspaces(id,name,school_name,academic_year,settings)')
+      .select('workspace_id,role,permissions,workspaces(id,name,school_name,academic_year,settings)')
       .eq('profile_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: true })
@@ -162,14 +197,37 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
 
     if (membershipError) throw membershipError;
 
-    const storedWorkspaceId = getStoredActiveWorkspaceId();
-    const membership =
+    const storedWorkspaceId = getStoredActiveWorkspaceId(user.id);
+    let membership =
       memberships?.find((item) => item.workspace_id === storedWorkspaceId) ||
+      memberships?.find((item) => item.workspace_id === workspacePreference?.last_active_workspace_id) ||
+      memberships?.find((item) => item.workspace_id === workspacePreference?.primary_workspace_id) ||
       memberships?.find((item) => item.workspaces) ||
       null;
 
+    const requestedWorkspaceId =
+      storedWorkspaceId || workspacePreference?.last_active_workspace_id || workspacePreference?.primary_workspace_id;
+    if (!membership && requestedWorkspaceId) {
+      const { data: targetWorkspace, error: targetWorkspaceError } = await supabase
+        .from('workspaces')
+        .select('id,name,school_name,academic_year,settings')
+        .eq('id', requestedWorkspaceId)
+        .is('archived_at', null)
+        .maybeSingle<MembershipRow['workspaces']>();
+
+      if (targetWorkspaceError) throw targetWorkspaceError;
+      if (targetWorkspace) {
+        membership = {
+          permissions: {},
+          role: 'teacher_owner',
+          workspace_id: targetWorkspace.id,
+          workspaces: targetWorkspace,
+        };
+      }
+    }
+
     if (!membership?.workspaces) {
-      setStoredActiveWorkspaceId(null);
+      setStoredActiveWorkspaceId(null, user.id);
       return {
         profile: {
           ...baseProfile,
@@ -177,10 +235,12 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
         },
         workspace: null,
         subscription: lifetimeVipSubscription,
+        primaryWorkspaceId: workspacePreference?.primary_workspace_id || null,
+        workspaceCount: memberships?.length || 0,
       };
     }
 
-    setStoredActiveWorkspaceId(membership.workspace_id);
+    setStoredActiveWorkspaceId(membership.workspace_id, user.id);
 
     return {
       profile: {
@@ -195,12 +255,14 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
         classroomName: membership.workspaces.settings?.classroom_name || 'ยังไม่ได้ระบุห้องเรียน',
       },
       subscription: lifetimeVipSubscription,
+      primaryWorkspaceId: workspacePreference?.primary_workspace_id || membership.workspace_id,
+      workspaceCount: memberships?.length || 0,
     };
   }
 
   const { data: memberships, error: membershipError } = await supabase
     .from('workspace_memberships')
-    .select('workspace_id,role,workspaces(id,name,school_name,academic_year,settings)')
+    .select('workspace_id,role,permissions,workspaces(id,name,school_name,academic_year,settings)')
     .eq('profile_id', user.id)
     .eq('status', 'active')
     .order('created_at', { ascending: true })
@@ -208,15 +270,17 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
 
   if (membershipError) throw membershipError;
 
-  const storedWorkspaceId = getStoredActiveWorkspaceId();
+  const storedWorkspaceId = getStoredActiveWorkspaceId(user.id);
   const membership =
     memberships?.find((item) => item.workspace_id === storedWorkspaceId) ||
+    memberships?.find((item) => item.workspace_id === workspacePreference?.last_active_workspace_id) ||
+    memberships?.find((item) => item.workspace_id === workspacePreference?.primary_workspace_id) ||
     memberships?.find((item) => item.workspaces) ||
     null;
 
   if (!membership?.workspaces) {
     const preferredRole = getPreferredRole(profile?.metadata || null);
-    setStoredActiveWorkspaceId(null);
+    setStoredActiveWorkspaceId(null, user.id);
     return {
       profile: {
         ...baseProfile,
@@ -231,10 +295,12 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
               status: 'trial',
               endsAt: null,
             },
+      primaryWorkspaceId: workspacePreference?.primary_workspace_id || null,
+      workspaceCount: memberships?.length || 0,
     };
   }
 
-  setStoredActiveWorkspaceId(membership.workspace_id);
+  setStoredActiveWorkspaceId(membership.workspace_id, user.id);
 
   const { data: subscription, error: subscriptionError } = await supabase
     .from('subscriptions')
@@ -248,6 +314,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
   if (subscriptionError) throw subscriptionError;
 
   return {
+    permissions: membership.permissions || {},
     profile: {
       ...baseProfile,
       role: membership.role,
@@ -266,6 +333,8 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
           endsAt: subscription.ends_at,
         }
       : defaultSubscription,
+    primaryWorkspaceId: workspacePreference?.primary_workspace_id || membership.workspace_id,
+    workspaceCount: memberships?.length || 0,
   };
 }
 

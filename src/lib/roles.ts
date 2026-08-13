@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from '../types/core';
+import type { AppSessionContext, WorkspaceRole } from '../types/core';
 
 export const roleLabels: Record<WorkspaceRole, string> = {
   superadmin: 'ผู้ดูแลระบบ',
@@ -17,6 +17,12 @@ export function canManageWorkspace(role: WorkspaceRole) {
 
 export function canWriteWorkspaceData(role: WorkspaceRole) {
   return role === 'superadmin' || workspaceWriteRoles.includes(role);
+}
+
+export function canWriteStudentRoster(session: AppSessionContext) {
+  if (session.profile.role === 'superadmin' || session.profile.role === 'teacher_owner') return true;
+  if (session.profile.role !== 'teacher_member') return false;
+  return session.permissions?.['students.write'] ?? true;
 }
 
 export function canViewReports(role: WorkspaceRole) {

@@ -70,7 +70,10 @@ export interface SubscriptionSummary {
 }
 
 export interface AppSessionContext {
+  permissions?: Record<string, boolean>;
   profile: AppProfile;
   workspace: WorkspaceSummary | null;
   subscription: SubscriptionSummary | null;
+  primaryWorkspaceId?: string | null;
+  workspaceCount?: number;
 }

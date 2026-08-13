@@ -194,7 +194,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [healthReportsLoading, setHealthReportsLoading] = useState(false);
   const [quickLog, setQuickLog] = useState('');
   const [quickLogNotice, setQuickLogNotice] = useState<string | null>(null);
-  const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName));
+  const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id));
 
   const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
 
@@ -202,7 +202,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     let isMounted = true;
 
     async function loadWeeklySchedule() {
-      const fallback = loadScheduleSettings(session.workspace?.classroomName);
+      const fallback = loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id);
       if (!supabase || !session.workspace) {
         if (isMounted) setWeeklySchedule(fallback);
         return;

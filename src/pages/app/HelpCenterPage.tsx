@@ -18,7 +18,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { roleLabels } from '../../lib/roles';
+import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import type { AppSessionContext } from '../../types/core';
 
 interface HelpCenterPageProps {
@@ -78,9 +78,9 @@ const guideCards: GuideCard[] = [
   },
   {
     title: 'ลบแล้วข้อมูลกลับมา',
-    body: 'ตรวจว่าเป็นการลบถาวรหรือเก็บถาวร และบัญชีมีสิทธิ์ owner/admin ถ้าลบไม่ได้ให้เปิด System Readiness เพื่อตรวจ RPC/RLS',
-    cta: 'ตรวจระบบ',
-    href: '/app/dashboard?view=setup',
+    body: 'ตรวจว่าเป็นการลบถาวรหรือเก็บถาวร และบัญชีมีสิทธิ์ owner/admin จากนั้นเปิดศูนย์ดูแลข้อมูลเพื่อตรวจคิวกู้คืนและปัญหาข้อมูล',
+    cta: 'เปิดศูนย์ดูแลข้อมูล',
+    href: '/app/dashboard?view=data-safety',
     tags: ['delete', 'archive', 'rls', 'ลบไม่ได้', 'กู้คืน'],
   },
   {
@@ -149,12 +149,20 @@ const quickLinks = [
   { label: 'ตั้งตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList },
   { label: 'กรอกคะแนน', href: '/app/dashboard?view=scores&scoreView=entry', icon: GraduationCap },
   { label: 'ออกรายงาน', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet },
-  { label: 'ตรวจระบบ', href: '/app/dashboard?view=setup', icon: Settings2 },
 ];
 
 export function HelpCenterPage({ session }: HelpCenterPageProps) {
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLowerCase();
+  const roleQuickLinks = useMemo(() => {
+    if (session.profile.role === 'superadmin') {
+      return [...quickLinks, { label: 'ตรวจระบบ', href: '/app/dashboard?view=setup', icon: Settings2 }];
+    }
+    if (canManageWorkspace(session.profile.role)) {
+      return [...quickLinks, { label: 'ตั้งค่าโรงเรียน', href: '/app/dashboard?view=workspace-settings', icon: Settings2 }];
+    }
+    return quickLinks;
+  }, [session.profile.role]);
 
   const filteredGuides = useMemo(() => {
     if (!normalizedQuery) return guideCards;
@@ -188,7 +196,7 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
       </div>
 
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        {quickLinks.map((item) => {
+        {roleQuickLinks.map((item) => {
           const Icon = item.icon;
 
           return (

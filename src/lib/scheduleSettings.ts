@@ -47,6 +47,11 @@ export interface SchoolReportIdentity {
 const scheduleStorageKey = 'classcare.schedule.settings.v1';
 const reportIdentityStorageKey = 'classcare.school.report.identity.v1';
 
+function getWorkspaceStorageKey(baseKey: string, workspaceId?: string | null) {
+  const normalizedWorkspaceId = workspaceId?.trim();
+  return normalizedWorkspaceId ? `${baseKey}.workspace.${normalizedWorkspaceId}` : baseKey;
+}
+
 export const defaultDays: DayName[] = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
 
 export const defaultSubjectOptions = [
@@ -125,9 +130,9 @@ function writeStorageJson(key: string, value: unknown) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-export function loadScheduleSettings(classroomName?: string): ScheduleSettings {
+export function loadScheduleSettings(classroomName?: string, workspaceId?: string | null): ScheduleSettings {
   const fallback = getDefaultScheduleSettings(classroomName);
-  const stored = readStorageJson<ScheduleSettings>(scheduleStorageKey, fallback);
+  const stored = readStorageJson<ScheduleSettings>(getWorkspaceStorageKey(scheduleStorageKey, workspaceId), fallback);
   const storedSubjects = (stored.subjects || [])
     .map((subject) => ({
       code: subject.code?.trim() || '',
@@ -167,16 +172,19 @@ export function loadScheduleSettings(classroomName?: string): ScheduleSettings {
   };
 }
 
-export function saveScheduleSettings(settings: ScheduleSettings) {
-  writeStorageJson(scheduleStorageKey, settings);
+export function saveScheduleSettings(settings: ScheduleSettings, workspaceId?: string | null) {
+  writeStorageJson(getWorkspaceStorageKey(scheduleStorageKey, workspaceId), settings);
 }
 
-export function loadSchoolReportIdentity(): SchoolReportIdentity {
-  return readStorageJson<SchoolReportIdentity>(reportIdentityStorageKey, getDefaultSchoolReportIdentity());
+export function loadSchoolReportIdentity(workspaceId?: string | null): SchoolReportIdentity {
+  return readStorageJson<SchoolReportIdentity>(
+    getWorkspaceStorageKey(reportIdentityStorageKey, workspaceId),
+    getDefaultSchoolReportIdentity(),
+  );
 }
 
-export function saveSchoolReportIdentity(identity: SchoolReportIdentity) {
-  writeStorageJson(reportIdentityStorageKey, identity);
+export function saveSchoolReportIdentity(identity: SchoolReportIdentity, workspaceId?: string | null) {
+  writeStorageJson(getWorkspaceStorageKey(reportIdentityStorageKey, workspaceId), identity);
 }
 
 function toMinutes(time: string) {
@@ -218,8 +226,8 @@ export function buildSchedulePeriods(settings: Pick<ScheduleSettings, 'lunchEnd'
   return periods;
 }
 
-export function getAttendanceOptionsFromSchedule() {
-  const settings = loadScheduleSettings();
+export function getAttendanceOptionsFromSchedule(workspaceId?: string | null) {
+  const settings = loadScheduleSettings(undefined, workspaceId);
   const periods = buildSchedulePeriods(settings);
   const periodOptions = Array.from(
     new Set([

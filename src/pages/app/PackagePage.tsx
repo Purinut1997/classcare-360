@@ -1,8 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CreditCard, FileUp, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CreditCard, FileUp, KeyRound, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { planLabels } from '../../lib/entitlements';
 import { canManageWorkspace } from '../../lib/roles';
+import { requestAppSessionRefresh } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -60,6 +61,9 @@ const demoQr: PaymentQrRow = {
   id: 'demo-qr',
 };
 
+const isDevelopmentDemo =
+  import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+
 const requestStatusLabels: Record<PaymentRequestRow['status'], string> = {
   approved: 'อนุมัติแล้ว',
   cancelled: 'ยกเลิก',
@@ -84,6 +88,7 @@ function getStoragePath(workspaceId: string, profileId: string, file: File) {
 }
 
 export function PackagePage({ session }: PackagePageProps) {
+  const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const [plan, setPlan] = useState<PlanRow>(demoPlan);
   const [paymentQr, setPaymentQr] = useState<PaymentQrRow | null>(demoQr);
   const [credits, setCredits] = useState<ReferralCreditRow[]>([]);
@@ -91,7 +96,10 @@ export function PackagePage({ session }: PackagePageProps) {
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
   const [reviewNote, setReviewNote] = useState('');
-  const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
+  const [vipCode, setVipCode] = useState('');
+  const [isRedeemingCode, setIsRedeemingCode] = useState(false);
+  const [codeNotice, setCodeNotice] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อสร้าง payment request จริง',
@@ -109,7 +117,7 @@ export function PackagePage({ session }: PackagePageProps) {
     let isMounted = true;
 
     async function loadPackageData() {
-      if (!supabase || !session.workspace) {
+      if (!useRealBackend || !supabase || !session.workspace) {
         setPlan(demoPlan);
         setPaymentQr(demoQr);
         setQrImageUrl(null);
@@ -182,10 +190,10 @@ export function PackagePage({ session }: PackagePageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.profile.id, session.workspace]);
+  }, [session.profile.id, session.workspace, useRealBackend]);
 
   async function uploadSlipAndCreateFileRecord(file: File) {
-    if (!supabase || !session.workspace) return null;
+    if (!useRealBackend || !supabase || !session.workspace) return null;
 
     const bucket = 'payment-slips';
     const storagePath = getStoragePath(session.workspace.id, session.profile.id, file);
@@ -235,7 +243,7 @@ export function PackagePage({ session }: PackagePageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!useRealBackend || !supabase || !session.workspace) {
       const localRequest: PaymentRequestRow = {
         base_amount_thb: plan.price_thb,
         created_at: new Date().toISOString(),
@@ -281,6 +289,51 @@ export function PackagePage({ session }: PackagePageProps) {
     }
 
     setIsSubmitting(false);
+  }
+
+  async function handleRedeemVipCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCodeNotice(null);
+    if (!canCreateRequest || !session.workspace) {
+      setCodeNotice('เฉพาะเจ้าของ Workspace เท่านั้นที่ใช้โค้ดเพิ่มวัน VIP ได้');
+      return;
+    }
+    if (!vipCode.trim()) {
+      setCodeNotice('กรุณากรอกโค้ด VIP');
+      return;
+    }
+
+    setIsRedeemingCode(true);
+    if (!useRealBackend || !supabase) {
+      setCodeNotice('โหมดตัวอย่าง: ตรวจรูปแบบโค้ดแล้ว โดยยังไม่เพิ่มวันจริง');
+      setVipCode('');
+      setIsRedeemingCode(false);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc('redeem_vip_code', {
+      redemption_code: vipCode.trim(),
+      target_workspace_id: session.workspace.id,
+    });
+    if (error) {
+      const messages: Record<string, string> = {
+        vip_code_already_redeemed: 'Workspace นี้เคยใช้โค้ดนี้แล้ว',
+        vip_code_expired: 'โค้ดนี้หมดอายุแล้ว',
+        vip_code_fully_redeemed: 'โค้ดนี้ถูกใช้ครบจำนวนแล้ว',
+        vip_code_inactive: 'โค้ดนี้ถูกปิดใช้งานแล้ว',
+        vip_code_invalid: 'ไม่พบโค้ดนี้ กรุณาตรวจตัวอักษรอีกครั้ง',
+        workspace_has_lifetime_vip: 'Workspace นี้มี VIP ตลอดชีพอยู่แล้ว ไม่จำเป็นต้องเพิ่มวัน',
+        workspace_owner_required: 'เฉพาะเจ้าของ Workspace เท่านั้นที่ใช้โค้ดได้',
+      };
+      setCodeNotice(messages[error.message] || error.message);
+    } else {
+      const result = data as { duration_days?: number; ends_at?: string } | null;
+      const endLabel = result?.ends_at ? new Date(result.ends_at).toLocaleDateString('th-TH', { dateStyle: 'long' }) : '-';
+      setCodeNotice(`รับ VIP เพิ่ม ${result?.duration_days || 0} วันสำเร็จ ใช้ได้ถึง ${endLabel}`);
+      setVipCode('');
+      requestAppSessionRefresh();
+    }
+    setIsRedeemingCode(false);
   }
 
   return (
@@ -343,6 +396,27 @@ export function PackagePage({ session }: PackagePageProps) {
             ))}
           </div>
         </div>
+
+        <form className="nexus-card p-4 sm:p-5" onSubmit={handleRedeemVipCode}>
+          <div className="nexus-kicker"><KeyRound size={16} aria-hidden="true" /> VIP Code</div>
+          <h2 className="mt-3 text-xl font-black text-slate-950">มีโค้ดเพิ่มวัน VIP?</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">โค้ดจะเพิ่มสิทธิ์ให้ Workspace นี้ ครูที่ได้รับเชิญไม่ต้องใช้โค้ดซ้ำและใช้สิทธิ์ตาม Workspace ร่วมกัน</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <input
+              autoCapitalize="characters"
+              className="nexus-field h-11 min-w-0 flex-1 px-3 font-black uppercase"
+              disabled={!canCreateRequest || isRedeemingCode}
+              onChange={(event) => setVipCode(event.target.value.toUpperCase())}
+              placeholder="CC360-XXXXXXXXXXXX"
+              value={vipCode}
+            />
+            <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!canCreateRequest || isRedeemingCode} type="submit">
+              <KeyRound size={16} aria-hidden="true" />
+              {isRedeemingCode ? 'กำลังตรวจโค้ด' : 'รับสิทธิ์'}
+            </button>
+          </div>
+          {codeNotice ? <div className="mt-3 rounded-2xl bg-cyan-50 p-3 text-sm font-bold leading-6 text-cyan-900 ring-1 ring-cyan-100">{codeNotice}</div> : null}
+        </form>
 
         <form className="nexus-card p-4 sm:p-5" onSubmit={handleCreatePaymentRequest}>
           <div className="nexus-kicker">

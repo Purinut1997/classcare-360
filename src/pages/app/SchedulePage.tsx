@@ -92,13 +92,14 @@ async function makeDarkLogoBackgroundTransparent(source: string) {
 
 export function SchedulePage({ session }: SchedulePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1'));
+  const workspaceId = session.workspace?.id;
+  const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1', workspaceId));
   const firstSubject = settings.subjects[0];
   const [identity, setIdentity] = useState<SchoolReportIdentity>(() => ({
-    ...loadSchoolReportIdentity(),
-    academicYear: session.workspace?.academicYear || loadSchoolReportIdentity().academicYear,
-    classroomName: session.workspace?.classroomName || loadSchoolReportIdentity().classroomName,
-    schoolName: session.workspace?.schoolName || loadSchoolReportIdentity().schoolName,
+    ...loadSchoolReportIdentity(workspaceId),
+    academicYear: session.workspace?.academicYear || loadSchoolReportIdentity(workspaceId).academicYear,
+    classroomName: session.workspace?.classroomName || loadSchoolReportIdentity(workspaceId).classroomName,
+    schoolName: session.workspace?.schoolName || loadSchoolReportIdentity(workspaceId).schoolName,
   }));
   const [selectedSubject, setSelectedSubject] = useState(firstSubject?.name || settings.subjectOptions[0] || 'คณิตศาสตร์');
   const [selectedSubjectCode, setSelectedSubjectCode] = useState(firstSubject?.code || 'ค15101');
@@ -132,7 +133,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
       if (!isMounted || error || !data?.settings || typeof data.settings !== 'object') return;
       const shared = data.settings as typeof settings;
-      const merged = { ...loadScheduleSettings(session.workspace.classroomName || 'ป.5/1'), ...shared };
+      const merged = { ...loadScheduleSettings(session.workspace.classroomName || 'ป.5/1', session.workspace.id), ...shared };
       setSettings(merged);
       setSelectedSubject(merged.subjects[0]?.name || merged.subjectOptions[0] || 'คณิตศาสตร์');
       setSelectedSubjectCode(merged.subjects[0]?.code || '');
@@ -298,7 +299,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const normalizedSettings = { ...nextSettings, classroomOptions, subjects, subjectOptions };
 
     setSettings(normalizedSettings);
-    saveScheduleSettings(normalizedSettings);
+    saveScheduleSettings(normalizedSettings, workspaceId);
     persistSharedSchedule(normalizedSettings);
     setNotice('บันทึกตั้งค่าตารางสอนแล้ว หน้าเช็คเวลาเรียนจะเห็นคาบและรายวิชาจากตารางนี้');
   }
@@ -334,7 +335,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     setSelectedSubject(name);
     setSelectedSubjectCode(subjectDraft.code.trim());
     setSettings(nextSettings);
-    saveScheduleSettings(nextSettings);
+    saveScheduleSettings(nextSettings, workspaceId);
     persistSharedSchedule(nextSettings);
     setNotice(`เพิ่มรายวิชา ${name} แล้ว`);
   }
@@ -345,7 +346,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const subjects = normalizeSubjects([...settings.subjects, { code: '', name }]);
     const nextSettings = { ...settings, subjects, subjectOptions: Array.from(new Set([...settings.subjectOptions, name])) };
     setSettings(nextSettings);
-    saveScheduleSettings(nextSettings);
+    saveScheduleSettings(nextSettings, workspaceId);
     persistSharedSchedule(nextSettings);
     setSelectedSubject(name);
     setSelectedSubjectCode('');
@@ -367,7 +368,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
       subjectOptions: subjects.map((subject) => subject.name),
     };
     setSettings(nextSettings);
-    saveScheduleSettings(nextSettings);
+    saveScheduleSettings(nextSettings, workspaceId);
     persistSharedSchedule(nextSettings);
     setNotice('บันทึกรายวิชาที่ใช้ใน dropdown แล้ว');
   }
@@ -379,7 +380,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
       : settings.classroomOptions;
     const nextSettings = { ...settings, classroomOptions };
     setSettings(nextSettings);
-    saveScheduleSettings(nextSettings);
+    saveScheduleSettings(nextSettings, workspaceId);
     persistSharedSchedule(nextSettings);
     setNotice('บันทึกห้องเรียนที่ใช้ในตารางแล้ว');
   }
@@ -389,7 +390,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const subjectOptions = settings.subjectOptions.filter((name) => name !== subjectName);
     const nextSettings = { ...settings, subjects, subjectOptions };
     setSettings(nextSettings);
-    saveScheduleSettings(nextSettings);
+    saveScheduleSettings(nextSettings, workspaceId);
     persistSharedSchedule(nextSettings);
     setNotice(`ลบรายวิชา ${subjectName} ออกจาก dropdown แล้ว ตารางที่เคยกรอกไว้ยังคงข้อมูลเดิมเพื่อไม่ทำรายงานหาย`);
   }
@@ -453,7 +454,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     delete nextCells[key];
     const nextSettings = { ...settings, cells: nextCells };
     setSettings(nextSettings);
-    saveScheduleSettings(nextSettings);
+    saveScheduleSettings(nextSettings, workspaceId);
     persistSharedSchedule(nextSettings);
     setEditingCell(null);
     setNotice(`ล้างช่อง ${editingCell.day} คาบ ${editingCell.periodIndex} แล้ว`);

@@ -23,6 +23,22 @@ function getInitials(displayName?: string) {
 
 export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, session, theme }: TopbarProps) {
   const workspace = session?.workspace;
+  const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
+  const workspaceSummary = (
+    <>
+      <span className="app-workspace-icon">
+        <Building2 size={18} aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-black text-slate-900">
+          {workspace?.schoolName || session?.profile.schoolName || 'ClassCare 360'}
+        </span>
+        <span className="block truncate text-[11px] font-bold text-slate-500">
+          {workspace ? `${workspace.classroomName} · ${workspace.academicYear}` : 'พื้นที่ทำงานหลัก'}
+        </span>
+      </span>
+    </>
+  );
 
   return (
     <header className="app-topbar">
@@ -35,23 +51,22 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, ses
         <Menu size={20} aria-hidden="true" />
       </button>
 
-      <Link
-        className="app-workspace-switcher"
-        to="/app/select-workspace"
-        title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือก workspace'}
-      >
-        <span className="app-workspace-icon">
-          <Building2 size={18} aria-hidden="true" />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-black text-slate-900">
-            {workspace?.schoolName || session?.profile.schoolName || 'ClassCare 360'}
-          </span>
-          <span className="block truncate text-[11px] font-bold text-slate-500">
-            {workspace ? `${workspace.classroomName} · ${workspace.academicYear}` : 'เลือกพื้นที่ทำงาน'}
-          </span>
-        </span>
-      </Link>
+      {canSwitchWorkspace ? (
+        <Link
+          className="app-workspace-switcher"
+          to="/app/select-workspace"
+          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือก Workspace'}
+        >
+          {workspaceSummary}
+        </Link>
+      ) : (
+        <div
+          className="app-workspace-switcher cursor-default"
+          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'Workspace หลัก'}
+        >
+          {workspaceSummary}
+        </div>
+      )}
 
       <div className="hidden min-w-0 md:block">
         <p className="truncate text-sm font-black text-slate-800">{activeLabel}</p>

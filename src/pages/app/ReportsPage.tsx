@@ -1426,7 +1426,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
     term1: { end: '2026-10-10', start: '2026-05-16' },
     term2: { end: '2027-03-31', start: '2026-11-01' },
   });
-  const [reportIdentity, setReportIdentity] = useState<SchoolReportIdentity>(() => loadSchoolReportIdentity());
+  const [reportIdentity, setReportIdentity] = useState<SchoolReportIdentity>(() => loadSchoolReportIdentity(session.workspace?.id));
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [dateFrom, setDateFrom] = useState(getTodayDate());
   const [dateTo, setDateTo] = useState(getTodayDate());
@@ -1459,14 +1459,14 @@ export function ReportsPage({ session }: ReportsPageProps) {
       if (!mounted || error || !data) return;
       const settings = (data.settings || {}) as { classroom_name?: string; report_identity?: Partial<SchoolReportIdentity> };
       const identity = {
-        ...loadSchoolReportIdentity(),
+        ...loadSchoolReportIdentity(session.workspace.id),
         ...(settings.report_identity || {}),
         academicYear: data.academic_year || session.workspace.academicYear,
         classroomName: settings.classroom_name || session.workspace.classroomName,
         schoolName: data.school_name || session.workspace.schoolName,
       };
       setReportIdentity(identity);
-      saveSchoolReportIdentity(identity);
+      saveSchoolReportIdentity(identity, session.workspace.id);
     }
     void loadWorkspaceIdentity();
     return () => { mounted = false; };
@@ -2418,7 +2418,7 @@ export function ReportsPage({ session }: ReportsPageProps) {
   }
 
   const saveReportIdentitySettings = () => {
-    saveSchoolReportIdentity(reportIdentity);
+    saveSchoolReportIdentity(reportIdentity, session.workspace?.id);
     setNotice('บันทึกตั้งค่าผู้ลงนามในรายงานแล้ว');
   };
 

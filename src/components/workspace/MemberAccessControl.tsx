@@ -21,6 +21,7 @@ interface MemberAccess {
 }
 
 const capabilities = [
+  ['students.write', 'เพิ่มและแก้ไขรายชื่อนักเรียน'],
   ['attendance.write', 'บันทึกเวลาเรียน'],
   ['scores.write', 'บันทึกคะแนน'],
   ['behavior.write', 'บันทึกพฤติกรรม'],

@@ -305,7 +305,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       });
       return;
     }
-    const identity = loadSchoolReportIdentity();
+    const identity = loadSchoolReportIdentity(session.workspace?.id);
     const schoolName = session.workspace?.schoolName || session.profile.schoolName || identity.schoolName || 'โรงเรียน';
     const classroomName = session.workspace?.classroomName || identity.classroomName || 'งานบริหารวิชาการ';
     const dateFrom = toDateInput(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
