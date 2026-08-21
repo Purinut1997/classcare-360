@@ -2631,18 +2631,45 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ประเภทรายงาน
-                <select
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => updateReportSearch({ reportView: event.target.value as ReportView })}
-                  value={reportView}
-                >
-                  {reportViews.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="grid gap-2">
+                <p className="text-sm font-black text-slate-700">ประเภทรายงาน</p>
+                <div className="grid gap-1.5">
+                  {reportViews.map((item) => {
+                    const icons: Record<string, string> = {
+                      'attendance': '📅',
+                      'subject-attendance': '📖',
+                      'savings': '🐷',
+                      'scores': '🎯',
+                      'health': '🏥',
+                      'student-register': '📋',
+                      'executive': '👔',
+                      'individual': '👤',
+                      'behavior': '💬',
+                      'settings': '⚙️',
+                    };
+                    const isActive = reportView === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => updateReportSearch({ reportView: item.value })}
+                        className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-150 ${
+                          isActive
+                            ? 'border-cyan-400 bg-cyan-50 shadow-sm'
+                            : 'border-transparent bg-slate-50 hover:border-slate-200 hover:bg-white'
+                        }`}
+                      >
+                        <span className="text-xl leading-none">{icons[item.value]}</span>
+                        <span className="min-w-0 flex-1">
+                          <strong className={`block text-sm leading-tight ${isActive ? 'text-cyan-700' : 'text-slate-800'}`}>{item.label}</strong>
+                          <small className="mt-0.5 block text-[11px] font-bold leading-tight text-slate-400">{item.description}</small>
+                        </span>
+                        {isActive && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-cyan-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="grid grid-cols-3 gap-2">
                 {reportPeriods.map((period) => (
