@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
+import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -113,6 +114,7 @@ function getPrivacyClass(level: NotificationRow['privacy_level']) {
 }
 
 export function NotificationsPage({ session }: NotificationsPageProps) {
+  const demoMode = isDemoSession(session);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isDispatching, setIsDispatching] = useState(false);
@@ -125,7 +127,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     let isMounted = true;
 
     async function loadNotifications() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setNotifications(demoNotifications);
         setIsLoading(false);
         return;
@@ -159,7 +161,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.profile.id, session.workspace]);
+  }, [demoMode, session.profile.id, session.workspace]);
 
   const filteredNotifications = useMemo(
     () =>
@@ -180,7 +182,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   async function markAsRead(notificationId: string) {
     const readAt = new Date().toISOString();
 
-    if (!supabase) {
+    if (!supabase || isDemoSession(session)) {
       setNotifications((current) =>
         current.map((notification) =>
           notification.id === notificationId ? { ...notification, read_at: readAt } : notification,
@@ -213,7 +215,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       .filter((notification) => !notification.read_at && notification.profile_id === session.profile.id)
       .map((notification) => notification.id);
 
-    if (!supabase) {
+    if (!supabase || isDemoSession(session)) {
       setNotifications((current) =>
         current.map((notification) => (notification.read_at ? notification : { ...notification, read_at: readAt })),
       );
@@ -245,7 +247,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     setIsDispatching(true);
     setNotice(null);
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setNotifications((current) => [
         {
           body: 'สร้างจากปุ่มทดสอบใน Notification Center โหมดตัวอย่าง',

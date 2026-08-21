@@ -16,6 +16,7 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { writeAuditLog } from '../../lib/auditLog';
+import { isDemoSession } from '../../lib/auth';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -114,6 +115,7 @@ function calculateBmi(weight: string, height: string) {
 }
 
 export function StudentHealthPage({ session }: StudentHealthPageProps) {
+  const demoMode = isDemoSession(session);
   const feedback = useSystemFeedback();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedMode = searchParams.get('healthMode');
@@ -169,7 +171,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
   useEffect(() => {
     let mounted = true;
     async function loadBaseData() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setIsLoading(false);
         return;
       }
@@ -196,7 +198,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
     }
     void loadBaseData();
     return () => { mounted = false; };
-  }, [requestedClassroomId, session.workspace]);
+  }, [demoMode, requestedClassroomId, session.workspace]);
 
   useEffect(() => {
     const defaultRoutine = createRoutineState(classroomStudents);
@@ -206,7 +208,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
 
     let mounted = true;
     async function loadRecords() {
-      if (!supabase || !session.workspace || !classroomId) return;
+      if (!supabase || !session.workspace || !classroomId || demoMode) return;
       setIsLoading(true);
       const { data, error } = await supabase
         .from('student_health_records')
@@ -244,7 +246,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
     }
     void loadRecords();
     return () => { mounted = false; };
-  }, [classroomId, classroomStudents, recordDate, session.workspace]);
+  }, [classroomId, classroomStudents, demoMode, recordDate, session.workspace]);
 
   function markAllRoutine(status: RoutineStatus) {
     if (!routineModes.includes(mode as RoutineMode)) return;
@@ -321,7 +323,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       });
     }
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setNotice(`บันทึกตัวอย่าง ${rows.length} รายการแล้ว ข้อมูลจะไม่ถูกส่งออกจากเครื่อง`);
       feedback.success({ title: 'บันทึกโหมดตัวอย่างแล้ว', message: `${rows.length} รายการ` });
       return;

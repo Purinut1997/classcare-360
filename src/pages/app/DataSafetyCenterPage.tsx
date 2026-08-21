@@ -18,6 +18,7 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 
 import { getBangkokDate } from '../../lib/date';
+import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -302,6 +303,7 @@ function mapTemplateRow(row: DbRow): MessageTemplate {
 }
 
 export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
+  const demoMode = isDemoSession(session);
   const canManageSafety = canManageWorkspace(session.profile.role);
   const storageKey = getStorageKey(session);
   const [state, setState] = useState<DataSafetyState>(() => createDefaultState(session));
@@ -338,7 +340,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     let cancelled = false;
 
     async function loadRemoteState() {
-      if (!supabase || !session.workspace?.id) {
+      if (!supabase || !session.workspace?.id || demoMode) {
         setSync({
           status: 'local',
           message: 'ยังไม่มี Supabase หรือ workspace ใช้ข้อมูล local สำหรับทดลองก่อน',
@@ -415,7 +417,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [session.workspace?.id]);
+  }, [demoMode, session.workspace?.id]);
 
   const summary = useMemo(() => {
     const openTrash = state.trashItems.filter((item) => !item.restored && !item.permanentlyDeleted).length;
@@ -436,7 +438,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
 
   const persistMode = async (mode: UiMode) => {
     if (!canManageSafety) return;
-    if (!supabase || !session.workspace?.id) return;
+    if (!supabase || !session.workspace?.id || isDemoSession(session)) return;
     const { error } = await supabase.from('workspace_ui_settings').upsert({
       workspace_id: session.workspace.id,
       mode,
@@ -479,7 +481,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       trashItems: current.trashItems.map((item) => (item.id === id ? { ...item, restored: true } : item)),
     }));
 
-    if (!supabase || !session.workspace?.id || !isUuid(id)) return;
+    if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
     const { error } = await supabase
       .from('trash_items')
       .update({
@@ -502,7 +504,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       ),
     }));
 
-    if (!supabase || !session.workspace?.id || !isUuid(id)) return;
+    if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
     const { error } = await supabase
       .from('trash_items')
       .update({
@@ -523,7 +525,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       healthIssues: current.healthIssues.map((issue) => (issue.id === id ? { ...issue, resolved: true } : issue)),
     }));
 
-    if (!supabase || !session.workspace?.id || !isUuid(id)) return;
+    if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
     const { error } = await supabase
       .from('data_health_issues')
       .update({
@@ -556,7 +558,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     }));
     setCalendarDraft((current) => ({ ...current, title: '' }));
 
-    if (!supabase || !session.workspace?.id) return;
+    if (!supabase || !session.workspace?.id || isDemoSession(session)) return;
     const { data, error } = await supabase
       .from('school_calendar_days')
       .insert({
@@ -600,7 +602,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     }));
     setTemplateDraft((current) => ({ ...current, title: '' }));
 
-    if (!supabase || !session.workspace?.id) return;
+    if (!supabase || !session.workspace?.id || isDemoSession(session)) return;
     const { data, error } = await supabase
       .from('message_templates')
       .insert({

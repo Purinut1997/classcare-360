@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
+import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
 import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type ScheduleSettings } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
@@ -180,6 +181,7 @@ const emptyAnalyticsData: ClassroomAnalyticsData = {
 
 export function DashboardPage({ session }: DashboardPageProps) {
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
+  const demoMode = isDemoSession(session);
   const [stats, setStats] = useState(dashboardStats);
   const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
@@ -203,7 +205,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
     async function loadWeeklySchedule() {
       const fallback = loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id);
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         if (isMounted) setWeeklySchedule(fallback);
         return;
       }
@@ -218,13 +220,19 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [demoMode, session.workspace]);
 
   // Load Classrooms
   useEffect(() => {
     let isMounted = true;
     async function loadClassrooms() {
-      if (!supabase || !session.workspace) return;
+      if (!session.workspace) return;
+      if (!supabase || demoMode) {
+        const demoClassroom = { academic_year: session.workspace.academicYear, id: 'demo-classroom', name: session.workspace.classroomName };
+        setClassrooms([demoClassroom]);
+        setSelectedClassroomId(demoClassroom.id);
+        return;
+      }
       const { data } = await supabase.from('classrooms').select('id, name, academic_year').eq('workspace_id', session.workspace.id).order('name', { ascending: true });
 
       if (!isMounted) return;
@@ -237,15 +245,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [demoMode, session.workspace]);
 
   // Load General Workspace Dashboard Stats
   useEffect(() => {
     let isMounted = true;
 
     async function loadDashboardStats() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setStats(dashboardStats);
+        if (demoMode) setClassroomStudentCounts([{ classroomId: 'demo-classroom', classroomName: session.workspace?.classroomName || 'ห้องเรียนตัวอย่าง', count: 3 }]);
         return;
       }
 
@@ -303,14 +312,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [classrooms, session.workspace]);
+  }, [classrooms, demoMode, session.workspace]);
 
   // Load Classroom Specific Real Analytics Data & Watchlist Students
   useEffect(() => {
     let isMounted = true;
 
     async function loadClassroomAnalytics() {
-      if (!supabase || !session.workspace || !selectedClassroomId) {
+      if (!supabase || !session.workspace || !selectedClassroomId || demoMode) {
         setAnalyticsData(emptyAnalyticsData);
         setWatchlistStudents([]);
         setActiveClassroomStudentIds([]);
@@ -506,14 +515,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [classrooms, selectedClassroomId, session.workspace]);
+  }, [classrooms, demoMode, selectedClassroomId, session.workspace]);
 
   // Load daily routines and the latest periodic health snapshots for the selected classroom.
   useEffect(() => {
     let isMounted = true;
 
     async function loadHealthReportSummary() {
-      if (!supabase || !session.workspace || !selectedClassroomId) {
+      if (!supabase || !session.workspace || !selectedClassroomId || demoMode) {
         setDailyHealthRecords([]);
         setLatestHealthRecords([]);
         setHealthReportsLoading(false);
@@ -535,14 +544,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedClassroomId, session.workspace]);
+  }, [demoMode, selectedClassroomId, session.workspace]);
 
   // Load Pending Join Requests
   useEffect(() => {
     let isMounted = true;
 
     async function loadPendingJoinRequests() {
-      if (!supabase || !session.workspace || !canManageCurrentWorkspace) {
+      if (!supabase || !session.workspace || !canManageCurrentWorkspace || demoMode) {
         setPendingJoinRequestCount(0);
         return;
       }
@@ -566,7 +575,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [canManageCurrentWorkspace, session.workspace]);
+  }, [canManageCurrentWorkspace, demoMode, session.workspace]);
 
   const selectedClassroom = classrooms.find((c) => c.id === selectedClassroomId);
 
@@ -649,7 +658,12 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
   async function submitQuickLog(event: FormEvent) {
     event.preventDefault();
-    if (!supabase || !session.workspace?.id || !quickLog.trim()) return;
+    if (!session.workspace?.id || !quickLog.trim()) return;
+    if (!supabase || demoMode) {
+      setQuickLog('');
+      setQuickLogNotice('บันทึกตัวอย่างลง Daily Brief วันนี้แล้ว (ไม่เขียนข้อมูลจริง)');
+      return;
+    }
     const { error } = await supabase.from('daily_brief_logs').insert({
       workspace_id: session.workspace.id,
       classroom_id: selectedClassroomId || null,

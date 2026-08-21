@@ -21,6 +21,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { getBangkokDate } from '../../lib/date';
+import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
 import type { AppSessionContext } from '../../types/core';
@@ -281,6 +282,7 @@ function getClassroomWithRoster(
 }
 
 export function ScoresPage({ session }: ScoresPageProps) {
+  const demoMode = isDemoSession(session);
   const location = useLocation();
   const navigate = useNavigate();
   const requestedScoreView = new URLSearchParams(location.search).get('scoreView');
@@ -621,7 +623,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     let isMounted = true;
 
     async function loadBaseData() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
         setAssessments(demoAssessments);
@@ -711,7 +713,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.profile.id, session.workspace]);
+  }, [demoMode, session.profile.id, session.workspace]);
 
   useEffect(() => {
     if (subjectOptions.length > 0 && (!subjectFilter || !subjectOptions.includes(subjectFilter))) {
@@ -761,7 +763,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       const assessment: ScoreAssessmentRow = {
         assessment_date: form.assessmentDate,
         category: form.category,
@@ -863,7 +865,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       return;
     }
 
-    if (!supabase) {
+    if (!supabase || isDemoSession(session)) {
       const nextEntries = payload.map((row) => {
         const existing = selectedEntryByStudent.get(row.student_id);
         return {
@@ -924,7 +926,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     if (!selectedAssessment) return;
     const nextStatus: AssessmentStatus = selectedAssessment.status === 'published' ? 'draft' : 'published';
 
-    if (!supabase) {
+    if (!supabase || isDemoSession(session)) {
       setAssessments((current) =>
         current.map((assessment) =>
           assessment.id === selectedAssessment.id ? { ...assessment, status: nextStatus } : assessment,
@@ -968,7 +970,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     if (!selectedAssessment || !correctedAssessmentDate || correctedAssessmentDate === selectedAssessment.assessment_date) return;
     setIsSubmitting(true);
     setNotice(null);
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setAssessments((current) => current.map((item) => item.id === selectedAssessment.id ? { ...item, assessment_date: correctedAssessmentDate } : item));
       setNotice('แก้ไขวันที่ชุดคะแนนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
@@ -1019,7 +1021,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!supabase) {
+    if (!supabase || isDemoSession(session)) {
       removeAssessmentFromLocalState(assessment.id);
       setNotice('ลบชุดคะแนนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
@@ -1083,7 +1085,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
     setIsSubmitting(true);
 
-    if (!supabase) {
+    if (!supabase || isDemoSession(session)) {
       setEntries((current) => current.filter((item) => item.id !== entry.id));
       setNotice(`ล้างคะแนนของ ${label} ในโหมดตัวอย่างแล้ว`);
       setIsSubmitting(false);

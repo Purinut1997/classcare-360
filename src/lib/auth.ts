@@ -205,6 +205,10 @@ export const demoSessions: Record<Exclude<DemoSessionMode, 'signed-out'>, AppSes
 
 export const demoSession: AppSessionContext = demoSessions.teacher;
 
+export function isDemoSession(session: AppSessionContext) {
+  return session.profile.id.startsWith('demo-') || Boolean(session.workspace?.id.startsWith('demo-'));
+}
+
 export function getDemoSession(mode: string | null): AppSessionContext | null {
   if (mode === 'signed-out') return null;
   if (mode && mode in demoSessions) {

@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
+import { isDemoSession } from '../../lib/auth';
 import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -135,6 +136,7 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 }
 
 export function AttendancePage({ session }: AttendancePageProps) {
+  const demoMode = isDemoSession(session);
   const feedback = useSystemFeedback();
   const [mode, setMode] = useState<AttendanceMode>('homeroom');
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
@@ -188,7 +190,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     let isMounted = true;
 
     async function loadBaseData() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
         setClassroomId(demoClassrooms[0].id);
@@ -239,7 +241,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [demoMode, session.workspace]);
 
   useEffect(() => {
     const nextStudents = students.filter((student) => student.classroom_id === classroomId);
@@ -264,7 +266,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   useEffect(() => {
     let active = true;
     async function loadCalendarPolicy() {
-      if (!supabase || !session.workspace?.id) {
+      if (!supabase || !session.workspace?.id || demoMode) {
         setCalendarPolicy(null);
         return;
       }
@@ -282,10 +284,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
     return () => {
       active = false;
     };
-  }, [attendanceDate, session.workspace?.id]);
+  }, [attendanceDate, demoMode, session.workspace?.id]);
 
   async function loadSessionRecords(nextSession: AttendanceSessionRow) {
-    if (!supabase || !session.workspace) return;
+    if (!supabase || !session.workspace || isDemoSession(session)) return;
 
     const { data, error } = await supabase
       .from('attendance_records')
@@ -328,7 +330,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     const normalizedSubjectName = mode === 'subject' ? subjectName.trim() || 'ไม่ระบุวิชา' : null;
     const normalizedPeriod = periodLabel;
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       const localSession: AttendanceSessionRow = {
         attendance_date: attendanceDate,
         classroom_id: classroomId,
@@ -415,7 +417,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       title: 'กำลังแก้ไขวันที่เช็คชื่อ',
       message: `ย้ายข้อมูลจาก ${previousDate} ไปยัง ${editSessionDate}`,
     });
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setAttendanceSession((current) => (current ? { ...current, attendance_date: editSessionDate } : current));
       setAttendanceDate(editSessionDate);
       setNotice('แก้ไขวันที่บันทึกในโหมดตัวอย่างแล้ว');
@@ -483,7 +485,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       checked_at: new Date().toISOString(),
     }));
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setRecords(
         payload.map((record) => ({
           id: `demo-record-${record.student_id}`,
@@ -556,7 +558,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
     const alertStudentIds = alertStudents.map((student) => student.id);
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setNotice(`ส่งแจ้งเตือนผู้ปกครองในโหมดตัวอย่างแล้ว ${alertStudents.length} รายการ`);
       setIsNotifying(false);
       return;
@@ -755,7 +757,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     value={periodLabel}
                   />
                   <datalist id="attendance-homeroom-period-options">
-                    {['เช้า', 'บ่าย', 'โฮมรูม', 'หน้าเสาธง', ...scheduleOptions.periodOptions].map((option) => (
+                    {Array.from(new Set(['เช้า', 'บ่าย', 'โฮมรูม', 'หน้าเสาธง', ...scheduleOptions.periodOptions])).map((option) => (
                       <option key={option} value={option} />
                     ))}
                   </datalist>

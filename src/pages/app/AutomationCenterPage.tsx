@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
+import { isDemoSession } from '../../lib/auth';
 import { hasWorkspaceCapability } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -40,18 +41,19 @@ const reportTemplates = [
 export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   const feedback = useSystemFeedback();
   const workspaceId = session.workspace?.id ?? '';
+  const demoMode = isDemoSession(session);
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [signals, setSignals] = useState<SignalRow[]>([]);
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(demoMode ? 'โหมดตัวอย่าง: แสดงโครงสร้าง Automation โดยไม่เขียนข้อมูลจริง' : '');
   const canManageRules = hasWorkspaceCapability(session, 'automation.manage');
   const canPrepareMessages = hasWorkspaceCapability(session, 'communications.prepare');
   const canApproveMessages = hasWorkspaceCapability(session, 'communications.approve');
 
   const load = useCallback(async () => {
-    if (!workspaceId || !isSupabaseReady || !supabase) return;
+    if (!workspaceId || !isSupabaseReady || !supabase || demoMode) return;
     setBusy(true);
     const [rulesResult, signalsResult, queueResult, studentsResult] = await Promise.all([
       supabase.from('automation_rules').select('*').eq('workspace_id', workspaceId).order('created_at'),
@@ -68,7 +70,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
       setStudents((studentsResult.data ?? []) as StudentRow[]);
     }
     setBusy(false);
-  }, [workspaceId]);
+  }, [demoMode, workspaceId]);
 
   useEffect(() => { void load(); }, [load]);
   const studentMap = useMemo(() => new Map(students.map((row) => [row.id, row])), [students]);
@@ -81,7 +83,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   ];
 
   async function seedRules() {
-    if (!supabase || !canManageRules) return;
+    if (!supabase || !canManageRules || isDemoSession(session)) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('seed_default_automation_rules', { target_workspace_id: workspaceId });
     if (error) feedback.error({ title: 'ตั้งค่ากฎไม่สำเร็จ', message: error.message });
@@ -90,7 +92,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function evaluate() {
-    if (!supabase || !canManageRules) return;
+    if (!supabase || !canManageRules || isDemoSession(session)) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('evaluate_early_warning_signals', { target_workspace_id: workspaceId });
     if (error) feedback.error({ title: 'ประเมินความเสี่ยงไม่สำเร็จ', message: error.message });
@@ -105,14 +107,14 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function toggleRule(rule: RuleRow) {
-    if (!supabase || !canManageRules) return;
+    if (!supabase || !canManageRules || isDemoSession(session)) return;
     const { error } = await supabase.from('automation_rules').update({ is_active: !rule.is_active }).eq('id', rule.id).eq('workspace_id', workspaceId);
     if (error) feedback.error({ title: 'เปลี่ยนสถานะกฎไม่สำเร็จ', message: error.message });
     else await load();
   }
 
   async function configureRule(rule: RuleRow) {
-    if (!supabase || !canManageRules) return;
+    if (!supabase || !canManageRules || isDemoSession(session)) return;
     if (rule.trigger_type === 'home_visit_incomplete') {
       const deadline = window.prompt('กำหนดส่งแบบเยี่ยมบ้าน (YYYY-MM-DD)', String(rule.config?.deadline ?? ''));
       if (deadline === null) return;
@@ -141,7 +143,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function reviewMessage(item: QueueRow, status: 'approved' | 'rejected') {
-    if (!supabase || !canApproveMessages) return;
+    if (!supabase || !canApproveMessages || isDemoSession(session)) return;
     const { error } = await supabase.from('communication_approval_queue').update({
       status, approved_by: session.profile.id, approved_at: new Date().toISOString(),
     }).eq('id', item.id).eq('workspace_id', workspaceId).eq('status', 'pending');
@@ -153,7 +155,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function sendApproved(item: QueueRow) {
-    if (!supabase || !canPrepareMessages) return;
+    if (!supabase || !canPrepareMessages || isDemoSession(session)) return;
     if (!item.recipient_profile_id) {
       feedback.warning({ title: 'ยังส่งไม่ได้', message: 'ผู้ปกครองยังไม่มีบัญชี Portal ที่เชื่อมกับนักเรียน เก็บรายการไว้ในคิวอนุมัติแล้ว' });
       return;
@@ -178,8 +180,8 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
           <p>ติดตามความเสี่ยง ดูแลเชิงรุก และสื่อสารกับผู้ปกครองอย่างเป็นขั้นตอน</p>
         </div>
         <div className="hero-actions">
-          <button className="button button-secondary" disabled={busy || !canManageRules} onClick={() => void seedRules()}><Sparkles size={17} /> ติดตั้งกฎมาตรฐาน</button>
-          <button className="button button-primary" disabled={busy || !canManageRules} onClick={() => void evaluate()}>
+          <button className="button button-secondary" disabled={busy || !canManageRules || demoMode} onClick={() => void seedRules()}><Sparkles size={17} /> ติดตั้งกฎมาตรฐาน</button>
+          <button className="button button-primary" disabled={busy || !canManageRules || demoMode} onClick={() => void evaluate()}>
             {busy ? <NexusAuroraInline label="กำลังประเมิน" /> : <><Play size={17} /> ประเมินตอนนี้</>}
           </button>
         </div>

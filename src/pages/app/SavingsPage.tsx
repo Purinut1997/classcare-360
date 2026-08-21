@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { isDemoSession } from '../../lib/auth';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -134,6 +135,7 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 }
 
 export function SavingsPage({ session }: SavingsPageProps) {
+  const demoMode = isDemoSession(session);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [accounts, setAccounts] = useState<SavingsAccountRow[]>(demoAccounts);
@@ -205,7 +207,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
     let isMounted = true;
 
     async function loadSavingsData() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
         setAccounts(demoAccounts);
@@ -282,7 +284,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [demoMode, session.workspace]);
 
   useEffect(() => {
     const selectedStudentInClassroom = classroomStudents.some((student) => student.id === selectedStudentId);
@@ -317,7 +319,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
       return;
     }
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       const accountId = currentAccount?.id || `demo-saving-account-${Date.now()}`;
       const transaction: SavingsTransactionRow = {
         account_id: accountId,

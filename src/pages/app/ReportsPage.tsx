@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { getBangkokDate } from '../../lib/date';
+import { isDemoSession } from '../../lib/auth';
 import {
   buildOfficialDocumentCode,
   buildOfficialFooterHtml,
@@ -1410,6 +1411,7 @@ interface ViewerReportSummaryData {
 }
 
 function ViewerReportSummary({ session }: ReportsPageProps) {
+  const demoMode = isDemoSession(session);
   const initialRange = getMonthDateRange(getTodayDate().slice(0, 7));
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
@@ -1420,10 +1422,26 @@ function ViewerReportSummary({ session }: ReportsPageProps) {
   useEffect(() => {
     let mounted = true;
     async function loadSummary() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         if (mounted) {
+          if (demoMode) {
+            setSummary({
+              attendance: { absent: 0, activity: 0, late: 1, leave: 1, present: 1, present_rate: 66.67, sick: 0, total: 3 },
+              behavior: { points: 1, record_count: 2 },
+              classroom_count: 1,
+              health: { record_count: 10 },
+              home_visits: { completed: 1, visit_count: 1 },
+              range: { from: dateFrom, to: dateTo },
+              savings: { account_count: 3, total_balance: 995 },
+              scores: { assessment_count: 2, average_percent: 80, entry_count: 3 },
+              student_count: 3,
+            });
+            setNotice(null);
+          } else {
+            setSummary(null);
+            setNotice('ต้องเชื่อม Supabase และเลือก workspace ก่อนจึงจะดูรายงานได้');
+          }
           setLoading(false);
-          setNotice('ต้องเชื่อม Supabase และเลือก workspace ก่อนจึงจะดูรายงานได้');
         }
         return;
       }
@@ -1445,7 +1463,7 @@ function ViewerReportSummary({ session }: ReportsPageProps) {
     }
     void loadSummary();
     return () => { mounted = false; };
-  }, [dateFrom, dateTo, session.workspace]);
+  }, [dateFrom, dateTo, demoMode, session.workspace]);
 
   const cards = summary ? [
     { label: 'นักเรียนในขอบเขต', value: summary.student_count.toLocaleString('th-TH'), detail: `${summary.classroom_count} ห้องเรียน` },
@@ -1458,10 +1476,10 @@ function ViewerReportSummary({ session }: ReportsPageProps) {
     <main className="app-page space-y-5">
       <section className="nexus-card overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.25fr_0.75fr]">
-          <div className="p-5 sm:p-7">
-            <span className="nexus-kicker"><ShieldCheck size={16} aria-hidden="true" /> Viewer Report</span>
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">รายงานสรุปสำหรับผู้บริหาร</h1>
-            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">แสดงเฉพาะข้อมูลรวมของห้องเรียนที่ได้รับสิทธิ์ ไม่เปิดรายชื่อนักเรียน เลขประจำตัว หรือรายละเอียดสุขภาพรายบุคคล</p>
+          <div className="bg-slate-950 p-5 text-white sm:p-7">
+            <span className="inline-flex items-center gap-2 rounded-full bg-lime-100 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-900"><ShieldCheck size={16} aria-hidden="true" /> Viewer Report</span>
+            <h1 className="mt-4 text-4xl font-black tracking-tight !text-white sm:text-5xl">รายงานสรุปสำหรับผู้บริหาร</h1>
+            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 !text-slate-300">แสดงเฉพาะข้อมูลรวมของห้องเรียนที่ได้รับสิทธิ์ ไม่เปิดรายชื่อนักเรียน เลขประจำตัว หรือรายละเอียดสุขภาพรายบุคคล</p>
           </div>
           <div className="bg-slate-950 p-5 text-white sm:p-7">
             <p className="text-sm font-black text-cyan-200">{session.workspace?.schoolName || 'โรงเรียน'}</p>
@@ -1496,6 +1514,7 @@ function ViewerReportSummary({ session }: ReportsPageProps) {
 }
 
 function TeacherReportsPage({ session }: ReportsPageProps) {
+  const demoMode = isDemoSession(session);
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -1548,7 +1567,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   useEffect(() => {
     let mounted = true;
     async function loadWorkspaceIdentity() {
-      if (!supabase || !session.workspace) return;
+      if (!supabase || !session.workspace || demoMode) return;
       const { data, error } = await supabase
         .from('workspaces')
         .select('school_name,academic_year,settings')
@@ -1568,7 +1587,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     }
     void loadWorkspaceIdentity();
     return () => { mounted = false; };
-  }, [session.workspace]);
+  }, [demoMode, session.workspace]);
 
   useEffect(() => {
     const nextView = searchParams.get('reportView');
@@ -1615,7 +1634,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     let isMounted = true;
 
     async function loadReportData() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
         setAttendanceSessions(demoSessions);
@@ -1867,7 +1886,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [dateFrom, dateTo, session.workspace]);
+  }, [dateFrom, dateTo, demoMode, session.workspace]);
 
   const reportRows = useMemo(() => {
     const rows = buildReportRows(classrooms, students, attendanceSessions, attendanceRecords);

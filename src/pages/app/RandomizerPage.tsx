@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
+import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -158,6 +159,7 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 }
 
 export function RandomizerPage({ session }: RandomizerPageProps) {
+  const demoMode = isDemoSession(session);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [history, setHistory] = useState<RandomizerSessionRow[]>(demoHistory);
@@ -189,7 +191,7 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
     let isMounted = true;
 
     async function loadRandomizerData() {
-      if (!supabase || !session.workspace) {
+      if (!supabase || !session.workspace || demoMode) {
         setClassrooms(demoClassrooms);
         setStudents(demoStudents);
         setHistory(demoHistory);
@@ -251,7 +253,7 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace]);
+  }, [demoMode, session.workspace]);
 
   function createRandomResult() {
     const shuffled = shuffleStudents(classroomStudents);
@@ -308,7 +310,7 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
       workspace_id: session.workspace?.id || 'demo-workspace',
     };
 
-    if (!supabase || !session.workspace) {
+    if (!supabase || !session.workspace || isDemoSession(session)) {
       setHistory((current) => [row, ...current]);
       setNotice('บันทึกประวัติการสุ่มในโหมดตัวอย่างแล้ว');
       setIsSaving(false);

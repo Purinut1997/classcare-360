@@ -6,6 +6,7 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 
 import { buildOfficialDocumentCode, buildOfficialFooterHtml, buildOfficialHeaderHtml, buildOfficialReportCss, buildOfficialSignaturesHtml, escapeOfficialHtml, formatThaiOfficialDate } from '../../lib/officialReport';
+import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
 import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
@@ -210,7 +211,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const loadEvents = async () => {
-    if (!supabase || !session.workspace?.id) {
+    if (!supabase || !session.workspace?.id || isDemoSession(session)) {
       const localEvents = loadLocalCalendar(session);
       setEvents(localEvents.length ? localEvents : createDemoEvents(session));
       setSync({
@@ -362,7 +363,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     setDraft((current) => ({ ...current, title: '' }));
     setSelectedDate(nextEvent.date);
 
-    if (!supabase || !session.workspace?.id) {
+    if (!supabase || !session.workspace?.id || isDemoSession(session)) {
       const storageKey = getDataSafetyStorageKey(session);
       const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
       state.calendarRules = [...loadLocalCalendar(session), nextEvent];
