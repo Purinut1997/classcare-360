@@ -264,13 +264,16 @@ export function withDemoContext(path: string, currentSearch: string) {
   const demoMode = sourceParams.get(demoModeQueryKey);
   if (!demoMode) return path;
 
-  const [pathname, targetSearch = ''] = path.split('?');
+  const hashIndex = path.indexOf('#');
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : '';
+  const pathWithoutHash = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const [pathname, targetSearch = ''] = pathWithoutHash.split('?');
   const targetParams = new URLSearchParams(targetSearch);
   targetParams.set(demoModeQueryKey, demoMode);
   const demoWorkspaceId = sourceParams.get(demoWorkspaceQueryKey);
   if (demoWorkspaceId) targetParams.set(demoWorkspaceQueryKey, demoWorkspaceId);
 
-  return `${pathname}?${targetParams.toString()}`;
+  return `${pathname}?${targetParams.toString()}${hash}`;
 }
 
 export function getDemoModeSearch(currentSearch: string, mode: DemoSessionMode) {
@@ -316,7 +319,7 @@ export function getRouteGuardPreview(session: AppSessionContext, moduleKey: Modu
     { label: 'Session', passed: Boolean(session.profile.id) },
     { label: 'Workspace', passed: Boolean(session.workspace?.id) },
     { label: 'Subscription', passed: canUseModule(session.subscription, moduleKey) },
-    { label: 'Role', passed: session.profile.role === 'teacher_owner' },
+    { label: 'Role', passed: ['superadmin', 'teacher_owner', 'teacher_member', 'viewer'].includes(session.profile.role) },
     { label: 'Audit', passed: true },
   ];
 }
