@@ -1,6 +1,6 @@
 # ClassCare 360 — System Status
 
-อัปเดต: 2026-08-13
+อัปเดต: 2026-08-21
 
 ## โครงสร้างปัจจุบัน
 
@@ -33,7 +33,14 @@
 - ✅ คิวตรวจรายชื่อเก็บถาวร: จัดประเภท/ใส่หมายเหตุ/กรองผลตรวจ และลบถาวรได้เฉพาะรายการซ้ำที่เก็บถาวรแล้ว (`0060`)
 - ✅ ก่อนลบรายการซ้ำ ระบบเก็บ student snapshot + ผลตรวจลง `trash_items` และ audit log
 - ✅ Roster safety smoke test ผ่าน: active ลบไม่ได้, ข้าม Workspace ไม่ได้, Teacher member แก้ผลตรวจไม่ได้, และ rollback fixture ทั้งหมด
-- ✅ Readiness checker ครอบคลุม migration `0001–0060`; ผ่าน 76/76 required checks
+- ✅ Duty roster, Daily Brief, Automation และคิวอนุมัติข้อความบังคับแพ็กเกจ + capability + ห้องเรียนจาก RLS (`0061`)
+- ✅ `workspace_member_classrooms` มี trigger ป้องกันนำสมาชิกกับห้องคนละ Workspace มาผูกกัน (`0061`)
+- ✅ `dispatch-notification` ตรวจ `communications.approve`, ขอบเขตนักเรียน และผู้รับที่เป็นสมาชิก/ผู้ปกครองที่ยินยอม ก่อนเปลี่ยนคิวเป็น `sending` (Edge Function v4)
+- ✅ ปิดสิทธิ์สร้าง object ใน schema `public` สำหรับ `anon`/`authenticated` และถอน default function execute จาก anonymous ยกเว้น public RPC ที่ตั้งใจเปิด (`0061`)
+- ✅ นำ trigger-only functions ออกจาก RPC surface และล็อก `search_path` ของ utility functions (`0062`)
+- ✅ Permission-boundary regression บน Remote ผ่านและ rollback fixture ทั้งหมด; migration Remote ตรงกับ Local ถึง `0062`
+- ✅ Readiness checker ครอบคลุม migration `0001–0062` และ SQL regression 5 ชุด; ผ่าน 83/83 required checks
+- ✅ Supabase project กลับมา `ACTIVE_HEALTHY`; anon connection และ schema checks ผ่าน
 - ℹ️ คิวข้อมูลจริงล่าสุด: active 20, archived รอตรวจ 32, ยังไม่มีรายการถูกลบหรือถูกจัดว่าซ้ำ/มาจากอีกโรงเรียน
 - ✅ หน้าเลือก Workspace แสดงสมาชิกทุกโรงเรียนที่ได้รับสิทธิ์ ไม่กรองทิ้งตามชื่อโรงเรียนใน profile แล้ว
 - ✅ เอาระบบเก่า “ค้นหาแล้วขอเข้า Workspace” ออกจาก UI; เข้าร่วมได้ผ่านคำเชิญจากเจ้าของเท่านั้น
@@ -42,7 +49,7 @@
 - ✅ แก้ Route Guard ไม่ให้ปุ่มกลับแดชบอร์ด/ตั้งค่าพาวนหน้าเดิม; Owner ไปศูนย์จัดการโรงเรียน และ System Readiness สงวนให้ Superadmin
 - ✅ Production build ซ่อนเครื่องมือทดสอบ demo; Browser QA คลิกทางกลับภาพรวมและศูนย์จัดการโรงเรียนผ่าน
 - ℹ️ ข้อมูลจริงยังไม่มี pending teacher invitation และยังไม่มีบัญชีใดเป็นสมาชิกมากกว่า 1 Workspace
-- ⚠️ Supabase Security Advisor ยังไม่คืนผลภายใน 2 นาที; ยังไม่นับเป็นผลผ่าน
+- ⚠️ Security Advisor ทำงานแล้ว; public/authenticated `SECURITY DEFINER` ที่เหลือเป็น RPC ที่ตั้งใจเปิดและตรวจสิทธิ์ภายใน แต่ Leaked Password Protection ยังปิดอยู่
 - 🚧 ถัดไป: เจ้าของตรวจและจัดประเภท 32 รายการ; จากนั้นส่งคำเชิญให้บัญชีจริงอีกบัญชี แล้วทดสอบสอง session
 
 ## หลักระบบใหม่

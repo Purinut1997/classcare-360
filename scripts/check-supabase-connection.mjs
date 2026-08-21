@@ -146,6 +146,25 @@ const rosterSafetyChecks = await Promise.all([
     target_student_ids: [NIL_UUID],
   }),
 ]);
+const permissionBoundaryChecks = await Promise.all([
+  assertRpcExists('has_workspace_capability', {
+    target_workspace_id: NIL_UUID,
+    capability_key: 'duty.manage',
+  }),
+  assertRpcExists('can_access_workspace_scope', {
+    target_workspace_id: NIL_UUID,
+    target_classroom_id: NIL_UUID,
+  }),
+  assertRpcExists('can_access_duty_assignment', {
+    target_workspace_id: NIL_UUID,
+    target_duty_week_id: NIL_UUID,
+  }),
+  assertRpcExists('can_access_daily_brief', {
+    target_workspace_id: NIL_UUID,
+    target_brief_id: NIL_UUID,
+    require_write: false,
+  }),
+]);
 const publicReportRpcChecks = await Promise.all([
   assertRpcExists('get_public_report_schools'),
   assertRpcExists('lookup_public_student_report', {
@@ -158,6 +177,7 @@ const failedDashboardChecks = dashboardSchemaChecks.filter((check) => !check.ok)
 const missingWorkspaceMemberRpcs = workspaceMemberRpcChecks.filter((check) => !check.ok);
 const missingPublicReportRpcs = publicReportRpcChecks.filter((check) => !check.ok);
 const missingRosterSafetyChecks = rosterSafetyChecks.filter((check) => !check.ok);
+const missingPermissionBoundaryChecks = permissionBoundaryChecks.filter((check) => !check.ok);
 
 if (missingDestructiveRpcs.length > 0) {
   console.error('Supabase action RPCs are missing:');
@@ -169,9 +189,9 @@ if (missingDestructiveRpcs.length > 0) {
   process.exit(1);
 }
 
-if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0 || missingRosterSafetyChecks.length > 0) {
+if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0 || missingRosterSafetyChecks.length > 0 || missingPermissionBoundaryChecks.length > 0) {
   console.error('Supabase dashboard schema is incomplete:');
-  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs, ...missingRosterSafetyChecks]) {
+  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs, ...missingRosterSafetyChecks, ...missingPermissionBoundaryChecks]) {
     console.error(`- ${check.name}: ${check.reason}`);
   }
   console.error('');
@@ -186,3 +206,4 @@ console.log(`Dashboard tables visible: ${dashboardSchemaChecks.map((check) => ch
 console.log(`Workspace member RPCs visible: ${workspaceMemberRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Public report RPCs visible: ${publicReportRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Roster safety layer visible: ${rosterSafetyChecks.map((check) => check.name).join(', ')}`);
+console.log(`Permission boundary RPCs visible: ${permissionBoundaryChecks.map((check) => check.name).join(', ')}`);

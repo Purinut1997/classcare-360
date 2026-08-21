@@ -66,12 +66,22 @@ const requiredMigrations = [
   '0058_health_records_entitlement_rls.sql',
   '0059_teacher_invitation_rpc_ambiguity.sql',
   '0060_student_roster_review_safety.sql',
+  '0061_permission_boundary_hardening.sql',
+  '0062_internal_function_surface_hardening.sql',
 ];
 
 const requiredFunctions = [
   'accept-portal-invitation',
   'approve-payment-request',
   'dispatch-notification',
+];
+
+const requiredSqlTests = [
+  'permission_boundary_hardening.sql',
+  'rls_sensitive_activity_roles.sql',
+  'rls_workspace_roles.sql',
+  'student_roster_review_safety.sql',
+  'workspace_invitation_lifecycle.sql',
 ];
 
 const requiredPublicEnv = [
@@ -129,11 +139,13 @@ const envExample = parseEnvFile(envExamplePath);
 const hasEnvLocal = existsSync(envLocalPath);
 const migrationsDir = join(root, 'supabase', 'migrations');
 const functionsDir = join(root, 'supabase', 'functions');
+const testsDir = join(root, 'supabase', 'tests');
 
 const migrationFiles = existsSync(migrationsDir) ? new Set(readdirSync(migrationsDir)) : new Set();
 const functionFolders = existsSync(functionsDir)
   ? new Set(readdirSync(functionsDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name))
   : new Set();
+const sqlTestFiles = existsSync(testsDir) ? new Set(readdirSync(testsDir)) : new Set();
 
 const supabaseCli = commandExists('supabase');
 const deno = commandExists('deno');
@@ -163,6 +175,9 @@ const checks = [
     const indexPath = join(functionsDir, name, 'index.ts');
     return check(functionFolders.has(name) && existsSync(indexPath), `edge function: ${name}`, indexPath);
   }),
+  ...requiredSqlTests.map((file) =>
+    check(sqlTestFiles.has(file), `SQL regression test: ${file}`, sqlTestFiles.has(file) ? 'found' : 'missing'),
+  ),
   check(supabaseCli.ok, 'Supabase CLI available', supabaseCli.output || 'Install Supabase CLI before deploy', 'warn'),
   check(deno.ok, 'Deno available', deno.output || 'Install Deno before local function type checks', 'warn'),
 ];

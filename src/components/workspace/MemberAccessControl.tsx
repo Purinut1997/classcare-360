@@ -28,6 +28,8 @@ const capabilities = [
   ['student_care.write', 'จัดการเคสดูแล'],
   ['home_visits.write', 'บันทึกเยี่ยมบ้าน'],
   ['savings.write', 'จัดการเงินออม'],
+  ['duty.manage', 'จัดการตารางเวร'],
+  ['daily_brief.write', 'เขียนสรุปประจำวัน'],
   ['reports.export', 'ส่งออกรายงาน'],
   ['communications.prepare', 'เตรียมข้อความผู้ปกครอง'],
   ['communications.approve', 'อนุมัติและส่งข้อความ'],

@@ -25,6 +25,19 @@ interface DispatchResult {
   status: 'queued' | 'sent' | 'skipped' | 'failed';
 }
 
+interface ApprovalQueueItem {
+  body: string;
+  channels: NotificationChannel[];
+  dispatch_result: Record<string, unknown>;
+  id: string;
+  recipient_profile_id: string | null;
+  source_type: string;
+  status: string;
+  student_id: string | null;
+  title: string;
+  workspace_id: string;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -208,32 +221,19 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: 'Invalid user token' }, 401);
     }
 
+    let queueItem: ApprovalQueueItem | null = null;
+
     if (queueId) {
-      activeQueueId = queueId;
-      const { data: queueItem, error: queueError } = await serviceClient
+      const { data: queueRow, error: queueError } = await serviceClient
         .from('communication_approval_queue')
-        .select('id,workspace_id,recipient_profile_id,channels,title,body,source_type,status,dispatch_result')
+        .select('id,workspace_id,student_id,recipient_profile_id,channels,title,body,source_type,status,dispatch_result')
         .eq('id', queueId)
-        .maybeSingle();
+        .maybeSingle<ApprovalQueueItem>();
       if (queueError) throw queueError;
-      if (!queueItem) return jsonResponse({ error: 'Approval queue item not found' }, 404);
-      if (queueItem.status !== 'approved') {
-        return jsonResponse({ error: `Queue item must be approved before sending (current: ${queueItem.status})` }, 409);
-      }
-      if (!queueItem.recipient_profile_id) return jsonResponse({ error: 'Queue item has no recipient profile' }, 400);
-
-      const { data: claimed, error: claimError } = await serviceClient
-        .from('communication_approval_queue')
-        .update({ status: 'sending', dispatch_result: { claimed_at: new Date().toISOString(), claimed_by: user.id } })
-        .eq('id', queueId)
-        .eq('status', 'approved')
-        .select('id')
-        .maybeSingle();
-      if (claimError) throw claimError;
-      if (!claimed) return jsonResponse({ error: 'Queue item is already being sent' }, 409);
-
+      if (!queueRow) return jsonResponse({ error: 'Approval queue item not found' }, 404);
+      queueItem = queueRow;
       workspaceId = queueItem.workspace_id;
-      profileId = queueItem.recipient_profile_id;
+      profileId = queueItem.recipient_profile_id || undefined;
       title = queueItem.title;
       body = queueItem.body;
       type = queueItem.source_type || 'automation';
@@ -256,7 +256,7 @@ Deno.serve(async (request) => {
 
     const { data: membership, error: membershipError } = await serviceClient
       .from('workspace_memberships')
-      .select('id,role,status')
+      .select('id,role,status,permissions')
       .eq('workspace_id', workspaceId)
       .eq('profile_id', user.id)
       .eq('status', 'active')
@@ -267,6 +267,77 @@ Deno.serve(async (request) => {
 
     if (!superadmin && !membership) {
       return jsonResponse({ error: 'Workspace teacher or superadmin role required' }, 403);
+    }
+
+    const { data: canApproveCommunications, error: capabilityError } = await userClient.rpc(
+      'has_workspace_capability',
+      {
+        capability_key: 'communications.approve',
+        target_workspace_id: workspaceId,
+      },
+    );
+
+    if (capabilityError) throw capabilityError;
+    if (!superadmin && canApproveCommunications !== true) {
+      return jsonResponse({ error: 'Communications approval permission required' }, 403);
+    }
+
+    if (!queueId && !superadmin && membership?.role !== 'teacher_owner') {
+      return jsonResponse({ error: 'Teacher members must send from an approved communication queue' }, 403);
+    }
+
+    if (queueItem?.student_id && !superadmin) {
+      const { data: canAccessStudent, error: studentScopeError } = await userClient.rpc('can_access_student', {
+        target_student_id: queueItem.student_id,
+        target_workspace_id: workspaceId,
+      });
+      if (studentScopeError) throw studentScopeError;
+      if (canAccessStudent !== true) {
+        return jsonResponse({ error: 'Student is outside the caller classroom scope' }, 403);
+      }
+    }
+
+    const [recipientMembershipResult, recipientGuardianResult] = await Promise.all([
+      serviceClient
+        .from('workspace_memberships')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('profile_id', profileId)
+        .eq('status', 'active')
+        .maybeSingle(),
+      queueItem?.student_id
+        ? serviceClient
+          .from('student_guardians')
+          .select('id')
+          .eq('workspace_id', workspaceId)
+          .eq('student_id', queueItem.student_id)
+          .eq('profile_id', profileId)
+          .eq('consent_status', 'granted')
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (recipientMembershipResult.error) throw recipientMembershipResult.error;
+    if (recipientGuardianResult.error) throw recipientGuardianResult.error;
+    if (!recipientMembershipResult.data && !recipientGuardianResult.data) {
+      return jsonResponse({ error: 'Notification recipient is outside the workspace or student guardian scope' }, 422);
+    }
+
+    if (queueItem) {
+      if (queueItem.status !== 'approved') {
+        return jsonResponse({ error: `Queue item must be approved before sending (current: ${queueItem.status})` }, 409);
+      }
+
+      const { data: claimed, error: claimError } = await serviceClient
+        .from('communication_approval_queue')
+        .update({ status: 'sending', dispatch_result: { claimed_at: new Date().toISOString(), claimed_by: user.id } })
+        .eq('id', queueItem.id)
+        .eq('status', 'approved')
+        .select('id')
+        .maybeSingle();
+      if (claimError) throw claimError;
+      if (!claimed) return jsonResponse({ error: 'Queue item is already being sent' }, 409);
+      activeQueueId = queueItem.id;
     }
 
     const notificationData = {
