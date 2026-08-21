@@ -402,6 +402,7 @@ export function DailySchoolBriefPage({
           .from("daily_school_briefs")
           .update(payload)
           .eq("id", brief.id)
+          .eq("workspace_id", workspaceId)
           .select()
           .single()
       : await supabase

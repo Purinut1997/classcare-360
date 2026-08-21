@@ -1,7 +1,7 @@
 ﻿import { lazy, Suspense, useMemo } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 
-import { getInitialRouteForSession, getPostAuthRouteForSession, getRouteGuardPreview } from './lib/auth';
+import { getInitialRouteForSession, getPostAuthRouteForSession, getRouteGuardPreview, withDemoContext } from './lib/auth';
 import { appEnv } from './lib/env';
 import { canUseModule, getEntitlementSummary } from './lib/entitlements';
 import { canManageWorkspace, roleLabels } from './lib/roles';
@@ -190,7 +190,7 @@ const workspaceSelectionRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner',
 const classroomUserRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member'];
 const reportViewerRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member', 'viewer'];
 
-function getAppShellNavItems(session: AppSessionContext | null) {
+function getAppShellNavItems(session: AppSessionContext | null, currentSearch = '') {
   if (!session) return appNavItems.filter((item) => item.key === 'overview');
 
   const navKeysByRole: Record<WorkspaceRole, string[]> = {
@@ -206,9 +206,13 @@ function getAppShellNavItems(session: AppSessionContext | null) {
   if (session.profile.role !== 'superadmin' && (session.workspaceCount ?? 0) <= 1) {
     allowedKeys.delete('workspace-switch');
   }
-  const visibleItems = appNavItems.filter((item) => allowedKeys.has(item.key));
+  const visibleItems = appNavItems
+    .filter((item) => allowedKeys.has(item.key))
+    .map((item) => ({ ...item, path: withDemoContext(item.path, currentSearch) }));
 
-  return session.profile.role === 'superadmin' ? [...visibleItems, superadminNavItem] : visibleItems;
+  return session.profile.role === 'superadmin'
+    ? [...visibleItems, { ...superadminNavItem, path: withDemoContext(superadminNavItem.path, currentSearch) }]
+    : visibleItems;
 }
 
 function getAllowedRolesForNavItem(key: string) {
@@ -234,8 +238,9 @@ function SessionStateScreen({ detail, title }: { detail: string; title: string }
 
 function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const requestedView = searchParams.get('view') || 'overview';
-  const shellNavItems = getAppShellNavItems(session);
+  const shellNavItems = getAppShellNavItems(session, location.search);
   const routeNavItems = [...appNavItems, superadminNavItem];
   const activeNavItem = routeNavItems.find((item) => item.key === requestedView) ?? appNavItems[0];
   const activeCopy = appViewCopy[activeNavItem.key] ?? appViewCopy.overview;

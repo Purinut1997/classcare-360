@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { demoModeQueryKey, getDemoSession } from './auth';
+import { demoModeQueryKey, demoWorkspaceQueryKey, getDemoSession } from './auth';
 import { supabase } from './supabaseClient';
 import type {
   AccountStatus,
@@ -339,10 +339,18 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
 }
 
 export function useAppSession(search: string): UseAppSessionResult {
-  const demoMode = useMemo(() => new URLSearchParams(search).get(demoModeQueryKey), [search]);
+  const demoSelection = useMemo(() => {
+    const params = new URLSearchParams(search);
+    return {
+      mode: params.get(demoModeQueryKey),
+      workspaceId: params.get(demoWorkspaceQueryKey),
+    };
+  }, [search]);
+  const demoMode = demoSelection.mode;
+  const demoWorkspaceId = demoSelection.workspaceId;
   const forcedDemo = import.meta.env.DEV && demoMode !== null;
   const [session, setSession] = useState<AppSessionContext | null>(() =>
-    !supabase || forcedDemo ? getDemoSession(demoMode) : null,
+    !supabase || forcedDemo ? getDemoSession(demoMode, demoWorkspaceId) : null,
   );
   const [state, setState] = useState<SessionLoadState>(() => (!supabase || forcedDemo ? 'demo' : 'loading'));
   const [error, setError] = useState<string | null>(null);
@@ -351,7 +359,7 @@ export function useAppSession(search: string): UseAppSessionResult {
     let isMounted = true;
 
     if (!supabase || forcedDemo) {
-      setSession(getDemoSession(demoMode));
+      setSession(getDemoSession(demoMode, demoWorkspaceId));
       setState('demo');
       setError(null);
       return undefined;
@@ -392,7 +400,7 @@ export function useAppSession(search: string): UseAppSessionResult {
       subscription.unsubscribe();
       window.removeEventListener(sessionRefreshEvent, handleSessionRefresh);
     };
-  }, [demoMode, forcedDemo]);
+  }, [demoMode, demoWorkspaceId, forcedDemo]);
 
   return {
     error,

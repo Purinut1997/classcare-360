@@ -1,5 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 
+import { withDemoContext } from '../../lib/auth';
+
 interface ContextNavProps {
   activeView: string;
 }
@@ -59,7 +61,7 @@ export function ContextNav({ activeView }: ContextNavProps) {
         <Link
           className={activeValue === item.value ? 'is-active' : ''}
           key={item.value}
-          to={`/app/dashboard?view=${activeView}&${item.param}=${item.value}`}
+          to={withDemoContext(`/app/dashboard?view=${activeView}&${item.param}=${item.value}`, location.search)}
         >
           {item.label}
         </Link>

@@ -79,6 +79,7 @@ const requiredFunctions = [
 ];
 
 const requiredSqlTests = [
+  'cross_school_teacher_scope.sql',
   'permission_boundary_hardening.sql',
   'rls_sensitive_activity_roles.sql',
   'rls_workspace_roles.sql',

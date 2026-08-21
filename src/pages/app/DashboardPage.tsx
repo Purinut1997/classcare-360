@@ -179,10 +179,18 @@ const emptyAnalyticsData: ClassroomAnalyticsData = {
   },
 };
 
+function getWorkspaceDashboardStats(classroomName?: string) {
+  return dashboardStats.map((stat, index) =>
+    index === 0 && classroomName
+      ? { ...stat, detail: classroomName }
+      : stat,
+  );
+}
+
 export function DashboardPage({ session }: DashboardPageProps) {
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
   const demoMode = isDemoSession(session);
-  const [stats, setStats] = useState(dashboardStats);
+  const [stats, setStats] = useState(() => getWorkspaceDashboardStats(session.workspace?.classroomName));
   const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<ClassroomStudentCount[]>([]);
@@ -253,7 +261,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
     async function loadDashboardStats() {
       if (!supabase || !session.workspace || demoMode) {
-        setStats(dashboardStats);
+        setStats(getWorkspaceDashboardStats(session.workspace?.classroomName));
         if (demoMode) setClassroomStudentCounts([{ classroomId: 'demo-classroom', classroomName: session.workspace?.classroomName || 'ห้องเรียนตัวอย่าง', count: 3 }]);
         return;
       }

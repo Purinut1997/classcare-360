@@ -205,12 +205,38 @@ export const demoSessions: Record<Exclude<DemoSessionMode, 'signed-out'>, AppSes
 
 export const demoSession: AppSessionContext = demoSessions.teacher;
 
+export const demoWorkspaceQueryKey = 'demoWorkspace';
+
+const demoTeacherJoinedWorkspaceSession: AppSessionContext = {
+  primaryWorkspaceId: 'demo-workspace',
+  profile: {
+    ...demoSessions.teacher.profile,
+    role: 'teacher_member',
+  },
+  workspace: {
+    id: 'demo-workspace-2',
+    name: 'Workspace ครูร่วม',
+    schoolName: 'โรงเรียนชุมชนบ้านสวน',
+    academicYear: '2569',
+    classroomName: 'ป.4/1',
+  },
+  subscription: {
+    planCode: 'VIP_YEARLY',
+    status: 'active',
+    endsAt: '2027-06-24T00:00:00+07:00',
+  },
+  workspaceCount: 2,
+};
+
 export function isDemoSession(session: AppSessionContext) {
   return session.profile.id.startsWith('demo-') || Boolean(session.workspace?.id.startsWith('demo-'));
 }
 
-export function getDemoSession(mode: string | null): AppSessionContext | null {
+export function getDemoSession(mode: string | null, workspaceId?: string | null): AppSessionContext | null {
   if (mode === 'signed-out') return null;
+  if ((mode === 'teacher' || mode === null) && workspaceId === demoTeacherJoinedWorkspaceSession.workspace?.id) {
+    return demoTeacherJoinedWorkspaceSession;
+  }
   if (mode && mode in demoSessions) {
     return demoSessions[mode as Exclude<DemoSessionMode, 'signed-out'>];
   }
@@ -233,13 +259,24 @@ export const demoModeOptions: Array<{ label: string; mode: DemoSessionMode }> = 
 
 export const demoModeQueryKey = 'demo';
 
+export function withDemoContext(path: string, currentSearch: string) {
+  const sourceParams = new URLSearchParams(currentSearch);
+  const demoMode = sourceParams.get(demoModeQueryKey);
+  if (!demoMode) return path;
+
+  const [pathname, targetSearch = ''] = path.split('?');
+  const targetParams = new URLSearchParams(targetSearch);
+  targetParams.set(demoModeQueryKey, demoMode);
+  const demoWorkspaceId = sourceParams.get(demoWorkspaceQueryKey);
+  if (demoWorkspaceId) targetParams.set(demoWorkspaceQueryKey, demoWorkspaceId);
+
+  return `${pathname}?${targetParams.toString()}`;
+}
+
 export function getDemoModeSearch(currentSearch: string, mode: DemoSessionMode) {
   const params = new URLSearchParams(currentSearch);
-  if (mode === 'teacher') {
-    params.delete(demoModeQueryKey);
-  } else {
-    params.set(demoModeQueryKey, mode);
-  }
+  params.set(demoModeQueryKey, mode);
+  params.delete(demoWorkspaceQueryKey);
 
   const nextSearch = params.toString();
   return nextSearch ? `?${nextSearch}` : '';

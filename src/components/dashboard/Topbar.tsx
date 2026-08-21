@@ -1,6 +1,7 @@
 import { Bell, Building2, Menu, Moon, Sun } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
+import { withDemoContext } from '../../lib/auth';
 import { roleLabels } from '../../lib/roles';
 import type { AppSessionContext } from '../../types/core';
 import { SignOutButton } from '../auth/SignOutButton';
@@ -22,6 +23,7 @@ function getInitials(displayName?: string) {
 }
 
 export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, session, theme }: TopbarProps) {
+  const location = useLocation();
   const workspace = session?.workspace;
   const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
   const workspaceSummary = (
@@ -54,7 +56,7 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, ses
       {canSwitchWorkspace ? (
         <Link
           className="app-workspace-switcher"
-          to="/app/select-workspace"
+          to={withDemoContext('/app/select-workspace', location.search)}
           title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือก Workspace'}
         >
           {workspaceSummary}
@@ -85,7 +87,7 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, ses
         {theme === 'nexus' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
       </button>
 
-      <Link className="app-icon-button relative" aria-label="เปิดการแจ้งเตือน" to="/app/dashboard?view=notifications">
+      <Link className="app-icon-button relative" aria-label="เปิดการแจ้งเตือน" to={withDemoContext('/app/dashboard?view=notifications', location.search)}>
         <Bell size={19} aria-hidden="true" />
         <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
       </Link>

@@ -6,6 +6,7 @@ import { SignOutButton } from '../components/auth/SignOutButton';
 import {
   demoModeOptions,
   getDemoModeSearch,
+  withDemoContext,
   type DemoSessionMode,
 } from '../lib/auth';
 import { canUseModule } from '../lib/entitlements';
@@ -112,12 +113,10 @@ function getPrimaryAction(reason?: RouteGuardReason, currentPath = '', currentSe
     return { label: 'ไปหน้าเข้าสู่ระบบ', to: `/login?redirect=${redirectTarget}` };
   }
   if (reason === 'workspace-required') {
-    const demoMode = new URLSearchParams(currentSearch).get('demo');
-    return { label: 'เลือก workspace', to: `/app/select-workspace${demoMode ? `?demo=${encodeURIComponent(demoMode)}` : ''}` };
+    return { label: 'เลือก workspace', to: withDemoContext('/app/select-workspace', currentSearch) };
   }
   if (reason === 'module-denied') {
-    const demoMode = new URLSearchParams(currentSearch).get('demo');
-    return { label: 'ดูแพ็กเกจ / ใช้โค้ด VIP', to: `/app/package${demoMode ? `?demo=${encodeURIComponent(demoMode)}` : ''}` };
+    return { label: 'ดูแพ็กเกจ / ใช้โค้ด VIP', to: withDemoContext('/app/package', currentSearch) };
   }
   return { label: 'กลับแดชบอร์ด', to: getDashboardPath(currentSearch) };
 }
@@ -127,24 +126,21 @@ function getModeLink(pathname: string, search: string, mode: DemoSessionMode) {
 }
 
 function getDashboardPath(search: string) {
-  const demoMode = new URLSearchParams(search).get('demo');
-  return `/app/dashboard${demoMode ? `?demo=${encodeURIComponent(demoMode)}` : ''}`;
+  return withDemoContext('/app/dashboard', search);
 }
 
 function getSecondaryAction(reason: RouteGuardReason | undefined, search: string, session: AppSessionContext | null) {
   if (reason === 'module-denied') return { label: 'กลับภาพรวม', to: getDashboardPath(search) };
   if (reason === 'role-denied' && session && canManageWorkspace(session.profile.role)) {
-    const demoMode = new URLSearchParams(search).get('demo');
     return {
       label: 'ศูนย์จัดการโรงเรียน',
-      to: `/app/dashboard?view=workspace-settings${demoMode ? `&demo=${encodeURIComponent(demoMode)}` : ''}`,
+      to: withDemoContext('/app/dashboard?view=workspace-settings', search),
     };
   }
   if (reason === 'role-denied' && session) {
-    const demoMode = new URLSearchParams(search).get('demo');
     return {
       label: 'เปิดคู่มือใช้งาน',
-      to: `/app/dashboard?view=help-center${demoMode ? `&demo=${encodeURIComponent(demoMode)}` : ''}`,
+      to: withDemoContext('/app/dashboard?view=help-center', search),
     };
   }
   return null;

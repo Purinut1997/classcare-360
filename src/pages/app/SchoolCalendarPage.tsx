@@ -423,7 +423,11 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
     // Try to delete from Supabase
     try {
-      const { error } = await supabase.from('school_calendar_days').delete().eq('id', eventId);
+      const { error } = await supabase
+        .from('school_calendar_days')
+        .delete()
+        .eq('id', eventId)
+        .eq('workspace_id', session.workspace?.id || '');
       if (error) throw error;
       // Remove from UI after successful deletion
       setEvents((current) => current.filter((event) => event.id !== eventId));
@@ -477,6 +481,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
           metadata: { attendancePolicy: draft.attendancePolicy },
         })
         .eq('id', editingEvent.id)
+        .eq('workspace_id', session.workspace?.id || '')
         .select('*')
         .single();
 

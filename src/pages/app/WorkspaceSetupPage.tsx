@@ -3,6 +3,7 @@ import { ArrowRight, Building2, CalendarDays, CheckCircle2, GraduationCap, Penci
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { NexusAuroraLoader } from '../../components/system/NexusAuroraLoader';
+import { demoWorkspaceQueryKey } from '../../lib/auth';
 import { roleLabels } from '../../lib/roles';
 import { activateWorkspace, setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -52,14 +53,16 @@ const demoWorkspaces: WorkspaceOption[] = [
     classroomName: 'ป.5/2',
     id: 'demo-workspace',
     name: 'ห้องเรียนตัวอย่าง',
+    role: 'teacher_owner',
     schoolName: 'โรงเรียนตัวอย่าง ClassCare',
   },
   {
     academicYear: '2569',
     classroomName: 'ป.4/1',
     id: 'demo-workspace-2',
-    name: 'ห้องเรียนรออัปเกรด',
-    schoolName: 'โรงเรียนตัวอย่าง ClassCare',
+    name: 'Workspace ครูร่วม',
+    role: 'teacher_member',
+    schoolName: 'โรงเรียนชุมชนบ้านสวน',
   },
 ];
 
@@ -78,6 +81,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const demoQuery = searchParams.get('demo');
+  const demoWorkspaceId = searchParams.get(demoWorkspaceQueryKey);
   const isDevelopmentDemo = import.meta.env.DEV && demoQuery !== null;
   const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const preferredSchoolName = session.profile.schoolName || session.workspace?.schoolName || '';
@@ -98,7 +102,12 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     isSupabaseReady ? null : 'โหมดตัวอย่าง: การสร้าง workspace จริงต้อง insert ผ่าน Supabase และ RLS',
   );
 
-  const dashboardTarget = demoQuery ? `/app/dashboard?demo=${demoQuery}` : '/app/dashboard';
+  const dashboardTarget = demoQuery
+    ? `/app/dashboard?${new URLSearchParams({
+        demo: demoQuery,
+        ...(demoWorkspaceId ? { [demoWorkspaceQueryKey]: demoWorkspaceId } : {}),
+      }).toString()}`
+    : '/app/dashboard';
   const canCreateWorkspace = session.profile.role === 'superadmin'
     || (session.profile.role === 'teacher_owner' && !session.primaryWorkspaceId);
 
@@ -182,7 +191,11 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
   async function handleSelectWorkspace(workspace: WorkspaceOption) {
     if (!useRealBackend || !supabase) {
       setStoredActiveWorkspaceId(workspace.id, session.profile.id);
-      navigate(dashboardTarget);
+      const params = new URLSearchParams(searchParams);
+      params.set('demo', demoQuery || 'teacher');
+      params.set(demoWorkspaceQueryKey, workspace.id);
+      params.delete('view');
+      navigate(`/app/dashboard?${params.toString()}`);
       return;
     }
 

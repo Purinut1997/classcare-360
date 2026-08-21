@@ -195,6 +195,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       .from('notifications')
       .update({ read_at: readAt })
       .eq('id', notificationId)
+      .eq('workspace_id', session.workspace?.id || '')
       .eq('profile_id', session.profile.id);
 
     if (error) {
@@ -228,6 +229,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       .from('notifications')
       .update({ read_at: readAt })
       .in('id', unreadIds)
+      .eq('workspace_id', session.workspace?.id || '')
       .eq('profile_id', session.profile.id);
 
     if (error) {
