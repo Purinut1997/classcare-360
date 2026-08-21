@@ -887,6 +887,7 @@ function buildPrintableReportHtml({
         <div class="official-certification">หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด · ขอรับรองว่าข้อมูลเวลาเรียนตรงกับรายการที่บันทึกในระบบ ณ วันตัดยอด</div>
         ${buildOfficialSignaturesHtml([
           { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+          ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
           { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
           { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
         ])}
@@ -1103,6 +1104,7 @@ function buildPrintableSavingsReportHtml({
         <div class="official-certification">ขอรับรองว่ารายการฝาก ถอน และยอดคงเหลือในรายงานฉบับนี้ตรงกับข้อมูลที่บันทึกในระบบ ณ วันตัดยอด</div>
         ${buildOfficialSignaturesHtml([
           { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+          ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
           { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานการเงินหรือวิชาการ' },
           { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
         ])}
@@ -1166,6 +1168,7 @@ function buildPrintableTableReportHtml({
         <div class="official-certification">ขอรับรองว่าข้อมูลในรายงานฉบับนี้ตรวจสอบจากข้อมูลที่บันทึกในระบบตามช่วงเวลาที่ระบุ และถูกต้องตามข้อมูลที่มีอยู่ ณ วันตัดยอด</div>
         ${buildOfficialSignaturesHtml([
           { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน / ครูประจำชั้น' },
+          ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
           { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
           { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
         ])}
@@ -1320,6 +1323,7 @@ function buildPrintableStudentRegisterHtml({
     <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · รูปแบบ A4 ${orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · ${fields.citizenId ? (revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชน') : 'ไม่ได้เลือกแสดงเลขประจำตัวประชาชน'}</div>
     ${buildOfficialSignaturesHtml([
       { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+      ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
       { name: reportIdentity.registrarName || reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน' },
       { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
     ])}
@@ -1391,6 +1395,7 @@ function buildPrintableExecutiveReportHtml({
     <div class="official-certification">รายงานฉบับนี้ประมวลผลจากข้อมูลเวลาเรียน คะแนน สุขภาพ พฤติกรรม และการออมที่บันทึกใน workspace เดียวกัน ณ วันตัดยอด</div>
     ${buildOfficialSignaturesHtml([
       { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน' },
+      ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
       { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
       { name: reportIdentity.directorName, role: 'ทราบ / อนุมัติ' },
     ])}
@@ -3406,6 +3411,41 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                       value={reportIdentity.directorName}
                     />
                   </label>
+                  {/* Co-advisor field - shows full row spanning both columns */}
+                  <div className="sm:col-span-2">
+                    {reportIdentity.coAdvisorName !== undefined && (reportIdentity.coAdvisorName.length > 0) ? (
+                      <label className="grid gap-2 text-sm font-black text-slate-700">
+                        <span className="flex items-center gap-2">
+                          ที่ปรึกษาร่วม
+                          <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-bold text-cyan-700">ไม่บังคับ</span>
+                          <button
+                            type="button"
+                            onClick={() => setReportIdentity((current) => ({ ...current, coAdvisorName: '' }))}
+                            className="ml-auto text-[11px] font-bold text-slate-400 hover:text-rose-500 transition"
+                          >
+                            ✕ ลบออก
+                          </button>
+                        </span>
+                        <input
+                          className="nexus-field h-11 px-3"
+                          onChange={(event) => setReportIdentity((current) => ({ ...current, coAdvisorName: event.target.value }))}
+                          placeholder="ชื่อ-สกุล ที่ปรึกษาร่วม (จะแสดงในรายงานเมื่อกรอก)"
+                          value={reportIdentity.coAdvisorName}
+                          autoFocus
+                        />
+                        <p className="text-[11px] font-bold text-slate-400">💡 หากไม่กรอก จะไม่แสดงในรายงาน</p>
+                      </label>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setReportIdentity((current) => ({ ...current, coAdvisorName: ' ' }))}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-700"
+                      >
+                        <span className="text-base leading-none">➕</span>
+                        เพิ่มที่ปรึกษาร่วม <span className="text-[11px] font-bold opacity-60">(ไม่บังคับ)</span>
+                      </button>
+                    )}
+                  </div>
                   <label className="grid gap-2 text-sm font-black text-slate-700">
                     ชื่อหัวหน้าวิชาการ
                     <input
