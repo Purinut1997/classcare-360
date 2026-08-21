@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CalendarClock, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, UserPlus, Utensils } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { dashboardStats } from '../../data/dashboard';
@@ -746,6 +746,139 @@ export function DashboardPage({ session }: DashboardPageProps) {
           เปิดสรุปวันนี้
         </Link>
       </form>
+
+      {/* Friendly Hero Greeting & Quick Actions Hub */}
+      <section className="mt-5 rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white via-white to-slate-50/50 p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">☀️</span>
+              <h2 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+                สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'}
+              </h2>
+            </div>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              {formatThaiRecordDate(getBangkokDate())} · {selectedClassroom?.name || session.workspace?.classroomName || 'ห้องเรียน'} · กดทำงานด่วนได้ทันทีในคลิกเดียว
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> พร้อมใช้งาน
+            </span>
+          </div>
+        </div>
+
+        {/* 4 Large Friendly Quick Action Cards */}
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Attendance */}
+          <Link
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/10"
+            to="/app/dashboard?view=teacher-work"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm transition group-hover:scale-105">
+                  <CalendarClock size={22} aria-hidden="true" />
+                </span>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                    analyticsData.dataCompleteness.attendanceCheckedToday
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-rose-100 text-rose-800 animate-bounce'
+                  }`}
+                >
+                  {analyticsData.dataCompleteness.attendanceCheckedToday ? '✓ เช็กแล้ว' : 'รอเช็กเช้า'}
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900">เช็กเวลาเรียน</h3>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">
+                {analyticsData.dataCompleteness.attendanceCheckedToday
+                  ? `มาเรียน ${analyticsData.attendance.present} จาก ${analyticsData.dataCompleteness.studentsCount} คน`
+                  : 'บันทึก มา สาย ลา ขาด ประจำวัน'}
+              </p>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-emerald-100/80 pt-3 text-xs font-black text-emerald-700 group-hover:text-emerald-800">
+              <span>{analyticsData.dataCompleteness.attendanceCheckedToday ? 'ดูรายงานวันนี้' : 'กดเช็กชื่อทันที'}</span>
+              <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            </div>
+          </Link>
+
+          {/* Card 2: Scores */}
+          <Link
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-sky-50/90 to-cyan-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-sky-500/10"
+            to="/app/dashboard?view=scores&scoreView=entry"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-600 text-white shadow-sm transition group-hover:scale-105">
+                  <ClipboardList size={22} aria-hidden="true" />
+                </span>
+                <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[11px] font-black text-sky-800">
+                  {analyticsData.scores.assessmentCount} ชุดคะแนน
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900">บันทึกคะแนน</h3>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">
+                คะแนนเฉลี่ยห้อง {analyticsData.scores.averagePercent}% ({analyticsData.scores.passedStudentsCount} คนผ่านเกณฑ์)
+              </p>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-sky-100/80 pt-3 text-xs font-black text-sky-700 group-hover:text-sky-800">
+              <span>เปิดสมุดคะแนน</span>
+              <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            </div>
+          </Link>
+
+          {/* Card 3: Savings */}
+          <Link
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/90 to-orange-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10"
+            to="/app/dashboard?view=savings"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-amber-500 text-white shadow-sm transition group-hover:scale-105">
+                  <span className="text-lg font-black">฿</span>
+                </span>
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-black text-amber-800">
+                  {analyticsData.savings.activeAccounts} บัญชี
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900">ระบบเงินออม</h3>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">
+                ยอดสะสม ฿{analyticsData.savings.totalBalance.toLocaleString()} (ฝากเดือนนี้ ฿{analyticsData.savings.monthlyDeposits.toLocaleString()})
+              </p>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-amber-100/80 pt-3 text-xs font-black text-amber-700 group-hover:text-amber-800">
+              <span>บันทึกฝาก-ถอน</span>
+              <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            </div>
+          </Link>
+
+          {/* Card 4: Behavior / Merits */}
+          <Link
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/90 to-fuchsia-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10"
+            to="/app/dashboard?view=behavior"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-purple-600 text-white shadow-sm transition group-hover:scale-105">
+                  <HeartHandshake size={22} aria-hidden="true" />
+                </span>
+                <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-black text-purple-800">
+                  +{analyticsData.behavior.positivePoints} ดาวความดี
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900">บันทึกความดี</h3>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">
+                บันทึกพฤติกรรมเชิงบวกและเคสช่วยเหลือ
+              </p>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-purple-100/80 pt-3 text-xs font-black text-purple-700 group-hover:text-purple-800">
+              <span>+ ให้ดาวนักเรียน</span>
+              <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            </div>
+          </Link>
+        </div>
+      </section>
 
       {/* Main Workspace Metrics */}
       <StatsGrid stats={stats} />
