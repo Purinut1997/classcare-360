@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
 import { supabase } from "../../lib/supabaseClient";
+import { hasWorkspaceCapability } from "../../lib/roles";
 import type { AppSessionContext } from "../../types/core";
 
 type BriefStatus = "draft" | "submitted" | "approved" | "returned" | "shared";
@@ -157,6 +158,7 @@ export function DailySchoolBriefPage({
     reviewerId: "",
   });
   const workspaceId = session.workspace?.id;
+  const canWriteBrief = hasWorkspaceCapability(session, "daily_brief.write");
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) return;
     setBusy(true);
@@ -368,6 +370,7 @@ export function DailySchoolBriefPage({
     [form, snapshot],
   );
   async function save(status: BriefStatus = "draft") {
+    if (!canWriteBrief) return;
     if (!supabase || !workspaceId) return;
     setBusy(true);
     const payload = {
@@ -433,6 +436,7 @@ export function DailySchoolBriefPage({
   }
   async function addLog(e: FormEvent) {
     e.preventDefault();
+    if (!canWriteBrief) return;
     if (!supabase || !workspaceId || !quickLog.trim()) return;
     setBusy(true);
     const { error } = await supabase.from("daily_brief_logs").insert({
@@ -452,6 +456,7 @@ export function DailySchoolBriefPage({
     setBusy(false);
   }
   async function uploadAttachment(file: File) {
+    if (!canWriteBrief) return;
     if (!supabase || !workspaceId) return;
     if (!brief) {
       setNotice("บันทึกฉบับร่างก่อนแนบภาพหรือไฟล์");
@@ -512,7 +517,7 @@ export function DailySchoolBriefPage({
           <button
             className="daily-secondary-action"
             onClick={() => void save("draft")}
-            disabled={busy}
+            disabled={busy || !canWriteBrief}
           >
             <Save size={16} />
             บันทึกฉบับร่าง
@@ -520,7 +525,7 @@ export function DailySchoolBriefPage({
           <button
             className="daily-primary-action"
             onClick={() => void save("submitted")}
-            disabled={busy}
+            disabled={busy || !canWriteBrief}
           >
             <Send size={16} />
             ส่งตรวจ
@@ -598,7 +603,7 @@ export function DailySchoolBriefPage({
             />
             <button
               className="daily-primary-action mt-2 w-full justify-center"
-              disabled={busy || !quickLog.trim()}
+              disabled={busy || !canWriteBrief || !quickLog.trim()}
             >
               เพิ่มใน Timeline
             </button>
@@ -761,7 +766,7 @@ export function DailySchoolBriefPage({
               <input
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 className="sr-only"
-                disabled={busy}
+                disabled={busy || !canWriteBrief}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void uploadAttachment(file);
@@ -818,7 +823,7 @@ export function DailySchoolBriefPage({
             <button
               className="daily-approve-action"
               onClick={() => void save("approved")}
-              disabled={busy}
+              disabled={busy || !canWriteBrief}
             >
               <CheckCircle2 size={16} />
               อนุมัติรายงาน
@@ -827,7 +832,7 @@ export function DailySchoolBriefPage({
           <button
             className="daily-share-action"
             onClick={() => void save("shared")}
-            disabled={busy || brief?.status !== "approved"}
+            disabled={busy || !canWriteBrief || brief?.status !== "approved"}
           >
             <Users size={16} />
             แชร์ให้ผู้ปกครอง

@@ -40,6 +40,11 @@ export const demoSessions: Record<Exclude<DemoSessionMode, 'signed-out'>, AppSes
   'teacher-readonly': {
     permissions: {
       'students.write': false,
+      'duty.manage': false,
+      'daily_brief.write': false,
+      'automation.manage': false,
+      'communications.prepare': false,
+      'communications.approve': false,
     },
     profile: {
       id: 'demo-readonly-teacher',

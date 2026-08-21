@@ -766,7 +766,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
     setRecoveryNotice(null);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login?mode=forgot`,
+      redirectTo: `${window.location.origin}/auth/reset-password`,
     });
 
     if (error) {

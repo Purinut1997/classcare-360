@@ -6,6 +6,7 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 
 import { buildOfficialDocumentCode, buildOfficialFooterHtml, buildOfficialHeaderHtml, buildOfficialReportCss, buildOfficialSignaturesHtml, escapeOfficialHtml, formatThaiOfficialDate } from '../../lib/officialReport';
+import { canManageWorkspace } from '../../lib/roles';
 import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
@@ -190,6 +191,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
+  const canEditCalendar = canManageWorkspace(session.profile.role);
   const today = useMemo(() => new Date(), []);
   const [currentMonth, setCurrentMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [events, setEvents] = useState<CalendarEvent[]>(() => createDemoEvents(session));
@@ -345,7 +347,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   };
 
   const addEvent = async () => {
-    if (!draft.title.trim()) return;
+    if (!canEditCalendar || !draft.title.trim()) return;
 
     const nextEvent: CalendarEvent = {
       id: `local-${Date.now()}`,
@@ -401,6 +403,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   };
 
   const removeEvent = async (eventId: string) => {
+    if (!canEditCalendar) return;
     const target = events.find((event) => event.id === eventId);
     if (!target) return;
 
@@ -433,7 +436,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   };
 
   const updateEvent = async () => {
-    if (!editingEvent || !draft.title.trim()) return;
+    if (!canEditCalendar || !editingEvent || !draft.title.trim()) return;
 
     if (!supabase || !isUuid(editingEvent.id) || editingEvent.source === 'local') {
       // Update local storage
@@ -491,6 +494,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   };
 
   const openEditModal = (event: CalendarEvent) => {
+    if (!canEditCalendar) return;
     setSelectedDate(event.date);
     setEditingEvent(event);
     setDraft({
@@ -648,12 +652,12 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600" onClick={() => openEditModal(event)} type="button" aria-label={`แก้ไข ${event.title}`}>
+                        {canEditCalendar ? <button className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600" onClick={() => openEditModal(event)} type="button" aria-label={`แก้ไข ${event.title}`}>
                           <Pencil size={16} aria-hidden="true" />
-                        </button>
-                        <button className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600" onClick={() => void removeEvent(event.id)} type="button" aria-label={`ลบ ${event.title}`}>
+                        </button> : null}
+                        {canEditCalendar ? <button className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600" onClick={() => void removeEvent(event.id)} type="button" aria-label={`ลบ ${event.title}`}>
                           <Trash2 size={16} aria-hidden="true" />
-                        </button>
+                        </button> : null}
                       </div>
                     </div>
                   </div>
@@ -801,7 +805,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                           }
                         />
                       </FieldLabel>
-                      <button className="amber-action inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50" disabled={!draft.title.trim()} onClick={() => void (editingEvent ? updateEvent() : addEvent())} type="button">
+                      <button className="amber-action inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50" disabled={!canEditCalendar || !draft.title.trim()} onClick={() => void (editingEvent ? updateEvent() : addEvent())} type="button">
                         {editingEvent ? <Pencil size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
                         {editingEvent ? 'บันทึกการแก้ไข' : 'เพิ่มรายการในวันนี้'}
                       </button>

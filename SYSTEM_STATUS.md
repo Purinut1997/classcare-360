@@ -38,8 +38,13 @@
 - ✅ `dispatch-notification` ตรวจ `communications.approve`, ขอบเขตนักเรียน และผู้รับที่เป็นสมาชิก/ผู้ปกครองที่ยินยอม ก่อนเปลี่ยนคิวเป็น `sending` (Edge Function v4)
 - ✅ ปิดสิทธิ์สร้าง object ใน schema `public` สำหรับ `anon`/`authenticated` และถอน default function execute จาก anonymous ยกเว้น public RPC ที่ตั้งใจเปิด (`0061`)
 - ✅ นำ trigger-only functions ออกจาก RPC surface และล็อก `search_path` ของ utility functions (`0062`)
-- ✅ Permission-boundary regression บน Remote ผ่านและ rollback fixture ทั้งหมด; migration Remote ตรงกับ Local ถึง `0062`
-- ✅ Readiness checker ครอบคลุม migration `0001–0062` และ SQL regression 5 ชุด; ผ่าน 83/83 required checks
+- ✅ Permission-boundary regression บน Remote ผ่านและ rollback fixture ทั้งหมด; migration Remote ตรงกับ Local ถึง `0064`
+- ✅ ซ่อม runtime RPC ที่อ้าง `pgcrypto` ผิด schema, member admin/join request ที่ชื่อคอลัมน์กำกวม และ public report identity (`0063–0064`)
+- ✅ Viewer Report ใช้ aggregate RPC ตาม Workspace + ห้องที่ได้รับมอบหมาย โดยไม่เปิดข้อมูลนักเรียนรายบุคคล (`0063–0064`)
+- ✅ Password Recovery มีหน้าตั้งรหัสผ่านใหม่และเรียก `auth.updateUser`; Login ไม่บังคับรหัสผ่านเดิมขั้นต่ำ 8 ตัวอักษร
+- ✅ UI ตรวจ capability ตรง backend สำหรับ Duty, Daily Brief, Automation/Communication และจำกัดการแก้ปฏิทิน/Data Safety ตามบทบาท
+- ✅ Remote `db lint --level error` ผ่าน 0 errors และ SQL regression 6 ชุดผ่านพร้อม rollback fixture ทั้งหมด
+- ✅ Readiness checker ครอบคลุม migration `0001–0064` และ SQL regression 6 ชุด; ผ่าน 86/86 required checks
 - ✅ Supabase project กลับมา `ACTIVE_HEALTHY`; anon connection และ schema checks ผ่าน
 - ℹ️ คิวข้อมูลจริงล่าสุด: active 20, archived รอตรวจ 32, ยังไม่มีรายการถูกลบหรือถูกจัดว่าซ้ำ/มาจากอีกโรงเรียน
 - ✅ หน้าเลือก Workspace แสดงสมาชิกทุกโรงเรียนที่ได้รับสิทธิ์ ไม่กรองทิ้งตามชื่อโรงเรียนใน profile แล้ว
@@ -50,7 +55,7 @@
 - ✅ Production build ซ่อนเครื่องมือทดสอบ demo; Browser QA คลิกทางกลับภาพรวมและศูนย์จัดการโรงเรียนผ่าน
 - ℹ️ ข้อมูลจริงยังไม่มี pending teacher invitation และยังไม่มีบัญชีใดเป็นสมาชิกมากกว่า 1 Workspace
 - ⚠️ Security Advisor ทำงานแล้ว; public/authenticated `SECURITY DEFINER` ที่เหลือเป็น RPC ที่ตั้งใจเปิดและตรวจสิทธิ์ภายใน แต่ Leaked Password Protection ยังปิดอยู่
-- 🚧 ถัดไป: เจ้าของตรวจและจัดประเภท 32 รายการ; จากนั้นส่งคำเชิญให้บัญชีจริงอีกบัญชี แล้วทดสอบสอง session
+- 🚧 ถัดไป: ทดสอบลิงก์ Recovery จากอีเมลจริงหนึ่งครั้ง และทดสอบ Owner/Viewer สอง session ด้วยบัญชี production; เจ้าของตรวจและจัดประเภท 32 รายการ
 
 ## หลักระบบใหม่
 

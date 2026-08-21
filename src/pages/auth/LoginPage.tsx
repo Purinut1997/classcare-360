@@ -64,12 +64,13 @@ export function LoginPage({ session }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
-  const [notice, setNotice] = useState<string | null>(
-    isSupabaseReady ? null : 'ยังไม่ได้ตั้งค่า .env.local จึงแสดงเป็นโหมดตัวอย่างก่อน',
-  );
+  const [notice, setNotice] = useState<string | null>(() => {
+    if (searchParams.get('reset') === 'success') return 'ตั้งรหัสผ่านใหม่สำเร็จแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่';
+    return isSupabaseReady ? null : 'ยังไม่ได้ตั้งค่า .env.local จึงแสดงเป็นโหมดตัวอย่างก่อน';
+  });
 
   const currentCopy = modeCopy[mode];
-  const canSubmitPassword = mode === 'forgot' || password.length >= 8;
+  const canSubmitPassword = mode === 'forgot' || (mode === 'login' ? password.length > 0 : password.length >= 8);
   const primaryDisabled = isSubmitting || !email || !canSubmitPassword;
 
   useEffect(() => {
@@ -105,7 +106,8 @@ export function LoginPage({ session }: LoginPageProps) {
       return;
     }
 
-    const redirectTo = `${window.location.origin}/auth/complete-profile`;
+    const profileRedirectTo = `${window.location.origin}/auth/complete-profile`;
+    const passwordResetRedirectTo = `${window.location.origin}/auth/reset-password`;
     const result =
       mode === 'login'
         ? await supabase.auth.signInWithPassword({ email, password })
@@ -115,11 +117,11 @@ export function LoginPage({ session }: LoginPageProps) {
               password,
               options: {
                 data: { display_name: displayName || email.split('@')[0] },
-                emailRedirectTo: redirectTo,
+                emailRedirectTo: profileRedirectTo,
               },
             })
           : await supabase.auth.resetPasswordForEmail(email, {
-              redirectTo,
+              redirectTo: passwordResetRedirectTo,
             });
 
     if (result.error) {
@@ -286,9 +288,9 @@ export function LoginPage({ session }: LoginPageProps) {
                   <input
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     className="h-12 w-full rounded-2xl border border-slate-200 bg-white/90 pl-11 pr-12 text-base font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    minLength={8}
+                    minLength={mode === 'register' ? 8 : 1}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="อย่างน้อย 8 ตัวอักษร"
+                    placeholder={mode === 'register' ? 'อย่างน้อย 8 ตัวอักษร' : 'รหัสผ่านของคุณ'}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                   />

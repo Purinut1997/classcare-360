@@ -1397,7 +1397,105 @@ function buildPrintableExecutiveReportHtml({
   </main></body></html>`;
 }
 
-export function ReportsPage({ session }: ReportsPageProps) {
+interface ViewerReportSummaryData {
+  attendance: { absent: number; activity: number; late: number; leave: number; present: number; present_rate: number; sick: number; total: number };
+  behavior: { points: number; record_count: number };
+  classroom_count: number;
+  health: { record_count: number };
+  home_visits: { completed: number; visit_count: number };
+  range: { from: string; to: string };
+  savings: { account_count: number; total_balance: number };
+  scores: { assessment_count: number; average_percent: number; entry_count: number };
+  student_count: number;
+}
+
+function ViewerReportSummary({ session }: ReportsPageProps) {
+  const initialRange = getMonthDateRange(getTodayDate().slice(0, 7));
+  const [dateFrom, setDateFrom] = useState(initialRange.from);
+  const [dateTo, setDateTo] = useState(initialRange.to);
+  const [summary, setSummary] = useState<ViewerReportSummaryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadSummary() {
+      if (!supabase || !session.workspace) {
+        if (mounted) {
+          setLoading(false);
+          setNotice('ต้องเชื่อม Supabase และเลือก workspace ก่อนจึงจะดูรายงานได้');
+        }
+        return;
+      }
+      setLoading(true);
+      setNotice(null);
+      const { data, error } = await supabase.rpc('get_workspace_viewer_report_summary', {
+        target_workspace_id: session.workspace.id,
+        date_from: dateFrom,
+        date_to: dateTo,
+      });
+      if (!mounted) return;
+      if (error) {
+        setSummary(null);
+        setNotice(`โหลดรายงานสรุปไม่สำเร็จ: ${error.message}`);
+      } else {
+        setSummary(data as unknown as ViewerReportSummaryData);
+      }
+      setLoading(false);
+    }
+    void loadSummary();
+    return () => { mounted = false; };
+  }, [dateFrom, dateTo, session.workspace]);
+
+  const cards = summary ? [
+    { label: 'นักเรียนในขอบเขต', value: summary.student_count.toLocaleString('th-TH'), detail: `${summary.classroom_count} ห้องเรียน` },
+    { label: 'มาเรียน', value: `${Number(summary.attendance.present_rate).toLocaleString('th-TH')}%`, detail: `${summary.attendance.present + summary.attendance.late}/${summary.attendance.total} รายการ` },
+    { label: 'คะแนนเฉลี่ย', value: `${Number(summary.scores.average_percent).toLocaleString('th-TH')}%`, detail: `${summary.scores.assessment_count} แบบประเมิน` },
+    { label: 'เงินออมรวม', value: `${Number(summary.savings.total_balance).toLocaleString('th-TH')} บาท`, detail: `${summary.savings.account_count} บัญชี` },
+  ] : [];
+
+  return (
+    <main className="app-page space-y-5">
+      <section className="nexus-card overflow-hidden">
+        <div className="grid gap-0 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="p-5 sm:p-7">
+            <span className="nexus-kicker"><ShieldCheck size={16} aria-hidden="true" /> Viewer Report</span>
+            <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">รายงานสรุปสำหรับผู้บริหาร</h1>
+            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">แสดงเฉพาะข้อมูลรวมของห้องเรียนที่ได้รับสิทธิ์ ไม่เปิดรายชื่อนักเรียน เลขประจำตัว หรือรายละเอียดสุขภาพรายบุคคล</p>
+          </div>
+          <div className="bg-slate-950 p-5 text-white sm:p-7">
+            <p className="text-sm font-black text-cyan-200">{session.workspace?.schoolName || 'โรงเรียน'}</p>
+            <p className="mt-2 text-2xl font-black">ขอบเขตข้อมูลที่ได้รับมอบหมาย</p>
+            <p className="mt-4 text-sm font-bold leading-7 text-slate-300">สิทธิ์ถูกตรวจทั้งในหน้าเว็บและฐานข้อมูลตาม workspace, บทบาท และห้องเรียน</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="app-panel-pad">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="grid gap-2 text-sm font-black text-slate-700">ตั้งแต่วันที่<ThaiDatePicker onValueChange={setDateFrom} value={dateFrom} /></label>
+          <label className="grid gap-2 text-sm font-black text-slate-700">ถึงวันที่<ThaiDatePicker onValueChange={setDateTo} value={dateTo} /></label>
+        </div>
+      </section>
+
+      {loading ? <section className="app-panel-pad text-sm font-bold text-slate-600">กำลังรวบรวมรายงานที่ได้รับสิทธิ์…</section> : null}
+      {notice ? <div className="flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800"><AlertTriangle className="shrink-0" size={18} aria-hidden="true" />{notice}</div> : null}
+      {summary ? (
+        <>
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {cards.map((card) => <article className="app-panel-pad" key={card.label}><p className="text-xs font-black text-slate-500">{card.label}</p><p className="mt-2 text-3xl font-black text-slate-950">{card.value}</p><p className="mt-2 text-xs font-bold text-slate-500">{card.detail}</p></article>)}
+          </section>
+          <section className="grid gap-4 lg:grid-cols-2">
+            <article className="app-panel-pad"><h2 className="text-xl font-black">เวลาเรียน</h2><div className="mt-4 grid grid-cols-3 gap-2 text-center">{[['ขาด', summary.attendance.absent], ['สาย', summary.attendance.late], ['ลา/ป่วย', summary.attendance.leave + summary.attendance.sick]].map(([label, value]) => <div className="rounded-2xl bg-slate-50 p-3" key={label}><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div></article>
+            <article className="app-panel-pad"><h2 className="text-xl font-black">การดูแลนักเรียน</h2><div className="mt-4 grid grid-cols-3 gap-2 text-center">{[['พฤติกรรม', summary.behavior.record_count], ['สุขภาพ', summary.health.record_count], ['เยี่ยมบ้านแล้ว', summary.home_visits.completed]].map(([label, value]) => <div className="rounded-2xl bg-slate-50 p-3" key={label}><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div></article>
+          </section>
+        </>
+      ) : null}
+    </main>
+  );
+}
+
+function TeacherReportsPage({ session }: ReportsPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -3348,4 +3446,8 @@ export function ReportsPage({ session }: ReportsPageProps) {
       </footer>
     </main>
   );
+}
+
+export function ReportsPage(props: ReportsPageProps) {
+  return props.session.profile.role === 'viewer' ? <ViewerReportSummary {...props} /> : <TeacherReportsPage {...props} />;
 }

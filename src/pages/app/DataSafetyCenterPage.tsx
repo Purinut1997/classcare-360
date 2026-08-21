@@ -18,6 +18,7 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 
 import { getBangkokDate } from '../../lib/date';
+import { canManageWorkspace } from '../../lib/roles';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -301,6 +302,7 @@ function mapTemplateRow(row: DbRow): MessageTemplate {
 }
 
 export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
+  const canManageSafety = canManageWorkspace(session.profile.role);
   const storageKey = getStorageKey(session);
   const [state, setState] = useState<DataSafetyState>(() => createDefaultState(session));
   const [sync, setSync] = useState<SyncState>({
@@ -433,6 +435,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   };
 
   const persistMode = async (mode: UiMode) => {
+    if (!canManageSafety) return;
     if (!supabase || !session.workspace?.id) return;
     const { error } = await supabase.from('workspace_ui_settings').upsert({
       workspace_id: session.workspace.id,
@@ -470,6 +473,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   };
 
   const restoreTrash = async (id: string) => {
+    if (!canManageSafety) return;
     setState((current) => ({
       ...current,
       trashItems: current.trashItems.map((item) => (item.id === id ? { ...item, restored: true } : item)),
@@ -490,6 +494,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   };
 
   const deleteTrashForever = async (id: string) => {
+    if (!canManageSafety) return;
     setState((current) => ({
       ...current,
       trashItems: current.trashItems.map((item) =>
@@ -512,6 +517,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   };
 
   const resolveHealthIssue = async (id: string) => {
+    if (!canManageSafety) return;
     setState((current) => ({
       ...current,
       healthIssues: current.healthIssues.map((issue) => (issue.id === id ? { ...issue, resolved: true } : issue)),
@@ -532,6 +538,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   };
 
   const addCalendarRule = async () => {
+    if (!canManageSafety) return;
     if (!calendarDraft.title.trim()) return;
     const tempId = `calendar-${Date.now()}`;
     setState((current) => ({
@@ -576,6 +583,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   };
 
   const addTemplate = async () => {
+    if (!canManageSafety) return;
     if (!templateDraft.title.trim() || !templateDraft.body.trim()) return;
     const tempId = `template-${Date.now()}`;
     setState((current) => ({
@@ -759,7 +767,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
                     <div className="flex shrink-0 gap-2">
                       <button
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#ead8bd] bg-white px-3 text-xs font-black text-[#3a2817] disabled:opacity-40"
-                        disabled={item.restored}
+                        disabled={item.restored || !canManageSafety}
                         onClick={() => restoreTrash(item.id)}
                         type="button"
                       >
@@ -768,6 +776,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
                       </button>
                       <button
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700"
+                        disabled={!canManageSafety}
                         onClick={() => deleteTrashForever(item.id)}
                         type="button"
                       >
@@ -800,7 +809,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
                   </div>
                   <button
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-black text-slate-700 shadow-sm ring-1 ring-black/5 disabled:opacity-40"
-                    disabled={issue.resolved}
+                    disabled={issue.resolved || !canManageSafety}
                     onClick={() => resolveHealthIssue(issue.id)}
                     type="button"
                   >
@@ -849,7 +858,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
               <input className="nexus-field mt-2 h-12 px-4" placeholder="เช่น สอบกลางภาค / ทัศนศึกษา" value={calendarDraft.title} onChange={(event) => setCalendarDraft((current) => ({ ...current, title: event.target.value }))} />
             </FieldLabel>
           </div>
-          <button className="amber-action mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black" onClick={addCalendarRule} type="button">
+          <button className="amber-action mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:opacity-50" disabled={!canManageSafety} onClick={addCalendarRule} type="button">
             <CalendarDays size={17} aria-hidden="true" />
             บันทึกวันพิเศษ
           </button>
@@ -883,7 +892,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
             ข้อความ
             <textarea className="nexus-field mt-2 min-h-32 px-4 py-3" value={templateDraft.body} onChange={(event) => setTemplateDraft((current) => ({ ...current, body: event.target.value }))} />
           </FieldLabel>
-          <button className="dark-action mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black" onClick={addTemplate} type="button">
+          <button className="dark-action mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:opacity-50" disabled={!canManageSafety} onClick={addTemplate} type="button">
             <MessageSquareText size={17} aria-hidden="true" />
             บันทึก template
           </button>
@@ -914,6 +923,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           </div>
           <button
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-5 text-sm font-black text-slate-700"
+            disabled={!canManageSafety}
             onClick={() => setState(createDefaultState(session))}
             type="button"
           >

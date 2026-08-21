@@ -30,6 +30,7 @@ import {
   buildOfficialSignaturesHtml,
 } from "../../lib/officialReport";
 import { loadSchoolReportIdentity } from "../../lib/scheduleSettings";
+import { hasWorkspaceCapability } from "../../lib/roles";
 import { isSupabaseReady, supabase } from "../../lib/supabaseClient";
 import type { AppSessionContext } from "../../types/core";
 
@@ -218,6 +219,7 @@ export function ClassroomOperationsPage({
   const [tab, setTab] = useState<TabKey>(
     mode === "locks" ? "locks" : mode === "year" ? "rollover" : mode === "parent" ? "parent-qr" : "duty",
   );
+  const canManageDuty = hasWorkspaceCapability(session, "duty.manage");
   const [classrooms, setClassrooms] = useState<Classroom[]>(demoClassrooms);
   const [students, setStudents] = useState<Student[]>(demoStudents);
   const [classroomId, setClassroomId] = useState(
@@ -645,6 +647,7 @@ export function ClassroomOperationsPage({
   }
 
   async function generateDuty() {
+    if (!canManageDuty) return;
     if (!supabase || !session.workspace || !classroomId) return;
     const range = getDutyGenerationRange();
     if (!range.start || !range.end || range.end < range.start) {
@@ -695,6 +698,7 @@ export function ClassroomOperationsPage({
   }
 
   async function assignDutyManually(task: DutyTask, dutyDate: string) {
+    if (!canManageDuty) return;
     if (!supabase || !session.workspace || !classroomId) return;
     const query = window.prompt("กรอกรหัสนักเรียนหรือชื่อที่ต้องการมอบหมาย")?.trim();
     if (!query) return;
@@ -743,6 +747,7 @@ export function ClassroomOperationsPage({
 
   async function saveDutyTask(event: FormEvent) {
     event.preventDefault();
+    if (!canManageDuty) return;
     if (!supabase || !session.workspace || !classroomId || !taskForm.name.trim() || !taskForm.activeWeekdays.length) return;
     setBusy(true);
     const payload = {
@@ -770,14 +775,14 @@ export function ClassroomOperationsPage({
   }
 
   async function toggleDutyTask(task: DutyTask) {
-    if (!supabase || !session.workspace) return;
+    if (!canManageDuty || !supabase || !session.workspace) return;
     const { error } = await supabase.from("duty_tasks").update({ is_active: !task.is_active }).eq("id", task.id).eq("workspace_id", session.workspace.id);
     if (error) setNotice(error.message);
     else setTasks((current) => current.map((item) => item.id === task.id ? { ...item, is_active: !item.is_active } : item));
   }
 
   async function deleteDutyTask(task: DutyTask, taskIds: string[]) {
-    if (!supabase || !session.workspace) return false;
+    if (!canManageDuty || !supabase || !session.workspace) return false;
     setBusy(true);
     setNotice(null);
     const relatedAssignmentCount = assignments.filter((item) => taskIds.includes(item.duty_task_id)).length;
@@ -810,7 +815,7 @@ export function ClassroomOperationsPage({
   }
 
   async function recordDuty(assignment: DutyAssignment, status: DutyStatus) {
-    if (!supabase) return;
+    if (!canManageDuty || !supabase) return;
     setBusy(true);
     const task = tasks.find((item) => item.id === assignment.duty_task_id);
     if (status === "substituted" && task && !task.allow_substitute) {
@@ -1206,6 +1211,7 @@ export function ClassroomOperationsPage({
               <div className="flex flex-wrap gap-2">
                 <button
                   className="inline-flex h-11 items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-black text-cyan-800 hover:bg-cyan-100"
+                  disabled={!canManageDuty}
                   onClick={() => editTask()}
                   type="button"
                 >
@@ -1222,7 +1228,7 @@ export function ClassroomOperationsPage({
                 </button>
                 <button
                   className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black disabled:opacity-50"
-                  disabled={busy || !classroomId}
+                  disabled={busy || !canManageDuty || !classroomId}
                   onClick={() => setDutyGeneratorOpen(true)}
                   type="button"
                 >
@@ -1286,9 +1292,9 @@ export function ClassroomOperationsPage({
                                   </p>
                                 </div>
                               ))}
-                              {list.length < task.slots_per_day ? <button className="w-full rounded-lg border border-dashed border-cyan-300 px-2 py-1.5 text-xs font-black text-cyan-700" disabled={busy} onClick={() => void assignDutyManually(task, date)} type="button">+ เพิ่มคน</button> : null}</>
+                              {list.length < task.slots_per_day ? <button className="w-full rounded-lg border border-dashed border-cyan-300 px-2 py-1.5 text-xs font-black text-cyan-700" disabled={busy || !canManageDuty} onClick={() => void assignDutyManually(task, date)} type="button">+ เพิ่มคน</button> : null}</>
                             ) : task.active_weekdays.includes(day.value) ? (
-                              <button className="w-full rounded-lg border border-dashed border-slate-300 px-2 py-2 text-xs font-black text-slate-500 hover:border-cyan-300 hover:text-cyan-700" disabled={busy} onClick={() => void assignDutyManually(task, date)} type="button">+ มอบหมายเอง</button>
+                              <button className="w-full rounded-lg border border-dashed border-slate-300 px-2 py-2 text-xs font-black text-slate-500 hover:border-cyan-300 hover:text-cyan-700" disabled={busy || !canManageDuty} onClick={() => void assignDutyManually(task, date)} type="button">+ มอบหมายเอง</button>
                             ) : (
                               <span className="text-slate-300">ไม่มีเวรวันนี้</span>
                             )}
@@ -1412,7 +1418,7 @@ export function ClassroomOperationsPage({
                       </div>
                       <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${dutyStatusStyle(assignment.status)}`}>{dutyStatusLabel(assignment.status)}</span>
                     </div>
-                    <select className="nexus-field mt-3 h-9 w-full px-2 text-xs font-black" disabled={busy} onChange={(event) => void recordDuty(assignment, event.target.value as DutyStatus)} value={assignment.status}>
+                    <select className="nexus-field mt-3 h-9 w-full px-2 text-xs font-black" disabled={busy || !canManageDuty} onChange={(event) => void recordDuty(assignment, event.target.value as DutyStatus)} value={assignment.status}>
                       <option value="assigned">รอตรวจ</option>
                       <option value="completed">ทำแล้ว</option>
                       <option value="missed">ไม่ทำเวร</option>

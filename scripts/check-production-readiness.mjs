@@ -68,6 +68,8 @@ const requiredMigrations = [
   '0060_student_roster_review_safety.sql',
   '0061_permission_boundary_hardening.sql',
   '0062_internal_function_surface_hardening.sql',
+  '0063_runtime_logic_repairs.sql',
+  '0064_runtime_logic_lint_repairs.sql',
 ];
 
 const requiredFunctions = [
@@ -82,6 +84,7 @@ const requiredSqlTests = [
   'rls_workspace_roles.sql',
   'student_roster_review_safety.sql',
   'workspace_invitation_lifecycle.sql',
+  'runtime_logic_repairs.sql',
 ];
 
 const requiredPublicEnv = [

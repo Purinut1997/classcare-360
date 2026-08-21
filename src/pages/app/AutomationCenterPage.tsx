@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
+import { hasWorkspaceCapability } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -45,6 +46,9 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const canManageRules = hasWorkspaceCapability(session, 'automation.manage');
+  const canPrepareMessages = hasWorkspaceCapability(session, 'communications.prepare');
+  const canApproveMessages = hasWorkspaceCapability(session, 'communications.approve');
 
   const load = useCallback(async () => {
     if (!workspaceId || !isSupabaseReady || !supabase) return;
@@ -77,7 +81,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   ];
 
   async function seedRules() {
-    if (!supabase) return;
+    if (!supabase || !canManageRules) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('seed_default_automation_rules', { target_workspace_id: workspaceId });
     if (error) feedback.error({ title: 'ตั้งค่ากฎไม่สำเร็จ', message: error.message });
@@ -86,7 +90,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function evaluate() {
-    if (!supabase) return;
+    if (!supabase || !canManageRules) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('evaluate_early_warning_signals', { target_workspace_id: workspaceId });
     if (error) feedback.error({ title: 'ประเมินความเสี่ยงไม่สำเร็จ', message: error.message });
@@ -101,14 +105,14 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function toggleRule(rule: RuleRow) {
-    if (!supabase) return;
+    if (!supabase || !canManageRules) return;
     const { error } = await supabase.from('automation_rules').update({ is_active: !rule.is_active }).eq('id', rule.id).eq('workspace_id', workspaceId);
     if (error) feedback.error({ title: 'เปลี่ยนสถานะกฎไม่สำเร็จ', message: error.message });
     else await load();
   }
 
   async function configureRule(rule: RuleRow) {
-    if (!supabase) return;
+    if (!supabase || !canManageRules) return;
     if (rule.trigger_type === 'home_visit_incomplete') {
       const deadline = window.prompt('กำหนดส่งแบบเยี่ยมบ้าน (YYYY-MM-DD)', String(rule.config?.deadline ?? ''));
       if (deadline === null) return;
@@ -137,7 +141,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function reviewMessage(item: QueueRow, status: 'approved' | 'rejected') {
-    if (!supabase) return;
+    if (!supabase || !canApproveMessages) return;
     const { error } = await supabase.from('communication_approval_queue').update({
       status, approved_by: session.profile.id, approved_at: new Date().toISOString(),
     }).eq('id', item.id).eq('workspace_id', workspaceId).eq('status', 'pending');
@@ -149,7 +153,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
   }
 
   async function sendApproved(item: QueueRow) {
-    if (!supabase) return;
+    if (!supabase || !canPrepareMessages) return;
     if (!item.recipient_profile_id) {
       feedback.warning({ title: 'ยังส่งไม่ได้', message: 'ผู้ปกครองยังไม่มีบัญชี Portal ที่เชื่อมกับนักเรียน เก็บรายการไว้ในคิวอนุมัติแล้ว' });
       return;
@@ -174,8 +178,8 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
           <p>ติดตามความเสี่ยง ดูแลเชิงรุก และสื่อสารกับผู้ปกครองอย่างเป็นขั้นตอน</p>
         </div>
         <div className="hero-actions">
-          <button className="button button-secondary" disabled={busy} onClick={() => void seedRules()}><Sparkles size={17} /> ติดตั้งกฎมาตรฐาน</button>
-          <button className="button button-primary" disabled={busy} onClick={() => void evaluate()}>
+          <button className="button button-secondary" disabled={busy || !canManageRules} onClick={() => void seedRules()}><Sparkles size={17} /> ติดตั้งกฎมาตรฐาน</button>
+          <button className="button button-primary" disabled={busy || !canManageRules} onClick={() => void evaluate()}>
             {busy ? <NexusAuroraInline label="กำลังประเมิน" /> : <><Play size={17} /> ประเมินตอนนี้</>}
           </button>
         </div>
@@ -200,8 +204,8 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
                 {rows.map((rule) => <article className="automation-rule" key={rule.id}>
                   <div><strong>{rule.name}</strong><p>{triggerLabels[rule.trigger_type] ?? rule.trigger_type} · ย้อนหลัง {rule.window_days} วัน</p></div>
                   <div className="approval-actions">
-                    <button aria-label={`ตั้งค่า ${rule.name}`} className="rule-settings" onClick={() => void configureRule(rule)}>ตั้งค่า</button>
-                    <button aria-pressed={rule.is_active} className={`rule-switch ${rule.is_active ? 'active' : ''}`} onClick={() => void toggleRule(rule)}>{rule.is_active ? 'เปิด' : 'ปิด'}</button>
+                    <button aria-label={`ตั้งค่า ${rule.name}`} className="rule-settings" disabled={!canManageRules} onClick={() => void configureRule(rule)}>ตั้งค่า</button>
+                    <button aria-pressed={rule.is_active} className={`rule-switch ${rule.is_active ? 'active' : ''}`} disabled={!canManageRules} onClick={() => void toggleRule(rule)}>{rule.is_active ? 'เปิด' : 'ปิด'}</button>
                   </div>
                 </article>)}
                 {!rows.length ? <p className="rule-empty">ยังไม่มีกฎในหมวดนี้</p> : null}
@@ -228,8 +232,8 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
         <div className="approval-list">{queue.slice(0, 8).map((item) => (
           <article className="approval-item" key={item.id}><div><div className="approval-meta"><span className={`status-pill ${item.status}`}>{item.status}</span><span>{item.recipient_name ?? 'ยังไม่ผูกผู้รับ'}</span><span>{item.channels.join(', ')}</span></div><h3>{item.title}</h3><p>{item.body}</p><small>เหตุผล: {item.reason}</small></div>
             <div className="approval-actions">
-              {item.status === 'pending' ? <><button className="icon-button success" onClick={() => void reviewMessage(item, 'approved')}><CheckCircle2 size={17} /> อนุมัติ</button><button className="icon-button danger" onClick={() => void reviewMessage(item, 'rejected')}><XCircle size={17} /> ปฏิเสธ</button></> : null}
-              {item.status === 'approved' ? <button className="button button-primary" onClick={() => void sendApproved(item)}><Send size={17} /> ส่งข้อความ</button> : null}
+              {item.status === 'pending' && canApproveMessages ? <><button className="icon-button success" onClick={() => void reviewMessage(item, 'approved')}><CheckCircle2 size={17} /> อนุมัติ</button><button className="icon-button danger" onClick={() => void reviewMessage(item, 'rejected')}><XCircle size={17} /> ปฏิเสธ</button></> : null}
+              {item.status === 'approved' && canPrepareMessages ? <button className="button button-primary" onClick={() => void sendApproved(item)}><Send size={17} /> ส่งข้อความ</button> : null}
             </div></article>
         ))}{!queue.length ? <div className="empty-state">ยังไม่มีข้อความรออนุมัติ</div> : null}</div>
       </section>

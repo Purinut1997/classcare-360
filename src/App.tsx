@@ -25,6 +25,11 @@ const LoginPage = lazy(() =>
     default: module.LoginPage,
   })),
 );
+const ResetPasswordPage = lazy(() =>
+  import('./pages/auth/ResetPasswordPage').then((module) => ({
+    default: module.ResetPasswordPage,
+  })),
+);
 const LandingPage = lazy(() =>
   import('./pages/marketing/LandingPage').then((module) => ({
     default: module.LandingPage,
@@ -539,7 +544,7 @@ function AppRoutes() {
     return <SessionStateScreen detail={error || 'ตรวจสอบ .env.local, migration, RLS policy และการเชื่อมต่อ Supabase อีกครั้ง'} title="โหลด session ไม่สำเร็จ" />;
   }
 
-  if (session?.profile.needsProfile && location.pathname !== '/auth/complete-profile') {
+  if (session?.profile.needsProfile && !['/auth/complete-profile', '/auth/reset-password'].includes(location.pathname)) {
     return <Navigate replace to="/auth/complete-profile" />;
   }
 
@@ -560,6 +565,7 @@ function AppRoutes() {
       <Route element={<LandingPage session={session} />} path="/" />
       <Route element={<LoginPage session={session} />} path="/login" />
       <Route element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />} path="/auth/complete-profile" />
+      <Route element={session ? <ResetPasswordPage /> : <Navigate replace to="/login?mode=forgot" />} path="/auth/reset-password" />
       <Route element={<PricingPage />} path="/pricing" />
       <Route element={<PublicReportLookupPage />} path="/public/report" />
       <Route element={<PublicSupportPage />} path="/support" />

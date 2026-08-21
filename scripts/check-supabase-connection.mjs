@@ -56,10 +56,18 @@ function isMissingRpc(error) {
   return error?.code === 'PGRST202' || message.includes('could not find the function') || message.includes('schema cache');
 }
 
+function isBrokenRpcDefinition(error) {
+  const message = error?.message?.toLowerCase() || '';
+  return ['42883', '42702', '42P13'].includes(error?.code)
+    || message.includes('does not exist')
+    || message.includes('is ambiguous')
+    || message.includes('no function matches');
+}
+
 async function assertRpcExists(name, args) {
   const { error } = await supabase.rpc(name, args);
 
-  if (isMissingRpc(error)) {
+  if (isMissingRpc(error) || isBrokenRpcDefinition(error)) {
     return {
       name,
       ok: false,
@@ -171,6 +179,15 @@ const publicReportRpcChecks = await Promise.all([
     target_workspace_id: NIL_UUID,
     citizen_id: '0000000000000',
     target_birth_date: '2000-01-01',
+  }),
+  assertRpcExists('get_workspace_viewer_report_summary', {
+    target_workspace_id: NIL_UUID,
+    date_from: '2026-08-01',
+    date_to: '2026-08-31',
+  }),
+  assertRpcExists('create_public_support_ticket', {
+    p_name: 'x', p_email: 'invalid', p_subject: 'x', p_body: 'x',
+    p_category: 'other', p_source: 'public', p_context: {}, p_honeypot: '',
   }),
 ]);
 const failedDashboardChecks = dashboardSchemaChecks.filter((check) => !check.ok);
