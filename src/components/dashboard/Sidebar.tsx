@@ -1,5 +1,5 @@
 import { ChevronDown, PanelLeftClose, ServerCog, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../navigation/ContextLink';
 
 import type { AppNavItem } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
@@ -23,7 +23,7 @@ const sidebarSections = [
   },
   { key: 'teaching', label: 'การเรียนการสอน', itemKeys: ['schedule', 'scores'] },
   { key: 'care', label: 'ดูแลและสื่อสาร', itemKeys: ['automation', 'notifications'] },
-  { key: 'reports', label: 'รายงาน', itemKeys: ['reports'] },
+  { key: 'reports', label: 'รายงาน', itemKeys: ['reports', 'daily-brief'] },
   {
     key: 'school',
     label: 'บริหารโรงเรียน',
