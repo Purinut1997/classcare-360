@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import {
   AlertTriangle,
   ArrowLeft,

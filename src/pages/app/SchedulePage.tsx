@@ -11,7 +11,8 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { getBangkokDate } from '../../lib/date';
 import { buildOfficialDocumentCode, formatThaiOfficialDate } from '../../lib/officialReport';

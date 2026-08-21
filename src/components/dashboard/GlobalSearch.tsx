@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronRight, DoorOpen, GraduationCap, Search, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
+import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { supabase } from '../../lib/supabaseClient';
 import { NexusAuroraInline } from '../system/NexusAuroraLoader';
 import type { AppNavItem } from '../../routes/appRoutes';
@@ -26,11 +27,18 @@ interface SearchClassroom {
   name: string;
 }
 
+const demoSearchStudents: SearchStudent[] = [
+  { classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', id: 'demo-student-1', last_name: 'ใจดี', nickname: 'นัท', student_code: '001' },
+  { classroom_id: 'demo-classroom', first_name: 'พิมพ์ชนก', id: 'demo-student-2', last_name: 'แสงทอง', nickname: 'พิม', student_code: '002' },
+  { classroom_id: 'demo-classroom', first_name: 'กิตติพงศ์', id: 'demo-student-3', last_name: 'สุขใจ', nickname: 'ก้อง', student_code: '003' },
+];
+
 function normalize(value: string) {
   return value.trim().toLocaleLowerCase('th');
 }
 
 export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
+  const location = useLocation();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -39,6 +47,7 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
   const [students, setStudents] = useState<SearchStudent[]>([]);
   const [classrooms, setClassrooms] = useState<SearchClassroom[]>([]);
   const normalizedQuery = normalize(query);
+  const demoMode = Boolean(session && isDemoSession(session));
 
   const menuResults = useMemo(() => {
     if (!normalizedQuery) return navItems.slice(0, 5);
@@ -71,7 +80,19 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
   useEffect(() => {
     const client = supabase;
     const workspaceId = session?.workspace?.id;
-    if (normalizedQuery.length < 2 || !client || !workspaceId) {
+    if (normalizedQuery.length < 2 || !workspaceId) {
+      setStudents([]);
+      setClassrooms([]);
+      setIsLoading(false);
+      return;
+    }
+    if (demoMode) {
+      setStudents(demoSearchStudents);
+      setClassrooms([{ id: 'demo-classroom', name: session?.workspace?.classroomName || 'ห้องเรียนตัวอย่าง' }]);
+      setIsLoading(false);
+      return;
+    }
+    if (!client) {
       setStudents([]);
       setClassrooms([]);
       setIsLoading(false);
@@ -94,12 +115,12 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
       void searchWorkspace();
     }, 180);
     return () => { isCurrent = false; window.clearTimeout(timeoutId); };
-  }, [normalizedQuery, session?.workspace?.id]);
+  }, [demoMode, normalizedQuery, session?.workspace?.classroomName, session?.workspace?.id]);
 
   function closeSearch() { setIsOpen(false); setQuery(''); }
-  function openMenu(path: string) { navigate(path); closeSearch(); }
-  function openStudent(student: SearchStudent) { navigate(`/app/dashboard?view=students&studentView=roster&studentId=${encodeURIComponent(student.id)}`); closeSearch(); }
-  function openClassroom(classroom: SearchClassroom) { navigate(`/app/dashboard?view=students&studentView=roster&classroomId=${encodeURIComponent(classroom.id)}`); closeSearch(); }
+  function openMenu(path: string) { navigate(withDemoContext(path, location.search)); closeSearch(); }
+  function openStudent(student: SearchStudent) { navigate(withDemoContext(`/app/dashboard?view=students&studentView=roster&studentId=${encodeURIComponent(student.id)}`, location.search)); closeSearch(); }
+  function openClassroom(classroom: SearchClassroom) { navigate(withDemoContext(`/app/dashboard?view=students&studentView=roster&classroomId=${encodeURIComponent(classroom.id)}`, location.search)); closeSearch(); }
   const hasWorkspaceResults = studentResults.length > 0 || classroomResults.length > 0;
 
   return (

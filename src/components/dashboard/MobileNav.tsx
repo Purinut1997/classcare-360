@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../navigation/ContextLink';
 
 import type { AppNavItem } from '../../routes/appRoutes';
 

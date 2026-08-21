@@ -11,7 +11,7 @@ import {
   Send,
   ShieldCheck,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';

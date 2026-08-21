@@ -1,5 +1,5 @@
 import { ArrowRight, CheckCircle2, Crown, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 const plans = [
   {

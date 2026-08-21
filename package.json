@@ -9,7 +9,8 @@
     "build:sites": "npm run build && node scripts/create-sites-worker.mjs",
     "connect:github": "powershell -ExecutionPolicy Bypass -File scripts/connect-github.ps1",
     "deploy:cloudflare": "npm run build && npx wrangler pages deploy dist --project-name classcare-360",
-    "check:deploy": "node scripts/check-production-readiness.mjs",
+    "check:deploy": "node scripts/check-production-readiness.mjs && node scripts/check-navigation-context.mjs",
+    "check:navigation": "node scripts/check-navigation-context.mjs",
     "check:supabase": "node scripts/check-supabase-connection.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint ."

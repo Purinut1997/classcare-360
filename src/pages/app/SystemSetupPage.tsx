@@ -19,6 +19,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 
+import { ContextLink } from '../../components/navigation/ContextLink';
 import { appEnv, hasSupabaseConfig } from '../../lib/env';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -428,13 +429,13 @@ export function SystemSetupPage({ session }: SystemSetupPageProps) {
                 ใช้ส่วนนี้ไล่ตรวจหลัง Cloudflare deploy สำเร็จ เพื่อยืนยันว่าเว็บ, auth, workspace และ RLS พร้อมก่อนกลับไปต่อระบบเงินหรือ integration ภายนอก
               </p>
             </div>
-            <a
+            <ContextLink
               className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-amber-50"
-              href="/app/dashboard"
+              to="/app/dashboard"
             >
               กลับหน้าภาพรวม
               <ExternalLink size={16} aria-hidden="true" />
-            </a>
+            </ContextLink>
           </div>
 
           <div className="mt-5 grid gap-3 lg:grid-cols-2">
@@ -564,13 +565,13 @@ export function SystemSetupPage({ session }: SystemSetupPageProps) {
                   </code>
                 ))}
               </div>
-              <a
+              <ContextLink
                 className="inline-flex items-center gap-2 text-sm font-black text-sky-700"
-                href="/app/dashboard?view=students"
+                to="/app/dashboard?view=students"
               >
                 ไปตรวจ Student 360
                 <ExternalLink size={15} aria-hidden="true" />
-              </a>
+              </ContextLink>
             </div>
           </section>
         </div>

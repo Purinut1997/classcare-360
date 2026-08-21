@@ -1,5 +1,5 @@
 import { ArrowRight, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../navigation/ContextLink';
 
 export interface WatchlistStudentItem {
   accent: string;

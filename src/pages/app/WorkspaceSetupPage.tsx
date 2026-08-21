@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { ArrowRight, Building2, CalendarDays, CheckCircle2, GraduationCap, Pencil, Plus, Save, School, X } from 'lucide-react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { NexusAuroraLoader } from '../../components/system/NexusAuroraLoader';
 import { demoWorkspaceQueryKey } from '../../lib/auth';

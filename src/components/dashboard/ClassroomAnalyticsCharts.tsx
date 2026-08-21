@@ -12,7 +12,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../navigation/ContextLink';
 import type { CSSProperties } from 'react';
 
 export interface AttendanceTrendPoint {

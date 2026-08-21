@@ -1,5 +1,5 @@
 import { BookOpenCheck, CheckCircle2, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../navigation/ContextLink';
 
 import { AppLogo } from '../brand/AppLogo';
 

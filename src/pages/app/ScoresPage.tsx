@@ -17,11 +17,12 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
 import { getBangkokDate } from '../../lib/date';
-import { isDemoSession } from '../../lib/auth';
+import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
 import type { AppSessionContext } from '../../types/core';
@@ -322,7 +323,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
   function handleScoreViewChange(nextScoreView: ScoreView) {
     setScoreView(nextScoreView);
-    navigate(`/app/dashboard?view=scores&scoreView=${nextScoreView}`, { replace: true });
+    navigate(withDemoContext(`/app/dashboard?view=scores&scoreView=${nextScoreView}`, location.search), { replace: true });
   }
 
   const classroomStudents = useMemo(

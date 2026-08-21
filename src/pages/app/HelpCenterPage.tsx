@@ -15,17 +15,23 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
 
+import { ContextLink } from '../../components/navigation/ContextLink';
+import { canUseModule } from '../../lib/entitlements';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
-import type { AppSessionContext } from '../../types/core';
+import type { AppSessionContext, ModuleKey, WorkspaceRole } from '../../types/core';
 
 interface HelpCenterPageProps {
   session: AppSessionContext;
 }
 
-interface GuideCard {
+interface HelpLinkAccess {
+  allowedRoles: WorkspaceRole[];
+  moduleKey: ModuleKey;
+}
+
+interface GuideCard extends HelpLinkAccess {
   title: string;
   body: string;
   cta: string;
@@ -33,31 +39,45 @@ interface GuideCard {
   tags: string[];
 }
 
-const startSteps = [
+const teacherRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member'];
+const ownerRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner'];
+const reportRoles: WorkspaceRole[] = [...teacherRoles, 'viewer'];
+
+const startSteps: Array<HelpLinkAccess & { title: string; body: string; href: string }> = [
   {
     title: '1. ตั้งค่าโรงเรียนและรายงาน',
     body: 'กรอกชื่อโรงเรียน ปีการศึกษา ห้องหลัก โลโก้ และผู้ลงนาม เพื่อให้รายงานทุกตัวใช้ข้อมูลเดียวกัน',
     href: '/app/dashboard?view=workspace-settings#workspace-profile',
+    allowedRoles: ownerRoles,
+    moduleKey: 'support',
   },
   {
     title: '2. เพิ่มห้องและนำเข้านักเรียน',
     body: 'เพิ่มห้องเรียนก่อน แล้วนำเข้าหรือเพิ่มนักเรียนเอง ตรวจห้อง/ปี/สถานะให้ตรงก่อนใช้งานงานครู',
     href: '/app/dashboard?view=import-export',
+    allowedRoles: ownerRoles,
+    moduleKey: 'import_export',
   },
   {
     title: '3. ตรวจ Data Quality',
     body: 'เช็กรายชื่อซ้ำ นักเรียนไม่มีห้อง นักเรียนผิดปี หรือ import รอบล่าสุดที่ต้องลบ/เก็บถาวร',
     href: '/app/dashboard?view=students&studentView=quality',
+    allowedRoles: teacherRoles,
+    moduleKey: 'students',
   },
   {
     title: '4. ตั้งตารางสอนและรายวิชา',
     body: 'ตั้งคาบเรียน พักเที่ยง วันเรียน รายวิชา และห้อง เพื่อให้เช็กเวลาเรียนรายวิชาและคะแนนอิงชุดเดียวกัน',
     href: '/app/dashboard?view=schedule&scheduleView=settings',
+    allowedRoles: teacherRoles,
+    moduleKey: 'attendance',
   },
   {
     title: '5. เริ่มงานครูและออกรายงาน',
     body: 'เช็กชื่อ กรอกคะแนน เงินออม พฤติกรรม แล้วสรุป PDF/CSV/XLSX จากศูนย์รายงาน',
     href: '/app/dashboard?view=reports&reportView=attendance',
+    allowedRoles: teacherRoles,
+    moduleKey: 'reports',
   },
 ];
 
@@ -68,6 +88,8 @@ const guideCards: GuideCard[] = [
     cta: 'เปิด Data Quality',
     href: '/app/dashboard?view=students&studentView=quality',
     tags: ['student', 'import', 'data quality', 'นักเรียนไม่ขึ้น', 'รายชื่อ'],
+    allowedRoles: teacherRoles,
+    moduleKey: 'students',
   },
   {
     title: 'หาเมนูนำเข้านักเรียนไม่เจอ',
@@ -75,6 +97,8 @@ const guideCards: GuideCard[] = [
     cta: 'ไปหน้านำเข้า',
     href: '/app/dashboard?view=import-export',
     tags: ['import', 'csv', 'dmc', 'นำเข้า', 'เพิ่มนักเรียน'],
+    allowedRoles: ownerRoles,
+    moduleKey: 'import_export',
   },
   {
     title: 'ลบแล้วข้อมูลกลับมา',
@@ -82,6 +106,8 @@ const guideCards: GuideCard[] = [
     cta: 'เปิดศูนย์ดูแลข้อมูล',
     href: '/app/dashboard?view=data-safety',
     tags: ['delete', 'archive', 'rls', 'ลบไม่ได้', 'กู้คืน'],
+    allowedRoles: ownerRoles,
+    moduleKey: 'support',
   },
   {
     title: 'จะเช็กชื่อแบบครูประจำชั้นหรือรายวิชา',
@@ -89,6 +115,8 @@ const guideCards: GuideCard[] = [
     cta: 'เปิดบันทึกเวลาเรียน',
     href: '/app/dashboard?view=teacher-work',
     tags: ['attendance', 'session', 'เช็กชื่อ', 'รายวิชา'],
+    allowedRoles: teacherRoles,
+    moduleKey: 'attendance',
   },
   {
     title: 'คะแนนควรเริ่มจากตรงไหน',
@@ -96,6 +124,8 @@ const guideCards: GuideCard[] = [
     cta: 'สร้างชุดคะแนน',
     href: '/app/dashboard?view=scores&scoreView=setup',
     tags: ['score', 'assessment', 'คะแนน', 'กลางภาค', 'ปลายภาค'],
+    allowedRoles: teacherRoles,
+    moduleKey: 'scores',
   },
   {
     title: 'รายงานออกมาไม่ตรงหัวกระดาษ',
@@ -103,6 +133,8 @@ const guideCards: GuideCard[] = [
     cta: 'ตั้งค่าโรงเรียน',
     href: '/app/dashboard?view=workspace-settings#workspace-profile',
     tags: ['report', 'logo', 'signature', 'รายงาน', 'ผู้ลงนาม'],
+    allowedRoles: ownerRoles,
+    moduleKey: 'support',
   },
   {
     title: 'ครูเข้าผิดโรงเรียนหรือ workspace ซ้ำ',
@@ -110,6 +142,8 @@ const guideCards: GuideCard[] = [
     cta: 'ศูนย์จัดการโรงเรียน',
     href: '/app/dashboard?view=workspace-settings#workspace-members',
     tags: ['workspace', 'owner', 'member', 'โรงเรียน', 'สิทธิ์'],
+    allowedRoles: ownerRoles,
+    moduleKey: 'support',
   },
   {
     title: 'ต้องการให้ผู้ปกครองหรือนักเรียนดูข้อมูลเอง',
@@ -117,6 +151,17 @@ const guideCards: GuideCard[] = [
     cta: 'ตั้งค่าสิทธิ์รายงาน',
     href: '/app/dashboard?view=workspace-settings#public-report-policy',
     tags: ['portal', 'parent', 'student', 'public report', 'ผู้ปกครอง'],
+    allowedRoles: ownerRoles,
+    moduleKey: 'parent_portal',
+  },
+  {
+    title: 'ดูรายงานตามสิทธิ์ที่ได้รับ',
+    body: 'เปิดศูนย์รายงานเพื่อดูข้อมูลสรุปของ workspace โดยระบบจะไม่เปิดเมนูจัดการนักเรียนหรือการตั้งค่าโรงเรียนให้ผู้ดูรายงาน',
+    cta: 'เปิดศูนย์รายงาน',
+    href: '/app/dashboard?view=reports',
+    tags: ['viewer', 'report', 'รายงาน', 'สรุป'],
+    allowedRoles: ['viewer'],
+    moduleKey: 'reports',
   },
 ];
 
@@ -125,53 +170,62 @@ const roleWorkflows = [
     icon: Users,
     title: 'ครูผู้สอน / ครูประจำชั้น',
     items: ['เช็กเวลาเรียน', 'กรอกคะแนน', 'เงินออม', 'พฤติกรรม', 'รายงานห้องที่ดูแล'],
+    roles: ['teacher_owner', 'teacher_member'] as WorkspaceRole[],
   },
   {
     icon: ShieldCheck,
     title: 'เจ้าของ workspace / Admin',
     items: ['อนุมัติครูเข้าโรงเรียน', 'จัดสิทธิ์สมาชิก', 'ลบหรือเก็บถาวรห้องเรียน', 'ตั้งค่าโรงเรียน', 'สำรองข้อมูล'],
+    roles: ['teacher_owner'] as WorkspaceRole[],
   },
   {
     icon: Wrench,
     title: 'Superadmin',
     items: ['ตรวจ workspace ซ้ำ', 'จัดสิทธิ์ Admin/Superadmin', 'ตรวจระบบ/RLS', 'ดู audit', 'ช่วยกู้คืนหรือปิดสิทธิ์'],
+    roles: ['superadmin'] as WorkspaceRole[],
   },
   {
     icon: FileSpreadsheet,
-    title: 'ผู้ปกครอง / นักเรียน',
-    items: ['เข้าผ่าน Portal หรือ Public Report', 'เห็นเฉพาะข้อมูลที่โรงเรียนเปิด', 'ไม่เห็นข้อมูลคนอื่น'],
+    title: 'ผู้ดูรายงาน',
+    items: ['ดูข้อมูลสรุปที่ได้รับอนุญาต', 'ส่งออกรายงานตามสิทธิ์', 'ไม่เห็น Student 360 หรือการตั้งค่าโรงเรียน'],
+    roles: ['viewer'] as WorkspaceRole[],
   },
 ];
 
-const quickLinks = [
-  { label: 'เพิ่มหรือนำเข้านักเรียน', href: '/app/dashboard?view=import-export', icon: DatabaseZap },
-  { label: 'ตรวจรายชื่อผิด/ซ้ำ', href: '/app/dashboard?view=students&studentView=quality', icon: Search },
-  { label: 'ตั้งตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList },
-  { label: 'กรอกคะแนน', href: '/app/dashboard?view=scores&scoreView=entry', icon: GraduationCap },
-  { label: 'ออกรายงาน', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet },
+const quickLinks: Array<HelpLinkAccess & { label: string; href: string; icon: typeof DatabaseZap }> = [
+  { label: 'เพิ่มหรือนำเข้านักเรียน', href: '/app/dashboard?view=import-export', icon: DatabaseZap, allowedRoles: ownerRoles, moduleKey: 'import_export' },
+  { label: 'ตรวจรายชื่อผิด/ซ้ำ', href: '/app/dashboard?view=students&studentView=quality', icon: Search, allowedRoles: teacherRoles, moduleKey: 'students' },
+  { label: 'ตั้งตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList, allowedRoles: teacherRoles, moduleKey: 'attendance' },
+  { label: 'กรอกคะแนน', href: '/app/dashboard?view=scores&scoreView=entry', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
+  { label: 'ออกรายงาน', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet, allowedRoles: reportRoles, moduleKey: 'reports' },
 ];
 
 export function HelpCenterPage({ session }: HelpCenterPageProps) {
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLowerCase();
-  const roleQuickLinks = useMemo(() => {
+  const canOpenHelpLink = (item: HelpLinkAccess) => (
+    item.allowedRoles.includes(session.profile.role) && canUseModule(session.subscription, item.moduleKey)
+  );
+  const accessibleLinks = quickLinks.filter(canOpenHelpLink);
+  const roleQuickLinks = (() => {
     if (session.profile.role === 'superadmin') {
-      return [...quickLinks, { label: 'ตรวจระบบ', href: '/app/dashboard?view=setup', icon: Settings2 }];
+      return [...accessibleLinks, { label: 'ตรวจระบบ', href: '/app/dashboard?view=setup', icon: Settings2, allowedRoles: ['superadmin'] as WorkspaceRole[], moduleKey: 'support' as ModuleKey }];
     }
     if (canManageWorkspace(session.profile.role)) {
-      return [...quickLinks, { label: 'ตั้งค่าโรงเรียน', href: '/app/dashboard?view=workspace-settings', icon: Settings2 }];
+      return [...accessibleLinks, { label: 'ตั้งค่าโรงเรียน', href: '/app/dashboard?view=workspace-settings', icon: Settings2, allowedRoles: ownerRoles, moduleKey: 'support' as ModuleKey }];
     }
-    return quickLinks;
-  }, [session.profile.role]);
+    return accessibleLinks;
+  })();
 
-  const filteredGuides = useMemo(() => {
-    if (!normalizedQuery) return guideCards;
+  const accessibleStartSteps = startSteps.filter(canOpenHelpLink);
+  const accessibleGuides = guideCards.filter(canOpenHelpLink);
 
-    return guideCards.filter((guide) => {
+  const filteredGuides = normalizedQuery
+    ? accessibleGuides.filter((guide) => {
       const haystack = [guide.title, guide.body, guide.cta, ...guide.tags].join(' ').toLowerCase();
       return haystack.includes(normalizedQuery);
-    });
-  }, [normalizedQuery]);
+    })
+    : accessibleGuides;
 
   return (
     <main className="app-page">
@@ -200,7 +254,7 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
           const Icon = item.icon;
 
           return (
-            <Link
+            <ContextLink
               className="nexus-card flex min-h-24 items-center gap-3 p-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 hover:border-[#d89333] hover:bg-white"
               key={item.href}
               to={item.href}
@@ -209,12 +263,12 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
                 <Icon size={19} aria-hidden="true" />
               </span>
               <span>{item.label}</span>
-            </Link>
+            </ContextLink>
           );
         })}
       </section>
 
-      <section className="nexus-card mt-5 p-4 sm:p-5">
+      {accessibleStartSteps.length > 0 ? <section className="nexus-card mt-5 p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <span className="nexus-kicker">
@@ -227,28 +281,28 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
               student, schedule และ report settings ร่วมกัน
             </p>
           </div>
-          <Link
+          {canManageWorkspace(session.profile.role) ? <ContextLink
             className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#3a2817] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(58,40,23,0.18)] transition hover:-translate-y-0.5"
             to="/app/dashboard?view=workspace-settings"
           >
             เปิดศูนย์จัดการโรงเรียน
             <LinkIcon size={17} aria-hidden="true" />
-          </Link>
+          </ContextLink> : null}
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-5">
-          {startSteps.map((step) => (
-            <Link
+          {accessibleStartSteps.map((step) => (
+            <ContextLink
               className="rounded-2xl border border-[#ead8bd] bg-white/80 p-4 transition hover:-translate-y-0.5 hover:border-[#d89333] hover:shadow-[0_14px_34px_rgba(122,79,38,0.10)]"
               key={step.title}
               to={step.href}
             >
               <p className="text-sm font-black text-slate-950">{step.title}</p>
               <p className="mt-2 text-xs font-bold leading-5 text-slate-600">{step.body}</p>
-            </Link>
+            </ContextLink>
           ))}
         </div>
-      </section>
+      </section> : null}
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
         <div className="nexus-card p-4 sm:p-5">
@@ -277,13 +331,13 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
               <article className="rounded-2xl border border-[#ead8bd] bg-white/82 p-4" key={guide.title}>
                 <h3 className="text-base font-black text-slate-950">{guide.title}</h3>
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{guide.body}</p>
-                <Link
+                <ContextLink
                   className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#fff1c9] px-3 text-sm font-black text-[#5a3515] ring-1 ring-[#e8c47b] transition hover:-translate-y-0.5"
                   to={guide.href}
                 >
                   {guide.cta}
                   <LinkIcon size={16} aria-hidden="true" />
-                </Link>
+                </ContextLink>
               </article>
             ))}
 
@@ -302,7 +356,7 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
               Role Workflow
             </span>
             <div className="mt-4 grid gap-3">
-              {roleWorkflows.map((workflow) => {
+              {roleWorkflows.filter((workflow) => workflow.roles.includes(session.profile.role)).map((workflow) => {
                 const Icon = workflow.icon;
 
                 return (
@@ -329,7 +383,7 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
             </div>
           </section>
 
-          <section className="nexus-card p-4 sm:p-5">
+          {session.profile.role !== 'viewer' ? <section className="nexus-card p-4 sm:p-5">
             <span className="nexus-kicker">
               <Wrench size={16} aria-hidden="true" />
               Smoke Test
@@ -353,7 +407,7 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
                 </label>
               ))}
             </div>
-          </section>
+          </section> : null}
         </aside>
       </section>
     </main>

@@ -1,7 +1,7 @@
 import { CalendarDays, FileCheck2, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Plus, Printer, RefreshCw, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 

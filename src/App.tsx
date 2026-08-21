@@ -510,8 +510,10 @@ function WorkspaceSetupRoute({ session }: { session: AppSessionContext | null })
 }
 
 function SuperadminRoute({ session }: { session: AppSessionContext | null }) {
+  const { search } = useLocation();
+
   if (session?.profile.role === 'superadmin') {
-    return <Navigate replace to="/app/dashboard?view=superadmin-dashboard" />;
+    return <Navigate replace to={withDemoContext('/app/dashboard?view=superadmin-dashboard', search)} />;
   }
 
   return (
@@ -562,7 +564,7 @@ function AppRoutes() {
 
   if (session && location.pathname === '/login') {
     const redirectTo = new URLSearchParams(location.search).get('redirect');
-    return <Navigate replace to={getPostAuthRouteForSession(session, redirectTo)} />;
+    return <Navigate replace to={withDemoContext(getPostAuthRouteForSession(session, redirectTo), location.search)} />;
   }
 
   return (

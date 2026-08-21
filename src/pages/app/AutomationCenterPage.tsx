@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle2, Eye, FileSpreadsheet,
   MessageSquareText, Play, Send, ShieldCheck, Sparkles, XCircle,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
