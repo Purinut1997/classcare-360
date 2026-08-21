@@ -13,26 +13,27 @@ interface SidebarProps {
   session?: AppSessionContext;
 }
 
+const coreDirectItemKeys = [
+  'overview',
+  'students',
+  'teacher-work',
+  'scores',
+  'savings',
+  'behavior',
+  'schedule',
+  'reports',
+];
+
 const sidebarSections = [
-  { key: 'overview', label: 'ภาพรวม', itemKeys: ['overview'] },
-  { key: 'students', label: 'นักเรียนและผู้ปกครอง', itemKeys: ['students', 'parent-access'] },
   {
-    key: 'daily-work',
-    label: 'งานครูประจำวัน',
-    itemKeys: ['teacher-work', 'student-health', 'classroom-operations', 'savings', 'behavior', 'randomizer'],
-  },
-  { key: 'teaching', label: 'การเรียนการสอน', itemKeys: ['schedule', 'scores'] },
-  { key: 'care', label: 'ดูแลและสื่อสาร', itemKeys: ['automation', 'notifications'] },
-  { key: 'reports', label: 'รายงาน', itemKeys: ['reports', 'daily-brief'] },
-  {
-    key: 'school',
-    label: 'บริหารโรงเรียน',
-    itemKeys: ['school-calendar', 'period-locks', 'academic-year', 'import-export', 'data-safety', 'workspace-settings', 'workspace-switch'],
+    key: 'daily-tools',
+    label: 'เครื่องมือเสริมในห้อง',
+    itemKeys: ['student-health', 'classroom-operations', 'randomizer', 'parent-access', 'automation', 'daily-brief'],
   },
   {
-    key: 'system',
-    label: 'ระบบ',
-    itemKeys: ['help-center', 'setup', 'audit'],
+    key: 'school-management',
+    label: 'บริหารโรงเรียน & ตั้งค่า',
+    itemKeys: ['school-calendar', 'workspace-settings', 'period-locks', 'academic-year', 'import-export', 'data-safety', 'workspace-switch', 'help-center', 'setup', 'audit', 'notifications'],
   },
 ];
 
@@ -43,8 +44,13 @@ export function Sidebar({
   onClose,
   session,
 }: SidebarProps) {
-  const renderedKeys = new Set<string>();
-  const sections = sidebarSections
+  const directItems = coreDirectItemKeys
+    .map((key) => navItems.find((item) => item.key === key))
+    .filter((item): item is AppNavItem => Boolean(item));
+
+  const renderedKeys = new Set<string>(directItems.map((item) => item.key));
+
+  const secondarySections = sidebarSections
     .map((section) => {
       const items = section.itemKeys
         .map((key) => navItems.find((item) => item.key === key))
@@ -53,7 +59,8 @@ export function Sidebar({
       return { ...section, items };
     })
     .filter((section) => section.items.length > 0);
-  const uncategorizedItems = navItems.filter(
+
+  const otherItems = navItems.filter(
     (item) => !renderedKeys.has(item.key) && item.key !== 'superadmin-dashboard',
   );
 
@@ -85,53 +92,77 @@ export function Sidebar({
         </div>
 
         <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
-          {[...sections, ...(uncategorizedItems.length ? [{ key: 'other', label: 'อื่น ๆ', items: uncategorizedItems }] : [])].map(
-            (section) => {
-              const hasActiveItem = section.items.some((item) => item.key === activeView);
-              const isSingle = section.items.length === 1;
-
-              if (isSingle) {
-                const item = section.items[0];
-                const Icon = item.icon;
-                return (
-                  <Link
-                    className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
-                    key={section.key}
-                    onClick={onClose}
-                    to={item.path}
-                  >
-                    <Icon size={18} aria-hidden="true" />
-                    <span>{section.label}</span>
-                  </Link>
-                );
-              }
-
+          {/* Core Direct 1-Click Teacher Items */}
+          <div className="grid gap-1">
+            {directItems.map((item) => {
+              const Icon = item.icon;
               return (
-                <details className="app-sidebar-section" key={section.key} open={hasActiveItem}>
-                  <summary>
-                    <span>{section.label}</span>
-                    <ChevronDown size={15} aria-hidden="true" />
-                  </summary>
-                  <div className="grid gap-1 py-1">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
-                          key={item.key}
-                          onClick={onClose}
-                          to={item.path}
-                        >
-                          <Icon size={17} aria-hidden="true" />
-                          <span className="truncate">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </details>
+                <Link
+                  className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                  key={item.key}
+                  onClick={onClose}
+                  to={item.path}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
               );
-            },
-          )}
+            })}
+          </div>
+
+          {/* Secondary Collapsible Groups */}
+          {secondarySections.map((section) => {
+            const hasActiveItem = section.items.some((item) => item.key === activeView);
+            return (
+              <details className="app-sidebar-section mt-2" key={section.key} open={hasActiveItem}>
+                <summary>
+                  <span>{section.label}</span>
+                  <ChevronDown size={15} aria-hidden="true" />
+                </summary>
+                <div className="grid gap-1 py-1">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                        key={item.key}
+                        onClick={onClose}
+                        to={item.path}
+                      >
+                        <Icon size={17} aria-hidden="true" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </details>
+            );
+          })}
+
+          {otherItems.length > 0 ? (
+            <details className="app-sidebar-section mt-2" open={otherItems.some((item) => item.key === activeView)}>
+              <summary>
+                <span>อื่น ๆ</span>
+                <ChevronDown size={15} aria-hidden="true" />
+              </summary>
+              <div className="grid gap-1 py-1">
+                {otherItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                      key={item.key}
+                      onClick={onClose}
+                      to={item.path}
+                    >
+                      <Icon size={17} aria-hidden="true" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
+          ) : null}
         </nav>
 
         {session?.profile.role === 'superadmin' ? (
