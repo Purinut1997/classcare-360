@@ -317,17 +317,19 @@
   box-shadow: none;
 }
 .app-shell.theme-dark .app-context-nav a {
-  color: #8491a1 !important;
-  border-radius: 0.5rem;
+  color: var(--nx-muted) !important;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 .app-shell.theme-dark .app-context-nav a:hover {
   color: var(--nx-ink-soft) !important;
-  background: rgb(255 255 255 / 0.035) !important;
+  background: rgb(255 255 255 / 0.06) !important;
 }
 .app-shell.theme-dark .app-context-nav a.is-active {
-  color: var(--nx-ink) !important;
-  background: rgb(199 255 49 / 0.08) !important;
-  box-shadow: inset 0 -2px 0 var(--nx-cyan) !important;
+  color: #0a0e07 !important;
+  background: var(--nx-cyan) !important;
+  box-shadow: 0 2px 8px rgb(199 255 49 / 0.25) !important;
 }
 
 .app-shell.theme-dark .app-page {
