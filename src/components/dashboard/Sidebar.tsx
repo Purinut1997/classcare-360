@@ -67,7 +67,7 @@ export function Sidebar({
   return (
     <>
       <button
-        className={`fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-[2px] lg:hidden ${
+        className={`fixed inset-0 z-40 bg-slate-950/60 lg:hidden ${
           isMobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         style={{ transition: 'opacity 0.28s cubic-bezier(0.4,0,0.2,1)' }}
