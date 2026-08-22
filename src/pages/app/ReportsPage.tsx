@@ -2468,6 +2468,63 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       });
     }
 
+    if (reportView === 'subject-scores') {
+      const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
+      const totalMaxScore = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
+      
+      const rowsHtml = classroomStudents.map((student, idx) => {
+        let totalScore = 0;
+        let missingCount = 0;
+        
+        const scoreColsHtml = assessments.map((a) => {
+          const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+          if (score !== null) {
+            totalScore += score;
+          } else {
+            missingCount += 1;
+          }
+          return `<td style="text-align:center;width:12mm">${score !== null ? score : '-'}</td>`;
+        }).join('');
+        
+        return `<tr style="page-break-inside:avoid;">
+          <td style="text-align:center;width:8mm">${idx + 1}</td>
+          <td style="text-align:center;width:18mm">${escapeHtml(student.student_code || '-')}</td>
+          <td>${escapeHtml(`${student.first_name} ${student.last_name}`)}</td>
+          ${scoreColsHtml}
+          <td style="text-align:center;width:15mm;font-weight:700">${totalScore}</td>
+          <td style="text-align:center;width:15mm;color:#be123c">${missingCount > 0 ? missingCount : '-'}</td>
+        </tr>`;
+      }).join('');
+      
+      const headerColsHtml = assessments.map((a) => `<th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">${escapeHtml(a.title)}<br/>(${a.max_score})</th>`).join('');
+
+      return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานคะแนนรายวิชา</title><style>body{margin:0;color:#0f172a;}td,th{border:1px solid #334155;padding:1.5mm 1mm;font-size:10pt}table{width:100%;border-collapse:collapse;}</style></head><body>
+        <div style="font-family:'TH Sarabun New',Tahoma,sans-serif;padding:8mm 12mm;">
+          <div style="border-bottom:2px solid #0ea5e9;padding-bottom:4mm;margin-bottom:4mm;display:flex;justify-content:space-between;align-items:flex-end;">
+            <div>
+              <div style="font-size:16pt;font-weight:900">${escapeHtml(common.workspaceName)}</div>
+              <div style="font-size:12pt;font-weight:700">ตารางคะแนนรวมและงานค้างแยกรายวิชา</div>
+              <div style="font-size:10pt;color:#475569">วิชา: ${escapeHtml(selectedSubjectName || '-')} &middot; คะแนนเต็มรวม: ${totalMaxScore}</div>
+            </div>
+          </div>
+          <table>
+            <thead style="display:table-header-group">
+              <tr style="background:#e0f2fe;page-break-inside:avoid;">
+                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">ที่</th>
+                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">รหัส</th>
+                <th style="border:1px solid #334155;padding:2mm 3mm;text-align:left">ชื่อ-สกุล</th>
+                ${headerColsHtml}
+                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">รวม<br/>(${totalMaxScore})</th>
+                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">ค้าง</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+      </body></html>`;
+    }
+
     return buildPrintableTableReportHtml({
       ...common,
       columns: ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'],
@@ -2976,7 +3033,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         <section className="nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-black text-teal-700">{activeReportConfig.label} / {periodLabel}</p>
+              <p className="text-sm font-black text-teal-700">
+          {activeReportConfig.label}{reportView === 'subject-scores' ? '' : ` / ${periodLabel}`}
+        </p>
               <h2 className="mt-1 text-2xl font-black text-slate-950">
                 {activeReportConfig.description}
               </h2>
@@ -3373,6 +3432,67 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                   </div>
                 </article>
               </div>
+            </div>
+          ) : null}
+
+          {reportView === 'subject-scores' ? (
+            <div className="mt-5 grid gap-4">
+              {!selectedSubjectName ? (
+                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">กรุณาเลือกวิชาที่ต้องการดูคะแนนจากตัวกรองด้านบน</div>
+              ) : (
+                <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50 text-left">
+                        <th className="px-4 py-3 font-black text-slate-700 w-12 text-center">ที่</th>
+                        <th className="px-4 py-3 font-black text-slate-700 w-24 text-center">รหัส</th>
+                        <th className="px-4 py-3 font-black text-slate-700">ชื่อ-สกุล</th>
+                        {classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName).map((a) => (
+                          <th key={a.id} className="px-4 py-3 font-black text-slate-700 text-center whitespace-nowrap">
+                            {a.title} ({a.max_score})
+                          </th>
+                        ))}
+                        <th className="px-4 py-3 font-black text-slate-900 text-center border-l border-slate-200">รวมคะแนน</th>
+                        <th className="px-4 py-3 font-black text-rose-700 text-center">งานค้าง</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {classroomStudents.map((student, idx) => {
+                        const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
+                        let totalScore = 0;
+                        let missingCount = 0;
+                        
+                        return (
+                          <tr key={student.id} className="transition hover:bg-slate-50">
+                            <td className="px-4 py-3 text-center font-bold text-slate-500">{idx + 1}</td>
+                            <td className="px-4 py-3 text-center font-bold text-slate-500">{student.student_code || '-'}</td>
+                            <td className="px-4 py-3 font-bold text-slate-700">{student.first_name} {student.last_name}</td>
+                            {assessments.map((a) => {
+                              const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+                              const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+                              if (score !== null) {
+                                totalScore += score;
+                              } else {
+                                missingCount += 1;
+                              }
+                              return (
+                                <td key={a.id} className="px-4 py-3 text-center font-bold text-slate-600">
+                                  {score !== null ? score : <span className="text-rose-400">-</span>}
+                                </td>
+                              );
+                            })}
+                            <td className="px-4 py-3 text-center font-black text-cyan-700 border-l border-slate-200">{totalScore}</td>
+                            <td className="px-4 py-3 text-center font-bold text-rose-600">{missingCount > 0 ? missingCount : '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {classroomStudents.length === 0 ? (
+                    <div className="p-4 text-center text-sm font-bold text-slate-500">ไม่มีรายชื่อนักเรียนในห้องนี้</div>
+                  ) : null}
+                </div>
+              )}
             </div>
           ) : null}
 
