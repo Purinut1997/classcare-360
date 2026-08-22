@@ -24,7 +24,7 @@ interface ReportsPageProps {
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'activity';
-type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'health' | 'student-register' | 'executive' | 'individual' | 'behavior' | 'settings';
+type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'subject-scores' | 'health' | 'student-register' | 'executive' | 'individual' | 'behavior' | 'settings';
 type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
 type RegisterOrientation = 'portrait' | 'landscape';
@@ -284,6 +284,7 @@ const reportViews: Array<{ description: string; label: string; value: ReportView
   { description: 'แยกวิชา คาบ และช่วงเวลา พร้อม export', label: 'เวลาเรียนรายวิชา', value: 'subject-attendance' },
   { description: 'เงินฝาก ถอน และยอดคงเหลือ', label: 'เงินออม', value: 'savings' },
   { description: 'สรุปคะแนนรวมห้องและรายชั้น', label: 'คะแนนรวมห้อง', value: 'scores' },
+    { description: 'ตารางคะแนนรวมและงานค้างแยกรายวิชา', label: 'คะแนนรายวิชา', value: 'subject-scores' },
   { description: 'การเจริญเติบโต สุขอนามัย แปรงฟัน ดื่มนม และอาหารกลางวัน', label: 'สุขภาพและกิจวัตร', value: 'health' },
   { description: 'บัญชีรายชื่อนักเรียนพร้อมข้อมูลผู้ปกครองและการรับรอง', label: 'ทะเบียนนักเรียน', value: 'student-register' },
   { description: 'ภาพรวมผลดำเนินงาน ประเด็นเฝ้าระวัง และข้อเสนอเพื่อพิจารณา', label: 'สรุปผู้บริหาร', value: 'executive' },
@@ -2041,6 +2042,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       ),
     [scoreAssessments, selectedClassroom],
   );
+  const scoreSubjectOptions = useMemo(
+    () => Array.from(new Set(classroomScoreAssessments.map((item) => item.subject_name).filter(Boolean))).sort(),
+    [classroomScoreAssessments]
+  );
   const scoreEntriesByAssessment = useMemo(() => {
     const map = new Map<string, ScoreEntryRow[]>();
     scoreEntries.forEach((entry) => {
@@ -2812,6 +2817,17 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                     คาบเรียน
                     <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedPeriodLabel(event.target.value)} value={selectedPeriodLabel}>
                       {periodOptions.map((period) => <option key={period} value={period}>{period}</option>)}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+              {reportView === 'subject-scores' ? (
+                <div className="grid gap-3 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-3 mt-3">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    เลือกวิชาที่ต้องการดูคะแนน
+                    <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectName(event.target.value)} value={selectedSubjectName}>
+                      <option value="">-- กรุณาเลือกวิชา --</option>
+                      {scoreSubjectOptions.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
                     </select>
                   </label>
                 </div>
