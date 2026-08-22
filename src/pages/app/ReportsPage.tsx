@@ -2719,6 +2719,45 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         </div>
       </div>
 
+      <nav aria-label="ประเภทรายงาน" className="mt-5 flex gap-2 overflow-x-auto pb-2 snap-x scrollbar-hide">
+        {reportViews.map((item) => {
+          const icons: Record<string, string> = {
+            'attendance': '📅',
+            'subject-attendance': '📖',
+            'savings': '🐷',
+            'scores': '🎯',
+            'subject-scores': '📊',
+            'health': '🏥',
+            'student-register': '📋',
+            'executive': '👔',
+            'individual': '👤',
+            'behavior': '💬',
+            'settings': '⚙️',
+          };
+          const isActive = reportView === item.value;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              title={item.description}
+              onClick={() => updateReportSearch({ reportView: item.value })}
+              className={`group flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm transition-all duration-200 snap-start ${
+                isActive
+                  ? 'border-cyan-500 bg-cyan-50 shadow-sm ring-1 ring-cyan-500/20'
+                  : 'border-slate-200 bg-white hover:border-cyan-300 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`text-lg transition-transform duration-200 ${isActive ? 'scale-110 drop-shadow-sm' : 'group-hover:scale-110'}`}>
+                {icons[item.value] || '📄'}
+              </span>
+              <strong className={`font-black ${isActive ? 'text-cyan-800' : 'text-slate-600 group-hover:text-cyan-700'}`}>
+                {item.label}
+              </strong>
+            </button>
+          );
+        })}
+      </nav>
+
       <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { detail: `${coreMetrics.attendance.riskCount} รายการต้องติดตาม`, label: 'เวลาเรียน', value: `${coreMetrics.attendance.presentRate}%` },
@@ -2743,53 +2782,6 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             </div>
 
             <div className="mt-4 grid gap-3">
-              <div className="grid gap-2">
-                <p className="text-sm font-black text-slate-700">ประเภทรายงาน</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {reportViews.map((item) => {
-                    const icons: Record<string, string> = {
-                      'attendance': '📅',
-                      'subject-attendance': '📖',
-                      'savings': '🐷',
-                      'scores': '🎯',
-                      'subject-scores': '📊',
-                      'health': '🏥',
-                      'student-register': '📋',
-                      'executive': '👔',
-                      'individual': '👤',
-                      'behavior': '💬',
-                      'settings': '⚙️',
-                    };
-                    const isActive = reportView === item.value;
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        title={item.description}
-                        onClick={() => updateReportSearch({ reportView: item.value })}
-                        className={`group relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 text-center transition-all duration-200 ${
-                          isActive
-                            ? 'border-cyan-400 bg-gradient-to-b from-cyan-50 to-white shadow-md ring-1 ring-cyan-400/20'
-                            : 'border-slate-200 bg-slate-50/50 hover:border-cyan-300 hover:bg-white hover:shadow-sm'
-                        }`}
-                      >
-                        <span className={`text-2xl transition-transform duration-200 ${isActive ? 'scale-110 drop-shadow-sm' : 'group-hover:scale-110'}`}>
-                          {icons[item.value] || '📄'}
-                        </span>
-                        <strong className={`block text-xs font-black leading-tight ${isActive ? 'text-cyan-800' : 'text-slate-600 group-hover:text-cyan-700'}`}>
-                          {item.label}
-                        </strong>
-                        {isActive && (
-                          <div className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] text-white shadow-sm ring-2 ring-white">
-                            ✓
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div className="grid grid-cols-3 gap-2">
                 {reportPeriods.map((period) => (
                   <button
