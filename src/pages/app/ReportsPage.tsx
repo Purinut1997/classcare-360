@@ -2206,6 +2206,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         ? classroomSavingsTransactions.length
         : reportView === 'scores'
           ? scoreAssessmentRows.length
+        : reportView === 'subject-scores'
+          ? selectedSubjectName ? classroomStudents.length : 0
           : reportView === 'health'
             ? classroomHealthRecords.length
           : reportView === 'student-register'
@@ -2220,7 +2222,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   const exportableAttendance =
     ((reportView === 'attendance' && monthlyAttendanceGrid.rows.length > 0) ||
       (reportView === 'subject-attendance' && activeAttendanceGrid.rows.length > 0)) ||
-    (reportView === 'savings' && monthlySavingsGrid.rows.length > 0);
+    (reportView === 'savings' && monthlySavingsGrid.rows.length > 0) ||
+    (reportView === 'subject-scores' && selectedSubjectName && classroomStudents.length > 0);
   const printableReport = reportView !== 'settings' && activeReportRowCount > 0;
   const readinessItems = [
     { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
@@ -2545,6 +2548,31 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportCsv() {
+    if (reportView === 'subject-scores') {
+      const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
+      const headers = ['ที่', 'รหัส', 'นักเรียน', ...assessments.map((a) => a.title), 'รวมคะแนน', 'งานค้าง'];
+      const lines = [
+        headers.map(escapeCsv).join(','),
+        ...classroomStudents.map((student, idx) => {
+          let totalScore = 0;
+          let missingCount = 0;
+          const scoreCols = assessments.map((a) => {
+            const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+            const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+            if (score !== null) {
+              totalScore += score;
+            } else {
+              missingCount += 1;
+            }
+            return score !== null ? String(score) : '-';
+          });
+          return [String(idx + 1), student.student_code || '-', `${student.first_name} ${student.last_name}`, ...scoreCols, String(totalScore), String(missingCount)].map(escapeCsv).join(',');
+        }),
+      ];
+      downloadBlob(`classcare-subject-scores-${dateFrom}-${dateTo}.csv`, new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' }));
+      return;
+    }
+
     const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'แหล่งข้อมูล'];
     const lines = [
       headers.map(escapeCsv).join(','),
@@ -2604,6 +2632,31 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                 subjectName: row.assessment.subject_name,
                 title: row.assessment.title,
               }))
+            : reportView === 'subject-scores'
+              ? classroomStudents.map((student) => {
+                  const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
+                  let totalScore = 0;
+                  let missingCount = 0;
+                  const scoreCols = Object.fromEntries(
+                    assessments.map((a) => {
+                      const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+                      const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+                      if (score !== null) {
+                        totalScore += score;
+                      } else {
+                        missingCount += 1;
+                      }
+                      return [a.title, score];
+                    })
+                  );
+                  return {
+                    missingCount,
+                    studentCode: student.student_code,
+                    studentName: `${student.first_name} ${student.last_name}`,
+                    totalScore,
+                    ...scoreCols,
+                  };
+                })
             : reportView === 'health'
               ? healthSummaryRows.map((row) => ({
                   bmi: row.latestGrowth?.bmi ?? null,
