@@ -2255,7 +2255,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       });
     }
 
-    if (reportView === 'attendance' || reportView === 'subject-attendance') {
+    if (reportView === 'attendance') {
       return buildPrintableReportHtml({
         attendanceGrid: activeAttendanceGrid,
         dateFrom,
@@ -2266,8 +2266,56 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       });
     }
 
+    if (reportView === 'subject-attendance') {
+      // Build one attendance grid per subject — each gets its own page
+      const gridHtmlParts = subjectOptions.map((subject, index) => {
+        const subjectGrid = buildMonthlyAttendanceGrid({
+          attendanceRecords,
+          attendanceSessions,
+          classroomId,
+          classrooms,
+          dateFrom,
+          sessionKind: 'subject',
+          subjectName: subject,
+          students,
+        });
+        const html = buildPrintableReportHtml({
+          attendanceGrid: subjectGrid,
+          dateFrom,
+          schoolName: common.schoolName,
+          teacherName: common.teacherName,
+          workspaceName: `${common.workspaceName} · ${subject}`,
+          reportIdentity,
+        });
+        // Extract body content for all-in-one HTML
+        const bodyMatch = html.match(/<body>([\s\S]*?)<\/body>/);
+        const styleMatch = index === 0 ? html.match(/<style>([\s\S]*?)<\/style>/) : null;
+        return { body: bodyMatch?.[1] ?? html, style: styleMatch?.[1] ?? '' };
+      });
+
+      if (gridHtmlParts.length === 0) {
+        return buildPrintableReportHtml({
+          attendanceGrid: activeAttendanceGrid,
+          dateFrom,
+          schoolName: common.schoolName,
+          teacherName: common.teacherName,
+          workspaceName: common.workspaceName,
+          reportIdentity,
+        });
+      }
+
+      // Combine all subjects into single printable HTML with page breaks
+      const combinedStyle = gridHtmlParts[0].style;
+      const combinedBody = gridHtmlParts
+        .map((part, i) => `<div style="${i > 0 ? 'page-break-before:always;' : ''}">${part.body}</div>`)
+        .join('');
+
+      return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานเวลาเรียนรายวิชา</title><style>${combinedStyle}</style></head><body>${combinedBody}</body></html>`;
+    }
+
     if (reportView === 'scores') {
-      return buildPrintableTableReportHtml({
+      // Build the summary table HTML
+      const summaryHtml = buildPrintableTableReportHtml({
         ...common,
         columns: ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'],
         documentPrefix: 'CC-SCO',
@@ -2285,6 +2333,60 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         subtitle: `${periodLabel} | สรุป ${scoreAssessmentRows.length} ชุดคะแนน`,
         title: 'รายงานสรุปคะแนนประจำชั้น',
       });
+
+      if (scoreAssessmentRows.length === 0) return summaryHtml;
+
+      // Extract style from summary HTML (use only once)
+      const summaryStyleMatch = summaryHtml.match(/<style>([\s\S]*?)<\/style>/);
+      const sharedStyle = summaryStyleMatch?.[1] ?? '';
+      const summaryBodyMatch = summaryHtml.match(/<body>([\s\S]*?)<\/body>/);
+      const summaryBody = summaryBodyMatch?.[1] ?? summaryHtml;
+
+      // Build per-assessment student breakdown pages
+      const detailPages = scoreAssessmentRows.map((row) => {
+        const assessmentEntries = (scoreEntriesByAssessment.get(row.assessment.id) || [])
+          .filter((e) => classroomStudentIds.has(e.student_id));
+        const entryByStudent = new Map(assessmentEntries.map((e) => [e.student_id, e]));
+        const studentTableRows = classroomStudents.map((student, idx) => {
+          const entry = entryByStudent.get(student.id);
+          const scoreVal = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+          const maxScore = Number(row.assessment.max_score || 0);
+          const pct = scoreVal !== null && maxScore > 0 ? `${round((scoreVal / maxScore) * 100)}%` : '-';
+          return `<tr>
+            <td style="text-align:center;width:8mm">${idx + 1}</td>
+            <td style="text-align:center;width:22mm">${escapeHtml(student.student_code || '-')}</td>
+            <td>${escapeHtml(`${student.first_name} ${student.last_name}`)}</td>
+            <td style="text-align:center;width:16mm;font-weight:700;color:${scoreVal === null ? '#94a3b8' : scoreVal >= maxScore * 0.5 ? '#065f46' : '#be123c'}">${scoreVal !== null ? scoreVal : '-'}</td>
+            <td style="text-align:center;width:14mm">${pct}</td>
+            <td style="width:36mm">${escapeHtml(entry?.note || '-')}</td>
+          </tr>`;
+        }).join('');
+        return `<div style="page-break-before:always;">
+          <div style="font-family:'TH Sarabun New',Tahoma,sans-serif;padding:8mm 12mm;">
+            <div style="border-bottom:2px solid #0ea5e9;padding-bottom:4mm;margin-bottom:4mm;">
+              <div style="font-size:14pt;font-weight:900">${escapeHtml(common.workspaceName)}</div>
+              <div style="font-size:11pt;font-weight:700">ตารางคะแนน: ${escapeHtml(row.assessment.title)}</div>
+              <div style="font-size:9pt;color:#475569">วิชา: ${escapeHtml(row.assessment.subject_name)} · ประเภท: ${escapeHtml(scoreCategoryLabels[row.assessment.category])} · คะแนนเต็ม: ${row.assessment.max_score} · วันที่: ${formatThaiOfficialDate(row.assessment.assessment_date)}</div>
+              <div style="font-size:9pt;color:#475569">กรอกแล้ว ${row.enteredCount} คน · เฉลี่ย ${row.averageScore} คะแนน (${row.averagePercent}%)</div>
+            </div>
+            <table style="border-collapse:collapse;width:100%;font-size:9pt">
+              <thead>
+                <tr style="background:#e0f2fe">
+                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">ที่</th>
+                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">รหัส</th>
+                  <th style="border:1px solid #334155;padding:2mm 3mm;text-align:left">ชื่อ-สกุล</th>
+                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">คะแนน</th>
+                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">%</th>
+                  <th style="border:1px solid #334155;padding:2mm 2mm;text-align:left">หมายเหตุ</th>
+                </tr>
+              </thead>
+              <tbody>${studentTableRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานคะแนนประจำชั้น</title><style>${sharedStyle}td,th{border:1px solid #334155;padding:1mm 2mm;font-size:9pt}</style></head><body><div>${summaryBody}</div>${detailPages}</body></html>`;
     }
 
     if (reportView === 'health') {
