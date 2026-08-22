@@ -27,16 +27,6 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
     setIsMenuOpen(false);
   }, [activeView]);
 
-  // Lock body scroll when mobile sidebar is open (prevents background scroll)
-  useEffect(() => {
-    if (isMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isMenuOpen]);
-
   useEffect(() => {
     window.localStorage.setItem('classcare-theme', theme);
     document.documentElement.dataset.theme = theme;

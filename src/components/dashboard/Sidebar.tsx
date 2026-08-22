@@ -66,14 +66,14 @@ export function Sidebar({
 
   return (
     <>
-      <button
+      <div
         className={`fixed inset-0 z-40 bg-slate-950/60 lg:hidden ${
           isMobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         style={{ transition: 'opacity 0.28s cubic-bezier(0.4,0,0.2,1)' }}
-        aria-label="ปิดเมนู"
+        aria-hidden="true"
         onClick={onClose}
-        type="button"
+        role="presentation"
       />
       <aside className={`app-sidebar ${isMobileOpen ? 'is-open' : ''}`}>
         <div className="app-sidebar-brand">
