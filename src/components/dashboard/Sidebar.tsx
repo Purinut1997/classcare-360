@@ -101,7 +101,7 @@ export function Sidebar({
                 <Link
                   className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
                   key={item.key}
-                  onClick={onClose}
+                  onClick={() => { if (onClose) setTimeout(onClose, 150); }}
                   to={item.path}
                 >
                   <Icon size={18} aria-hidden="true" />
@@ -127,7 +127,7 @@ export function Sidebar({
                       <Link
                         className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
                         key={item.key}
-                        onClick={onClose}
+                        onClick={() => { if (onClose) setTimeout(onClose, 150); }}
                         to={item.path}
                       >
                         <Icon size={17} aria-hidden="true" />
@@ -153,7 +153,7 @@ export function Sidebar({
                     <Link
                       className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
                       key={item.key}
-                      onClick={onClose}
+                      onClick={() => { if (onClose) setTimeout(onClose, 150); }}
                       to={item.path}
                     >
                       <Icon size={17} aria-hidden="true" />
@@ -169,7 +169,7 @@ export function Sidebar({
         {session?.profile.role === 'superadmin' ? (
           <Link
             className="app-admin-shortcut"
-            onClick={onClose}
+            onClick={() => { if (onClose) setTimeout(onClose, 150); }}
             to="/app/dashboard?view=superadmin-dashboard"
           >
             <ServerCog size={18} aria-hidden="true" />
