@@ -249,7 +249,13 @@
   }
 
   .app-sidebar-link {
-    @apply flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white;
+    @apply flex min-h-10 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white;
+  }
+
+  /* Force clicks to hit the <a> tag directly (iOS Safari fix) */
+  .app-sidebar-link > svg,
+  .app-sidebar-link > span {
+    pointer-events: none;
   }
 
   .app-sidebar-link.is-active {
@@ -257,7 +263,12 @@
   }
 
   .app-admin-shortcut {
-    @apply mt-4 flex items-center gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-cyan-100 transition hover:bg-cyan-300/15;
+    @apply mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-cyan-100 transition hover:bg-cyan-300/15;
+  }
+
+  .app-admin-shortcut > svg,
+  .app-admin-shortcut > span {
+    pointer-events: none;
   }
 
   .app-admin-shortcut span {
