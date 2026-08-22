@@ -2745,13 +2745,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             <div className="mt-4 grid gap-3">
               <div className="grid gap-2">
                 <p className="text-sm font-black text-slate-700">ประเภทรายงาน</p>
-                <div className="grid gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {reportViews.map((item) => {
                     const icons: Record<string, string> = {
                       'attendance': '📅',
                       'subject-attendance': '📖',
                       'savings': '🐷',
                       'scores': '🎯',
+                      'subject-scores': '📊',
                       'health': '🏥',
                       'student-register': '📋',
                       'executive': '👔',
@@ -2764,19 +2765,25 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                       <button
                         key={item.value}
                         type="button"
+                        title={item.description}
                         onClick={() => updateReportSearch({ reportView: item.value })}
-                        className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-150 ${
+                        className={`group relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 text-center transition-all duration-200 ${
                           isActive
-                            ? 'border-cyan-400 bg-cyan-50 shadow-sm'
-                            : 'border-transparent bg-slate-50 hover:border-slate-200 hover:bg-white'
+                            ? 'border-cyan-400 bg-gradient-to-b from-cyan-50 to-white shadow-md ring-1 ring-cyan-400/20'
+                            : 'border-slate-200 bg-slate-50/50 hover:border-cyan-300 hover:bg-white hover:shadow-sm'
                         }`}
                       >
-                        <span className="text-xl leading-none">{icons[item.value]}</span>
-                        <span className="min-w-0 flex-1">
-                          <strong className={`block text-sm leading-tight ${isActive ? 'text-cyan-700' : 'text-slate-800'}`}>{item.label}</strong>
-                          <small className="mt-0.5 block text-[11px] font-bold leading-tight text-slate-400">{item.description}</small>
+                        <span className={`text-2xl transition-transform duration-200 ${isActive ? 'scale-110 drop-shadow-sm' : 'group-hover:scale-110'}`}>
+                          {icons[item.value] || '📄'}
                         </span>
-                        {isActive && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-cyan-500" />}
+                        <strong className={`block text-xs font-black leading-tight ${isActive ? 'text-cyan-800' : 'text-slate-600 group-hover:text-cyan-700'}`}>
+                          {item.label}
+                        </strong>
+                        {isActive && (
+                          <div className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] text-white shadow-sm ring-2 ring-white">
+                            ✓
+                          </div>
+                        )}
                       </button>
                     );
                   })}
