@@ -22,9 +22,20 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
   });
   const activeLabel = navItems.find((item) => item.key === activeView)?.label || 'ClassCare 360';
 
+  // Close sidebar when navigating to a different view
   useEffect(() => {
     setIsMenuOpen(false);
   }, [activeView]);
+
+  // Lock body scroll when mobile sidebar is open (prevents background scroll)
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMenuOpen]);
 
   useEffect(() => {
     window.localStorage.setItem('classcare-theme', theme);

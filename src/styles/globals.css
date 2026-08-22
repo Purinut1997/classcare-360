@@ -216,7 +216,8 @@
   }
 
   .app-sidebar {
-    @apply fixed inset-y-0 left-0 z-50 flex w-[276px] -translate-x-full flex-col overflow-y-auto bg-[#06152d] p-4 shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[236px] lg:translate-x-0 lg:shadow-none;
+    @apply fixed inset-y-0 left-0 z-50 flex w-[280px] -translate-x-full flex-col overflow-y-auto bg-[#06152d] p-4 shadow-2xl lg:sticky lg:top-0 lg:h-screen lg:w-[236px] lg:translate-x-0 lg:shadow-none;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .app-sidebar.is-open {
