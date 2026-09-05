@@ -1210,7 +1210,12 @@ export function SupportChat({
                         : "bg-rose-50 text-rose-800 border border-rose-200"
                     }`}
                   >
-                    {testResult.message}
+                    <div>{testResult.message}</div>
+                    {!testResult.success && (testResult.message.includes('quota') || testResult.message.includes('Quota')) && (
+                      <div className="mt-1.5 pt-1.5 border-t border-rose-200/80 text-[11px] font-normal text-rose-700 leading-relaxed">
+                        💡 <strong>คำแนะนำ:</strong> กรุณาเลือกโมเดล <strong>Gemini 1.5 Flash</strong> ด้านบน (โควตาฟรี 1,500 ครั้ง/วัน) หรือผูก Billing บน Google AI Studio เพื่อปลดล็อกเป็น Unlimited ไม่จำกัดครั้งต่อวันค่ะ
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

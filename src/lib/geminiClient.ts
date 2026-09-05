@@ -271,28 +271,43 @@ export async function testGeminiApiKey(
       };
     }
 
-    // 2. Determine target model
-    let targetModel =
-      supportedList.find((m) => m === model) ||
-      supportedList.find((m) => m.includes('flash')) ||
-      supportedList[0];
+    // 2. Test user's selected model first, followed by stable flash models (never auto-pick 2.5)
+    const testQueue: string[] = [
+      model,
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+    ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-    // 3. Test generateContent with targetModel
-    const testRes = await attemptTestModel(cleanKey, targetModel);
-    if (testRes.ok) {
-      const switched = targetModel !== model;
-      return {
-        success: true,
-        message: switched
-          ? `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบจับคู่โมเดล ${targetModel} ที่พร้อมใช้งานในบัญชีของคุณให้อัตโนมัติ 🎉)`
-          : `เชื่อมต่อ Google Gemini API (${targetModel}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
-        autoSwitchedModel: targetModel as GeminiModelId,
-      };
+    let lastError = '';
+    for (const targetModel of testQueue) {
+      // Check if target model exists in supported list or test directly
+      const matchedModel =
+        supportedList.find((m) => m === targetModel) ||
+        supportedList.find((m) => m.startsWith(targetModel)) ||
+        targetModel;
+
+      const testRes = await attemptTestModel(cleanKey, matchedModel);
+      if (testRes.ok) {
+        const switched = matchedModel !== model;
+        return {
+          success: true,
+          message: switched
+            ? `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบปรับใช้โมเดล ${matchedModel} ที่มีโควตาพร้อมใช้งานให้อัตโนมัติ 🎉)`
+            : `เชื่อมต่อ Google Gemini API (${matchedModel}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
+          autoSwitchedModel: matchedModel as GeminiModelId,
+        };
+      }
+
+      lastError = testRes.errorMsg || `ทดสอบสร้างเนื้อหาล้มเหลว (รหัส ${testRes.status})`;
+      // If error is not a quota issue or 404, stop and report
+      if (testRes.status !== 404 && testRes.status !== 400 && testRes.status !== 429) {
+        break;
+      }
     }
 
     return {
       success: false,
-      message: testRes.errorMsg || `ทดสอบสร้างเนื้อหาล้มเหลว (รหัส ${testRes.status})`,
+      message: lastError || 'ไม่สามารถทดสอบโมเดลได้ กรุณาตรวจสอบ API Key',
     };
   } catch (err: any) {
     return {
