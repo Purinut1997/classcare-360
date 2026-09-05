@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, ArrowRight, Building2, Download, Globe2, GraduationCap, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowRight, Bot, Building2, Download, Globe2, GraduationCap, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
@@ -9,6 +9,7 @@ import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity }
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
 import { MemberAccessControl } from '../../components/workspace/MemberAccessControl';
+import { WorkspaceAiSettingsCard } from '../../components/workspace/WorkspaceAiSettingsCard';
 
 interface WorkspaceSettingsPageProps {
   session: AppSessionContext;
@@ -208,7 +209,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     fromYear: session.workspace?.academicYear || '2569',
     toYear: String(Number(session.workspace?.academicYear || '2569') + 1),
   });
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'classrooms' | 'members' | 'all'>('profile');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'classrooms' | 'members' | 'ai' | 'all'>('profile');
 
   useEffect(() => {
     let isMounted = true;
@@ -1214,6 +1215,18 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </button>
           <button
             type="button"
+            onClick={() => setActiveSettingsTab('ai')}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+              activeSettingsTab === 'ai'
+                ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-md'
+                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+            }`}
+          >
+            <Bot size={17} />
+            🤖 AI ผู้ช่วยครู (Gemini)
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveSettingsTab('all')}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${
               activeSettingsTab === 'all'
@@ -1230,6 +1243,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         <div className={`workspace-settings-forms grid gap-5 ${
           activeSettingsTab === 'classrooms' || activeSettingsTab === 'all' ? 'xl:col-span-8' : 'xl:col-span-12'
         } xl:grid-cols-2`}>
+          {(activeSettingsTab === 'ai' || activeSettingsTab === 'all') && (
+            <div className="xl:col-span-2">
+              <WorkspaceAiSettingsCard session={session} />
+            </div>
+          )}
+
           {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && (
             <>
           <form id="workspace-profile" className="workspace-settings-form workspace-profile-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void saveWorkspaceSettings(event)}>

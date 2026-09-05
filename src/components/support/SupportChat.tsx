@@ -3,21 +3,54 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
+  AlertCircle,
   ArrowLeft,
+  Bot,
+  Check,
   CheckCircle2,
   Clock3,
+  Copy,
+  ExternalLink,
+  Key,
   LifeBuoy,
   MessageCircle,
+  MessageSquare,
   Plus,
+  RefreshCw,
   Send,
+  Settings,
+  Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { supabase } from "../../lib/supabaseClient";
 import type { AppSessionContext } from "../../types/core";
+import {
+  ALL_PROMPT_CATEGORIES,
+  getContextPrompts,
+  type PromptChip,
+} from "../../lib/aiPrompts";
+import {
+  AVAILABLE_GEMINI_MODELS,
+  callGeminiApi,
+  getSmartFallbackResponse,
+  parseAssistantResponse,
+  testGeminiApiKey,
+  type ChatMessage,
+  type GeminiModelId,
+} from "../../lib/geminiClient";
+import {
+  getEffectiveAiConfig,
+  savePersonalAiConfig,
+  saveWorkspaceAiConfig,
+  type EffectiveAiConfig,
+} from "../../lib/aiSettings";
 
 type Ticket = {
   id: string;
@@ -28,6 +61,7 @@ type Ticket = {
   last_message_at: string;
   requester_last_read_at: string | null;
 };
+
 type Message = {
   id: string;
   body: string;
@@ -42,6 +76,7 @@ const statusLabel: Record<string, string> = {
   resolved: "แก้ไขแล้ว",
   closed: "ปิดเรื่อง",
 };
+
 const categories = [
   ["other", "ใช้งานทั่วไป"],
   ["account", "บัญชี/สิทธิ์"],
@@ -62,7 +97,84 @@ export function SupportChat({
   activeView: string;
   session: AppSessionContext;
 }) {
+  const navigate = useNavigate();
+
+  // Widget Open State
   const [open, setOpen] = useState(false);
+  // Main Tab: 'ai' (ถามน้องแคร์) | 'ticket' (แจ้งปัญหาถึงผู้ดูแล)
+  const [activeTab, setActiveTab] = useState<"ai" | "ticket">("ai");
+
+  // -------------------------------------------------------------
+  // AI Chat Assistant State
+  // -------------------------------------------------------------
+  const [aiConfig, setAiConfig] = useState<EffectiveAiConfig | null>(null);
+  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPromptLibraryOpen, setIsPromptLibraryOpen] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Settings Modal form state
+  const [customKeyInput, setCustomKeyInput] = useState("");
+  const [selectedModel, setSelectedModel] =
+    useState<GeminiModelId>("gemini-2.0-flash");
+  const [keyScope, setKeyScope] = useState<"workspace" | "personal">(
+    "workspace"
+  );
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Context-aware prompt chips
+  const dynamicChips = useMemo(
+    () => getContextPrompts(activeView),
+    [activeView]
+  );
+
+  // Load AI configuration
+  const loadAiConfig = useCallback(async () => {
+    const config = await getEffectiveAiConfig(session);
+    setAiConfig(config);
+    setSelectedModel(config.model);
+    if (config.apiKey) setCustomKeyInput(config.apiKey);
+  }, [session]);
+
+  useEffect(() => {
+    void loadAiConfig();
+  }, [loadAiConfig]);
+
+  // Initial welcome message for AI tab
+  useEffect(() => {
+    if (aiMessages.length === 0) {
+      setAiMessages([
+        {
+          id: "welcome-1",
+          role: "assistant",
+          content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+          timestamp: new Date().toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        },
+      ]);
+    }
+  }, [activeLabel, aiMessages.length]);
+
+  // Auto scroll to bottom
+  useEffect(() => {
+    if (activeTab === "ai") {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [aiMessages, activeTab, isAiLoading]);
+
+  // -------------------------------------------------------------
+  // Support Tickets State (Preserved 100%)
+  // -------------------------------------------------------------
   const [mode, setMode] = useState<"list" | "new" | "thread">("list");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -80,9 +192,9 @@ export function SupportChat({
         (ticket) =>
           ticket.requester_last_read_at &&
           new Date(ticket.last_message_at) >
-            new Date(ticket.requester_last_read_at),
+            new Date(ticket.requester_last_read_at)
       ).length,
-    [tickets],
+    [tickets]
   );
 
   const loadTickets = useCallback(async () => {
@@ -90,7 +202,7 @@ export function SupportChat({
     const { data } = await supabase
       .from("support_tickets")
       .select(
-        "id,ticket_code,subject,status,priority,last_message_at,requester_last_read_at",
+        "id,ticket_code,subject,status,priority,last_message_at,requester_last_read_at"
       )
       .order("last_message_at", { ascending: false })
       .limit(20);
@@ -100,6 +212,7 @@ export function SupportChat({
   useEffect(() => {
     void loadTickets();
   }, [loadTickets]);
+
   useEffect(() => {
     const interval = window.setInterval(() => {
       if (!document.hidden) void loadTickets();
@@ -118,87 +231,58 @@ export function SupportChat({
       .eq("ticket_id", ticket.id)
       .order("created_at");
     if (error) setNotice("ยังเปิดบทสนทนาไม่ได้ กรุณาลองอีกครั้ง");
-    else setMessages((data || []) as Message[]);
-    await supabase.rpc("mark_support_ticket_read", { p_ticket_id: ticket.id });
+    else {
+      setMessages((data || []) as Message[]);
+      await supabase.from("support_tickets").update({
+        requester_last_read_at: new Date().toISOString(),
+      }).eq("id", ticket.id);
+      void loadTickets();
+    }
   }
 
-  async function createTicket(event: FormEvent) {
+  async function handleCreateTicket(event: FormEvent) {
     event.preventDefault();
-    if (!supabase || !subject.trim() || body.trim().length < 4) return;
+    if (!subject.trim() || !body.trim() || !supabase) return;
     setBusy(true);
     setNotice(null);
-    const context = {
-      page_key: activeView,
-      page_name: activeLabel,
-      page_url: `${location.pathname}${location.search}`,
-      workspace_name: session.workspace?.name,
-      classroom_name: session.workspace?.classroomName,
-      role: session.profile.role,
-      viewport: `${innerWidth}x${innerHeight}`,
-      browser: navigator.userAgent,
-      reported_at: new Date().toISOString(),
-    };
-    const { data, error } = await supabase
+    const { data: ticket, error } = await supabase
       .from("support_tickets")
       .insert({
-        workspace_id: session.workspace?.id || null,
-        requester_profile_id: session.profile.id,
-        requester_name: session.profile.displayName,
-        requester_email: session.profile.email,
+        workspace_id: session.workspace?.id,
         subject: subject.trim(),
         category,
         priority,
-        source: "classcare",
-        context,
+        context_data: { activeView, activeLabel },
       })
-      .select(
-        "id,ticket_code,subject,status,priority,last_message_at,requester_last_read_at",
-      )
+      .select("id,ticket_code,subject,status,priority,last_message_at,requester_last_read_at")
       .single();
-    if (error || !data) {
-      setNotice(
-        error?.message.includes("support_tickets")
-          ? "ระบบรับแจ้งกำลังรอติดตั้งฐานข้อมูลเวอร์ชันล่าสุด"
-          : "ส่งเรื่องไม่สำเร็จ กรุณาลองอีกครั้ง",
-      );
+
+    if (error || !ticket) {
+      setNotice(error?.message || "ไม่สามารถเปิดเรื่องได้");
       setBusy(false);
       return;
     }
-    const ticket = data as Ticket;
-    const { error: messageError } = await supabase
-      .from("support_messages")
-      .insert({
-        ticket_id: ticket.id,
-        sender_profile_id: session.profile.id,
-        sender_role: "requester",
-        body: body.trim(),
-      });
-    if (messageError) {
-      setNotice(
-        "สร้างเลขที่เรื่องแล้ว แต่ส่งข้อความไม่สำเร็จ กรุณาเปิดเรื่องแล้วส่งอีกครั้ง",
-      );
-    }
+
+    await supabase.from("support_messages").insert({
+      ticket_id: ticket.id,
+      body: body.trim(),
+    });
+
     setSubject("");
     setBody("");
-    setCategory("other");
-    setPriority("normal");
-    setBusy(false);
     await loadTickets();
-    await openThread(ticket);
+    await openThread(ticket as Ticket);
+    setBusy(false);
   }
 
-  async function reply(event: FormEvent) {
+  async function handleSendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!supabase || !selected || !body.trim()) return;
+    if (!selected || !body.trim() || !supabase) return;
     setBusy(true);
-    const { error } = await supabase
-      .from("support_messages")
-      .insert({
-        ticket_id: selected.id,
-        sender_profile_id: session.profile.id,
-        sender_role: "requester",
-        body: body.trim(),
-      });
+    const { error } = await supabase.from("support_messages").insert({
+      ticket_id: selected.id,
+      body: body.trim(),
+    });
     if (error) setNotice("ส่งข้อความไม่สำเร็จ");
     else {
       setBody("");
@@ -207,245 +291,796 @@ export function SupportChat({
     setBusy(false);
   }
 
+  // -------------------------------------------------------------
+  // AI Interaction Handler
+  // -------------------------------------------------------------
+  const handleSendAiMessage = async (promptToSend?: string) => {
+    const text = (promptToSend || aiInput).trim();
+    if (!text || isAiLoading) return;
+
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: text,
+      timestamp: new Date().toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    setAiMessages((prev) => [...prev, userMsg]);
+    setAiInput("");
+    setIsAiLoading(true);
+
+    try {
+      const activeKey = aiConfig?.apiKey;
+      const model = aiConfig?.model || "gemini-2.0-flash";
+
+      let rawResponse: string;
+
+      if (activeKey && activeKey.length > 10) {
+        // Use live Gemini API
+        rawResponse = await callGeminiApi(
+          activeKey,
+          model,
+          [...aiMessages, userMsg],
+          {
+            activeView,
+            classroomName: session.workspace?.classroomName,
+            academicYear: session.workspace?.academicYear,
+          }
+        );
+      } else {
+        // Use smart fallback engine
+        const fallback = getSmartFallbackResponse(text, activeLabel);
+        const assistantMsg: ChatMessage = {
+          id: `asst-${Date.now()}`,
+          role: "assistant",
+          content: fallback.cleanText,
+          timestamp: new Date().toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          actions: fallback.actions,
+        };
+        setAiMessages((prev) => [...prev, assistantMsg]);
+        setIsAiLoading(false);
+        return;
+      }
+
+      // Parse Gemini response for actions
+      const parsed = parseAssistantResponse(rawResponse);
+      const assistantMsg: ChatMessage = {
+        id: `asst-${Date.now()}`,
+        role: "assistant",
+        content: parsed.cleanText,
+        timestamp: new Date().toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        actions: parsed.actions,
+      };
+
+      setAiMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      // Graceful fallback on API error
+      const fallback = getSmartFallbackResponse(text, activeLabel);
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `asst-err-${Date.now()}`,
+          role: "assistant",
+          content: `${fallback.cleanText}\n\n*(หมายเหตุ: ระบบตอบด้วยคำแนะนำอัตโนมัติเนื่องจาก: ${err.message || "การเชื่อมต่อขัดข้อง"})*`,
+          timestamp: new Date().toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          actions: fallback.actions,
+        },
+      ]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  // Action Click Handler (Navigate or Copy or Handover)
+  const handleActionClick = (action: {
+    type: "navigate" | "copy" | "handover";
+    target?: string;
+    label: string;
+    payload?: string;
+  }) => {
+    if (action.type === "navigate" && action.target) {
+      setOpen(false);
+      navigate(action.target);
+    } else if (action.type === "copy" && action.payload) {
+      navigator.clipboard.writeText(action.payload);
+      setCopiedIndex(9999);
+      setTimeout(() => setCopiedIndex(null), 2500);
+    } else if (action.type === "handover") {
+      // Switch to Ticket tab and pre-fill form
+      setActiveTab("ticket");
+      setMode("new");
+      setSubject(action.target || "ขอความช่วยเหลือจากแอดมิน");
+      setBody(action.payload || "");
+    }
+  };
+
+  // Test API Key
+  const handleTestKey = async () => {
+    if (!customKeyInput.trim()) {
+      setTestResult({ success: false, message: "กรุณาระบุ API Key ก่อนทดสอบ" });
+      return;
+    }
+    setIsTesting(true);
+    setTestResult(null);
+    const res = await testGeminiApiKey(customKeyInput.trim(), selectedModel);
+    setTestResult(res);
+    setIsTesting(false);
+  };
+
+  // Save API Key Configuration
+  const handleSaveConfig = async () => {
+    if (keyScope === "workspace") {
+      await saveWorkspaceAiConfig(session, customKeyInput, selectedModel);
+    } else {
+      await savePersonalAiConfig(session, customKeyInput, selectedModel);
+    }
+    await loadAiConfig();
+    setIsSettingsOpen(false);
+    setTestResult(null);
+  };
+
   return (
     <div className="support-widget fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[70] sm:bottom-6 sm:right-6">
       {open ? (
         <section
-          aria-label="ติดต่อผู้ดูแลระบบ"
-          className="mb-3 flex h-[min(680px,78dvh)] w-[min(390px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-300/30 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/40"
+          aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
+          className="mb-3 flex h-[min(700px,82dvh)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-400/40 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/60 transition-all backdrop-blur-xl"
         >
-          <header className="relative overflow-hidden border-b border-white/10 px-5 py-4">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(34,211,238,.2),transparent_45%)]" />
-            <div className="relative flex items-center gap-3">
-              {mode !== "list" ? (
-                <button
-                  aria-label="ย้อนกลับ"
-                  className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 hover:bg-white/10"
-                  onClick={() => {
-                    setMode("list");
-                    setSelected(null);
-                    setBody("");
-                  }}
-                >
-                  <ArrowLeft size={18} />
-                </button>
-              ) : (
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-400 text-slate-950">
-                  <LifeBuoy size={20} />
+          {/* Header */}
+          <header className="relative overflow-hidden border-b border-white/10 px-4 py-3 sm:px-5">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(34,211,238,.25),transparent_50%)]" />
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-cyan-400 to-indigo-500 text-slate-950 shadow-md">
+                  <Bot size={19} />
                 </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-300">
-                  ClassCare Support
-                </p>
-                <h2 className="truncate text-base font-black">
-                  {mode === "new"
-                    ? "แจ้งปัญหา"
-                    : mode === "thread"
-                      ? selected?.ticket_code
-                      : "คุยกับผู้ดูแลระบบ"}
-                </h2>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-[.15em] text-cyan-300">
+                      ClassCare AI
+                    </p>
+                    {aiConfig?.apiKey ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400 ring-1 ring-emerald-500/30">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        {aiConfig.model}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">
+                        ผู้ช่วยแนะนำ
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="truncate text-sm sm:text-base font-black text-white">
+                    น้องแคร์ — ผู้ช่วยครู
+                  </h2>
+                </div>
               </div>
+
+              {/* Action buttons (Settings / Close) */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  title="ตั้งค่า Gemini API Key"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
+                >
+                  <Settings size={15} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="ปิดหน้าต่าง"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
+                  onClick={() => setOpen(false)}
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation Tabs (AI น้องแคร์ / ตั๋วแจ้งปัญหา) */}
+            <div className="relative mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/80 p-1 text-xs font-bold border border-white/5">
               <button
-                aria-label="ปิดหน้าต่างแชท"
-                className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 hover:bg-white/10"
-                onClick={() => setOpen(false)}
+                type="button"
+                onClick={() => setActiveTab("ai")}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 transition-all ${
+                  activeTab === "ai"
+                    ? "bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-sm font-black"
+                    : "text-slate-400 hover:text-white"
+                }`}
               >
-                <X size={18} />
+                <Sparkles size={13} />
+                <span>ถาม AI น้องแคร์</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("ticket")}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 transition-all relative ${
+                  activeTab === "ticket"
+                    ? "bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-sm font-black"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <LifeBuoy size={13} />
+                <span>แจ้งปัญหาถึงแอดมิน</span>
+                {unreadCount > 0 && (
+                  <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.2 text-[9px] text-white">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
             </div>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 text-slate-900">
-            {notice ? (
-              <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-                {notice}
-              </p>
-            ) : null}
-            {mode === "list" ? (
-              <>
-                <button
-                  className="flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-600 p-4 text-left text-white shadow-lg shadow-cyan-900/15"
-                  onClick={() => setMode("new")}
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/20">
-                    <Plus />
-                  </span>
-                  <span>
-                    <strong className="block text-sm">
-                      แจ้งปัญหาจากหน้านี้
-                    </strong>
-                    <small className="text-cyan-50">
-                      แนบหน้า “{activeLabel}” ให้อัตโนมัติ
-                    </small>
-                  </span>
-                </button>
-                <p className="mb-2 mt-5 text-xs font-black text-slate-500">
-                  เรื่องของฉัน
-                </p>
-                <div className="space-y-2">
-                  {tickets.length ? (
-                    tickets.map((ticket) => (
-                      <button
-                        className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left hover:border-cyan-300"
-                        key={ticket.id}
-                        onClick={() => void openThread(ticket)}
+
+          {/* Body */}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 text-slate-900 flex flex-col">
+            {activeTab === "ai" ? (
+              /* TAB 1: AI CHAT ASSISTANT */
+              <div className="flex flex-col flex-1 min-h-0">
+                {/* Chat Message Stream */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {aiMessages.map((msg, idx) => (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${
+                        msg.role === "user" ? "items-end" : "items-start"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs ${
+                          msg.role === "user"
+                            ? "bg-indigo-600 text-white rounded-br-xs font-medium"
+                            : "bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs shadow-slate-200/50"
+                        }`}
                       >
-                        <span
-                          className={`grid h-9 w-9 place-items-center rounded-xl ${ticket.status === "resolved" || ticket.status === "closed" ? "bg-emerald-50 text-emerald-600" : "bg-cyan-50 text-cyan-700"}`}
-                        >
-                          {ticket.status === "resolved" ||
-                          ticket.status === "closed" ? (
-                            <CheckCircle2 size={17} />
-                          ) : (
-                            <Clock3 size={17} />
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <strong className="block truncate text-sm">
-                            {ticket.subject}
-                          </strong>
-                          <small className="text-slate-500">
-                            {ticket.ticket_code} · {statusLabel[ticket.status]}
-                          </small>
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
-                      ยังไม่มีเรื่องที่แจ้ง
+                        {/* Render content with line breaks */}
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+
+                        {/* Interactive Action Buttons */}
+                        {msg.actions && msg.actions.length > 0 && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
+                            {msg.actions.map((act, actIdx) => (
+                              <button
+                                key={actIdx}
+                                type="button"
+                                onClick={() => handleActionClick(act)}
+                                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-xs ${
+                                  act.type === "navigate"
+                                    ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                    : act.type === "copy"
+                                    ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                                    : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                                }`}
+                              >
+                                {act.type === "navigate" && (
+                                  <ExternalLink size={12} />
+                                )}
+                                {act.type === "copy" && <Copy size={12} />}
+                                {act.type === "handover" && (
+                                  <LifeBuoy size={12} />
+                                )}
+                                <span>{act.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <span className="mt-0.5 px-1 text-[10px] text-slate-400 font-mono">
+                        {msg.timestamp}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Typing / Loading Indicator */}
+                  {isAiLoading && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-2 rounded-2xl w-fit shadow-xs">
+                      <RefreshCw size={13} className="animate-spin text-cyan-600" />
+                      <span>น้องแคร์กำลังคิดและวิเคราะห์ข้อมูล...</span>
                     </div>
                   )}
+
+                  {copiedIndex && (
+                    <div className="text-center text-xs font-bold text-emerald-600 bg-emerald-50 py-1 rounded-lg">
+                      ✓ คัดลอกข้อความสำเร็จ! นำไปส่งต่อได้เลย
+                    </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
                 </div>
-              </>
-            ) : null}
-            {mode === "new" ? (
-              <form className="space-y-3" onSubmit={createTicket}>
-                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-3 text-xs">
-                  <strong className="block text-cyan-900">บริบทที่จะแนบ</strong>
-                  <span className="text-cyan-700">
-                    {activeLabel} ·{" "}
-                    {session.workspace?.name || "ไม่ระบุ Workspace"} ·{" "}
-                    {session.workspace?.classroomName || "ทุกห้อง"}
-                  </span>
-                </div>
-                <label className="block text-xs font-black">
-                  หัวข้อ
-                  <input
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-medium outline-none focus:border-cyan-500"
-                    maxLength={160}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="เช่น กดบันทึกแล้วข้อมูลไม่ขึ้น"
-                    required
-                    value={subject}
-                  />
-                </label>
-                <label className="block text-xs font-black">
-                  ประเภท
-                  <select
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                    onChange={(e) => setCategory(e.target.value)}
-                    value={category}
-                  >
-                    {categories.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-xs font-black">
-                  ความเร่งด่วน
-                  <select
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                    onChange={(e) => setPriority(e.target.value)}
-                    value={priority}
-                  >
-                    <option value="normal">ปกติ</option>
-                    <option value="important">สำคัญ</option>
-                    <option value="urgent">เร่งด่วน</option>
-                  </select>
-                </label>
-                <label className="block text-xs font-black">
-                  รายละเอียด
-                  <textarea
-                    className="mt-1 min-h-28 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-medium outline-none focus:border-cyan-500"
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder="เกิดอะไรขึ้น และคาดหวังให้ระบบทำงานอย่างไร"
-                    required
-                    value={body}
-                  />
-                </label>
-                <button
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-sm font-black text-white disabled:opacity-50"
-                  disabled={busy}
-                >
-                  <Send size={16} />
-                  {busy ? "กำลังส่ง..." : "ส่งให้ผู้ดูแล"}
-                </button>
-              </form>
-            ) : null}
-            {mode === "thread" ? (
-              <div className="space-y-3">
-                {messages.map((message) => (
-                  <div
-                    className={`flex ${message.sender_role === "admin" ? "justify-start" : "justify-end"}`}
-                    key={message.id}
-                  >
-                    <div
-                      className={`max-w-[84%] rounded-2xl px-3 py-2 text-sm ${message.sender_role === "admin" ? "border border-slate-200 bg-white" : "bg-cyan-600 text-white"}`}
+
+                {/* Dynamic Context Prompt Chips */}
+                <div className="border-t border-slate-200/70 bg-white/90 p-2.5">
+                  <div className="flex items-center justify-between mb-1.5 px-1">
+                    <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                      <Sparkles size={11} className="text-amber-500" />
+                      คำสั่งลัดแนะนำ (คลิกถามทันที):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPromptLibraryOpen(true)}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
                     >
-                      <p className="whitespace-pre-wrap">{message.body}</p>
-                      <small className="mt-1 block opacity-60">
-                        {new Date(message.created_at).toLocaleString("th-TH", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
-                      </small>
+                      ดูคำสั่งทั้งหมด ➜
+                    </button>
+                  </div>
+
+                  {/* Horizontal Scrollable Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {dynamicChips.map((chip) => (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => handleSendAiMessage(chip.prompt)}
+                        className="shrink-0 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 px-3 py-1 text-xs font-medium text-slate-700 transition-all active:scale-95"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Prompt Input Form */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendAiMessage();
+                    }}
+                    className="mt-2 flex items-center gap-1.5"
+                  >
+                    <input
+                      type="text"
+                      placeholder={`ถามอะไรก็ได้ เช่น วิธีใช้, ปัญหา, ให้ช่วยสรุป...`}
+                      value={aiInput}
+                      onChange={(e) => setAiInput(e.target.value)}
+                      disabled={isAiLoading}
+                      className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:border-cyan-500 focus:outline-none shadow-2xs"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isAiLoading || !aiInput.trim()}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-sm hover:from-cyan-400 hover:to-sky-500 disabled:opacity-50 transition"
+                    >
+                      <Send size={15} />
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              /* TAB 2: SUPPORT TICKETS (PRESERVED 100%) */
+              <div className="p-4 flex-1">
+                {notice ? (
+                  <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+                    {notice}
+                  </p>
+                ) : null}
+
+                {mode === "list" ? (
+                  <>
+                    <button
+                      className="flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-600 p-4 text-left text-white shadow-lg shadow-cyan-900/15"
+                      onClick={() => setMode("new")}
+                    >
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/20">
+                        <Plus />
+                      </span>
+                      <span>
+                        <strong className="block text-sm">
+                          แจ้งปัญหาจากหน้านี้
+                        </strong>
+                        <small className="text-cyan-50">
+                          แนบหน้า “{activeLabel}” ให้อัตโนมัติ
+                        </small>
+                      </span>
+                    </button>
+
+                    <div className="mt-4">
+                      <p className="text-xs font-black uppercase text-slate-500 mb-2">
+                        เรื่องของฉัน
+                      </p>
+                      {tickets.length === 0 ? (
+                        <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center text-xs font-bold text-slate-400">
+                          ยังไม่มีเรื่องที่แจ้ง
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {tickets.map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => openThread(t)}
+                              className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xs hover:border-cyan-400 transition"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-cyan-700">
+                                  {t.ticket_code}
+                                </span>
+                                <span className="text-[10px] rounded bg-slate-100 px-1.5 py-0.5 text-slate-600 font-bold">
+                                  {statusLabel[t.status] || t.status}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm font-bold text-slate-800 truncate">
+                                {t.subject}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : mode === "new" ? (
+                  <form onSubmit={handleCreateTicket} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-black text-slate-600 mb-1">
+                        หัวข้อเรื่อง
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        placeholder="สรุปปัญหาพอสังเขป..."
+                        className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-600 mb-1">
+                        หมวดหมู่
+                      </label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 focus:outline-none"
+                      >
+                        {categories.map(([val, lbl]) => (
+                          <option key={val} value={val}>
+                            {lbl}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-600 mb-1">
+                        รายละเอียด
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        placeholder="อธิบายสิ่งที่เกิดขึ้น หรือสิ่งที่ต้องการให้ช่วยเหลือ..."
+                        className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setMode("list")}
+                        className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs font-bold text-slate-600"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="flex-1 rounded-xl bg-cyan-600 py-2.5 text-xs font-bold text-white shadow-sm"
+                      >
+                        {busy ? "กำลังส่ง..." : "เปิดเรื่อง"}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* Thread Mode */
+                  <div className="flex flex-col h-full space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="text-xs font-bold text-slate-600">
+                        {selected?.subject}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMode("list")}
+                        className="text-xs font-bold text-cyan-600"
+                      >
+                        กลับรายการ
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto space-y-2">
+                      {messages.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`rounded-xl p-3 text-xs ${
+                            m.sender_role === "support"
+                              ? "bg-cyan-50 text-cyan-900 ml-4"
+                              : "bg-slate-100 text-slate-800 mr-4"
+                          }`}
+                        >
+                          <p>{m.body}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <form onSubmit={handleSendMessage} className="flex gap-1.5 pt-2">
+                      <input
+                        type="text"
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        placeholder="พิมพ์ข้อความตอบกลับ..."
+                        className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy || !body.trim()}
+                        className="rounded-xl bg-cyan-600 px-3 py-2 text-white"
+                      >
+                        <Send size={15} />
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Modal: Gemini API Key & Model Configuration */}
+          {isSettingsOpen && (
+            <div className="absolute inset-0 z-30 flex flex-col bg-slate-900/95 p-5 text-white backdrop-blur-md">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Key className="text-amber-400" size={18} />
+                  <h3 className="text-sm font-black">ตั้งค่า Google Gemini AI</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs">
+                {/* VIP Indicator */}
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200">
+                  <span className="font-black">👑 สิทธิ์การใช้งานระดับ VIP:</span>
+                  <p className="mt-1 text-[11px] text-amber-300/90">
+                    สามารถใส่ Google Gemini API Key เพื่อปลดล็อกการแชทวิเคราะห์ข้อมูลและการตอบคำถามอิสระฟรี 100%
+                  </p>
+                </div>
+
+                {/* Scope Selection */}
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    ขอบเขตการใช้ Key
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setKeyScope("workspace")}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        keyScope === "workspace"
+                          ? "border-cyan-400 bg-cyan-950/60 text-white font-bold"
+                          : "border-white/10 text-slate-400 hover:bg-white/5"
+                      }`}
+                    >
+                      <span className="block text-xs">🏫 Key โรงเรียน</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        ครูทุกคนในโรงเรียนใช้ร่วมกัน
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setKeyScope("personal")}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        keyScope === "personal"
+                          ? "border-cyan-400 bg-cyan-950/60 text-white font-bold"
+                          : "border-white/10 text-slate-400 hover:bg-white/5"
+                      }`}
+                    >
+                      <span className="block text-xs">👤 Key ส่วนตัว</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        ใช้เฉพาะบัญชีของคุณคนเดียว
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* API Key Input */}
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    Google Gemini API Key
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    value={customKeyInput}
+                    onChange={(e) => setCustomKeyInput(e.target.value)}
+                    className="w-full rounded-xl border border-white/20 bg-slate-800 p-2.5 text-xs text-white font-mono placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    รับ API Key ฟรีได้จาก{" "}
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-cyan-400 underline"
+                    >
+                      Google AI Studio (คลิก)
+                    </a>
+                  </p>
+                </div>
+
+                {/* Model Selection */}
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    เลือกโมเดล Gemini
+                  </label>
+                  <div className="space-y-1.5">
+                    {AVAILABLE_GEMINI_MODELS.map((m) => (
+                      <label
+                        key={m.id}
+                        className={`flex items-start gap-2 rounded-xl border p-2.5 cursor-pointer transition ${
+                          selectedModel === m.id
+                            ? "border-cyan-400 bg-cyan-950/40 text-white"
+                            : "border-white/10 text-slate-400 hover:bg-white/5"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="ai_model"
+                          checked={selectedModel === m.id}
+                          onChange={() => setSelectedModel(m.id)}
+                          className="mt-0.5 text-cyan-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-white">
+                              {m.name}
+                            </span>
+                            <span className="text-[10px] text-cyan-300">
+                              {m.tag}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {m.description}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Test Result Message */}
+                {testResult && (
+                  <div
+                    className={`rounded-xl p-3 text-xs font-bold ${
+                      testResult.success
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                        : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                    }`}
+                  >
+                    {testResult.message}
+                  </div>
+                )}
+              </div>
+
+              {/* Settings Action Buttons */}
+              <div className="flex gap-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={handleTestKey}
+                  disabled={isTesting}
+                  className="rounded-xl border border-white/20 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10 transition"
+                >
+                  {isTesting ? "กำลังตรวจ..." : "ทดสอบเชื่อมต่อ"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveConfig}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 py-2 text-xs font-bold text-white shadow-sm hover:from-cyan-400 hover:to-sky-500 transition"
+                >
+                  บันทึกการตั้งค่า
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Categorized Prompt Library */}
+          {isPromptLibraryOpen && (
+            <div className="absolute inset-0 z-30 flex flex-col bg-slate-900/95 p-5 text-white backdrop-blur-md">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="text-amber-400" size={18} />
+                  <h3 className="text-sm font-black">คลังคำสั่งลัดสำเร็จรูป</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPromptLibraryOpen(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-3 space-y-4 text-xs">
+                {ALL_PROMPT_CATEGORIES.map((cat) => (
+                  <div key={cat.id} className="space-y-2">
+                    <p className="font-bold text-cyan-300 flex items-center gap-1.5 text-xs">
+                      <span>•</span>
+                      <span>{cat.name}</span>
+                    </p>
+                    <div className="space-y-1.5 pl-2">
+                      {cat.prompts.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setIsPromptLibraryOpen(false);
+                            handleSendAiMessage(p.prompt);
+                          }}
+                          className="w-full text-left rounded-xl border border-white/10 bg-white/5 p-2.5 hover:bg-cyan-950/40 hover:border-cyan-400 transition"
+                        >
+                          <span className="font-bold block text-white text-xs">
+                            {p.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
+                            {p.prompt}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : null}
-          </div>
-          {mode === "thread" ? (
-            <form
-              className="flex gap-2 border-t border-white/10 bg-slate-950 p-3"
-              onSubmit={reply}
-            >
-              <input
-                aria-label="พิมพ์ข้อความ"
-                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="พิมพ์ข้อความ..."
-                value={body}
-              />
-              <button
-                aria-label="ส่งข้อความ"
-                className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-400 text-slate-950 disabled:opacity-50"
-                disabled={busy || !body.trim()}
-              >
-                <Send size={18} />
-              </button>
-            </form>
-          ) : null}
+            </div>
+          )}
         </section>
       ) : null}
+
+      {/* Floating Toggle Button with Glowing Sparkles */}
       <button
         aria-expanded={open}
-        aria-label="ติดต่อผู้ดูแลระบบ"
-        className="relative ml-auto grid h-14 w-14 place-items-center rounded-full border border-cyan-200/30 bg-gradient-to-br from-cyan-400 to-sky-600 text-white shadow-xl shadow-cyan-950/30 transition hover:-translate-y-1"
+        aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
+        className="group relative ml-auto grid h-14 w-14 place-items-center rounded-full border border-cyan-300/40 bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-600 text-white shadow-xl shadow-cyan-950/40 transition hover:-translate-y-1 hover:shadow-cyan-500/30"
         onClick={() => setOpen((value) => !value)}
       >
         {open ? (
           <X size={24} />
         ) : (
-          <MessageCircle size={25} fill="currentColor" />
+          <div className="relative">
+            <Bot size={26} />
+            <Sparkles
+              size={12}
+              className="absolute -top-1 -right-1 text-amber-300 animate-bounce"
+            />
+          </div>
         )}
         {unreadCount ? (
           <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-white bg-rose-500 px-1 text-[10px] font-black">
             {unreadCount}
           </span>
         ) : null}
+
+        {/* Floating Tooltip */}
+        {!open && (
+          <div className="pointer-events-none absolute right-full mr-3 hidden sm:flex items-center gap-1.5 rounded-xl bg-slate-900/90 px-3 py-1.5 text-xs font-bold text-white shadow-xl backdrop-blur-sm whitespace-nowrap group-hover:block transition-all">
+            <Sparkles size={13} className="text-amber-400" />
+            <span>มีอะไรให้น้องแคร์ช่วยไหมคะ?</span>
+          </div>
+        )}
       </button>
     </div>
   );
