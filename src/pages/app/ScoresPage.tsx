@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Copy,
   Download,
+  Edit3,
   FileSpreadsheet,
   Gauge,
   GraduationCap,
@@ -25,6 +26,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Square,
@@ -103,6 +105,7 @@ interface ScoreAssessmentRow {
   created_by: string | null;
   id: string;
   max_score: number;
+  metadata?: Record<string, unknown> | null;
   status: AssessmentStatus;
   subject_name: string;
   title: string;
@@ -294,21 +297,31 @@ const categoryLabels = Object.fromEntries(categoryOptions.map((option) => [optio
   string
 >;
 
-const scoreBandConfigs: Array<{
-  description: string;
-  key: ScoreBand;
-  label: string;
-  recommendedWeight: number;
-}> = [
-  { description: 'เก็บคะแนนย่อย ใบงาน โครงงาน และกิจกรรมระหว่างเรียน', key: 'coursework', label: 'ระหว่างเรียน', recommendedWeight: 50 },
-  { description: 'คะแนนสอบกลางภาคของรายวิชานี้', key: 'midterm', label: 'กลางภาค', recommendedWeight: 20 },
-  { description: 'คะแนนสอบปลายภาคของรายวิชานี้', key: 'final', label: 'ปลายภาค', recommendedWeight: 30 },
-];
+function getScoreBand(
+  item: AssessmentCategory | { category: AssessmentCategory; metadata?: Record<string, unknown> | null; title?: string },
+): ScoreBand {
+  const category = typeof item === 'string' ? item : item.category;
+  const metadata = typeof item === 'string' ? null : (item.metadata as Record<string, unknown> | null | undefined);
+  const title = typeof item === 'string' ? '' : item.title || '';
 
-function getScoreBand(category: AssessmentCategory): ScoreBand {
-  if (category === 'midterm') return 'midterm';
-  if (category === 'final') return 'final';
+  if (category === 'midterm' || metadata?.exam_type === 'midterm') return 'midterm';
+  if (category === 'final' || metadata?.exam_type === 'final') return 'final';
+
+  const t = title.toLowerCase();
+  if (t.includes('กลางภาค') || t.includes('midterm')) return 'midterm';
+  if (t.includes('ปลายภาค') || t.includes('final')) return 'final';
   return 'coursework';
+}
+
+function getAssessmentCategoryLabel(assessment: {
+  category: AssessmentCategory;
+  metadata?: Record<string, unknown> | null;
+  title?: string;
+}): string {
+  const band = getScoreBand(assessment);
+  if (band === 'midterm') return 'กลางภาค';
+  if (band === 'final') return 'ปลายภาค';
+  return categoryLabels[assessment.category] || assessment.category;
 }
 
 function formatScore(value: number) {
@@ -430,6 +443,60 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [guideTab, setGuideTab] = useState<'tour' | 'manual'>('tour');
   const [isStickyRoster, setIsStickyRoster] = useState(true);
   const totalGuideSteps = 6;
+
+  // Configurable score ratio (Default: 50 / 20 / 30)
+  const [scoreRatio, setScoreRatio] = useState<{ coursework: number; midterm: number; final: number }>(() => {
+    try {
+      const saved = localStorage.getItem('classcare_score_ratio');
+      if (saved) return JSON.parse(saved) as { coursework: number; midterm: number; final: number };
+    } catch {
+      // ignore
+    }
+    return { coursework: 50, midterm: 20, final: 30 };
+  });
+  const [isRatioModalOpen, setIsRatioModalOpen] = useState(false);
+
+  // Edit Assessment state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAssessment, setEditingAssessment] = useState<ScoreAssessmentRow | null>(null);
+  const [editForm, setEditForm] = useState({
+    assessmentDate: getTodayDate(),
+    category: 'quiz' as AssessmentCategory,
+    maxScore: '20',
+    title: '',
+    weight: '10',
+  });
+
+  const scoreBandConfigs = useMemo<
+    Array<{
+      description: string;
+      key: ScoreBand;
+      label: string;
+      recommendedWeight: number;
+    }>
+  >(
+    () => [
+      {
+        description: 'เก็บคะแนนย่อย ใบงาน โครงงาน และกิจกรรมระหว่างเรียน',
+        key: 'coursework',
+        label: 'ระหว่างเรียน',
+        recommendedWeight: scoreRatio.coursework,
+      },
+      {
+        description: 'คะแนนสอบกลางภาคของรายวิชานี้',
+        key: 'midterm',
+        label: 'กลางภาค',
+        recommendedWeight: scoreRatio.midterm,
+      },
+      {
+        description: 'คะแนนสอบปลายภาคของรายวิชานี้',
+        key: 'final',
+        label: 'ปลายภาค',
+        recommendedWeight: scoreRatio.final,
+      },
+    ],
+    [scoreRatio],
+  );
 
   const teacherScope = useMemo(
     () => getTeacherClassroomScope(session, classrooms),
@@ -804,7 +871,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const scoreBandSummaries = useMemo(
     () =>
       scoreBandConfigs.map((band) => {
-        const bandAssessments = contextAssessments.filter((assessment) => getScoreBand(assessment.category) === band.key);
+        const bandAssessments = contextAssessments.filter((assessment) => getScoreBand(assessment) === band.key);
         const plannedWeight = bandAssessments.reduce((sum, assessment) => sum + assessment.weight, 0);
         const expectedEntries = bandAssessments.length * classroomStudents.length;
         const scoredEntries = bandAssessments.reduce(
@@ -835,7 +902,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           plannedWeight,
         };
       }),
-    [classroomStudents.length, contextAssessments, entriesByAssessment],
+    [classroomStudents.length, contextAssessments, entriesByAssessment, scoreBandConfigs],
   );
 
   const plannedTotalWeight = useMemo(
@@ -858,7 +925,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         ) as Record<ScoreBand, { earnedWeight: number; enteredWeight: number; plannedWeight: number }>;
 
         contextAssessments.forEach((assessment) => {
-          const band = getScoreBand(assessment.category);
+          const band = getScoreBand(assessment);
           const entry = (entriesByAssessment.get(assessment.id) || []).find((row) => row.student_id === student.id);
           bandScores[band].plannedWeight += assessment.weight;
 
@@ -881,7 +948,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           student,
         };
       }),
-    [classroomStudents, contextAssessments, entriesByAssessment],
+    [classroomStudents, contextAssessments, entriesByAssessment, scoreBandConfigs],
   );
 
   useEffect(() => {
@@ -1071,18 +1138,39 @@ export function ScoresPage({ session }: ScoresPageProps) {
       workspace_id: workspaceId,
     }));
 
-    const { data, error } = await supabase
+    let insertResult = await supabase
       .from('score_assessments')
       .insert(payload)
-      .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by');
+      .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by,metadata');
 
-    if (error) {
-      setNotice(error.message);
+    // Resilient fallback: If database constraint doesn't have 'midterm' or 'final' yet (migration 0017 not run)
+    if (insertResult.error && insertResult.error.message.includes('score_assessments_category_check')) {
+      const fallbackPayload = payload.map((p) => {
+        if (p.category === 'midterm' || p.category === 'final') {
+          return {
+            ...p,
+            category: 'exam' as AssessmentCategory,
+            metadata: {
+              exam_type: p.category,
+              original_category: p.category,
+            },
+          };
+        }
+        return p;
+      });
+      insertResult = await supabase
+        .from('score_assessments')
+        .insert(fallbackPayload)
+        .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by,metadata');
+    }
+
+    if (insertResult.error) {
+      setNotice(insertResult.error.message);
       setIsSubmitting(false);
       return;
     }
 
-    const createdList = (data || []) as ScoreAssessmentRow[];
+    const createdList = (insertResult.data || []) as ScoreAssessmentRow[];
     await writeAuditLog(session, {
       action: 'score_assessment.batch_created',
       entityId: createdList[0]?.id || '',
@@ -1470,6 +1558,99 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
     removeAssessmentFromLocalState(assessment.id);
     setNotice(`ลบชุดคะแนน ${assessment.title} แล้ว`);
+    setIsSubmitting(false);
+  }
+
+  function openEditModal(assessment: ScoreAssessmentRow) {
+    setEditingAssessment(assessment);
+    setEditForm({
+      assessmentDate: assessment.assessment_date,
+      category: assessment.category,
+      maxScore: String(assessment.max_score),
+      title: assessment.title,
+      weight: String(assessment.weight),
+    });
+    setIsEditModalOpen(true);
+  }
+
+  async function handleSaveEditAssessment(event: FormEvent) {
+    event.preventDefault();
+    if (!editingAssessment) return;
+    const maxScore = Number(editForm.maxScore);
+    const weight = Number(editForm.weight);
+    if (!Number.isFinite(maxScore) || maxScore <= 0 || !Number.isFinite(weight) || weight <= 0) {
+      setNotice('คะแนนเต็มและน้ำหนักคะแนนต้องเป็นตัวเลขที่มากกว่า 0');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    const updatedFields = {
+      assessment_date: editForm.assessmentDate,
+      category: editForm.category,
+      max_score: maxScore,
+      title: editForm.title.trim() || editingAssessment.title,
+      weight,
+    };
+
+    if (!supabase || !session.workspace || isDemoSession(session)) {
+      setAssessments((current) =>
+        current.map((item) => (item.id === editingAssessment.id ? { ...item, ...updatedFields } : item)),
+      );
+      setIsEditModalOpen(false);
+      setNotice('แก้ไขชุดคะแนนเรียบร้อยแล้ว [โหมดตัวอย่าง]');
+      setIsSubmitting(false);
+      return;
+    }
+
+    let updateRes = await supabase
+      .from('score_assessments')
+      .update(updatedFields)
+      .eq('id', editingAssessment.id)
+      .eq('workspace_id', session.workspace.id);
+
+    if (updateRes.error && updateRes.error.message.includes('score_assessments_category_check')) {
+      updateRes = await supabase
+        .from('score_assessments')
+        .update({
+          ...updatedFields,
+          category: 'exam' as AssessmentCategory,
+          metadata: {
+            ...((editingAssessment.metadata as Record<string, unknown>) || {}),
+            exam_type: editForm.category,
+            original_category: editForm.category,
+          },
+        })
+        .eq('id', editingAssessment.id)
+        .eq('workspace_id', session.workspace.id);
+    }
+
+    if (updateRes.error) {
+      setNotice(updateRes.error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    await writeAuditLog(session, {
+      action: 'score_assessment.updated',
+      entityId: editingAssessment.id,
+      entityTable: 'score_assessments',
+      metadata: {
+        category: editForm.category,
+        max_score: maxScore,
+        title: updatedFields.title,
+        weight,
+      },
+      riskLevel: 'normal',
+      source: 'score_center',
+    });
+
+    setAssessments((current) =>
+      current.map((item) => (item.id === editingAssessment.id ? { ...item, ...updatedFields } : item)),
+    );
+    setIsEditModalOpen(false);
+    setNotice('แก้ไขชุดคะแนนเรียบร้อยแล้ว');
     setIsSubmitting(false);
   }
 
@@ -2252,17 +2433,28 @@ export function ScoresPage({ session }: ScoresPageProps) {
                               </span>
                               <span>({assessment.weight}%)</span>
                             </div>
-                            <button
-                              className="mt-1 text-[9px] font-bold text-cyan-700 hover:underline"
-                              onClick={() => {
-                                setSelectedAssessmentId(assessment.id);
-                                handleScoreViewChange('entry');
-                              }}
-                              title="ดูรายละเอียดหรือจัดการเฉพาะชุดนี้"
-                              type="button"
-                            >
-                              ตรวจแยกชุด →
-                            </button>
+                            <div className="mt-1 flex items-center justify-center gap-1.5">
+                              <button
+                                className="text-[9px] font-bold text-cyan-700 hover:underline"
+                                onClick={() => {
+                                  setSelectedAssessmentId(assessment.id);
+                                  handleScoreViewChange('entry');
+                                }}
+                                title="ดูรายละเอียดหรือจัดการเฉพาะชุดนี้"
+                                type="button"
+                              >
+                                ตรวจแยกชุด →
+                              </button>
+                              <span className="text-slate-300">|</span>
+                              <button
+                                className="text-[9px] font-bold text-slate-500 hover:text-cyan-800"
+                                onClick={() => openEditModal(assessment)}
+                                title="แก้ไขชื่อ คะแนนเต็ม หรือน้ำหนักคะแนน (%)"
+                                type="button"
+                              >
+                                ✏️ แก้ไข
+                              </button>
+                            </div>
                           </div>
                         </th>
                       ))}
@@ -2469,7 +2661,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-cyan-100 px-3 py-0.5 text-xs font-black text-cyan-800">
-                        {categoryLabels[selectedAssessment.category]}
+                        {getAssessmentCategoryLabel(selectedAssessment)}
                       </span>
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ring-1 ${
@@ -2506,6 +2698,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     >
                       <CheckCircle2 size={14} aria-hidden="true" />
                       {selectedAssessment.status === 'published' ? 'กลับเป็นฉบับร่าง' : 'เผยแพร่คะแนน'}
+                    </button>
+                    <button
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition shadow-2xs"
+                      disabled={isSubmitting}
+                      onClick={() => openEditModal(selectedAssessment)}
+                      type="button"
+                    >
+                      <Edit3 size={14} aria-hidden="true" />
+                      แก้ไขชุดคะแนน / ปรับน้ำหนัก
                     </button>
                     <button
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
@@ -2761,33 +2962,51 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </p>
               </div>
 
-              {/* Planned Weight Progress Meter */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 min-w-[240px]">
-                <div className="flex items-center justify-between text-xs font-black">
-                  <span className="text-slate-600">น้ำหนักคะแนนที่วางไว้:</span>
-                  <span className={plannedTotalWeight === 100 ? 'text-emerald-700 font-black' : 'text-amber-700 font-black'}>
-                    {plannedTotalWeight} / 100 คะแนน
-                  </span>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                {/* Configure Ratio Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsRatioModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-50 px-3.5 py-2 text-xs font-black text-cyan-900 hover:bg-cyan-100 hover:border-cyan-400 transition shadow-2xs"
+                  title="ปรับสัดส่วนเกณฑ์คะแนน (ระหว่างเรียน : กลางภาค : ปลายภาค)"
+                >
+                  <Settings2 size={15} className="text-cyan-700" aria-hidden="true" />
+                  <div className="text-left">
+                    <p className="text-[10px] text-cyan-600 font-bold leading-none">เกณฑ์สัดส่วนคะแนนวิชานี้</p>
+                    <p className="mt-0.5 text-xs font-black text-cyan-950">
+                      {scoreRatio.coursework} : {scoreRatio.midterm} : {scoreRatio.final} ⚙️
+                    </p>
+                  </div>
+                </button>
+
+                {/* Planned Weight Progress Meter */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 min-w-[220px]">
+                  <div className="flex items-center justify-between text-xs font-black">
+                    <span className="text-slate-600">น้ำหนักคะแนนที่วางไว้:</span>
+                    <span className={plannedTotalWeight === 100 ? 'text-emerald-700 font-black' : 'text-amber-700 font-black'}>
+                      {plannedTotalWeight} / 100 คะแนน
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        plannedTotalWeight === 100
+                          ? 'bg-emerald-500'
+                          : plannedTotalWeight > 100
+                            ? 'bg-rose-500'
+                            : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${Math.min(plannedTotalWeight, 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[10px] font-bold text-slate-400 text-right">
+                    {plannedTotalWeight === 100
+                      ? '✓ โครงสร้างคะแนนครบ 100 พอดี'
+                      : plannedTotalWeight < 100
+                        ? `ขาดอีก ${100 - plannedTotalWeight} คะแนนให้ครบ 100`
+                        : `เกินไป ${plannedTotalWeight - 100} คะแนน`}
+                  </p>
                 </div>
-                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className={`h-full transition-all duration-300 ${
-                      plannedTotalWeight === 100
-                        ? 'bg-emerald-500'
-                        : plannedTotalWeight > 100
-                          ? 'bg-rose-500'
-                          : 'bg-amber-500'
-                    }`}
-                    style={{ width: `${Math.min(plannedTotalWeight, 100)}%` }}
-                  />
-                </div>
-                <p className="mt-1.5 text-[10px] font-bold text-slate-400 text-right">
-                  {plannedTotalWeight === 100
-                    ? '✓ โครงสร้างคะแนนครบ 100 พอดี'
-                    : plannedTotalWeight < 100
-                      ? `ขาดอีก ${100 - plannedTotalWeight} คะแนนให้ครบ 100`
-                      : `เกินไป ${plannedTotalWeight - 100} คะแนน`}
-                </p>
               </div>
             </div>
 
@@ -3358,8 +3577,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {[
                   { category: 'assignment' as AssessmentCategory, maxScore: '10', title: 'คะแนนระหว่างเรียน', weight: '10' },
-                  { category: 'midterm' as AssessmentCategory, maxScore: '20', title: 'สอบกลางภาค', weight: '20' },
-                  { category: 'final' as AssessmentCategory, maxScore: '30', title: 'สอบปลายภาค', weight: '30' },
+                  { category: 'midterm' as AssessmentCategory, maxScore: String(scoreRatio.midterm || 20), title: 'สอบกลางภาค', weight: String(scoreRatio.midterm || 20) },
+                  { category: 'final' as AssessmentCategory, maxScore: String(scoreRatio.final || 30), title: 'สอบปลายภาค', weight: String(scoreRatio.final || 30) },
                 ].map((preset) => (
                   <button
                     className="rounded-xl border border-slate-200 bg-white p-2 text-center text-xs font-black text-slate-800 transition hover:border-cyan-400 hover:bg-cyan-50"
@@ -3546,6 +3765,318 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   type="submit"
                 >
                   {isSubmitting ? 'กำลังสร้าง...' : 'สร้างและเริ่มกรอกคะแนน'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Score Ratio Customization Modal Dialog */}
+      {isRatioModalOpen ? (
+        <div
+          aria-labelledby="modal-ratio-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-fade-in"
+          role="dialog"
+        >
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+                  <Settings2 size={20} aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900" id="modal-ratio-title">
+                    ปรับสัดส่วนเกณฑ์คะแนนรวม (100 คะแนน)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    กำหนดสัดส่วนระหว่างเรียน กลางภาค และปลายภาค เพื่อใช้เป็นเกณฑ์ตัดเกรด
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRatioModalOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {/* Presets */}
+              <div>
+                <p className="text-xs font-black text-slate-700 mb-2">เลือกเกณฑ์มาตรฐานยอดนิยม:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScoreRatio({ coursework: 50, midterm: 20, final: 30 });
+                    }}
+                    className={`rounded-xl border p-2.5 text-left transition ${
+                      scoreRatio.coursework === 50 && scoreRatio.midterm === 20 && scoreRatio.final === 30
+                        ? 'border-cyan-500 bg-cyan-50/70 ring-1 ring-cyan-400'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className="font-black text-xs text-slate-900">70 : 30 (สพฐ. มาตรฐาน)</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">ระหว่างเรียน 50 | กลาง 20 | ปลาย 30</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScoreRatio({ coursework: 70, midterm: 0, final: 30 });
+                    }}
+                    className={`rounded-xl border p-2.5 text-left transition ${
+                      scoreRatio.coursework === 70 && scoreRatio.midterm === 0 && scoreRatio.final === 30
+                        ? 'border-cyan-500 bg-cyan-50/70 ring-1 ring-cyan-400'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className="font-black text-xs text-slate-900">70 : 30 (สอบปลายภาคเท่านั้น)</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">ระหว่างเรียน 70 | กลาง 0 | ปลาย 30</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScoreRatio({ coursework: 60, midterm: 20, final: 20 });
+                    }}
+                    className={`rounded-xl border p-2.5 text-left transition ${
+                      scoreRatio.coursework === 60 && scoreRatio.midterm === 20 && scoreRatio.final === 20
+                        ? 'border-cyan-500 bg-cyan-50/70 ring-1 ring-cyan-400'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className="font-black text-xs text-slate-900">80 : 20 (เน้นปฏิบัติ/กิจกรรม)</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">ระหว่างเรียน 60 | กลาง 20 | ปลาย 20</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScoreRatio({ coursework: 80, midterm: 0, final: 20 });
+                    }}
+                    className={`rounded-xl border p-2.5 text-left transition ${
+                      scoreRatio.coursework === 80 && scoreRatio.midterm === 0 && scoreRatio.final === 20
+                        ? 'border-cyan-500 bg-cyan-50/70 ring-1 ring-cyan-400'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className="font-black text-xs text-slate-900">80 : 20 (สอบปลายภาคเท่านั้น)</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">ระหว่างเรียน 80 | กลาง 0 | ปลาย 20</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom inputs */}
+              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
+                <p className="text-xs font-black text-slate-700 mb-3">ปรับตัวเลขสัดส่วนเอง (รวมต้องได้ 100):</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">ระหว่างเรียน</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={scoreRatio.coursework}
+                      onChange={(e) =>
+                        setScoreRatio((prev) => ({ ...prev, coursework: Number(e.target.value) || 0 }))
+                      }
+                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-center font-black text-sm text-slate-900 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">กลางภาค</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={scoreRatio.midterm}
+                      onChange={(e) =>
+                        setScoreRatio((prev) => ({ ...prev, midterm: Number(e.target.value) || 0 }))
+                      }
+                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-center font-black text-sm text-slate-900 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">ปลายภาค</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={scoreRatio.final}
+                      onChange={(e) =>
+                        setScoreRatio((prev) => ({ ...prev, final: Number(e.target.value) || 0 }))
+                      }
+                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-center font-black text-sm text-slate-900 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-200 text-xs font-black">
+                  <span>ผลรวมสัดส่วน:</span>
+                  <span
+                    className={
+                      scoreRatio.coursework + scoreRatio.midterm + scoreRatio.final === 100
+                        ? 'text-emerald-700'
+                        : 'text-rose-600'
+                    }
+                  >
+                    {scoreRatio.coursework + scoreRatio.midterm + scoreRatio.final} / 100 คะแนน
+                    {scoreRatio.coursework + scoreRatio.midterm + scoreRatio.final !== 100 && ' (ต้องเท่ากับ 100 พอดี)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsRatioModalOpen(false)}
+                className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 hover:bg-slate-50 transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const total = scoreRatio.coursework + scoreRatio.midterm + scoreRatio.final;
+                  if (total !== 100) {
+                    setNotice('สัดส่วนรวมต้องเท่ากับ 100 คะแนนพอดี (ปัจจุบัน: ' + total + ')');
+                    return;
+                  }
+                  localStorage.setItem('classcare_score_ratio', JSON.stringify(scoreRatio));
+                  setIsRatioModalOpen(false);
+                  setNotice(
+                    `บันทึกสัดส่วนเกณฑ์คะแนน (ระหว่างเรียน ${scoreRatio.coursework} : กลางภาค ${scoreRatio.midterm} : ปลายภาค ${scoreRatio.final}) เรียบร้อยแล้ว`,
+                  );
+                }}
+                className="h-10 rounded-2xl bg-cyan-600 px-5 text-xs font-black text-white shadow-sm hover:bg-cyan-700 transition"
+              >
+                บันทึกสัดส่วนเกณฑ์
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Edit Assessment Modal Dialog */}
+      {isEditModalOpen && editingAssessment ? (
+        <div
+          aria-labelledby="modal-edit-assessment-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-fade-in"
+          role="dialog"
+        >
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+                  <Edit3 size={20} aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900" id="modal-edit-assessment-title">
+                    แก้ไขชุดคะแนน / ปรับน้ำหนัก
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    วิชา {editingAssessment.subject_name} • ห้อง {classroomById.get(editingAssessment.classroom_id)?.name || ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditAssessment} className="mt-4 space-y-4">
+              <label className="block">
+                <span className="text-xs font-black text-slate-600">ชื่อชุดคะแนน</span>
+                <input
+                  className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold w-full"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
+                  required
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-black text-slate-600">ประเภท</span>
+                  <select
+                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold w-full"
+                    value={editForm.category}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, category: e.target.value as AssessmentCategory }))
+                    }
+                  >
+                    {categoryOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-black text-slate-600">วันที่ประเมิน</span>
+                  <ThaiDatePicker
+                    className="mt-1.5 h-10 px-3 text-xs font-bold"
+                    onValueChange={(value) => setEditForm((prev) => ({ ...prev, assessmentDate: value }))}
+                    value={editForm.assessmentDate}
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-black text-slate-600">คะแนนเต็ม</span>
+                  <input
+                    type="number"
+                    min="1"
+                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold w-full"
+                    value={editForm.maxScore}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, maxScore: e.target.value }))}
+                    required
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-black text-slate-600">น้ำหนักคะแนน (%)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold w-full"
+                    value={editForm.weight}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, weight: e.target.value }))}
+                    required
+                  />
+                  <span className="mt-1 block text-[10px] text-slate-400 font-bold">
+                    สัดส่วนผลต่อเกรด 100 คะแนน
+                  </span>
+                </label>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 hover:bg-slate-50 transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-10 rounded-2xl bg-cyan-600 px-5 text-xs font-black text-white shadow-sm hover:bg-cyan-700 transition disabled:opacity-50"
+                >
+                  {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
                 </button>
               </div>
             </form>
