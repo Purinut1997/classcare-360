@@ -699,10 +699,10 @@ export function SupportChat({
                           <span>
                             {selectedModel === 'auto'
                               ? '✨ Auto'
+                              : selectedModel === 'gemini-3.6-flash'
+                              ? '🌟 3.6 Flash'
                               : selectedModel === 'gemini-3.5-flash'
                               ? '🌟 3.5 Flash'
-                              : selectedModel === 'gemini-2.0-flash'
-                              ? '🚀 2.0 Flash'
                               : selectedModel === 'gemini-1.5-pro'
                               ? '🧠 1.5 Pro'
                               : '⚡ 1.5 Flash'}
@@ -1303,13 +1303,13 @@ export function SupportChat({
                       </p>
                       <div className="space-y-1.5 text-[11px] bg-white/80 rounded-xl p-2.5 border border-indigo-100 shadow-2xs">
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">🌟 1. Gemini 3.5 Flash</span>
-                          <span className="text-[9px] text-amber-700 bg-amber-100/90 px-1.5 py-0.2 rounded font-bold">20 ครั้ง/วัน (ฉลาดสุด)</span>
+                          <span className="flex items-center gap-1">🌟 1. Gemini 3.6 Flash</span>
+                          <span className="text-[9px] text-indigo-700 bg-indigo-100/90 px-1.5 py-0.2 rounded font-bold">Google แนะนำล่าสุด</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 pl-5">↓ สลับอัตโนมัติเมื่อครบ 20 ครั้ง</div>
+                        <div className="text-[10px] text-slate-400 pl-5">↓ สลับอัตโนมัติเมื่อจำเป็น</div>
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">🚀 2. Gemini 2.0 Flash</span>
-                          <span className="text-[9px] text-sky-700 bg-sky-100/90 px-1.5 py-0.2 rounded font-bold">สปีดเร็วสูง ภาษาไทยคล่อง</span>
+                          <span className="flex items-center gap-1">✨ 2. Gemini 3.5 Flash</span>
+                          <span className="text-[9px] text-amber-700 bg-amber-100/90 px-1.5 py-0.2 rounded font-bold">ฉลาด ละเอียด</span>
                         </div>
                         <div className="text-[10px] text-slate-400 pl-5">↓ สลับสำรอง</div>
                         <div className="flex items-center justify-between font-bold text-slate-800">

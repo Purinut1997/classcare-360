@@ -267,14 +267,14 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-amber-700">1️⃣ ขั้นแรก</div>
-                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 3.5 Flash</div>
-                      <div className="text-[10px] text-slate-500 mt-1">ฉลาดสุด (ฟรี 20 ครั้ง/วัน)</div>
+                      <div className="text-[10px] font-bold text-indigo-700">1️⃣ แนะนำล่าสุด</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 3.6 Flash</div>
+                      <div className="text-[10px] text-slate-500 mt-1">Google แนะนำแทน 2.0</div>
                     </div>
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-sky-700">2️⃣ ขั้นสำรองเร็ว</div>
-                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.0 Flash</div>
-                      <div className="text-[10px] text-slate-500 mt-1">ความเร็วสูง ภาษาไทยคล่อง</div>
+                      <div className="text-[10px] font-bold text-amber-700">2️⃣ ขั้นสำรองฉลาด</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 3.5 Flash</div>
+                      <div className="text-[10px] text-slate-500 mt-1">ฉลาด ละเอียด ตรงประเด็น</div>
                     </div>
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
                       <div className="text-[10px] font-bold text-emerald-700">3️⃣ ขั้นปลอดภัยสูงสุด</div>
