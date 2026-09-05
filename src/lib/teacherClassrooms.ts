@@ -34,8 +34,12 @@ export function getTeacherClassroomScope<T extends ScopedClassroom>(
 
   const activeClassrooms = classrooms.filter((c) => c.status !== 'archived');
 
+  const workspaceClassroomName = session?.workspace?.classroomName?.trim().toLowerCase() || '';
+
   const homeroomClassrooms = activeClassrooms.filter(
-    (c) => c.homeroom_teacher_profile_id && c.homeroom_teacher_profile_id === currentProfileId,
+    (c) =>
+      (currentProfileId && c.homeroom_teacher_profile_id === currentProfileId) ||
+      (workspaceClassroomName && c.name?.trim().toLowerCase() === workspaceClassroomName),
   );
 
   // If user is owner/superadmin and no classrooms explicitly set current user as homeroom,
@@ -70,9 +74,11 @@ export function getTeacherClassroomScope<T extends ScopedClassroom>(
 export function getClassroomScopeBadge(
   classroom: ScopedClassroom,
   currentProfileId?: string,
+  workspaceClassroomName?: string,
 ): { isHomeroom: boolean; label: string; prefix: string } {
   const isHomeroom = Boolean(
-    currentProfileId && classroom.homeroom_teacher_profile_id === currentProfileId,
+    (currentProfileId && classroom.homeroom_teacher_profile_id === currentProfileId) ||
+    (workspaceClassroomName && classroom.name?.trim().toLowerCase() === workspaceClassroomName.trim().toLowerCase()),
   );
 
   return {

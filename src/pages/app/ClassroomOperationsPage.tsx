@@ -32,6 +32,7 @@ import {
 import { loadSchoolReportIdentity } from "../../lib/scheduleSettings";
 import { hasWorkspaceCapability } from "../../lib/roles";
 import { isSupabaseReady, supabase } from "../../lib/supabaseClient";
+import { getTeacherClassroomScope } from "../../lib/teacherClassrooms";
 import type { AppSessionContext } from "../../types/core";
 
 type TabKey = "duty" | "locks" | "rollover" | "archive" | "parent-qr";
@@ -41,6 +42,7 @@ type DutyGenerationScope = "day" | "month" | "term";
 
 interface Classroom {
   academic_year: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
   status: string;
@@ -225,6 +227,29 @@ export function ClassroomOperationsPage({
   const [classroomId, setClassroomId] = useState(
     session.workspace?.id ? "" : "demo-room",
   );
+  const [scopeFilter, setScopeFilter] = useState<"homeroom" | "all">("homeroom");
+
+  const teacherScope = useMemo(
+    () => getTeacherClassroomScope(session, classrooms),
+    [classrooms, session],
+  );
+
+  const displayClassrooms = useMemo(() => {
+    if (scopeFilter === "homeroom" && teacherScope.homeroomClassrooms.length > 0) {
+      return teacherScope.homeroomClassrooms;
+    }
+    return classrooms.filter((room) => room.status === "active");
+  }, [classrooms, scopeFilter, teacherScope]);
+
+  const handleScopeChange = (nextScope: "homeroom" | "all") => {
+    setScopeFilter(nextScope);
+    if (nextScope === "homeroom" && teacherScope.homeroomClassrooms.length > 0) {
+      if (!teacherScope.homeroomClassrooms.some((c) => c.id === classroomId)) {
+        setClassroomId(teacherScope.homeroomClassrooms[0].id);
+      }
+    }
+  };
+
   const [weekStart, setWeekStart] = useState(mondayOf());
   const [tasks, setTasks] = useState<DutyTask[]>([]);
   const [assignments, setAssignments] = useState<DutyAssignment[]>([]);
@@ -362,7 +387,7 @@ export function ClassroomOperationsPage({
       const results = await Promise.all([
         supabase
           .from("classrooms")
-          .select("id,name,academic_year,status")
+          .select("id,name,academic_year,status,homeroom_teacher_profile_id")
           .eq("workspace_id", workspaceId)
           .order("name"),
         supabase
@@ -439,11 +464,14 @@ export function ClassroomOperationsPage({
       setTransitions((results[8].data || []) as YearTransition[]);
       setInvitations((results[9].data || []) as PortalInvite[]);
       setBehaviorPoints((results[10].data || []) as BehaviorPoint[]);
+      const nextScope = getTeacherClassroomScope(session, roomRows);
       const initialRoom =
-        classroomId ||
-        roomRows.find((room) => room.status === "active")?.id ||
-        roomRows[0]?.id ||
-        "";
+        classroomId && roomRows.some((room) => room.id === classroomId)
+          ? classroomId
+          : nextScope.defaultClassroomId ||
+            roomRows.find((room) => room.status === "active")?.id ||
+            roomRows[0]?.id ||
+            "";
       setClassroomId(initialRoom);
       setRolloverForm((current) => ({
         ...current,
@@ -1118,19 +1146,67 @@ export function ClassroomOperationsPage({
               {pageDescription}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {teacherScope.hasHomeroom ? (
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-xs font-black">
+                <button
+                  className={`rounded-lg px-2.5 py-1 transition ${
+                    scopeFilter === "homeroom"
+                      ? "bg-white text-cyan-900 shadow-sm ring-1 ring-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  onClick={() => handleScopeChange("homeroom")}
+                  type="button"
+                >
+                  ⭐ เฉพาะในที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
+                </button>
+                <button
+                  className={`rounded-lg px-2.5 py-1 transition ${
+                    scopeFilter === "all"
+                      ? "bg-white text-cyan-900 shadow-sm ring-1 ring-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  onClick={() => handleScopeChange("all")}
+                  type="button"
+                >
+                  🌐 ทั้งหมด ({classrooms.filter((room) => room.status === "active").length})
+                </button>
+              </div>
+            ) : null}
             <select
               className="nexus-field h-11 min-w-48 px-3"
               onChange={(event) => setClassroomId(event.target.value)}
               value={classroomId}
             >
-              {classrooms
-                .filter((room) => room.status === "active")
-                .map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name} ({room.academic_year || "-"})
-                  </option>
-                ))}
+              {scopeFilter === "all" && teacherScope.hasHomeroom ? (
+                <>
+                  <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                    {teacherScope.homeroomClassrooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        ⭐ {room.name} ({room.academic_year || "-"})
+                      </option>
+                    ))}
+                  </optgroup>
+                  {teacherScope.otherClassrooms.length > 0 ? (
+                    <optgroup label="📚 ห้องเรียนอื่น ๆ">
+                      {teacherScope.otherClassrooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name} ({room.academic_year || "-"})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </>
+              ) : (
+                displayClassrooms.map((room) => {
+                  const isHome = teacherScope.homeroomClassrooms.some((c) => c.id === room.id);
+                  return (
+                    <option key={room.id} value={room.id}>
+                      {isHome ? "⭐ " : ""}{room.name} ({room.academic_year || "-"}){isHome ? " [ห้องที่ปรึกษา]" : ""}
+                    </option>
+                  );
+                })
+              )}
             </select>
             <button
               className="dark-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black"
@@ -1191,11 +1267,28 @@ export function ClassroomOperationsPage({
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ห้องเรียนที่จัดเวร
+                  <div className="flex items-center justify-between">
+                    <span>ห้องเรียนที่จัดเวร</span>
+                    {teacherScope.homeroomClassrooms.some((c) => c.id === classroomId) ? (
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-200">
+                        ⭐ เฉพาะนักเรียนในที่ปรึกษา
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        ห้องเรียนทั่วไป
+                      </span>
+                    )}
+                  </div>
                   <select className="nexus-field h-11 px-3" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
-                    {classrooms.filter((room) => room.status === "active").map((room) => (
-                      <option key={room.id} value={room.id}>{room.name} ({room.academic_year || "-"}) · {students.filter((student) => student.classroom_id === room.id).length} คน</option>
-                    ))}
+                    {displayClassrooms.map((room) => {
+                      const count = students.filter((student) => student.classroom_id === room.id).length;
+                      const isHome = teacherScope.homeroomClassrooms.some((c) => c.id === room.id);
+                      return (
+                        <option key={room.id} value={room.id}>
+                          {isHome ? "⭐ " : ""}{room.name} ({room.academic_year || "-"}) · {count} คน{isHome ? " [ห้องที่ปรึกษา]" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -2307,22 +2400,27 @@ function ParentQrPanel({
   return (
     <section className="mt-5 grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
       <form className="nexus-card p-5" onSubmit={onCreate}>
-        <h2 className="text-xl font-black text-slate-950">
-          สร้าง QR คำเชิญผู้ปกครอง
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-black text-slate-950">
+            สร้าง QR คำเชิญผู้ปกครอง
+          </h2>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">
+            ⭐ เฉพาะนักเรียนในที่ปรึกษา
+          </span>
+        </div>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
           QR ไม่บรรจุเลขบัตรประชาชน
           ผู้ปกครองต้องเข้าสู่ระบบด้วยอีเมลที่ตรงกับคำเชิญ
         </p>
         <div className="mt-4 grid gap-3">
           <label className="grid gap-2 text-sm font-black text-slate-700">
-            นักเรียน
+            นักเรียนในที่ปรึกษา ({students.length} คน)
             <select
               className="nexus-field h-11 px-3"
               onChange={(e) => onForm({ ...form, studentId: e.target.value })}
               value={form.studentId}
             >
-              <option value="">เลือกนักเรียน</option>
+              <option value="">เลือกนักเรียนในที่ปรึกษา</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.student_code} · {fullName(s)}
