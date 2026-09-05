@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Archive, ClipboardCheck, Download, FileUp, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, FileUp, Filter, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
 
 import { writeAuditLog } from '../../lib/auditLog';
@@ -567,6 +567,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [studentManageClassroomId, setStudentManageClassroomId] = useState('all');
   const [studentManageStatus, setStudentManageStatus] = useState<StudentExportRow['status'] | 'all'>('all');
   const [studentManageReview, setStudentManageReview] = useState<RosterReviewClassification | 'all'>('all');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<'all' | 'active' | 'archived' | 'duplicate' | 'unassigned'>('all');
   const [selectedManagedStudentIds, setSelectedManagedStudentIds] = useState<string[]>([]);
   const [reviewClassification, setReviewClassification] = useState<RosterReviewClassification>('belongs_here');
   const [reviewNote, setReviewNote] = useState('');
@@ -599,6 +600,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     () => new Map(rosterReviews.filter((review) => review.student_id).map((review) => [review.student_id as string, review])),
     [rosterReviews],
   );
+
+  const categoryCounts = useMemo(() => {
+    const all = students.length;
+    const active = students.filter((s) => (s.status || 'active') === 'active').length;
+    const archived = students.filter((s) => (s.status || 'active') === 'archived').length;
+    const duplicate = students.filter((s) => rosterReviewByStudentId.get(s.id)?.classification === 'duplicate').length;
+    const unassigned = students.filter((s) => !s.classroom_id).length;
+    return { active, all, archived, duplicate, unassigned };
+  }, [rosterReviewByStudentId, students]);
+
   const managedStudents = useMemo(() => {
     const normalizedQuery = studentManageQuery.trim().toLowerCase();
 
@@ -606,9 +617,19 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const status = student.status || 'active';
       const review = rosterReviewByStudentId.get(student.id);
       const classification = review?.classification || 'pending';
-      if (studentManageStatus !== 'all' && status !== studentManageStatus) return false;
+
+      // Category tab quick filter
+      if (activeCategoryTab === 'active' && status !== 'active') return false;
+      if (activeCategoryTab === 'archived' && status !== 'archived') return false;
+      if (activeCategoryTab === 'duplicate' && classification !== 'duplicate') return false;
+      if (activeCategoryTab === 'unassigned' && Boolean(student.classroom_id)) return false;
+
+      // Secondary dropdown filters (when in 'all' tab or specific combinations)
+      if (activeCategoryTab === 'all') {
+        if (studentManageStatus !== 'all' && status !== studentManageStatus) return false;
+        if (studentManageReview !== 'all' && classification !== studentManageReview) return false;
+      }
       if (studentManageClassroomId !== 'all' && student.classroom_id !== studentManageClassroomId) return false;
-      if (studentManageReview !== 'all' && classification !== studentManageReview) return false;
       if (!normalizedQuery) return true;
 
       const haystack = [
@@ -627,7 +648,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
       return haystack.includes(normalizedQuery);
     });
-  }, [classroomNameById, rosterReviewByStudentId, studentManageClassroomId, studentManageQuery, studentManageReview, studentManageStatus, students]);
+  }, [activeCategoryTab, classroomNameById, rosterReviewByStudentId, studentManageClassroomId, studentManageQuery, studentManageReview, studentManageStatus, students]);
   const archivedPendingReviewCount = students.filter(
     (student) => (student.status || 'active') === 'archived' && !rosterReviewByStudentId.has(student.id),
   ).length;
@@ -1996,6 +2017,162 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             </div>
 
+            {/* หมวดหมู่ด่วน (Category Tabs) */}
+            <div className="mt-5 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+              <span className="text-xs font-black uppercase text-slate-400 mr-1 flex items-center gap-1">
+                <Filter size={13} aria-hidden="true" />
+                หมวดหมู่:
+              </span>
+              {[
+                { id: 'all', label: 'ทั้งหมด', count: categoryCounts.all, icon: Users },
+                { id: 'active', label: 'กำลังเรียน', count: categoryCounts.active, icon: CheckCircle2 },
+                { id: 'archived', label: '📦 หมวดเก็บถาวร', count: categoryCounts.archived, icon: Archive, badgeClass: 'bg-amber-100 text-amber-900 ring-amber-300' },
+                { id: 'duplicate', label: '⚠️ ข้อมูลซ้ำ', count: categoryCounts.duplicate, icon: AlertTriangle, badgeClass: 'bg-rose-100 text-rose-900 ring-rose-300' },
+                { id: 'unassigned', label: 'ยังไม่ผูกห้อง', count: categoryCounts.unassigned, icon: Filter },
+              ].map((tab) => {
+                const isActive = activeCategoryTab === tab.id;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveCategoryTab(tab.id as any);
+                      if (tab.id === 'all') {
+                        setStudentManageStatus('all');
+                        setStudentManageReview('all');
+                        setStudentManageClassroomId('all');
+                      } else if (tab.id === 'active') {
+                        setStudentManageStatus('active');
+                        setStudentManageReview('all');
+                      } else if (tab.id === 'archived') {
+                        setStudentManageStatus('archived');
+                        setStudentManageReview('all');
+                      } else if (tab.id === 'duplicate') {
+                        setStudentManageStatus('all');
+                        setStudentManageReview('duplicate');
+                      } else if (tab.id === 'unassigned') {
+                        setStudentManageStatus('all');
+                        setStudentManageReview('all');
+                        setStudentManageClassroomId('');
+                      }
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-black transition ${
+                      isActive
+                        ? 'bg-slate-950 text-white shadow-md'
+                        : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon size={14} className={isActive ? 'text-amber-400' : 'text-slate-400'} aria-hidden="true" />
+                    <span>{tab.label}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-black ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : tab.badgeClass || 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* แถบแนะนำพิเศษสำหรับหมวดเก็บถาวร */}
+            {activeCategoryTab === 'archived' && (
+              <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 sm:flex-row sm:items-center sm:justify-between shadow-xs">
+                <div className="flex items-start gap-3">
+                  <Archive className="mt-0.5 shrink-0 text-amber-700" size={20} aria-hidden="true" />
+                  <div>
+                    <h4 className="text-sm font-black text-amber-950">
+                      📦 หมวดเก็บถาวร / รายชื่อเก่าที่ตกค้าง ({categoryCounts.archived} คน)
+                    </h4>
+                    <p className="mt-0.5 text-xs font-bold leading-5 text-amber-900/80">
+                      รายชื่อกลุ่มนี้ถูกแยกออกจากห้องเรียนแล้ว คุณครูสามารถกดปุ่ม "เลือกทั้งหมดในหมวดนี้" แล้วกดปุ่มสีแดง <strong>"ลบถาวร"</strong> เพื่อเคลียร์ข้อมูลซ้ำหรือรายชื่อเก่าพร้อมกันได้ทันที
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allArchivedIds = managedStudents.map((s) => s.id);
+                      setSelectedManagedStudentIds(allArchivedIds);
+                    }}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-900 shadow-xs hover:bg-amber-100 transition"
+                  >
+                    <CheckCircle2 size={14} className="text-amber-700" />
+                    เลือกทั้งหมดในหมวดนี้ ({managedStudents.length})
+                  </button>
+                  {selectedManagedStudentIds.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-rose-700 transition"
+                    >
+                      <Trash2 size={14} />
+                      ลบถาวร {selectedManagedStudentIds.length} รายชื่อที่เลือก
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* แถบคำสั่งลอยเมื่อเลือกหลายคน (Batch Action Bar) */}
+            {selectedManagedStudentIds.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-300 bg-cyan-50/95 p-3.5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-7 items-center justify-center rounded-xl bg-cyan-700 px-2.5 text-xs font-black text-white shadow-xs">
+                    เลือกแล้ว {selectedManagedStudentIds.length} คน
+                  </span>
+                  <span className="text-xs font-bold text-cyan-900">
+                    (จาก {managedStudents.length} คนในหน้านี้)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedManagedStudentIds([])}
+                    className="ml-2 text-xs font-black text-cyan-800 underline hover:text-cyan-950"
+                  >
+                    ยกเลิกเลือก
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void updateManagedStudentStatus(selectedManagedStudentIds, 'archived')}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 shadow-xs hover:bg-slate-50 transition"
+                  >
+                    <Archive size={14} aria-hidden="true" />
+                    เก็บถาวร ({selectedManagedStudentIds.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void updateManagedStudentStatus(selectedManagedStudentIds, 'active')}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-black text-teal-800 shadow-xs hover:bg-teal-100 transition"
+                  >
+                    <RotateCcw size={14} aria-hidden="true" />
+                    กู้คืน ({selectedManagedStudentIds.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !selectedStudentsCanDelete}
+                    onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-300 bg-rose-600 px-4 text-xs font-black text-white shadow-sm hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    ลบถาวร ({selectedManagedStudentIds.length} คน)
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 grid gap-3 2xl:grid-cols-[minmax(220px,1fr)_200px_160px_210px_auto] 2xl:items-center">
               <label className="relative block min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
@@ -2050,7 +2227,33 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               <table className="min-w-full divide-y divide-slate-100 text-left">
                 <thead>
                   <tr className="text-xs font-black uppercase text-slate-500">
-                    <th className="px-3 py-3">เลือก</th>
+                    <th className="px-3 py-3">
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          checked={
+                            managedStudents.length > 0 &&
+                            managedStudents.every((student) => selectedManagedStudentIds.includes(student.id))
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                          onChange={() => {
+                            const allVisibleSelected =
+                              managedStudents.length > 0 &&
+                              managedStudents.every((student) => selectedManagedStudentIds.includes(student.id));
+
+                            if (allVisibleSelected) {
+                              const visibleIds = new Set(managedStudents.map((s) => s.id));
+                              setSelectedManagedStudentIds((current) => current.filter((id) => !visibleIds.has(id)));
+                            } else {
+                              const visibleIds = managedStudents.map((s) => s.id);
+                              setSelectedManagedStudentIds((current) => Array.from(new Set([...current, ...visibleIds])));
+                            }
+                          }}
+                          type="checkbox"
+                          title="เลือก/ยกเลิกเลือกทั้งหมดในหน้านี้"
+                        />
+                        <span className="text-xs font-black uppercase text-slate-500">เลือก</span>
+                      </label>
+                    </th>
                     <th className="px-3 py-3">รหัส</th>
                     <th className="px-3 py-3">นักเรียน</th>
                     <th className="px-3 py-3">ห้องเรียน</th>
