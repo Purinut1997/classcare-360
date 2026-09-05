@@ -439,7 +439,7 @@ export function SupportChat({
       {open ? (
         <section
           aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-          className="mb-3 flex h-[min(700px,82dvh)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-400/40 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/60 transition-all backdrop-blur-xl"
+          className="relative mb-3 flex h-[min(700px,82dvh)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-400/40 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/60 transition-all backdrop-blur-xl"
         >
           {/* Header */}
           <header className="relative overflow-hidden border-b border-white/10 px-4 py-3 sm:px-5">
@@ -839,27 +839,28 @@ export function SupportChat({
 
           {/* Modal: Gemini API Key & Model Configuration */}
           {isSettingsOpen && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50/98 p-5 text-slate-900 backdrop-blur-xl">
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-100 text-amber-600">
-                    <Key size={16} />
+            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50 text-slate-900 rounded-[28px] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-amber-100 text-amber-700 shadow-2xs">
+                    <Key size={17} />
                   </span>
                   <div>
-                    <h3 className="text-sm font-black text-slate-800">ตั้งค่า Google Gemini AI</h3>
-                    <p className="text-[10px] text-slate-500">ปรับแต่งคีย์และโมเดลตามต้องการ</p>
+                    <h3 className="text-sm font-black text-slate-900">ตั้งค่า Google Gemini AI</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">ปรับแต่งคีย์และโมเดลตามต้องการ</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen(false)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition"
+                  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                 >
-                  <X size={17} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs pr-0.5">
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
                 {/* VIP Indicator */}
                 <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3 text-amber-900 shadow-2xs">
                   <span className="font-black flex items-center gap-1.5 text-amber-800">
@@ -987,20 +988,20 @@ export function SupportChat({
                 )}
               </div>
 
-              {/* Settings Action Buttons */}
-              <div className="flex gap-2 pt-3 border-t border-slate-200">
+              {/* Settings Action Buttons Footer */}
+              <div className="flex gap-2 p-4 border-t border-slate-200 bg-white shadow-xs">
                 <button
                   type="button"
                   onClick={handleTestKey}
                   disabled={isTesting}
-                  className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs"
+                  className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
                 >
                   {isTesting ? "กำลังตรวจ..." : "ทดสอบเชื่อมต่อ"}
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveConfig}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2 text-xs font-bold text-white shadow-sm transition"
+                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white shadow-sm transition"
                 >
                   บันทึกการตั้งค่า
                 </button>
@@ -1010,27 +1011,28 @@ export function SupportChat({
 
           {/* Modal: Categorized Prompt Library */}
           {isPromptLibraryOpen && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50/98 p-5 text-slate-900 backdrop-blur-xl">
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-100 text-amber-600">
-                    <Sparkles size={16} />
+            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50 text-slate-900 rounded-[28px] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-amber-100 text-amber-700 shadow-2xs">
+                    <Sparkles size={17} />
                   </span>
                   <div>
-                    <h3 className="text-sm font-black text-slate-800">คลังคำสั่งลัดสำเร็จรูป</h3>
-                    <p className="text-[10px] text-slate-500">แตะคำสั่งที่ต้องการเพื่อให้ AI ช่วยร่างข้อความทันที</p>
+                    <h3 className="text-sm font-black text-slate-900">คลังคำสั่งลัดสำเร็จรูป</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">แตะคำสั่งที่ต้องการเพื่อให้ AI ช่วยร่างข้อความทันที</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsPromptLibraryOpen(false)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition"
+                  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                 >
-                  <X size={17} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-3 space-y-4 text-xs pr-0.5">
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
                 {ALL_PROMPT_CATEGORIES.map((cat) => (
                   <div key={cat.id} className="space-y-2">
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100/80 text-indigo-700 font-bold text-xs">
