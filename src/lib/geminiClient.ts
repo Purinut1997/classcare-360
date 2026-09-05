@@ -44,7 +44,7 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
 ];
 
 export interface AssistantAction {
-  type: 'navigate' | 'copy' | 'handover' | 'calendar';
+  type: 'navigate' | 'copy' | 'handover' | 'calendar' | 'calendar_batch';
   target?: string;
   label: string;
   payload?: string;
@@ -84,6 +84,10 @@ const SYSTEM_INSTRUCTION = `
      [CALENDAR:YYYY-MM-DD:type:ชื่อวันหรือกิจกรรม:ข้อความบนปุ่ม]
      (โดย type ได้แก่ holiday=วันหยุด, exam=วันสอบ, activity=กิจกรรม, makeup=เรียนชดเชย)
      ตัวอย่าง: [CALENDAR:2026-10-23:holiday:วันปิยมหาราช:📅 บันทึกวันหยุดลงปฏิทินทันที]
+9. เมื่อคุณครูขอให้คุณช่วยบันทึกวันหยุดราชการทั้งปี หรือบันทึกวันหยุดประจำปี (เช่น "ลงวันหยุดราชการปี 2569 ให้หน่อย" หรือ "ช่วยบันทึกวันหยุดทั้งปี"):
+   - ให้สรุปปฏิทินวันหยุดราชการไทยตลอดทั้งปี 2569 (2026) เช่น วันขึ้นปีใหม่, วันครูแห่งชาติ, วันมาฆบูชา, วันสงกรานต์, วันเฉลิมพระชนมพรรษา, วันแม่, วันพ่อ ฯลฯ
+   - และสร้างปุ่ม Action สำหรับบันทึกรวดเดียวทั้งปีในรูปแบบ:
+     [CALENDAR_BATCH:2026:📅 บันทึกวันหยุดราชการทั้งปี 2569 (20 วัน) ลงปฏิทินทันที]
 `.trim();
 
 /**
@@ -352,6 +356,19 @@ export function parseAssistantResponse(rawText: string): {
     return '';
   });
 
+  // 5. Extract [CALENDAR_BATCH:year:label]
+  text = text.replace(/\[CALENDAR_BATCH:([^:\]]+):([^\]]+)\]/g, (_, year, label) => {
+    actions.push({
+      type: 'calendar_batch',
+      label: label.trim(),
+      target: year.trim(),
+      payload: JSON.stringify({
+        year: year.trim(),
+      }),
+    });
+    return '';
+  });
+
   return { cleanText: text.trim(), actions };
 }
 
@@ -363,6 +380,52 @@ export function getSmartFallbackResponse(userPrompt: string, activeView: string)
   actions: AssistantAction[];
 } {
   const lower = userPrompt.toLowerCase();
+
+  // Check for whole-year holiday request
+  if (
+    lower.includes('วันหยุดทั้งปี') ||
+    lower.includes('ลงวันหยุดทั้งปี') ||
+    lower.includes('วันหยุดราชการ 2569') ||
+    lower.includes('วันหยุด 2569') ||
+    lower.includes('วันหยุดราชการทั้งปี') ||
+    (lower.includes('วันหยุด') && (lower.includes('ทั้งปี') || lower.includes('ตลอดปี') || lower.includes('2569') || lower.includes('2026')))
+  ) {
+    return {
+      cleanText: `🎉 **สรุปปฏิทินวันหยุดราชการไทยประจำปี 2569 (2026) — ทั้งหมด 20 วัน:**\n\n` +
+        `• 1 ม.ค. — วันขึ้นปีใหม่\n` +
+        `• 16 ม.ค. — วันครูแห่งชาติ (วันหยุดสถานศึกษา)\n` +
+        `• 3 มี.ค. — วันมาฆบูชา\n` +
+        `• 6 เม.ย. — วันจักรี\n` +
+        `• 13-15 เม.ย. — เทศกาลวันสงกรานต์ (3 วัน)\n` +
+        `• 1 พ.ค. — วันแรงงานแห่งชาติ\n` +
+        `• 4 พ.ค. — วันฉัตรมงคล\n` +
+        `• 31 พ.ค. — วันวิสาขบูชา\n` +
+        `• 3 มิ.ย. — วันเฉลิมพระชนมพรรษาสมเด็จพระนางเจ้าฯ พระบรมราชินี\n` +
+        `• 28 ก.ค. — วันเฉลิมพระชนมพรรษาพระบาทสมเด็จพระเจ้าอยู่หัว\n` +
+        `• 29-30 ก.ค. — วันอาสาฬหบูชา และวันเข้าพรรษา\n` +
+        `• 12 ส.ค. — วันแม่แห่งชาติ\n` +
+        `• 13 ต.ค. — วันนวมินทรมหาราช (ร.9)\n` +
+        `• 23 ต.ค. — วันปิยมหาราช\n` +
+        `• 5 ธ.ค. — วันพ่อแห่งชาติ / วันชาติ\n` +
+        `• 10 ธ.ค. — วันรัฐธรรมนูญ\n` +
+        `• 31 ธ.ค. — วันสิ้นปี\n\n` +
+        `*(หมายเหตุ: ทุกวันหยุดจะถูกตั้งค่ายกเว้นการเช็กชื่อให้อัตโนมัติ เพื่อไม่ให้เสียสถิติเวลาเรียน 80% ของนักเรียน)*\n\n` +
+        `คุณครูสามารถกดปุ่มด้านล่างเพื่อให้น้องแคร์บันทึกวันหยุดทั้งหมดนี้ลงปฏิทินโรงเรียนได้ในคลิกเดียวทันทีค่ะ! 👇`,
+      actions: [
+        {
+          type: 'calendar_batch',
+          target: '2026',
+          label: '📅 บันทึกวันหยุดราชการทั้งปี 2569 (20 วัน) ลงปฏิทินทันที',
+          payload: JSON.stringify({ year: '2026' }),
+        },
+        {
+          type: 'navigate',
+          target: '/app/dashboard?view=school-calendar',
+          label: '📅 เปิดดูปฏิทินโรงเรียน',
+        },
+      ],
+    };
+  }
 
   // 1. Scoring & Grading
   if (lower.includes('ตัดเกรด') || lower.includes('สัดส่วน') || lower.includes('70:30') || lower.includes('คะแนน')) {
@@ -418,7 +481,7 @@ export function getSmartFallbackResponse(userPrompt: string, activeView: string)
   // 6. School Calendar & Holidays
   if (lower.includes('ปฏิทิน') || lower.includes('วันหยุด') || lower.includes('วันสอบ') || lower.includes('กิจกรรม')) {
     return {
-      cleanText: `📅 **ระบบปฏิทินโรงเรียนและบันทึกวันหยุด (School Calendar):**\n\n- คุณครูสามารถดูและบันทึกวันหยุด, วันสอบ, กิจกรรมโรงเรียน หรือวันเรียนชดเชยได้\n- มีนโยบายควบคุมการเช็คชื่อ: กำหนดให้ **"ไม่นับเป็นวันเรียน (ข้ามเช็คชื่อ)"** ได้ เพื่อไม่ให้เสียสถิติเวลาเรียน 80% ของนักเรียน\n- สั่งให้น้องแคร์ช่วยบันทึกวันหยุดได้ เช่นพิมพ์: *"ช่วยบันทึกวันหยุด 23 ตุลาคม วันปิยมหาราช"* ได้เลยค่ะ!`,
+      cleanText: `📅 **ระบบปฏิทินโรงเรียนและบันทึกวันหยุด (School Calendar):**\n\n- คุณครูสามารถดูและบันทึกวันหยุด, วันสอบ, กิจกรรมโรงเรียน หรือวันเรียนชดเชยได้\n- มีนโยบายควบคุมการเช็คชื่อ: กำหนดให้ **"ไม่นับเป็นวันเรียน (ข้ามเช็คชื่อ)"** ได้ เพื่อไม่ให้เสียสถิติเวลาเรียน 80% ของนักเรียน\n- สั่งให้น้องแคร์ช่วยบันทึกวันหยุดได้ เช่นพิมพ์: *"ช่วยบันทึกวันหยุด 23 ตุลาคม วันปิยมหาราช"* หรือ *"ช่วยลงวันหยุดราชการทั้งปี 2569"* ได้เลยค่ะ!`,
       actions: [
         { type: 'navigate', target: '/app/dashboard?view=school-calendar', label: '📅 เปิดดูปฏิทินโรงเรียน' },
       ],

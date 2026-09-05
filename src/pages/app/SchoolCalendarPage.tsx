@@ -1,4 +1,4 @@
-import { CalendarDays, FileCheck2, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Plus, Printer, RefreshCw, Trash2, X } from 'lucide-react';
+import { CalendarDays, FileCheck2, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Plus, Printer, RefreshCw, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
@@ -10,6 +10,7 @@ import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
 import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
+import { getThaiPublicHolidays, resolveCalendarYear } from '../../lib/thaiHolidays';
 import type { AppSessionContext } from '../../types/core';
 
 interface SchoolCalendarPageProps {
@@ -536,6 +537,80 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     setEditingEvent(null);
   };
 
+  const handleImportOfficialHolidays = async () => {
+    if (!canEditCalendar) return;
+    const targetYear = resolveCalendarYear(session.workspace?.academicYear || currentMonth.getFullYear());
+    const thaiYear = targetYear + 543;
+    const confirmMsg = `ต้องการนำเข้าวันหยุดราชการไทยประจำปี ${thaiYear} (ประมาณ 20 วัน) ลงในปฏิทินโรงเรียนอัตโนมัติหรือไม่?\n\n- ระบบจะตั้งค่า "ไม่นับเป็นวันเรียน (ข้ามเช็กชื่อ)" ให้อัตโนมัติ\n- วันที่ตรงกันแล้วจะไม่ถูกบันทึกซ้ำ`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const presetHolidays = getThaiPublicHolidays(targetYear);
+    const existingSet = new Set(events.map((e) => `${e.date}|${e.title}`));
+    const newItems = presetHolidays.filter((h) => !existingSet.has(`${h.date}|${h.title}`));
+
+    if (newItems.length === 0) {
+      alert(`มีรายการวันหยุดราชการประจำปี ${thaiYear} ครบถ้วนแล้วในปฏิทิน ไม่พบรายการใหม่ที่ต้องนำเข้า`);
+      return;
+    }
+
+    setSync({ status: 'loading', message: `กำลังนำเข้าวันหยุดราชการ ${newItems.length} วัน...` });
+
+    let supabaseSuccess = false;
+    let createdEvents: CalendarEvent[] = [];
+
+    const workspaceId = session.workspace?.id;
+    if (supabase && workspaceId && !isDemoSession(session)) {
+      try {
+        const rowsToInsert = newItems.map((h) => ({
+          workspace_id: workspaceId,
+          calendar_date: h.date,
+          day_type: toDayType(h.type),
+          title: h.title,
+          affects_attendance: false,
+          affects_reports: true,
+          created_by: session.profile.id,
+          metadata: { attendancePolicy: h.attendancePolicy },
+        }));
+
+        const { data, error } = await supabase
+          .from('school_calendar_days')
+          .insert(rowsToInsert)
+          .select('*');
+
+        if (!error && data) {
+          supabaseSuccess = true;
+          createdEvents = (data as DbRow[]).map(mapCalendarRow);
+        }
+      } catch (err) {
+        console.warn('Batch holiday Supabase insert error, falling back to local storage:', err);
+      }
+    }
+
+    if (!supabaseSuccess) {
+      createdEvents = newItems.map((h, i) => ({
+        id: `cal-preset-${Date.now()}-${i}`,
+        date: h.date,
+        title: h.title,
+        type: h.type,
+        attendancePolicy: h.attendancePolicy,
+        source: 'local' as const,
+      }));
+    }
+
+    // Merge into local storage safety backup
+    const storageKey = getDataSafetyStorageKey(session);
+    const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    const existingRules = state.calendarRules || [];
+    state.calendarRules = [...existingRules, ...createdEvents];
+    window.localStorage.setItem(storageKey, JSON.stringify(state));
+
+    setEvents((current) => [...current, ...createdEvents]);
+    setSync({
+      status: supabaseSuccess ? 'synced' : 'local',
+      message: `นำเข้าวันหยุดราชการประจำปี ${thaiYear} สำเร็จแล้ว ${createdEvents.length} รายการ`,
+    });
+  };
+
   return (
     <main className="app-page space-y-5">
       <section className="nexus-card overflow-hidden">
@@ -563,6 +638,17 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                 <Printer size={17} aria-hidden="true" />
                 พิมพ์
               </button>
+              {canEditCalendar && (
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 text-sm font-black text-rose-700 hover:bg-rose-100 transition shadow-xs active:scale-95"
+                  onClick={handleImportOfficialHolidays}
+                  type="button"
+                  title="นำเข้าวันหยุดราชการไทยตลอดทั้งปีในคลิกเดียว"
+                >
+                  <Sparkles size={17} aria-hidden="true" className="text-rose-600 animate-pulse" />
+                  โหลดวันหยุดราชการทั้งปี
+                </button>
+              )}
             </div>
           </div>
           <div className="bg-slate-950 p-5 text-white sm:p-7">

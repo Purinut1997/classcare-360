@@ -53,6 +53,7 @@ import {
   type EffectiveAiConfig,
 } from "../../lib/aiSettings";
 import { fetchLiveSchoolDataContext } from "../../lib/schoolContextService";
+import { getThaiPublicHolidays, resolveCalendarYear } from "../../lib/thaiHolidays";
 
 type Ticket = {
   id: string;
@@ -499,9 +500,95 @@ export function SupportChat({
     }
   };
 
-  // Action Click Handler (Navigate or Copy or Handover or Calendar)
+  // Batch Calendar Holidays Saver for Carey AI (All-in-one year insert)
+  const handleSaveBatchCalendarEvents = async (payloadStr: string) => {
+    try {
+      const parsed = payloadStr ? JSON.parse(payloadStr) : {};
+      const targetYear = resolveCalendarYear(parsed.year || session.workspace?.academicYear || "2569");
+      const holidays = getThaiPublicHolidays(targetYear);
+      if (!holidays || holidays.length === 0) return;
+
+      const workspaceId = session.workspace?.id;
+      let insertedCount = 0;
+
+      if (isSupabaseReady && supabase && workspaceId) {
+        try {
+          // Fetch existing days to prevent duplicating same title on same date
+          const { data: existing } = await supabase
+            .from("school_calendar_days")
+            .select("calendar_date, title")
+            .eq("workspace_id", workspaceId);
+
+          const existingSet = new Set((existing || []).map((e: any) => `${e.calendar_date}|${e.title}`));
+          const newRows = holidays
+            .filter((h) => !existingSet.has(`${h.date}|${h.title}`))
+            .map((h) => ({
+              workspace_id: workspaceId,
+              calendar_date: h.date,
+              day_type: h.type,
+              title: h.title,
+              affects_attendance: false,
+              affects_reports: true,
+              created_by: session.profile.id,
+              metadata: { attendancePolicy: h.attendancePolicy },
+            }));
+
+          if (newRows.length > 0) {
+            const { error } = await supabase.from("school_calendar_days").insert(newRows);
+            if (!error) insertedCount = newRows.length;
+          }
+        } catch (dbErr) {
+          console.warn("Supabase batch holiday insert fallback:", dbErr);
+        }
+      }
+
+      // Also persist to LocalStorage safety rules
+      const storageKey = `classcare:data-safety:${workspaceId || session.profile.id}`;
+      const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+      const existingRules = state.calendarRules || [];
+      const localSet = new Set(existingRules.map((r: any) => `${r.date}|${r.title}`));
+
+      const additionalLocal = holidays
+        .filter((h) => !localSet.has(`${h.date}|${h.title}`))
+        .map((h, i) => ({
+          id: `ai-cal-batch-${Date.now()}-${i}`,
+          date: h.date,
+          title: h.title,
+          type: h.type,
+          attendancePolicy: h.attendancePolicy,
+          source: insertedCount > 0 ? "supabase" : "local",
+        }));
+
+      state.calendarRules = [...existingRules, ...additionalLocal];
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+
+      // Broadcast live event so calendar page immediately updates
+      window.dispatchEvent(new CustomEvent("classcare-calendar-updated"));
+
+      const thaiYear = targetYear + 543;
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `asst-cal-batch-saved-${Date.now()}`,
+          role: "assistant",
+          content: `🎉 **บันทึกวันหยุดราชการไทยประจำปี ${thaiYear} ครบทั้งปีสำเร็จแล้วค่ะ!**\n\n- **จำนวนวันหยุด:** ${holidays.length} วัน (ปีใหม่, วันครู, มาฆบูชา, สงกรานต์, วันเฉลิมพระชนมพรรษา, วันแม่, วันพ่อ ฯลฯ)\n- **นโยบายเวลาเรียน:** ทุกวันหยุดถูกตั้งค่าเป็น **"ไม่นับเป็นวันเรียน (ข้ามเช็กชื่อ)"** ให้อัตโนมัติ เพื่อไม่ให้กระทบสถิติเวลาเรียน 80% ของนักเรียน\n\nคุณครูสามารถเปิดดูในปฏิทินโรงเรียนได้ทันทีเลยนะคะ`,
+          timestamp: new Date().toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          actions: [
+            { type: "navigate", target: "/app/dashboard?view=school-calendar", label: "📅 เปิดดูปฏิทินโรงเรียน" },
+          ],
+        },
+      ]);
+    } catch (e: any) {
+      alert(`ไม่สามารถบันทึกวันหยุดทั้งปีได้: ${e.message || e}`);
+    }
+  };
+
+  // Action Click Handler (Navigate or Copy or Handover or Calendar or Batch Calendar)
   const handleActionClick = (action: {
-    type: "navigate" | "copy" | "handover" | "calendar";
+    type: "navigate" | "copy" | "handover" | "calendar" | "calendar_batch";
     target?: string;
     label: string;
     payload?: string;
@@ -521,6 +608,8 @@ export function SupportChat({
       setBody(action.payload || "");
     } else if (action.type === "calendar" && action.payload) {
       void handleSaveCalendarEvent(action.payload);
+    } else if (action.type === "calendar_batch" && action.payload) {
+      void handleSaveBatchCalendarEvents(action.payload);
     }
   };
 
@@ -687,8 +776,10 @@ export function SupportChat({
                                 key={actIdx}
                                 type="button"
                                 onClick={() => handleActionClick(act)}
-                                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-xs ${
-                                  act.type === "calendar"
+                                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-xs ${
+                                  act.type === "calendar_batch"
+                                    ? "bg-gradient-to-r from-rose-600 via-pink-600 to-amber-600 text-white hover:brightness-110 shadow-sm active:scale-95 px-3 py-1.5"
+                                    : act.type === "calendar"
                                     ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 active:scale-95"
                                     : act.type === "navigate"
                                     ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
@@ -697,6 +788,9 @@ export function SupportChat({
                                     : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
                                 }`}
                               >
+                                {act.type === "calendar_batch" && (
+                                  <Sparkles size={13} className="text-amber-200 animate-pulse" />
+                                )}
                                 {act.type === "calendar" && (
                                   <CalendarDays size={12} className="text-rose-600" />
                                 )}
