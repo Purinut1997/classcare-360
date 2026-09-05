@@ -140,8 +140,10 @@ export function ThaiDatePicker({
         onClick={openPicker}
         type="button"
       >
-        <span className={value ? `text-slate-800 ${adaptiveSurface ? 'dark:text-slate-100' : ''}` : 'text-slate-400'}>{formatDisplay(value, mode)}</span>
-        <CalendarDays className="shrink-0 text-cyan-700" size={18} aria-hidden="true" />
+        <span className={value ? 'font-black text-slate-900 dark:text-slate-100' : 'text-slate-400'}>
+          {formatDisplay(value, mode)}
+        </span>
+        <CalendarDays className="shrink-0 text-cyan-700 dark:text-cyan-400" size={18} aria-hidden="true" />
       </button>
 
       {isOpen ? (

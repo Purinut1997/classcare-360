@@ -428,6 +428,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [isGuideOpen, setIsGuideOpen] = useState(true);
   const [guideStep, setGuideStep] = useState(1);
   const [guideTab, setGuideTab] = useState<'tour' | 'manual'>('tour');
+  const [isStickyRoster, setIsStickyRoster] = useState(true);
   const totalGuideSteps = 6;
 
   const teacherScope = useMemo(
@@ -2178,9 +2179,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
               </div>
             </div>
 
-            {/* Excel Grid Helper Banner */}
+            {/* Excel Grid Helper Banner & Controls */}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-50 p-3 border border-slate-200/80 text-xs font-bold text-slate-600">
-              <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
                 <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-2xs border border-slate-200">Tab</span>
                 <span>เลื่อนไปช่องถัดไป</span>
                 <span className="text-slate-300">|</span>
@@ -2190,25 +2191,48 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-2xs border border-slate-200">Ctrl + V</span>
                 <span>วางคะแนนจาก Excel ได้ทั้งแถบ</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500">น้ำหนักแผนรวม:</span>
-                <span className={`font-black ${plannedTotalWeight === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {plannedTotalWeight} / 100 คะแนน
-                </span>
+              <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">น้ำหนักแผนรวม:</span>
+                  <span className={`font-black ${plannedTotalWeight === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {plannedTotalWeight} / 100 คะแนน
+                  </span>
+                </div>
+                {/* Mobile & Desktop Sticky Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsStickyRoster((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black transition border ${
+                    isStickyRoster
+                      ? 'bg-cyan-50 border-cyan-300 text-cyan-800 shadow-2xs'
+                      : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  title="เปิด/ปิดการตรึงคอลัมน์ชื่อนักเรียนเพื่อเพิ่มพื้นที่เลื่อนกรอกคะแนน"
+                >
+                  <span>{isStickyRoster ? '📌 ตรึงชื่อนักเรียน' : '🔓 ปลดตรึงชื่อนักเรียน'}</span>
+                </button>
               </div>
             </div>
 
             {/* Full Spreadsheet Grid Table */}
             {contextAssessments.length > 0 ? (
               <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full min-w-[900px] border-collapse text-left text-xs">
+                <table className="w-full min-w-[700px] sm:min-w-[900px] border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-slate-100 text-slate-700 font-black">
                       {/* Fixed Left Columns: Roster */}
-                      <th className="sticky left-0 z-20 bg-slate-100 px-3 py-3 w-16 border-b border-r border-slate-200">
+                      <th
+                        className={`${
+                          isStickyRoster ? 'sticky left-0 z-20 shadow-xs sm:shadow-none' : 'static'
+                        } bg-slate-100 px-1 sm:px-3 py-3 w-10 sm:w-16 border-b border-r border-slate-200 text-center text-[11px] sm:text-xs whitespace-nowrap`}
+                      >
                         เลขที่
                       </th>
-                      <th className="sticky left-16 z-20 bg-slate-100 px-3 py-3 w-48 border-b border-r border-slate-200">
+                      <th
+                        className={`${
+                          isStickyRoster ? 'sticky left-10 sm:left-16 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]' : 'static'
+                        } bg-slate-100 px-2 sm:px-3 py-3 w-28 sm:w-48 max-w-[115px] sm:max-w-none border-b border-r border-slate-200 text-[11px] sm:text-xs whitespace-nowrap`}
+                      >
                         ชื่อ - นามสกุล
                       </th>
 
@@ -2279,15 +2303,24 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       return (
                         <tr className="hover:bg-slate-50 transition group" key={student.id}>
                           {/* Sticky Roster Cells */}
-                          <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-3 py-2 text-slate-500 font-mono text-center border-r border-slate-200">
+                          <td
+                            className={`${
+                              isStickyRoster ? 'sticky left-0 z-10' : 'static'
+                            } bg-white group-hover:bg-slate-50 px-1 sm:px-3 py-2 text-slate-600 font-mono text-center border-r border-slate-200 text-xs`}
+                          >
                             {student.student_code || sIdx + 1}
                           </td>
-                          <td className="sticky left-16 z-10 bg-white group-hover:bg-slate-50 px-3 py-2 border-r border-slate-200 font-bold">
-                            <p className="truncate font-black text-slate-900">
-                              {student.first_name} {student.last_name}
+                          <td
+                            className={`${
+                              isStickyRoster ? 'sticky left-10 sm:left-16 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]' : 'static'
+                            } bg-white group-hover:bg-slate-50 px-2 sm:px-3 py-2 border-r border-slate-200 font-bold w-28 sm:w-48 max-w-[115px] sm:max-w-none`}
+                          >
+                            <p className="truncate font-black text-slate-900 text-xs" title={`${student.first_name} ${student.last_name}`}>
+                              <span>{student.first_name}</span>
+                              <span className="hidden sm:inline"> {student.last_name}</span>
                             </p>
                             {student.nickname ? (
-                              <p className="text-[10px] text-slate-400 font-normal">({student.nickname})</p>
+                              <p className="text-[10px] text-slate-400 font-normal truncate">({student.nickname})</p>
                             ) : null}
                           </td>
 
@@ -2951,24 +2984,96 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </button>
               </div>
 
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full border-collapse text-left text-xs">
+              {/* Mobile Card List View (md:hidden) */}
+              <div className="mt-4 flex flex-col gap-3 md:hidden">
+                {crossClassroomStats.map((row) => (
+                  <div key={row.classroom.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700 text-xs font-black">
+                          {row.classroom.name.slice(0, 4)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-900 text-sm truncate">{row.classroom.name}</p>
+                          <p className="text-[11px] text-slate-400 font-medium">ปี {row.classroom.academic_year || '2569'} • {row.studentCount} คน • {row.assessmentCount} ชุด</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClassroomId(row.classroom.id);
+                          handleScoreViewChange('excel');
+                        }}
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-3 py-2 text-xs font-black text-white hover:bg-cyan-700 transition shadow-xs"
+                      >
+                        📝 เข้ากรอก
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+                      <div className="rounded-xl bg-slate-50 p-2">
+                        <p className="text-[10px] text-slate-500 font-bold">ส่งงานครบ</p>
+                        <span className={`inline-block mt-0.5 text-xs font-black ${row.completionPercent >= 80 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {row.completionPercent}%
+                        </span>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-2">
+                        <p className="text-[10px] text-slate-500 font-bold">เฉลี่ย / เกรด</p>
+                        <p className="mt-0.5 text-xs font-black text-slate-900">
+                          {row.averagePercent.toFixed(1)}% <span className="text-[10px] text-slate-500 font-bold">({getThaiGrade(row.averagePercent).grade})</span>
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-2">
+                        <p className="text-[10px] text-slate-500 font-bold">ผ่านเกณฑ์</p>
+                        <p className="mt-0.5 text-xs font-black text-slate-900">
+                          {row.passingRate}% <span className="text-[10px] text-slate-400 font-normal">({row.passingCount}/{row.studentCount})</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-[10px] text-slate-500 font-bold mb-1.5">การกระจายเกรด (4 / 3 / 2 / 1 / 0):</p>
+                      <div className="grid grid-cols-5 gap-1 text-center font-mono text-[11px]">
+                        <div className="rounded-lg bg-emerald-50 py-1 text-emerald-800 font-bold border border-emerald-100" title="เกรด 4">
+                          4: {row.gradeCounts.g4}
+                        </div>
+                        <div className="rounded-lg bg-teal-50 py-1 text-teal-800 font-bold border border-teal-100" title="เกรด 3 หรือ 3.5">
+                          3: {row.gradeCounts.g3}
+                        </div>
+                        <div className="rounded-lg bg-blue-50 py-1 text-blue-800 font-bold border border-blue-100" title="เกรด 2 หรือ 2.5">
+                          2: {row.gradeCounts.g2}
+                        </div>
+                        <div className="rounded-lg bg-amber-50 py-1 text-amber-800 font-bold border border-amber-100" title="เกรด 1 หรือ 1.5">
+                          1: {row.gradeCounts.g1}
+                        </div>
+                        <div className="rounded-lg bg-rose-50 py-1 text-rose-800 font-bold border border-rose-100" title="เกรด 0">
+                          0: {row.gradeCounts.g0}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop/Tablet Table View (hidden md:block) */}
+              <div className="mt-4 hidden md:block overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[840px] border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-slate-100 text-slate-700 font-black">
-                      <th className="px-4 py-3 border-b border-slate-200">ห้องเรียน</th>
-                      <th className="px-3 py-3 border-b border-slate-200 text-center">นักเรียน</th>
-                      <th className="px-3 py-3 border-b border-slate-200 text-center">ชุดคะแนน</th>
-                      <th className="px-3 py-3 border-b border-slate-200 text-center">ส่งงานครบ (%)</th>
-                      <th className="px-3 py-3 border-b border-slate-200 text-center">คะแนนเฉลี่ย (%)</th>
-                      <th className="px-3 py-3 border-b border-slate-200 text-center">ผ่านเกณฑ์</th>
-                      <th className="px-4 py-3 border-b border-slate-200 min-w-[180px]">การกระจายเกรด (4 / 3 / 2 / 1 / 0)</th>
-                      <th className="px-4 py-3 border-b border-slate-200 text-right">การจัดการ</th>
+                      <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">ห้องเรียน</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center whitespace-nowrap">นักเรียน</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center whitespace-nowrap">ชุดคะแนน</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center whitespace-nowrap">ส่งงานครบ (%)</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center whitespace-nowrap">คะแนนเฉลี่ย (%)</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center whitespace-nowrap">ผ่านเกณฑ์</th>
+                      <th className="px-4 py-3 border-b border-slate-200 min-w-[180px] whitespace-nowrap">การกระจายเกรด (4 / 3 / 2 / 1 / 0)</th>
+                      <th className="px-4 py-3 border-b border-slate-200 text-right whitespace-nowrap">การจัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {crossClassroomStats.map((row) => (
                       <tr key={row.classroom.id} className="hover:bg-slate-50 transition">
-                        <td className="px-4 py-3.5 font-black text-slate-900">
+                        <td className="px-4 py-3.5 font-black text-slate-900 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-700 text-xs font-black">
                               {row.classroom.name.slice(0, 4)}
@@ -2979,9 +3084,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.studentCount} คน</td>
-                        <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.assessmentCount} ชุด</td>
-                        <td className="px-3 py-3.5 text-center">
+                        <td className="px-3 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap">{row.studentCount} คน</td>
+                        <td className="px-3 py-3.5 text-center font-bold text-slate-700 whitespace-nowrap">{row.assessmentCount} ชุด</td>
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
                           <span
                             className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-black ${
                               row.completionPercent >= 80 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
@@ -2990,7 +3095,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             {row.completionPercent}%
                           </span>
                         </td>
-                        <td className="px-3 py-3.5 text-center">
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
                           <div className="flex flex-col items-center">
                             <span className="font-black text-slate-900 text-sm">{row.averagePercent.toFixed(1)}%</span>
                             <span className="text-[10px] font-bold text-slate-400">
@@ -2998,13 +3103,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             </span>
                           </div>
                         </td>
-                        <td className="px-3 py-3.5 text-center">
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
                           <span className="font-black text-slate-800">{row.passingRate}%</span>
                           <span className="text-[10px] text-slate-400 block">
                             ({row.passingCount}/{row.studentCount})
                           </span>
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-1 text-[10px] font-mono">
                             <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800 font-bold" title="เกรด 4">
                               4: {row.gradeCounts.g4}
@@ -3023,9 +3128,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-right">
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
                           <button
-                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition border border-cyan-200"
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition border border-cyan-200 whitespace-nowrap"
                             onClick={() => {
                               setClassroomId(row.classroom.id);
                               handleScoreViewChange('excel');

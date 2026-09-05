@@ -50,6 +50,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
   useEffect(() => {
     window.localStorage.setItem('classcare-theme', theme);
     document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle('dark', theme === 'nexus');
   }, [theme]);
 
   return (
