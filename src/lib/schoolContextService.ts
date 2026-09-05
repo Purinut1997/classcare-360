@@ -111,17 +111,40 @@ export async function fetchLiveSchoolDataContext(
       // 5.1 Score Assessments
       supabase
         .from('score_assessments')
-        .select('id, title, subject_name, max_score, weight, category')
+        .select('id, title, subject_name, max_score, weight, category, classroom_id')
         .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false })
-        .limit(20),
+        .limit(100),
 
       // 5.2 Score Entries
-      supabase
-        .from('score_entries')
-        .select('assessment_id, student_id, score')
-        .eq('workspace_id', workspaceId)
-        .limit(500),
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('score_entries')
+            .select('assessment_id, student_id, score, note')
+            .eq('workspace_id', workspaceId)
+            .limit(5000);
+
+          if (!error && data && data.length > 0) {
+            return { data };
+          }
+
+          if (error) {
+            console.warn('[SchoolContext] score_entries query warning:', error.message);
+          }
+
+          // Fallback query without workspace_id filter if RLS already scopes to current workspace
+          const fallback = await supabase
+            .from('score_entries')
+            .select('assessment_id, student_id, score, note')
+            .limit(5000);
+
+          return { data: fallback.data || [] };
+        } catch (e) {
+          console.error('[SchoolContext] score_entries query exception:', e);
+          return { data: [] };
+        }
+      })(),
 
       // 5.3 Desirable characteristics 8 traits
       supabase
@@ -217,7 +240,7 @@ export async function fetchLiveSchoolDataContext(
       const boys = roomStudents.filter((s) => s.gender === 'male').length;
       const girls = roomStudents.filter((s) => s.gender === 'female').length;
       const sample = roomStudents
-        .slice(0, 15)
+        .slice(0, 35)
         .map((s) => {
           const gInfo = guardianMap.get(s.id)?.[0];
           const gStr = gInfo ? ` [ผู้ปกครอง: ${gInfo.name} (${gInfo.relation}) โทร ${gInfo.phone || '-'}]` : '';
@@ -227,7 +250,7 @@ export async function fetchLiveSchoolDataContext(
 
       context += `  - ห้อง "${c.name}": มีนักเรียนทั้งหมด ${roomStudents.length} คน (ชาย ${boys} คน, หญิง ${girls} คน)\n`;
       if (roomStudents.length > 0) {
-        context += `    รายชื่อตัวอย่าง: ${sample}${roomStudents.length > 15 ? ` และอีก ${roomStudents.length - 15} คน` : ''}\n`;
+        context += `    รายชื่อนักเรียนในห้อง: ${sample}${roomStudents.length > 35 ? ` และอีก ${roomStudents.length - 35} คน` : ''}\n`;
       }
     });
 
@@ -379,13 +402,135 @@ export async function fetchLiveSchoolDataContext(
     // =========================================================================
     // มิติที่ 5: ผลการเรียน คะแนนสอบ และคุณลักษณะ 8 ประการ (Scores & Evaluation)
     // =========================================================================
-    context += `\n--- [มิติที่ 5: ระบบคะแนน ผลการเรียน และคุณลักษณะ 8 ประการ สพฐ.] ---\n`;
-    const assessmentsList = scoreAssessments || [];
+    context += `\n--- [มิติที่ 5: ระบบคะแนน ผลการเรียน และคุณลักษณะ 8 ประการ สพฐ. (ข้อมูลจริงจากฐานข้อมูล)] ---\n`;
+    const assessmentsList = (scoreAssessments || []) as Array<{
+      id: string;
+      title: string;
+      subject_name: string;
+      max_score: number;
+      weight: number;
+      category: string;
+      classroom_id?: string;
+    }>;
+
+    const rawEntries = (scoreEntries as any[]) || [];
+    const entriesList = rawEntries.filter(
+      (e) => e.score !== null && e.score !== undefined && !isNaN(Number(e.score))
+    );
+
+    const assessmentMap = new Map<string, (typeof assessmentsList)[0]>();
+    assessmentsList.forEach((a) => assessmentMap.set(a.id, a));
+
+    // Map assessment_id -> list of student score entries
+    const entriesByAssessment = new Map<string, Array<{ student_id: string; score: number; note?: string }>>();
+    // Map student_id -> list of scores
+    const scoresByStudent = new Map<string, Array<{ assessmentId: string; subject: string; title: string; score: number; maxScore: number }>>();
+
+    entriesList.forEach((entry) => {
+      const aId = entry.assessment_id;
+      const sId = entry.student_id;
+      const score = Number(entry.score);
+
+      if (!entriesByAssessment.has(aId)) entriesByAssessment.set(aId, []);
+      entriesByAssessment.get(aId)!.push({ student_id: sId, score, note: entry.note });
+
+      const a = assessmentMap.get(aId);
+      if (a) {
+        if (!scoresByStudent.has(sId)) scoresByStudent.set(sId, []);
+        scoresByStudent.get(sId)!.push({
+          assessmentId: aId,
+          subject: a.subject_name,
+          title: a.title,
+          score,
+          maxScore: Number(a.max_score) || 100,
+        });
+      }
+    });
+
     if (assessmentsList.length > 0) {
-      context += `• รายวิชาและรายการเก็บคะแนนล่าสุด (${assessmentsList.length} รายการ):\n`;
-      assessmentsList.slice(0, 6).forEach((a, idx) => {
-        context += `  ${idx + 1}. วิชา ${a.subject_name}: "${a.title}" (คะแนนเต็ม: ${a.max_score} คะแนน, น้ำหนัก: ${a.weight}%)\n`;
+      context += `• รายการเก็บคะแนนในระบบ (${assessmentsList.length} รายการ) และมีคะแนนที่บันทึกแล้ว ${entriesList.length} รายการ:\n`;
+
+      assessmentsList.slice(0, 10).forEach((a, idx) => {
+        const entries = entriesByAssessment.get(a.id) || [];
+        const roomName = a.classroom_id ? classroomMap.get(a.classroom_id) || '' : '';
+        const roomStr = roomName ? ` [ห้อง: ${roomName}]` : '';
+        context += `  ${idx + 1}. วิชา ${a.subject_name}: "${a.title}"${roomStr} (เต็ม: ${a.max_score} คะแนน, น้ำหนัก: ${a.weight}%)\n`;
+
+        if (entries.length > 0) {
+          // Sort entries by score ascending to identify lowest and highest
+          const sortedEntries = [...entries].sort((x, y) => x.score - y.score);
+          const minEntry = sortedEntries[0];
+          const maxEntry = sortedEntries[sortedEntries.length - 1];
+          const avg = (sortedEntries.reduce((sum, item) => sum + item.score, 0) / sortedEntries.length).toFixed(1);
+
+          const minStudents = sortedEntries
+            .filter((e) => e.score === minEntry.score)
+            .map((e) => {
+              const s = studentMap.get(e.student_id);
+              return s ? `${s.first_name} ${s.last_name}${s.nickname ? ` (${s.nickname})` : ''}` : 'นักเรียน';
+            })
+            .join(', ');
+
+          const maxStudents = sortedEntries
+            .filter((e) => e.score === maxEntry.score)
+            .map((e) => {
+              const s = studentMap.get(e.student_id);
+              return s ? `${s.first_name} ${s.last_name}${s.nickname ? ` (${s.nickname})` : ''}` : 'นักเรียน';
+            })
+            .join(', ');
+
+          context += `     -> บันทึกคะแนนแล้ว ${entries.length} คน (คะแนนเฉลี่ย: ${avg}, ต่ำสุด: ${minEntry.score}, สูงสุด: ${maxEntry.score})\n`;
+          context += `     -> ⭐ ได้คะแนนน้อยที่สุด: ${minStudents} ได้ ${minEntry.score}/${a.max_score} คะแนน\n`;
+          context += `     -> 🏆 ได้คะแนนมากที่สุด: ${maxStudents} ได้ ${maxEntry.score}/${a.max_score} คะแนน\n`;
+
+          // Detail list of student scores for this assessment
+          const rosterScores = sortedEntries
+            .map((e) => {
+              const s = studentMap.get(e.student_id);
+              const name = s ? `${s.first_name} ${s.last_name}` : 'นักเรียน';
+              return `${name}: ${e.score}`;
+            })
+            .join(', ');
+          context += `     -> คะแนนรายบุคคล: ${rosterScores}\n`;
+        } else {
+          context += `     -> (ยังไม่มีการกรอกคะแนนในช่องนี้)\n`;
+        }
       });
+
+      // Overall student score standing across all assessments
+      if (entriesList.length > 0) {
+        const studentAggregates = Array.from(scoresByStudent.entries())
+          .map(([sId, sScores]) => {
+            const s = studentMap.get(sId);
+            const totalEarned = sScores.reduce((sum, sc) => sum + sc.score, 0);
+            const totalMax = sScores.reduce((sum, sc) => sum + sc.maxScore, 0);
+            const percent = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
+            const cName = s?.classroom_id ? classroomMap.get(s.classroom_id) || '' : '';
+            return {
+              id: sId,
+              name: s ? `${s.first_name} ${s.last_name}${s.nickname ? ` (${s.nickname})` : ''}` : 'นักเรียน',
+              classroom: cName,
+              totalEarned,
+              totalMax,
+              percent,
+              scoresCount: sScores.length,
+            };
+          })
+          .sort((a, b) => a.percent - b.percent);
+
+        if (studentAggregates.length > 0) {
+          context += `\n• ภาพรวมคะแนนสะสมของนักเรียนในห้อง:\n`;
+          context += `  - นักเรียนที่ได้คะแนนสะสมน้อยที่สุด (ควรได้รับการดูแลหรือสอนซ่อมเสริม):\n`;
+          studentAggregates.slice(0, 5).forEach((item, idx) => {
+            context += `    ${idx + 1}. ${item.name} (${item.classroom}) รวม ${item.totalEarned}/${item.totalMax} คะแนน (${item.percent.toFixed(1)}%)\n`;
+          });
+
+          context += `  - นักเรียนที่ได้คะแนนสะสมสูงสุด:\n`;
+          studentAggregates.slice(-3).reverse().forEach((item, idx) => {
+            context += `    ${idx + 1}. ${item.name} (${item.classroom}) รวม ${item.totalEarned}/${item.totalMax} คะแนน (${item.percent.toFixed(1)}%)\n`;
+          });
+        }
+      }
     } else {
       context += `• ระบบคะแนน: ยังไม่มีการสร้างชุดเก็บคะแนนในระบบ\n`;
     }
