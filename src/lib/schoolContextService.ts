@@ -14,37 +14,71 @@ export async function fetchLiveSchoolDataContext(
   }
 
   const workspaceId = session.workspace.id;
-  const classroomName = session.workspace.classroomName || 'ห้องเรียน';
+  const currentClassroomName = session.workspace.classroomName || 'ห้องเรียนปัจจุบัน';
   const academicYear = session.workspace.academicYear || '2569';
-  const schoolName = session.workspace.name || 'โรงเรียน';
+  const schoolName = session.workspace.schoolName || session.workspace.name || 'โรงเรียน';
+  const workspaceTitle = session.workspace.name || '';
 
   try {
-    // 1. Fetch classrooms & students in parallel
-    const [{ data: classrooms }, { data: students }] = await Promise.all([
+    // 1. Fetch classrooms, students, attendance, behavior, and savings in parallel
+    const [
+      { data: classrooms },
+      { data: students },
+      { data: attendanceRecords },
+      { data: behaviorRecords },
+      { data: savingsAccounts },
+    ] = await Promise.all([
       supabase
         .from('classrooms')
-        .select('id, name, academic_year')
+        .select('id, name, grade_level, academic_year')
         .eq('workspace_id', workspaceId)
-        .eq('status', 'active'),
+        .eq('status', 'active')
+        .order('name', { ascending: true }),
       supabase
         .from('students')
-        .select('id, student_code, first_name, last_name, nickname, classroom_id')
+        .select('id, student_code, first_name, last_name, nickname, gender, classroom_id')
         .eq('workspace_id', workspaceId)
         .eq('status', 'active')
         .order('student_code', { ascending: true }),
+      supabase
+        .from('attendance_records')
+        .select('student_id, status')
+        .eq('workspace_id', workspaceId),
+      supabase
+        .from('behavior_records')
+        .select('student_id, points, tone, category, description')
+        .eq('workspace_id', workspaceId)
+        .limit(100),
+      supabase
+        .from('savings_accounts')
+        .select('student_id, balance')
+        .eq('workspace_id', workspaceId)
+        .limit(100),
     ]);
 
     const studentList = students || [];
+    const classroomList = classrooms || [];
 
-    // 2. Fetch attendance records
-    const { data: attendanceRecords } = await supabase
-      .from('attendance_records')
-      .select('student_id, status')
-      .eq('workspace_id', workspaceId);
+    // Map classroom ID to classroom name
+    const classroomMap = new Map<string, string>();
+    classroomList.forEach((c) => classroomMap.set(c.id, c.name));
 
-    // Calculate attendance stats per student
+    // Group students by classroom
+    const studentsByClassroom = new Map<string, typeof studentList>();
+    const unassignedStudents: typeof studentList = [];
+
+    studentList.forEach((s) => {
+      if (s.classroom_id && classroomMap.has(s.classroom_id)) {
+        const cName = classroomMap.get(s.classroom_id)!;
+        if (!studentsByClassroom.has(cName)) studentsByClassroom.set(cName, []);
+        studentsByClassroom.get(cName)!.push(s);
+      } else {
+        unassignedStudents.push(s);
+      }
+    });
+
+    // Attendance stats per student
     const statsMap = new Map<string, { absent: number; late: number; leave: number; present: number }>();
-
     (attendanceRecords || []).forEach((rec) => {
       if (!statsMap.has(rec.student_id)) {
         statsMap.set(rec.student_id, { absent: 0, late: 0, leave: 0, present: 0 });
@@ -60,9 +94,11 @@ export async function fetchLiveSchoolDataContext(
     const absentees = studentList
       .map((s) => {
         const st = statsMap.get(s.id) || { absent: 0, late: 0, leave: 0, present: 0 };
+        const cName = s.classroom_id ? classroomMap.get(s.classroom_id) || 'ไม่ระบุห้อง' : 'ไม่ระบุห้อง';
         return {
           id: s.id,
           name: `${s.first_name} ${s.last_name}${s.nickname ? ` (${s.nickname})` : ''}`,
+          classroom: cName,
           code: s.student_code || '-',
           ...st,
         };
@@ -70,42 +106,71 @@ export async function fetchLiveSchoolDataContext(
       .filter((item) => item.absent > 0)
       .sort((a, b) => b.absent - a.absent);
 
-    // Build context text
-    let context = `=== [ข้อมูลจริงจากฐานข้อมูลระบบ ClassCare 360] ===\n`;
-    context += `• โรงเรียน: ${schoolName}\n`;
-    context += `• ห้องเรียนปัจจุบัน: ${classroomName}\n`;
-    context += `• ปีการศึกษา: ${academicYear}\n`;
-    context += `• เมนู/หน้าที่ครูกำลังเปิดดูอยู่: ${activeView}\n`;
-    context += `• ห้องเรียนทั้งหมดในโรงเรียน: ${(classrooms || []).map((c) => c.name).join(', ') || classroomName}\n`;
-    context += `• จำนวนนักเรียนทั้งหมดในโรงเรียน: ${studentList.length} คน\n`;
+    // Behavior points per student
+    const studentScoreMap = new Map<string, number>();
+    (behaviorRecords || []).forEach((b) => {
+      const current = studentScoreMap.get(b.student_id) || 0;
+      studentScoreMap.set(b.student_id, current + (b.points || 0));
+    });
 
-    if (studentList.length > 0) {
-      const sampleNames = studentList
-        .slice(0, 20)
-        .map((s, idx) => `${idx + 1}. ${s.first_name} ${s.last_name} (${s.student_code || 'ไม่มีรหัส'})`)
+    // Savings sum
+    let totalSavingsBalance = 0;
+    (savingsAccounts || []).forEach((sa) => {
+      totalSavingsBalance += Number(sa.balance || 0);
+    });
+
+    // Build highly factual, grounded context text
+    let context = `=== [ข้อมูลจริงจากฐานข้อมูลระบบ ClassCare 360 - อัปเดตล่าสุด] ===\n`;
+    context += `• ชื่อโรงเรียน: ${schoolName}${workspaceTitle && workspaceTitle !== schoolName ? ` (Workspace: ${workspaceTitle})` : ''}\n`;
+    context += `• ห้องเรียนที่คุณครูกำลังโฟกัสอยู่ในปัจจุบัน: ${currentClassroomName}\n`;
+    context += `• ปีการศึกษาปัจจุบัน: ${academicYear}\n`;
+    context += `• หน้าเมนูที่คุณครูกำลังเปิดดูอยู่: ${activeView}\n\n`;
+
+    context += `--- [สถิตินักเรียนแยกรายห้องอย่างแม่นยำ (ห้ามตอบสับสนกับยอดรวมทั้งโรงเรียน)] ---\n`;
+    context += `• จำนวนนักเรียนรวมทั้งโรงเรียน: ${studentList.length} คน จากทั้งหมด ${classroomList.length} ห้องเรียน\n`;
+
+    classroomList.forEach((c) => {
+      const roomStudents = studentsByClassroom.get(c.name) || [];
+      const boys = roomStudents.filter((s) => s.gender === 'male').length;
+      const girls = roomStudents.filter((s) => s.gender === 'female').length;
+      const sample = roomStudents
+        .slice(0, 10)
+        .map((s) => `${s.first_name}${s.nickname ? `(${s.nickname})` : ''}`)
         .join(', ');
-      context += `• รายชื่อนักเรียนจริงในระบบ: ${sampleNames}${studentList.length > 20 ? ` และอีก ${studentList.length - 20} คน` : ''}\n`;
-    } else {
-      context += `• รายชื่อนักเรียน: ยังไม่มีรายชื่อนักเรียนบันทึกในระบบของโรงเรียนนี้\n`;
+
+      context += `  - ห้อง "${c.name}": มีนักเรียนทั้งหมด ${roomStudents.length} คน (ชาย ${boys} คน, หญิง ${girls} คน)${sample ? ` [ตัวอย่าง: ${sample}${roomStudents.length > 10 ? ` และอีก ${roomStudents.length - 10} คน` : ''}]` : ''}\n`;
+    });
+
+    if (unassignedStudents.length > 0) {
+      context += `  - นักเรียนที่ยังไม่ได้จัดเข้าห้อง: ${unassignedStudents.length} คน\n`;
     }
 
+    // Attendance summary
+    context += `\n--- [สถิติการเช็คชื่อและการขาดเรียน] ---\n`;
     if (absentees.length > 0) {
-      context += `• สถิตินักเรียนที่ขาดเรียนสะสมจริง (เรียงจากขาดมากสุดไปหาน้อยสุด):\n`;
-      absentees.slice(0, 10).forEach((item, idx) => {
-        context += `  ${idx + 1}. ${item.name} [รหัส: ${item.code}] ขาดเรียนสะสม: ${item.absent} วัน (มาสาย: ${item.late} วัน, ลา/ป่วย: ${item.leave} วัน)\n`;
+      context += `• นักเรียนที่มีประวัติขาดเรียนสูงสุด:\n`;
+      absentees.slice(0, 8).forEach((item, idx) => {
+        context += `  ${idx + 1}. ${item.name} (${item.classroom}) ขาดเรียน: ${item.absent} วัน (มาสาย: ${item.late} วัน, ลา: ${item.leave} วัน)\n`;
       });
     } else {
       if ((attendanceRecords || []).length === 0) {
-        context += `• สถิติการเช็คชื่อ: "ยังไม่มีบันทึกข้อมูลการเช็คชื่อในระบบเลย" (ไม่มีประวัติการขาดเรียน)\n`;
+        context += `• การเช็คชื่อ: ยังไม่มีการบันทึกการเช็คชื่อในระบบ\n`;
       } else {
-        context += `• สถิติการเช็คชื่อ: มีการเช็คชื่อแล้ว แต่ "ไม่มีนักเรียนคนใดขาดเรียนเลย" (ทุกคนมาเรียนครบ 100%)\n`;
+        context += `• การเช็คชื่อ: มีการเช็คชื่อแล้ว และไม่มีนักเรียนคนใดขาดเรียน (มาเรียนครบ 100%)\n`;
       }
     }
 
+    // Behavior & Savings quick facts
+    context += `\n--- [สถิติพฤติกรรมและการออมเงิน] ---\n`;
+    context += `• บันทึกพฤติกรรมในระบบ: มีการบันทึก ${(behaviorRecords || []).length} รายการ\n`;
+    context += `• ยอดเงินออมรวมของนักเรียน: ${totalSavingsBalance.toLocaleString('th-TH')} บาท (จาก ${(savingsAccounts || []).length} บัญชี)\n`;
+
+    context += `\n[คำแนะนำสำคัญสำหรับ AI]: เมื่อคุณครูถามจำนวนนักเรียนในห้องใด ให้ตอบเฉพาะจำนวนของห้องนั้น (เช่น ถ้าถามห้อง ป.5/1 ให้ตอบว่ามี ${studentsByClassroom.get('ป.5/1')?.length ?? 0} คน) อย่าตอบด้วยยอดรวมทั้งโรงเรียนเด็ดขาด!\n`;
     context += `=== [สิ้นสุดข้อมูลจริงจากระบบ ClassCare 360] ===\n\n`;
+
     return context;
   } catch (error) {
     console.warn('Error fetching live school AI context:', error);
-    return `[บริบท: โรงเรียน '${schoolName}' ห้อง '${classroomName}' ปีการศึกษา '${academicYear}' หน้า '${activeView}']\n\n`;
+    return `[บริบท: โรงเรียน '${schoolName}' ห้อง '${currentClassroomName}' ปีการศึกษา '${academicYear}' หน้า '${activeView}']\n\n`;
   }
 }
