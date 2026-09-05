@@ -123,14 +123,18 @@ export function installSystemNetworkFeedback() {
   const originalFetch = window.fetch.bind(window);
 
   document.addEventListener('click', (event) => {
-    lastActionIsMutationIntent = event.target instanceof Element
-      && Boolean(event.target.closest('button, input[type="submit"], [role="button"]'));
+    const control = event.target instanceof Element
+      ? event.target.closest('button, input[type="submit"], [role="button"]')
+      : null;
+    const isWidget = Boolean(event.target instanceof Element && event.target.closest('.support-widget, .support-chat, .ai-chat'));
+    lastActionIsMutationIntent = Boolean(control) && !isWidget;
     lastAction = getActionLabel(event.target);
     lastContext = getActionContext(event.target);
     lastActionAt = Date.now();
   }, true);
   document.addEventListener('submit', (event) => {
-    lastActionIsMutationIntent = true;
+    const isWidget = Boolean(event.target instanceof Element && event.target.closest('.support-widget, .support-chat, .ai-chat'));
+    lastActionIsMutationIntent = !isWidget;
     lastAction = getActionLabel(event.submitter);
     lastContext = getActionContext(event.submitter);
     lastActionAt = Date.now();
@@ -141,10 +145,14 @@ export function installSystemNetworkFeedback() {
       init?.method
       || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
     ).toUpperCase();
+    const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+    const isAiApi = url.includes('generativelanguage.googleapis.com') || url.includes('/v1beta/models');
+
     // Supabase read-only RPC calls also use POST. Show global feedback only
-    // when the request follows an explicit click or form submission.
+    // when the request follows an explicit click or form submission, and exclude AI chat API.
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
       && lastActionIsMutationIntent
+      && !isAiApi
       && Date.now() - lastActionAt < 2500;
     const id = ++requestId;
     const action = Date.now() - lastActionAt < 2500 ? lastAction : 'บันทึกการเปลี่ยนแปลง';
