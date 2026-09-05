@@ -30,6 +30,11 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  CuteCareyAvatar,
+  MASCOT_OPTIONS,
+  type MascotAvatarType,
+} from "./CuteCareyAvatar";
 
 import { supabase, isSupabaseReady } from "../../lib/supabaseClient";
 import type { AppSessionContext } from "../../types/core";
@@ -163,6 +168,29 @@ export function SupportChat({
   const [allowFallback, setAllowFallback] = useState<boolean>(() => {
     return window.localStorage.getItem("classcare_ai_allow_fallback") !== "false";
   });
+
+  // Mascot Avatar state (saved in localStorage)
+  const [mascotType, setMascotType] = useState<MascotAvatarType>(() => {
+    try {
+      const saved = window.localStorage.getItem("classcare_ai_mascot_avatar") as MascotAvatarType;
+      if (saved && ["bear", "cat", "bunny", "girl", "shiba"].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return "bear";
+  });
+
+  const handleSelectMascot = (type: MascotAvatarType) => {
+    setMascotType(type);
+    try {
+      window.localStorage.setItem("classcare_ai_mascot_avatar", type);
+    } catch {}
+  };
+
+  const currentMascot = useMemo(
+    () => MASCOT_OPTIONS.find((m) => m.id === mascotType) || MASCOT_OPTIONS[0],
+    [mascotType]
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -728,8 +756,9 @@ export function SupportChat({
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(34,211,238,.25),transparent_50%)]" />
             <div className="relative flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-cyan-400 to-indigo-500 text-slate-950 shadow-md">
-                  <Bot size={19} />
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-amber-300 via-sky-400 to-indigo-500 p-0.5 shadow-md shadow-sky-950/50 ring-1 ring-white/20">
+                  <CuteCareyAvatar type={mascotType} size={34} />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-950 bg-emerald-400" />
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -804,8 +833,9 @@ export function SupportChat({
                       </span>
                     )}
                   </div>
-                  <h2 className="truncate text-sm sm:text-base font-black text-white">
-                    น้องแคร์ — ผู้ช่วยครู
+                  <h2 className="truncate text-sm sm:text-base font-black text-white flex items-center gap-1.5">
+                    <span>{currentMascot.name}</span>
+                    <span className="text-xs font-normal text-sky-300">— ผู้ช่วยครูอัจฉริยะ</span>
                   </h2>
                 </div>
               </div>
@@ -890,13 +920,19 @@ export function SupportChat({
                         msg.role === "user" ? "items-end" : "items-start"
                       }`}
                     >
-                      <div
-                        className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs ${
-                          msg.role === "user"
-                            ? "bg-indigo-600 text-white rounded-br-xs font-medium"
-                            : "bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs shadow-slate-200/50"
-                        }`}
-                      >
+                      <div className={`flex items-end gap-2 max-w-[92%] ${msg.role === "user" ? "justify-end ml-auto" : "justify-start mr-auto"}`}>
+                        {msg.role === "assistant" && (
+                          <div className="shrink-0 mb-1 select-none">
+                            <CuteCareyAvatar type={mascotType} size={28} />
+                          </div>
+                        )}
+                        <div
+                          className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs ${
+                            msg.role === "user"
+                              ? "bg-indigo-600 text-white rounded-br-xs font-medium"
+                              : "bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs shadow-slate-200/50"
+                          }`}
+                        >
                         {/* Render content with line breaks */}
                         <div className="whitespace-pre-wrap">{msg.content}</div>
 
@@ -939,10 +975,11 @@ export function SupportChat({
                           </div>
                         )}
                       </div>
-                      <span className="mt-0.5 px-1 text-[10px] text-slate-400 font-mono">
-                        {msg.timestamp}
-                      </span>
                     </div>
+                    <span className="mt-0.5 px-1 text-[10px] text-slate-400 font-mono">
+                      {msg.timestamp}
+                    </span>
+                  </div>
                   ))}
 
                   {/* Typing / Loading Indicator */}
@@ -1228,6 +1265,46 @@ export function SupportChat({
                   <p className="mt-1 text-[11px] text-amber-700/90 leading-relaxed">
                     สามารถใส่ Google Gemini API Key เพื่อปลดล็อกการแชทวิเคราะห์ข้อมูลและการตอบคำถามอิสระฟรี 100%
                   </p>
+                </div>
+
+                {/* Cute Mascot Selection */}
+                <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-b from-sky-50/80 via-white to-indigo-50/50 p-3.5 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                      <span>🎨</span>
+                      <span>เลือกตัวละครน้องแคร์ (มาสคอตน่ารัก):</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full border border-sky-200">
+                      {currentMascot.emoji} {currentMascot.name}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    คลิกเปลี่ยนหน้าตาของน้องแคร์ได้ตามใจชอบ พร้อมแสดงผลทันทีทั้งปุ่มลอยและในแชทค่ะ
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-0.5">
+                    {MASCOT_OPTIONS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleSelectMascot(m.id)}
+                        className={`flex items-center gap-2 rounded-xl border p-2 text-left transition-all ${
+                          mascotType === m.id
+                            ? "border-sky-500 bg-sky-50/90 text-sky-950 shadow-xs ring-2 ring-sky-400 font-bold"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                        }`}
+                      >
+                        <CuteCareyAvatar type={m.id} size={32} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs truncate">
+                            {m.name}
+                          </div>
+                          <div className="text-[9px] text-slate-400 truncate">
+                            {m.description.split(" ")[0]}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Scope Selection */}
@@ -1551,35 +1628,44 @@ export function SupportChat({
         </section>
       ) : null}
 
-      {/* Floating Toggle Button with Glowing Sparkles */}
+      {/* Floating Toggle Button with Glowing Cute Mascot */}
       <button
         aria-expanded={open}
         aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-        className="group relative ml-auto grid h-14 w-14 place-items-center rounded-full border border-cyan-300/40 bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-600 text-white shadow-xl shadow-cyan-950/40 transition hover:-translate-y-1 hover:shadow-cyan-500/30"
+        className="group relative ml-auto grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer"
         onClick={() => setOpen((value) => !value)}
       >
-        {open ? (
-          <X size={24} />
-        ) : (
-          <div className="relative">
-            <Bot size={26} />
-            <Sparkles
-              size={12}
-              className="absolute -top-1 -right-1 text-amber-300 animate-bounce"
-            />
-          </div>
-        )}
+        {/* Breathing animated aura ring */}
+        <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-pink-400 via-sky-400 to-amber-300 opacity-60 blur-xs animate-pulse group-hover:opacity-100 transition-opacity" />
+
+        <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-600 shadow-inner overflow-hidden">
+          {open ? (
+            <X size={26} className="text-white drop-shadow" />
+          ) : (
+            <div className="relative grid place-items-center">
+              <CuteCareyAvatar type={mascotType} size={38} className="drop-shadow-sm" />
+              <Sparkles
+                size={13}
+                className="absolute -top-1 -right-1 text-amber-300 animate-bounce drop-shadow"
+              />
+            </div>
+          )}
+        </div>
+
         {unreadCount ? (
-          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-white bg-rose-500 px-1 text-[10px] font-black">
+          <span className="absolute -right-1 -top-1 z-20 grid h-6 min-w-6 place-items-center rounded-full border-2 border-white bg-rose-500 px-1 text-[10px] font-black text-white shadow">
             {unreadCount}
           </span>
         ) : null}
 
-        {/* Floating Tooltip */}
+        {/* Floating Tooltip Bubble with Pointer Arrow */}
         {!open && (
-          <div className="pointer-events-none absolute right-full mr-3 hidden sm:flex items-center gap-1.5 rounded-xl bg-slate-900/90 px-3 py-1.5 text-xs font-bold text-white shadow-xl backdrop-blur-sm whitespace-nowrap group-hover:block transition-all">
-            <Sparkles size={13} className="text-amber-400" />
-            <span>มีอะไรให้น้องแคร์ช่วยไหมคะ?</span>
+          <div className="pointer-events-none absolute right-full mr-3 hidden sm:flex items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200 group-hover:flex">
+            <span className="text-sm">{currentMascot.emoji}</span>
+            <span className="bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
+              มีอะไรให้{currentMascot.name}ช่วยไหมคะ? ✨
+            </span>
+            <span className="absolute -right-1.5 top-1/2 -translate-y-1/2 border-4 border-transparent border-l-white/95" />
           </div>
         )}
       </button>
