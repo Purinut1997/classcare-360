@@ -175,8 +175,38 @@ export function SupportChat({
     const config = await getEffectiveAiConfig(session);
     setAiConfig(config);
     setSelectedModel(config.model);
-    if (config.apiKey) setCustomKeyInput(config.apiKey);
+
+    const pKey = session?.profile?.id
+      ? localStorage.getItem(`classcare_personal_ai_key_${session.profile.id}`) || ""
+      : "";
+    const wKey = session?.workspace?.id
+      ? localStorage.getItem(`classcare_workspace_ai_key_${session.workspace.id}`) || ""
+      : "";
+
+    if (config.source === "personal") {
+      setKeyScope("personal");
+      setCustomKeyInput(pKey || config.apiKey || "");
+    } else {
+      setKeyScope("workspace");
+      setCustomKeyInput(wKey || config.apiKey || "");
+    }
   }, [session]);
+
+  const handleSelectScope = (scope: "workspace" | "personal") => {
+    setKeyScope(scope);
+    if (scope === "workspace") {
+      const wKey = session?.workspace?.id
+        ? localStorage.getItem(`classcare_workspace_ai_key_${session.workspace.id}`) || ""
+        : "";
+      setCustomKeyInput(wKey);
+    } else {
+      const pKey = session?.profile?.id
+        ? localStorage.getItem(`classcare_personal_ai_key_${session.profile.id}`) || ""
+        : "";
+      setCustomKeyInput(pKey);
+    }
+    setTestResult(null);
+  };
 
   useEffect(() => {
     window.localStorage.setItem("classcare_ai_allow_fallback", allowFallback ? "true" : "false");
@@ -1189,10 +1219,10 @@ export function SupportChat({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setKeyScope("workspace")}
+                      onClick={() => handleSelectScope("workspace")}
                       className={`rounded-xl border p-2.5 text-left transition ${
                         keyScope === "workspace"
-                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs"
+                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs ring-1 ring-indigo-400"
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                       }`}
                     >
@@ -1204,10 +1234,10 @@ export function SupportChat({
 
                     <button
                       type="button"
-                      onClick={() => setKeyScope("personal")}
+                      onClick={() => handleSelectScope("personal")}
                       className={`rounded-xl border p-2.5 text-left transition ${
                         keyScope === "personal"
-                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs"
+                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs ring-1 ring-indigo-400"
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                       }`}
                     >
@@ -1221,12 +1251,23 @@ export function SupportChat({
 
                 {/* API Key Input */}
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1.5">
-                    Google Gemini API Key
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-bold text-slate-700">
+                      {keyScope === "workspace"
+                        ? "🏫 Google Gemini API Key ของโรงเรียน"
+                        : "👤 Google Gemini API Key ส่วนตัว"}
+                    </label>
+                    <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                      {keyScope === "workspace" ? "บันทึกแยกใน Workspace" : "บันทึกแยกใน Profile"}
+                    </span>
+                  </div>
                   <input
                     type="password"
-                    placeholder="AIzaSy..."
+                    placeholder={
+                      keyScope === "workspace"
+                        ? "ใส่ API Key สำหรับแชร์ครูทั้งโรงเรียน (AIzaSy...)"
+                        : "ใส่ API Key สำหรับใช้งานส่วนตัวคนเดียว (AIzaSy...)"
+                    }
                     value={customKeyInput}
                     onChange={(e) => setCustomKeyInput(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 font-mono placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none shadow-2xs"
