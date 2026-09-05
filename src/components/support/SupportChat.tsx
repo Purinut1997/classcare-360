@@ -836,33 +836,40 @@ export function SupportChat({
 
           {/* Modal: Gemini API Key & Model Configuration */}
           {isSettingsOpen && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-slate-900/95 p-5 text-white backdrop-blur-md">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50/98 p-5 text-slate-900 backdrop-blur-xl">
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
                 <div className="flex items-center gap-2">
-                  <Key className="text-amber-400" size={18} />
-                  <h3 className="text-sm font-black">ตั้งค่า Google Gemini AI</h3>
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-100 text-amber-600">
+                    <Key size={16} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">ตั้งค่า Google Gemini AI</h3>
+                    <p className="text-[10px] text-slate-500">ปรับแต่งคีย์และโมเดลตามต้องการ</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen(false)}
-                  className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition"
                 >
-                  <X size={16} />
+                  <X size={17} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs">
+              <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs pr-0.5">
                 {/* VIP Indicator */}
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200">
-                  <span className="font-black">👑 สิทธิ์การใช้งานระดับ VIP:</span>
-                  <p className="mt-1 text-[11px] text-amber-300/90">
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3 text-amber-900 shadow-2xs">
+                  <span className="font-black flex items-center gap-1.5 text-amber-800">
+                    <span>👑</span> สิทธิ์การใช้งานระดับ VIP:
+                  </span>
+                  <p className="mt-1 text-[11px] text-amber-700/90 leading-relaxed">
                     สามารถใส่ Google Gemini API Key เพื่อปลดล็อกการแชทวิเคราะห์ข้อมูลและการตอบคำถามอิสระฟรี 100%
                   </p>
                 </div>
 
                 {/* Scope Selection */}
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1.5">
                     ขอบเขตการใช้ Key
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -871,12 +878,12 @@ export function SupportChat({
                       onClick={() => setKeyScope("workspace")}
                       className={`rounded-xl border p-2.5 text-left transition ${
                         keyScope === "workspace"
-                          ? "border-cyan-400 bg-cyan-950/60 text-white font-bold"
-                          : "border-white/10 text-slate-400 hover:bg-white/5"
+                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                       }`}
                     >
-                      <span className="block text-xs">🏫 Key โรงเรียน</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span className="block text-xs font-bold text-slate-800">🏫 Key โรงเรียน</span>
+                      <span className="text-[10px] text-slate-500 font-normal">
                         ครูทุกคนในโรงเรียนใช้ร่วมกัน
                       </span>
                     </button>
@@ -886,12 +893,12 @@ export function SupportChat({
                       onClick={() => setKeyScope("personal")}
                       className={`rounded-xl border p-2.5 text-left transition ${
                         keyScope === "personal"
-                          ? "border-cyan-400 bg-cyan-950/60 text-white font-bold"
-                          : "border-white/10 text-slate-400 hover:bg-white/5"
+                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                       }`}
                     >
-                      <span className="block text-xs">👤 Key ส่วนตัว</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span className="block text-xs font-bold text-slate-800">👤 Key ส่วนตัว</span>
+                      <span className="text-[10px] text-slate-500 font-normal">
                         ใช้เฉพาะบัญชีของคุณคนเดียว
                       </span>
                     </button>
@@ -900,7 +907,7 @@ export function SupportChat({
 
                 {/* API Key Input */}
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1.5">
                     Google Gemini API Key
                   </label>
                   <input
@@ -908,15 +915,15 @@ export function SupportChat({
                     placeholder="AIzaSy..."
                     value={customKeyInput}
                     onChange={(e) => setCustomKeyInput(e.target.value)}
-                    className="w-full rounded-xl border border-white/20 bg-slate-800 p-2.5 text-xs text-white font-mono placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 font-mono placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none shadow-2xs"
                   />
-                  <p className="mt-1 text-[10px] text-slate-400">
+                  <p className="mt-1 text-[10px] text-slate-500">
                     รับ API Key ฟรีได้จาก{" "}
                     <a
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-cyan-400 underline"
+                      className="text-indigo-600 hover:text-indigo-700 font-semibold underline"
                     >
                       Google AI Studio (คลิก)
                     </a>
@@ -925,17 +932,17 @@ export function SupportChat({
 
                 {/* Model Selection */}
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1.5">
                     เลือกโมเดล Gemini
                   </label>
                   <div className="space-y-1.5">
                     {AVAILABLE_GEMINI_MODELS.map((m) => (
                       <label
                         key={m.id}
-                        className={`flex items-start gap-2 rounded-xl border p-2.5 cursor-pointer transition ${
+                        className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${
                           selectedModel === m.id
-                            ? "border-cyan-400 bg-cyan-950/40 text-white"
-                            : "border-white/10 text-slate-400 hover:bg-white/5"
+                            ? "border-indigo-500 bg-indigo-50/70 text-indigo-950 shadow-2xs"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                         }`}
                       >
                         <input
@@ -943,18 +950,18 @@ export function SupportChat({
                           name="ai_model"
                           checked={selectedModel === m.id}
                           onChange={() => setSelectedModel(m.id)}
-                          className="mt-0.5 text-cyan-500"
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-white">
+                            <span className="font-bold text-xs text-slate-800">
                               {m.name}
                             </span>
-                            <span className="text-[10px] text-cyan-300">
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/80 px-1.5 py-0.2 rounded border border-indigo-200">
                               {m.tag}
                             </span>
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
+                          <p className="text-[10px] text-slate-500 mt-0.5">
                             {m.description}
                           </p>
                         </div>
@@ -968,8 +975,8 @@ export function SupportChat({
                   <div
                     className={`rounded-xl p-3 text-xs font-bold ${
                       testResult.success
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                        : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
                     }`}
                   >
                     {testResult.message}
@@ -978,19 +985,19 @@ export function SupportChat({
               </div>
 
               {/* Settings Action Buttons */}
-              <div className="flex gap-2 pt-3 border-t border-white/10">
+              <div className="flex gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={handleTestKey}
                   disabled={isTesting}
-                  className="rounded-xl border border-white/20 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/10 transition"
+                  className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs"
                 >
                   {isTesting ? "กำลังตรวจ..." : "ทดสอบเชื่อมต่อ"}
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveConfig}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 py-2 text-xs font-bold text-white shadow-sm hover:from-cyan-400 hover:to-sky-500 transition"
+                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2 text-xs font-bold text-white shadow-sm transition"
                 >
                   บันทึกการตั้งค่า
                 </button>
@@ -1000,29 +1007,34 @@ export function SupportChat({
 
           {/* Modal: Categorized Prompt Library */}
           {isPromptLibraryOpen && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-slate-900/95 p-5 text-white backdrop-blur-md">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50/98 p-5 text-slate-900 backdrop-blur-xl">
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="text-amber-400" size={18} />
-                  <h3 className="text-sm font-black">คลังคำสั่งลัดสำเร็จรูป</h3>
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-100 text-amber-600">
+                    <Sparkles size={16} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">คลังคำสั่งลัดสำเร็จรูป</h3>
+                    <p className="text-[10px] text-slate-500">แตะคำสั่งที่ต้องการเพื่อให้ AI ช่วยร่างข้อความทันที</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsPromptLibraryOpen(false)}
-                  className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition"
                 >
-                  <X size={16} />
+                  <X size={17} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-3 space-y-4 text-xs">
+              <div className="flex-1 overflow-y-auto py-3 space-y-4 text-xs pr-0.5">
                 {ALL_PROMPT_CATEGORIES.map((cat) => (
                   <div key={cat.id} className="space-y-2">
-                    <p className="font-bold text-cyan-300 flex items-center gap-1.5 text-xs">
-                      <span>•</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100/80 text-indigo-700 font-bold text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
                       <span>{cat.name}</span>
-                    </p>
-                    <div className="space-y-1.5 pl-2">
+                    </div>
+                    <div className="space-y-1.5 pl-1">
                       {cat.prompts.map((p) => (
                         <button
                           key={p.id}
@@ -1031,12 +1043,12 @@ export function SupportChat({
                             setIsPromptLibraryOpen(false);
                             handleSendAiMessage(p.prompt);
                           }}
-                          className="w-full text-left rounded-xl border border-white/10 bg-white/5 p-2.5 hover:bg-cyan-950/40 hover:border-cyan-400 transition"
+                          className="w-full text-left rounded-xl border border-slate-200/80 bg-white p-3 hover:border-indigo-400 hover:bg-indigo-50/40 hover:shadow-xs transition group shadow-2xs"
                         >
-                          <span className="font-bold block text-white text-xs">
+                          <span className="font-bold block text-slate-800 text-xs sm:text-sm group-hover:text-indigo-600 transition-colors">
                             {p.label}
                           </span>
-                          <span className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
+                          <span className="text-[11px] text-slate-500 line-clamp-1 mt-1 group-hover:text-slate-600">
                             {p.prompt}
                           </span>
                         </button>
