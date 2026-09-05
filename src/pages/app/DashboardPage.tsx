@@ -37,8 +37,11 @@ interface WorkspaceMemberSummaryRow {
 
 interface ClassroomRow {
   academic_year: string;
+  grade_level?: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
+  status?: string | null;
 }
 
 interface ClassroomStudentCount {
@@ -230,30 +233,71 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [demoMode, session.workspace]);
 
-  // Load Classrooms
+  // Load Classrooms (Prioritizes teacher's advisory / homeroom classroom first)
   useEffect(() => {
     let isMounted = true;
     async function loadClassrooms() {
       if (!session.workspace) return;
       if (!supabase || demoMode) {
-        const demoClassroom = { academic_year: session.workspace.academicYear, id: 'demo-classroom', name: session.workspace.classroomName };
+        const demoClassroom = {
+          academic_year: session.workspace.academicYear,
+          id: 'demo-classroom',
+          name: session.workspace.classroomName,
+          homeroom_teacher_profile_id: session.profile?.id,
+          status: 'active',
+        };
         setClassrooms([demoClassroom]);
         setSelectedClassroomId(demoClassroom.id);
         return;
       }
-      const { data } = await supabase.from('classrooms').select('id, name, academic_year').eq('workspace_id', session.workspace.id).order('name', { ascending: true });
+
+      const { data } = await supabase
+        .from('classrooms')
+        .select('id, name, academic_year, grade_level, homeroom_teacher_profile_id, status')
+        .eq('workspace_id', session.workspace.id)
+        .order('name', { ascending: true });
 
       if (!isMounted) return;
       if (data && data.length > 0) {
-        setClassrooms(data);
-        setSelectedClassroomId((prev) => prev || data[0].id);
+        const currentProfileId = session.profile?.id || '';
+        const workspaceClassroomName = session.workspace?.classroomName?.trim().toLowerCase() || '';
+
+        const isHomeroomCheck = (c: ClassroomRow) => {
+          if (c.homeroom_teacher_profile_id && c.homeroom_teacher_profile_id === currentProfileId) {
+            return true;
+          }
+          if (workspaceClassroomName && c.name.trim().toLowerCase() === workspaceClassroomName) {
+            return true;
+          }
+          return false;
+        };
+
+        // Sort: Advisory / Homeroom classrooms come FIRST!
+        const sorted = [...data].sort((a, b) => {
+          const aHome = isHomeroomCheck(a) ? 0 : 1;
+          const bHome = isHomeroomCheck(b) ? 0 : 1;
+          if (aHome !== bHome) return aHome - bHome;
+          return a.name.localeCompare(b.name, 'th');
+        });
+
+        const advisory = sorted.find((c) => isHomeroomCheck(c));
+        const defaultId = advisory ? advisory.id : sorted[0].id;
+
+        setClassrooms(sorted);
+        setSelectedClassroomId((prev) => {
+          // If no previous selection, always default to the teacher's advisory classroom
+          if (!prev || !sorted.some((c) => c.id === prev)) {
+            return defaultId;
+          }
+          return prev;
+        });
       }
     }
     void loadClassrooms();
     return () => {
       isMounted = false;
     };
-  }, [demoMode, session.workspace]);
+  }, [demoMode, session.workspace, session.profile?.id]);
 
   // Load General Workspace Dashboard Stats
   useEffect(() => {
@@ -587,6 +631,23 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
   const selectedClassroom = classrooms.find((c) => c.id === selectedClassroomId);
 
+  const currentProfileId = session.profile?.id || '';
+  const workspaceHomeroomName = session.workspace?.classroomName?.trim().toLowerCase() || '';
+
+  const isClassroomHomeroom = (c?: ClassroomRow | null) => {
+    if (!c) return false;
+    if (c.homeroom_teacher_profile_id && c.homeroom_teacher_profile_id === currentProfileId) {
+      return true;
+    }
+    if (workspaceHomeroomName && c.name.trim().toLowerCase() === workspaceHomeroomName) {
+      return true;
+    }
+    return false;
+  };
+
+  const isSelectedClassroomHomeroom = isClassroomHomeroom(selectedClassroom);
+  const myAdvisoryClassroom = classrooms.find((c) => isClassroomHomeroom(c));
+
   const healthReportMetrics = useMemo<HealthReportMetric[]>(() => {
     const total = analyticsData.dataCompleteness.studentsCount;
     const activeStudentIds = new Set(activeClassroomStudentIds);
@@ -698,30 +759,70 @@ export function DashboardPage({ session }: DashboardPageProps) {
               สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'}
             </h1>
           </div>
-          <p className="mt-1 text-xs font-bold text-slate-500">
-            {session.workspace?.schoolName || 'โรงเรียน'} · {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'} · {formatThaiRecordDate(getBangkokDate())}
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+            <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
+            <span>·</span>
+            <span className={isSelectedClassroomHomeroom ? 'font-black text-amber-700' : 'text-slate-700'}>
+              {isSelectedClassroomHomeroom ? '⭐ ห้องที่ปรึกษา: ' : 'ห้องเรียน: '}
+              {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
+            </span>
+            <span>·</span>
+            <span>{formatThaiRecordDate(getBangkokDate())}</span>
+            {isSelectedClassroomHomeroom && (
+              <span className="rounded-full border border-amber-400/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-black text-amber-800">
+                คุณเป็นครูที่ปรึกษา
+              </span>
+            )}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Quick switch to advisory classroom if currently looking at another room */}
+          {myAdvisoryClassroom && selectedClassroomId !== myAdvisoryClassroom.id && (
+            <button
+              type="button"
+              onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
+              className="flex items-center gap-1.5 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2 text-xs font-black text-amber-800 shadow-sm transition-all hover:bg-amber-500/20 hover:scale-105"
+              title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
+            >
+              <span>⭐ กลับไปห้องที่ปรึกษา ({myAdvisoryClassroom.name})</span>
+            </button>
+          )}
+
           {/* Classroom Selector Dropdown */}
           {classrooms.length > 0 ? (
             <div className="relative inline-block text-left">
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 px-3.5 shadow-sm">
-                <School className="text-teal-700" size={17} aria-hidden="true" />
-                <span className="text-xs font-black text-slate-500">เลือกห้อง:</span>
+              <div
+                className={`flex items-center gap-2 rounded-2xl border p-2 px-3.5 shadow-sm transition-all ${
+                  isSelectedClassroomHomeroom
+                    ? 'border-amber-400/60 bg-amber-500/10 ring-1 ring-amber-400/30'
+                    : 'border-slate-200 bg-slate-50'
+                }`}
+              >
+                {isSelectedClassroomHomeroom ? (
+                  <span className="text-sm">⭐</span>
+                ) : (
+                  <School className="text-teal-700" size={17} aria-hidden="true" />
+                )}
+                <span className="text-xs font-black text-slate-500">
+                  {isSelectedClassroomHomeroom ? 'ห้องที่ปรึกษา:' : 'เลือกห้อง:'}
+                </span>
                 <select
-                  className="bg-transparent text-sm font-black text-slate-900 focus:outline-none cursor-pointer pr-4"
+                  className="cursor-pointer bg-transparent pr-4 text-sm font-black text-slate-900 focus:outline-none"
                   value={selectedClassroomId}
                   onChange={(e) => setSelectedClassroomId(e.target.value)}
                 >
-                  {classrooms.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.academic_year || '2569'})
-                    </option>
-                  ))}
+                  {classrooms.map((c) => {
+                    const isHome = isClassroomHomeroom(c);
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {isHome ? '⭐ [ห้องที่ปรึกษา] ' : '📚 '}
+                        {c.name} ({c.academic_year || '2569'})
+                      </option>
+                    );
+                  })}
                 </select>
-                <ChevronDown className="text-slate-400 pointer-events-none -ml-4" size={16} />
+                <ChevronDown className="pointer-events-none -ml-4 text-slate-400" size={16} />
               </div>
             </div>
           ) : null}
@@ -956,7 +1057,11 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </article>
 
         {/* Real Student Watchlist from DB */}
-        <StudentWatchlist students={watchlistStudents} />
+        <StudentWatchlist
+          classroomName={selectedClassroom?.name}
+          isHomeroom={isSelectedClassroomHomeroom}
+          students={watchlistStudents}
+        />
       </section>
 
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
