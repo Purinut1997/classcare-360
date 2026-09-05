@@ -62,12 +62,35 @@ export async function fetchLiveSchoolDataContext(
         .limit(200),
 
       // 2. Attendance
-      supabase
-        .from('attendance_records')
-        .select('student_id, status, record_date')
-        .eq('workspace_id', workspaceId)
-        .order('record_date', { ascending: false })
-        .limit(1000),
+      (async () => {
+        try {
+          // Attempt join with attendance_sessions to get attendance_date & classroom_id
+          const { data, error } = await supabase
+            .from('attendance_records')
+            .select('student_id, status, session_id, created_at, attendance_sessions(attendance_date, classroom_id, period_label)')
+            .eq('workspace_id', workspaceId)
+            .order('created_at', { ascending: false })
+            .limit(5000);
+
+          if (!error && data) {
+            return { data };
+          }
+
+          // Fallback to simple select without join if relationship query has schema cache delay
+          console.warn('[SchoolContext] attendance join warning, falling back to flat select:', error?.message);
+          const fallback = await supabase
+            .from('attendance_records')
+            .select('student_id, status, session_id, created_at')
+            .eq('workspace_id', workspaceId)
+            .order('created_at', { ascending: false })
+            .limit(5000);
+
+          return { data: fallback.data || [] };
+        } catch (e) {
+          console.error('[SchoolContext] Attendance fetch exception:', e);
+          return { data: [] };
+        }
+      })(),
 
       // 3. Behavior
       supabase
@@ -215,17 +238,33 @@ export async function fetchLiveSchoolDataContext(
     // =========================================================================
     // มิติที่ 2: สถิติการมาเรียน & เช็คชื่อ (Attendance & Punctuality)
     // =========================================================================
+    let totalPresent = 0;
+    let totalLate = 0;
+    let totalLeave = 0;
+    let totalAbsent = 0;
+
     const statsMap = new Map<string, { absent: number; late: number; leave: number; present: number }>();
-    (attendanceRecords || []).forEach((rec) => {
+    ((attendanceRecords as any[]) || []).forEach((rec) => {
       if (!statsMap.has(rec.student_id)) {
         statsMap.set(rec.student_id, { absent: 0, late: 0, leave: 0, present: 0 });
       }
       const st = statsMap.get(rec.student_id)!;
-      if (rec.status === 'absent') st.absent++;
-      else if (rec.status === 'late') st.late++;
-      else if (rec.status === 'leave' || rec.status === 'sick') st.leave++;
-      else if (rec.status === 'present' || rec.status === 'activity') st.present++;
+      if (rec.status === 'absent') {
+        st.absent++;
+        totalAbsent++;
+      } else if (rec.status === 'late') {
+        st.late++;
+        totalLate++;
+      } else if (rec.status === 'leave' || rec.status === 'sick') {
+        st.leave++;
+        totalLeave++;
+      } else if (rec.status === 'present' || rec.status === 'activity') {
+        st.present++;
+        totalPresent++;
+      }
     });
+
+    const totalRecords = ((attendanceRecords as any[]) || []).length;
 
     const absentees = studentList
       .map((s) => {
@@ -235,25 +274,41 @@ export async function fetchLiveSchoolDataContext(
           id: s.id,
           name: `${s.first_name} ${s.last_name}${s.nickname ? ` (${s.nickname})` : ''}`,
           classroom: cName,
+          classroomId: s.classroom_id,
           code: s.student_code || '-',
           ...st,
         };
       })
-      .filter((item) => item.absent > 0 || item.late > 0)
-      .sort((a, b) => b.absent - a.absent);
+      .filter((item) => item.absent > 0 || item.late > 0 || item.leave > 0)
+      .sort((a, b) => b.absent - a.absent || b.leave - a.leave);
 
-    context += `\n--- [มิติที่ 2: สถิติการมาเรียนและการขาดเรียน] ---\n`;
-    if (absentees.length > 0) {
-      context += `• นักเรียนที่มีประวัติขาดเรียนและมาสายสะสมสูงสุด:\n`;
-      absentees.slice(0, 8).forEach((item, idx) => {
-        context += `  ${idx + 1}. ${item.name} (${item.classroom}) ขาดเรียน: ${item.absent} วัน, มาสาย: ${item.late} วัน, ลา: ${item.leave} วัน\n`;
-      });
-    } else {
-      if ((attendanceRecords || []).length === 0) {
-        context += `• การเช็คชื่อ: ยังไม่มีบันทึกข้อมูลการเช็คชื่อในระบบเลย\n`;
+    const pureAbsentStudents = absentees.filter((item) => item.absent > 0);
+    const lateOrLeaveStudents = absentees.filter((item) => item.absent === 0 && (item.late > 0 || item.leave > 0));
+
+    context += `\n--- [มิติที่ 2: สถิติการมาเรียนและการขาดเรียน (ข้อมูลจริงจากฐานข้อมูล)] ---\n`;
+    if (totalRecords > 0) {
+      context += `• สรุปภาพรวมการเช็คชื่อทั้งหมดในระบบ: บันทึกข้อมูลแล้ว ${totalRecords} รายการ (มาเรียน: ${totalPresent} ครั้ง, ขาดเรียน: ${totalAbsent} ครั้ง, ลา: ${totalLeave} ครั้ง, มาสาย: ${totalLate} ครั้ง)\n`;
+
+      if (pureAbsentStudents.length > 0) {
+        context += `• รายชื่อนักเรียนที่มีสถิติขาดเรียน (เรียงตามจำนวนวันที่ขาดมากที่สุด):\n`;
+        pureAbsentStudents.slice(0, 20).forEach((item, idx) => {
+          context += `  ${idx + 1}. ${item.name} (${item.classroom}) -> ขาดเรียน ${item.absent} วัน, ลา ${item.leave} วัน, มาสาย ${item.late} วัน (มาเรียน ${item.present} วัน)\n`;
+        });
+        if (pureAbsentStudents.length > 20) {
+          context += `  (และมีนักเรียนขาดเรียนอีก ${pureAbsentStudents.length - 20} คน)\n`;
+        }
       } else {
-        context += `• การเช็คชื่อ: มีการเช็คชื่อแล้ว และไม่มีประวัติการขาดเรียนเลย (ทุกคนมาเรียนครบ 100%)\n`;
+        context += `• ไม่มีนักเรียนที่มีประวัติขาดเรียนเลยในข้อมูลที่บันทึก (ทุกคนเข้าเรียนหรือมีเพียงการลา/สาย)\n`;
       }
+
+      if (lateOrLeaveStudents.length > 0) {
+        context += `• นักเรียนที่มีประวัติลาหรือมาสาย (แต่ไม่ขาดเรียน):\n`;
+        lateOrLeaveStudents.slice(0, 10).forEach((item, idx) => {
+          context += `  - ${item.name} (${item.classroom}) -> ลา ${item.leave} วัน, มาสาย ${item.late} วัน\n`;
+        });
+      }
+    } else {
+      context += `• การเช็คชื่อ: ยังไม่มีบันทึกข้อมูลการเช็คชื่อในระบบเลย\n`;
     }
 
     // =========================================================================
