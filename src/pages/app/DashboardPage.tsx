@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CalendarClock, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, UserPlus, Utensils } from 'lucide-react';
+import { ArrowRight, Cake, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, TrendingDown, TrendingUp, UserPlus, Utensils } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
@@ -71,6 +71,22 @@ interface SubjectAttendanceSummary {
   present: number;
   subjectName: string;
   total: number;
+}
+
+type UpcomingEventType = 'holiday' | 'exam' | 'activity' | 'makeup' | 'custom';
+
+interface UpcomingEvent {
+  date: string;
+  id: string;
+  title: string;
+  type: UpcomingEventType;
+}
+
+interface BirthdayStudent {
+  birthDate: string;
+  id: string;
+  name: string;
+  isToday: boolean;
 }
 
 type HealthReportType = 'toothbrushing' | 'milk' | 'lunch' | 'growth' | 'hygiene';
@@ -208,6 +224,8 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [quickLog, setQuickLog] = useState('');
   const [quickLogNotice, setQuickLogNotice] = useState<string | null>(null);
   const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id));
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [birthdayStudents, setBirthdayStudents] = useState<BirthdayStudent[]>([]);
 
   const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
 
@@ -598,6 +616,107 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [demoMode, selectedClassroomId, session.workspace]);
 
+  // Load Upcoming School Calendar Events
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadUpcomingEvents() {
+      if (!supabase || !session.workspace || demoMode) {
+        // Demo mode: create sample events
+        const today = new Date();
+        const fmt = (d: Date) => d.toISOString().slice(0, 10);
+        setUpcomingEvents([
+          { id: 'demo-ev-1', date: fmt(new Date(today.getTime() + 3 * 86_400_000)), title: 'สอบกลางภาค', type: 'exam' },
+          { id: 'demo-ev-2', date: fmt(new Date(today.getTime() + 7 * 86_400_000)), title: 'กิจกรรมหน้าเสาธง', type: 'activity' },
+          { id: 'demo-ev-3', date: fmt(new Date(today.getTime() + 12 * 86_400_000)), title: 'วันหยุดชดเชย', type: 'holiday' },
+        ]);
+        return;
+      }
+
+      const today = getBangkokDate();
+      const future = getBangkokDate(new Date(Date.now() + 30 * 86_400_000));
+      const { data } = await supabase
+        .from('school_calendar_days')
+        .select('id, calendar_date, title, day_type')
+        .eq('workspace_id', session.workspace.id)
+        .gte('calendar_date', today)
+        .lte('calendar_date', future)
+        .neq('day_type', 'school_day')
+        .order('calendar_date', { ascending: true })
+        .limit(5);
+
+      if (!isMounted) return;
+      const toEventType = (t: string): UpcomingEventType => {
+        if (t === 'holiday' || t === 'exam' || t === 'activity' || t === 'makeup') return t;
+        return 'custom';
+      };
+      setUpcomingEvents(
+        (data || []).map((row) => ({
+          id: String(row.id),
+          date: String(row.calendar_date).slice(0, 10),
+          title: String(row.title),
+          type: toEventType(String(row.day_type || 'custom')),
+        }))
+      );
+    }
+
+    void loadUpcomingEvents();
+    return () => { isMounted = false; };
+  }, [demoMode, session.workspace]);
+
+  // Load Student Birthdays This Week (for selected classroom)
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBirthdays() {
+      if (!supabase || !session.workspace || !selectedClassroomId || demoMode) {
+        // Demo mode: two fake birthdays
+        const today = new Date();
+        const fmt = (d: Date) => d.toISOString().slice(0, 10);
+        setBirthdayStudents([
+          { id: 'demo-b1', name: 'สมชาย ใจดี', birthDate: fmt(today), isToday: true },
+          { id: 'demo-b2', name: 'สมหญิง สุขใส', birthDate: fmt(new Date(today.getTime() + 2 * 86_400_000)), isToday: false },
+        ]);
+        return;
+      }
+
+      const { data: studentRows } = await supabase
+        .from('students')
+        .select('id, first_name, last_name, birth_date')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', selectedClassroomId)
+        .eq('status', 'active')
+        .not('birth_date', 'is', null);
+
+      if (!isMounted) return;
+
+      const todayDate = new Date();
+      const todayMD = `${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+
+      const weekBirthdays: BirthdayStudent[] = [];
+      for (let offset = 0; offset < 7; offset++) {
+        const d = new Date(todayDate.getTime() + offset * 86_400_000);
+        const md = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const dateStr = d.toISOString().slice(0, 10);
+        (studentRows || []).forEach((s) => {
+          const bd = String(s.birth_date || '').slice(5); // MM-DD
+          if (bd === md) {
+            weekBirthdays.push({
+              id: String(s.id),
+              name: `${s.first_name} ${s.last_name}`,
+              birthDate: dateStr,
+              isToday: md === todayMD,
+            });
+          }
+        });
+      }
+      setBirthdayStudents(weekBirthdays);
+    }
+
+    void loadBirthdays();
+    return () => { isMounted = false; };
+  }, [demoMode, selectedClassroomId, session.workspace]);
+
   // Load Pending Join Requests
   useEffect(() => {
     let isMounted = true;
@@ -646,6 +765,21 @@ export function DashboardPage({ session }: DashboardPageProps) {
   };
 
   const isSelectedClassroomHomeroom = isClassroomHomeroom(selectedClassroom);
+
+  // Attendance Trend Delta: compare last 3 days vs previous 3 days
+  const attendanceTrendDelta = useMemo(() => {
+    if (analyticsData.attendanceTrend.length < 6) return null;
+    const recent = analyticsData.attendanceTrend.slice(-3);
+    const prev = analyticsData.attendanceTrend.slice(-6, -3);
+    const avgRate = (days: typeof recent) => {
+      const totals = days.reduce((acc, d) => ({ present: acc.present + d.present, total: acc.total + d.total }), { present: 0, total: 0 });
+      return totals.total > 0 ? Math.round((totals.present / totals.total) * 100) : null;
+    };
+    const recentRate = avgRate(recent);
+    const prevRate = avgRate(prev);
+    if (recentRate === null || prevRate === null) return null;
+    return recentRate - prevRate;
+  }, [analyticsData.attendanceTrend]);
   const myAdvisoryClassroom = classrooms.find((c) => isClassroomHomeroom(c));
 
   const healthReportMetrics = useMemo<HealthReportMetric[]>(() => {
@@ -773,6 +907,19 @@ export function DashboardPage({ session }: DashboardPageProps) {
                 คุณเป็นครูที่ปรึกษา
               </span>
             )}
+            {attendanceTrendDelta !== null && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black ${
+                  attendanceTrendDelta >= 0
+                    ? 'border border-emerald-400/40 bg-emerald-500/10 text-emerald-800'
+                    : 'border border-rose-400/40 bg-rose-500/10 text-rose-800'
+                }`}
+                title="เปรียบเทียบอัตราการมาเรียน 3 วันล่าสุด กับ 3 วันก่อนหน้า"
+              >
+                {attendanceTrendDelta >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                {attendanceTrendDelta >= 0 ? '+' : ''}{attendanceTrendDelta}% สัปดาห์นี้
+              </span>
+            )}
           </p>
         </div>
 
@@ -837,7 +984,62 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </div>
       </div>
 
-      {/* 4 Large Friendly Quick Action Cards */}
+      {/* ⚠️ Pending Join Requests — Admin action required, show right after hero */}
+      {pendingJoinRequestCount > 0 ? (
+        <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-sky-700">
+            <UserPlus size={19} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-slate-950">มีคำขอเข้าร่วม Workspace {pendingJoinRequestCount} รายการ</p>
+            <p className="mt-0.5 text-xs font-bold text-slate-600">ตรวจชื่อ อีเมล และสิทธิ์ก่อนอนุมัติ</p>
+          </div>
+          <Link className="text-sm font-black text-sky-800" to="/app/dashboard?view=workspace-settings">
+            ตรวจคำขอ <ArrowRight className="inline" size={15} aria-hidden="true" />
+          </Link>
+        </section>
+      ) : null}
+
+      {/* 🔴 PRIORITY 1: งานที่ต้องทำวันนี้ + Student Watchlist — Most urgent, first thing every morning */}
+      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black text-cyan-700">TODAY</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">งานที่ต้องทำวันนี้</h2>
+            </div>
+            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{dynamicTodayTasks.length} รายการ</span>
+          </div>
+          <div className="mt-4 divide-y divide-slate-100">
+            {dynamicTodayTasks.map((task, index) => {
+              const Icon = task.icon;
+              return (
+                <Link className="group flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={task.label} to={task.path}>
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-600">{index + 1}</span>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-600 group-hover:bg-amber-50 group-hover:text-amber-700">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-black text-slate-900">{task.label}</span>
+                    <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{task.detail}</span>
+                  </span>
+                  <span className={`rounded-lg px-2.5 py-1 text-xs font-black ${task.tone}`}>{task.status}</span>
+                  <ArrowRight className="text-slate-300 group-hover:text-slate-700" size={17} aria-hidden="true" />
+                </Link>
+              );
+            })}
+          </div>
+        </article>
+
+        {/* Real Student Watchlist from DB */}
+        <StudentWatchlist
+          classroomName={selectedClassroom?.name}
+          isHomeroom={isSelectedClassroomHomeroom}
+          students={watchlistStudents}
+        />
+      </section>
+
+      {/* 🟡 PRIORITY 2: Quick Action Cards — Shortcut buttons after knowing what to do */}
       <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Attendance */}
         <Link
@@ -948,27 +1150,123 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </Link>
       </section>
 
-      {/* Main Workspace Metrics */}
-      <StatsGrid stats={stats} />
-
-      {/* Classroom Dataset Status & Analytics Charts Section */}
-      <ClassroomAnalyticsCharts classroomDistribution={classroomStudentCounts} data={analyticsData} onSelectClassroom={setSelectedClassroomId} selectedClassroomId={selectedClassroomId} />
-
-      {pendingJoinRequestCount > 0 ? (
-        <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-sky-700">
-            <UserPlus size={19} aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-black text-slate-950">มีคำขอเข้าร่วม Workspace {pendingJoinRequestCount} รายการ</p>
-            <p className="mt-0.5 text-xs font-bold text-slate-600">ตรวจชื่อ อีเมล และสิทธิ์ก่อนอนุมัติ</p>
+      {/* 🟡 PRIORITY 3: Upcoming Events + Birthdays — Time-sensitive info */}
+      <section className="mt-5 grid gap-5 lg:grid-cols-2">
+        {/* Widget: Upcoming School Events */}
+        <article className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="text-rose-600" size={19} aria-hidden="true" />
+              <h2 className="text-lg font-black text-slate-950">กิจกรรม / วันหยุดที่จะมาถึง</h2>
+            </div>
+            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=school-calendar">
+              ดูปฏิทินทั้งหมด <ArrowRight className="inline" size={14} />
+            </Link>
           </div>
-          <Link className="text-sm font-black text-sky-800" to="/app/dashboard?view=workspace-settings">
-            ตรวจคำขอ <ArrowRight className="inline" size={15} aria-hidden="true" />
-          </Link>
-        </section>
-      ) : null}
 
+          {upcomingEvents.length > 0 ? (
+            <ul className="mt-4 divide-y divide-slate-100">
+              {upcomingEvents.map((ev) => {
+                const typeStyle: Record<UpcomingEventType, { badge: string; dot: string }> = {
+                  holiday: { badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
+                  exam: { badge: 'bg-sky-100 text-sky-700', dot: 'bg-sky-500' },
+                  activity: { badge: 'bg-amber-100 text-amber-800', dot: 'bg-amber-400' },
+                  makeup: { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+                  custom: { badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
+                };
+                const typeLabel: Record<UpcomingEventType, string> = {
+                  holiday: 'หยุด', exam: 'สอบ', activity: 'กิจกรรม', makeup: 'ชดเชย', custom: 'อื่นๆ',
+                };
+                const style = typeStyle[ev.type];
+                const evDate = new Date(`${ev.date}T00:00:00`);
+                const daysFromNow = Math.round((evDate.getTime() - Date.now()) / 86_400_000);
+                const daysLabel = daysFromNow === 0 ? 'วันนี้!' : daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`;
+                return (
+                  <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={ev.id}>
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-black text-slate-900 text-sm">{ev.title}</span>
+                      <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                        {new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(evDate)}
+                      </span>
+                    </span>
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-black ${style.badge}`}>
+                      {typeLabel[ev.type]}
+                    </span>
+                    <span className={`shrink-0 text-[11px] font-black ${
+                      daysFromNow === 0 ? 'text-rose-600' : daysFromNow <= 3 ? 'text-amber-700' : 'text-slate-400'
+                    }`}>
+                      {daysLabel}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl bg-slate-50 py-8 text-center">
+              <CalendarDays className="text-slate-300" size={32} />
+              <p className="text-sm font-bold text-slate-400">ไม่มีกิจกรรมหรือวันหยุดใน 30 วันข้างหน้า</p>
+              <Link className="text-xs font-black text-sky-700 hover:underline" to="/app/dashboard?view=school-calendar">
+                + เพิ่มกิจกรรมในปฏิทิน
+              </Link>
+            </div>
+          )}
+        </article>
+
+        {/* Widget: Student Birthdays This Week */}
+        <article className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Cake className="text-pink-500" size={19} aria-hidden="true" />
+              <h2 className="text-lg font-black text-slate-950">วันเกิดนักเรียนสัปดาห์นี้</h2>
+            </div>
+            <span className="rounded-full bg-pink-50 px-3 py-1 text-xs font-black text-pink-700">
+              {birthdayStudents.length} คน
+            </span>
+          </div>
+
+          {birthdayStudents.length > 0 ? (
+            <ul className="mt-4 divide-y divide-slate-100">
+              {birthdayStudents.map((student) => {
+                const bDate = new Date(`${student.birthDate}T00:00:00`);
+                return (
+                  <li
+                    key={student.id}
+                    className={`flex items-center gap-3 py-3 first:pt-0 last:pb-0 ${
+                      student.isToday ? 'rounded-xl bg-pink-50 px-3' : ''
+                    }`}
+                  >
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg ${
+                      student.isToday ? 'bg-pink-100' : 'bg-slate-100'
+                    }`}>
+                      🎂
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-black text-slate-900 text-sm">{student.name}</span>
+                      <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                        {new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }).format(bDate)}
+                      </span>
+                    </span>
+                    {student.isToday && (
+                      <span className="shrink-0 animate-bounce rounded-full bg-pink-500 px-2.5 py-0.5 text-[11px] font-black text-white">
+                        🎉 วันนี้!
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl bg-slate-50 py-8 text-center">
+              <Cake className="text-slate-300" size={32} />
+              <p className="text-sm font-bold text-slate-400">ไม่มีนักเรียนเกิดในสัปดาห์นี้</p>
+              <p className="text-xs text-slate-300">วันเกิดต้องบันทึกในข้อมูลนักเรียนก่อน</p>
+            </div>
+          )}
+        </article>
+      </section>
+
+      {/* 🟡 PRIORITY 4: Health Reports — Daily routine tracking */}
       <section className="mt-5 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-100 bg-gradient-to-r from-cyan-50/80 via-white to-emerald-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1026,44 +1324,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-        <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black text-cyan-700">TODAY</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">งานที่ต้องทำวันนี้</h2>
-            </div>
-            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{dynamicTodayTasks.length} รายการ</span>
-          </div>
-          <div className="mt-4 divide-y divide-slate-100">
-            {dynamicTodayTasks.map((task, index) => {
-              const Icon = task.icon;
-              return (
-                <Link className="group flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={task.label} to={task.path}>
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-600">{index + 1}</span>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-600 group-hover:bg-amber-50 group-hover:text-amber-700">
-                    <Icon size={18} aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-black text-slate-900">{task.label}</span>
-                    <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{task.detail}</span>
-                  </span>
-                  <span className={`rounded-lg px-2.5 py-1 text-xs font-black ${task.tone}`}>{task.status}</span>
-                  <ArrowRight className="text-slate-300 group-hover:text-slate-700" size={17} aria-hidden="true" />
-                </Link>
-              );
-            })}
-          </div>
-        </article>
-
-        {/* Real Student Watchlist from DB */}
-        <StudentWatchlist
-          classroomName={selectedClassroom?.name}
-          isHomeroom={isSelectedClassroomHomeroom}
-          students={watchlistStudents}
-        />
-      </section>
-
+      {/* 🟢 PRIORITY 5: Subject Attendance Today + Weekly Schedule — Reference */}
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
         <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -1146,6 +1407,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
           </div>
         </article>
       </section>
+
+      {/* 🟢 PRIORITY 6: Analytics Charts + Stats Grid — Deep analysis, scroll down to explore */}
+      <ClassroomAnalyticsCharts classroomDistribution={classroomStudentCounts} data={analyticsData} onSelectClassroom={setSelectedClassroomId} selectedClassroomId={selectedClassroomId} />
+
+      {/* Main Workspace Metrics */}
+      <StatsGrid stats={stats} />
     </main>
   );
+
 }
