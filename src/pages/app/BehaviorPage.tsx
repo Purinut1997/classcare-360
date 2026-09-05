@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Award,
   BadgeAlert,
   Download,
   Heart,
@@ -11,6 +12,7 @@ import {
   SmilePlus,
   Sparkles,
 } from 'lucide-react';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
@@ -436,9 +438,18 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
     <main className="app-page">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="nexus-kicker">
-            <Heart size={16} aria-hidden="true" />
-            Behavior Center
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="nexus-kicker">
+              <Heart size={16} aria-hidden="true" />
+              Behavior Center
+            </div>
+            <Link
+              to="/app/dashboard?view=desirable-characteristics"
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 transition-colors shadow-xs"
+            >
+              <Award size={14} className="text-amber-600" />
+              <span>ประเมินคุณลักษณะ 8 ประการ (สพฐ.) & อ่านคิดเขียน ➜</span>
+            </Link>
           </div>
           <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
             บันทึกพฤติกรรมเชิงบวก ข้อห่วงใย และงานติดตามรายคน

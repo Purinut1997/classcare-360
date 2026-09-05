@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useMemo } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 
 import { getInitialRouteForSession, getPostAuthRouteForSession, getRouteGuardPreview, withDemoContext } from './lib/auth';
@@ -138,6 +138,11 @@ const BehaviorPage = lazy(() =>
 const ClassroomOperationsPage = lazy(() =>
   import('./pages/app/ClassroomOperationsPage').then((module) => ({
     default: module.ClassroomOperationsPage,
+  })),
+);
+const DesirableCharacteristicsPage = lazy(() =>
+  import('./pages/app/DesirableCharacteristicsPage').then((module) => ({
+    default: module.DesirableCharacteristicsPage,
   })),
 );
 const RandomizerPage = lazy(() =>
@@ -368,6 +373,16 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <BehaviorPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'desirable-characteristics') {
+    return (
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <DesirableCharacteristicsPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

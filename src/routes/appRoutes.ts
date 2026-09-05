@@ -1,4 +1,4 @@
-import { Archive, Bell, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
+import { Archive, Award, Bell, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
 
 import type { ModuleKey } from '../types/core';
 
@@ -73,6 +73,13 @@ export const appNavItems: AppNavItem[] = [
     icon: ClipboardCheck,
     moduleKey: 'behavior',
     path: '/app/dashboard?view=classroom-operations',
+  },
+  {
+    key: 'desirable-characteristics',
+    label: 'คุณลักษณะ 8 ประการ (สพฐ.)',
+    icon: Award,
+    moduleKey: 'behavior',
+    path: '/app/dashboard?view=desirable-characteristics',
   },
   {
     key: 'parent-access',
@@ -238,6 +245,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'Behavior Center',
     title: 'บันทึกพฤติกรรมและงานติดตามที่ครูต้องไม่พลาด',
     body: 'บันทึกเชิงบวก ข้อห่วงใย คะแนนพฤติกรรม และสถานะติดตาม เพื่อเชื่อมต่อไปยัง Student Care Case และการแจ้งผู้ปกครองในเฟสถัดไป',
+  },
+  'desirable-characteristics': {
+    eyebrow: 'OBEC Standards',
+    title: 'บันทึกคุณลักษณะอันพึงประสงค์ 8 ประการ และการอ่าน คิดวิเคราะห์ เขียน',
+    body: 'ประเมินระดับคุณภาพ 3, 2, 1, 0 ตามมาตรฐานหลักสูตรแกนกลาง สพฐ. 2551 พร้อมสรุปผลรายห้องและส่งออกเอกสาร ปพ.5 / ปพ.6 ได้ในคลิกเดียว',
   },
   randomizer: {
     eyebrow: 'Classroom Randomizer',

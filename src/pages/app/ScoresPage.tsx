@@ -1985,7 +1985,16 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Link
+            to="/app/dashboard?view=desirable-characteristics"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-3.5 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100 hover:border-indigo-300"
+            title="ไปที่ระบบประเมินคุณลักษณะอันพึงประสงค์ 8 ประการ (สพฐ.) และอ่านคิดเขียน"
+          >
+            <Sparkles size={15} className="text-indigo-600" aria-hidden="true" />
+            <span>ประเมินคุณลักษณะ 8 ประการ ➜</span>
+          </Link>
+
           <button
             className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-2xs transition hover:bg-amber-100 hover:border-amber-300"
             onClick={() => setIsGuideOpen(true)}
