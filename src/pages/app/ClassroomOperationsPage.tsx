@@ -622,13 +622,15 @@ export function ClassroomOperationsPage({
         ${buildOfficialHeaderHtml({ classroomName, dateFrom: normalizedPrintWeek, dateTo: weekEnd, documentCode, identity: { ...identity, schoolLogoDataUrl: logo }, schoolName, subtitle: `ปีการศึกษา ${classroom?.academic_year || session.workspace.academicYear}`, title: "ตารางเวรประจำสัปดาห์" })}
         <section class="meta"><div><span>โรงเรียน</span><strong>${escapeDutyHtml(schoolName)}</strong></div><div><span>ห้องเรียน</span><strong>${escapeDutyHtml(classroom?.name || session.workspace.classroomName)}</strong></div><div><span>ครูประจำชั้น</span><strong>${escapeDutyHtml(teacherName)}</strong></div><div><span>ช่วงวันที่</span><strong>${dateLabel(normalizedPrintWeek)} – ${dateLabel(weekEnd)}</strong></div></section>
         <table class="duty-print-table"><thead><tr><th>หน้าที่เวร</th>${reportDays.map(({ date, label }) => `<th>${escapeDutyHtml(label)}<br />${dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</th>`).join("")}</tr></thead><tbody>${taskRows || `<tr><td colspan="${reportDays.length + 1}" class="empty">ยังไม่มีหน้าที่เวรในสัปดาห์นี้</td></tr>`}</tbody></table>
-        <div class="official-certification">สรุปหน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน · ขอรับรองว่าตารางเวรฉบับนี้ได้รับการตรวจสอบแล้ว</div>
-        ${buildOfficialSignaturesHtml([
-          { name: teacherName, role: "ผู้จัดทำ / ครูประจำชั้น" },
-          { name: identity.academicHeadName, role: "ผู้ตรวจสอบ / หัวหน้างานวิชาการ" },
-          { name: identity.directorName, role: "ผู้รับรอง / ผู้อำนวยการโรงเรียน" },
-        ])}
-        ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        <div class="official-closing-block">
+          <div class="official-certification">สรุปหน้าที่ ${uniqueTasks.filter((task) => task.is_active).length} งาน · มอบหมาย ${assignmentCount} รายการ · นักเรียนมีเวร ${assignedStudentCount}/${roomStudents.length} คน · ขอรับรองว่าตารางเวรฉบับนี้ได้รับการตรวจสอบแล้ว</div>
+          ${buildOfficialSignaturesHtml([
+            { name: teacherName, role: "ผู้จัดทำ / ครูประจำชั้น" },
+            { name: identity.academicHeadName, role: "ผู้ตรวจสอบ / หัวหน้างานวิชาการ" },
+            { name: identity.directorName, role: "ผู้รับรอง / ผู้อำนวยการโรงเรียน" },
+          ])}
+          ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        </div>
       </main></body></html>`);
     reportWindow.document.close();
     reportWindow.focus();

@@ -18,6 +18,7 @@ import {
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
+import { generateExcelReportBuffer, downloadExcelBuffer, type ExcelSheetConfig } from '../../lib/excelReport';
 
 interface ReportsPageProps {
   session: AppSessionContext;
@@ -731,112 +732,44 @@ function buildPrintableReportHtml({
         <meta charset="utf-8" />
         <title>ClassCare 360 - รายงานเวลาเรียนรายเดือน</title>
         <style>
-          @page { margin: 15mm 20mm; size: A4 landscape; }
-          * { box-sizing: border-box; }
-          body {
-            color: #07111f;
-            font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, Arial, sans-serif;
-            line-height: 1.2;
-            margin: 0;
-            font-size: 11px;
-          }
-          header {
-            border-bottom: 3px solid #2458ff;
-            display: grid;
-            gap: 8px;
-            grid-template-columns: 60px minmax(0,1fr) 60px;
-            padding: 6px 0 6px;
-            text-align: center;
-          }
-          .logo {
-            align-items: center;
-            border: 1px solid #bfdbfe;
-            border-radius: 50%;
-            color: #0369a1;
-            display: flex;
-            font-size: 12px;
-            font-weight: 900;
-            height: 48px;
-            justify-content: center;
-            margin: 0 auto;
-            width: 48px;
-          }
-          .logo img {
-            border-radius: 50%;
-            height: 100%;
-            object-fit: cover;
-            width: 100%;
-          }
-          h1 { font-size: 18px; margin: 0; }
-          .subtitle { font-size: 12px; font-weight: 700; margin: 1px 0; }
-          .classline { font-size: 11px; font-weight: 700; margin: 6px 0 4px; }
+          ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: 'landscape' })}
           .summary-grid {
             display: grid;
-            gap: 8px;
+            gap: 2mm;
             grid-template-columns: repeat(4, 1fr);
-            margin: 6px 0 10px;
+            margin: 1.5mm 0 2mm;
           }
           .summary-card {
-            background: #f0f7ff;
-            border: 1px solid #c7e0fe;
-            border-radius: 8px;
-            padding: 4px 8px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 2mm;
+            padding: 1.2mm 2mm;
             text-align: center;
           }
-          .summary-card span { display: block; font-size: 10px; font-weight: 700; color: #1e40af; }
-          .summary-card strong { color: #1d4ed8; display: block; font-size: 14px; margin-top: 1px; }
+          .summary-card span { display: block; font-size: 8.5pt; font-weight: 700; color: #0f2742; }
+          .summary-card strong { color: #0891b2; display: block; font-size: 13pt; margin-top: .4mm; }
           table { border-collapse: collapse; table-layout: fixed; width: 100%; }
           th, td {
-            border: 1px solid #111827;
-            font-size: 9px;
-            height: 16px;
-            padding: 1px 2px;
+            border: 1px solid #cbd5e1;
+            font-size: 8.5pt;
+            height: 14px;
+            padding: 1px 1.5px;
             text-align: center;
             vertical-align: middle;
+            line-height: 1.1;
           }
-          th { background: #f4a3cf; font-weight: 900; }
-          th.name, td.name { text-align: left; width: 160px; }
-          th.number, td.number { width: 28px; }
-          .day { width: 18px; }
-          .weekend { background: #cfd6df !important; }
-          .present { color: #047857; font-weight: 900; }
-          .late { color: #b45309; font-weight: 900; }
-          .leave { color: #075985; font-weight: 900; }
-          .absent { color: #be123c; font-weight: 900; }
-          .sum { background: #fff7cc; width: 30px; font-weight: 700; }
-          .total { background: #ffe4e6; font-weight: 900; }
-          tfoot td { background: #ffe4e6; font-weight: 900; }
-          .footer-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-top: 16px;
-          }
-          .signatures {
-            display: grid;
-            gap: 80px;
-            grid-template-columns: 1fr 1fr;
-            text-align: center;
-            width: 70%;
-          }
-          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 140px; }
-          .role { font-weight: 800; margin-top: 3px; font-size: 10px; }
-          .footer-meta {
-            text-align: right;
-            font-size: 9px;
-            color: #64748b;
-          }
-          .footer-meta .credit {
-            margin-top: 8px;
-            font-weight: 700;
-            color: #94a3b8;
-          }
-          ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
-          .summary-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2.5mm; }
-          .summary-card span, .summary-card strong, .present, .late, .leave, .absent { color: #111; }
-          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; }
-          .weekend, .sum, .total, tfoot td { background: #e6f7fb !important; color: #0f2742 !important; }
-          th.name, td.name { width: 42mm; }
+          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-weight: 700; }
+          th.name, td.name { text-align: left; width: 40mm; padding-left: 2mm; }
+          th.number, td.number { width: 8mm; }
+          .day { width: auto; }
+          .weekend { background: #f1f5f9 !important; color: #94a3b8; }
+          .present { color: #047857; font-weight: 700; }
+          .late { color: #b45309; font-weight: 700; }
+          .leave { color: #0369a1; font-weight: 700; }
+          .absent { color: #be123c; font-weight: 700; }
+          .sum { background: #e6f7fb !important; width: 7.5mm; font-weight: 700; color: #0f2742 !important; }
+          .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+          tfoot td { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
         </style>
       </head>
       <body>
@@ -885,14 +818,16 @@ function buildPrintableReportHtml({
             </tr>
           </tfoot>
         </table>
-        <div class="official-certification">หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด · ขอรับรองว่าข้อมูลเวลาเรียนตรงกับรายการที่บันทึกในระบบ ณ วันตัดยอด</div>
-        ${buildOfficialSignaturesHtml([
-          { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
-          ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-          { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
-          { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-        ])}
-        ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        <div class="official-closing-block">
+          <div class="official-certification">หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด · ขอรับรองว่าข้อมูลเวลาเรียนตรงกับรายการที่บันทึกในระบบ ณ วันตัดยอด</div>
+          ${buildOfficialSignaturesHtml([
+            { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+            ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
+            { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+            { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+          ])}
+          ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        </div>
         </main>
       </body>
     </html>`;
@@ -954,110 +889,42 @@ function buildPrintableSavingsReportHtml({
         <meta charset="utf-8" />
         <title>ClassCare 360 - รายงานการบันทึกการออมเงิน</title>
         <style>
-          @page { margin: 15mm 20mm; size: A4 landscape; }
-          * { box-sizing: border-box; }
-          body {
-            color: #07111f;
-            font-family: "TH Sarabun New", "Noto Sans Thai", Tahoma, Arial, sans-serif;
-            line-height: 1.2;
-            margin: 0;
-            font-size: 11px;
-          }
-          header {
-            border-bottom: 3px solid #2458ff;
-            display: grid;
-            gap: 8px;
-            grid-template-columns: 60px minmax(0,1fr) 60px;
-            padding: 6px 0 6px;
-            text-align: center;
-          }
-          .logo {
-            align-items: center;
-            border: 1px solid #bfdbfe;
-            border-radius: 50%;
-            color: #0369a1;
-            display: flex;
-            font-size: 12px;
-            font-weight: 900;
-            height: 48px;
-            justify-content: center;
-            margin: 0 auto;
-            width: 48px;
-          }
-          .logo img {
-            border-radius: 50%;
-            height: 100%;
-            object-fit: cover;
-            width: 100%;
-          }
-          h1 { font-size: 18px; margin: 0; }
-          .subtitle { font-size: 12px; font-weight: 700; margin: 1px 0; }
-          .classline { font-size: 11px; font-weight: 700; margin: 6px 0 4px; }
+          ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: 'landscape' })}
           .summary-grid {
             display: grid;
-            gap: 8px;
+            gap: 2mm;
             grid-template-columns: repeat(4, 1fr);
-            margin: 6px 0 10px;
+            margin: 1.5mm 0 2mm;
           }
           .summary-card {
-            background: #f0f7ff;
-            border: 1px solid #c7e0fe;
-            border-radius: 8px;
-            padding: 4px 8px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 2mm;
+            padding: 1.2mm 2mm;
             text-align: center;
           }
-          .summary-card span { display: block; font-size: 10px; font-weight: 700; color: #1e40af; }
-          .summary-card strong { color: #1d4ed8; display: block; font-size: 14px; margin-top: 1px; }
+          .summary-card span { display: block; font-size: 8.5pt; font-weight: 700; color: #0f2742; }
+          .summary-card strong { color: #0891b2; display: block; font-size: 13pt; margin-top: .4mm; }
           table { border-collapse: collapse; table-layout: fixed; width: 100%; }
           th, td {
-            border: 1px solid #111827;
-            font-size: 9px;
-            height: 16px;
-            padding: 1px 2px;
+            border: 1px solid #cbd5e1;
+            font-size: 8.5pt;
+            height: 14px;
+            padding: 1px 1.5px;
             text-align: center;
             vertical-align: middle;
+            line-height: 1.1;
           }
-          th { background: #f4a3cf; font-weight: 900; }
-          th.name, td.name { text-align: left; width: 160px; }
-          th.number, td.number { width: 28px; }
-          .day { width: 18px; }
-          .weekend { background: #cfd6df !important; }
-          .sum { background: #fff7cc; width: 35px; font-weight: 700; }
-          .month-total { background: #e0f2fe; color: #0369a1; font-weight: 800; }
-          .balance-total { background: #fce7f3; color: #be185d; font-weight: 800; }
-          .total { background: #ffe4e6; font-weight: 900; }
-          tfoot td { background: #ffe4e6; font-weight: 900; }
-          .footer-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-top: 16px;
-          }
-          .signatures {
-            display: grid;
-            gap: 80px;
-            grid-template-columns: 1fr 1fr;
-            text-align: center;
-            width: 70%;
-          }
-          .signature-line { border-bottom: 1px dotted #111827; display: inline-block; min-width: 140px; }
-          .role { font-weight: 800; margin-top: 3px; font-size: 10px; }
-          .footer-meta {
-            text-align: right;
-            font-size: 9px;
-            color: #64748b;
-          }
-          .footer-meta .credit {
-            margin-top: 8px;
-            font-weight: 700;
-            color: #94a3b8;
-          }
-          ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
-          .summary-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2.5mm; }
-          .summary-card span, .summary-card strong, .month-total, .balance-total { color: #111; }
-          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; }
-          .weekend, .sum, .month-total, .balance-total, .total, tfoot td { background: #e6f7fb !important; color: #0f2742 !important; }
-          th.name, td.name { width: 42mm; }
+          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-weight: 700; }
+          th.name, td.name { text-align: left; width: 40mm; padding-left: 2mm; }
+          th.number, td.number { width: 8mm; }
+          .day { width: auto; }
+          .weekend { background: #f1f5f9 !important; color: #94a3b8; }
+          .sum { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+          .month-total { width: 16mm; }
+          .balance-total { width: 18mm; }
+          .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+          tfoot td { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
         </style>
       </head>
       <body>
@@ -1102,14 +969,16 @@ function buildPrintableSavingsReportHtml({
             </tr>
           </tfoot>
         </table>
-        <div class="official-certification">ขอรับรองว่ารายการฝาก ถอน และยอดคงเหลือในรายงานฉบับนี้ตรงกับข้อมูลที่บันทึกในระบบ ณ วันตัดยอด</div>
-        ${buildOfficialSignaturesHtml([
-          { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
-          ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-          { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานการเงินหรือวิชาการ' },
-          { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-        ])}
-        ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        <div class="official-closing-block">
+          <div class="official-certification">ขอรับรองว่ารายการฝาก ถอน และยอดคงเหลือในรายงานฉบับนี้ตรงกับข้อมูลที่บันทึกในระบบ ณ วันตัดยอด</div>
+          ${buildOfficialSignaturesHtml([
+            { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+            ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
+            { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานการเงินหรือวิชาการ' },
+            { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+          ])}
+          ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        </div>
         </main>
       </body>
     </html>`;
@@ -1155,7 +1024,7 @@ function buildPrintableTableReportHtml({
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
         <style>
-          ${buildOfficialReportCss({ dense: true, marginMm: 12, orientation: 'landscape' })}
+          ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: 'landscape' })}
           .official-table th:first-child, .official-table td:first-child { width: 9mm; }
         </style>
       </head>
@@ -1166,14 +1035,16 @@ function buildPrintableTableReportHtml({
           <thead><tr><th>ที่</th>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
-        <div class="official-certification">ขอรับรองว่าข้อมูลในรายงานฉบับนี้ตรวจสอบจากข้อมูลที่บันทึกในระบบตามช่วงเวลาที่ระบุ และถูกต้องตามข้อมูลที่มีอยู่ ณ วันตัดยอด</div>
-        ${buildOfficialSignaturesHtml([
-          { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน / ครูประจำชั้น' },
-          ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-          { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
-          { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-        ])}
-        ${buildOfficialFooterHtml({ confidential, documentCode })}
+        <div class="official-closing-block">
+          <div class="official-certification">ขอรับรองว่าข้อมูลในรายงานฉบับนี้ตรวจสอบจากข้อมูลที่บันทึกในระบบตามช่วงเวลาที่ระบุ และถูกต้องตามข้อมูลที่มีอยู่ ณ วันตัดยอด</div>
+          ${buildOfficialSignaturesHtml([
+            { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน / ครูประจำชั้น' },
+            ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
+            { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+            { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+          ])}
+          ${buildOfficialFooterHtml({ confidential, documentCode })}
+        </div>
         </main>
       </body>
     </html>`;
@@ -1321,14 +1192,16 @@ function buildPrintableStudentRegisterHtml({
     ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle: `ทะเบียนนักเรียนประจำปีการศึกษา ${reportIdentity.academicYear || '-'}`, title: 'ทะเบียนนักเรียน' })}
     <div class="register-summary"><span>นักเรียนทั้งหมด<br><strong>${students.length}</strong> คน</span><span>ชาย<br><strong>${maleCount}</strong> คน</span><span>หญิง<br><strong>${femaleCount}</strong> คน</span><span>ข้อมูล ณ<br><strong>${formatThaiOfficialShortDate(dateTo)}</strong></span></div>
     <table class="official-table register-table"><colgroup>${orientation === 'portrait' ? '<col style="width:10mm"><col style="width:20mm"><col style="width:48mm"><col><col style="width:24mm">' : `<col style="width:8mm"><col style="width:18mm"><col style="width:48mm">${enabledFields.map(() => '<col>').join('')}<col style="width:24mm">`}</colgroup><thead><tr><th>ที่</th><th>เลขประจำตัว<br>นักเรียน</th><th>ชื่อ–สกุลนักเรียน</th>${orientation === 'portrait' ? '<th>รายละเอียดข้อมูลที่เลือก</th>' : enabledFields.map((field) => `<th>${registerFieldLabels[field]}</th>`).join('')}<th>หมายเหตุ</th></tr></thead><tbody>${rows || `<tr><td colspan="${orientation === 'portrait' ? 5 : enabledFields.length + 4}" class="official-center">ยังไม่มีข้อมูลนักเรียน</td></tr>`}</tbody></table>
-    <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · รูปแบบ A4 ${orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · ${fields.citizenId ? (revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชน') : 'ไม่ได้เลือกแสดงเลขประจำตัวประชาชน'}</div>
-    ${buildOfficialSignaturesHtml([
-      { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
-      ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-      { name: reportIdentity.registrarName || reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน' },
-      { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-    ])}
-    ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+    <div class="official-closing-block">
+      <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · รูปแบบ A4 ${orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · ${fields.citizenId ? (revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชน') : 'ไม่ได้เลือกแสดงเลขประจำตัวประชาชน'}</div>
+      ${buildOfficialSignaturesHtml([
+        { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+        ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
+        { name: reportIdentity.registrarName || reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน' },
+        { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+      ])}
+      ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+    </div>
   </main></body></html>`;
 }
 
@@ -1393,14 +1266,16 @@ function buildPrintableExecutiveReportHtml({
     <table class="official-table"><thead><tr><th>ด้าน</th><th>ผลช่วงนี้</th><th>เกณฑ์กำกับ</th><th>สถานะ</th><th>สาระสำคัญ/แนวทางดำเนินงาน</th></tr></thead><tbody>${executiveRows.map((row) => `<tr>${row.map((cell, index) => `<td class="${index > 0 && index < 4 ? 'official-center' : ''}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>
     <h2 class="official-section-title">2. ประเด็นเสนอเพื่อพิจารณาและข้อสั่งการ</h2>
     <div class="official-decision">${escapeHtml(proposedAction)}<br /><br />ข้อสั่งการผู้บริหาร ........................................................................................................................................................................</div>
-    <div class="official-certification">รายงานฉบับนี้ประมวลผลจากข้อมูลเวลาเรียน คะแนน สุขภาพ พฤติกรรม และการออมที่บันทึกใน workspace เดียวกัน ณ วันตัดยอด</div>
-    ${buildOfficialSignaturesHtml([
-      { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน' },
-      ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-      { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
-      { name: reportIdentity.directorName, role: 'ทราบ / อนุมัติ' },
-    ])}
-    ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+    <div class="official-closing-block">
+      <div class="official-certification">รายงานฉบับนี้ประมวลผลจากข้อมูลเวลาเรียน คะแนน สุขภาพ พฤติกรรม และการออมที่บันทึกใน workspace เดียวกัน ณ วันตัดยอด</div>
+      ${buildOfficialSignaturesHtml([
+        { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน' },
+        ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
+        { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
+        { name: reportIdentity.directorName, role: 'ทราบ / อนุมัติ' },
+      ])}
+      ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+    </div>
   </main></body></html>`;
 }
 
@@ -2548,62 +2423,382 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   }
 
   function exportCsv() {
+    let headers: string[] = [];
+    let lines: string[][] = [];
+
     if (reportView === 'subject-scores') {
       const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
-      const headers = ['ที่', 'รหัส', 'นักเรียน', ...assessments.map((a) => a.title), 'รวมคะแนน', 'งานค้าง'];
-      const lines = [
-        headers.map(escapeCsv).join(','),
-        ...classroomStudents.map((student, idx) => {
-          let totalScore = 0;
-          let missingCount = 0;
-          const scoreCols = assessments.map((a) => {
-            const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
-            const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-            if (score !== null) {
-              totalScore += score;
-            } else {
-              missingCount += 1;
-            }
-            return score !== null ? String(score) : '-';
-          });
-          return [String(idx + 1), student.student_code || '-', `${student.first_name} ${student.last_name}`, ...scoreCols, String(totalScore), String(missingCount)].map(escapeCsv).join(',');
-        }),
-      ];
-      downloadBlob(`classcare-subject-scores-${dateFrom}-${dateTo}.csv`, new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' }));
-      return;
+      headers = ['ที่', 'รหัส', 'นักเรียน', ...assessments.map((a) => a.title), 'รวมคะแนน', 'งานค้าง'];
+      lines = classroomStudents.map((student, idx) => {
+        let totalScore = 0;
+        let missingCount = 0;
+        const scoreCols = assessments.map((a) => {
+          const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+          if (score !== null) {
+            totalScore += score;
+          } else {
+            missingCount += 1;
+          }
+          return score !== null ? String(score) : '-';
+        });
+        return [String(idx + 1), student.student_code || '-', `${student.first_name} ${student.last_name}`, ...scoreCols, String(totalScore), String(missingCount)];
+      });
+    } else if (reportView === 'attendance' || reportView === 'subject-attendance') {
+      headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'แหล่งข้อมูล'];
+      lines = (reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) => [
+        row.date,
+        row.periodLabel,
+        row.classroomName,
+        row.studentCode,
+        row.studentName,
+        statusLabels[row.status],
+        row.note,
+        'พิมพ์จากระบบ ClassCare 360',
+      ]);
+    } else if (reportView === 'savings') {
+      headers = ['รหัส', 'นักเรียน', 'รายการฝาก', 'รายการถอน', 'จำนวนครั้งที่ทำรายการ', 'ยอดเงินคงเหลือ', 'ทำรายการล่าสุด'];
+      lines = savingsReportRows.map((row) => [
+        row.student.student_code || '-',
+        `${row.student.first_name} ${row.student.last_name}`,
+        String(row.deposits),
+        String(row.withdrawals),
+        String(row.transactionCount),
+        String(row.balance),
+        row.latestDate,
+      ]);
+    } else if (reportView === 'scores') {
+      headers = ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'];
+      lines = scoreAssessmentRows.map((row) => [
+        row.assessment.assessment_date,
+        row.assessment.subject_name,
+        row.assessment.title,
+        scoreCategoryLabels[row.assessment.category],
+        String(row.assessment.max_score),
+        String(row.averageScore),
+        `${row.averagePercent}%`,
+        String(row.enteredCount),
+        String(row.missingCount),
+      ]);
+    } else if (reportView === 'health') {
+      headers = ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'];
+      lines = healthSummaryRows.map((row) => [
+        row.student.student_code || '-',
+        `${row.student.first_name} ${row.student.last_name}`,
+        `${row.brushing.completed}/${row.brushing.total}`,
+        `${row.milk.completed}/${row.milk.total}`,
+        `${row.lunch.completed}/${row.lunch.total}`,
+        row.latestGrowth?.weight_kg ? `${row.latestGrowth.weight_kg} กก.` : '-',
+        row.latestGrowth?.height_cm ? `${row.latestGrowth.height_cm} ซม.` : '-',
+        String(row.latestGrowth?.bmi ?? '-'),
+        row.latestHygiene?.record_date || '-',
+        row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
+      ]);
+    } else if (reportView === 'student-register') {
+      headers = ['รหัส', 'ชื่อ-สกุล', ...activeRegisterFields.map(f => registerFieldLabels[f])];
+      lines = classroomStudents.map((student) => [
+        student.student_code || '-',
+        `${student.first_name} ${student.last_name}`,
+        ...activeRegisterFields.map((field) => getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)),
+      ]);
+    } else if (reportView === 'executive') {
+      headers = ['อัตรามาเรียน', 'คะแนนเฉลี่ย', 'สุขภาพ (สำเร็จ)', 'สุขภาพ (ติดตาม)', 'พฤติกรรม (ติดตาม)', 'เงินออม', 'นักเรียนทั้งหมด'];
+      lines = [[
+        `${executiveMetrics.attendanceRate}%`,
+        `${executiveMetrics.scoreAverage}%`,
+        `${executiveMetrics.healthCompletionRate}%`,
+        String(executiveMetrics.healthFollowUps),
+        String(executiveMetrics.behaviorFollowUps),
+        String(executiveMetrics.savingsTotal),
+        String(executiveMetrics.studentCount),
+      ]];
+    } else if (reportView === 'behavior') {
+      headers = ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'];
+      lines = behaviorReportRows.map((row) => {
+        const student = studentById.get(row.student_id);
+        return [
+          row.behavior_date,
+          student?.student_code || '-',
+          student ? `${student.first_name} ${student.last_name}` : '-',
+          toneLabels[row.tone],
+          row.category,
+          String(row.points),
+          followUpLabels[row.follow_up_status],
+          row.description,
+        ];
+      });
+    } else if (reportView === 'individual') {
+      headers = ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'];
+      lines = selectedStudent ? [
+        ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
+        ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${dateFrom} ถึง ${dateTo}`],
+        ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
+        ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
+        ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
+        ['เยี่ยมบ้าน กสศ.01', `${selectedHomeVisit?.completion_percent || 0}%`, selectedHomeVisit?.status || 'ยังไม่มีข้อมูล'],
+      ] : [];
     }
 
-    const headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'แหล่งข้อมูล'];
-    const lines = [
-      headers.map(escapeCsv).join(','),
-      ...(reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) =>
-        [
+    const csvContent = [headers.map(escapeCsv).join(','), ...lines.map(row => row.map(escapeCsv).join(','))].join('\n');
+    downloadBlob(`classcare-${reportView}-${dateFrom}-${dateTo}.csv`, new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8' }));
+  }
+
+  async function exportExcel() {
+    let headers: string[] = [];
+    let lines: string[][] = [];
+    const sheets: ExcelSheetConfig[] = [];
+
+    if (reportView === 'subject-scores') {
+      const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
+      headers = ['ที่', 'รหัส', 'นักเรียน', ...assessments.map((a) => a.title), 'รวมคะแนน', 'งานค้าง'];
+      lines = classroomStudents.map((student, idx) => {
+        let totalScore = 0;
+        let missingCount = 0;
+        const scoreCols = assessments.map((a) => {
+          const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+          if (score !== null) {
+            totalScore += score;
+          } else {
+            missingCount += 1;
+          }
+          return score !== null ? String(score) : '-';
+        });
+        return [String(idx + 1), student.student_code || '-', `${student.first_name} ${student.last_name}`, ...scoreCols, String(totalScore), String(missingCount)];
+      });
+      sheets.push({
+        sheetName: selectedSubjectName || 'คะแนนวิชา',
+        title: 'รายงานคะแนนรายวิชา',
+        subtitle: `${periodLabel} | วิชา ${selectedSubjectName || ''}`,
+        documentCode: buildOfficialDocumentCode('CC-SSC', dateFrom, selectedSubjectName),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'attendance') {
+      headers = ['วันที่', 'ช่วงเวลา', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ'];
+      lines = reportRows.map((row) => [
+        row.date,
+        row.periodLabel,
+        row.studentCode,
+        row.studentName,
+        statusLabels[row.status],
+        row.note,
+      ]);
+      sheets.push({
+        sheetName: 'เวลาเรียน',
+        title: 'รายงานเวลาเรียน',
+        subtitle: `${periodLabel}`,
+        documentCode: buildOfficialDocumentCode('CC-ATT', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'subject-attendance') {
+      headers = ['วันที่', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ'];
+      subjectOptions.forEach((subject) => {
+        const rows = subjectReportRows.filter((r) => r.subjectName === subject).map((row) => [
           row.date,
-          row.periodLabel,
-          row.classroomName,
           row.studentCode,
           row.studentName,
           statusLabels[row.status],
           row.note,
-          'พิมพ์จากระบบ ClassCare 360',
-        ]
-          .map(escapeCsv)
-          .join(','),
-      ),
-    ];
-    downloadBlob(
-      `classcare-attendance-${dateFrom}-${dateTo}.csv`,
-      new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' }),
-    );
-  }
+        ]);
+        sheets.push({
+          sheetName: subject,
+          title: 'รายงานเวลาเรียนรายวิชา',
+          subtitle: `${periodLabel} | วิชา ${subject}`,
+          documentCode: buildOfficialDocumentCode('CC-SAT', dateFrom, subject),
+          columns: headers,
+          rows: rows,
+        });
+      });
+    } else if (reportView === 'savings') {
+      headers = ['รหัส', 'นักเรียน', 'รายการฝาก', 'รายการถอน', 'จำนวนครั้งที่ทำรายการ', 'ยอดเงินคงเหลือ', 'ทำรายการล่าสุด'];
+      lines = savingsReportRows.map((row) => [
+        row.student.student_code || '-',
+        `${row.student.first_name} ${row.student.last_name}`,
+        String(row.deposits),
+        String(row.withdrawals),
+        String(row.transactionCount),
+        String(row.balance),
+        row.latestDate,
+      ]);
+      sheets.push({
+        sheetName: 'เงินออม',
+        title: 'รายงานสรุปเงินออม',
+        subtitle: `${periodLabel}`,
+        documentCode: buildOfficialDocumentCode('CC-SAV', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'scores') {
+      headers = ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'];
+      lines = scoreAssessmentRows.map((row) => [
+        row.assessment.assessment_date,
+        row.assessment.subject_name,
+        row.assessment.title,
+        scoreCategoryLabels[row.assessment.category],
+        String(row.assessment.max_score),
+        String(row.averageScore),
+        `${row.averagePercent}%`,
+        String(row.enteredCount),
+        String(row.missingCount),
+      ]);
+      sheets.push({
+        sheetName: 'สรุปคะแนน',
+        title: 'รายงานสรุปคะแนนประจำชั้น',
+        subtitle: `${periodLabel} | สรุป ${scoreAssessmentRows.length} ชุดคะแนน`,
+        documentCode: buildOfficialDocumentCode('CC-SCO', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+      // Add one detail sheet per assessment
+      scoreAssessmentRows.forEach((row) => {
+        const assessmentEntries = (scoreEntriesByAssessment.get(row.assessment.id) || []).filter((e) => classroomStudentIds.has(e.student_id));
+        const entryByStudent = new Map(assessmentEntries.map((e) => [e.student_id, e]));
+        const detailLines = classroomStudents.map((student, idx) => {
+          const entry = entryByStudent.get(student.id);
+          const scoreVal = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+          const maxScore = Number(row.assessment.max_score || 0);
+          const pct = scoreVal !== null && maxScore > 0 ? `${round((scoreVal / maxScore) * 100)}%` : '-';
+          return [
+            String(idx + 1),
+            student.student_code || '-',
+            `${student.first_name} ${student.last_name}`,
+            scoreVal !== null ? String(scoreVal) : '-',
+            pct,
+            entry?.note || '-'
+          ];
+        });
+        sheets.push({
+          sheetName: row.assessment.title,
+          title: `ตารางคะแนน: ${row.assessment.title}`,
+          subtitle: `วิชา: ${row.assessment.subject_name} · ประเภท: ${scoreCategoryLabels[row.assessment.category]} · คะแนนเต็ม: ${row.assessment.max_score}`,
+          documentCode: buildOfficialDocumentCode('CC-SCO-DET', dateFrom, row.assessment.title),
+          columns: ['ที่', 'รหัส', 'ชื่อ-สกุล', 'คะแนน', '%', 'หมายเหตุ'],
+          rows: detailLines,
+        });
+      });
+    } else if (reportView === 'health') {
+      headers = ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'];
+      lines = healthSummaryRows.map((row) => [
+        row.student.student_code || '-',
+        `${row.student.first_name} ${row.student.last_name}`,
+        `${row.brushing.completed}/${row.brushing.total}`,
+        `${row.milk.completed}/${row.milk.total}`,
+        `${row.lunch.completed}/${row.lunch.total}`,
+        row.latestGrowth?.weight_kg ? String(row.latestGrowth.weight_kg) : '-',
+        row.latestGrowth?.height_cm ? String(row.latestGrowth.height_cm) : '-',
+        String(row.latestGrowth?.bmi ?? '-'),
+        row.latestHygiene?.record_date || '-',
+        row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
+      ]);
+      sheets.push({
+        sheetName: 'สุขภาพ',
+        title: 'รายงานสุขภาพและกิจวัตรนักเรียน',
+        subtitle: `${periodLabel} | กิจวัตรที่ทำสำเร็จ/จำนวนครั้งที่บันทึก`,
+        documentCode: buildOfficialDocumentCode('CC-HLT', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'student-register') {
+      headers = ['รหัส', 'ชื่อ-สกุล', ...activeRegisterFields.map(f => registerFieldLabels[f])];
+      lines = classroomStudents.map((student) => [
+        student.student_code || '-',
+        `${student.first_name} ${student.last_name}`,
+        ...activeRegisterFields.map((field) => getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)),
+      ]);
+      sheets.push({
+        sheetName: 'ทะเบียนรายชื่อ',
+        title: 'ทะเบียนรายชื่อนักเรียน',
+        subtitle: `${activeRegisterFields.length} ฟิลด์ข้อมูล`,
+        documentCode: buildOfficialDocumentCode('CC-REG', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'executive') {
+      headers = ['อัตรามาเรียน', 'คะแนนเฉลี่ย', 'สุขภาพ (สำเร็จ)', 'สุขภาพ (ติดตาม)', 'พฤติกรรม (ติดตาม)', 'เงินออม', 'นักเรียนทั้งหมด'];
+      lines = [[
+        `${executiveMetrics.attendanceRate}%`,
+        `${executiveMetrics.scoreAverage}%`,
+        `${executiveMetrics.healthCompletionRate}%`,
+        String(executiveMetrics.healthFollowUps),
+        String(executiveMetrics.behaviorFollowUps),
+        String(executiveMetrics.savingsTotal),
+        String(executiveMetrics.studentCount),
+      ]];
+      sheets.push({
+        sheetName: 'สรุปผู้บริหาร',
+        title: 'รายงานสรุปสำหรับผู้บริหาร',
+        subtitle: `${periodLabel}`,
+        documentCode: buildOfficialDocumentCode('CC-EXC', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'behavior') {
+      headers = ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'];
+      lines = behaviorReportRows.map((row) => {
+        const student = studentById.get(row.student_id);
+        return [
+          row.behavior_date,
+          student?.student_code || '-',
+          student ? `${student.first_name} ${student.last_name}` : '-',
+          toneLabels[row.tone],
+          row.category,
+          String(row.points),
+          followUpLabels[row.follow_up_status],
+          row.description,
+        ];
+      });
+      sheets.push({
+        sheetName: 'พฤติกรรม',
+        title: 'รายงานพฤติกรรมและเคสดูแลนักเรียน',
+        subtitle: `${periodLabel} | คะแนนรวม ${coreMetrics.behavior.totalPoints} | ต้องติดตาม ${coreMetrics.behavior.followUps} รายการ`,
+        documentCode: buildOfficialDocumentCode('CC-BHV', dateFrom),
+        columns: headers,
+        rows: lines,
+      });
+    } else if (reportView === 'individual') {
+      headers = ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'];
+      lines = selectedStudent ? [
+        ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
+        ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${dateFrom} ถึง ${dateTo}`],
+        ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
+        ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
+        ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
+        ['เยี่ยมบ้าน กสศ.01', `${selectedHomeVisit?.completion_percent || 0}%`, selectedHomeVisit?.status || 'ยังไม่มีข้อมูล'],
+      ] : [];
+      sheets.push({
+        sheetName: 'รายบุคคล',
+        title: 'รายงานสรุปรายบุคคล',
+        subtitle: `${periodLabel} | ${selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}`,
+        documentCode: buildOfficialDocumentCode('CC-IND', dateFrom, selectedStudent?.id),
+        columns: headers,
+        rows: lines,
+      });
+    }
 
-  function exportExcel() {
-    const html = buildActiveReportHtml();
+    if (sheets.length === 0) return;
 
-    downloadBlob(
-      `classcare-${reportView}-monthly-${dateFrom.slice(0, 7)}.xls`,
-      new Blob([`\uFEFF${html}`], { type: 'application/vnd.ms-excel;charset=utf-8' }),
-    );
+    try {
+      const buffer = await generateExcelReportBuffer({
+        schoolName: session.workspace?.schoolName || 'Demo Workspace',
+        classroomName: selectedClassroom?.name || session.workspace?.name || 'Demo Workspace',
+        dateFrom,
+        dateTo,
+        academicYear: reportIdentity.academicYear,
+        identity: reportIdentity,
+        signatures: [
+          { name: reportIdentity.teacherName || session.profile.displayName, role: 'ครูประจำชั้น' },
+          { name: reportIdentity.academicHeadName || null, role: 'หัวหน้างานวิชาการ' },
+          { name: reportIdentity.directorName || null, role: 'ผู้อำนวยการโรงเรียน' },
+        ],
+        sheets,
+      });
+      downloadExcelBuffer(buffer, `classcare-${reportView}-${dateFrom}-${dateTo}.xlsx`);
+    } catch (err) {
+      console.error('Failed to export Excel:', err);
+      alert('เกิดข้อผิดพลาดในการสร้างไฟล์ Excel กรุณาลองใหม่อีกครั้ง');
+    }
   }
 
   function exportJsonPackage() {
@@ -2800,8 +2995,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             PDF/พิมพ์
           </button>
           <button
-            className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={!exportableAttendance}
+            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!printableReport}
             onClick={exportCsv}
             type="button"
           >
@@ -2809,7 +3004,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             CSV
           </button>
           <button
-            className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!printableReport}
             onClick={exportExcel}
             type="button"
@@ -2819,7 +3014,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           </button>
           <button
             className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={activeReportRowCount === 0 && reportView !== 'settings'}
+            disabled={!printableReport}
             onClick={exportJsonPackage}
             type="button"
           >

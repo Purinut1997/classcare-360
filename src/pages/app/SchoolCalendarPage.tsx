@@ -327,22 +327,24 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity, schoolName, subtitle: `ประจำเดือน${currentMonthText}`, title: 'ปฏิทินกิจกรรมและวันสำคัญของโรงเรียน' })}
       <section class="calendar-summary"><div><span>รายการทั้งหมด</span><strong>${stats.total}</strong></div><div><span>วันหยุด</span><strong>${stats.holiday}</strong></div><div><span>วันสอบ</span><strong>${stats.exam}</strong></div><div><span>กระทบเช็กชื่อ</span><strong>${stats.attendanceImpact}</strong></div></section>
       <table class="official-table"><thead><tr><th>ที่</th><th>วันที่</th><th>รายการ</th><th>ประเภท</th><th>นโยบายเวลาเรียน</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="official-center">ไม่มีวันสำคัญหรือกิจกรรมในเดือนนี้</td></tr>'}</tbody></table>
-      <div class="official-certification">ขอรับรองว่าปฏิทินฉบับนี้ผ่านการตรวจสอบวันหยุด วันสอบ กิจกรรม และนโยบายการบันทึกเวลาเรียนตามข้อมูล ณ วันตัดยอด</div>
-      ${buildOfficialSignaturesHtml([
-        {
-          name: identity.teacherName || session.profile.displayName,
-          role: 'ผู้จัดทำ / ครูผู้รับผิดชอบ',
-        },
-        {
-          name: identity.academicHeadName,
-          role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ',
-        },
-        {
-          name: identity.directorName,
-          role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน',
-        },
-      ])}
-      ${buildOfficialFooterHtml({ confidential: false, documentCode })}
+      <div class="official-closing-block">
+        <div class="official-certification">ขอรับรองว่าปฏิทินฉบับนี้ผ่านการตรวจสอบวันหยุด วันสอบ กิจกรรม และนโยบายการบันทึกเวลาเรียนตามข้อมูล ณ วันตัดยอด</div>
+        ${buildOfficialSignaturesHtml([
+          {
+            name: identity.teacherName || session.profile.displayName,
+            role: 'ผู้จัดทำ / ครูผู้รับผิดชอบ',
+          },
+          {
+            name: identity.academicHeadName,
+            role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ',
+          },
+          {
+            name: identity.directorName,
+            role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน',
+          },
+        ])}
+        ${buildOfficialFooterHtml({ confidential: false, documentCode })}
+      </div>
     </main><script>window.addEventListener('load',()=>{window.focus();window.print();});</script></body></html>`);
     reportWindow.document.close();
   };
