@@ -1,16 +1,19 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   Award,
   BarChart3,
   BookOpen,
   CheckCircle2,
+  CheckSquare,
   ChevronRight,
   ClipboardList,
   Copy,
   Download,
   FileSpreadsheet,
   Gauge,
+  GraduationCap,
   HelpCircle,
   Info,
   Keyboard,
@@ -22,6 +25,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Square,
   Table,
   Trash2,
   Users,
@@ -46,6 +50,7 @@ type AssessmentCategory = 'quiz' | 'assignment' | 'midterm' | 'final' | 'exam' |
 type AssessmentStatus = 'draft' | 'published' | 'archived';
 type ScoreBand = 'coursework' | 'midterm' | 'final';
 type ScoreView = 'overview' | 'setup' | 'entry' | 'excel' | 'gradebook';
+export type ScorePerspective = 'subject' | 'classroom';
 
 const scoreViewValues = ['overview', 'setup', 'entry', 'excel', 'gradebook'] as const;
 
@@ -116,11 +121,14 @@ interface SafeDeleteResult {
   reason?: string;
 }
 
-const demoClassrooms: ClassroomRow[] = [{ academic_year: '2569', id: 'demo-classroom', name: 'ป.5/2' }];
+const demoClassrooms: ClassroomRow[] = [
+  { academic_year: '2569', id: 'demo-classroom-1', name: 'ป.5/1' },
+  { academic_year: '2569', id: 'demo-classroom-2', name: 'ป.5/2' },
+];
 
 const demoStudents: StudentRow[] = [
   {
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     first_name: 'ณัฐวุฒิ',
     id: 'demo-student-1',
     last_name: 'ใจดี',
@@ -128,7 +136,7 @@ const demoStudents: StudentRow[] = [
     student_code: '001',
   },
   {
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     first_name: 'พิมพ์ชนก',
     id: 'demo-student-2',
     last_name: 'แสงทอง',
@@ -136,11 +144,35 @@ const demoStudents: StudentRow[] = [
     student_code: '002',
   },
   {
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     first_name: 'กิตติพงศ์',
     id: 'demo-student-3',
     last_name: 'สุขใจ',
     nickname: 'ก้อง',
+    student_code: '003',
+  },
+  {
+    classroom_id: 'demo-classroom-2',
+    first_name: 'ธนกฤต',
+    id: 'demo-student-4',
+    last_name: 'มีทรัพย์',
+    nickname: 'กฤต',
+    student_code: '001',
+  },
+  {
+    classroom_id: 'demo-classroom-2',
+    first_name: 'ปภาวดี',
+    id: 'demo-student-5',
+    last_name: 'ทองแท้',
+    nickname: 'วาวา',
+    student_code: '002',
+  },
+  {
+    classroom_id: 'demo-classroom-2',
+    first_name: 'ชวกร',
+    id: 'demo-student-6',
+    last_name: 'สมบูรณ์',
+    nickname: 'กร',
     student_code: '003',
   },
 ];
@@ -149,7 +181,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
   {
     assessment_date: getBangkokDate(),
     category: 'quiz',
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     created_by: 'demo-teacher',
     id: 'demo-assessment-1',
     max_score: 20,
@@ -162,7 +194,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
   {
     assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 4)),
     category: 'assignment',
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     created_by: 'demo-teacher',
     id: 'demo-assessment-2',
     max_score: 30,
@@ -175,7 +207,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
   {
     assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 9)),
     category: 'midterm',
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     created_by: 'demo-teacher',
     id: 'demo-assessment-3',
     max_score: 20,
@@ -188,7 +220,7 @@ const demoAssessments: ScoreAssessmentRow[] = [
   {
     assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 14)),
     category: 'final',
-    classroom_id: 'demo-classroom',
+    classroom_id: 'demo-classroom-1',
     created_by: 'demo-teacher',
     id: 'demo-assessment-4',
     max_score: 30,
@@ -196,6 +228,32 @@ const demoAssessments: ScoreAssessmentRow[] = [
     subject_name: 'คณิตศาสตร์',
     title: 'สอบปลายภาค',
     weight: 30,
+    workspace_id: 'demo-workspace',
+  },
+  {
+    assessment_date: getBangkokDate(),
+    category: 'quiz',
+    classroom_id: 'demo-classroom-2',
+    created_by: 'demo-teacher',
+    id: 'demo-assessment-5',
+    max_score: 20,
+    status: 'draft',
+    subject_name: 'คณิตศาสตร์',
+    title: 'แบบทดสอบเศษส่วน',
+    weight: 10,
+    workspace_id: 'demo-workspace',
+  },
+  {
+    assessment_date: getBangkokDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 9)),
+    category: 'midterm',
+    classroom_id: 'demo-classroom-2',
+    created_by: 'demo-teacher',
+    id: 'demo-assessment-6',
+    max_score: 20,
+    status: 'draft',
+    subject_name: 'คณิตศาสตร์',
+    title: 'สอบกลางภาค',
+    weight: 20,
     workspace_id: 'demo-workspace',
   },
 ];
@@ -210,6 +268,12 @@ const demoEntries: ScoreEntryRow[] = [
   { assessment_id: 'demo-assessment-3', id: 'demo-entry-7', note: null, score: 17, student_id: 'demo-student-1' },
   { assessment_id: 'demo-assessment-3', id: 'demo-entry-8', note: null, score: 13, student_id: 'demo-student-2' },
   { assessment_id: 'demo-assessment-3', id: 'demo-entry-9', note: null, score: 15, student_id: 'demo-student-3' },
+  { assessment_id: 'demo-assessment-5', id: 'demo-entry-10', note: null, score: 19, student_id: 'demo-student-4' },
+  { assessment_id: 'demo-assessment-5', id: 'demo-entry-11', note: null, score: 15, student_id: 'demo-student-5' },
+  { assessment_id: 'demo-assessment-5', id: 'demo-entry-12', note: null, score: 17, student_id: 'demo-student-6' },
+  { assessment_id: 'demo-assessment-6', id: 'demo-entry-13', note: null, score: 18, student_id: 'demo-student-4' },
+  { assessment_id: 'demo-assessment-6', id: 'demo-entry-14', note: null, score: 14, student_id: 'demo-student-5' },
+  { assessment_id: 'demo-assessment-6', id: 'demo-entry-15', note: null, score: 16, student_id: 'demo-student-6' },
 ];
 
 const categoryOptions: Array<{ label: string; value: AssessmentCategory }> = [
@@ -324,6 +388,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const navigate = useNavigate();
   const requestedScoreView = new URLSearchParams(location.search).get('scoreView');
   const initialScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'excel';
+  const requestedPerspective = new URLSearchParams(location.search).get('perspective');
+  const initialPerspective: ScorePerspective = requestedPerspective === 'classroom' ? 'classroom' : 'subject';
+
+  const [perspective, setPerspective] = useState<ScorePerspective>(initialPerspective);
+  const [subjectSubView, setSubjectSubView] = useState<'grid' | 'comparison'>('grid');
+  const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
+  const [cloneSourceClassroomId, setCloneSourceClassroomId] = useState('');
+  const [cloneTargetClassroomIds, setCloneTargetClassroomIds] = useState<string[]>([]);
+
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentRow[]>(demoStudents);
   const [assessments, setAssessments] = useState<ScoreAssessmentRow[]>(demoAssessments);
@@ -346,6 +419,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     category: 'quiz' as AssessmentCategory,
     maxScore: '20',
     subjectName: 'คณิตศาสตร์',
+    targetClassroomIds: [] as string[],
     title: '',
     weight: '10',
   });
@@ -366,7 +440,17 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
   function handleScoreViewChange(nextScoreView: ScoreView) {
     setScoreView(nextScoreView);
-    navigate(withDemoContext(`/app/dashboard?view=scores&scoreView=${nextScoreView}`, location.search), { replace: true });
+    navigate(withDemoContext(`/app/dashboard?view=scores&scoreView=${nextScoreView}&perspective=${perspective}`, location.search), { replace: true });
+  }
+
+  function handlePerspectiveChange(nextPerspective: ScorePerspective) {
+    setPerspective(nextPerspective);
+    const params = new URLSearchParams(location.search);
+    params.set('perspective', nextPerspective);
+    if (!params.get('scoreView')) {
+      params.set('scoreView', scoreView);
+    }
+    navigate(withDemoContext(`/app/dashboard?${params.toString()}`, location.search), { replace: true });
   }
 
   const classroomStudents = useMemo(
@@ -390,12 +474,49 @@ export function ScoresPage({ session }: ScoresPageProps) {
     [assessments, classroomId],
   );
 
+  const allWorkspaceSubjects = useMemo(() => {
+    const list = assessments
+      .filter((a) => a.status !== 'archived')
+      .map((a) => a.subject_name.trim())
+      .filter(Boolean);
+    if (form.subjectName.trim()) list.push(form.subjectName.trim());
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [assessments, form.subjectName]);
+
+  const classroomsWithSubject = useMemo(() => {
+    if (!subjectFilter) return classrooms;
+    const matchIds = new Set(
+      assessments
+        .filter((a) => a.status !== 'archived' && a.subject_name.trim().toLowerCase() === subjectFilter.trim().toLowerCase())
+        .map((a) => a.classroom_id),
+    );
+    const matched = classrooms.filter((c) => matchIds.has(c.id));
+    return matched.length > 0 ? matched : classrooms;
+  }, [assessments, classrooms, subjectFilter]);
+
+  const availableClassroomsToAdd = useMemo(() => {
+    const currentIds = new Set(classroomsWithSubject.map((c) => c.id));
+    return classrooms.filter((c) => !currentIds.has(c.id));
+  }, [classrooms, classroomsWithSubject]);
+
+  const nextClassroom = useMemo(() => {
+    if (perspective !== 'subject') return null;
+    const idx = classroomsWithSubject.findIndex((c) => c.id === classroomId);
+    if (idx >= 0 && idx < classroomsWithSubject.length - 1) {
+      return classroomsWithSubject[idx + 1];
+    }
+    return null;
+  }, [perspective, classroomsWithSubject, classroomId]);
+
   const subjectOptions = useMemo(() => {
+    if (perspective === 'subject') {
+      return allWorkspaceSubjects.length > 0 ? allWorkspaceSubjects : [form.subjectName.trim() || 'คณิตศาสตร์'];
+    }
     const subjects = classroomAssessments.map((assessment) => assessment.subject_name.trim()).filter(Boolean);
     const currentSubject = form.subjectName.trim();
     if (currentSubject) subjects.push(currentSubject);
     return Array.from(new Set(subjects)).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [classroomAssessments, form.subjectName]);
+  }, [allWorkspaceSubjects, classroomAssessments, form.subjectName, perspective]);
 
   const contextAssessments = useMemo(
     () =>
@@ -595,6 +716,85 @@ export function ScoresPage({ session }: ScoresPageProps) {
       contextCount: scoreContexts.length,
     };
   }, [assessments, entries, scoreContexts.length, students]);
+
+  const crossClassroomStats = useMemo(() => {
+    if (!subjectFilter) return [];
+    return classroomsWithSubject.map((c) => {
+      const cStudents = students.filter((s) => s.classroom_id === c.id);
+      const cAssessments = assessments.filter(
+        (a) =>
+          a.classroom_id === c.id &&
+          a.status !== 'archived' &&
+          a.subject_name.trim().toLowerCase() === subjectFilter.trim().toLowerCase(),
+      );
+      const cAssessmentIds = new Set(cAssessments.map((a) => a.id));
+      const cEntries = entries.filter((e) => cAssessmentIds.has(e.assessment_id) && e.score !== null);
+      const expected = cStudents.length * cAssessments.length;
+      const completionPercent = expected > 0 ? Math.round((cEntries.length / expected) * 100) : 0;
+
+      const studentPercents = cStudents
+        .map((student) => {
+          let earned = 0;
+          let planned = 0;
+          cAssessments.forEach((assessment) => {
+            planned += assessment.weight;
+            const entry = cEntries.find((e) => e.assessment_id === assessment.id && e.student_id === student.id);
+            if (entry?.score !== null && entry?.score !== undefined) {
+              earned += (entry.score / assessment.max_score) * assessment.weight;
+            }
+          });
+          return planned > 0 ? (earned / planned) * 100 : null;
+        })
+        .filter((p): p is number => p !== null);
+
+      const averagePercent =
+        studentPercents.length > 0 ? studentPercents.reduce((sum, p) => sum + p, 0) / studentPercents.length : 0;
+
+      const passingCount = studentPercents.filter((p) => p >= 50).length;
+      const passingRate = studentPercents.length > 0 ? Math.round((passingCount / studentPercents.length) * 100) : 0;
+
+      const gradeCounts = {
+        g4: studentPercents.filter((p) => p >= 80).length,
+        g3: studentPercents.filter((p) => p >= 70 && p < 80).length,
+        g2: studentPercents.filter((p) => p >= 60 && p < 70).length,
+        g1: studentPercents.filter((p) => p >= 50 && p < 60).length,
+        g0: studentPercents.filter((p) => p < 50).length,
+      };
+
+      return {
+        assessmentCount: cAssessments.length,
+        averagePercent,
+        classroom: c,
+        completionPercent,
+        gradeCounts,
+        passingCount,
+        passingRate,
+        studentCount: cStudents.length,
+      };
+    });
+  }, [assessments, classroomsWithSubject, entries, students, subjectFilter]);
+
+  const overallSubjectStats = useMemo(() => {
+    const totalStudents = crossClassroomStats.reduce((sum, row) => sum + row.studentCount, 0);
+    const totalAssessments = crossClassroomStats.reduce((sum, row) => sum + row.assessmentCount, 0);
+    const totalPassed = crossClassroomStats.reduce((sum, row) => sum + row.passingCount, 0);
+    const avgPercent =
+      crossClassroomStats.length > 0
+        ? crossClassroomStats.reduce((sum, row) => sum + row.averagePercent, 0) / crossClassroomStats.length
+        : 0;
+    const avgCompletion =
+      crossClassroomStats.length > 0
+        ? Math.round(crossClassroomStats.reduce((sum, row) => sum + row.completionPercent, 0) / crossClassroomStats.length)
+        : 0;
+    return {
+      avgCompletion,
+      avgPercent,
+      classroomCount: crossClassroomStats.length,
+      overallPassingRate: totalStudents > 0 ? Math.round((totalPassed / totalStudents) * 100) : 0,
+      totalAssessments,
+      totalStudents,
+    };
+  }, [crossClassroomStats]);
 
   const scoreBandSummaries = useMemo(
     () =>
@@ -813,8 +1013,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
     const maxScore = parseNumericInput(form.maxScore, 20);
     const weight = parseNumericInput(form.weight, 10);
 
-    if (!classroomId) {
-      setNotice('กรุณาเลือกห้องเรียนก่อนสร้างชุดคะแนน');
+    const targetIds = form.targetClassroomIds.length > 0 ? form.targetClassroomIds : [classroomId];
+    if (targetIds.length === 0) {
+      setNotice('กรุณาเลือกอย่างน้อย 1 ห้องเรียน');
       setIsSubmitting(false);
       return;
     }
@@ -826,47 +1027,49 @@ export function ScoresPage({ session }: ScoresPageProps) {
     }
 
     if (!supabase || !session.workspace || isDemoSession(session)) {
-      const assessment: ScoreAssessmentRow = {
+      const newItems: ScoreAssessmentRow[] = targetIds.map((cid, idx) => ({
         assessment_date: form.assessmentDate,
         category: form.category,
-        classroom_id: classroomId,
+        classroom_id: cid,
         created_by: session.profile.id,
-        id: `demo-assessment-${Date.now()}`,
+        id: `demo-assessment-${Date.now()}-${idx}`,
         max_score: maxScore,
         status: 'draft',
         subject_name: subjectName,
         title,
         weight,
         workspace_id: session.workspace?.id || 'demo-workspace',
-      };
+      }));
 
-      setAssessments((current) => [assessment, ...current]);
+      setAssessments((current) => [...newItems, ...current]);
       setSubjectFilter(subjectName);
-      setSelectedAssessmentId(assessment.id);
-      setForm((current) => ({ ...current, title: '' }));
+      setSelectedAssessmentId(newItems[0].id);
+      setForm((current) => ({ ...current, targetClassroomIds: [], title: '' }));
       setIsCreateModalOpen(false);
       handleScoreViewChange('entry');
-      setNotice('สร้างชุดคะแนนในโหมดตัวอย่างแล้ว');
+      setNotice(`สร้างชุดคะแนนในโหมดตัวอย่างแล้ว (${newItems.length} ห้องเรียน)`);
       setIsSubmitting(false);
       return;
     }
 
+    const workspaceId = session.workspace.id;
+    const payload = targetIds.map((cid) => ({
+      assessment_date: form.assessmentDate,
+      category: form.category,
+      classroom_id: cid,
+      created_by: session.profile.id,
+      max_score: maxScore,
+      status: 'draft' as AssessmentStatus,
+      subject_name: subjectName,
+      title,
+      weight,
+      workspace_id: workspaceId,
+    }));
+
     const { data, error } = await supabase
       .from('score_assessments')
-      .insert({
-        assessment_date: form.assessmentDate,
-        category: form.category,
-        classroom_id: classroomId,
-        created_by: session.profile.id,
-        max_score: maxScore,
-        status: 'draft',
-        subject_name: subjectName,
-        title,
-        weight,
-        workspace_id: session.workspace.id,
-      })
-      .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by')
-      .single();
+      .insert(payload)
+      .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by');
 
     if (error) {
       setNotice(error.message);
@@ -874,29 +1077,137 @@ export function ScoresPage({ session }: ScoresPageProps) {
       return;
     }
 
-    const assessment = data as ScoreAssessmentRow;
+    const createdList = (data || []) as ScoreAssessmentRow[];
     await writeAuditLog(session, {
-      action: 'score_assessment.created',
-      entityId: assessment.id,
+      action: 'score_assessment.batch_created',
+      entityId: createdList[0]?.id || '',
       entityTable: 'score_assessments',
       metadata: {
-        category: assessment.category,
-        classroom_id: assessment.classroom_id,
-        max_score: assessment.max_score,
-        status: assessment.status,
-        subject_name: assessment.subject_name,
+        category: form.category,
+        classrooms_count: createdList.length,
+        max_score: maxScore,
+        subject_name: subjectName,
+        title,
       },
       riskLevel: 'low',
       source: 'score_center',
     });
-    setAssessments((current) => [assessment, ...current]);
-    setSubjectFilter(assessment.subject_name);
-    setSelectedAssessmentId(assessment.id);
-    setForm((current) => ({ ...current, title: '' }));
+
+    setAssessments((current) => [...createdList, ...current]);
+    setSubjectFilter(subjectName);
+    if (createdList[0]) setSelectedAssessmentId(createdList[0].id);
+    setForm((current) => ({ ...current, targetClassroomIds: [], title: '' }));
     setIsCreateModalOpen(false);
     handleScoreViewChange('entry');
-    setNotice('สร้างชุดคะแนนแล้ว');
+    setNotice(`สร้างชุดคะแนนแล้ว (${createdList.length} ห้องเรียน)`);
     setIsSubmitting(false);
+  }
+
+  async function handleCloneStructure() {
+    if (!cloneSourceClassroomId || cloneTargetClassroomIds.length === 0 || !subjectFilter) {
+      setNotice('กรุณาเลือกห้องต้นแบบและห้องปลายทางที่ต้องการคัดลอก');
+      return;
+    }
+    setIsSubmitting(true);
+    setNotice(null);
+
+    const sourceAssessments = assessments.filter(
+      (a) =>
+        a.classroom_id === cloneSourceClassroomId &&
+        a.status !== 'archived' &&
+        a.subject_name.trim().toLowerCase() === subjectFilter.trim().toLowerCase(),
+    );
+
+    if (sourceAssessments.length === 0) {
+      setNotice('ห้องต้นแบบยังไม่มีชุดคะแนนในวิชานี้');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const itemsToCreate: Array<Omit<ScoreAssessmentRow, 'id'> & { id?: string }> = [];
+
+    cloneTargetClassroomIds.forEach((targetCid) => {
+      const existingTitles = new Set(
+        assessments
+          .filter(
+            (a) =>
+              a.classroom_id === targetCid &&
+              a.status !== 'archived' &&
+              a.subject_name.trim().toLowerCase() === subjectFilter.trim().toLowerCase(),
+          )
+          .map((a) => a.title.trim().toLowerCase()),
+      );
+
+      sourceAssessments.forEach((source) => {
+        if (!existingTitles.has(source.title.trim().toLowerCase())) {
+          itemsToCreate.push({
+            assessment_date: source.assessment_date,
+            category: source.category,
+            classroom_id: targetCid,
+            created_by: session.profile?.id || null,
+            max_score: source.max_score,
+            status: 'draft',
+            subject_name: source.subject_name,
+            title: source.title,
+            weight: source.weight,
+            workspace_id: session.workspace?.id || 'demo-workspace',
+          });
+        }
+      });
+    });
+
+    if (itemsToCreate.length === 0) {
+      setNotice('ทุกห้องปลายทางมีชุดคะแนนเหล่านี้อยู่แล้ว');
+      setIsSubmitting(false);
+      setIsCloneModalOpen(false);
+      return;
+    }
+
+    if (!supabase || !session.workspace || isDemoSession(session)) {
+      const created: ScoreAssessmentRow[] = itemsToCreate.map((item, idx) => ({
+        ...item,
+        id: `demo-cloned-${Date.now()}-${idx}`,
+      }));
+      setAssessments((current) => [...created, ...current]);
+      setIsCloneModalOpen(false);
+      setIsSubmitting(false);
+      setNotice(
+        `คัดลอกโครงสร้างคะแนนสำเร็จ: สร้างชุดคะแนน ${created.length} รายการให้ ${cloneTargetClassroomIds.length} ห้องเรียน [โหมดตัวอย่าง]`,
+      );
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('score_assessments')
+      .insert(
+        itemsToCreate.map((item) => ({
+          assessment_date: item.assessment_date,
+          category: item.category,
+          classroom_id: item.classroom_id,
+          created_by: item.created_by,
+          max_score: item.max_score,
+          status: item.status,
+          subject_name: item.subject_name,
+          title: item.title,
+          weight: item.weight,
+          workspace_id: item.workspace_id,
+        })),
+      )
+      .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by');
+
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const created = (data || []) as ScoreAssessmentRow[];
+    setAssessments((current) => [...created, ...current]);
+    setIsCloneModalOpen(false);
+    setIsSubmitting(false);
+    setNotice(
+      `คัดลอกโครงสร้างคะแนนสำเร็จ: สร้างชุดคะแนน ${created.length} รายการให้ ${cloneTargetClassroomIds.length} ห้องเรียน`,
+    );
   }
 
   function handleFillAllMaxScore() {
@@ -1516,66 +1827,145 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       </div>
 
+      {/* 1.5 Dual-Perspective Switcher: Subject-Centric vs Classroom-Centric */}
+      <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-2.5 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl">
+            <button
+              className={`flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                perspective === 'subject'
+                  ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => handlePerspectiveChange('subject')}
+              type="button"
+            >
+              <BookOpen size={15} className={perspective === 'subject' ? 'text-indigo-600' : 'text-slate-400'} aria-hidden="true" />
+              มุมมองตามรายวิชา (วิชาที่สอนหลายห้อง)
+            </button>
+            <button
+              className={`flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                perspective === 'classroom'
+                  ? 'bg-white text-slate-950 shadow-xs ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => handlePerspectiveChange('classroom')}
+              type="button"
+            >
+              <Users size={15} className={perspective === 'classroom' ? 'text-cyan-600' : 'text-slate-400'} aria-hidden="true" />
+              มุมมองตามห้องเรียน (วิชาที่สอนห้องเดียว / ครูประจำชั้น)
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 px-2">
+            {perspective === 'subject' ? (
+              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50/80 px-3 py-1 rounded-full border border-indigo-100 flex items-center gap-1.5">
+                <Sparkles size={12} className="text-indigo-500" />
+                เลือกวิชาเดียว จัดการได้ทุกห้องพร้อมกัน &amp; เปรียบเทียบผลคะแนน
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold text-slate-600 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
+                🏫 รวมทุกวิชาและสรุปเกรดของห้องเรียนที่เลือก
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* 2. Unified Context Selector & Quick Action Bar */}
-      <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="แถบควบคุมห้องและวิชา">
+      <section className="mt-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="แถบควบคุมห้องและวิชา">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-3">
-            {/* Classroom Select */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-500 shrink-0">ห้องเรียน:</span>
-              <select
-                className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                onChange={(event) => setClassroomId(event.target.value)}
-                value={classroomId}
-              >
-                {teacherScope.hasHomeroom ? (
-                  <>
-                    <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
-                      {teacherScope.homeroomClassrooms.map((classroom) => (
+            {perspective === 'subject' ? (
+              /* Subject-Centric Primary Selector */
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-indigo-900 shrink-0">รายวิชาที่สอน:</span>
+                <select
+                  className="h-10 rounded-2xl border border-indigo-200 bg-indigo-50/50 px-3 text-xs font-black text-indigo-950 outline-none transition focus:border-indigo-500 focus:bg-white"
+                  onChange={(event) => {
+                    const newSub = event.target.value;
+                    setSubjectFilter(newSub);
+                    const matchingClassrooms = classrooms.filter((c) =>
+                      assessments.some(
+                        (a) =>
+                          a.classroom_id === c.id &&
+                          a.status !== 'archived' &&
+                          a.subject_name.trim().toLowerCase() === newSub.trim().toLowerCase(),
+                      ),
+                    );
+                    if (matchingClassrooms.length > 0 && !matchingClassrooms.some((c) => c.id === classroomId)) {
+                      setClassroomId(matchingClassrooms[0].id);
+                    }
+                  }}
+                  value={subjectFilter}
+                >
+                  {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
+                  {subjectOptions.map((subject) => (
+                    <option key={subject} value={subject}>
+                      {subject}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              /* Classroom-Centric Primary Selector */
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-500 shrink-0">ห้องเรียน:</span>
+                  <select
+                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
+                    onChange={(event) => setClassroomId(event.target.value)}
+                    value={classroomId}
+                  >
+                    {teacherScope.hasHomeroom ? (
+                      <>
+                        <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                          {teacherScope.homeroomClassrooms.map((classroom) => (
+                            <option key={classroom.id} value={classroom.id}>
+                              {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {teacherScope.otherClassrooms.length > 0 && (
+                          <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
+                            {teacherScope.otherClassrooms.map((classroom) => (
+                              <option key={classroom.id} value={classroom.id}>
+                                {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    ) : (
+                      classrooms.map((classroom) => (
                         <option key={classroom.id} value={classroom.id}>
                           {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
                         </option>
-                      ))}
-                    </optgroup>
-                    {teacherScope.otherClassrooms.length > 0 && (
-                      <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
-                        {teacherScope.otherClassrooms.map((classroom) => (
-                          <option key={classroom.id} value={classroom.id}>
-                            {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
+                      ))
                     )}
-                  </>
-                ) : (
-                  classrooms.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
-                      {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
+                  </select>
+                </div>
 
-            {/* Subject Select */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-500 shrink-0">รายวิชา:</span>
-              <select
-                className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                onChange={(event) => setSubjectFilter(event.target.value)}
-                value={subjectFilter}
-              >
-                {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
-                {subjectOptions.map((subject) => (
-                  <option key={subject} value={subject}>
-                    {subject}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-500 shrink-0">รายวิชา:</span>
+                  <select
+                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
+                    onChange={(event) => setSubjectFilter(event.target.value)}
+                    value={subjectFilter}
+                  >
+                    {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
+                    {subjectOptions.map((subject) => (
+                      <option key={subject} value={subject}>
+                        {subject}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
             {/* Assessment Select (Shown only when in single-entry view) */}
-            {scoreView === 'entry' && contextAssessments.length > 0 ? (
+            {scoreView === 'entry' && contextAssessments.length > 0 && subjectSubView !== 'comparison' ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black text-slate-500 shrink-0">ชุดคะแนน:</span>
                 <select
@@ -1594,9 +1984,26 @@ export function ScoresPage({ session }: ScoresPageProps) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {perspective === 'subject' ? (
+              <button
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-3.5 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100 hover:border-indigo-300"
+                onClick={() => {
+                  setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
+                  const otherClassrooms = classrooms.filter((c) => c.id !== (classroomsWithSubject[0]?.id || classroomId));
+                  setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
+                  setIsCloneModalOpen(true);
+                }}
+                title="คัดลอกโครงสร้างคะแนนวิชานี้จากห้องหนึ่งไปยังห้องอื่น"
+                type="button"
+              >
+                <Copy size={15} className="text-indigo-700" aria-hidden="true" />
+                คัดลอกเกณฑ์ไปห้องอื่น
+              </button>
+            ) : null}
+
             <button
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-100 hover:border-amber-300"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-2xs transition hover:bg-amber-100 hover:border-amber-300"
               onClick={() => setIsGuideOpen(true)}
               title="เปิดดูคู่มือการใช้งานระบบคะแนนและตาราง Excel"
               type="button"
@@ -1604,15 +2011,24 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <BookOpen size={15} className="text-amber-700" aria-hidden="true" />
               คู่มือการใช้งาน
             </button>
+
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-cyan-700"
-              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
+              onClick={() => {
+                setForm((current) => ({
+                  ...current,
+                  subjectName: subjectFilter || current.subjectName,
+                  targetClassroomIds: perspective === 'subject' ? classroomsWithSubject.map((c) => c.id) : [classroomId],
+                }));
+                setIsCreateModalOpen(true);
+              }}
               type="button"
             >
               <Plus size={15} aria-hidden="true" />
               สร้างชุดคะแนนใหม่
             </button>
-            {scoreView === 'excel' && contextAssessments.length > 0 ? (
+
+            {scoreView === 'excel' && contextAssessments.length > 0 && subjectSubView !== 'comparison' ? (
               <button
                 className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
                 onClick={exportGridCsv}
@@ -1623,7 +2039,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 Export ตาราง Excel
               </button>
             ) : null}
-            {scoreView === 'entry' && selectedAssessment ? (
+
+            {scoreView === 'entry' && selectedAssessment && subjectSubView !== 'comparison' ? (
               <button
                 className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
                 onClick={exportAssessmentCsv}
@@ -1636,6 +2053,91 @@ export function ScoresPage({ session }: ScoresPageProps) {
             ) : null}
           </div>
         </div>
+
+        {/* Horizontal Classroom Tabs Bar (Visible in Subject-Centric Perspective) */}
+        {perspective === 'subject' ? (
+          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-black text-slate-400 mr-1.5 flex items-center gap-1">
+                <Users size={14} />
+                ห้องที่สอน:
+              </span>
+
+              {classroomsWithSubject.map((c) => {
+                const count = students.filter((s) => s.classroom_id === c.id).length;
+                const isSelected = subjectSubView === 'grid' && classroomId === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-black transition ${
+                      isSelected
+                        ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                    }`}
+                    onClick={() => {
+                      setClassroomId(c.id);
+                      setSubjectSubView('grid');
+                    }}
+                    type="button"
+                  >
+                    <span>ห้อง {c.name}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      {count} คน
+                    </span>
+                  </button>
+                );
+              })}
+
+              {/* Cross-Classroom Comparison Tab Button */}
+              <button
+                className={`inline-flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-black transition ${
+                  subjectSubView === 'comparison'
+                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500'
+                    : 'bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                }`}
+                onClick={() => setSubjectSubView('comparison')}
+                type="button"
+              >
+                <BarChart3 size={14} />
+                เปรียบเทียบผลสัมฤทธิ์ ({classroomsWithSubject.length} ห้อง)
+              </button>
+            </div>
+
+            {/* Quick Link/Add another Classroom to this Subject */}
+            {availableClassroomsToAdd.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-400">สอนห้องอื่นด้วย:</span>
+                <select
+                  className="h-8 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-black text-slate-700 outline-none hover:bg-white focus:border-indigo-400"
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    if (!cid) return;
+                    setClassroomId(cid);
+                    setSubjectSubView('grid');
+                    setForm((cur) => ({
+                      ...cur,
+                      subjectName: subjectFilter,
+                      targetClassroomIds: [cid],
+                    }));
+                    setIsCreateModalOpen(true);
+                  }}
+                  value=""
+                >
+                  <option value="">+ เพิ่มห้องที่สอนวิชานี้...</option>
+                  {availableClassroomsToAdd.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      + ห้อง {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {/* Notice Banner */}
@@ -1656,12 +2158,194 @@ export function ScoresPage({ session }: ScoresPageProps) {
       ) : null}
 
       {/* 3. Main Views */}
+      {perspective === 'subject' && subjectSubView === 'comparison' ? (
+        <div className="mt-4 grid gap-4 animate-fade-in">
+          {/* Top KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between text-indigo-700">
+                <span className="text-xs font-black text-slate-500">ห้องเรียนที่สอน</span>
+                <Users size={16} />
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">
+                {overallSubjectStats.classroomCount} <span className="text-xs font-bold text-slate-500">ห้อง</span>
+              </p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">วิชา {subjectFilter}</p>
+            </div>
 
-      {/* 3A: EXCEL GRID VIEW (All assessments in one spreadsheet) */}
-      {scoreView === 'excel' ? (
-        <div className="mt-4 grid gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between text-cyan-700">
+                <span className="text-xs font-black text-slate-500">นักเรียนทั้งหมด</span>
+                <GraduationCap size={16} />
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">
+                {overallSubjectStats.totalStudents} <span className="text-xs font-bold text-slate-500">คน</span>
+              </p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">รวมทุกห้องที่สอนวิชานี้</p>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between text-emerald-700">
+                <span className="text-xs font-black text-slate-500">คะแนนเฉลี่ยรวม</span>
+                <Award size={16} />
+              </div>
+              <p className="mt-2 text-2xl font-black text-emerald-600">{overallSubjectStats.avgPercent.toFixed(1)}%</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">
+                เกรดเฉลี่ยกลุ่ม: {getThaiGrade(overallSubjectStats.avgPercent).grade}
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between text-blue-700">
+                <span className="text-xs font-black text-slate-500">อัตราผ่านเกณฑ์</span>
+                <CheckCircle2 size={16} />
+              </div>
+              <p className="mt-2 text-2xl font-black text-blue-600">{overallSubjectStats.overallPassingRate}%</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">ได้คะแนน &ge; 50%</p>
+            </div>
+
+            <div className="col-span-2 lg:col-span-1 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between text-amber-700">
+                <span className="text-xs font-black text-slate-500">อัตราส่งงานครบ</span>
+                <ClipboardList size={16} />
+              </div>
+              <p className="mt-2 text-2xl font-black text-amber-600">{overallSubjectStats.avgCompletion}%</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">{overallSubjectStats.totalAssessments} ชุดคะแนนรวม</p>
+            </div>
+          </div>
+
+          {/* Comparative Table */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-black text-indigo-900">
+                    <BarChart3 size={13} aria-hidden="true" />
+                    แดชบอร์ดเปรียบเทียบผลสัมฤทธิ์รายห้อง
+                  </span>
+                  <span className="text-xs font-bold text-slate-500">วิชา {subjectFilter}</span>
+                </div>
+                <h2 className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
+                  สถิติผลสัมฤทธิ์ทางการเรียนและการส่งงาน ({crossClassroomStats.length} ห้องเรียน)
+                </h2>
+                <p className="text-xs font-bold text-slate-500">
+                  เปรียบเทียบคะแนนเฉลี่ย อัตราผ่านเกณฑ์ และการกระจายของเกรดระหว่างห้องเรียนในวิชาเดียวกัน
+                </p>
+              </div>
+
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white hover:bg-indigo-700 transition self-start sm:self-auto shadow-sm"
+                onClick={() => {
+                  setCloneSourceClassroomId(classroomsWithSubject[0]?.id || '');
+                  const otherIds = classrooms.filter((c) => c.id !== classroomsWithSubject[0]?.id).map((c) => c.id);
+                  setCloneTargetClassroomIds(otherIds);
+                  setIsCloneModalOpen(true);
+                }}
+                type="button"
+              >
+                <Copy size={14} aria-hidden="true" />
+                คัดลอกเกณฑ์ไปห้องอื่น
+              </button>
+            </div>
+
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-black">
+                    <th className="px-4 py-3 border-b border-slate-200">ห้องเรียน</th>
+                    <th className="px-3 py-3 border-b border-slate-200 text-center">นักเรียน</th>
+                    <th className="px-3 py-3 border-b border-slate-200 text-center">ชุดคะแนน</th>
+                    <th className="px-3 py-3 border-b border-slate-200 text-center">ส่งงานครบ (%)</th>
+                    <th className="px-3 py-3 border-b border-slate-200 text-center">คะแนนเฉลี่ย (%)</th>
+                    <th className="px-3 py-3 border-b border-slate-200 text-center">ผ่านเกณฑ์</th>
+                    <th className="px-4 py-3 border-b border-slate-200 min-w-[180px]">การกระจายเกรด (4 / 3 / 2 / 1 / 0)</th>
+                    <th className="px-4 py-3 border-b border-slate-200 text-right">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {crossClassroomStats.map((row) => (
+                    <tr key={row.classroom.id} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3.5 font-black text-slate-900">
+                        <div className="flex items-center gap-2">
+                          <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-700 text-xs font-black">
+                            {row.classroom.name.slice(0, 4)}
+                          </span>
+                          <div>
+                            <p className="font-black text-slate-900">{row.classroom.name}</p>
+                            <p className="text-[10px] text-slate-400 font-normal">ปี {row.classroom.academic_year || '2569'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.studentCount} คน</td>
+                      <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.assessmentCount} ชุด</td>
+                      <td className="px-3 py-3.5 text-center">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-black ${
+                            row.completionPercent >= 80 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {row.completionPercent}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-3.5 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="font-black text-slate-900 text-sm">{row.averagePercent.toFixed(1)}%</span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            เกรด {getThaiGrade(row.averagePercent).grade}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 text-center">
+                        <span className="font-black text-slate-800">{row.passingRate}%</span>
+                        <span className="text-[10px] text-slate-400 block">
+                          ({row.passingCount}/{row.studentCount})
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1 text-[10px] font-mono">
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800 font-bold" title="เกรด 4">
+                            4: {row.gradeCounts.g4}
+                          </span>
+                          <span className="rounded bg-teal-100 px-1.5 py-0.5 text-teal-800 font-bold" title="เกรด 3 หรือ 3.5">
+                            3: {row.gradeCounts.g3}
+                          </span>
+                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-800 font-bold" title="เกรด 2 หรือ 2.5">
+                            2: {row.gradeCounts.g2}
+                          </span>
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 font-bold" title="เกรด 1 หรือ 1.5">
+                            1: {row.gradeCounts.g1}
+                          </span>
+                          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-rose-800 font-bold" title="เกรด 0">
+                            0: {row.gradeCounts.g0}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition border border-cyan-200"
+                          onClick={() => {
+                            setClassroomId(row.classroom.id);
+                            setSubjectSubView('grid');
+                          }}
+                          type="button"
+                        >
+                          📝 เข้ากรอกคะแนน
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* 3A: EXCEL GRID VIEW (All assessments in one spreadsheet) */}
+          {scoreView === 'excel' ? (
+            <div className="mt-4 grid gap-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-black text-emerald-800">
@@ -2452,6 +3136,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
           </div>
         </div>
       ) : null}
+        </>
+      )}
 
       {/* 4. Sticky Floating Save Bar (Triggered when there are unsaved edits in Entry or Excel Grid) */}
       {scoreView === 'excel' && unsavedGridCount > 0 ? (
@@ -2484,6 +3170,21 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <Save size={14} aria-hidden="true" />
               {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกตารางคะแนนทั้งหมด'}
             </button>
+            {nextClassroom ? (
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-md hover:bg-indigo-500 transition disabled:opacity-50"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  await handleSaveGridScores();
+                  setClassroomId(nextClassroom.id);
+                }}
+                title={`บันทึกคะแนนห้องนี้แล้วสลับไปกรอกคะแนนห้อง ${nextClassroom.name} ทันที`}
+                type="button"
+              >
+                บันทึกแล้วไป {nextClassroom.name}
+                <ArrowRight size={14} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -2518,6 +3219,21 @@ export function ScoresPage({ session }: ScoresPageProps) {
               <Save size={14} aria-hidden="true" />
               {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกคะแนนทั้งหมด'}
             </button>
+            {nextClassroom ? (
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-md hover:bg-indigo-500 transition disabled:opacity-50"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  await handleSaveScores();
+                  setClassroomId(nextClassroom.id);
+                }}
+                title={`บันทึกคะแนนห้องนี้แล้วสลับไปกรอกคะแนนห้อง ${nextClassroom.name} ทันที`}
+                type="button"
+              >
+                บันทึกแล้วไป {nextClassroom.name}
+                <ArrowRight size={14} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -2586,47 +3302,76 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
             {/* Form */}
             <form className="mt-4 grid gap-3" onSubmit={(event) => void handleCreateAssessment(event)}>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black text-slate-600">ห้องเรียน</span>
-                  <select
-                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
-                    onChange={(event) => setClassroomId(event.target.value)}
-                    value={classroomId}
-                  >
-                    {teacherScope.hasHomeroom ? (
-                      <>
-                        <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
-                          {teacherScope.homeroomClassrooms.map((classroom) => (
-                            <option key={classroom.id} value={classroom.id}>
-                              {classroom.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                        {teacherScope.otherClassrooms.length > 0 && (
-                          <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
-                            {teacherScope.otherClassrooms.map((classroom) => (
-                              <option key={classroom.id} value={classroom.id}>
-                                {classroom.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
-                    ) : (
-                      classrooms.map((classroom) => (
-                        <option key={classroom.id} value={classroom.id}>
-                          {classroom.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
+              {/* Target Classrooms Selection */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                    <Users size={14} className="text-indigo-600" />
+                    ใช้กับห้องเรียนใดบ้าง:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      className="text-[11px] font-bold text-indigo-700 hover:underline"
+                      onClick={() => setForm((c) => ({ ...c, targetClassroomIds: classrooms.map((cl) => cl.id) }))}
+                    >
+                      เลือกทุกห้อง
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      className="text-[11px] font-bold text-slate-500 hover:underline"
+                      onClick={() => setForm((c) => ({ ...c, targetClassroomIds: [classroomId] }))}
+                    >
+                      เฉพาะห้องปัจจุบัน
+                    </button>
+                  </div>
+                </div>
 
+                <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {classrooms.map((c) => {
+                    const isChecked =
+                      form.targetClassroomIds.length === 0
+                        ? c.id === classroomId
+                        : form.targetClassroomIds.includes(c.id);
+                    return (
+                      <label
+                        key={c.id}
+                        className={`flex items-center gap-2 rounded-xl p-2 text-xs font-bold border transition cursor-pointer ${
+                          isChecked
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-black ring-1 ring-indigo-200'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentList =
+                              form.targetClassroomIds.length === 0 ? [classroomId] : form.targetClassroomIds;
+                            if (e.target.checked) {
+                              setForm((cur) => ({ ...cur, targetClassroomIds: [...currentList, c.id] }));
+                            } else {
+                              setForm((cur) => ({
+                                ...cur,
+                                targetClassroomIds: currentList.filter((id) => id !== c.id),
+                              }));
+                            }
+                          }}
+                        />
+                        <span className="truncate">{c.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
                 <label className="block">
-                  <span className="text-xs font-black text-slate-600">วิชา</span>
+                  <span className="text-xs font-black text-slate-600">รายวิชา</span>
                   <input
-                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
+                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold w-full"
                     list="score-subject-options-modal"
                     onChange={(event) => {
                       setForm((current) => ({ ...current, subjectName: event.target.value }));
@@ -2722,6 +3467,171 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 5.5 Clone Score Structure Modal Dialog */}
+      {isCloneModalOpen ? (
+        <div
+          aria-labelledby="modal-clone-score-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
+          role="dialog"
+        >
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+                  <Copy size={20} aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900" id="modal-clone-score-title">
+                    คัดลอกโครงสร้างคะแนนไปห้องอื่น
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    วิชา: <span className="font-bold text-cyan-700">{subjectFilter || 'ไม่ระบุ'}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                aria-label="ปิดหน้าต่างคัดลอกเกณฑ์คะแนน"
+                className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setIsCloneModalOpen(false)}
+                type="button"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
+                <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="clone-source-select">
+                  1. เลือกห้องต้นแบบ (คัดลอกรายการคะแนนจากห้องนี้)
+                </label>
+                <select
+                  id="clone-source-select"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-cyan-500 focus:outline-hidden"
+                  value={cloneSourceClassroomId}
+                  onChange={(e) => setCloneSourceClassroomId(e.target.value)}
+                >
+                  <option value="">-- กรุณาเลือกห้องต้นแบบ --</option>
+                  {classrooms.map((c) => {
+                    const count = assessments.filter(
+                      (a) =>
+                        a.classroom_id === c.id &&
+                        a.status !== 'archived' &&
+                        a.subject_name.trim().toLowerCase() === (subjectFilter || '').trim().toLowerCase(),
+                    ).length;
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({count} ชุดคะแนน)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">
+                    2. เลือกห้องปลายทาง (ที่จะรับชุดคะแนนนี้)
+                  </label>
+                  <div className="flex gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      className="text-cyan-700 font-bold hover:underline"
+                      onClick={() =>
+                        setCloneTargetClassroomIds(
+                          classrooms.filter((c) => c.id !== cloneSourceClassroomId).map((c) => c.id),
+                        )
+                      }
+                    >
+                      เลือกทั้งหมด
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      className="text-slate-500 hover:underline"
+                      onClick={() => setCloneTargetClassroomIds([])}
+                    >
+                      ล้างการเลือก
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-2xl border border-slate-200 p-2.5 bg-white">
+                  {classrooms
+                    .filter((c) => c.id !== cloneSourceClassroomId)
+                    .map((c) => {
+                      const isSelected = cloneTargetClassroomIds.includes(c.id);
+                      const existingCount = assessments.filter(
+                        (a) =>
+                          a.classroom_id === c.id &&
+                          a.status !== 'archived' &&
+                          a.subject_name.trim().toLowerCase() === (subjectFilter || '').trim().toLowerCase(),
+                      ).length;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setCloneTargetClassroomIds((prev) =>
+                              prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id],
+                            );
+                          }}
+                          className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs transition text-left ${
+                            isSelected
+                              ? 'bg-cyan-50/80 text-cyan-900 border border-cyan-200'
+                              : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isSelected ? (
+                              <CheckSquare size={16} className="text-cyan-600" />
+                            ) : (
+                              <Square size={16} className="text-slate-400" />
+                            )}
+                            <span className="font-bold">{c.name}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">
+                            {existingCount > 0 ? `มีอยู่แล้ว ${existingCount} รายการ` : 'ยังไม่มีชุดคะแนน'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  {classrooms.filter((c) => c.id !== cloneSourceClassroomId).length === 0 ? (
+                    <p className="text-xs text-center text-slate-400 py-3">ไม่มีห้องปลายทางอื่น</p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 rounded-2xl bg-amber-50 p-3 text-amber-800 text-[11px] border border-amber-200">
+                <Info size={16} className="shrink-0 mt-0.5 text-amber-600" />
+                <p>
+                  ระบบจะคัดลอกเฉพาะชุดคะแนนที่ยังไม่มีอยู่ในห้องปลายทาง โดยอิงตามชื่อชุดคะแนน (ป้องกันการเกิดชุดคะแนนซ้ำซ้อน)
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                className="rounded-2xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+                onClick={() => setIsCloneModalOpen(false)}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={!cloneSourceClassroomId || cloneTargetClassroomIds.length === 0 || isSubmitting}
+                className="inline-flex items-center gap-1.5 rounded-2xl bg-cyan-600 px-5 py-2.5 text-xs font-black text-white shadow-sm hover:bg-cyan-700 transition disabled:opacity-50"
+                onClick={() => void handleCloneStructure()}
+              >
+                <Copy size={14} aria-hidden="true" />
+                {isSubmitting ? 'กำลังคัดลอก...' : `คัดลอกไปยัง ${cloneTargetClassroomIds.length} ห้อง`}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
