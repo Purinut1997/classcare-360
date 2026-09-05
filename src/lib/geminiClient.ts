@@ -113,7 +113,9 @@ export async function callGeminiApi(
     liveSchoolContext?: string;
   }
 ): Promise<string> {
-  const initialModel = model === 'auto' ? 'gemini-1.5-flash' : model;
+  // Auto Model Candidate Hierarchy (Smartest -> Fastest -> Highest Quota)
+  const autoHierarchy = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const initialModel = model === 'auto' ? autoHierarchy[0] : model;
   let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${initialModel}:generateContent?key=${apiKey}`;
 
   // Build context prefix
@@ -156,8 +158,12 @@ export async function callGeminiApi(
 
   // Auto-fallback if the selected model returns 404, 400 (e.g. model discontinued), or 429 (quota exceeded)
   if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
-    // Sequentially try high-quota stable models
-    const fallbackCandidates = ['gemini-1.5-flash', 'gemini-2.0-flash'].filter((m) => m !== initialModel);
+    const fallbackCandidates = (
+      model === 'auto'
+        ? autoHierarchy
+        : ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash']
+    ).filter((m) => m !== initialModel);
+
     for (const fallbackModel of fallbackCandidates) {
       const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
       const fallbackRes = await fetch(fallbackEndpoint, {
