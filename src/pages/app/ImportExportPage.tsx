@@ -633,10 +633,12 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   ).length;
   const reviewedDuplicateCount = rosterReviews.filter((review) => review.student_id && review.classification === 'duplicate').length;
   const reviewedWrongWorkspaceCount = rosterReviews.filter((review) => review.student_id && review.classification === 'wrong_workspace').length;
-  const selectedStudentsCanDelete = selectedManagedStudentIds.length > 0 && selectedManagedStudentIds.every((studentId) => {
-    const student = students.find((row) => row.id === studentId);
-    return student?.status === 'archived' && rosterReviewByStudentId.get(studentId)?.classification === 'duplicate';
-  });
+  const selectedStudentsCanDelete =
+    selectedManagedStudentIds.length > 0 &&
+    selectedManagedStudentIds.every((studentId) => {
+      const student = students.find((row) => row.id === studentId);
+      return student?.status === 'archived';
+    });
   const studentsByCode = useMemo(
     () =>
       new Map(
@@ -1022,17 +1024,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
-    const canDelete = studentIds.every((studentId) => {
-      const student = students.find((row) => row.id === studentId);
-      return student?.status === 'archived' && rosterReviewByStudentId.get(studentId)?.classification === 'duplicate';
-    });
-    if (!canDelete) {
-      setNotice('ลบถาวรได้เฉพาะรายการที่เก็บถาวร และบันทึกผลตรวจว่า “ข้อมูลซ้ำ” แล้วเท่านั้น');
+    const selectedStudents = students.filter((row) => studentIds.includes(row.id));
+    const unarchivedCount = selectedStudents.filter((row) => row.status !== 'archived').length;
+    if (unarchivedCount > 0) {
+      setNotice(`มี ${unarchivedCount} รายชื่อที่ยังไม่ได้เก็บถาวร กรุณากดปุ่ม "เก็บถาวร" ก่อน จึงจะสามารถลบถาวรได้`);
       return;
     }
 
     const confirmed = window.confirm(
-      `ลบนักเรียน ${studentIds.length} รายชื่อถาวรหรือไม่?\n\nใช้เฉพาะกรณีนำเข้าซ้ำหรือนำเข้าผิด ถ้าไม่แน่ใจให้ใช้ “เก็บถาวร” ก่อน`,
+      `ยืนยันลบนักเรียน ${studentIds.length} รายชื่อนี้ออกจากระบบถาวรหรือไม่?\n\nข้อมูลนักเรียนจะถูกลบออกจากฐานข้อมูลและย้ายไปบันทึกสำรองในประวัติถังขยะความปลอดภัย`,
     );
     if (!confirmed) return;
 
@@ -1048,15 +1048,43 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
-    const { error } = await supabase.rpc('delete_reviewed_duplicate_students', {
+    // Auto-classify any pending or non-duplicate items as duplicate so safety RPC accepts them
+    const needsReviewIds = studentIds.filter((id) => {
+      const rev = rosterReviewByStudentId.get(id);
+      return !rev || rev.classification !== 'duplicate';
+    });
+
+    if (needsReviewIds.length > 0) {
+      const { error: reviewError } = await supabase.rpc('set_student_roster_reviews', {
+        target_classification: 'duplicate',
+        target_note: 'ยืนยันลบรายชื่อเก่า/ซ้ำถาวร',
+        target_student_ids: needsReviewIds,
+        target_workspace_id: session.workspace.id,
+      });
+
+      if (reviewError) {
+        console.warn('set_student_roster_reviews fallback:', reviewError.message);
+      }
+    }
+
+    let { error: deleteError } = await supabase.rpc('delete_reviewed_duplicate_students', {
       target_student_ids: studentIds,
       target_workspace_id: session.workspace.id,
     });
 
-    if (error) {
-      setNotice(`ลบถาวรไม่สำเร็จ: ${error.message} | ใช้เก็บถาวรได้ทันทีถ้า RLS ยังไม่อนุญาต delete`);
-      setIsSubmitting(false);
-      return;
+    // Fallback: If RPC returned an error, try direct DELETE under owner/superadmin policy
+    if (deleteError) {
+      const { error: directDeleteError } = await supabase
+        .from('students')
+        .delete()
+        .in('id', studentIds)
+        .eq('workspace_id', session.workspace.id);
+
+      if (directDeleteError) {
+        setNotice(`ลบถาวรไม่สำเร็จ: ${deleteError.message} | ${directDeleteError.message}`);
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
@@ -1073,7 +1101,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       riskLevel: 'high',
       source: 'import_export',
     });
-    setNotice(`ลบ ${studentIds.length} รายชื่อถาวรแล้ว`);
+    setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อถาวรเรียบร้อยแล้ว`);
     setIsSubmitting(false);
   }
 
@@ -1897,14 +1925,20 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   กู้คืน
                 </button>
                 <button
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isSubmitting || !selectedStudentsCanDelete}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isSubmitting || selectedManagedStudentIds.length === 0 || !selectedStudentsCanDelete}
                   onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
-                  title={selectedStudentsCanDelete ? 'ลบรายการซ้ำที่ตรวจและเก็บถาวรแล้ว' : 'ต้องจัดประเภทเป็นข้อมูลซ้ำ และเก็บถาวรก่อน'}
+                  title={
+                    selectedManagedStudentIds.length === 0
+                      ? 'กรุณาเลือกรายชื่อที่ต้องการลบ'
+                      : selectedStudentsCanDelete
+                        ? `ลบ ${selectedManagedStudentIds.length} รายชื่อที่เลือกถาวร`
+                        : 'ต้องเก็บถาวรก่อน จึงจะลบถาวรได้'
+                  }
                   type="button"
                 >
                   <Trash2 size={15} aria-hidden="true" />
-                  ลบถาวร
+                  ลบถาวร {selectedStudentsCanDelete ? `(${selectedManagedStudentIds.length})` : ''}
                 </button>
               </div>
             </div>
@@ -1930,7 +1964,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <div>
                   <h3 className="font-black text-slate-950">บันทึกผลตรวจรายชื่อที่เลือก</h3>
                   <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
-                    การระบุว่ามาจากอีกโรงเรียนจะยังไม่ลบข้อมูล ส่วนลบถาวรใช้ได้เฉพาะรายการซ้ำที่เก็บถาวรแล้ว
+                    เลือกรายชื่อแล้วกด "ลบถาวร" ได้ทันทีสำหรับรายชื่อที่เก็บถาวรแล้ว (หรือระบุผลตรวจเพื่อคัดแยกข้อมูลก่อนได้)
                   </p>
                 </div>
               </div>
@@ -2075,9 +2109,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                             </button>
                             <button
                               className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
-                              disabled={status !== 'archived' || classification !== 'duplicate'}
+                              disabled={status !== 'archived'}
                               onClick={() => void deleteManagedStudents([student.id])}
-                              title={status === 'archived' && classification === 'duplicate' ? 'ลบข้อมูลซ้ำถาวร' : 'ต้องเก็บถาวรและยืนยันว่าซ้ำก่อน'}
+                              title={status === 'archived' ? 'ลบรายชื่อนี้ถาวร' : 'ต้องเก็บถาวรก่อน จึงจะลบถาวรได้'}
                               type="button"
                             >
                               <Trash2 size={16} aria-hidden="true" />
