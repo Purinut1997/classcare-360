@@ -20,6 +20,7 @@ import {
 } from 'react';
 
 import { NexusAuroraVisual } from './NexusAuroraLoader';
+import { translateDatabaseError } from '../../lib/errorTranslator';
 
 type FeedbackTone = 'success' | 'error' | 'warning' | 'info';
 
@@ -159,6 +160,17 @@ export function installSystemNetworkFeedback() {
     try {
       const response = await originalFetch(input, init);
       if (isMutation) {
+        let statusText = response.statusText;
+        if (!response.ok) {
+          try {
+            const clone = response.clone();
+            const json = await clone.json();
+            const raw = json?.message || json?.error_description || json?.details || json?.hint || response.statusText;
+            statusText = translateDatabaseError(raw);
+          } catch {
+            statusText = translateDatabaseError(response.statusText);
+          }
+        }
         window.dispatchEvent(new CustomEvent<NetworkFeedbackDetail>('classcare:network-end', {
           detail: {
             action,
@@ -168,13 +180,14 @@ export function installSystemNetworkFeedback() {
             method,
             ok: response.ok,
             status: response.status,
-            statusText: response.statusText,
+            statusText,
           },
         }));
       }
       return response;
     } catch (error) {
       if (isMutation) {
+        const errorMsg = error instanceof Error ? error.message : 'Network error';
         window.dispatchEvent(new CustomEvent<NetworkFeedbackDetail>('classcare:network-end', {
           detail: {
             action,
@@ -183,7 +196,7 @@ export function installSystemNetworkFeedback() {
             id,
             method,
             ok: false,
-            statusText: error instanceof Error ? error.message : 'Network error',
+            statusText: translateDatabaseError(errorMsg),
           },
         }));
       }

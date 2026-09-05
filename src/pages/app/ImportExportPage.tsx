@@ -1,9 +1,10 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, FileUp, Filter, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Building2, CheckCircle2, ClipboardCheck, Download, FileUp, Filter, Info, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, Users, X } from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
+import { translateDatabaseError } from '../../lib/errorTranslator';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -572,6 +573,14 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [reviewClassification, setReviewClassification] = useState<RosterReviewClassification>('belongs_here');
   const [reviewNote, setReviewNote] = useState('');
   const [activeMainTab, setActiveMainTab] = useState<'import' | 'roster' | 'export_backup'>('import');
+  const [targetClassroomMode, setTargetClassroomMode] = useState<'current_workspace' | 'from_file'>('current_workspace');
+  const [nameMismatchModalOpen, setNameMismatchModalOpen] = useState(false);
+  const [pendingNameMismatches, setPendingNameMismatches] = useState<Array<{
+    studentCode: string;
+    existingName: string;
+    newName: string;
+    existingStatus: string;
+  }>>([]);
 
   const classroomNameById = useMemo(
     () => Object.fromEntries(classrooms.map((classroom) => [classroom.id, classroom.name])),
@@ -1070,66 +1079,128 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
-    // Auto-classify any pending or non-duplicate items as duplicate so safety RPC accepts them
-    const needsReviewIds = studentIds.filter((id) => {
-      const rev = rosterReviewByStudentId.get(id);
-      return !rev || rev.classification !== 'duplicate';
-    });
+    try {
+      // Step 1: Cascade delete child records in student_guardians first to prevent foreign key error 400
+      try {
+        await supabase
+          .from('student_guardians')
+          .delete()
+          .in('student_id', studentIds)
+          .eq('workspace_id', session.workspace.id);
+      } catch (e) {
+        console.warn('student_guardians cleanup warning:', e);
+      }
 
-    if (needsReviewIds.length > 0) {
-      const { error: reviewError } = await supabase.rpc('set_student_roster_reviews', {
-        target_classification: 'duplicate',
-        target_note: 'ยืนยันลบรายชื่อเก่า/ซ้ำถาวร',
-        target_student_ids: needsReviewIds,
+      // Step 2: Cascade delete roster reviews
+      try {
+        await supabase
+          .from('student_roster_reviews')
+          .delete()
+          .in('student_id', studentIds)
+          .eq('workspace_id', session.workspace.id);
+      } catch (e) {
+        console.warn('student_roster_reviews cleanup warning:', e);
+      }
+
+      // Auto-classify any pending or non-duplicate items as duplicate so safety RPC accepts them
+      const needsReviewIds = studentIds.filter((id) => {
+        const rev = rosterReviewByStudentId.get(id);
+        return !rev || rev.classification !== 'duplicate';
+      });
+
+      if (needsReviewIds.length > 0) {
+        await supabase.rpc('set_student_roster_reviews', {
+          target_classification: 'duplicate',
+          target_note: 'ยืนยันลบรายชื่อเก่า/ซ้ำถาวร',
+          target_student_ids: needsReviewIds,
+          target_workspace_id: session.workspace.id,
+        });
+      }
+
+      const { error: deleteError } = await supabase.rpc('delete_reviewed_duplicate_students', {
+        target_student_ids: studentIds,
         target_workspace_id: session.workspace.id,
       });
 
-      if (reviewError) {
-        console.warn('set_student_roster_reviews fallback:', reviewError.message);
+      // Fallback: If RPC returned an error, try direct DELETE under owner/superadmin policy
+      if (deleteError) {
+        const { error: directDeleteError } = await supabase
+          .from('students')
+          .delete()
+          .in('id', studentIds)
+          .eq('workspace_id', session.workspace.id);
+
+        if (directDeleteError) {
+          throw new Error(directDeleteError.message || deleteError.message);
+        }
       }
+
+      setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
+      setRosterReviews((current) => current.filter((review) => !review.student_id || !studentIds.includes(review.student_id)));
+      setSelectedManagedStudentIds([]);
+      await writeAuditLog(session, {
+        action: 'import_job.students_deleted',
+        entityId: session.workspace.id,
+        entityTable: 'students',
+        metadata: {
+          count: studentIds.length,
+          student_ids: studentIds,
+        },
+        riskLevel: 'high',
+        source: 'import_export',
+      });
+      setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อถาวรเรียบร้อยแล้ว`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'ลบถาวรไม่สำเร็จ';
+      setNotice(translateDatabaseError(msg));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    let { error: deleteError } = await supabase.rpc('delete_reviewed_duplicate_students', {
-      target_student_ids: studentIds,
-      target_workspace_id: session.workspace.id,
-    });
-
-    // Fallback: If RPC returned an error, try direct DELETE under owner/superadmin policy
-    if (deleteError) {
-      const { error: directDeleteError } = await supabase
-        .from('students')
-        .delete()
-        .in('id', studentIds)
-        .eq('workspace_id', session.workspace.id);
-
-      if (directDeleteError) {
-        setNotice(`ลบถาวรไม่สำเร็จ: ${deleteError.message} | ${directDeleteError.message}`);
-        setIsSubmitting(false);
-        return;
-      }
-    }
-
-    setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
-    setRosterReviews((current) => current.filter((review) => !review.student_id || !studentIds.includes(review.student_id)));
-    setSelectedManagedStudentIds([]);
-    await writeAuditLog(session, {
-      action: 'import_job.students_deleted',
-      entityId: session.workspace.id,
-      entityTable: 'students',
-      metadata: {
-        count: studentIds.length,
-        student_ids: studentIds,
-      },
-      riskLevel: 'high',
-      source: 'import_export',
-    });
-    setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อถาวรเรียบร้อยแล้ว`);
-    setIsSubmitting(false);
   }
 
-  async function importValidRows() {
+  function requestImport() {
+    if (validPreviewRows.length === 0) {
+      setNotice('ไม่มีแถวที่พร้อม import กรุณาตรวจสอบไฟล์ก่อน');
+      return;
+    }
+
+    // Check for students with matching code but changed names
+    const mismatches: Array<{
+      studentCode: string;
+      existingName: string;
+      newName: string;
+      existingStatus: string;
+    }> = [];
+
+    for (const row of validPreviewRows) {
+      if (row.studentCode && studentsByCode.has(row.studentCode)) {
+        const existing = studentsByCode.get(row.studentCode)!;
+        const existingName = `${existing.first_name || ''} ${existing.last_name || ''}`.trim();
+        const newName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+        if (existingName && newName && existingName !== newName) {
+          mismatches.push({
+            studentCode: row.studentCode,
+            existingName,
+            newName,
+            existingStatus: existing.status || 'active',
+          });
+        }
+      }
+    }
+
+    if (mismatches.length > 0) {
+      setPendingNameMismatches(mismatches);
+      setNameMismatchModalOpen(true);
+      return;
+    }
+
+    void executeImport('update_name');
+  }
+
+  async function executeImport(nameAction: 'update_name' | 'keep_name' = 'update_name') {
     setIsSubmitting(true);
     setNotice(null);
+    setNameMismatchModalOpen(false);
 
     if (validPreviewRows.length === 0) {
       setNotice('ไม่มีแถวที่พร้อม import');
@@ -1137,17 +1208,24 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
+    const targetClassroomName = targetClassroomMode === 'current_workspace'
+      ? (session.workspace?.classroomName || classrooms[0]?.name || 'ห้องหลัก')
+      : null;
+
     const newActiveStudents = validPreviewRows.filter((row) => !row.studentCode || !studentsByCode.has(row.studentCode)).length;
-    const requestedClassroomNames = new Set(validPreviewRows.map((row) => row.classroomName.trim()).filter(Boolean));
+    const requestedClassroomNames = targetClassroomMode === 'current_workspace'
+      ? new Set([targetClassroomName!])
+      : new Set(validPreviewRows.map((row) => row.classroomName.trim()).filter(Boolean));
     const existingClassroomNames = new Set(classrooms.filter((classroom) => classroom.status === 'active').map((classroom) => classroom.name));
     const newActiveClassrooms = [...requestedClassroomNames].filter((name) => !existingClassroomNames.has(name)).length;
+
     if (activeStudentCount + newActiveStudents > workspaceLimits.activeStudents) {
-      setNotice(`นำเข้าไม่ได้: จะมีนักเรียน active ${activeStudentCount + newActiveStudents} คน แต่แพ็กเกจ ${planLabels[effectivePlanCode]} รองรับ ${workspaceLimits.activeStudents} คน`);
+      setNotice(`นำเข้าไม่ได้: จะมีนักเรียน active ${activeStudentCount + newActiveStudents} คน แต่แพ็กเกจ ${planLabels[effectivePlanCode]} รองรับ ${workspaceLimits.activeStudents} คน (กรุณาเก็บถาวรหรือลบนักเรียนที่ไม่ใช้งานออกก่อน)`);
       setIsSubmitting(false);
       return;
     }
     if (activeClassroomCount + newActiveClassrooms > workspaceLimits.activeClassrooms) {
-      setNotice(`นำเข้าไม่ได้: ต้องสร้างห้องใหม่ ${newActiveClassrooms} ห้อง ซึ่งเกินโควตา ${workspaceLimits.activeClassrooms} ห้องของแพ็กเกจ ${planLabels[effectivePlanCode]}`);
+      setNotice(`นำเข้าไม่ได้: ต้องสร้างห้องใหม่ ${newActiveClassrooms} ห้อง ซึ่งเกินโควตา ${workspaceLimits.activeClassrooms} ห้องของแพ็กเกจ ${planLabels[effectivePlanCode]} (แนะนำให้เลือกตัวเลือก "นำเข้าเข้าห้องปัจจุบันทั้งหมด")`);
       setIsSubmitting(false);
       return;
     }
@@ -1156,8 +1234,19 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const rowsToInsert: StudentInsertRow[] = [];
 
       for (const row of validPreviewRows) {
-        const classroomId = await ensureClassroomByName(row.classroomName, row.dmcGrade);
+        const rowClassroomName = targetClassroomMode === 'current_workspace'
+          ? (session.workspace?.classroomName || classrooms[0]?.name || row.classroomName)
+          : row.classroomName;
+        const classroomId = await ensureClassroomByName(rowClassroomName, row.dmcGrade);
         const existingStudent = row.studentCode ? studentsByCode.get(row.studentCode) : null;
+
+        let firstName = row.firstName;
+        let lastName = row.lastName;
+        if (existingStudent && nameAction === 'keep_name') {
+          firstName = existingStudent.first_name;
+          lastName = existingStudent.last_name;
+        }
+
         rowsToInsert.push({
           birth_date: row.birthDate || null,
           care_flags: {
@@ -1165,21 +1254,22 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             ...(row.careFlags || {}),
           },
           classroom_id: classroomId,
-          first_name: row.firstName,
+          first_name: firstName,
           gender: row.gender || existingStudent?.gender || 'unspecified',
           health_flags: {
             ...(existingStudent?.health_flags || {}),
             ...(row.healthFlags || {}),
           },
-          last_name: row.lastName,
+          last_name: lastName,
           metadata: {
             ...(existingStudent?.metadata || {}),
             ...(row.metadata || {}),
             import_source: row.source || 'student_csv',
             last_imported_at: new Date().toISOString(),
+            reactivated_from_archive: existingStudent?.status === 'archived' ? true : undefined,
           },
           nickname: row.nickname || existingStudent?.nickname || null,
-          status: existingStudent?.status || 'active',
+          status: 'active', // Always reactivate to active!
           student_code: row.studentCode || null,
           workspace_id: session.workspace?.id || 'demo-workspace',
         });
@@ -1348,14 +1438,20 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         return [...importedStudents, ...current.filter((student) => !importedIds.has(student.id))];
       });
       setPreviewRows([]);
+
+      const reactivatedCount = rowsWithCode.filter((row) => {
+        const ex = studentsByCode.get(row.student_code || '');
+        return ex && ex.status === 'archived';
+      }).length;
       const updatedCount = rowsWithCode.filter((row) => studentsByCode.has(row.student_code || '')).length;
       const insertedCount = rowsToInsert.length - updatedCount;
-      setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน`);
+      const reactivatedMsg = reactivatedCount > 0 ? ` (ในนี้มี ${reactivatedCount} คนที่ฟื้นคืนชีพกลับมาจากหมวดเก็บถาวร)` : '';
+      setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน${reactivatedMsg}`);
     } catch (error) {
-      setNotice(error instanceof Error ? getWorkspaceLimitErrorMessage(error.message, effectivePlanCode) : 'import ไม่สำเร็จ');
+      setNotice(translateDatabaseError(error instanceof Error ? error.message : 'import ไม่สำเร็จ'));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   }
 
   async function importGuardianRows() {
@@ -1725,7 +1821,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <button
                   className="dark-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white"
                   disabled={isSubmitting || validPreviewRows.length === 0}
-                  onClick={() => void importValidRows()}
+                  onClick={requestImport}
                   type="button"
                 >
                   <Save size={17} aria-hidden="true" />
@@ -1947,13 +2043,64 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               <button
                 className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
                 disabled={isSubmitting || validPreviewRows.length === 0}
-                onClick={() => void importValidRows()}
+                onClick={requestImport}
                 type="button"
               >
                 <Upload size={17} aria-hidden="true" />
-                Import แถวที่ผ่าน
+                Import แถวที่ผ่าน (โหมดฟื้นคืนชีพ)
               </button>
             </div>
+
+            {/* Target Classroom & Reactivate Mode Banner */}
+            {previewRows.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-50/60 to-emerald-50/40 p-4 dark:border-cyan-500/20 dark:from-cyan-950/20 dark:to-emerald-950/20">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-black text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                        <Sparkles size={12} /> โหมดฟื้นคืนชีพและอัปเดต (Reactivate & Update)
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">กำหนดห้องเรียนเป้าหมาย</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-700 dark:text-slate-300 font-bold">
+                      หากมีรหัสตรงกับนักเรียนที่เคยถูกเก็บถาวร ระบบจะดึงกลับมาเป็น "กำลังเรียน (Active)" ให้ทันที
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                    <label className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
+                      targetClassroomMode === 'current_workspace'
+                        ? 'border-cyan-600 bg-white text-cyan-900 shadow-sm ring-1 ring-cyan-500/50 dark:border-cyan-400 dark:bg-slate-800 dark:text-cyan-200'
+                        : 'border-slate-200 bg-white/70 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="targetClassroomMode"
+                        checked={targetClassroomMode === 'current_workspace'}
+                        onChange={() => setTargetClassroomMode('current_workspace')}
+                        className="text-cyan-600"
+                      />
+                      <span>นำเข้าเข้าห้อง "{session.workspace?.classroomName || 'ห้องปัจจุบัน'}" ทั้งหมด (แนะนำ)</span>
+                    </label>
+
+                    <label className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
+                      targetClassroomMode === 'from_file'
+                        ? 'border-cyan-600 bg-white text-cyan-900 shadow-sm ring-1 ring-cyan-500/50 dark:border-cyan-400 dark:bg-slate-800 dark:text-cyan-200'
+                        : 'border-slate-200 bg-white/70 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="targetClassroomMode"
+                        checked={targetClassroomMode === 'from_file'}
+                        onChange={() => setTargetClassroomMode('from_file')}
+                        className="text-cyan-600"
+                      />
+                      <span>แยกตามห้องในไฟล์ DMC</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-100 text-left">
@@ -1979,7 +2126,22 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                             : row.nickname || 'ไม่มีชื่อเล่น'}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
+                        {targetClassroomMode === 'current_workspace' ? (
+                          <div>
+                            <span className="font-black text-cyan-700 dark:text-cyan-400">
+                              {session.workspace?.classroomName || 'ห้องปัจจุบัน'}
+                            </span>
+                            {row.classroomName && row.classroomName !== session.workspace?.classroomName && (
+                              <p className="text-[10px] text-slate-400">
+                                (ในไฟล์: {row.classroomName})
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          row.classroomName || '-'
+                        )}
+                      </td>
                       <td className="px-3 py-3">
                         {row.errors.length === 0 && row.warnings.length === 0 ? (
                           <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
@@ -2671,6 +2833,97 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           <p>{notice}</p>
         </div>
       ) : null}
+
+      {/* Name Mismatch Confirmation Modal */}
+      {nameMismatchModalOpen && (
+        <div
+          aria-labelledby="name-mismatch-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-sm"
+          role="dialog"
+        >
+          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-amber-500/40 bg-slate-900 text-slate-100 shadow-2xl shadow-amber-950/40 ring-1 ring-white/10">
+            {/* Header */}
+            <div className="border-b border-slate-800 bg-slate-950/80 px-6 py-5">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <AlertTriangle size={20} />
+                </span>
+                <div>
+                  <h3 id="name-mismatch-title" className="text-base font-black text-white sm:text-lg">
+                    ตรวจพบรหัสนักเรียนตรงกัน แต่ชื่อ-นามสกุลมีการเปลี่ยนแปลง ({pendingNameMismatches.length} คน)
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400">
+                    ระบบพบว่ารหัสประจำตัวนักเรียนตรงกับข้อมูลเดิมในโรงเรียน ซึ่งอาจเป็นคนเดียวกันที่มีการเปลี่ยนชื่อ หรือเป็นเด็กคนละคน กรุณาเลือกวิธีดำเนินการ:
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="scrollbar-thin flex-1 overflow-y-auto p-6">
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+                <table className="min-w-full divide-y divide-slate-800 text-left text-xs">
+                  <thead className="bg-slate-900/90 text-slate-400 font-bold uppercase">
+                    <tr>
+                      <th className="px-3 py-2.5">รหัส</th>
+                      <th className="px-3 py-2.5">ชื่อเดิมในระบบ</th>
+                      <th className="px-3 py-2.5">ชื่อใหม่ในไฟล์</th>
+                      <th className="px-3 py-2.5">สถานะเดิม</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-300">
+                    {pendingNameMismatches.map((m) => (
+                      <tr key={m.studentCode} className="hover:bg-slate-900/50">
+                        <td className="px-3 py-2.5 font-black text-cyan-400">{m.studentCode}</td>
+                        <td className="px-3 py-2.5 font-bold text-slate-400">{m.existingName}</td>
+                        <td className="px-3 py-2.5 font-black text-amber-300">{m.newName}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                            m.existingStatus === 'archived'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {m.existingStatus === 'archived' ? 'เก็บถาวร' : 'กำลังเรียน'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-slate-400">
+                💡 <span className="font-bold text-amber-400">คำแนะนำ:</span> หากเป็นคนเดียวกันที่มีการเปลี่ยนชื่อ-นามสกุลจริง ให้เลือก <strong>"อัปเดตเป็นชื่อใหม่"</strong> หรือหากต้องการคงชื่อเดิมไว้ในระบบ ให้เลือก <strong>"คงชื่อเดิมไว้"</strong> โดยทั้งสองตัวเลือกจะฟื้นคืนชีพสถานะกลับมาเป็น active ในห้องเรียนปัจจุบันให้อัตโนมัติ
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-800 bg-slate-950/80 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setNameMismatchModalOpen(false)}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-700"
+              >
+                ยกเลิกเพื่อตรวจไฟล์
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeImport('keep_name')}
+                className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-xs font-black text-sky-300 hover:bg-sky-500/25"
+              >
+                🛡️ คงชื่อเดิมไว้ (อัปเดตข้อมูลอื่น & ฟื้นคืนชีพ)
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeImport('update_name')}
+                className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-black text-white shadow-lg shadow-amber-500/25 hover:from-amber-400 hover:to-orange-400"
+              >
+                ✅ ยืนยันอัปเดตเป็นชื่อใหม่ทั้งหมด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">Created by MIKPURINUT</footer>
     </main>
