@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Building2, Menu, Moon, Sun } from 'lucide-react';
+import { Bell, Building2, Compass, Menu, Moon, Sun } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { withDemoContext } from '../../lib/auth';
@@ -82,11 +82,11 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, onThe
         <button
           type="button"
           onClick={onOpenGuide}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-black text-amber-700 transition-all hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-[1.02] dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300"
-          title="เปิดคู่มือแนะนำขั้นตอนการตั้งค่าระบบ (5 ขั้นตอน)"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-black text-cyan-700 transition-all hover:bg-cyan-500/20 hover:border-cyan-500/50 hover:scale-[1.02] dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-300"
+          title="เปิดตัวนำทางการใช้งานระบบ ClassCare 360 (5 ขั้นตอน)"
         >
-          <BookOpen size={15} className="text-amber-600 dark:text-amber-400" />
-          <span className="hidden sm:inline">คู่มือเริ่มต้นระบบ</span>
+          <Compass size={15} className="text-cyan-600 dark:text-cyan-400 animate-spin duration-3000" />
+          <span className="hidden sm:inline">ตัวนำทางการใช้งาน</span>
         </button>
       )}
 

@@ -6,19 +6,21 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  CircleHelp,
+  ChevronDown,
+  ChevronUp,
   Clock,
+  Compass,
   ExternalLink,
   Eye,
   FileSpreadsheet,
   GraduationCap,
-  HelpCircle,
   Layers,
   Lightbulb,
-  Lock,
+  Maximize2,
+  Minimize2,
+  Play,
   RotateCcw,
   School,
-  ShieldCheck,
   Sparkles,
   UserCheck,
   UserPlus,
@@ -138,7 +140,7 @@ export const SETUP_STEPS: SetupStep[] = [
       },
       {
         title: 'คัดกรองข้อมูลซ้ำซ้อนและยืนยันนำเข้า',
-        desc: 'ระบบช่วยเช็กเลขประจำตัวนักเรียนซ้ำ และสามารถเลือกลบหรือบันทึกเก็บถาวรรายชื่อเก่าได้',
+        desc: 'ระบบช่วยเช็กเลขประจำตัวนักเรียนซ้ำ และสามารถเลือกฟื้นฟูหรืออัปเดตข้อมูลได้อัตโนมัติ',
       },
     ],
     proTips: [
@@ -187,8 +189,8 @@ export const SETUP_STEPS: SetupStep[] = [
     icon: GraduationCap,
     estimatedTime: 'ใช้งานได้ทันที!',
     whyFirst: 'เมื่อเตรียมข้อมูลครบทั้ง 4 ขั้นตอนข้างต้นแล้ว โรงเรียนของคุณพร้อมใช้งานทุกฟังก์ชันได้อย่างสมบูรณ์แบบ 100%',
-    destinationView: '/app/dashboard',
-    destinationLabel: 'ไปหน้าภาพรวมระบบ (Dashboard)',
+    destinationView: '/app/dashboard?view=scores',
+    destinationLabel: 'ไปหน้าระบบบันทึกคะแนน',
     todoList: [
       {
         title: 'บันทึกการมาเรียนประจำวัน (Morning Routine)',
@@ -209,10 +211,12 @@ export const SETUP_STEPS: SetupStep[] = [
     ],
     proTips: [
       'ข้อมูลการเช็กชื่อและคะแนนจะถูกประมวลผลขึ้นกราฟสถิติ 360 องศาบนหน้าภาพรวมแบบ Realtime',
-      'หากมีข้อสงสัยหรือต้องการความช่วยเหลือ สามารถกดเปิด "คู่มือเริ่มต้นระบบ" ได้ตลอดเวลาจากแถบเมนูด้านบน',
+      'หากมีข้อสงสัยหรือต้องการความช่วยเหลือ สามารถกดเปิด "ตัวนำทางการใช้งาน" ได้ตลอดเวลาจากแถบเมนูด้านบน',
     ],
   },
 ];
+
+export type GuideDisplayMode = 'modal' | 'floating' | 'minimized';
 
 interface SetupGuideModalProps {
   isOpen: boolean;
@@ -226,6 +230,8 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
 
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'stepper' | 'roadmap'>('stepper');
+  const [displayMode, setDisplayMode] = useState<GuideDisplayMode>('modal');
+
   const [completedStepIds, setCompletedStepIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('classcare_setup_completed_steps');
@@ -252,6 +258,13 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
     }
   }, [completedStepIds]);
 
+  // If closed from parent, reset displayMode to modal on next open
+  useEffect(() => {
+    if (isOpen) {
+      setDisplayMode('modal');
+    }
+  }, [isOpen]);
+
   const toggleStepCompleted = (stepId: string) => {
     setCompletedStepIds((prev) =>
       prev.includes(stepId) ? prev.filter((id) => id !== stepId) : [...prev, stepId]
@@ -270,18 +283,287 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
     });
   };
 
+  // Helper to check if current browser URL matches the step's destination
+  const isCurrentStepPage = (destinationView: string) => {
+    const [destPath, destQuery] = destinationView.split('?');
+    if (location.pathname !== destPath) return false;
+    if (!destQuery) return true;
+    const currentParams = new URLSearchParams(location.search);
+    const targetParams = new URLSearchParams(destQuery);
+    for (const [key, value] of targetParams.entries()) {
+      if (currentParams.get(key) !== value) return false;
+    }
+    return true;
+  };
+
+  const handleStartFloatingTour = (stepIndex = activeStepIndex) => {
+    setActiveStepIndex(stepIndex);
+    setDisplayMode('floating');
+    const targetView = SETUP_STEPS[stepIndex].destinationView;
+    if (!isCurrentStepPage(targetView)) {
+      navigate(withDemoContext(targetView, location.search));
+    }
+  };
+
   const handleGoToStep = (destinationView: string) => {
-    onClose();
+    // Switch to floating assistant instead of disappearing
+    setDisplayMode('floating');
     navigate(withDemoContext(destinationView, location.search));
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && displayMode === 'modal') return null;
 
   const currentStep = SETUP_STEPS[activeStepIndex];
   const totalSteps = SETUP_STEPS.length;
   const completedCount = completedStepIds.length;
   const progressPercent = Math.round((completedCount / totalSteps) * 100);
+  const onTargetPage = isCurrentStepPage(currentStep.destinationView);
 
+  // 1. MINIMIZED FLOATING BADGE (TINY PILL IN CORNER)
+  if (displayMode === 'minimized') {
+    return (
+      <div className="fixed bottom-5 right-5 z-[100] animate-bounce">
+        <button
+          type="button"
+          onClick={() => setDisplayMode('floating')}
+          className="group flex items-center gap-2.5 rounded-full border border-cyan-500/50 bg-slate-900/95 px-4 py-2.5 text-xs font-bold text-slate-100 shadow-2xl shadow-cyan-500/30 backdrop-blur-xl ring-2 ring-cyan-500/20 transition-all hover:scale-105 hover:border-cyan-400"
+        >
+          <span className="relative flex h-3 w-3">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-500" />
+          </span>
+          <Compass size={16} className="text-cyan-400 animate-spin duration-3000" />
+          <span>ตัวนำทาง: ขั้นที่ {currentStep.stepNumber}/{totalSteps} ({progressPercent}%)</span>
+          <ChevronUp size={15} className="text-cyan-400 transition-transform group-hover:-translate-y-0.5" />
+        </button>
+      </div>
+    );
+  }
+
+  // 2. FLOATING TOUR NAVIGATOR (INTERACTIVE WALKTHROUGH WIDGET)
+  if (displayMode === 'floating') {
+    return (
+      <aside
+        aria-label="ตัวนำทางการใช้งานลอยบนหน้าจอ"
+        className="fixed bottom-4 right-4 z-[100] w-[calc(100vw-2rem)] max-w-md overflow-hidden rounded-2xl border border-cyan-500/40 bg-slate-900/95 text-slate-100 shadow-2xl shadow-cyan-950/60 backdrop-blur-xl ring-1 ring-white/10 transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
+      >
+        {/* Glow Header Ambient */}
+        <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-500/20 blur-2xl" />
+
+        {/* Floating Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/60 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+              <Compass size={15} className="animate-spin duration-3000" />
+            </span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-500/30">
+                  ตัวนำทางขั้นที่ {currentStep.stepNumber}/{totalSteps}
+                </span>
+                <span className="text-[11px] font-medium text-slate-400">({progressPercent}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setDisplayMode('minimized')}
+              title="ย่อขนาดเป็นปุ่มลอย"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            >
+              <ChevronDown size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayMode('modal')}
+              title="ขยายเป็นหน้าต่างคู่มือฉบับเต็ม"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            >
+              <Maximize2 size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDisplayMode('modal');
+                onClose();
+              }}
+              title="ปิดตัวนำทาง"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-500/20 hover:text-rose-300"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Step Progress Dots */}
+        <div className="flex items-center gap-1.5 bg-slate-950/40 px-4 py-1.5 border-b border-slate-800/80">
+          {SETUP_STEPS.map((s, idx) => {
+            const isDone = completedStepIds.includes(s.id);
+            const isCurrent = idx === activeStepIndex;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActiveStepIndex(idx)}
+                title={`ไปขั้นที่ ${s.stepNumber}: ${s.shortTitle}`}
+                className={`h-1.5 flex-1 rounded-full transition-all ${
+                  isCurrent
+                    ? 'bg-cyan-400 shadow-sm shadow-cyan-400/50 ring-1 ring-cyan-300'
+                    : isDone
+                    ? 'bg-emerald-400'
+                    : 'bg-slate-800 hover:bg-slate-700'
+                }`}
+              />
+            );
+          })}
+        </div>
+
+        {/* Floating Body */}
+        <div className="max-h-[50vh] overflow-y-auto p-4 space-y-3 scrollbar-thin">
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/25">
+              <currentStep.icon size={20} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-white leading-tight">
+                {currentStep.title}
+              </h3>
+              <p className="mt-1 text-xs text-slate-400 line-clamp-2">
+                {currentStep.whyFirst}
+              </p>
+            </div>
+          </div>
+
+          {/* Location Detection Banner */}
+          {onTargetPage ? (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-xs font-bold text-emerald-300">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <span>คุณอยู่ที่หน้านี้แล้ว — ทำตามคำแนะนำได้เลย!</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-3 py-2 text-xs">
+              <span className="text-cyan-300 font-medium truncate">คลิกเพื่อไปยังหน้านี้:</span>
+              <button
+                type="button"
+                onClick={() => navigate(withDemoContext(currentStep.destinationView, location.search))}
+                className="flex shrink-0 items-center gap-1 rounded-lg bg-cyan-500 px-2.5 py-1 font-bold text-slate-950 hover:bg-cyan-400 shadow-sm"
+              >
+                <span>{currentStep.destinationLabel}</span>
+                <ExternalLink size={12} />
+              </button>
+            </div>
+          )}
+
+          {/* Mini Checklist */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
+            <p className="text-[11px] font-black uppercase tracking-wide text-cyan-400 flex items-center gap-1.5">
+              <UserCheck size={13} /> สิ่งที่ต้องทำในขั้นตอนนี้:
+            </p>
+            <ul className="space-y-1.5 text-xs">
+              {currentStep.todoList.slice(0, 3).map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-slate-300">
+                  <span className="grid h-4 w-4 shrink-0 place-items-center rounded-md bg-slate-800 text-[10px] font-bold text-cyan-400 mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <span className="font-bold text-white">{item.title}</span>
+                    <span className="text-slate-400 text-[11px] block">{item.desc}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Quick Mark as Done Button */}
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => toggleStepCompleted(currentStep.id)}
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
+                completedStepIds.includes(currentStep.id)
+                  ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
+                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              <Check size={13} strokeWidth={3} className={completedStepIds.includes(currentStep.id) ? 'text-emerald-400' : 'text-slate-500'} />
+              <span>
+                {completedStepIds.includes(currentStep.id) ? 'ทำขั้นตอนนี้แล้ว' : 'ทำเครื่องหมายว่าเสร็จ'}
+              </span>
+            </button>
+
+            <span className="text-[11px] text-slate-400 flex items-center gap-1">
+              <Clock size={11} /> {currentStep.estimatedTime}
+            </span>
+          </div>
+        </div>
+
+        {/* Floating Footer Navigation */}
+        <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/70 p-3">
+          <button
+            type="button"
+            disabled={activeStepIndex === 0}
+            onClick={() => {
+              const prevIndex = activeStepIndex - 1;
+              setActiveStepIndex(prevIndex);
+              const target = SETUP_STEPS[prevIndex].destinationView;
+              if (!isCurrentStepPage(target)) {
+                navigate(withDemoContext(target, location.search));
+              }
+            }}
+            className="flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <ArrowLeft size={13} />
+            <span>ก่อนหน้า</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDisplayMode('modal')}
+            className="text-[11px] font-bold text-cyan-400 hover:underline"
+          >
+            เปิดคู่มือเต็ม
+          </button>
+
+          {activeStepIndex < totalSteps - 1 ? (
+            <button
+              type="button"
+              onClick={() => {
+                const nextIndex = activeStepIndex + 1;
+                setActiveStepIndex(nextIndex);
+                const target = SETUP_STEPS[nextIndex].destinationView;
+                if (!isCurrentStepPage(target)) {
+                  navigate(withDemoContext(target, location.search));
+                }
+              }}
+              className="flex items-center gap-1 rounded-xl bg-cyan-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-cyan-500 shadow-sm"
+            >
+              <span>ขั้นถัดไป</span>
+              <ArrowRight size={13} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setDisplayMode('modal');
+                onClose();
+              }}
+              className="flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-500 shadow-sm"
+            >
+              <CheckCircle2 size={13} />
+              <span>เสร็จสิ้น</span>
+            </button>
+          )}
+        </div>
+      </aside>
+    );
+  }
+
+  // 3. FULL MODAL DIALOG (OVERVIEW & STEPPER DETAILS)
   return (
     <div
       aria-labelledby="setup-guide-title"
@@ -299,23 +581,34 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25">
-                <BookOpen size={20} />
+                <Compass size={22} className="animate-spin duration-3000" />
               </span>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-bold text-cyan-400 border border-cyan-500/30">
-                    คู่มือแนะนำทีละขั้นตอน
+                    🧭 ตัวนำทางการใช้งานระบบ
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">ClassCare 360 Onboarding</span>
+                  <span className="text-xs text-slate-400 font-medium">ClassCare 360 Onboarding Navigator</span>
                 </div>
                 <h2 id="setup-guide-title" className="text-lg font-black text-white sm:text-xl tracking-tight">
-                  ไกด์ขั้นตอนการเตรียมและตั้งค่าระบบโรงเรียน
+                  ไกด์นำทางการเตรียมและตั้งค่าระบบโรงเรียน
                 </h2>
               </div>
             </div>
 
             {/* Top Right Controls */}
             <div className="flex items-center gap-2">
+              {/* Launch Floating Assistant Tour CTA */}
+              <button
+                type="button"
+                onClick={() => handleStartFloatingTour(activeStepIndex)}
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-black text-cyan-300 transition-all hover:bg-cyan-500/25 hover:border-cyan-400 hover:scale-105"
+                title="ย่อคู่มือเป็นตัวนำทางลอยบนหน้าจอเพื่อทำตามขั้นตอนจริง"
+              >
+                <Play size={13} className="fill-cyan-400 text-cyan-400" />
+                <span>เริ่มโหมดนำทางบนหน้าจอ</span>
+              </button>
+
               {/* View Mode Toggle */}
               <div className="hidden items-center rounded-xl bg-slate-800/80 p-1 text-xs font-bold border border-slate-700/50 sm:flex">
                 <button
@@ -385,7 +678,6 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
               {SETUP_STEPS.map((step, idx) => {
                 const isActive = idx === activeStepIndex;
                 const isDone = completedStepIds.includes(step.id);
-                const StepIcon = step.icon;
 
                 return (
                   <button
@@ -532,19 +824,20 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
               {/* Step Direct Action CTA Banner */}
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-950 p-4 sm:p-5">
                 <div>
-                  <p className="text-xs font-black text-white sm:text-sm">
-                    ต้องการไปทำขั้นตอนนี้เลยใช่ไหม?
+                  <p className="text-xs font-black text-white sm:text-sm flex items-center gap-1.5">
+                    <Sparkles size={15} className="text-cyan-400" />
+                    ต้องการให้ระบบพาไปทำขั้นตอนนี้บนหน้าจอจริง?
                   </p>
-                  <p className="text-[11px] text-slate-400 sm:text-xs">
-                    กดปุ่มนี้เพื่อพาท่านไปยังเมนูตั้งค่าเป้าหมายทันทีโดยอัตโนมัติ
+                  <p className="text-[11px] text-slate-400 sm:text-xs mt-0.5">
+                    ระบบจะเปิดตัวนำทางลอยบนหน้าจอและพาท่านไปยังเมนูเป้าหมายทันที
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleGoToStep(currentStep.destinationView)}
+                  onClick={() => handleStartFloatingTour(activeStepIndex)}
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-105 active:scale-95"
                 >
-                  <span>🚀 {currentStep.destinationLabel}</span>
+                  <span>🧭 เริ่มนำทางขั้นตอนนี้</span>
                   <ArrowRight size={14} />
                 </button>
               </div>
@@ -564,7 +857,6 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
               <div className="grid gap-3 sm:grid-cols-1">
                 {SETUP_STEPS.map((step, idx) => {
                   const isDone = completedStepIds.includes(step.id);
-                  const StepIcon = step.icon;
 
                   return (
                     <div
@@ -617,10 +909,10 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleGoToStep(step.destinationView)}
+                          onClick={() => handleStartFloatingTour(idx)}
                           className="flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-cyan-500"
                         >
-                          <span>{step.destinationLabel}</span>
+                          <span>🧭 เริ่มนำทาง</span>
                           <ExternalLink size={12} />
                         </button>
                       </div>
@@ -642,7 +934,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
               onChange={toggleAutoPopup}
               className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-slate-900"
             />
-            <span>แสดงคู่มือนี้อัตโนมัติทุกครั้งที่เข้าใช้งาน</span>
+            <span>แสดงตัวนำทางนี้อัตโนมัติทุกครั้งที่เข้าสู่ระบบ</span>
           </label>
 
           {/* Stepper Navigation Buttons */}
@@ -686,7 +978,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
               onClick={onClose}
               className="rounded-xl border border-slate-700/80 bg-slate-800/80 px-4 py-2 text-xs font-bold text-slate-400 transition-all hover:bg-slate-800 hover:text-slate-200"
             >
-              ปิดคู่มือ
+              ปิด
             </button>
           </div>
         </div>

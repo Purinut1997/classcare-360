@@ -1,10 +1,12 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   Award,
   BarChart3,
   BookOpen,
+  Check,
   CheckCircle2,
   CheckSquare,
   ChevronRight,
@@ -424,6 +426,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
   });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(true);
+  const [guideStep, setGuideStep] = useState(1);
+  const [guideTab, setGuideTab] = useState<'tour' | 'manual'>('tour');
+  const totalGuideSteps = 6;
 
   const teacherScope = useMemo(
     () => getTeacherClassroomScope(session, classrooms),
@@ -3608,7 +3613,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       ) : null}
 
-      {/* 6. User Guide Modal Dialog (เด้งขึ้นอัตโนมัติเมื่อเข้าหน้า พร้อมเปิดดูได้ตลอดเวลา) */}
+      {/* 6. User Guide & Interactive Step-by-Step Navigator Dialog */}
       {isGuideOpen ? (
         <div
           aria-labelledby="modal-score-guide-title"
@@ -3616,202 +3621,632 @@ export function ScoresPage({ session }: ScoresPageProps) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs"
           role="dialog"
         >
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-950 via-cyan-950 to-slate-900 px-6 py-5 text-white">
-              <div className="flex items-center gap-3.5">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/30 backdrop-blur-sm">
-                  <BookOpen size={24} aria-hidden="true" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/20 px-2.5 py-0.5 text-[11px] font-black text-cyan-200 ring-1 ring-cyan-400/30">
-                      <Sparkles size={11} aria-hidden="true" />
-                      ClassCare 360 • Score Manual
-                    </span>
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-950 via-cyan-950 to-slate-900 px-6 py-4 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/30 backdrop-blur-sm">
+                    <BookOpen size={22} aria-hidden="true" />
                   </div>
-                  <h2 className="mt-1 text-lg font-black text-white sm:text-xl" id="modal-score-guide-title">
-                    คู่มือการใช้งานระบบบันทึกคะแนน (ตารางรวมแบบ Excel)
-                  </h2>
-                  <p className="text-xs font-bold text-slate-300">
-                    แนวทางใช้งานตารางกรอกคะแนน, แป้นพิมพ์ลัด, วางข้อมูลจาก Excel และการตัดเกรด 0 - 4
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/20 px-2.5 py-0.5 text-[11px] font-black text-cyan-200 ring-1 ring-cyan-400/30">
+                        <Sparkles size={11} aria-hidden="true" />
+                        ClassCare 360 • System Navigator
+                      </span>
+                    </div>
+                    <h2 className="mt-0.5 text-base sm:text-lg font-black text-white" id="modal-score-guide-title">
+                      {guideTab === 'tour' ? 'ตัวนำทางการใช้งานระบบบันทึกคะแนน' : 'คู่มือการใช้งานระบบบันทึกคะแนนฉบับเต็ม'}
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Mode Switcher Tabs */}
+                  <div className="hidden sm:inline-flex rounded-xl bg-white/10 p-1 backdrop-blur-xs">
+                    <button
+                      type="button"
+                      onClick={() => setGuideTab('tour')}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-black transition ${
+                        guideTab === 'tour'
+                          ? 'bg-cyan-500 text-white shadow-xs'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <Sparkles size={12} />
+                      นำทางทีละขั้น
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGuideTab('manual')}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-black transition ${
+                        guideTab === 'manual'
+                          ? 'bg-cyan-500 text-white shadow-xs'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <BookOpen size={12} />
+                      คู่มือฉบับเต็ม
+                    </button>
+                  </div>
+
+                  <button
+                    className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
+                    onClick={() => setIsGuideOpen(false)}
+                    type="button"
+                    aria-label="ปิดหน้าต่างนำทาง"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </button>
                 </div>
               </div>
-              <button
-                className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
-                onClick={() => setIsGuideOpen(false)}
-                type="button"
-                aria-label="ปิดหน้าต่างคู่มือ"
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
+
+              {/* Stepper Progress Indicator (Tour Mode Only) */}
+              {guideTab === 'tour' ? (
+                <div className="mt-4 pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-2">
+                    <span className="flex items-center gap-1.5">
+                      <span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-500 text-slate-950 font-black text-[10px]">
+                        {guideStep}
+                      </span>
+                      <span>ขั้นตอนที่ {guideStep} จาก {totalGuideSteps}</span>
+                    </span>
+                    <span className="text-[11px] text-cyan-300">
+                      {guideStep === 1 && '1. เลือกโหมดการสอน'}
+                      {guideStep === 2 && '2. สลับห้องและวิชา'}
+                      {guideStep === 3 && '3. สร้างชุดคะแนน'}
+                      {guideStep === 4 && '4. กรอกคะแนนแบบ Excel'}
+                      {guideStep === 5 && '5. บันทึกต่อเนื่อง'}
+                      {guideStep === 6 && '6. ตัดเกรดและรายงาน'}
+                    </span>
+                  </div>
+
+                  {/* Visual Step Pills */}
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[1, 2, 3, 4, 5, 6].map((step) => {
+                      const isPast = step < guideStep;
+                      const isCurrent = step === guideStep;
+                      return (
+                        <button
+                          key={step}
+                          type="button"
+                          onClick={() => setGuideStep(step)}
+                          className={`h-2 rounded-full transition-all ${
+                            isCurrent
+                              ? 'bg-cyan-400 ring-2 ring-cyan-300/50'
+                              : isPast
+                              ? 'bg-cyan-600/80 hover:bg-cyan-500'
+                              : 'bg-white/20 hover:bg-white/30'
+                          }`}
+                          title={`ไปขั้นตอนที่ ${step}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* Modal Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-700">
-              {/* 1. Quick Start 3 Steps */}
-              <section className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-cyan-100 text-cyan-800 text-xs">1</span>
-                  <h3>เริ่มต้นใช้งานด่วนใน 3 ขั้นตอน</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:bg-slate-50">
-                    <div className="flex items-center gap-2 text-cyan-700">
-                      <Table size={16} />
-                      <h4 className="text-xs font-black text-slate-900">1. เลือกห้องและวิชา</h4>
-                    </div>
-                    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
-                      เลือกห้องเรียน เช่น <strong>ป.5, ป.6</strong> และเลือกรายวิชาจากแถบด้านบน หากยังไม่มีชิ้นงานให้กดปุ่ม <strong>&ldquo;สร้างชุดคะแนนใหม่&rdquo;</strong>
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4 transition hover:bg-cyan-50/80">
-                    <div className="flex items-center gap-2 text-cyan-800">
-                      <Copy size={16} />
-                      <h4 className="text-xs font-black text-slate-900">2. กรอกหรือวางคะแนน</h4>
-                    </div>
-                    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
-                      คลิกช่องเพื่อพิมพ์คะแนนโดยตรง หรือ <strong>Copy จากไฟล์ Excel</strong> มากด <strong>Ctrl + V</strong> วางลงทั้งคอลัมน์ได้ทันที
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 transition hover:bg-emerald-50/80">
-                    <div className="flex items-center gap-2 text-emerald-800">
-                      <CheckCircle2 size={16} />
-                      <h4 className="text-xs font-black text-slate-900">3. ตรวจเกรด &amp; บันทึก</h4>
-                    </div>
-                    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
-                      ระบบคำนวณคะแนนรวมและเกรด 0-4 สดทันที เมื่อกรอกครบแล้วกดปุ่ม <strong>&ldquo;บันทึกคะแนน&rdquo;</strong> ด้านล่าง
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              {/* 2. Keyboard Navigation Guide */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs space-y-3">
-                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                  <Keyboard size={18} className="text-cyan-700" />
-                  <h3>คีย์บอร์ดนำทางในตาราง (เหมือน Microsoft Excel)</h3>
-                </div>
-                <p className="text-xs font-medium text-slate-500">
-                  ช่วยให้คุณครูกรอกคะแนนได้รวดเร็วโดยไม่ต้องเอื้อมมือไปจับเมาส์:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                    <span className="font-bold text-slate-700">เลื่อนช่องคะแนนอิสระ</span>
-                    <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">↑</kbd>
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">↓</kbd>
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">←</kbd>
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">→</kbd>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                    <span className="font-bold text-slate-700">ลงไปนักเรียนคนถัดไปทันที</span>
-                    <kbd className="rounded-md border border-slate-300 bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-xs">
-                      Enter
-                    </kbd>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                    <span className="font-bold text-slate-700">เลื่อนไปคอลัมน์ถัดไป / ย้อนหลัง</span>
-                    <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Tab</kbd>
-                      <span className="text-slate-400">/</span>
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Shift+Tab</kbd>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                    <span className="font-bold text-slate-700">ลบคะแนนในช่องที่เลือก</span>
-                    <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Backspace</kbd>
-                      <span className="text-slate-400">/</span>
-                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Del</kbd>
-                    </span>
-                  </div>
-                </div>
-              </section>
-
-              {/* 3. Batch Paste from Excel */}
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4.5 space-y-2.5">
-                <div className="flex items-center gap-2 text-sm font-black text-amber-950">
-                  <Lightbulb size={18} className="text-amber-600" />
-                  <h3>เคล็ดลับเด็ด! คัดลอกและวางจากไฟล์ Excel (Batch Paste)</h3>
-                </div>
-                <p className="text-xs font-medium leading-5 text-amber-900">
-                  หากมีไฟล์คะแนนใน Microsoft Excel หรือ Google Sheets อยู่แล้ว คุณครูไม่ต้องเสียเวลาพิมพ์ทีละคน:
-                </p>
-                <ol className="list-decimal pl-5 text-xs font-medium leading-6 text-amber-950 space-y-1">
-                  <li>ในโปรแกรม <strong>Excel / Sheets</strong>: คลุมแถบคะแนนทั้งคอลัมน์ของนักเรียน แล้วกด <kbd className="rounded border border-amber-300 bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold">Ctrl + C</kbd></li>
-                  <li>ใน <strong>ClassCare 360</strong>: คลิกที่ช่องคะแนนของ <strong>นักเรียนคนแรก</strong> ในชิ้นงานนั้น</li>
-                  <li>กด <kbd className="rounded border border-amber-300 bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold">Ctrl + V</kbd> : ระบบจะนำคะแนนทั้งหมดมาเรียงต่อกันให้อัตโนมัติตามลำดับนักเรียนทันที!</li>
-                </ol>
-              </section>
-
-              {/* 4. Thai Grade Scale 0-4 */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                    <Award size={18} className="text-cyan-700" />
-                    <h3>เกณฑ์การตัดเกรด 8 ระดับ (มาตรฐาน สพฐ. / กระทรวงศึกษาธิการ)</h3>
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-500">คำนวณถ่วงน้ำหนัก % อัตโนมัติ</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  {[
-                    { badge: 'bg-emerald-100 text-emerald-800 ring-emerald-300', grade: '4', label: 'ดีเยี่ยม', range: '80 - 100%' },
-                    { badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200', grade: '3.5', label: 'ดีมาก', range: '75 - 79%' },
-                    { badge: 'bg-teal-50 text-teal-800 ring-teal-200', grade: '3', label: 'ดี', range: '70 - 74%' },
-                    { badge: 'bg-cyan-50 text-cyan-800 ring-cyan-200', grade: '2.5', label: 'ค่อนข้างดี', range: '65 - 69%' },
-                    { badge: 'bg-blue-50 text-blue-800 ring-blue-200', grade: '2', label: 'ปานกลาง', range: '60 - 64%' },
-                    { badge: 'bg-amber-50 text-amber-800 ring-amber-200', grade: '1.5', label: 'พอใช้', range: '55 - 59%' },
-                    { badge: 'bg-orange-50 text-orange-800 ring-orange-200', grade: '1', label: 'ผ่านเกณฑ์', range: '50 - 54%' },
-                    { badge: 'bg-rose-50 text-rose-800 ring-rose-200', grade: '0', label: 'ต่ำกว่าเกณฑ์', range: '0 - 49%' },
-                  ].map((item) => (
-                    <div key={item.grade} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs">
-                      <div>
-                        <div className="font-bold text-slate-800">{item.range}</div>
-                        <div className="text-[10px] font-medium text-slate-500">{item.label}</div>
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 text-slate-700">
+              {guideTab === 'tour' ? (
+                /* Interactive Step-by-Step Walkthrough Views */
+                <div className="space-y-4 animate-fade-in">
+                  {/* STEP 1: Choose Teaching Perspective */}
+                  {guideStep === 1 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-indigo-700">
+                          <Users size={20} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                            ขั้นตอนที่ 1 • กำหนดรูปแบบการทำงาน
+                          </span>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            เลือกโหมดการสอนที่คุณครูรับผิดชอบ
+                          </h3>
+                        </div>
                       </div>
-                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black ring-1 ${item.badge}`}>
-                        {item.grade}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
 
-              {/* 5. Export & Reports */}
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                  <Download size={16} className="text-cyan-700" />
-                  <h3>การส่งออกไฟล์ Excel และเอกสาร ปพ.5</h3>
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        ClassCare 360 ออกแบบให้ตอบโจทย์การทำงานของครู 2 รูปแบบอย่างแท้จริง ให้เลือกโหมดที่ตรงกับภาระหน้าที่ของคุณครู:
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                        <div
+                          className={`rounded-2xl border p-4 cursor-pointer transition ${
+                            perspective === 'subject'
+                              ? 'border-indigo-400 bg-indigo-50/60 ring-2 ring-indigo-200'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                          onClick={() => handlePerspectiveChange('subject')}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2 font-black text-xs text-indigo-950">
+                              <BookOpen size={16} className="text-indigo-600" />
+                              วิชาสอนหลายห้อง (แนะนำ)
+                            </span>
+                            {perspective === 'subject' ? (
+                              <span className="rounded-full bg-indigo-600 text-white p-0.5"><Check size={12} /></span>
+                            ) : null}
+                          </div>
+                          <p className="mt-2 text-[11px] leading-5 text-slate-600">
+                            สำหรับ <strong>ครูผู้สอนเฉพาะวิชา</strong> เช่น ภาษาอังกฤษ หรือ วิทยาศาสตร์ ที่สอนหลายห้อง (ป.5/1, ป.5/2, ป.5/3) ให้เลือกวิชาครั้งเดียว แล้วสลับห้องและเปรียบเทียบผลคะแนนได้ทันที
+                          </p>
+                          <button
+                            type="button"
+                            className="mt-3 w-full rounded-xl bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-indigo-700"
+                            onClick={() => handlePerspectiveChange('subject')}
+                          >
+                            {perspective === 'subject' ? '✓ กำลังเลือกโหมดนี้' : 'คลิกเพื่อเลือกโหมดนี้'}
+                          </button>
+                        </div>
+
+                        <div
+                          className={`rounded-2xl border p-4 cursor-pointer transition ${
+                            perspective === 'classroom'
+                              ? 'border-cyan-400 bg-cyan-50/60 ring-2 ring-cyan-200'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                          onClick={() => handlePerspectiveChange('classroom')}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2 font-black text-xs text-cyan-950">
+                              <Users size={16} className="text-cyan-600" />
+                              วิชาสอนห้องเดียว / ครูประจำชั้น
+                            </span>
+                            {perspective === 'classroom' ? (
+                              <span className="rounded-full bg-cyan-600 text-white p-0.5"><Check size={12} /></span>
+                            ) : null}
+                          </div>
+                          <p className="mt-2 text-[11px] leading-5 text-slate-600">
+                            สำหรับ <strong>ครูประจำชั้น</strong> ที่สอนหลายวิชาในห้องเดียว เลือกห้องเรียนของตนเองก่อน แล้วจัดการทุกวิชาและสรุปเกรดรวมของห้องนั้น
+                          </p>
+                          <button
+                            type="button"
+                            className="mt-3 w-full rounded-xl bg-cyan-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-cyan-700"
+                            onClick={() => handlePerspectiveChange('classroom')}
+                          >
+                            {perspective === 'classroom' ? '✓ กำลังเลือกโหมดนี้' : 'คลิกเพื่อเลือกโหมดนี้'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 flex items-start gap-2 text-slate-600 text-xs">
+                        <Info size={16} className="text-cyan-600 shrink-0 mt-0.5" />
+                        <p>คุณครูสามารถสลับโหมดนี้ได้ตลอดเวลาที่แถบ <strong>&ldquo;โหมดการทำงาน&rdquo;</strong> ด้านบน</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 2: Quick Room Switcher */}
+                  {guideStep === 2 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+                          <Table size={20} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black text-cyan-600 bg-cyan-50 px-2.5 py-0.5 rounded-full">
+                            ขั้นตอนที่ 2 • การสลับห้องเรียน
+                          </span>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            เลือกวิชาและสลับห้องเรียนใน 1 วินาที
+                          </h3>
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        เมื่ออยู่ในโหมดตามรายวิชา ระบบจะดึงแท็บห้องเรียนทั้งหมดที่สอนวิชานี้มาวางเรียงกันในแนวนอน เพื่อให้คุณครูสลับห้องได้ทันทีโดยไม่ต้องค้นหาใหม่:
+                      </p>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                        <p className="text-xs font-bold text-slate-700">ตัวอย่างแท็บห้องเรียนที่คุณครูจะเห็นในระบบ:</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {classrooms.slice(0, 3).map((c, idx) => (
+                            <div
+                              key={c.id}
+                              className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black border ${
+                                idx === 0
+                                  ? 'bg-slate-950 text-white border-slate-900 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              <span>ห้อง {c.name}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] ${idx === 0 ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                {students.filter((s) => s.classroom_id === c.id).length || 30} คน
+                              </span>
+                            </div>
+                          ))}
+                          <div className="inline-flex items-center gap-1 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-500">
+                            + เพิ่มห้องที่สอนวิชานี้...
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 flex items-start gap-2.5 text-emerald-900 text-xs">
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                        <p>
+                          <strong>เคล็ดลับ:</strong> หากคุณครูสอนห้องอื่นเพิ่มเติมในวิชานี้ ให้คลิกเมนู <strong>&ldquo;+ เพิ่มห้องที่สอนวิชานี้...&rdquo;</strong> เพื่อนำห้องใหม่เข้ามาผูกกับวิชานี้ได้ทันที
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 3: Assessment Creation & Cloning */}
+                  {guideStep === 3 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-indigo-700">
+                          <Copy size={20} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                            ขั้นตอนที่ 3 • การสร้างและกระจายเกณฑ์คะแนน
+                          </span>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            สร้างชุดคะแนนและกระจายทุกห้อง (ไม่ต้องทำซ้ำ)
+                          </h3>
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        คุณครูไม่ต้องเสียเวลาสร้างชุดคะแนนทีละห้องเหมือนระบบเดิมอีกต่อไป ด้วย 2 ฟังก์ชันอัจฉริยะ:
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                          <div className="flex items-center gap-2 text-indigo-700 font-black text-xs">
+                            <Plus size={16} />
+                            <span>1. ติ๊กเลือกทุกห้องตอนสร้าง</span>
+                          </div>
+                          <p className="text-[11px] leading-5 text-slate-600">
+                            เวลาคลิก <strong>&ldquo;สร้างชุดคะแนนใหม่&rdquo;</strong> ให้ติ๊กเลือก <strong>[✓] ทุกห้องที่สอนวิชานี้</strong> ระบบจะสร้างชุดคะแนนที่คะแนนเต็มและน้ำหนักตรงกันให้กับทุกห้องในคลิกเดียว
+                          </p>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3 py-1.5 text-xs font-black text-white hover:bg-cyan-700 shadow-2xs"
+                            onClick={() => {
+                              setIsGuideOpen(false);
+                              setIsCreateModalOpen(true);
+                            }}
+                          >
+                            <Plus size={13} />
+                            ลองเปิดหน้าต่างสร้างชุดคะแนน
+                          </button>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                          <div className="flex items-center gap-2 text-indigo-700 font-black text-xs">
+                            <Copy size={16} />
+                            <span>2. คัดลอกเกณฑ์ไปห้องอื่น</span>
+                          </div>
+                          <p className="text-[11px] leading-5 text-slate-600">
+                            หากมีเกณฑ์คะแนนในห้องแรกอยู่แล้ว (เช่น ป.5/1) สามารถกดปุ่ม <strong>&ldquo;คัดลอกเกณฑ์ไปห้องอื่น&rdquo;</strong> เพื่อโคลนชิ้นงานทั้งหมดไปยัง ป.5/2, ป.5/3 โดยระบบจะตรวจสอบไม่ให้เกิดรายการซ้ำซ้อน
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 4: Spreadsheet Grid & Excel Paste */}
+                  {guideStep === 4 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+                          <Keyboard size={20} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                            ขั้นตอนที่ 4 • สเปรดชีตและการกรอกคะแนน
+                          </span>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            กรอกเร็วเหมือน Excel &amp; วางข้อมูลด้วย Ctrl + V
+                          </h3>
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        ตารางรวมแบบ Excel Grid ออกแบบมาเพื่อความรวดเร็วสูงสุด รองรับทั้งการพิมพ์ต่อเนื่องและวางข้อมูล:
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2">
+                          <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                            <Keyboard size={15} className="text-cyan-600" />
+                            ปุ่มคีย์บอร์ดที่แนะนำ:
+                          </h4>
+                          <ul className="text-[11px] leading-5 text-slate-600 space-y-1">
+                            <li>• <kbd className="rounded border bg-slate-100 px-1 font-mono font-bold">Tab</kbd> : เลื่อนไปช่องถัดไปทางขวา</li>
+                            <li>• <kbd className="rounded border bg-slate-100 px-1 font-mono font-bold">Enter</kbd> หรือ <kbd className="rounded border bg-slate-100 px-1 font-mono font-bold">↓</kbd> : เลื่อนลงคนถัดไป</li>
+                            <li>• <kbd className="rounded border bg-slate-100 px-1 font-mono font-bold">↑ ↓ ← →</kbd> : เลื่อนช่องอิสระเหมือน Excel</li>
+                          </ul>
+                        </div>
+
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
+                          <h4 className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                            <Lightbulb size={15} className="text-amber-600" />
+                            สูตรเด็ด: วางจาก Excel (Ctrl + V)
+                          </h4>
+                          <p className="text-[11px] leading-5 text-amber-900">
+                            หากมีคะแนนในโปรแกรม Excel ให้คลุมแถบคะแนนทั้งคอลัมน์แล้วกด <strong>Ctrl + C</strong> จากนั้นคลิกที่ช่องของนักเรียนคนแรกใน ClassCare แล้วกด <strong>Ctrl + V</strong> คะแนนจะถูกกรอกเรียงทุกคนทันที!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 5: Continuous Flow */}
+                  {guideStep === 5 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+                          <Save size={20} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black text-cyan-600 bg-cyan-50 px-2.5 py-0.5 rounded-full">
+                            ขั้นตอนที่ 5 • การบันทึกต่อเนื่อง
+                          </span>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            บันทึกและไปห้องถัดไปต่อเนื่อง (Continuous Grading)
+                          </h3>
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        เมื่อคุณครูทำการกรอกหรือแก้ไขคะแนน จะมีแถบสีดำลอยขึ้นมาด้านล่างพร้อมจำนวนคะแนนที่รอการบันทึก:
+                      </p>
+
+                      <div className="rounded-2xl bg-slate-950 p-4 text-white space-y-2 shadow-md">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-300">ตัวอย่างแถบบันทึกที่คุณครูจะเห็นด้านล่าง:</span>
+                          <span className="rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-black text-slate-950">บันทึกสด</span>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                          <span className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs text-slate-300 font-bold">ยกเลิก</span>
+                          <span className="rounded-xl bg-emerald-500 px-4 py-1.5 text-xs font-black text-white shadow-sm flex items-center gap-1">
+                            <Save size={13} />
+                            บันทึกคะแนน
+                          </span>
+                          <span className="rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-black text-white shadow-sm flex items-center gap-1">
+                            บันทึกแล้วไปห้องถัดไป ➡️
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        กดปุ่ม <strong>&ldquo;บันทึกแล้วไปห้องถัดไป ➡️&rdquo;</strong> เพื่อให้ระบบบันทึกคะแนนห้องปัจจุบัน แล้วเปิดตารางของห้องถัดไปให้ตรวจต่อทันที ไม่ต้องคลิกเลือกห้องใหม่!
+                      </p>
+                    </div>
+                  )}
+
+                  {/* STEP 6: Gradebook Summary & Reports */}
+                  {guideStep === 6 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+                          <Award size={20} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                            ขั้นตอนที่ 6 • สรุปผลสัมฤทธิ์และเอกสาร ปพ.5
+                          </span>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            ตัดเกรด 0-4 สพฐ. เปรียบเทียบผล และพิมพ์ ปพ.5
+                          </h3>
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        เมื่อกรอกคะแนนเรียบร้อย คุณครูสามารถใช้ 4 เมนูหลักด้านบนเพื่อสรุปผลและรายงาน:
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-1.5">
+                          <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                            <FileSpreadsheet size={15} className="text-cyan-600" />
+                            3. สรุป &amp; ตัดเกรด (0 - 4)
+                          </h4>
+                          <p className="text-[11px] leading-5 text-slate-600">
+                            ดูการคำนวณคะแนนสะสม กลางภาค ปลายภาค ร้อยละ และตัดเกรด 8 ระดับตามเกณฑ์กระทรวงศึกษาธิการ
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-1.5">
+                          <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                            <BarChart3 size={15} className="text-indigo-600" />
+                            4. เปรียบเทียบผลสัมฤทธิ์ ({classroomsWithSubject.length} ห้อง)
+                          </h4>
+                          <p className="text-[11px] leading-5 text-slate-600">
+                            ดูสถิติเปรียบเทียบคะแนนเฉลี่ย อัตราส่งงาน และการกระจายเกรดระหว่างห้องเรียนในวิชาเดียวกัน
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 flex items-start gap-2.5 text-slate-700 text-xs">
+                        <Download size={16} className="text-cyan-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">การนำข้อมูลออกและจัดพิมพ์:</p>
+                          <p className="mt-0.5 text-slate-500">
+                            กดปุ่ม <strong>&ldquo;Export Excel&rdquo;</strong> เพื่อดาวน์โหลดสเปรดชีต หรือไปที่เมนู <strong>&ldquo;รายงาน (Reports)&rdquo;</strong> เพื่อพิมพ์แบบบันทึกผลการเรียน ปพ.5 ทางการ
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs font-medium leading-5 text-slate-600">
-                  • <strong>Export ตาราง Excel (.CSV):</strong> กดปุ่ม &ldquo;Export ตาราง Excel&rdquo; ด้านบนเพื่อดาวน์โหลดคะแนนทุกชิ้นงาน คะแนนรวม ร้อยละ และเกรด ไปเปิดในโปรแกรม Excel ได้ทันที<br />
-                  • <strong>พิมพ์รายงาน ปพ.5 ทางการ:</strong> สามารถไปที่เมนู <strong>&ldquo;รายงาน (Reports)&rdquo;</strong> ทางแถบเมนูด้านซ้าย เพื่อพิมพ์แบบบันทึกผลการเรียนรายวิชาหรือดาวน์โหลดเป็น PDF ทางการ
-                </p>
-              </section>
+              ) : (
+                /* Full Reference Manual Mode */
+                <div className="space-y-6 animate-fade-in">
+                  {/* 1. Quick Start 3 Steps */}
+                  <section className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                      <span className="grid h-6 w-6 place-items-center rounded-lg bg-cyan-100 text-cyan-800 text-xs">1</span>
+                      <h3>เริ่มต้นใช้งานด่วนใน 3 ขั้นตอน</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="flex items-center gap-2 text-cyan-700">
+                          <Table size={16} />
+                          <h4 className="text-xs font-black text-slate-900">1. เลือกห้องและวิชา</h4>
+                        </div>
+                        <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
+                          เลือกวิชาและแท็บห้องเรียนจากแถบด้านบน หากยังไม่มีชิ้นงานให้กดปุ่ม <strong>&ldquo;สร้างชุดคะแนนใหม่&rdquo;</strong>
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4">
+                        <div className="flex items-center gap-2 text-cyan-800">
+                          <Copy size={16} />
+                          <h4 className="text-xs font-black text-slate-900">2. กรอกหรือวางคะแนน</h4>
+                        </div>
+                        <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
+                          คลิกช่องเพื่อพิมพ์คะแนนโดยตรง หรือ <strong>Copy จากไฟล์ Excel</strong> มากด <strong>Ctrl + V</strong> วางลงทั้งคอลัมน์ได้ทันที
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                        <div className="flex items-center gap-2 text-emerald-800">
+                          <CheckCircle2 size={16} />
+                          <h4 className="text-xs font-black text-slate-900">3. ตรวจเกรด &amp; บันทึก</h4>
+                        </div>
+                        <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
+                          ระบบคำนวณคะแนนรวมและเกรด 0-4 สดทันที เมื่อกรอกครบแล้วกดปุ่ม <strong>&ldquo;บันทึกคะแนน&rdquo;</strong> ด้านล่าง
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* 2. Keyboard Navigation Guide */}
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                      <Keyboard size={18} className="text-cyan-700" />
+                      <h3>คีย์บอร์ดนำทางในตาราง (เหมือน Microsoft Excel)</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <span className="font-bold text-slate-700">เลื่อนช่องคะแนนอิสระ</span>
+                        <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">↑</kbd>
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">↓</kbd>
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">←</kbd>
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">→</kbd>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <span className="font-bold text-slate-700">ลงไปนักเรียนคนถัดไปทันที</span>
+                        <kbd className="rounded-md border border-slate-300 bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-xs">
+                          Enter
+                        </kbd>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <span className="font-bold text-slate-700">เลื่อนไปคอลัมน์ถัดไป / ย้อนหลัง</span>
+                        <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Tab</kbd>
+                          <span className="text-slate-400">/</span>
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Shift+Tab</kbd>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <span className="font-bold text-slate-700">ลบคะแนนในช่องที่เลือก</span>
+                        <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Backspace</kbd>
+                          <span className="text-slate-400">/</span>
+                          <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Del</kbd>
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* 3. Thai Grade Scale 0-4 */}
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                        <Award size={18} className="text-cyan-700" />
+                        <h3>เกณฑ์การตัดเกรด 8 ระดับ (มาตรฐาน สพฐ. / ศธ.)</h3>
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-500">คำนวณถ่วงน้ำหนัก % อัตโนมัติ</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      {[
+                        { badge: 'bg-emerald-100 text-emerald-800 ring-emerald-300', grade: '4', label: 'ดีเยี่ยม', range: '80 - 100%' },
+                        { badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200', grade: '3.5', label: 'ดีมาก', range: '75 - 79%' },
+                        { badge: 'bg-teal-50 text-teal-800 ring-teal-200', grade: '3', label: 'ดี', range: '70 - 74%' },
+                        { badge: 'bg-cyan-50 text-cyan-800 ring-cyan-200', grade: '2.5', label: 'ค่อนข้างดี', range: '65 - 69%' },
+                        { badge: 'bg-blue-50 text-blue-800 ring-blue-200', grade: '2', label: 'ปานกลาง', range: '60 - 64%' },
+                        { badge: 'bg-amber-50 text-amber-800 ring-amber-200', grade: '1.5', label: 'พอใช้', range: '55 - 59%' },
+                        { badge: 'bg-orange-50 text-orange-800 ring-orange-200', grade: '1', label: 'ผ่านเกณฑ์', range: '50 - 54%' },
+                        { badge: 'bg-rose-50 text-rose-800 ring-rose-200', grade: '0', label: 'ต่ำกว่าเกณฑ์', range: '0 - 49%' },
+                      ].map((item) => (
+                        <div key={item.grade} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs">
+                          <div>
+                            <div className="font-bold text-slate-800">{item.range}</div>
+                            <div className="text-[10px] font-medium text-slate-500">{item.label}</div>
+                          </div>
+                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black ring-1 ${item.badge}`}>
+                            {item.grade}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              )}
             </div>
 
-            {/* Modal Footer */}
+            {/* Modal Navigation Footer */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
-              <p className="flex items-center gap-1.5 text-xs font-bold text-slate-500 text-center sm:text-left">
-                <Info size={14} className="text-cyan-700 shrink-0" />
-                คุณครูสามารถกดเปิดคู่มือนี้ซ้ำได้ตลอดเวลา โดยคลิกปุ่ม &ldquo;คู่มือการใช้งาน&rdquo; ที่แถบด้านบน
-              </p>
-              <button
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-cyan-600/20 transition hover:bg-cyan-700"
-                onClick={() => setIsGuideOpen(false)}
-                type="button"
-              >
-                <CheckCircle2 size={16} />
-                เข้าใจแล้ว เริ่มกรอกคะแนน
-              </button>
+              <div className="flex items-center gap-2">
+                {guideTab === 'tour' && guideStep > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setGuideStep((s) => Math.max(1, s - 1))}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs"
+                  >
+                    <ArrowLeft size={14} />
+                    ย้อนกลับ
+                  </button>
+                ) : null}
+
+                <span className="text-xs text-slate-400 font-bold hidden sm:inline">
+                  {guideTab === 'tour' ? `ก้าวที่ ${guideStep} จาก ${totalGuideSteps}` : 'ClassCare 360 Score Manual'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsGuideOpen(false)}
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-200/60 transition"
+                >
+                  ข้ามไกด์
+                </button>
+
+                {guideTab === 'tour' && guideStep < totalGuideSteps ? (
+                  <button
+                    type="button"
+                    onClick={() => setGuideStep((s) => Math.min(totalGuideSteps, s + 1))}
+                    className="inline-flex items-center gap-1.5 rounded-2xl bg-cyan-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-cyan-600/20 hover:bg-cyan-700 transition"
+                  >
+                    <span>ขั้นตอนถัดไป ({guideStep + 1}/{totalGuideSteps})</span>
+                    <ArrowRight size={14} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsGuideOpen(false)}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 transition"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>เริ่มบันทึกคะแนนเลย!</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
