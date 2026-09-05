@@ -149,22 +149,33 @@ export function SupportChat({
     void loadAiConfig();
   }, [loadAiConfig]);
 
-  // Initial welcome message for AI tab
+  // Handle reset chat conversation
+  const handleResetChat = useCallback(() => {
+    setAiMessages([
+      {
+        id: `welcome-${Date.now()}`,
+        role: "assistant",
+        content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+        timestamp: new Date().toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      },
+    ]);
+    setAiInput("");
+    setIsAiLoading(false);
+  }, [activeLabel]);
+
+  // Track previous active view to automatically reset chat context when navigating between menus
+  const prevViewRef = useRef(activeView);
   useEffect(() => {
-    if (aiMessages.length === 0) {
-      setAiMessages([
-        {
-          id: "welcome-1",
-          role: "assistant",
-          content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
-          timestamp: new Date().toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        },
-      ]);
+    if (prevViewRef.current !== activeView) {
+      prevViewRef.current = activeView;
+      handleResetChat();
+    } else if (aiMessages.length === 0) {
+      handleResetChat();
     }
-  }, [activeLabel, aiMessages.length]);
+  }, [activeView, handleResetChat, aiMessages.length]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -479,8 +490,18 @@ export function SupportChat({
                 </div>
               </div>
 
-              {/* Action buttons (Settings / Close) */}
+              {/* Action buttons (Reset / Settings / Close) */}
               <div className="flex items-center gap-1">
+                {activeTab === "ai" && (
+                  <button
+                    type="button"
+                    title="เริ่มบทสนทนาใหม่ (รีเซ็ตแชท)"
+                    onClick={handleResetChat}
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/10 hover:text-cyan-300 transition"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                )}
                 <button
                   type="button"
                   title="ตั้งค่า Gemini API Key"
