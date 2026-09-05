@@ -273,7 +273,7 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
     }
 
     const cleanedWorkspaceName = workspaceName.trim();
-    const cleanedSchoolName = (preferredSchoolName || schoolName).trim();
+    const cleanedSchoolName = (schoolName || preferredSchoolName).trim();
     const cleanedAcademicYear = academicYear.trim();
     const cleanedClassroomName = classroomName.trim();
 
@@ -281,6 +281,10 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
       setNotice('กรุณากรอกชื่อ workspace โรงเรียน ปีการศึกษา และห้องเรียนให้ครบ');
       setIsSubmitting(false);
       return;
+    }
+
+    if (cleanedSchoolName && session.profile.id && supabase) {
+      void supabase.from('profiles').update({ school_name: cleanedSchoolName }).eq('id', session.profile.id);
     }
 
     const { data, error } = await supabase.rpc('create_primary_workspace', {
@@ -457,22 +461,15 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
                 <span className="relative block">
                   <School className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
                   <input
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white/90 pl-11 pr-4 text-base font-bold outline-none transition read-only:bg-slate-50 read-only:text-slate-600 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white/90 pl-11 pr-4 text-base font-bold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                     onChange={(event) => setSchoolName(event.target.value)}
-                    placeholder="เช่น โรงเรียนตัวอย่าง ClassCare"
-                    readOnly={Boolean(preferredSchoolName)}
+                    placeholder="เช่น โรงเรียนบ้านโคกสูง"
                     value={schoolName}
                   />
                 </span>
-                {preferredSchoolName ? (
-                  <span className="text-xs font-bold leading-5 text-slate-500">
-                    ใช้ชื่อโรงเรียนจาก profile เพื่อกันไม่ให้สร้าง workspace ข้ามโรงเรียน
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold leading-5 text-slate-500">
-                    ตัวอย่าง: โรงเรียนตัวอย่าง ClassCare ควรใช้ชื่อเดียวกับตอนสมัครเพื่อให้ระบบเลือก workspace ได้ถูกต้อง
-                  </span>
-                )}
+                <span className="text-xs font-bold leading-5 text-slate-500">
+                  ระบุหรือแก้ไขชื่อโรงเรียนของคุณสำหรับใช้ในรายงานและเอกสารทางการ
+                </span>
               </label>
 
               <div className="grid min-w-0 gap-4 xl:grid-cols-2">
