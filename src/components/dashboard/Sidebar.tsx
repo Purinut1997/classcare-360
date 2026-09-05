@@ -20,6 +20,7 @@ const coreDirectItemKeys = [
   'scores',
   'savings',
   'behavior',
+  'desirable-characteristics',
   'schedule',
   'reports',
 ];
