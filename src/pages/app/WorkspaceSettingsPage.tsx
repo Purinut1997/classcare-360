@@ -16,6 +16,7 @@ interface WorkspaceSettingsPageProps {
 interface ClassroomRow {
   academic_year: string | null;
   grade_level: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
   status: 'active' | 'archived';
@@ -199,6 +200,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
   const [classroomForm, setClassroomForm] = useState({
     academicYear: session.workspace?.academicYear || '2569',
     gradeLevel: 'ป.5',
+    homeroomTeacherProfileId: session.profile.id,
     name: session.workspace?.classroomName || 'ป.5/2',
   });
   const [rolloverForm, setRolloverForm] = useState({
@@ -237,7 +239,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           .single(),
         supabase
           .from('classrooms')
-          .select('id,name,grade_level,academic_year,status')
+          .select('id,name,grade_level,academic_year,status,homeroom_teacher_profile_id')
           .eq('workspace_id', session.workspace.id)
           .order('status', { ascending: true })
           .order('name', { ascending: true }),
@@ -537,10 +539,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       .from('classrooms')
       .insert({
         ...nextClassroom,
-        homeroom_teacher_profile_id: session.profile.id,
+        homeroom_teacher_profile_id: classroomForm.homeroomTeacherProfileId || session.profile.id,
         workspace_id: session.workspace.id,
       })
-      .select('id,name,grade_level,academic_year,status')
+      .select('id,name,grade_level,academic_year,status,homeroom_teacher_profile_id')
       .single();
 
     if (error) {
@@ -559,6 +561,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       metadata: {
         academic_year: classroom.academic_year,
         grade_level: classroom.grade_level,
+        homeroom_teacher_profile_id: classroom.homeroom_teacher_profile_id,
         name: classroom.name,
       },
       riskLevel: 'low',
@@ -567,6 +570,59 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     setClassrooms((current) => [classroom, ...current]);
     setClassroomForm((current) => ({ ...current, name: '' }));
     setNotice('เพิ่มห้องเรียนแล้ว');
+    setIsSubmitting(false);
+  }
+
+  async function setClassroomHomeroomTeacher(classroom: ClassroomRow, homeroomTeacherProfileId: string | null) {
+    if (!canUseDestructiveActions) {
+      setNotice('เฉพาะ Superadmin หรือเจ้าของ workspace เท่านั้นที่มอบหมายครูประจำชั้นได้');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice(null);
+
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setClassrooms((current) =>
+        current.map((item) =>
+          item.id === classroom.id ? { ...item, homeroom_teacher_profile_id: homeroomTeacherProfileId } : item,
+        ),
+      );
+      setNotice(`มอบหมายครูที่ปรึกษาห้อง ${classroom.name} ในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('classrooms')
+      .update({ homeroom_teacher_profile_id: homeroomTeacherProfileId || null })
+      .eq('id', classroom.id)
+      .eq('workspace_id', session.workspace.id)
+      .select('id,name,grade_level,academic_year,status,homeroom_teacher_profile_id')
+      .single();
+
+    if (error) {
+      setNotice(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const updatedClassroom = data as ClassroomRow;
+    setClassrooms((current) =>
+      current.map((item) => (item.id === updatedClassroom.id ? updatedClassroom : item)),
+    );
+    await writeAuditLog(session, {
+      action: 'classroom.homeroom_assigned',
+      entityId: classroom.id,
+      entityTable: 'classrooms',
+      metadata: {
+        classroom_id: classroom.id,
+        homeroom_teacher_profile_id: homeroomTeacherProfileId,
+      },
+      riskLevel: 'normal',
+      source: 'workspace_settings',
+    });
+    setNotice(`บันทึกครูประจำชั้น/ที่ปรึกษาของห้อง ${classroom.name} เรียบร้อยแล้ว`);
     setIsSubmitting(false);
   }
 
@@ -1347,6 +1403,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                     value={classroomForm.academicYear}
                   />
                 </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2">
+                  ครูที่ปรึกษา / ประจำชั้นหลัก
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) =>
+                      setClassroomForm((current) => ({ ...current, homeroomTeacherProfileId: event.target.value }))
+                    }
+                    value={classroomForm.homeroomTeacherProfileId}
+                  >
+                    {activeMembers.map((member) => (
+                      <option key={member.profile_id} value={member.profile_id}>
+                        ⭐ {member.display_name} ({member.email})
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
             <button
@@ -1459,6 +1531,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                     <p className="mt-1 text-xs font-black text-slate-400">
                       นักเรียน {classroomStudentCounts[classroom.id] || 0} คน
                     </p>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-black text-cyan-800">ครูที่ปรึกษา:</span>
+                      <select
+                        className="h-8 max-w-[210px] truncate rounded-xl border border-slate-200 bg-slate-50 px-2 text-[11px] font-bold text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white disabled:opacity-60"
+                        disabled={isSubmitting || !canUseDestructiveActions}
+                        onChange={(event) => void setClassroomHomeroomTeacher(classroom, event.target.value || null)}
+                        value={classroom.homeroom_teacher_profile_id || ''}
+                      >
+                        <option value="">-- ยังไม่ระบุครูที่ปรึกษา --</option>
+                        {activeMembers.map((member) => (
+                          <option key={member.profile_id} value={member.profile_id}>
+                            ⭐ {member.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span

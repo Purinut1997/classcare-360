@@ -17,6 +17,7 @@ import { isDemoSession } from '../../lib/auth';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { getClassroomScopeBadge, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
 interface BehaviorPageProps {
@@ -28,6 +29,7 @@ type FollowUpStatus = 'none' | 'watch' | 'contact_guardian' | 'referred' | 'reso
 
 interface ClassroomRow {
   academic_year: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
 }
@@ -161,6 +163,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration เพื่อบันทึกพฤติกรรมจริง',
   );
+  const [scopeFilter, setScopeFilter] = useState<'homeroom' | 'all'>('homeroom');
   const [form, setForm] = useState({
     behaviorDate: getTodayDate(),
     category: 'ช่วยเหลือเพื่อน',
@@ -169,6 +172,18 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
     points: '3',
     tone: 'positive' as BehaviorTone,
   });
+
+  const teacherScope = useMemo(
+    () => getTeacherClassroomScope(session, classrooms),
+    [session, classrooms],
+  );
+
+  const displayClassrooms = useMemo(() => {
+    if (scopeFilter === 'homeroom' && teacherScope.hasHomeroom) {
+      return teacherScope.homeroomClassrooms;
+    }
+    return classrooms;
+  }, [classrooms, scopeFilter, teacherScope]);
 
   const classroomStudents = useMemo(
     () => students.filter((student) => student.classroom_id === classroomId),
@@ -241,7 +256,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
       ] = await Promise.all([
         supabase
           .from('classrooms')
-          .select('id,name,academic_year')
+          .select('id,name,academic_year,homeroom_teacher_profile_id')
           .eq('workspace_id', session.workspace.id)
           .eq('status', 'active')
           .order('name', { ascending: true }),
@@ -269,7 +284,10 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
-      const nextClassroomId = getClassroomWithStudents(nextClassrooms, nextStudents);
+      const initialScope = getTeacherClassroomScope(session, nextClassrooms);
+      const nextClassroomId = initialScope.hasHomeroom
+        ? initialScope.homeroomClassrooms[0].id
+        : getClassroomWithStudents(nextClassrooms, nextStudents);
       const nextSelectedStudentId =
         nextStudents.find((student) => student.classroom_id === nextClassroomId)?.id || nextStudents[0]?.id || '';
       setClassrooms(nextClassrooms);
@@ -453,16 +471,52 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
               บันทึกพฤติกรรม
             </div>
             <div className="mt-4 grid gap-3">
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
+              <div className="block">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
+                  {teacherScope.hasHomeroom && (
+                    <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-black">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScopeFilter('homeroom');
+                          if (teacherScope.homeroomClassrooms[0]) {
+                            setClassroomId(teacherScope.homeroomClassrooms[0].id);
+                          }
+                        }}
+                        className={`rounded-lg px-2 py-0.5 transition ${
+                          scopeFilter === 'homeroom'
+                            ? 'bg-white text-cyan-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        ⭐ ที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScopeFilter('all')}
+                        className={`rounded-lg px-2 py-0.5 transition ${
+                          scopeFilter === 'all'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        🌐 ทุกห้อง
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <select className="nexus-field mt-2" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
-                  {classrooms.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
-                      {classroom.name}
-                    </option>
-                  ))}
+                  {displayClassrooms.map((classroom) => {
+                    const badge = getClassroomScopeBadge(classroom, session.profile.id);
+                    return (
+                      <option key={classroom.id} value={classroom.id}>
+                        {badge.prefix}{classroom.name} — {badge.label}
+                      </option>
+                    );
+                  })}
                 </select>
-              </label>
+              </div>
               <label className="block">
                 <span className="text-xs font-black uppercase text-slate-500">นักเรียน</span>
                 <select className="nexus-field mt-2" onChange={(event) => setSelectedStudentId(event.target.value)} value={selectedStudent?.id || ''}>

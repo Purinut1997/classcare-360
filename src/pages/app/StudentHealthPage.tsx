@@ -19,6 +19,7 @@ import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
 interface StudentHealthPageProps {
@@ -27,6 +28,7 @@ interface StudentHealthPageProps {
 
 interface ClassroomRow {
   academic_year: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
 }
@@ -168,6 +170,20 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
     return 0;
   }, [activeRoutineMarks, classroomStudents, inspectionValues, mode]);
 
+  const [scopeFilter, setScopeFilter] = useState<'homeroom' | 'all'>('homeroom');
+
+  const teacherScope = useMemo(
+    () => getTeacherClassroomScope(session, classrooms),
+    [classrooms, session],
+  );
+
+  const displayClassrooms = useMemo(() => {
+    if (scopeFilter === 'homeroom' && teacherScope.homeroomClassrooms.length > 0) {
+      return teacherScope.homeroomClassrooms;
+    }
+    return teacherScope.allClassrooms;
+  }, [scopeFilter, teacherScope]);
+
   useEffect(() => {
     let mounted = true;
     async function loadBaseData() {
@@ -177,7 +193,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       }
       setIsLoading(true);
       const [{ data: classroomRows, error: classroomError }, { data: studentRows, error: studentError }] = await Promise.all([
-        supabase.from('classrooms').select('id,name,academic_year').eq('workspace_id', session.workspace.id).eq('status', 'active').order('name'),
+        supabase.from('classrooms').select('id,name,academic_year,homeroom_teacher_profile_id').eq('workspace_id', session.workspace.id).eq('status', 'active').order('name'),
         supabase.from('students').select('id,student_code,first_name,last_name,nickname,classroom_id').eq('workspace_id', session.workspace.id).eq('status', 'active').order('student_code'),
       ]);
       if (!mounted) return;
@@ -188,11 +204,12 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       }
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
+      const nextScope = getTeacherClassroomScope(session, nextClassrooms);
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);
       const linkedClassroomId = requestedClassroomId && nextClassrooms.some((classroom) => classroom.id === requestedClassroomId)
         ? requestedClassroomId
-        : getClassroomWithStudents(nextClassrooms, nextStudents);
+        : nextScope.defaultClassroomId || getClassroomWithStudents(nextClassrooms, nextStudents);
       setClassroomId(linkedClassroomId);
       setIsLoading(false);
     }
@@ -377,7 +394,72 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
 
       <section className="mt-5 nexus-card p-4 sm:p-5">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-          <label><span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span><select className="nexus-field mt-2" value={classroomId} onChange={(event) => { setClassroomId(event.target.value); const nextParams = new URLSearchParams(searchParams); nextParams.set('classroomId', event.target.value); setSearchParams(nextParams, { replace: true }); }}>{classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name} • {classroom.academic_year || 'ไม่ระบุปี'}</option>)}</select></label>
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+              <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
+              {teacherScope.hasMultipleScopes ? (
+                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-black">
+                  <button
+                    className={`rounded-lg px-2.5 py-0.5 transition ${
+                      scopeFilter === 'homeroom'
+                        ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    onClick={() => {
+                      setScopeFilter('homeroom');
+                      if (
+                        teacherScope.homeroomClassrooms.length > 0 &&
+                        !teacherScope.homeroomClassrooms.some((c) => c.id === classroomId)
+                      ) {
+                        const targetId = teacherScope.homeroomClassrooms[0].id;
+                        setClassroomId(targetId);
+                        const nextParams = new URLSearchParams(searchParams);
+                        nextParams.set('classroomId', targetId);
+                        setSearchParams(nextParams, { replace: true });
+                      }
+                    }}
+                    type="button"
+                  >
+                    ⭐ ที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
+                  </button>
+                  <button
+                    className={`rounded-lg px-2.5 py-0.5 transition ${
+                      scopeFilter === 'all'
+                        ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    onClick={() => setScopeFilter('all')}
+                    type="button"
+                  >
+                    🌐 ทุกห้อง ({teacherScope.allClassrooms.length})
+                  </button>
+                </div>
+              ) : teacherScope.hasHomeroom ? (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-200">
+                  ⭐ ห้องที่ปรึกษา
+                </span>
+              ) : null}
+            </div>
+            <select
+              className="nexus-field"
+              value={classroomId}
+              onChange={(event) => {
+                setClassroomId(event.target.value);
+                const nextParams = new URLSearchParams(searchParams);
+                nextParams.set('classroomId', event.target.value);
+                setSearchParams(nextParams, { replace: true });
+              }}
+            >
+              {displayClassrooms.map((classroom) => {
+                const badge = getClassroomScopeBadge(classroom, session.profile.id);
+                return (
+                  <option key={classroom.id} value={classroom.id}>
+                    {badge.prefix}{classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''} — {badge.label}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
           <label><span className="text-xs font-black uppercase text-slate-500">วันที่บันทึก</span><ThaiDatePicker className="mt-2" value={recordDate} onValueChange={setRecordDate} /></label>
           <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading || isSaving} onClick={() => void saveRecords()} type="button"><Save size={17} />{isSaving ? 'กำลังบันทึก...' : 'บันทึกทั้งห้อง'}</button>
         </div>

@@ -19,6 +19,7 @@ import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
 import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
 interface AttendancePageProps {
@@ -30,6 +31,7 @@ type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'acti
 
 interface ClassroomRow {
   academic_year: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
 }
@@ -186,14 +188,32 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const ModeIcon = activeModeCopy.icon;
   const sessionLabel = `${mode === 'homeroom' ? 'ประจำวัน' : 'รายวิชา'} | ${periodLabel}`;
 
+  const [scopeFilter, setScopeFilter] = useState<'homeroom' | 'all'>('homeroom');
+
+  const teacherScope = useMemo(
+    () => getTeacherClassroomScope(session, classrooms),
+    [classrooms, session],
+  );
+
+  const displayClassrooms = useMemo(() => {
+    if (scopeFilter === 'homeroom' && teacherScope.homeroomClassrooms.length > 0) {
+      return teacherScope.homeroomClassrooms;
+    }
+    return teacherScope.allClassrooms;
+  }, [scopeFilter, teacherScope]);
+
   useEffect(() => {
     let isMounted = true;
 
     async function loadBaseData() {
       if (!supabase || !session.workspace || demoMode) {
-        setClassrooms(demoClassrooms);
+        const demoWithTeacher: ClassroomRow[] = demoClassrooms.map((c) => ({
+          ...c,
+          homeroom_teacher_profile_id: session.profile.id,
+        }));
+        setClassrooms(demoWithTeacher);
         setStudents(demoStudents);
-        setClassroomId(demoClassrooms[0].id);
+        setClassroomId(demoWithTeacher[0].id);
         setMarks(createDefaultMarks(demoStudents));
         setIsLoading(false);
         return;
@@ -206,7 +226,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
         await Promise.all([
           supabase
             .from('classrooms')
-            .select('id,name,academic_year')
+            .select('id,name,academic_year,homeroom_teacher_profile_id')
             .eq('workspace_id', session.workspace.id)
             .eq('status', 'active')
             .order('name', { ascending: true }),
@@ -228,7 +248,8 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
-      const nextClassroomId = getClassroomWithStudents(nextClassrooms, nextStudents);
+      const nextScope = getTeacherClassroomScope(session, nextClassrooms);
+      const nextClassroomId = nextScope.defaultClassroomId || getClassroomWithStudents(nextClassrooms, nextStudents);
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);
       setClassroomId(nextClassroomId);
@@ -728,20 +749,63 @@ export function AttendancePage({ session }: AttendancePageProps) {
               {mode === 'homeroom' ? 'เช็คชื่อประจำวัน' : 'เช็คเวลาเรียนรายวิชา'}
             </div>
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ห้องเรียน
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <span className="text-sm font-black text-slate-700">ห้องเรียน</span>
+                  {teacherScope.hasMultipleScopes ? (
+                    <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-black">
+                      <button
+                        className={`rounded-lg px-2.5 py-0.5 transition ${
+                          scopeFilter === 'homeroom'
+                            ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        onClick={() => {
+                          setScopeFilter('homeroom');
+                          if (
+                            teacherScope.homeroomClassrooms.length > 0 &&
+                            !teacherScope.homeroomClassrooms.some((c) => c.id === classroomId)
+                          ) {
+                            setClassroomId(teacherScope.homeroomClassrooms[0].id);
+                          }
+                        }}
+                        type="button"
+                      >
+                        ⭐ ห้องที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
+                      </button>
+                      <button
+                        className={`rounded-lg px-2.5 py-0.5 transition ${
+                          scopeFilter === 'all'
+                            ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        onClick={() => setScopeFilter('all')}
+                        type="button"
+                      >
+                        🌐 ทุกห้อง ({teacherScope.allClassrooms.length})
+                      </button>
+                    </div>
+                  ) : teacherScope.hasHomeroom ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">
+                      ⭐ ห้องที่ปรึกษาของคุณ
+                    </span>
+                  ) : null}
+                </div>
                 <select
                   className="nexus-field h-11 px-3"
                   onChange={(event) => setClassroomId(event.target.value)}
                   value={classroomId}
                 >
-                  {classrooms.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
-                      {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                    </option>
-                  ))}
+                  {displayClassrooms.map((classroom) => {
+                    const badge = getClassroomScopeBadge(classroom, session.profile.id);
+                    return (
+                      <option key={classroom.id} value={classroom.id}>
+                        {badge.prefix}{classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''} — {badge.label}
+                      </option>
+                    );
+                  })}
                 </select>
-              </label>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
                   วันที่

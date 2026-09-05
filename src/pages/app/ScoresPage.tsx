@@ -35,6 +35,7 @@ import { getBangkokDate } from '../../lib/date';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
+import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
 interface ScoresPageProps {
@@ -74,6 +75,7 @@ export function getThaiGrade(percent: number | null | undefined): ThaiGradeInfo 
 
 interface ClassroomRow {
   academic_year: string | null;
+  homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
 }
@@ -301,7 +303,11 @@ function getClassroomWithRoster(
   classrooms: ClassroomRow[],
   students: StudentRow[],
   assessments: ScoreAssessmentRow[] = [],
+  preferredHomeroomId?: string,
 ) {
+  if (preferredHomeroomId && classrooms.some((classroom) => classroom.id === preferredHomeroomId)) {
+    return preferredHomeroomId;
+  }
   const classroomWithStudents = classrooms.find((classroom) =>
     students.some((student) => student.classroom_id === classroom.id),
   );
@@ -333,7 +339,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
-    isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration เพื่อบันทึกคะแนนลง Supabase จริง',
+    isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration เพื่อบันทึกคะแนนลง Supabaseจริง',
   );
   const [form, setForm] = useState({
     assessmentDate: getTodayDate(),
@@ -345,6 +351,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
   });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(true);
+
+  const teacherScope = useMemo(
+    () => getTeacherClassroomScope(session, classrooms),
+    [session, classrooms],
+  );
 
   useEffect(() => {
     const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'excel';
@@ -694,7 +705,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       ] = await Promise.all([
         supabase
           .from('classrooms')
-          .select('id,name,academic_year')
+          .select('id,name,academic_year,homeroom_teacher_profile_id')
           .eq('workspace_id', session.workspace.id)
           .eq('status', 'active')
           .order('name', { ascending: true }),
@@ -723,7 +734,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
       const nextStudents = (studentRows || []) as StudentRow[];
       const nextAssessments = (assessmentRows || []) as ScoreAssessmentRow[];
       const nextAssessmentIds = nextAssessments.map((assessment) => assessment.id);
-      const nextClassroomId = getClassroomWithRoster(nextClassrooms, nextStudents, nextAssessments);
+      const initialScope = getTeacherClassroomScope(session, nextClassrooms);
+      const preferredHomeroomId = initialScope.hasHomeroom ? initialScope.homeroomClassrooms[0].id : undefined;
+      const nextClassroomId = getClassroomWithRoster(nextClassrooms, nextStudents, nextAssessments, preferredHomeroomId);
       const nextSelectedAssessmentId =
         nextAssessments.find((assessment) => assessment.classroom_id === nextClassroomId && assessment.status !== 'archived')?.id ||
         nextAssessments.find((assessment) => assessment.status !== 'archived')?.id ||
@@ -1515,11 +1528,32 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 onChange={(event) => setClassroomId(event.target.value)}
                 value={classroomId}
               >
-                {classrooms.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id}>
-                    {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                  </option>
-                ))}
+                {teacherScope.hasHomeroom ? (
+                  <>
+                    <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                      {teacherScope.homeroomClassrooms.map((classroom) => (
+                        <option key={classroom.id} value={classroom.id}>
+                          {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {teacherScope.otherClassrooms.length > 0 && (
+                      <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
+                        {teacherScope.otherClassrooms.map((classroom) => (
+                          <option key={classroom.id} value={classroom.id}>
+                            {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </>
+                ) : (
+                  classrooms.map((classroom) => (
+                    <option key={classroom.id} value={classroom.id}>
+                      {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -2560,11 +2594,32 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     onChange={(event) => setClassroomId(event.target.value)}
                     value={classroomId}
                   >
-                    {classrooms.map((classroom) => (
-                      <option key={classroom.id} value={classroom.id}>
-                        {classroom.name}
-                      </option>
-                    ))}
+                    {teacherScope.hasHomeroom ? (
+                      <>
+                        <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                          {teacherScope.homeroomClassrooms.map((classroom) => (
+                            <option key={classroom.id} value={classroom.id}>
+                              {classroom.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {teacherScope.otherClassrooms.length > 0 && (
+                          <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
+                            {teacherScope.otherClassrooms.map((classroom) => (
+                              <option key={classroom.id} value={classroom.id}>
+                                {classroom.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    ) : (
+                      classrooms.map((classroom) => (
+                        <option key={classroom.id} value={classroom.id}>
+                          {classroom.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </label>
 
