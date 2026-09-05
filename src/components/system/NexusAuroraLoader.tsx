@@ -51,21 +51,15 @@ interface NexusAuroraLoaderProps {
   theme?: LoaderTheme;
 }
 
+// System-wide official loader theme setting
+export const SYSTEM_LOADER_THEME: LoaderTheme = 'quantum';
+
 export function NexusAuroraVisual({
   message,
   title,
   theme: explicitTheme,
 }: Omit<NexusAuroraLoaderProps, 'variant'>) {
-  const [currentTheme, setCurrentTheme] = useState<LoaderTheme>(() => {
-    if (explicitTheme) return explicitTheme;
-    try {
-      const saved = window.localStorage.getItem('classcare_loader_theme') as LoaderTheme;
-      if (saved && ['quantum', 'aurora', 'titanium', 'magic'].includes(saved)) {
-        return saved;
-      }
-    } catch {}
-    return 'quantum'; // Default: Ultra-futuristic Quantum Holo
-  });
+  const currentTheme: LoaderTheme = explicitTheme || SYSTEM_LOADER_THEME;
 
   const [mascotType] = useState<MascotAvatarType>(() => {
     try {
@@ -95,12 +89,6 @@ export function NexusAuroraVisual({
     return () => clearInterval(timer);
   }, []);
 
-  const handleSelectTheme = (themeId: LoaderTheme) => {
-    setCurrentTheme(themeId);
-    try {
-      window.localStorage.setItem('classcare_loader_theme', themeId);
-    } catch {}
-  };
 
   return (
     <div className="relative flex flex-col items-center justify-center p-4 w-full max-w-xl mx-auto select-none">
@@ -367,36 +355,6 @@ export function NexusAuroraVisual({
         </div>
       )}
 
-      {/* ========================================================
-          INTERACTIVE STYLE SWITCHER PILL (เลือกสไตล์ได้ทันที!)
-          ======================================================== */}
-      <div className="relative z-20 mt-6 flex flex-col items-center gap-2">
-        <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
-          <Compass size={13} className="text-cyan-400" />
-          <span>เลือกสไตล์หน้าโหลดที่ต้องการ (คลิกสลับดูได้ทันที):</span>
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-slate-900/90 p-1.5 shadow-2xl backdrop-blur-xl">
-          {LOADER_THEMES.map((themeOption) => {
-            const isSelected = currentTheme === themeOption.id;
-            return (
-              <button
-                key={themeOption.id}
-                type="button"
-                onClick={() => handleSelectTheme(themeOption.id)}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md shadow-cyan-900/40 font-black scale-105 ring-1 ring-cyan-300'
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
-                }`}
-                title={themeOption.tagline}
-              >
-                <span>{themeOption.icon}</span>
-                <span>{themeOption.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
