@@ -73,6 +73,10 @@ const SYSTEM_INSTRUCTION = `
    - [NAVIGATE:parent-access:ไปที่ Portal ผู้ปกครอง]
 5. หากเป็นข้อความร่างส่งผู้ปกครอง หรือความคิดเห็นสมุดพก ให้จัดรูปแบบชัดเจน และสามารถใส่แท็ก [COPY:ข้อความที่ต้องการให้คัดลอก] เพื่อให้ครูกด Copy ได้ง่าย
 6. หากปัญหาเป็นเรื่องเชิงลึกเกี่ยวกับระบบเทคนิคที่ AI ไม่สามารถแก้ไขให้ได้ ให้แนะนำให้ส่งเรื่องถึงแอดมิน โดยใส่ [HANDOVER:หัวข้อปัญหา:รายละเอียด]
+7. กฎเหล็กด้านความถูกต้องของข้อมูล (CRITICAL RULE - GROUNDING & NO HALLUCINATION):
+   - คุณต้องอิงข้อมูลนักเรียน รายชื่อ และสถิติการมาเรียนจาก [ข้อมูลจริงจากฐานข้อมูลระบบ ClassCare 360] ที่แนบมาให้ในบริบทเท่านั้น!
+   - ห้ามกุชื่อหรือแต่งชื่อนักเรียน นามสกุล หรือสมมุติสถิติตัวเลขขึ้นมาเองโดยเด็ดขาด (DO NOT FABRICATE OR HALLUCINATE NAMES/DATA)!
+   - หากในข้อมูลระบุว่า "ยังไม่มีบันทึกข้อมูลการเช็คชื่อ" หรือ "ไม่มีนักเรียนขาดเรียน" ให้แจ้งคุณครูตามตรง เช่น: "จากการตรวจสอบข้อมูลจริงในระบบ ClassCare 360 ปัจจุบันยังไม่มีบันทึกการขาดเรียนของนักเรียนในห้องนี้ค่ะ คุณครูสามารถเข้าไปเริ่มบันทึกเช็คชื่อได้ที่ [NAVIGATE:teacher-work:เปิดหน้าเช็คชื่อ]"
 `.trim();
 
 /**
@@ -83,14 +87,21 @@ export async function callGeminiApi(
   apiKey: string,
   model: GeminiModelId,
   messages: ChatMessage[],
-  contextInfo?: { activeView?: string; classroomName?: string; academicYear?: string }
+  contextInfo?: {
+    activeView?: string;
+    classroomName?: string;
+    academicYear?: string;
+    liveSchoolContext?: string;
+  }
 ): Promise<string> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   // Build context prefix
-  const contextNote = contextInfo?.activeView
-    ? `[บริบทปัจจุบัน: คุณครูกำลังเปิดหน้า '${contextInfo.activeView}' ห้องเรียน: '${contextInfo.classroomName || 'ไม่ได้เลือก'}' ปีการศึกษา: '${contextInfo.academicYear || '2569'}']\n\n`
-    : '';
+  const contextNote = contextInfo?.liveSchoolContext
+    ? `${contextInfo.liveSchoolContext}\n\n`
+    : (contextInfo?.activeView
+        ? `[บริบทปัจจุบัน: คุณครูกำลังเปิดหน้า '${contextInfo.activeView}' ห้องเรียน: '${contextInfo.classroomName || 'ไม่ได้เลือก'}' ปีการศึกษา: '${contextInfo.academicYear || '2569'}']\n\n`
+        : '');
 
   // Map messages to Gemini API format
   const contents = messages

@@ -51,6 +51,7 @@ import {
   saveWorkspaceAiConfig,
   type EffectiveAiConfig,
 } from "../../lib/aiSettings";
+import { fetchLiveSchoolDataContext } from "../../lib/schoolContextService";
 
 type Ticket = {
   id: string;
@@ -319,7 +320,13 @@ export function SupportChat({
       let rawResponse: string;
 
       if (activeKey && activeKey.length > 10) {
-        // Use live Gemini API
+        // Fetch live factual school data (students, attendance, classrooms)
+        const liveSchoolContext = await fetchLiveSchoolDataContext(
+          session,
+          activeView
+        );
+
+        // Use live Gemini API with real database ground truth
         rawResponse = await callGeminiApi(
           activeKey,
           model,
@@ -328,6 +335,7 @@ export function SupportChat({
             activeView,
             classroomName: session.workspace?.classroomName,
             academicYear: session.workspace?.academicYear,
+            liveSchoolContext,
           }
         );
       } else {
