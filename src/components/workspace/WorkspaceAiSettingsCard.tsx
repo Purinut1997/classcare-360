@@ -14,6 +14,7 @@ import { ContextLink as Link } from '../navigation/ContextLink';
 
 import {
   AVAILABLE_GEMINI_MODELS,
+  MANUAL_GEMINI_MODELS,
   testGeminiApiKey,
   type GeminiModelId,
 } from '../../lib/geminiClient';
@@ -207,39 +208,123 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
 
             {/* Model Selection */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                เลือกโมเดล Gemini มาตรฐานของโรงเรียน
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {AVAILABLE_GEMINI_MODELS.map((m) => (
-                  <label
-                    key={m.id}
-                    className={`flex items-start gap-2.5 rounded-xl border p-3 cursor-pointer transition ${
-                      selectedModel === m.id
-                        ? 'border-indigo-500 bg-indigo-50/50 shadow-xs ring-1 ring-indigo-400'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="ws_ai_model"
-                      checked={selectedModel === m.id}
-                      onChange={() => setSelectedModel(m.id)}
-                      disabled={!isOwnerOrAdmin}
-                      className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">{m.name}</span>
-                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/70 px-1.5 py-0.2 rounded">
-                          {m.tag}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.description}</p>
-                    </div>
-                  </label>
-                ))}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  โหมดการเลือกโมเดล AI มาตรฐานของโรงเรียน
+                </label>
+                <span className="text-[10px] font-bold text-indigo-600">
+                  {selectedModel === 'auto' ? '✨ โหมดสลับอัตโนมัติ' : '🎯 โหมดเลือกเอง'}
+                </span>
               </div>
+
+              {/* Mode Switcher Tabs */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl mb-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedModel('auto')}
+                  disabled={!isOwnerOrAdmin}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition ${
+                    selectedModel === 'auto'
+                      ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>✨</span>
+                  <span>สลับอัตโนมัติ (Auto Mode)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedModel === 'auto') {
+                      setSelectedModel('gemini-3.5-flash');
+                    }
+                  }}
+                  disabled={!isOwnerOrAdmin}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition ${
+                    selectedModel !== 'auto'
+                      ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>🎯</span>
+                  <span>เลือกโมเดลเอง (Manual)</span>
+                </button>
+              </div>
+
+              {/* Auto Mode UI */}
+              {selectedModel === 'auto' ? (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 text-indigo-950 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs flex items-center gap-1.5 text-indigo-900">
+                      <span>🤖</span> Auto Model Cascade (แนะนำสำหรับโรงเรียน ✨)
+                    </span>
+                    <span className="text-[9px] font-black text-indigo-700 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200">
+                      Zero Downtime
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-indigo-900/90 leading-relaxed">
+                    ระบบจะเริ่มส่งคำขอด้วยโมเดลที่ฉลาดที่สุด และสลับไปโมเดลสำรองให้อัตโนมัติทันทีเมื่อติดลิมิต เพื่อให้ครูทุกคนใช้งานได้ลื่นไหลทั้งวัน:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                      <div className="text-[10px] font-bold text-amber-700">1️⃣ ขั้นแรก</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 3.5 Flash</div>
+                      <div className="text-[10px] text-slate-500 mt-1">ฉลาดสุด (ฟรี 20 ครั้ง/วัน)</div>
+                    </div>
+                    <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                      <div className="text-[10px] font-bold text-sky-700">2️⃣ ขั้นสำรองเร็ว</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.0 Flash</div>
+                      <div className="text-[10px] text-slate-500 mt-1">ความเร็วสูง ภาษาไทยคล่อง</div>
+                    </div>
+                    <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                      <div className="text-[10px] font-bold text-emerald-700">3️⃣ ขั้นปลอดภัยสูงสุด</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 1.5 Flash</div>
+                      <div className="text-[10px] text-slate-500 mt-1">ฟรี 1,500 ครั้ง/วัน ไม่ติดลิมิต</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Manual Selection UI */
+                <div className="space-y-2">
+                  <p className="text-[11px] text-slate-500 mb-1">
+                    คลิกเลือกรุ่นโมเดลที่ต้องการเจาะจงให้เป็นมาตรฐานของโรงเรียนด้วยตนเอง:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {MANUAL_GEMINI_MODELS.map((m) => (
+                      <label
+                        key={m.id}
+                        className={`flex items-start gap-2.5 rounded-xl border p-3 cursor-pointer transition ${
+                          selectedModel === m.id
+                            ? 'border-indigo-500 bg-indigo-50/50 shadow-xs ring-1 ring-indigo-400'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="ws_ai_model"
+                          checked={selectedModel === m.id}
+                          onChange={() => setSelectedModel(m.id)}
+                          disabled={!isOwnerOrAdmin}
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-900">{m.name}</span>
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/70 px-1.5 py-0.2 rounded">
+                              {m.tag}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.description}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
+                            <span className="bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded font-medium">⚡ {m.speed}</span>
+                            <span className="bg-indigo-50 text-indigo-800 border border-indigo-100 px-1.5 py-0.2 rounded font-bold">📊 {m.quota}</span>
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Test Connection Alert */}

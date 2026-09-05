@@ -1,8 +1,8 @@
 export type GeminiModelId =
   | 'auto'
+  | 'gemini-3.5-flash'
   | 'gemini-1.5-flash'
   | 'gemini-2.0-flash'
-  | 'gemini-3.5-flash'
   | 'gemini-1.5-pro';
 
 export interface GeminiModelOption {
@@ -11,44 +11,60 @@ export interface GeminiModelOption {
   tag: string;
   description: string;
   speed: string;
+  quota: string;
+  highlight?: boolean;
 }
 
-export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
+export const AUTO_MODEL_OPTION: GeminiModelOption = {
+  id: 'auto',
+  name: 'Auto Model (สลับรุ่นอัตโนมัติ)',
+  tag: 'แนะนำสูงสุด ✨',
+  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 3.5 ➔ 2.0 ➔ 1.5) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่มีวันติดลิมิต',
+  speed: '⚡⚡⚡⚡ อัจฉริยะ',
+  quota: 'ไม่มีวันหมด (สลับรุ่นอัตโนมัติ)',
+  highlight: true,
+};
+
+export const MANUAL_GEMINI_MODELS: GeminiModelOption[] = [
   {
-    id: 'auto',
-    name: 'Auto Model (แนะนำสูงสุด ✨)',
-    tag: 'อัจฉริยะ 🤖 (แนะนำ)',
-    description: 'ระบบตรวจจับและเลือกโมเดลที่มีโควตาพร้อมใช้งานให้อัตโนมัติ สลับรุ่นทันทีเมื่อรุ่นใดรุ่นหนึ่งเต็ม',
-    speed: '⚡⚡⚡⚡ อัตโนมัติ',
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    tag: 'รุ่นล่าสุด 🌟',
+    description: 'โมเดลรุ่นใหม่ล่าสุดใน Google AI Studio ฉลาด ละเอียด และตอบคำถามได้ตรงจุดที่สุด',
+    speed: '⚡⚡⚡⚡ เร็วมาก',
+    quota: '20 ครั้ง/วัน (หรือใช้ตาม Billing)',
+    highlight: true,
   },
   {
     id: 'gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
     tag: 'โควตาฟรีสูงสุด 1,500 ครั้ง/วัน ⭐',
-    description: 'เสถียรที่สุด ตอบไว โควตาฟรีสูงถึง 1,500 ครั้ง/วัน ใช้งานได้ตลอดทั้งวันไม่ติดลิมิต',
+    description: 'เสถียรที่สุด ตอบไว โควตาฟรีสูงถึง 1,500 ครั้ง/วัน ใช้งานต่อเนื่องทั้งวันไม่ติดลิมิต',
     speed: '⚡⚡⚡ เร็วมาก',
+    quota: '1,500 ครั้ง/วัน (ฟรีสูงสุด)',
+    highlight: true,
   },
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    tag: 'รุ่นใหม่ความเร็วสูง 🚀',
-    description: 'โมเดลเจเนอเรชันใหม่ ตอบสนองฉับไว ปรับแต่งภาษาไทยได้ยอดเยี่ยม',
+    tag: 'ความเร็วสูง 🚀',
+    description: 'โมเดลเจเนอเรชันใหม่ ตอบสนองฉับไว ปรับแต่งภาษาไทยได้เป็นธรรมชาติ',
     speed: '⚡⚡⚡⚡ เร็วมาก',
-  },
-  {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    tag: 'รุ่นล่าสุด 🌟 (จำกัด 20 ครั้ง/วัน)',
-    description: 'โมเดลรุ่นใหม่ล่าสุดในคอนโซล (บัญชีฟรีจำกัด 20 ครั้งต่อวัน แนะนำผูก Billing หรือใช้ Auto)',
-    speed: '⚡⚡⚡⚡ เร็วมาก',
+    quota: '15 ครั้ง/นาที',
   },
   {
     id: 'gemini-1.5-pro',
     name: 'Gemini 1.5 Pro',
-    tag: 'คิดลึกที่สุด 🧠 (สำหรับบัญชี Billing)',
+    tag: 'คิดลึกที่สุด 🧠',
     description: 'วิเคราะห์ข้อมูลซับซ้อน ร่างรายงานวิชาการเชิงลึก (แนะนำสำหรับโปรเจกต์ที่ผูก Billing)',
     speed: '⚡ ปานกลาง',
+    quota: '2 ครั้ง/นาที (หรือตาม Billing)',
   },
+];
+
+export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
+  AUTO_MODEL_OPTION,
+  ...MANUAL_GEMINI_MODELS,
 ];
 
 export interface AssistantAction {
@@ -111,11 +127,14 @@ export async function callGeminiApi(
     classroomName?: string;
     academicYear?: string;
     liveSchoolContext?: string;
+    allowFallback?: boolean;
   }
 ): Promise<string> {
+  const allowFallback = contextInfo?.allowFallback !== false;
   // Auto Model Candidate Hierarchy (Smartest -> Fastest -> Highest Quota)
   const autoHierarchy = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-  const initialModel = model === 'auto' ? autoHierarchy[0] : model;
+  const isAuto = model === 'auto';
+  const initialModel = isAuto ? autoHierarchy[0] : model;
   let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${initialModel}:generateContent?key=${apiKey}`;
 
   // Build context prefix
@@ -158,29 +177,34 @@ export async function callGeminiApi(
 
   // Auto-fallback if the selected model returns 404, 400 (e.g. model discontinued), or 429 (quota exceeded)
   if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
-    const fallbackCandidates = (
-      model === 'auto'
-        ? autoHierarchy
-        : ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash']
-    ).filter((m) => m !== initialModel);
+    if (allowFallback) {
+      const fallbackCandidates = (
+        isAuto
+          ? autoHierarchy
+          : ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash']
+      ).filter((m) => m !== initialModel);
 
-    for (const fallbackModel of fallbackCandidates) {
-      const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
-      const fallbackRes = await fetch(fallbackEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (fallbackRes.ok) {
-        response = fallbackRes;
-        break;
+      for (const fallbackModel of fallbackCandidates) {
+        const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
+        const fallbackRes = await fetch(fallbackEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (fallbackRes.ok) {
+          response = fallbackRes;
+          break;
+        }
       }
     }
   }
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
-    const errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+    let errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+    if (response.status === 429) {
+      errMsg = `โมเดล ${initialModel} โควตาการใช้งานเต็มแล้ว (429 Quota Exceeded) แนะนำให้เปลี่ยนเป็น "Auto Model" หรือ "Gemini 1.5 Flash" ที่มีโควตาสูง 1,500 ครั้ง/วัน หรือเปิดการสลับรุ่นสำรองอัตโนมัติ`;
+    }
     throw new Error(`Gemini API Error: ${errMsg}`);
   }
 

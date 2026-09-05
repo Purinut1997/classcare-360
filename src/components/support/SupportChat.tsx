@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Copy,
   ExternalLink,
@@ -39,6 +40,7 @@ import {
 } from "../../lib/aiPrompts";
 import {
   AVAILABLE_GEMINI_MODELS,
+  MANUAL_GEMINI_MODELS,
   callGeminiApi,
   getSmartFallbackResponse,
   parseAssistantResponse,
@@ -154,6 +156,12 @@ export function SupportChat({
   } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
+  // Quick Switcher dropdown state & manual fallback toggle
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
+  const [allowFallback, setAllowFallback] = useState<boolean>(() => {
+    return window.localStorage.getItem("classcare_ai_allow_fallback") !== "false";
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Context-aware prompt chips
@@ -169,6 +177,23 @@ export function SupportChat({
     setSelectedModel(config.model);
     if (config.apiKey) setCustomKeyInput(config.apiKey);
   }, [session]);
+
+  useEffect(() => {
+    window.localStorage.setItem("classcare_ai_allow_fallback", allowFallback ? "true" : "false");
+  }, [allowFallback]);
+
+  const handleQuickSwitchModel = async (newModel: GeminiModelId) => {
+    setSelectedModel(newModel);
+    setIsModelSelectorOpen(false);
+    if (aiConfig?.apiKey) {
+      if (keyScope === "workspace") {
+        await saveWorkspaceAiConfig(session, aiConfig.apiKey, newModel);
+      } else {
+        await savePersonalAiConfig(session, aiConfig.apiKey, newModel);
+      }
+      await loadAiConfig();
+    }
+  };
 
   useEffect(() => {
     void loadAiConfig();
@@ -355,7 +380,7 @@ export function SupportChat({
 
     try {
       const activeKey = aiConfig?.apiKey;
-      const model = aiConfig?.model || "gemini-2.0-flash";
+      const model = selectedModel || aiConfig?.model || "auto";
 
       let rawResponse: string;
 
@@ -376,6 +401,7 @@ export function SupportChat({
             classroomName: session.workspace?.classroomName,
             academicYear: session.workspace?.academicYear,
             liveSchoolContext,
+            allowFallback,
           }
         );
       } else {
@@ -662,10 +688,67 @@ export function SupportChat({
                       ClassCare AI
                     </p>
                     {aiConfig?.apiKey ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400 ring-1 ring-emerald-500/30">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        {aiConfig.model}
-                      </span>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsModelSelectorOpen(!isModelSelectorOpen)}
+                          title="คลิกเพื่อสลับโมเดล AI ทันใจ"
+                          className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/30 hover:text-white transition cursor-pointer"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>
+                            {selectedModel === 'auto'
+                              ? '✨ Auto'
+                              : selectedModel === 'gemini-3.5-flash'
+                              ? '🌟 3.5 Flash'
+                              : selectedModel === 'gemini-2.0-flash'
+                              ? '🚀 2.0 Flash'
+                              : selectedModel === 'gemini-1.5-pro'
+                              ? '🧠 1.5 Pro'
+                              : '⚡ 1.5 Flash'}
+                          </span>
+                          <ChevronDown size={10} className="text-emerald-400 ml-0.5" />
+                        </button>
+
+                        {/* Quick Switch Dropdown */}
+                        {isModelSelectorOpen && (
+                          <div className="absolute left-0 top-full mt-1.5 w-52 rounded-2xl border border-slate-700 bg-slate-900/95 p-1.5 text-xs shadow-2xl backdrop-blur-md z-50 animate-in fade-in zoom-in-95">
+                            <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                              <span>สลับโมเดล AI</span>
+                              <span className="text-[9px] text-cyan-400 font-normal">คลิกเลือกทันที</span>
+                            </div>
+                            <div className="py-1 space-y-1">
+                              {AVAILABLE_GEMINI_MODELS.map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => handleQuickSwitchModel(m.id)}
+                                  className={`w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs transition ${
+                                    selectedModel === m.id
+                                      ? "bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30"
+                                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                                  }`}
+                                >
+                                  <div className="truncate min-w-0 pr-2">
+                                    <div className="font-bold flex items-center gap-1 truncate text-[11px]">
+                                      <span>{m.name.replace(/ \(.*\)/, '')}</span>
+                                      {m.id === 'auto' && (
+                                        <span className="text-[8px] text-amber-300 bg-amber-400/20 px-1 py-0.2 rounded font-black">
+                                          Auto
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[9px] text-slate-400 truncate">{m.quota || m.tag}</div>
+                                  </div>
+                                  {selectedModel === m.id && (
+                                    <Check size={13} className="text-cyan-400 shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">
                         ผู้ช่วยแนะนำ
@@ -1161,44 +1244,142 @@ export function SupportChat({
                   </p>
                 </div>
 
-                {/* Model Selection */}
+                {/* Model Selection (Auto vs Manual) */}
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1.5">
-                    เลือกโมเดล Gemini
-                  </label>
-                  <div className="space-y-1.5">
-                    {AVAILABLE_GEMINI_MODELS.map((m) => (
-                      <label
-                        key={m.id}
-                        className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${
-                          selectedModel === m.id
-                            ? "border-indigo-500 bg-indigo-50/70 text-indigo-950 shadow-2xs"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="ai_model"
-                          checked={selectedModel === m.id}
-                          onChange={() => setSelectedModel(m.id)}
-                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-slate-800">
-                              {m.name}
-                            </span>
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/80 px-1.5 py-0.2 rounded border border-indigo-200">
-                              {m.tag}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            {m.description}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-bold text-slate-700">
+                      โหมดการเลือกโมเดล AI
+                    </label>
+                    <span className="text-[10px] font-bold text-indigo-600">
+                      {selectedModel === 'auto' ? '✨ โหมดสลับอัตโนมัติ' : '🎯 โหมดเลือกเอง'}
+                    </span>
                   </div>
+
+                  {/* Mode Tabs */}
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedModel('auto')}
+                      className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition ${
+                        selectedModel === 'auto'
+                          ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-slate-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>✨</span>
+                      <span>สลับอัตโนมัติ (Auto)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedModel === 'auto') {
+                          setSelectedModel('gemini-3.5-flash');
+                        }
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition ${
+                        selectedModel !== 'auto'
+                          ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-slate-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>🎯</span>
+                      <span>เลือกโมเดลเอง (Manual)</span>
+                    </button>
+                  </div>
+
+                  {/* Auto Mode UI */}
+                  {selectedModel === 'auto' ? (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-indigo-950 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs flex items-center gap-1.5 text-indigo-900">
+                          <span>🤖</span> Auto Model Cascade (แนะนำสูงสุด ✨)
+                        </span>
+                        <span className="text-[9px] font-black text-indigo-700 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200">
+                          Zero Downtime
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-indigo-900/90 leading-relaxed">
+                        ระบบจะเริ่มจากโมเดลที่ฉลาดที่สุด และสลับรุ่นสำรองให้อัตโนมัติทันทีเมื่อโควตาเต็ม ไม่สะดุด:
+                      </p>
+                      <div className="space-y-1.5 text-[11px] bg-white/80 rounded-xl p-2.5 border border-indigo-100 shadow-2xs">
+                        <div className="flex items-center justify-between font-bold text-slate-800">
+                          <span className="flex items-center gap-1">🌟 1. Gemini 3.5 Flash</span>
+                          <span className="text-[9px] text-amber-700 bg-amber-100/90 px-1.5 py-0.2 rounded font-bold">20 ครั้ง/วัน (ฉลาดสุด)</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 pl-5">↓ สลับอัตโนมัติเมื่อครบ 20 ครั้ง</div>
+                        <div className="flex items-center justify-between font-bold text-slate-800">
+                          <span className="flex items-center gap-1">🚀 2. Gemini 2.0 Flash</span>
+                          <span className="text-[9px] text-sky-700 bg-sky-100/90 px-1.5 py-0.2 rounded font-bold">สปีดเร็วสูง ภาษาไทยคล่อง</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 pl-5">↓ สลับสำรอง</div>
+                        <div className="flex items-center justify-between font-bold text-slate-800">
+                          <span className="flex items-center gap-1">⚡ 3. Gemini 1.5 Flash</span>
+                          <span className="text-[9px] text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded font-bold">1,500 ครั้ง/วัน (เสถียรสุด)</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Manual Selection UI */
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-slate-600 mb-1">
+                        คลิกเลือกรุ่นโมเดลที่ต้องการเจาะจงใช้งานด้วยตนเอง:
+                      </p>
+                      <div className="space-y-2">
+                        {MANUAL_GEMINI_MODELS.map((m) => (
+                          <label
+                            key={m.id}
+                            className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${
+                              selectedModel === m.id
+                                ? "border-indigo-500 bg-indigo-50/70 text-indigo-950 shadow-2xs ring-1 ring-indigo-400"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="ai_model"
+                              checked={selectedModel === m.id}
+                              onChange={() => setSelectedModel(m.id)}
+                              className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-xs text-slate-900">
+                                  {m.name}
+                                </span>
+                                <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/80 px-1.5 py-0.2 rounded border border-indigo-200">
+                                  {m.tag}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                                {m.description}
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
+                                <span className="bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded font-medium">
+                                  ⚡ {m.speed}
+                                </span>
+                                <span className="bg-indigo-50/80 text-indigo-800 border border-indigo-100 px-1.5 py-0.2 rounded font-bold">
+                                  📊 {m.quota}
+                                </span>
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Fallback Toggle in Manual Mode */}
+                      <label className="flex items-center gap-2 mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition">
+                        <input
+                          type="checkbox"
+                          checked={allowFallback}
+                          onChange={(e) => setAllowFallback(e.target.checked)}
+                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-[11px] text-slate-700 font-medium leading-tight">
+                          เปิดการสลับรุ่นสำรองอัตโนมัติหากโควตารุ่นนี้เต็ม (ป้องกันติด Error 429)
+                        </span>
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {/* Test Result Message */}
