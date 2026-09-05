@@ -1,9 +1,16 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
+  AlertCircle,
   Archive,
+  ArrowRight,
+  Building2,
   CalendarCheck,
   CalendarDays,
   CalendarRange,
+  Check,
+  CheckCircle2,
+  ChevronRight,
   Download,
   GraduationCap,
   LockKeyhole,
@@ -14,7 +21,9 @@ import {
   RefreshCw,
   RotateCcw,
   Scale,
+  Sparkles,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
@@ -218,9 +227,16 @@ export function ClassroomOperationsPage({
   mode?: OperationsMode;
   session: AppSessionContext;
 }) {
-  const [tab, setTab] = useState<TabKey>(
-    mode === "locks" ? "locks" : mode === "year" ? "rollover" : mode === "parent" ? "parent-qr" : "duty",
-  );
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const requestedTab = searchParams.get("tab") as TabKey | null;
+
+  const [tab, setTab] = useState<TabKey>(() => {
+    if (requestedTab && ["duty", "locks", "rollover", "archive", "parent-qr"].includes(requestedTab)) {
+      return requestedTab;
+    }
+    return mode === "locks" ? "locks" : mode === "year" ? "rollover" : mode === "parent" ? "parent-qr" : "duty";
+  });
   const canManageDuty = hasWorkspaceCapability(session, "duty.manage");
   const [classrooms, setClassrooms] = useState<Classroom[]>(demoClassrooms);
   const [students, setStudents] = useState<Student[]>(demoStudents);
@@ -1028,6 +1044,166 @@ export function ClassroomOperationsPage({
     setBusy(false);
   }
 
+  async function createQuickClassroom(name: string, academicYear: string) {
+    if (!name.trim() || !academicYear.trim()) {
+      setNotice("กรุณาระบุชื่อห้องและปีการศึกษา");
+      return;
+    }
+    setBusy(true);
+    if (!supabase || !session.workspace) {
+      const demoId = `demo-room-${Date.now()}`;
+      const newRoom: Classroom = {
+        academic_year: academicYear.trim(),
+        id: demoId,
+        name: name.trim(),
+        status: "active",
+      };
+      setClassrooms((prev) => [...prev, newRoom]);
+      setRolloverForm((prev) => ({
+        ...prev,
+        targetClassroomId: demoId,
+        targetYear: academicYear.trim(),
+      }));
+      setNotice(`✨ สร้างห้อง ${name} (${academicYear}) ในโหมดตัวอย่างแล้ว`);
+      setBusy(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("classrooms")
+        .insert({
+          academic_year: academicYear.trim(),
+          name: name.trim(),
+          status: "active",
+          homeroom_teacher_profile_id: session.profile.id,
+          workspace_id: session.workspace.id,
+        })
+        .select("id,name,academic_year,status,homeroom_teacher_profile_id")
+        .single();
+
+      if (error) {
+        setNotice(error.message);
+      } else if (data) {
+        const createdRoom = data as Classroom;
+        setClassrooms((prev) => [...prev, createdRoom]);
+        setRolloverForm((prev) => ({
+          ...prev,
+          targetClassroomId: createdRoom.id,
+          targetYear: academicYear.trim(),
+        }));
+        await writeAuditLog(session, {
+          action: "classroom.created",
+          entityId: createdRoom.id,
+          entityTable: "classrooms",
+          metadata: {
+            academic_year: academicYear.trim(),
+            name: name.trim(),
+            source: "quick_rollover",
+          },
+          riskLevel: "low",
+          source: "classroom_operations",
+        });
+        setNotice(`✨ สร้างห้อง ${name} (ปีการศึกษา ${academicYear}) สำเร็จและเลือกให้อัตโนมัติแล้ว`);
+      }
+    } catch (err: any) {
+      setNotice(err.message || "เกิดข้อผิดพลาดในการสร้างห้อง");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function fastTrackRollover(
+    targetClassroomId: string,
+    targetYear: string,
+    studentOverrides: Map<string, YearTransition["transition_type"]>,
+    note?: string,
+  ) {
+    if (!classroomId || !targetClassroomId) {
+      setNotice("กรุณาเลือกห้องต้นทางและห้องปลายทางให้ครบถ้วน");
+      return;
+    }
+
+    if (!supabase || !session.workspace) {
+      setNotice("🎉 จำลองการเลื่อนชั้นในโหมดตัวอย่างสำเร็จ! (สร้าง Snapshot และย้ายนักเรียนแล้ว)");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ยืนยันดำเนินการเลื่อนชั้นทันที?\n\nระบบจะสร้าง Snapshot สำรองข้อมูลเดิมไว้ในคลังย้อนหลัง และย้ายนักเรียนเข้าห้องใหม่ทันที (สามารถกดย้อนกลับ Undo ได้ภายใน 7 วัน)`,
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setNotice("กำลังดำเนินการเลื่อนชั้นและสร้าง Snapshot สำรองข้อมูล...");
+
+    try {
+      // 1. Prepare year closure
+      const { data: closureId, error: prepError } = await supabase.rpc("prepare_year_closure", {
+        closure_note: note || "เลื่อนชั้นอัจฉริยะ (Smart Rollover)",
+        source_classroom: classroomId,
+        target_classroom: targetClassroomId,
+        target_workspace_id: session.workspace.id,
+        target_year: targetYear,
+      });
+      if (prepError) throw prepError;
+
+      // 2. Apply student overrides if any
+      if (studentOverrides && studentOverrides.size > 0) {
+        const { data: generatedTransitions } = await supabase
+          .from("student_year_transitions")
+          .select("id, student_id")
+          .eq("closure_id", closureId);
+
+        if (generatedTransitions && generatedTransitions.length > 0) {
+          for (const item of generatedTransitions) {
+            const override = studentOverrides.get(item.student_id);
+            if (override && override !== "promoted") {
+              await supabase.rpc("set_year_transition", {
+                next_classroom_id: null,
+                next_type: override,
+                target_transition_id: item.id,
+                transition_note: null,
+              });
+            }
+          }
+        }
+      }
+
+      // 3. Approve closure
+      const { error: appError } = await supabase.rpc("approve_year_closure", {
+        target_closure_id: closureId,
+      });
+      if (appError) throw appError;
+
+      // 4. Execute closure
+      const { error: execError } = await supabase.rpc("execute_year_closure", {
+        target_closure_id: closureId,
+      });
+      if (execError) throw execError;
+
+      await writeAuditLog(session, {
+        action: "year_closure.executed",
+        entityId: closureId,
+        entityTable: "academic_year_closures",
+        metadata: {
+          source_classroom_id: classroomId,
+          target_classroom_id: targetClassroomId,
+          target_year: targetYear,
+        },
+        riskLevel: "high",
+        source: "classroom_operations",
+      });
+
+      setNotice("🎉 เลื่อนชั้นสำเร็จเรียบร้อยแล้ว! ข้อมูลเดิมถูกสำรองเป็น Snapshot ในคลังย้อนหลัง และย้ายนักเรียนเข้าห้องใหม่เรียบร้อยแล้ว (สามารถ Undo คืนค่าเดิมได้ภายใน 7 วัน)");
+      setTimeout(() => window.location.reload(), 700);
+    } catch (err: any) {
+      setNotice(err.message || "เกิดข้อผิดพลาดในการเลื่อนชั้น");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateTransition(transition: YearTransition, nextType: YearTransition["transition_type"]) {
     if (!supabase) return;
     setBusy(true);
@@ -1584,8 +1760,12 @@ export function ClassroomOperationsPage({
           closures={closures}
           form={rolloverForm}
           onAction={closureAction}
+          onFastTrack={fastTrackRollover}
           onForm={setRolloverForm}
+          onNavigateArchive={() => setTab("archive")}
           onPrepare={prepareClosure}
+          onQuickCreateClassroom={createQuickClassroom}
+          onSelectClassroom={setClassroomId}
           studentCount={roomStudents.length}
           students={students}
           transitions={transitions}
@@ -2147,6 +2327,58 @@ function LocksPanel({
   );
 }
 
+function getPredictedNextClassroom(currentName: string, currentYear: string | null) {
+  const cleanName = (currentName || "").trim();
+  const baseYear = parseInt(currentYear || "2568", 10) || 2568;
+  const nextYear = String(baseYear + 1);
+
+  // Match: ป.1/1, ป.1, ม.1/2, อ.2/1, อนุบาล 1/1, ประถม 5/2, มัธยม 3/1
+  const match = cleanName.match(/^(อ\.|อนุบาล|ป\.|ประถม|ม\.|มัธยม)\s*([0-9]+)(\/.*)?$/i);
+  if (match) {
+    const prefix = match[1];
+    const gradeNum = parseInt(match[2], 10);
+    const slashSection = match[3] || "";
+
+    // Kindergarten 3 -> Prathom 1
+    if (prefix.startsWith("อ") && gradeNum === 3) {
+      return {
+        gradeLabel: "ป.1",
+        isGraduating: false,
+        nextYear,
+        suggestedName: `ป.1${slashSection}`,
+      };
+    }
+
+    // Graduating grades: Prathom 6, Mathayom 3, Mathayom 6
+    if (
+      (prefix.startsWith("ป") && gradeNum === 6) ||
+      (prefix.startsWith("ม") && (gradeNum === 3 || gradeNum === 6))
+    ) {
+      return {
+        gradeLabel: "จบการศึกษา",
+        isGraduating: true,
+        nextYear,
+        suggestedName: `จบการศึกษา (${cleanName} รุ่นปี ${baseYear})`,
+      };
+    }
+
+    const nextGrade = gradeNum + 1;
+    return {
+      gradeLabel: `${prefix}${nextGrade}`,
+      isGraduating: false,
+      nextYear,
+      suggestedName: `${prefix}${nextGrade}${slashSection}`,
+    };
+  }
+
+  return {
+    gradeLabel: cleanName,
+    isGraduating: false,
+    nextYear,
+    suggestedName: `${cleanName} (ปี ${nextYear})`,
+  };
+}
+
 function RolloverPanel({
   busy,
   classroomId,
@@ -2154,12 +2386,16 @@ function RolloverPanel({
   closures,
   form,
   onAction,
+  onFastTrack,
   onForm,
+  onNavigateArchive,
   onPrepare,
-  onTransition,
+  onQuickCreateClassroom,
+  onSelectClassroom,
   studentCount,
   students,
   transitions,
+  onTransition,
 }: {
   busy: boolean;
   classroomId: string;
@@ -2170,153 +2406,624 @@ function RolloverPanel({
     closure: YearClosure,
     action: "approve" | "execute" | "undo",
   ) => void;
+  onFastTrack: (
+    targetClassroomId: string,
+    targetYear: string,
+    studentOverrides: Map<string, YearTransition["transition_type"]>,
+    note?: string,
+  ) => void;
   onForm: (value: typeof form) => void;
+  onNavigateArchive?: () => void;
   onPrepare: (event: FormEvent) => void;
-  onTransition: (transition: YearTransition, nextType: YearTransition["transition_type"]) => void;
+  onQuickCreateClassroom: (name: string, academicYear: string) => void;
+  onSelectClassroom: (id: string) => void;
   studentCount: number;
   students: Student[];
   transitions: YearTransition[];
+  onTransition: (transition: YearTransition, nextType: YearTransition["transition_type"]) => void;
 }) {
+  const currentClassroom = classrooms.find((c) => c.id === classroomId);
+  const roomStudents = students.filter((s) => s.classroom_id === classroomId);
+  const predicted = useMemo(
+    () => getPredictedNextClassroom(currentClassroom?.name || "", currentClassroom?.academic_year || "2568"),
+    [currentClassroom],
+  );
+
+  // Check if predicted classroom already exists in the system
+  const matchingExistingRoom = useMemo(() => {
+    return classrooms.find(
+      (r) =>
+        r.id !== classroomId &&
+        r.status === "active" &&
+        r.name.trim().toLowerCase() === predicted.suggestedName.trim().toLowerCase() &&
+        r.academic_year === predicted.nextYear,
+    );
+  }, [classroomId, classrooms, predicted]);
+
+  // Auto-fill target classroom if matching room exists and not set yet
+  useEffect(() => {
+    if (matchingExistingRoom && (!form.targetClassroomId || form.targetClassroomId !== matchingExistingRoom.id)) {
+      onForm({
+        ...form,
+        targetClassroomId: matchingExistingRoom.id,
+        targetYear: predicted.nextYear,
+      });
+    } else if (!form.targetYear) {
+      onForm({
+        ...form,
+        targetYear: predicted.nextYear,
+      });
+    }
+  }, [matchingExistingRoom, predicted.nextYear]);
+
+  // Student overrides map: student_id -> transition_type
+  const [studentOverrides, setStudentOverrides] = useState<Record<string, YearTransition["transition_type"]>>({});
+  const [studentSearch, setStudentSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | YearTransition["transition_type"]>("all");
+
+  const defaultType: YearTransition["transition_type"] = predicted.isGraduating ? "graduated" : "promoted";
+
+  const getStudentStatus = (studentId: string): YearTransition["transition_type"] => {
+    return studentOverrides[studentId] || defaultType;
+  };
+
+  const handleSetStudentStatus = (studentId: string, type: YearTransition["transition_type"]) => {
+    setStudentOverrides((prev) => ({
+      ...prev,
+      [studentId]: type,
+    }));
+  };
+
+  const handleSetAllStudents = (type: YearTransition["transition_type"]) => {
+    const next: Record<string, YearTransition["transition_type"]> = {};
+    roomStudents.forEach((s) => {
+      next[s.id] = type;
+    });
+    setStudentOverrides(next);
+  };
+
+  // Counts
+  const promotedCount = roomStudents.filter((s) => getStudentStatus(s.id) === "promoted").length;
+  const retainedCount = roomStudents.filter((s) => getStudentStatus(s.id) === "retained").length;
+  const graduatedCount = roomStudents.filter((s) => getStudentStatus(s.id) === "graduated").length;
+  const transferredCount = roomStudents.filter((s) => getStudentStatus(s.id) === "transferred").length;
+
+  const filteredStudents = roomStudents.filter((s) => {
+    const matchesSearch =
+      !studentSearch ||
+      (s.student_code && s.student_code.includes(studentSearch)) ||
+      `${s.first_name} ${s.last_name}`.toLowerCase().includes(studentSearch.toLowerCase());
+    const matchesStatus = statusFilter === "all" || getStudentStatus(s.id) === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleExecuteFastTrack = () => {
+    if (!form.targetClassroomId && !predicted.isGraduating) {
+      alert("กรุณาเลือกหรือสร้างห้องปลายทางก่อนดำเนินการ");
+      return;
+    }
+
+    const overridesMap = new Map<string, YearTransition["transition_type"]>();
+    Object.entries(studentOverrides).forEach(([sid, type]) => {
+      overridesMap.set(sid, type);
+    });
+
+    onFastTrack(form.targetClassroomId, form.targetYear || predicted.nextYear, overridesMap, form.note);
+  };
+
+  // Active closure for this specific room
+  const activeRoomClosure = closures.find(
+    (c) => c.source_classroom_id === classroomId && (c.status === "pending_approval" || c.status === "approved"),
+  );
+
   return (
-    <section className="mt-5 grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
-      <form className="nexus-card p-5" onSubmit={onPrepare}>
-        <h2 className="text-xl font-black text-slate-950">
-          เตรียมปิดชั้นแบบปลอดภัย
-        </h2>
-        <div className="mt-4 rounded-2xl bg-cyan-50 p-4">
-          <p className="text-xs font-black text-cyan-700">PREVIEW</p>
-          <p className="mt-1 text-2xl font-black text-slate-950">
-            {studentCount} คน
-          </p>
-          <p className="text-sm font-bold text-slate-500">
-            จะถูกเตรียมเป็น “เลื่อนชั้น” และยังไม่ย้ายจริงจนกว่า Execute
-          </p>
+    <section className="mt-5 space-y-6">
+      {/* 🌟 Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-2xl text-white shadow-md shadow-cyan-500/25">
+              🎓
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-black text-slate-950 dark:text-white sm:text-2xl">
+                  ระบบเลื่อนชั้นเรียนข้ามปีการศึกษา (Promotion Wizard)
+                </h2>
+                <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                  🛡️ สำรอง Snapshot อัตโนมัติ
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                ย้ายข้อมูลนักเรียน ปรับสถานะรายคน พร้อมระบบความปลอดภัยย้อนกลับ (Undo) ได้ภายใน 7 วัน
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {onNavigateArchive && (
+              <button
+                type="button"
+                onClick={onNavigateArchive}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                <Archive size={15} />
+                <span>คลังย้อนหลัง (Snapshots)</span>
+              </button>
+            )}
+          </div>
         </div>
-        <div className="mt-4 grid gap-3">
-          <label className="grid gap-2 text-sm font-black text-slate-700">
-            ห้องปลายทาง
-            <select
-              className="nexus-field h-11 px-3"
-              onChange={(e) =>
-                onForm({ ...form, targetClassroomId: e.target.value })
-              }
-              value={form.targetClassroomId}
+
+        {/* 3 Steps Overview Bar */}
+        <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center gap-2 rounded-xl bg-cyan-50/70 p-2.5 text-xs font-black text-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200">
+            <span className="grid h-6 w-6 place-items-center rounded-lg bg-cyan-600 text-white">1</span>
+            <span>เลือกหรือสร้างห้องปีถัดไป</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 text-xs font-black text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+            <span className="grid h-6 w-6 place-items-center rounded-lg bg-slate-400 text-white">2</span>
+            <span>ตรวจรายชื่อ & ปรับคนซ้ำชั้น/ย้าย</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50/70 p-2.5 text-xs font-black text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+            <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-600 text-white">3</span>
+            <span>ยืนยันเลื่อนชั้นในคลิกเดียว</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 🚀 Active Closure Alert (If previously prepared) */}
+      {activeRoomClosure && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-950/30">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-500 text-white font-black">
+              !
+            </span>
+            <div>
+              <p className="text-sm font-black text-amber-950 dark:text-amber-200">
+                ห้องนี้มีคำขอปิดชั้นรออนุมัติอยู่: {activeRoomClosure.source_academic_year} → {activeRoomClosure.target_academic_year}
+              </p>
+              <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                นักเรียน {activeRoomClosure.summary?.total_students || 0} คน · สถานะ: {activeRoomClosure.status}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeRoomClosure.status === "pending_approval" && (
+              <button
+                type="button"
+                onClick={() => void onAction(activeRoomClosure, "approve")}
+                className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700 shadow-sm"
+              >
+                อนุมัติ (Approve)
+              </button>
+            )}
+            {activeRoomClosure.status === "approved" && (
+              <button
+                type="button"
+                onClick={() => void onAction(activeRoomClosure, "execute")}
+                className="rounded-xl bg-teal-600 px-4 py-2 text-xs font-black text-white hover:bg-teal-700 shadow-sm"
+              >
+                ดำเนินการย้ายจริง (Execute)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 🧩 Step 1: Mapping Control Card */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90">
+        <div className="flex items-center gap-2 text-xs font-black text-cyan-700 dark:text-cyan-400">
+          <span>ขั้นตอนที่ 1</span>
+          <span>·</span>
+          <span>จับคู่ห้องเรียนต้นทางและปลายทาง</span>
+        </div>
+
+        <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+          {/* Source Classroom */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <span className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">
+              ห้องเรียนต้นทาง (ปีปัจจุบัน)
+            </span>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <select
+                className="nexus-field h-11 flex-1 px-3 text-sm font-black"
+                value={classroomId}
+                onChange={(e) => onSelectClassroom(e.target.value)}
+              >
+                {classrooms
+                  .filter((r) => r.status === "active")
+                  .map((r) => {
+                    const count = students.filter((s) => s.classroom_id === r.id).length;
+                    return (
+                      <option key={r.id} value={r.id}>
+                        📚 {r.name} (ปี {r.academic_year || "-"}) · {count} คน
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
+            <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+              นักเรียนในห้องนี้: <strong className="text-slate-900 dark:text-white">{roomStudents.length} คน</strong>
+            </p>
+          </div>
+
+          {/* Arrow */}
+          <div className="hidden lg:grid h-10 w-10 place-items-center rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-200">
+            <ArrowRight size={20} />
+          </div>
+
+          {/* Target Classroom */}
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-4 dark:border-cyan-800/60 dark:bg-cyan-950/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-cyan-800 dark:text-cyan-300">
+                ห้องเรียนปลายทาง (ปีถัดไป)
+              </span>
+              <span className="text-[11px] font-bold text-slate-500">
+                ปีการศึกษา: {form.targetYear || predicted.nextYear}
+              </span>
+            </div>
+
+            <div className="mt-2">
+              {predicted.isGraduating ? (
+                <div className="flex h-11 items-center gap-2 rounded-xl border border-purple-300 bg-purple-50 px-3 text-xs font-black text-purple-900 dark:border-purple-800/60 dark:bg-purple-950/40 dark:text-purple-200">
+                  <GraduationCap size={18} className="text-purple-600" />
+                  <span>ระดับชั้นจบการศึกษา (ไม่ต้องเลือกห้องปลายทาง)</span>
+                </div>
+              ) : (
+                <select
+                  className="nexus-field h-11 w-full px-3 text-sm font-black"
+                  value={form.targetClassroomId}
+                  onChange={(e) => onForm({ ...form, targetClassroomId: e.target.value })}
+                >
+                  <option value="">-- เลือกห้องเรียนปลายทาง --</option>
+                  {classrooms
+                    .filter((r) => r.id !== classroomId && r.status === "active")
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        🎯 {r.name} (ปี {r.academic_year})
+                      </option>
+                    ))}
+                </select>
+              )}
+            </div>
+
+            {/* Smart Auto Suggestion helper button */}
+            {!predicted.isGraduating && !matchingExistingRoom && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onQuickCreateClassroom(predicted.suggestedName, predicted.nextYear)}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 p-2.5 text-xs font-black text-white shadow-sm transition-all hover:scale-[1.01] hover:shadow-md active:scale-95"
+                >
+                  <Sparkles size={15} />
+                  <span>✨ กดสร้างห้อง "{predicted.suggestedName}" (ปี {predicted.nextYear}) ให้อัตโนมัติ</span>
+                </button>
+              </div>
+            )}
+
+            {matchingExistingRoom && (
+              <p className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 size={13} />
+                <span>ตรวจพบห้อง {matchingExistingRoom.name} ({matchingExistingRoom.academic_year}) และเลือกให้ทันทีแล้ว</span>
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 👥 Step 2: Student Roster & Quick Adjustments */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black text-cyan-700 dark:text-cyan-400">
+              <span>ขั้นตอนที่ 2</span>
+              <span>·</span>
+              <span>ตรวจรายชื่อ & กำหนดสถานะรายคน (ค่าตั้งต้น: ทุกคนเลื่อนชั้น 100%)</span>
+            </div>
+            <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
+              รายชื่อนักเรียนห้อง {currentClassroom?.name || "-"} ({roomStudents.length} คน)
+            </h3>
+          </div>
+
+          {/* Quick Bulk Setting */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-500">ปรับทั้งห้อง:</span>
+            <button
+              type="button"
+              onClick={() => handleSetAllStudents("promoted")}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
             >
-              <option value="">เลือกห้อง</option>
-              {classrooms
-                .filter((r) => r.id !== classroomId && r.status === "active")
-                .map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.academic_year})
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-black text-slate-700">
-            ปีการศึกษาใหม่
-            <input
-              className="nexus-field h-11 px-3"
-              onChange={(e) => onForm({ ...form, targetYear: e.target.value })}
-              value={form.targetYear}
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-black text-slate-700">
-            หมายเหตุ
-            <textarea
-              className="nexus-field min-h-20 p-3"
-              onChange={(e) => onForm({ ...form, note: e.target.value })}
-              value={form.note}
-            />
-          </label>
+              เลื่อนชั้นทุกคน
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetAllStudents("graduated")}
+              className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-black text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
+            >
+              จบการศึกษาทุกคน
+            </button>
+          </div>
+        </div>
+
+        {/* Status Count Summary Pills */}
+        <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="blue-action h-11 rounded-2xl px-4 text-sm font-black disabled:opacity-50"
-            disabled={busy || !form.targetClassroomId}
+            type="button"
+            onClick={() => setStatusFilter("all")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+              statusFilter === "all"
+                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+            }`}
           >
-            สร้าง Preview และส่งอนุมัติ
+            ทั้งหมด ({roomStudents.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("promoted")}
+            className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+              statusFilter === "promoted"
+                ? "bg-emerald-600 text-white"
+                : "border border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+            }`}
+          >
+            <Check size={13} />
+            <span>เลื่อนชั้น ({promotedCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("retained")}
+            className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+              statusFilter === "retained"
+                ? "bg-amber-600 text-white"
+                : "border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+            }`}
+          >
+            <span>ซ้ำชั้น ({retainedCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("graduated")}
+            className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+              statusFilter === "graduated"
+                ? "bg-purple-600 text-white"
+                : "border border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-300"
+            }`}
+          >
+            <GraduationCap size={13} />
+            <span>จบการศึกษา ({graduatedCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("transferred")}
+            className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+              statusFilter === "transferred"
+                ? "bg-sky-600 text-white"
+                : "border border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300"
+            }`}
+          >
+            <span>ย้ายสถานศึกษา ({transferredCount})</span>
           </button>
         </div>
-      </form>
-      <div className="nexus-card p-5">
-        <h2 className="text-xl font-black text-slate-950">
-          Preview → Approve → Execute → Undo
-        </h2>
-        <div className="mt-4 grid gap-3">
-          {closures.map((closure) => (
-            <article
-              className="rounded-2xl border border-slate-200 p-4"
-              key={closure.id}
+
+        {/* Search input */}
+        <div className="mt-4">
+          <input
+            type="text"
+            placeholder="🔍 ค้นหาชื่อหรือเลขประจำตัวนักเรียน..."
+            className="nexus-field h-10 w-full px-3 text-xs font-bold"
+            value={studentSearch}
+            onChange={(e) => setStudentSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Student Roster Table */}
+        <div className="mt-3 max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800 scrollbar-thin">
+          {filteredStudents.length > 0 ? (
+            filteredStudents.map((student, idx) => {
+              const status = getStudentStatus(student.id);
+
+              return (
+                <div
+                  key={student.id}
+                  className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-100 text-xs font-black text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        {fullName(student)}
+                      </p>
+                      <p className="text-xs font-bold text-slate-400">
+                        เลขประจำตัว: {student.student_code || "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Interactive Status Segmented Button */}
+                  <div className="flex flex-wrap items-center gap-1 self-start sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => handleSetStudentStatus(student.id, "promoted")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                        status === "promoted"
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      ✓ เลื่อนชั้น
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetStudentStatus(student.id, "retained")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                        status === "retained"
+                          ? "bg-amber-600 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      ↩ ซ้ำชั้น
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetStudentStatus(student.id, "graduated")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                        status === "graduated"
+                          ? "bg-purple-600 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      🎓 จบการศึกษา
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetStudentStatus(student.id, "transferred")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                        status === "transferred"
+                          ? "bg-sky-600 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      ✈️ ย้าย รร.
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-8 text-center text-sm font-bold text-slate-500">
+              {roomStudents.length === 0 ? "ไม่มีนักเรียนในห้องนี้" : "ไม่พบนักเรียนตามเงื่อนไขที่ค้นหา"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 🚀 Step 3: Action Execution Card */}
+      <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-r from-cyan-500/10 via-indigo-500/10 to-teal-500/10 p-5 shadow-sm sm:p-6 dark:border-cyan-500/20">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black text-cyan-800 dark:text-cyan-300">
+              <span>ขั้นตอนที่ 3</span>
+              <span>·</span>
+              <span>ยืนยันและดำเนินการ</span>
+            </div>
+            <h3 className="mt-1 text-base sm:text-lg font-black text-slate-950 dark:text-white">
+              พร้อมเลื่อนชั้น: ย้ายนักเรียน {promotedCount} คน
+              {retainedCount > 0 ? `, ซ้ำชั้น ${retainedCount} คน` : ""}
+              {graduatedCount > 0 ? `, จบการศึกษา ${graduatedCount} คน` : ""}
+            </h3>
+            <p className="mt-0.5 text-xs font-bold text-slate-600 dark:text-slate-400">
+              ระบบจะบันทึก Snapshot ประวัติการเรียนทั้งหมดไว้ในคลังย้อนหลังอัตโนมัติ และย้ายนักเรียนเข้าห้องใหม่ทันที
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-2.5">
+            <button
+              type="button"
+              disabled={busy || (!form.targetClassroomId && !predicted.isGraduating) || roomStudents.length === 0}
+              onClick={handleExecuteFastTrack}
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-teal-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Sparkles size={17} />
+              <span>🚀 ยืนยันเลื่อนชั้นทันที (1-Click Promote)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 📜 Past Closures History & Safe Undo */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-black text-slate-950 dark:text-white flex items-center gap-2">
+              <RotateCcw size={17} className="text-cyan-600" />
+              <span>ประวัติการเลื่อนชั้น & ระบบกู้คืน (Undo)</span>
+            </h3>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              สามารถสั่งย้อนกลับ (Undo) เพื่อดึงนักเรียนกลับสู่ห้องเดิมได้ภายใน 7 วัน
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          {closures.map((closure) => {
+            const sourceRoom = classrooms.find((c) => c.id === closure.source_classroom_id);
+            const targetRoom = classrooms.find((c) => c.id === closure.target_classroom_id);
+
+            return (
+              <article
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700 dark:bg-slate-800/40"
+                key={closure.id}
+              >
                 <div>
-                  <p className="font-black text-slate-950">
-                    {closure.source_academic_year} →{" "}
-                    {closure.target_academic_year}
-                  </p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    นักเรียน {closure.summary?.total_students || 0} คน · สถานะ{" "}
-                    {closure.status}
+                  <div className="flex items-center gap-2">
+                    <p className="font-black text-slate-900 dark:text-white">
+                      {sourceRoom ? sourceRoom.name : "ห้องเดิม"} ({closure.source_academic_year}) ➔{" "}
+                      {targetRoom ? targetRoom.name : "ห้องปลายทาง"} ({closure.target_academic_year})
+                    </p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                        closure.status === "executed"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300"
+                      }`}
+                    >
+                      {closure.status === "executed" ? "✓ ย้ายแล้ว" : closure.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                    นักเรียนทั้งหมด {closure.summary?.total_students || 0} คน
+                    {closure.summary?.promoted ? ` · เลื่อนชั้น ${closure.summary.promoted} คน` : ""}
+                    {closure.summary?.retained ? ` · ซ้ำชั้น ${closure.summary.retained} คน` : ""}
+                    {closure.summary?.graduated ? ` · จบการศึกษา ${closure.summary.graduated} คน` : ""}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {closure.status === "pending_approval" ? (
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {closure.status === "executed" && (
                     <button
-                      className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-white"
+                      type="button"
+                      disabled={busy}
+                      className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-black text-white hover:bg-rose-700 shadow-sm transition-all"
+                      onClick={() => void onAction(closure, "undo")}
+                    >
+                      <RotateCcw size={13} />
+                      <span>ย้อนกลับ (Undo)</span>
+                    </button>
+                  )}
+                  {closure.status === "pending_approval" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-black text-white"
                       onClick={() => void onAction(closure, "approve")}
                     >
                       Approve
                     </button>
-                  ) : null}
-                  {closure.status === "approved" ? (
+                  )}
+                  {closure.status === "approved" && (
                     <button
-                      className="rounded-xl bg-teal-600 px-3 py-2 text-xs font-black text-white"
+                      type="button"
+                      disabled={busy}
+                      className="rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-black text-white"
                       onClick={() => void onAction(closure, "execute")}
                     >
                       Execute
                     </button>
-                  ) : null}
-                  {closure.status === "executed" ? (
-                    <button
-                      className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-black text-white"
-                      onClick={() => void onAction(closure, "undo")}
-                    >
-                      <RotateCcw className="mr-1 inline" size={14} />
-                      Undo
-                    </button>
-                  ) : null}
+                  )}
                 </div>
-              </div>
-              {closure.status === "pending_approval" ? (
-                <div className="mt-4 grid gap-2 border-t border-slate-200 pt-4">
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">ตรวจผลรายคนก่อนอนุมัติ</p>
-                  {transitions.filter((item) => item.closure_id === closure.id).map((transition) => {
-                    const student = students.find((item) => item.id === transition.student_id);
-                    return (
-                      <label className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between" key={transition.id}>
-                        <span className="text-sm font-black text-slate-900">{student?.student_code} · {fullName(student)}</span>
-                        <select
-                          className="nexus-field h-9 px-3 text-xs font-black"
-                          disabled={busy}
-                          onChange={(event) => void onTransition(transition, event.target.value as YearTransition["transition_type"])}
-                          value={transition.transition_type}
-                        >
-                          <option value="promoted">เลื่อนชั้น</option>
-                          <option value="retained">ซ้ำชั้น</option>
-                          <option value="graduated">จบการศึกษา</option>
-                          <option value="transferred">ย้ายสถานศึกษา</option>
-                          <option value="inactive">พ้นสภาพ</option>
-                        </select>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </article>
-          ))}
-          {!closures.length ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm font-bold text-slate-500">
-              ยังไม่มีแผนปิดชั้น
+              </article>
+            );
+          })}
+
+          {closures.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm font-bold text-slate-500 dark:border-slate-700">
+              ยังไม่มีประวัติการเลื่อนชั้นในระบบ
             </p>
-          ) : null}
+          )}
         </div>
       </div>
     </section>

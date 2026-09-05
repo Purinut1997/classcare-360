@@ -1,5 +1,6 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Building2, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowRight, Building2, Download, Globe2, GraduationCap, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from 'lucide-react';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, planLabels, planLimits } from '../../lib/entitlements';
@@ -1833,36 +1834,47 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                 <RotateCcw size={17} aria-hidden="true" />
                 Academic Year Rollover
               </div>
-              <h2 className="mt-2 text-2xl font-black text-slate-950">เตรียมเลื่อนชั้นปีถัดไป</h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                รอบนี้ทำเป็น preview/export ก่อน เพื่อกันการย้ายข้อมูลผิดปี เมื่อพร้อมค่อยผูก Edge Function ให้สร้างห้องปีใหม่และย้ายนักเรียนแบบมี audit log
+              <h2 className="mt-2 text-2xl font-black text-slate-950">ระบบเลื่อนชั้นเรียนข้ามปีการศึกษา</h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                ระบบจัดการย้ายข้อมูลนักเรียนข้ามปีการศึกษาจริง พร้อมระบบความปลอดภัยสูงสุด: สร้าง Snapshot สำรองข้อมูลเดิมอัตโนมัติก่อนย้าย และสามารถสั่งย้อนกลับ (Undo) เพื่อคืนสภาพเดิมได้ภายใน 7 วัน
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ปีเดิม
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Link
+                  to="/app/dashboard?view=classroom-operations&tab=rollover"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-teal-600 px-5 text-sm font-black text-white shadow-md shadow-cyan-500/25 transition-all hover:scale-105 hover:shadow-lg"
+                >
+                  <GraduationCap size={18} />
+                  <span>เปิดระบบเลื่อนชั้นเรียน (Promotion Wizard) →</span>
+                </Link>
+                <button
+                  className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                  onClick={exportRolloverPlan}
+                  type="button"
+                >
+                  <Download size={16} aria-hidden="true" />
+                  <span>ดาวน์โหลดแผนสำรอง JSON</span>
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-black text-slate-600">
+                  ปีการศึกษาเดิม (สำหรับ Export)
                   <input
-                    className="nexus-field h-11 px-3"
+                    className="nexus-field h-10 px-3 text-xs"
                     onChange={(event) => setRolloverForm((current) => ({ ...current, fromYear: event.target.value }))}
                     value={rolloverForm.fromYear}
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ปีถัดไป
+                <label className="grid gap-1.5 text-xs font-black text-slate-600">
+                  ปีการศึกษาถัดไป (สำหรับ Export)
                   <input
-                    className="nexus-field h-11 px-3"
+                    className="nexus-field h-10 px-3 text-xs"
                     onChange={(event) => setRolloverForm((current) => ({ ...current, toYear: event.target.value }))}
                     value={rolloverForm.toYear}
                   />
                 </label>
               </div>
-              <button
-                className="dark-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-                onClick={exportRolloverPlan}
-                type="button"
-              >
-                สร้างแผนเลื่อนชั้น
-                <Download size={17} aria-hidden="true" />
-              </button>
             </div>
           )}
         </section>
