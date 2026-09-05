@@ -51,8 +51,8 @@ interface NexusAuroraLoaderProps {
   theme?: LoaderTheme;
 }
 
-// System-wide official loader theme setting
-export const SYSTEM_LOADER_THEME: LoaderTheme = 'quantum';
+// System-wide official loader theme setting (Chosen: Aurora Borealis Glass)
+export const SYSTEM_LOADER_THEME: LoaderTheme = 'aurora';
 
 export function NexusAuroraVisual({
   message,
@@ -225,8 +225,36 @@ export function NexusAuroraVisual({
             {message || 'ระบบกำลังจัดเตรียมบริการความปลอดภัยระดับพรีเมียมสำหรับโรงเรียน'}
           </p>
 
+          {/* 3 Frosted Glass Steps */}
+          <div className="relative z-10 mt-6 grid grid-cols-3 gap-2 text-[11px] font-bold">
+            {[
+              { label: 'ตรวจสอบข้อมูล', step: 0 },
+              { label: 'เตรียมรายการ', step: 1 },
+              { label: 'พร้อมใช้งาน', step: 2 },
+            ].map((item) => {
+              const active = stepIndex >= item.step;
+              return (
+                <div
+                  key={item.step}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border py-1.5 px-2 transition-all duration-300 ${
+                    active
+                      ? 'border-teal-400/40 bg-teal-500/15 text-teal-200 shadow-[0_0_15px_rgba(45,212,191,0.2)] font-black'
+                      : 'border-white/5 bg-white/5 text-slate-500'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      active ? 'bg-teal-300 shadow-[0_0_8px_#2dd4bf]' : 'bg-slate-600'
+                    }`}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
           {/* Smooth Aurora Progress Bar */}
-          <div className="relative z-10 mt-8">
+          <div className="relative z-10 mt-6">
             <div className="h-2 w-full overflow-hidden rounded-full bg-white/10 p-0.5 backdrop-blur-sm">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-teal-400 via-cyan-400 to-fuchsia-400 shadow-[0_0_20px_rgba(45,212,191,0.8)] transition-all duration-300"
@@ -236,7 +264,7 @@ export function NexusAuroraVisual({
             <div className="mt-3 flex items-center justify-between text-xs font-bold text-teal-200/90">
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 size={13} className="text-teal-300" />
-                <span>กำลังประมวลผลโมดูล...</span>
+                <span>ระบบจะดำเนินการต่อโดยอัตโนมัติ</span>
               </span>
               <span className="font-mono text-white text-xs">{percent}%</span>
             </div>
