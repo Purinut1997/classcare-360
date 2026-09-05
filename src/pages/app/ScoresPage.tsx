@@ -392,7 +392,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const initialPerspective: ScorePerspective = requestedPerspective === 'classroom' ? 'classroom' : 'subject';
 
   const [perspective, setPerspective] = useState<ScorePerspective>(initialPerspective);
-  const [subjectSubView, setSubjectSubView] = useState<'grid' | 'comparison'>('grid');
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
   const [cloneSourceClassroomId, setCloneSourceClassroomId] = useState('');
   const [cloneTargetClassroomIds, setCloneTargetClassroomIds] = useState<string[]>([]);
@@ -1783,103 +1782,136 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
   return (
     <main className="app-page pb-24">
-      {/* 1. Header & View Mode Switcher */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      {/* 1. Header with System Title & Primary Actions */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="nexus-kicker flex items-center gap-2 text-cyan-800">
             <Award size={16} aria-hidden="true" />
             ClassCare Score Center
           </div>
-          <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">
+          <h1 className="mt-1.5 text-2xl font-black text-slate-950 sm:text-3xl">
             ระบบบันทึกคะแนนและตัดเกรด
           </h1>
-          <p className="mt-1 text-sm font-bold text-slate-500">
+          <p className="mt-0.5 text-xs sm:text-sm font-bold text-slate-500">
             กรอกคะแนนสะสม กลางภาค ปลายภาค พร้อมตัดเกรด 8 ระดับ (0 - 4) ตามเกณฑ์กระทรวงศึกษาธิการ
           </p>
         </div>
 
-        {/* View Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
-          {[
-            { icon: Table, label: 'ตารางรวมแบบ Excel', value: 'excel' as ScoreView },
-            { icon: ClipboardList, label: 'กรอกทีละชุด', value: 'entry' as ScoreView },
-            { icon: FileSpreadsheet, label: 'สรุป & ตัดเกรด (0 - 4)', value: 'gradebook' as ScoreView },
-            { icon: Layers, label: 'ภาพรวมทุกห้อง/วิชา', value: 'overview' as ScoreView },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = scoreView === item.value;
-            return (
+        {/* Global Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-2xs transition hover:bg-amber-100 hover:border-amber-300"
+            onClick={() => setIsGuideOpen(true)}
+            title="เปิดดูคู่มือการใช้งานระบบคะแนนและตาราง Excel"
+            type="button"
+          >
+            <BookOpen size={15} className="text-amber-700" aria-hidden="true" />
+            คู่มือการใช้งาน
+          </button>
+
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
+            onClick={() => {
+              setForm((current) => ({
+                ...current,
+                subjectName: subjectFilter || current.subjectName,
+                targetClassroomIds: perspective === 'subject' ? classroomsWithSubject.map((c) => c.id) : [classroomId],
+              }));
+              setIsCreateModalOpen(true);
+            }}
+            type="button"
+          >
+            <Plus size={16} aria-hidden="true" />
+            สร้างชุดคะแนนใหม่
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Unified Context & Teaching Scope Control Bar (แถบกำหนดวิชาและห้องเรียน) */}
+      <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="แถบกำหนดวิชาและห้องเรียน">
+        {/* Row 1: Teaching Mode Toggle & Helper Tools */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-black text-slate-500 shrink-0">โหมดการทำงาน:</span>
+            <div className="inline-flex p-1 bg-slate-100 rounded-2xl">
               <button
-                className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                  isActive
-                    ? 'bg-slate-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                  perspective === 'subject'
+                    ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
-                key={item.value}
-                onClick={() => handleScoreViewChange(item.value)}
+                onClick={() => handlePerspectiveChange('subject')}
                 type="button"
               >
-                <Icon size={15} aria-hidden="true" />
-                {item.label}
+                <BookOpen size={14} className={perspective === 'subject' ? 'text-indigo-600' : 'text-slate-400'} aria-hidden="true" />
+                วิชาสอนหลายห้อง (เลือกวิชาเป็นหลัก)
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 1.5 Dual-Perspective Switcher: Subject-Centric vs Classroom-Centric */}
-      <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-2.5 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl">
-            <button
-              className={`flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                perspective === 'subject'
-                  ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              onClick={() => handlePerspectiveChange('subject')}
-              type="button"
-            >
-              <BookOpen size={15} className={perspective === 'subject' ? 'text-indigo-600' : 'text-slate-400'} aria-hidden="true" />
-              มุมมองตามรายวิชา (วิชาที่สอนหลายห้อง)
-            </button>
-            <button
-              className={`flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                perspective === 'classroom'
-                  ? 'bg-white text-slate-950 shadow-xs ring-1 ring-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              onClick={() => handlePerspectiveChange('classroom')}
-              type="button"
-            >
-              <Users size={15} className={perspective === 'classroom' ? 'text-cyan-600' : 'text-slate-400'} aria-hidden="true" />
-              มุมมองตามห้องเรียน (วิชาที่สอนห้องเดียว / ครูประจำชั้น)
-            </button>
+              <button
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                  perspective === 'classroom'
+                    ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={() => handlePerspectiveChange('classroom')}
+                type="button"
+              >
+                <Users size={14} className={perspective === 'classroom' ? 'text-cyan-600' : 'text-slate-400'} aria-hidden="true" />
+                วิชาสอนห้องเดียว / ครูประจำชั้น
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-2">
+          <div className="flex items-center gap-2">
             {perspective === 'subject' ? (
-              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50/80 px-3 py-1 rounded-full border border-indigo-100 flex items-center gap-1.5">
-                <Sparkles size={12} className="text-indigo-500" />
-                เลือกวิชาเดียว จัดการได้ทุกห้องพร้อมกัน &amp; เปรียบเทียบผลคะแนน
-              </span>
-            ) : (
-              <span className="text-[11px] font-bold text-slate-600 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-                🏫 รวมทุกวิชาและสรุปเกรดของห้องเรียนที่เลือก
-              </span>
-            )}
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 px-3 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100"
+                onClick={() => {
+                  setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
+                  const otherClassrooms = classrooms.filter((c) => c.id !== (classroomsWithSubject[0]?.id || classroomId));
+                  setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
+                  setIsCloneModalOpen(true);
+                }}
+                title="คัดลอกโครงสร้างคะแนนวิชานี้จากห้องหนึ่งไปยังห้องอื่น"
+                type="button"
+              >
+                <Copy size={13} className="text-indigo-700" aria-hidden="true" />
+                คัดลอกเกณฑ์ไปห้องอื่น
+              </button>
+            ) : null}
+
+            {scoreView === 'excel' && contextAssessments.length > 0 ? (
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                onClick={exportGridCsv}
+                title="ส่งออกตารางรวมคะแนนเป็นไฟล์ Excel / CSV"
+                type="button"
+              >
+                <Download size={13} aria-hidden="true" />
+                Export Excel
+              </button>
+            ) : null}
+
+            {scoreView === 'entry' && selectedAssessment ? (
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                onClick={exportAssessmentCsv}
+                title="ส่งออกเป็นไฟล์ Excel / CSV"
+                type="button"
+              >
+                <Download size={13} aria-hidden="true" />
+                Export CSV
+              </button>
+            ) : null}
           </div>
         </div>
-      </div>
 
-      {/* 2. Unified Context Selector & Quick Action Bar */}
-      <section className="mt-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="แถบควบคุมห้องและวิชา">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            {perspective === 'subject' ? (
-              /* Subject-Centric Primary Selector */
+        {/* Row 2: Context Selectors & Classroom Switcher */}
+        <div className="mt-3.5 flex flex-wrap items-center gap-3">
+          {perspective === 'subject' ? (
+            <>
+              {/* Subject Select First */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-indigo-900 shrink-0">รายวิชาที่สอน:</span>
+                <span className="text-xs font-black text-indigo-900 shrink-0">รายวิชา:</span>
                 <select
                   className="h-10 rounded-2xl border border-indigo-200 bg-indigo-50/50 px-3 text-xs font-black text-indigo-950 outline-none transition focus:border-indigo-500 focus:bg-white"
                   onChange={(event) => {
@@ -1907,238 +1939,179 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   ))}
                 </select>
               </div>
-            ) : (
-              /* Classroom-Centric Primary Selector */
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-slate-500 shrink-0">ห้องเรียน:</span>
+
+              {/* Classroom Pills for this Subject */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-bold text-slate-400 mr-1 flex items-center gap-1">
+                  <Users size={13} />
+                  ห้องที่สอนวิชานี้:
+                </span>
+                {classroomsWithSubject.map((c) => {
+                  const count = students.filter((s) => s.classroom_id === c.id).length;
+                  const isSelected = classroomId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition ${
+                        isSelected
+                          ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                      }`}
+                      onClick={() => setClassroomId(c.id)}
+                      type="button"
+                    >
+                      <span>ห้อง {c.name}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {count} คน
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {availableClassroomsToAdd.length > 0 ? (
                   <select
-                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                    onChange={(event) => setClassroomId(event.target.value)}
-                    value={classroomId}
+                    className="h-9 rounded-xl border border-dashed border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-600 outline-none hover:border-indigo-400 focus:border-indigo-500"
+                    onChange={(e) => {
+                      const cid = e.target.value;
+                      if (!cid) return;
+                      setClassroomId(cid);
+                      setForm((cur) => ({
+                        ...cur,
+                        subjectName: subjectFilter,
+                        targetClassroomIds: [cid],
+                      }));
+                      setIsCreateModalOpen(true);
+                    }}
+                    value=""
                   >
-                    {teacherScope.hasHomeroom ? (
-                      <>
-                        <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
-                          {teacherScope.homeroomClassrooms.map((classroom) => (
+                    <option value="">+ เพิ่มห้องที่สอนวิชานี้...</option>
+                    {availableClassroomsToAdd.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        + ห้อง {c.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Classroom First */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-500 shrink-0">ห้องเรียน:</span>
+                <select
+                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
+                  onChange={(event) => setClassroomId(event.target.value)}
+                  value={classroomId}
+                >
+                  {teacherScope.hasHomeroom ? (
+                    <>
+                      <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                        {teacherScope.homeroomClassrooms.map((classroom) => (
+                          <option key={classroom.id} value={classroom.id}>
+                            {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                      {teacherScope.otherClassrooms.length > 0 && (
+                        <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
+                          {teacherScope.otherClassrooms.map((classroom) => (
                             <option key={classroom.id} value={classroom.id}>
                               {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
                             </option>
                           ))}
                         </optgroup>
-                        {teacherScope.otherClassrooms.length > 0 && (
-                          <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
-                            {teacherScope.otherClassrooms.map((classroom) => (
-                              <option key={classroom.id} value={classroom.id}>
-                                {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
-                    ) : (
-                      classrooms.map((classroom) => (
-                        <option key={classroom.id} value={classroom.id}>
-                          {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-slate-500 shrink-0">รายวิชา:</span>
-                  <select
-                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                    onChange={(event) => setSubjectFilter(event.target.value)}
-                    value={subjectFilter}
-                  >
-                    {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
-                    {subjectOptions.map((subject) => (
-                      <option key={subject} value={subject}>
-                        {subject}
+                      )}
+                    </>
+                  ) : (
+                    classrooms.map((classroom) => (
+                      <option key={classroom.id} value={classroom.id}>
+                        {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
                       </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
+                    ))
+                  )}
+                </select>
+              </div>
 
-            {/* Assessment Select (Shown only when in single-entry view) */}
-            {scoreView === 'entry' && contextAssessments.length > 0 && subjectSubView !== 'comparison' ? (
+              {/* Subject Second */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-slate-500 shrink-0">ชุดคะแนน:</span>
+                <span className="text-xs font-black text-slate-500 shrink-0">รายวิชา:</span>
                 <select
-                  className="h-10 max-w-[240px] truncate rounded-2xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
-                  onChange={(event) => setSelectedAssessmentId(event.target.value)}
-                  value={selectedAssessment?.id || ''}
+                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
+                  onChange={(event) => setSubjectFilter(event.target.value)}
+                  value={subjectFilter}
                 >
-                  {contextAssessments.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title} (เต็ม {item.max_score} | {item.weight}%)
+                  {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
+                  {subjectOptions.map((subject) => (
+                    <option key={subject} value={subject}>
+                      {subject}
                     </option>
                   ))}
                 </select>
               </div>
-            ) : null}
-          </div>
+            </>
+          )}
+        </div>
+      </section>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {perspective === 'subject' ? (
+      {/* 3. Main View Tabs (4 เมนูการทำงานหลัก เรียงตามลำดับความสำคัญ ไม่สับสน) */}
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+          {[
+            { icon: Table, label: '1. ตารางคะแนนรวม (Excel)', value: 'excel' as ScoreView },
+            { icon: ClipboardList, label: '2. กรอกทีละชิ้นงาน', value: 'entry' as ScoreView },
+            { icon: FileSpreadsheet, label: '3. สรุป & ตัดเกรด (0 - 4)', value: 'gradebook' as ScoreView },
+            {
+              icon: perspective === 'subject' ? BarChart3 : Layers,
+              label:
+                perspective === 'subject'
+                  ? `4. เปรียบเทียบผลสัมฤทธิ์ (${classroomsWithSubject.length} ห้อง)`
+                  : '4. ภาพรวมทุกรายวิชา',
+              value: 'overview' as ScoreView,
+            },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = scoreView === item.value;
+            return (
               <button
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-3.5 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100 hover:border-indigo-300"
-                onClick={() => {
-                  setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
-                  const otherClassrooms = classrooms.filter((c) => c.id !== (classroomsWithSubject[0]?.id || classroomId));
-                  setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
-                  setIsCloneModalOpen(true);
-                }}
-                title="คัดลอกโครงสร้างคะแนนวิชานี้จากห้องหนึ่งไปยังห้องอื่น"
+                className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                  isActive
+                    ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
+                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                }`}
+                key={item.value}
+                onClick={() => handleScoreViewChange(item.value)}
                 type="button"
               >
-                <Copy size={15} className="text-indigo-700" aria-hidden="true" />
-                คัดลอกเกณฑ์ไปห้องอื่น
+                <Icon size={15} className={isActive ? 'text-cyan-400' : 'text-slate-400'} aria-hidden="true" />
+                {item.label}
               </button>
-            ) : null}
-
-            <button
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-2xs transition hover:bg-amber-100 hover:border-amber-300"
-              onClick={() => setIsGuideOpen(true)}
-              title="เปิดดูคู่มือการใช้งานระบบคะแนนและตาราง Excel"
-              type="button"
-            >
-              <BookOpen size={15} className="text-amber-700" aria-hidden="true" />
-              คู่มือการใช้งาน
-            </button>
-
-            <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
-              onClick={() => {
-                setForm((current) => ({
-                  ...current,
-                  subjectName: subjectFilter || current.subjectName,
-                  targetClassroomIds: perspective === 'subject' ? classroomsWithSubject.map((c) => c.id) : [classroomId],
-                }));
-                setIsCreateModalOpen(true);
-              }}
-              type="button"
-            >
-              <Plus size={15} aria-hidden="true" />
-              สร้างชุดคะแนนใหม่
-            </button>
-
-            {scoreView === 'excel' && contextAssessments.length > 0 && subjectSubView !== 'comparison' ? (
-              <button
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                onClick={exportGridCsv}
-                title="ส่งออกตารางรวมคะแนนเป็นไฟล์ Excel / CSV"
-                type="button"
-              >
-                <Download size={14} aria-hidden="true" />
-                Export ตาราง Excel
-              </button>
-            ) : null}
-
-            {scoreView === 'entry' && selectedAssessment && subjectSubView !== 'comparison' ? (
-              <button
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                onClick={exportAssessmentCsv}
-                title="ส่งออกเป็นไฟล์ Excel / CSV"
-                type="button"
-              >
-                <Download size={14} aria-hidden="true" />
-                CSV
-              </button>
-            ) : null}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Horizontal Classroom Tabs Bar (Visible in Subject-Centric Perspective) */}
-        {perspective === 'subject' ? (
-          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-black text-slate-400 mr-1.5 flex items-center gap-1">
-                <Users size={14} />
-                ห้องที่สอน:
-              </span>
-
-              {classroomsWithSubject.map((c) => {
-                const count = students.filter((s) => s.classroom_id === c.id).length;
-                const isSelected = subjectSubView === 'grid' && classroomId === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-black transition ${
-                      isSelected
-                        ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
-                    }`}
-                    onClick={() => {
-                      setClassroomId(c.id);
-                      setSubjectSubView('grid');
-                    }}
-                    type="button"
-                  >
-                    <span>ห้อง {c.name}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200'
-                      }`}
-                    >
-                      {count} คน
-                    </span>
-                  </button>
-                );
-              })}
-
-              {/* Cross-Classroom Comparison Tab Button */}
-              <button
-                className={`inline-flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-black transition ${
-                  subjectSubView === 'comparison'
-                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500'
-                    : 'bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
-                }`}
-                onClick={() => setSubjectSubView('comparison')}
-                type="button"
-              >
-                <BarChart3 size={14} />
-                เปรียบเทียบผลสัมฤทธิ์ ({classroomsWithSubject.length} ห้อง)
-              </button>
-            </div>
-
-            {/* Quick Link/Add another Classroom to this Subject */}
-            {availableClassroomsToAdd.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-400">สอนห้องอื่นด้วย:</span>
-                <select
-                  className="h-8 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-black text-slate-700 outline-none hover:bg-white focus:border-indigo-400"
-                  onChange={(e) => {
-                    const cid = e.target.value;
-                    if (!cid) return;
-                    setClassroomId(cid);
-                    setSubjectSubView('grid');
-                    setForm((cur) => ({
-                      ...cur,
-                      subjectName: subjectFilter,
-                      targetClassroomIds: [cid],
-                    }));
-                    setIsCreateModalOpen(true);
-                  }}
-                  value=""
-                >
-                  <option value="">+ เพิ่มห้องที่สอนวิชานี้...</option>
-                  {availableClassroomsToAdd.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      + ห้อง {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
+        {/* Quick Assessment Selector for Single Entry Mode */}
+        {scoreView === 'entry' && contextAssessments.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
+            <select
+              className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
+              onChange={(event) => setSelectedAssessmentId(event.target.value)}
+              value={selectedAssessment?.id || ''}
+            >
+              {contextAssessments.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} (เต็ม {item.max_score} | {item.weight}%)
+                </option>
+              ))}
+            </select>
           </div>
         ) : null}
-      </section>
+      </div>
 
       {/* Notice Banner */}
       {notice ? (
@@ -2157,193 +2130,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       ) : null}
 
-      {/* 3. Main Views */}
-      {perspective === 'subject' && subjectSubView === 'comparison' ? (
-        <div className="mt-4 grid gap-4 animate-fade-in">
-          {/* Top KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between text-indigo-700">
-                <span className="text-xs font-black text-slate-500">ห้องเรียนที่สอน</span>
-                <Users size={16} />
-              </div>
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {overallSubjectStats.classroomCount} <span className="text-xs font-bold text-slate-500">ห้อง</span>
-              </p>
-              <p className="mt-1 text-[11px] font-bold text-slate-400">วิชา {subjectFilter}</p>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between text-cyan-700">
-                <span className="text-xs font-black text-slate-500">นักเรียนทั้งหมด</span>
-                <GraduationCap size={16} />
-              </div>
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {overallSubjectStats.totalStudents} <span className="text-xs font-bold text-slate-500">คน</span>
-              </p>
-              <p className="mt-1 text-[11px] font-bold text-slate-400">รวมทุกห้องที่สอนวิชานี้</p>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between text-emerald-700">
-                <span className="text-xs font-black text-slate-500">คะแนนเฉลี่ยรวม</span>
-                <Award size={16} />
-              </div>
-              <p className="mt-2 text-2xl font-black text-emerald-600">{overallSubjectStats.avgPercent.toFixed(1)}%</p>
-              <p className="mt-1 text-[11px] font-bold text-slate-400">
-                เกรดเฉลี่ยกลุ่ม: {getThaiGrade(overallSubjectStats.avgPercent).grade}
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between text-blue-700">
-                <span className="text-xs font-black text-slate-500">อัตราผ่านเกณฑ์</span>
-                <CheckCircle2 size={16} />
-              </div>
-              <p className="mt-2 text-2xl font-black text-blue-600">{overallSubjectStats.overallPassingRate}%</p>
-              <p className="mt-1 text-[11px] font-bold text-slate-400">ได้คะแนน &ge; 50%</p>
-            </div>
-
-            <div className="col-span-2 lg:col-span-1 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between text-amber-700">
-                <span className="text-xs font-black text-slate-500">อัตราส่งงานครบ</span>
-                <ClipboardList size={16} />
-              </div>
-              <p className="mt-2 text-2xl font-black text-amber-600">{overallSubjectStats.avgCompletion}%</p>
-              <p className="mt-1 text-[11px] font-bold text-slate-400">{overallSubjectStats.totalAssessments} ชุดคะแนนรวม</p>
-            </div>
-          </div>
-
-          {/* Comparative Table */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-black text-indigo-900">
-                    <BarChart3 size={13} aria-hidden="true" />
-                    แดชบอร์ดเปรียบเทียบผลสัมฤทธิ์รายห้อง
-                  </span>
-                  <span className="text-xs font-bold text-slate-500">วิชา {subjectFilter}</span>
-                </div>
-                <h2 className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
-                  สถิติผลสัมฤทธิ์ทางการเรียนและการส่งงาน ({crossClassroomStats.length} ห้องเรียน)
-                </h2>
-                <p className="text-xs font-bold text-slate-500">
-                  เปรียบเทียบคะแนนเฉลี่ย อัตราผ่านเกณฑ์ และการกระจายของเกรดระหว่างห้องเรียนในวิชาเดียวกัน
-                </p>
-              </div>
-
-              <button
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white hover:bg-indigo-700 transition self-start sm:self-auto shadow-sm"
-                onClick={() => {
-                  setCloneSourceClassroomId(classroomsWithSubject[0]?.id || '');
-                  const otherIds = classrooms.filter((c) => c.id !== classroomsWithSubject[0]?.id).map((c) => c.id);
-                  setCloneTargetClassroomIds(otherIds);
-                  setIsCloneModalOpen(true);
-                }}
-                type="button"
-              >
-                <Copy size={14} aria-hidden="true" />
-                คัดลอกเกณฑ์ไปห้องอื่น
-              </button>
-            </div>
-
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-700 font-black">
-                    <th className="px-4 py-3 border-b border-slate-200">ห้องเรียน</th>
-                    <th className="px-3 py-3 border-b border-slate-200 text-center">นักเรียน</th>
-                    <th className="px-3 py-3 border-b border-slate-200 text-center">ชุดคะแนน</th>
-                    <th className="px-3 py-3 border-b border-slate-200 text-center">ส่งงานครบ (%)</th>
-                    <th className="px-3 py-3 border-b border-slate-200 text-center">คะแนนเฉลี่ย (%)</th>
-                    <th className="px-3 py-3 border-b border-slate-200 text-center">ผ่านเกณฑ์</th>
-                    <th className="px-4 py-3 border-b border-slate-200 min-w-[180px]">การกระจายเกรด (4 / 3 / 2 / 1 / 0)</th>
-                    <th className="px-4 py-3 border-b border-slate-200 text-right">การจัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {crossClassroomStats.map((row) => (
-                    <tr key={row.classroom.id} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-3.5 font-black text-slate-900">
-                        <div className="flex items-center gap-2">
-                          <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-700 text-xs font-black">
-                            {row.classroom.name.slice(0, 4)}
-                          </span>
-                          <div>
-                            <p className="font-black text-slate-900">{row.classroom.name}</p>
-                            <p className="text-[10px] text-slate-400 font-normal">ปี {row.classroom.academic_year || '2569'}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.studentCount} คน</td>
-                      <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.assessmentCount} ชุด</td>
-                      <td className="px-3 py-3.5 text-center">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-black ${
-                            row.completionPercent >= 80 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          {row.completionPercent}%
-                        </span>
-                      </td>
-                      <td className="px-3 py-3.5 text-center">
-                        <div className="flex flex-col items-center">
-                          <span className="font-black text-slate-900 text-sm">{row.averagePercent.toFixed(1)}%</span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            เกรด {getThaiGrade(row.averagePercent).grade}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 text-center">
-                        <span className="font-black text-slate-800">{row.passingRate}%</span>
-                        <span className="text-[10px] text-slate-400 block">
-                          ({row.passingCount}/{row.studentCount})
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1 text-[10px] font-mono">
-                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800 font-bold" title="เกรด 4">
-                            4: {row.gradeCounts.g4}
-                          </span>
-                          <span className="rounded bg-teal-100 px-1.5 py-0.5 text-teal-800 font-bold" title="เกรด 3 หรือ 3.5">
-                            3: {row.gradeCounts.g3}
-                          </span>
-                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-800 font-bold" title="เกรด 2 หรือ 2.5">
-                            2: {row.gradeCounts.g2}
-                          </span>
-                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 font-bold" title="เกรด 1 หรือ 1.5">
-                            1: {row.gradeCounts.g1}
-                          </span>
-                          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-rose-800 font-bold" title="เกรด 0">
-                            0: {row.gradeCounts.g0}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <button
-                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition border border-cyan-200"
-                          onClick={() => {
-                            setClassroomId(row.classroom.id);
-                            setSubjectSubView('grid');
-                          }}
-                          type="button"
-                        >
-                          📝 เข้ากรอกคะแนน
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* 3A: EXCEL GRID VIEW (All assessments in one spreadsheet) */}
-          {scoreView === 'excel' ? (
-            <div className="mt-4 grid gap-4">
+      {/* 3A: EXCEL GRID VIEW (All assessments in one spreadsheet) */}
+      {scoreView === 'excel' ? (
+        <div className="mt-4 grid gap-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -3064,80 +2853,263 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       ) : null}
 
-      {/* 3C: TEACHING MATRIX / OVERVIEW */}
+      {/* 3D: OVERVIEW / COMPARISON VIEW */}
       {scoreView === 'overview' ? (
-        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-black text-cyan-700">Teaching Matrix</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
-                ภาพรวมทุกห้องเรียนและรายวิชา
-              </h2>
-              <p className="mt-1 text-xs font-bold text-slate-500">
-                คลิกที่การ์ดเพื่อสลับไปยังห้องเรียนและวิชานั้นทันที
-              </p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-              {scoreContexts.length} บริบทการสอน
-            </span>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {scoreContexts.map((context) => (
-              <button
-                className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-left shadow-xs transition hover:border-cyan-300 hover:bg-white hover:shadow-md"
-                key={`${context.classroomId}-${context.subjectName}-overview`}
-                onClick={() => {
-                  setClassroomId(context.classroomId);
-                  setSubjectFilter(context.subjectName);
-                  handleScoreViewChange('entry');
-                  setSelectedAssessmentId(
-                    assessments.find(
-                      (assessment) =>
-                        assessment.classroom_id === context.classroomId &&
-                        assessment.subject_name === context.subjectName &&
-                        assessment.status !== 'archived',
-                    )?.id || '',
-                  );
-                }}
-                type="button"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-black text-slate-900">{context.subjectName}</p>
-                    <p className="mt-0.5 text-xs font-bold text-slate-500">{context.classroomName}</p>
-                  </div>
-                  <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[11px] font-black text-cyan-800">
-                    {context.completePercent}% ครบ
-                  </span>
+        perspective === 'subject' ? (
+          /* Cross-Classroom Comparison View for Subject Mode */
+          <div className="mt-4 grid gap-4 animate-fade-in">
+            {/* Top KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between text-indigo-700">
+                  <span className="text-xs font-black text-slate-500">ห้องเรียนที่สอน</span>
+                  <Users size={16} />
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl bg-white p-2 border border-slate-100">
-                    <p className="text-base font-black text-slate-900">{context.assessmentCount}</p>
-                    <p className="text-[10px] font-bold text-slate-400">ชุดคะแนน</p>
-                  </div>
-                  <div className="rounded-xl bg-white p-2 border border-slate-100">
-                    <p className="text-base font-black text-slate-900">{context.studentCount}</p>
-                    <p className="text-[10px] font-bold text-slate-400">นักเรียน</p>
-                  </div>
-                  <div className="rounded-xl bg-white p-2 border border-slate-100">
-                    <p className="text-base font-black text-slate-900">{context.averagePercent.toFixed(0)}%</p>
-                    <p className="text-[10px] font-bold text-slate-400">คะแนนเฉลี่ย</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-
-            {scoreContexts.length === 0 ? (
-              <div className="py-8 text-center text-sm font-bold text-slate-400 col-span-full">
-                ยังไม่มีบริบทคะแนน ให้สร้างชุดคะแนนแรกก่อน
+                <p className="mt-2 text-2xl font-black text-slate-900">
+                  {overallSubjectStats.classroomCount} <span className="text-xs font-bold text-slate-500">ห้อง</span>
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">วิชา {subjectFilter}</p>
               </div>
-            ) : null}
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between text-cyan-700">
+                  <span className="text-xs font-black text-slate-500">นักเรียนทั้งหมด</span>
+                  <GraduationCap size={16} />
+                </div>
+                <p className="mt-2 text-2xl font-black text-slate-900">
+                  {overallSubjectStats.totalStudents} <span className="text-xs font-bold text-slate-500">คน</span>
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">รวมทุกห้องที่สอนวิชานี้</p>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span className="text-xs font-black text-slate-500">คะแนนเฉลี่ยรวม</span>
+                  <Award size={16} />
+                </div>
+                <p className="mt-2 text-2xl font-black text-emerald-600">{overallSubjectStats.avgPercent.toFixed(1)}%</p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">
+                  เกรดเฉลี่ยกลุ่ม: {getThaiGrade(overallSubjectStats.avgPercent).grade}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between text-blue-700">
+                  <span className="text-xs font-black text-slate-500">อัตราผ่านเกณฑ์</span>
+                  <CheckCircle2 size={16} />
+                </div>
+                <p className="mt-2 text-2xl font-black text-blue-600">{overallSubjectStats.overallPassingRate}%</p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">ได้คะแนน &ge; 50%</p>
+              </div>
+
+              <div className="col-span-2 lg:col-span-1 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between text-amber-700">
+                  <span className="text-xs font-black text-slate-500">อัตราส่งงานครบ</span>
+                  <ClipboardList size={16} />
+                </div>
+                <p className="mt-2 text-2xl font-black text-amber-600">{overallSubjectStats.avgCompletion}%</p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">{overallSubjectStats.totalAssessments} ชุดคะแนนรวม</p>
+              </div>
+            </div>
+
+            {/* Comparative Table */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-black text-indigo-900">
+                      <BarChart3 size={13} aria-hidden="true" />
+                      แดชบอร์ดเปรียบเทียบผลสัมฤทธิ์รายห้อง
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">วิชา {subjectFilter}</span>
+                  </div>
+                  <h2 className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
+                    สถิติผลสัมฤทธิ์ทางการเรียนและการส่งงาน ({crossClassroomStats.length} ห้องเรียน)
+                  </h2>
+                  <p className="text-xs font-bold text-slate-500">
+                    เปรียบเทียบคะแนนเฉลี่ย อัตราผ่านเกณฑ์ และการกระจายของเกรดระหว่างห้องเรียนในวิชาเดียวกัน
+                  </p>
+                </div>
+
+                <button
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white hover:bg-indigo-700 transition self-start sm:self-auto shadow-sm"
+                  onClick={() => {
+                    setCloneSourceClassroomId(classroomsWithSubject[0]?.id || '');
+                    const otherIds = classrooms.filter((c) => c.id !== classroomsWithSubject[0]?.id).map((c) => c.id);
+                    setCloneTargetClassroomIds(otherIds);
+                    setIsCloneModalOpen(true);
+                  }}
+                  type="button"
+                >
+                  <Copy size={14} aria-hidden="true" />
+                  คัดลอกเกณฑ์ไปห้องอื่น
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-black">
+                      <th className="px-4 py-3 border-b border-slate-200">ห้องเรียน</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center">นักเรียน</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center">ชุดคะแนน</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center">ส่งงานครบ (%)</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center">คะแนนเฉลี่ย (%)</th>
+                      <th className="px-3 py-3 border-b border-slate-200 text-center">ผ่านเกณฑ์</th>
+                      <th className="px-4 py-3 border-b border-slate-200 min-w-[180px]">การกระจายเกรด (4 / 3 / 2 / 1 / 0)</th>
+                      <th className="px-4 py-3 border-b border-slate-200 text-right">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {crossClassroomStats.map((row) => (
+                      <tr key={row.classroom.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3.5 font-black text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-700 text-xs font-black">
+                              {row.classroom.name.slice(0, 4)}
+                            </span>
+                            <div>
+                              <p className="font-black text-slate-900">{row.classroom.name}</p>
+                              <p className="text-[10px] text-slate-400 font-normal">ปี {row.classroom.academic_year || '2569'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.studentCount} คน</td>
+                        <td className="px-3 py-3.5 text-center font-bold text-slate-700">{row.assessmentCount} ชุด</td>
+                        <td className="px-3 py-3.5 text-center">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-black ${
+                              row.completionPercent >= 80 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                            }`}
+                          >
+                            {row.completionPercent}%
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="font-black text-slate-900 text-sm">{row.averagePercent.toFixed(1)}%</span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              เกรด {getThaiGrade(row.averagePercent).grade}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3.5 text-center">
+                          <span className="font-black text-slate-800">{row.passingRate}%</span>
+                          <span className="text-[10px] text-slate-400 block">
+                            ({row.passingCount}/{row.studentCount})
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1 text-[10px] font-mono">
+                            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800 font-bold" title="เกรด 4">
+                              4: {row.gradeCounts.g4}
+                            </span>
+                            <span className="rounded bg-teal-100 px-1.5 py-0.5 text-teal-800 font-bold" title="เกรด 3 หรือ 3.5">
+                              3: {row.gradeCounts.g3}
+                            </span>
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-800 font-bold" title="เกรด 2 หรือ 2.5">
+                              2: {row.gradeCounts.g2}
+                            </span>
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 font-bold" title="เกรด 1 หรือ 1.5">
+                              1: {row.gradeCounts.g1}
+                            </span>
+                            <span className="rounded bg-rose-100 px-1.5 py-0.5 text-rose-800 font-bold" title="เกรด 0">
+                              0: {row.gradeCounts.g0}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition border border-cyan-200"
+                            onClick={() => {
+                              setClassroomId(row.classroom.id);
+                              handleScoreViewChange('excel');
+                            }}
+                            type="button"
+                          >
+                            📝 เข้ากรอกคะแนน
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Classroom Teaching Matrix for Classroom Mode */
+          <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black text-cyan-700">Teaching Matrix</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                  ภาพรวมทุกห้องเรียนและรายวิชา
+                </h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  คลิกที่การ์ดเพื่อสลับไปยังห้องเรียนและวิชานั้นทันที
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                {scoreContexts.length} บริบทการสอน
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {scoreContexts.map((context) => (
+                <button
+                  className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-left shadow-xs transition hover:border-cyan-300 hover:bg-white hover:shadow-md"
+                  key={`${context.classroomId}-${context.subjectName}-overview`}
+                  onClick={() => {
+                    setClassroomId(context.classroomId);
+                    setSubjectFilter(context.subjectName);
+                    handleScoreViewChange('excel');
+                    setSelectedAssessmentId(
+                      assessments.find(
+                        (assessment) =>
+                          assessment.classroom_id === context.classroomId &&
+                          assessment.subject_name === context.subjectName &&
+                          assessment.status !== 'archived',
+                      )?.id || '',
+                    );
+                  }}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-black text-slate-900">{context.subjectName}</p>
+                      <p className="mt-0.5 text-xs font-bold text-slate-500">{context.classroomName}</p>
+                    </div>
+                    <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[11px] font-black text-cyan-800">
+                      {context.completePercent}% ครบ
+                    </span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-xl bg-white p-2 border border-slate-100">
+                      <p className="text-base font-black text-slate-900">{context.assessmentCount}</p>
+                      <p className="text-[10px] font-bold text-slate-400">ชุดคะแนน</p>
+                    </div>
+                    <div className="rounded-xl bg-white p-2 border border-slate-100">
+                      <p className="text-base font-black text-slate-900">{context.studentCount}</p>
+                      <p className="text-[10px] font-bold text-slate-400">นักเรียน</p>
+                    </div>
+                    <div className="rounded-xl bg-white p-2 border border-slate-100">
+                      <p className="text-base font-black text-slate-900">{context.averagePercent.toFixed(0)}%</p>
+                      <p className="text-[10px] font-bold text-slate-400">คะแนนเฉลี่ย</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+
+              {scoreContexts.length === 0 ? (
+                <div className="py-8 text-center text-sm font-bold text-slate-400 col-span-full">
+                  ยังไม่มีบริบทคะแนน ให้สร้างชุดคะแนนแรกก่อน
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )
       ) : null}
-        </>
-      )}
 
       {/* 4. Sticky Floating Save Bar (Triggered when there are unsaved edits in Entry or Excel Grid) */}
       {scoreView === 'excel' && unsavedGridCount > 0 ? (
