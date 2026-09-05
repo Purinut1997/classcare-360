@@ -4,6 +4,7 @@ import { ContextNav } from '../components/dashboard/ContextNav';
 import { MobileNav } from '../components/dashboard/MobileNav';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { Topbar } from '../components/dashboard/Topbar';
+import { GlobalBroadcastBanner } from '../components/system/GlobalBroadcastBanner';
 import { SetupGuideModal } from '../components/guide/SetupGuideModal';
 import { SupportChat } from '../components/support/SupportChat';
 import type { AppNavItem } from '../routes/appRoutes';
@@ -67,6 +68,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         session={session}
       />
       <div className="app-shell-main">
+        <GlobalBroadcastBanner />
         <Topbar
           activeLabel={activeLabel}
           navItems={navItems}

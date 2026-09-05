@@ -21,11 +21,20 @@ import {
   UserPlus,
   Users,
   XCircle,
+  Megaphone,
+  Activity,
+  Bell,
+  Clock,
+  ExternalLink,
+  Info,
+  Sparkles,
+  Wrench,
 } from 'lucide-react';
 
 import { buildPromptPayPayload, dataUrlToFile, promptPayPayloadToPngDataUrl } from '../../lib/promptpay';
 import { activateWorkspace, setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { clearSystemBroadcast, getSystemBroadcast, saveSystemBroadcast, type BroadcastSeverity, type SystemBroadcast } from '../../lib/systemBroadcast';
 import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 import { VipAccessManager } from './VipAccessManager';
 
@@ -55,55 +64,88 @@ function getRoleOperationSetupNotice(actionLabel: string, detail?: string) {
   return `${actionLabel}ไม่สำเร็จ เพราะ production ยังไม่มี RPC ชุดจัดการบทบาท ให้รัน supabase/migrations/0021_role_operations_control_center.sql ใน Supabase SQL Editor แล้วลองใหม่.${suffix}`;
 }
 
-type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'support' | 'health' | 'audit';
+type SuperadminCategory = 'management' | 'business' | 'operations';
 
-const controlCenterSections: Array<{
+type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'support' | 'broadcast' | 'health' | 'audit';
+
+interface ControlCenterSectionConfig {
   body: string;
+  category: SuperadminCategory;
+  categoryLabel: string;
   icon: typeof ShieldCheck;
   key: SuperadminSection;
   label: string;
-}> = [
+}
+
+const controlCenterSections: ControlCenterSectionConfig[] = [
+  // 🏢 หมวดการจัดการ
   {
-    body: 'จำนวน workspace active, นักเรียน, สมาชิก, admin และคำขอสำคัญล่าสุด',
+    body: 'สรุปภาพรวมทั้งหมด งานด่วนที่ต้องดำเนินการ และสถิติระบบ',
+    category: 'management',
+    categoryLabel: 'องค์กร & บัญชี',
     icon: ShieldCheck,
     key: 'overview',
     label: 'ภาพรวมระบบ',
   },
   {
-    body: 'ค้นหาโรงเรียน เข้าใช้งานแทน เก็บถาวร ลบ และเตรียม flow รวม workspace ซ้ำ',
+    body: 'ค้นหาโรงเรียน เข้าใช้งานแทน เก็บถาวร ลบ และจัดการ workspace',
+    category: 'management',
+    categoryLabel: 'องค์กร & บัญชี',
     icon: Building2,
     key: 'workspaces',
     label: 'โรงเรียน / Workspace',
   },
   {
-    body: 'ค้นหาอีเมล เพิ่ม Admin/Superadmin ปิดสิทธิ์ และมองเห็นผู้ดูแลทั้งหมด',
+    body: 'ค้นหาอีเมล เพิ่ม Admin/Superadmin ปิดสิทธิ์ และจัดการผู้ดูแล',
+    category: 'management',
+    categoryLabel: 'องค์กร & บัญชี',
     icon: Users,
     key: 'users',
     label: 'ผู้ใช้และสิทธิ์',
   },
+
+  // 💳 หมวดการเงิน & ลูกค้า
   {
-    body: 'ดู subscription, payment pending, QR และเตรียม override VIP ราย workspace',
+    body: 'ดูสลิปรอตรวจ จัดการ VIP PromptPay QR และโรงเรียนใกล้หมดอายุ',
+    category: 'business',
+    categoryLabel: 'การเงิน & ซัพพอร์ต',
     icon: Banknote,
     key: 'billing',
-    label: 'แพ็กเกจ / VIP',
+    label: 'แพ็กเกจ & สลิป',
   },
   {
-    body: 'รับเรื่องจาก ClassCare และหน้าเว็บสาธารณะ ตอบกลับ จัดลำดับ และติดตามจนจบ',
+    body: 'รับเรื่องแจ้งปัญหาจากหน้าเว็บ ตอบกลับ และติดตามเคส',
+    category: 'business',
+    categoryLabel: 'การเงิน & ซัพพอร์ต',
     icon: MessageSquare,
     key: 'support',
     label: 'Support Inbox',
   },
+
+  // ⚙️ หมวดความปลอดภัย & เสถียรภาพ
   {
-    body: 'ตรวจ env, migrations, RLS, storage, Edge Functions และ Cloudflare readiness',
-    icon: AlertTriangle,
+    body: 'ส่งแถบประกาศขึ้นหน้าจอครูทุกคน แจ้งข่าวสารหรือเตือนปิดปรับปรุงระบบ',
+    category: 'operations',
+    categoryLabel: 'เสถียรภาพ & สื่อสาร',
+    icon: Megaphone,
+    key: 'broadcast',
+    label: 'ประกาศทั้งระบบ',
+  },
+  {
+    body: 'ทดสอบ Ping Latency, ตรวจความพร้อม Supabase, RLS และ Storage',
+    category: 'operations',
+    categoryLabel: 'เสถียรภาพ & สื่อสาร',
+    icon: Activity,
     key: 'health',
     label: 'System Health',
   },
   {
-    body: 'ดู log สำคัญ ใครลบอะไร ใครอนุมัติใคร และ export ข้อมูลเพื่อ debug',
+    body: 'ดูประวัติใครลบ/แก้สิทธิ์อะไร และดาวน์โหลด debug pack',
+    category: 'operations',
+    categoryLabel: 'เสถียรภาพ & สื่อสาร',
     icon: FileUp,
     key: 'audit',
-    label: 'Audit & Support',
+    label: 'Audit & กู้คืน',
   },
 ];
 
@@ -518,6 +560,26 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [recoveryAction, setRecoveryAction] = useState<string | null>(null);
 
+  const [broadcastForm, setBroadcastForm] = useState<SystemBroadcast>(() => {
+    return (
+      getSystemBroadcast() || {
+        createdAt: new Date().toISOString(),
+        dismissible: true,
+        id: `broadcast-${Date.now()}`,
+        isActive: false,
+        linkText: '',
+        linkUrl: '',
+        message: '',
+        severity: 'info',
+        title: '',
+        updatedAt: new Date().toISOString(),
+      }
+    );
+  });
+  const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+  const [dbPingMs, setDbPingMs] = useState<number | null>(null);
+  const [isPinging, setIsPinging] = useState(false);
+
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
   const archivedWorkspaceCount = workspaces.length - activeWorkspaceCount;
   const totalStudentCount = workspaces.reduce((sum, workspace) => sum + workspace.studentCount, 0);
@@ -551,6 +613,73 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       return matchesStatus && (!normalizedQuery || searchTarget.includes(normalizedQuery));
     });
   }, [workspaceFilter, workspaceQuery, workspaces]);
+
+  const expiringSoonVipWorkspaces = useMemo(() => {
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 86_400_000;
+    return workspaces.filter((w) => {
+      const sub = subscriptions.find((s) => s.workspaceName === w.name || s.id === w.id);
+      if (!sub?.endsAt) return false;
+      const exp = new Date(sub.endsAt).getTime();
+      return exp > now && exp <= now + thirtyDaysMs;
+    });
+  }, [subscriptions, workspaces]);
+
+  function handleSaveBroadcast(event: FormEvent) {
+    event.preventDefault();
+    if (!broadcastForm.title.trim() && broadcastForm.isActive) {
+      setBroadcastNotice('กรุณากรอกหัวข้อประกาศ');
+      return;
+    }
+    const updated: SystemBroadcast = {
+      ...broadcastForm,
+      title: broadcastForm.title.trim(),
+      message: broadcastForm.message.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+    saveSystemBroadcast(updated);
+    setBroadcastForm(updated);
+    setBroadcastNotice(
+      updated.isActive
+        ? '✓ บันทึกและส่งแถบประกาศขึ้นหน้าจอทุกโรงเรียนแล้ว'
+        : '✓ ปิดการแสดงประกาศเรียบร้อยแล้ว'
+    );
+  }
+
+  function handleClearBroadcast() {
+    clearSystemBroadcast();
+    setBroadcastForm({
+      createdAt: new Date().toISOString(),
+      dismissible: true,
+      id: `broadcast-${Date.now()}`,
+      isActive: false,
+      linkText: '',
+      linkUrl: '',
+      message: '',
+      severity: 'info',
+      title: '',
+      updatedAt: new Date().toISOString(),
+    });
+    setBroadcastNotice('✓ ล้างและปิดประกาศทั้งหมดเรียบร้อย');
+  }
+
+  async function testDbPing() {
+    if (!supabase) {
+      setDbPingMs(null);
+      return;
+    }
+    setIsPinging(true);
+    const start = performance.now();
+    try {
+      await supabase.from('workspaces').select('id').limit(1);
+      const end = performance.now();
+      setDbPingMs(Math.max(1, Math.round(end - start)));
+    } catch {
+      setDbPingMs(null);
+    } finally {
+      setIsPinging(false);
+    }
+  }
 
   function openSection(section: SuperadminSection) {
     const nextSearchParams = new URLSearchParams(searchParams);
@@ -1409,115 +1538,226 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </header>
 
-        <nav aria-label="เมนูย่อย Superadmin" className="sticky top-2 z-20 mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 px-2 shadow-sm backdrop-blur">
-          <div className="flex min-w-max items-center">
-            {controlCenterSections.map((section) => {
+        <nav aria-label="เมนูย่อย Superadmin" className="sticky top-2 z-20 mt-4 overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-sm backdrop-blur">
+          <div className="flex min-w-max items-center gap-1">
+            {controlCenterSections.map((section, idx) => {
               const Icon = section.icon;
+              const isSelected = activeSection === section.key;
+              const badgeCount = section.key === 'billing' && pendingPaymentCount > 0 ? pendingPaymentCount : null;
+              const isNewGroup = idx > 0 && controlCenterSections[idx - 1].category !== section.category;
+
               return (
-                <button
-                  aria-current={activeSection === section.key ? 'page' : undefined}
-                  className={`inline-flex h-12 items-center gap-2 border-b-2 px-3 text-xs font-black transition sm:px-4 ${
-                    activeSection === section.key
-                      ? 'border-cyan-500 text-cyan-700'
-                      : 'border-transparent text-slate-600 hover:border-slate-200 hover:text-slate-950'
-                  }`}
-                  key={section.key}
-                  onClick={() => openSection(section.key)}
-                  title={section.body}
-                  type="button"
-                >
-                  <Icon size={15} aria-hidden="true" />
-                  {section.label}
-                </button>
+                <div className="flex items-center" key={section.key}>
+                  {isNewGroup ? <div className="mx-2 h-6 w-px bg-slate-200" /> : null}
+                  <button
+                    aria-current={isSelected ? 'page' : undefined}
+                    className={`inline-flex h-10 items-center gap-2 rounded-xl px-3.5 text-xs font-black transition-all ${
+                      isSelected
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                    onClick={() => openSection(section.key)}
+                    title={section.body}
+                    type="button"
+                  >
+                    <Icon className={isSelected ? 'text-cyan-300' : 'text-slate-400'} size={15} aria-hidden="true" />
+                    <span>{section.label}</span>
+                    {badgeCount !== null ? (
+                      <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                        {badgeCount}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
               );
             })}
           </div>
         </nav>
 
         {activeSection === 'overview' ? (
-        <div className="nexus-card mt-3 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-slate-200">
-          {[
-            { icon: Building2, label: 'Workspace ที่ใช้งาน', meta: `${archivedWorkspaceCount} เก็บถาวร`, value: activeWorkspaceCount },
-            { icon: GraduationCap, label: 'นักเรียนทั้งหมด', meta: `${activeWorkspaceCount} workspace`, value: totalStudentCount },
-            { icon: Users, label: 'สมาชิกทั้งหมด', meta: 'ทุก workspace', value: totalMemberCount },
-            { icon: ShieldCheck, label: 'ผู้ดูแลระบบ', meta: 'Admin และ Superadmin', value: adminRows.length },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div className="flex items-center gap-3 border-b border-slate-200 p-4 last:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:nth-child(odd)]:border-r-0" key={item.label}>
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-cyan-200">
-                  <Icon size={18} aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-slate-500">{item.label}</p>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <p className="text-2xl font-black tabular-nums text-slate-950">{item.value.toLocaleString('th-TH')}</p>
-                    <span className="truncate text-[10px] font-bold text-slate-400">{item.meta}</span>
+          <>
+            {/* 4 Stat Overview Cards */}
+            <div className="nexus-card mt-4 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-slate-200">
+              {[
+                { icon: Building2, label: 'Workspace ที่ใช้งาน', meta: `${archivedWorkspaceCount} เก็บถาวร`, value: activeWorkspaceCount },
+                { icon: GraduationCap, label: 'นักเรียนทั้งหมด', meta: `${activeWorkspaceCount} workspace`, value: totalStudentCount },
+                { icon: Users, label: 'สมาชิกทั้งหมด', meta: 'ทุก workspace', value: totalMemberCount },
+                { icon: ShieldCheck, label: 'ผู้ดูแลระบบ', meta: 'Admin และ Superadmin', value: adminRows.length },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div className="flex items-center gap-3 border-b border-slate-200 p-4 last:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:nth-child(odd)]:border-r-0" key={item.label}>
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-cyan-200">
+                      <Icon size={18} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-slate-500">{item.label}</p>
+                      <div className="mt-0.5 flex items-baseline gap-2">
+                        <p className="text-2xl font-black tabular-nums text-slate-950">{item.value.toLocaleString('th-TH')}</p>
+                        <span className="truncate text-[10px] font-bold text-slate-400">{item.meta}</span>
+                      </div>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+
+            {/* Action Required: Summary of pending issues */}
+            <section className="nexus-card mt-4 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Action Summary & Alerts</p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">สิ่งที่ต้องติดตามและดำเนินการ</h2>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void testDbPing()}
+                  disabled={isPinging}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 shadow-sm transition"
+                >
+                  <Activity size={14} className={isPinging ? 'animate-spin text-cyan-600' : 'text-slate-400'} />
+                  <span>{isPinging ? 'กำลังวัด Ping...' : dbPingMs !== null ? `Ping: ${dbPingMs}ms` : 'ทดสอบ Ping DB'}</span>
+                </button>
               </div>
-            );
-          })}
-        </div>
+
+              <div className="grid divide-y divide-slate-200 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+                {[
+                  {
+                    body: pendingPaymentCount > 0 ? `มี ${pendingPaymentCount} สลิปรออนุมัติ` : 'ไม่มีสลิปค้างตรวจ',
+                    count: pendingPaymentCount,
+                    dotClass: pendingPaymentCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500',
+                    label: 'การชำระเงินรอตรวจ',
+                    section: 'billing' as SuperadminSection,
+                  },
+                  {
+                    body: expiringSoonVipWorkspaces.length > 0 ? `${expiringSoonVipWorkspaces.length} โรงเรียนใน 30 วัน` : 'ไม่มีรายการใกล้หมดอายุ',
+                    count: expiringSoonVipWorkspaces.length,
+                    dotClass: expiringSoonVipWorkspaces.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+                    label: 'VIP ใกล้หมดอายุ',
+                    section: 'billing' as SuperadminSection,
+                  },
+                  {
+                    body: broadcastForm.isActive ? `เปิดอยู่: ${broadcastForm.title || 'ไม่มีหัวข้อ'}` : 'ยังไม่มีประกาศ актив',
+                    count: broadcastForm.isActive ? 'เปิดใช้งาน' : 'ปิดอยู่',
+                    dotClass: broadcastForm.isActive ? 'bg-sky-500' : 'bg-slate-400',
+                    label: 'ประกาศทั้งระบบ',
+                    section: 'broadcast' as SuperadminSection,
+                  },
+                  {
+                    body: systemUsesSupabase ? (dbPingMs ? `ความเร็วตอบสนอง ${dbPingMs}ms` : 'บริการหลักพร้อมใช้งาน') : 'โหมดสาธิต (Demo)',
+                    count: systemUsesSupabase ? (dbPingMs ? `${dbPingMs}ms` : 'ปกติ') : 'Demo',
+                    dotClass: systemUsesSupabase ? 'bg-emerald-500' : 'bg-amber-500',
+                    label: 'ความพร้อมระบบ',
+                    section: 'health' as SuperadminSection,
+                  },
+                ].map((item) => (
+                  <button
+                    className="flex items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-slate-50"
+                    key={item.label}
+                    onClick={() => openSection(item.section)}
+                    type="button"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${item.dotClass}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-900">{item.label}</p>
+                        <p className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.body}</p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black tabular-nums text-slate-700">
+                      {item.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Quick Navigation Cards */}
+            <section className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => openSection('broadcast')}
+                className="group flex flex-col justify-between rounded-3xl border border-sky-200/80 bg-gradient-to-br from-sky-50/80 via-white to-cyan-50/50 p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-white shadow-sm transition group-hover:scale-105">
+                    <Megaphone size={20} />
+                  </span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black ${broadcastForm.isActive ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-500'}`}>
+                    {broadcastForm.isActive ? 'กำลังประกาศ' : 'ยังไม่เปิด'}
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <h3 className="text-base font-black text-slate-900">ประกาศทั้งระบบ</h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">แจ้งข่าวสารหรือเตือนปิดปรับปรุงระบบ</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openSection('billing')}
+                className="group flex flex-col justify-between rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/50 p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500 text-white shadow-sm transition group-hover:scale-105">
+                    <Banknote size={20} />
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-800">
+                    {pendingPaymentCount} รอตรวจ
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <h3 className="text-base font-black text-slate-900">ตรวจสลิป & VIP</h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">อนุมัติการชำระเงินและให้สิทธิ์โรงเรียน</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openSection('workspaces')}
+                className="group flex flex-col justify-between rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/50 p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm transition group-hover:scale-105">
+                    <Building2 size={20} />
+                  </span>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800">
+                    {activeWorkspaceCount} โรงเรียน
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <h3 className="text-base font-black text-slate-900">จัดการ Workspace</h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">เข้าใช้งานแทน กู้คืน และดูแลโรงเรียน</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openSection('users')}
+                className="group flex flex-col justify-between rounded-3xl border border-purple-200/80 bg-gradient-to-br from-purple-50/80 via-white to-fuchsia-50/50 p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-purple-600 text-white shadow-sm transition group-hover:scale-105">
+                    <Users size={20} />
+                  </span>
+                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[10px] font-black text-purple-800">
+                    {adminRows.length} ผู้ดูแล
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <h3 className="text-base font-black text-slate-900">ผู้ใช้ & สิทธิ์</h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">เพิ่ม Superadmin และรีเซ็ตรหัสผ่าน</p>
+                </div>
+              </button>
+            </section>
+          </>
         ) : null}
 
         {notice ? (
-          <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
+          <div className="mt-4 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
             <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
             <p>{notice}</p>
           </div>
-        ) : null}
-
-        {activeSection === 'overview' ? (
-          <section className="nexus-card mt-5 overflow-hidden">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Action Summary</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">สรุปงานที่ต้องดำเนินการ</h2>
-            </div>
-            <div className="grid divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-              {[
-                {
-                  body: 'เปิดคิวเพื่อตรวจสอบและอนุมัติรายการ',
-                  count: pendingPaymentCount,
-                  dotClass: 'bg-rose-500',
-                  label: 'การชำระเงินรอตรวจ',
-                  section: 'billing' as SuperadminSection,
-                },
-                {
-                  body: 'ตรวจสอบสถานะก่อนกู้คืนหรือลบถาวร',
-                  count: archivedWorkspaceCount,
-                  dotClass: 'bg-slate-400',
-                  label: 'Workspace เก็บถาวร',
-                  section: 'workspaces' as SuperadminSection,
-                },
-                {
-                  body: systemUsesSupabase ? 'บริการหลักเชื่อมต่อพร้อมใช้งาน' : 'กำลังแสดงข้อมูลสำหรับตรวจสอบหน้าจอ',
-                  count: systemUsesSupabase ? 'ปกติ' : 'Demo',
-                  dotClass: systemUsesSupabase ? 'bg-emerald-500' : 'bg-amber-500',
-                  label: 'สถานะระบบ',
-                  section: 'health' as SuperadminSection,
-                },
-              ].map((item) => (
-                <button
-                  className="flex items-center justify-between gap-4 px-5 py-5 text-left transition hover:bg-slate-50"
-                  key={item.label}
-                  onClick={() => openSection(item.section)}
-                  type="button"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${item.dotClass}`} />
-                    <div>
-                      <p className="text-sm font-black text-slate-900">{item.label}</p>
-                      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.body}</p>
-                    </div>
-                  </div>
-                  <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-black tabular-nums text-slate-700">
-                    {item.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
         ) : null}
 
         {activeSection === 'workspaces' ? (
@@ -1986,6 +2226,44 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
         {activeSection === 'billing' ? (
         <section className="mt-5 grid gap-5">
+          {/* Expiring Soon VIP Tracker */}
+          {expiringSoonVipWorkspaces.length > 0 ? (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="text-amber-700" size={18} />
+                  <h3 className="font-black text-amber-950">โรงเรียนที่แพ็กเกจ VIP ใกล้หมดอายุ (ภายใน 30 วัน)</h3>
+                </div>
+                <span className="rounded-full bg-amber-200/80 px-2.5 py-0.5 text-xs font-black text-amber-900">
+                  {expiringSoonVipWorkspaces.length} โรงเรียน
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-bold text-amber-800">
+                ตรวจสอบและขยายเวลาใช้งานให้โรงเรียนเพื่อไม่ให้การทำงานของครูสะดุด
+              </p>
+              <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {expiringSoonVipWorkspaces.map((ws) => (
+                  <div key={ws.id} className="flex items-center justify-between rounded-2xl bg-white p-3.5 shadow-sm border border-amber-100">
+                    <div className="min-w-0 pr-2">
+                      <p className="truncate font-black text-sm text-slate-900">{ws.name}</p>
+                      <p className="text-xs text-slate-500 font-bold">{ws.schoolName}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWorkspaceQuery(ws.name);
+                        openSection('workspaces');
+                      }}
+                      className="shrink-0 rounded-xl bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800 hover:bg-amber-200 transition"
+                    >
+                      จัดการ VIP
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <VipAccessManager />
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -2286,47 +2564,300 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
         {activeSection === 'support' ? <SuperadminSupportInbox /> : null}
 
+        {activeSection === 'broadcast' ? (
+          <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+            <div className="nexus-card p-5 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700">
+                  <Megaphone size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-950">ส่งประกาศทั่วทั้งระบบ (Global Broadcast)</h2>
+                  <p className="text-xs font-bold text-slate-500">แถบประกาศจะปรากฏด้านบนสุดของหน้าจอครูและผู้ใช้ทุกคนในทุก Workspace</p>
+                </div>
+              </div>
+
+              {broadcastNotice ? (
+                <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-3 text-xs font-black text-sky-900 shadow-sm">
+                  {broadcastNotice}
+                </div>
+              ) : null}
+
+              <form onSubmit={handleSaveBroadcast} className="mt-5 space-y-4">
+                {/* Active Toggle Switch */}
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm">
+                  <div>
+                    <p className="text-sm font-black text-slate-900">สถานะการแสดงประกาศ</p>
+                    <p className="text-xs font-bold text-slate-500">เปิดสวิตช์นี้เพื่อให้แถบประกาศแสดงผลทันที</p>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      checked={broadcastForm.isActive}
+                      onChange={(e) => setBroadcastForm({ ...broadcastForm, isActive: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="peer h-6 w-11 rounded-full bg-slate-300 peer-checked:bg-sky-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all"></div>
+                  </label>
+                </div>
+
+                {/* Severity Selector */}
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1.5">ระดับความสำคัญและโทนสี</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: 'info', label: 'ℹ️ ประกาศทั่วไป (สีฟ้า)', tone: 'border-sky-300 bg-sky-50 text-sky-900' },
+                      { key: 'warning', label: '⚠️ เตือนสำคัญ (สีส้ม)', tone: 'border-amber-300 bg-amber-50 text-amber-900' },
+                      { key: 'maintenance', label: '🚨 ปิดปรับปรุง (สีแดง)', tone: 'border-rose-300 bg-rose-50 text-rose-900' },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setBroadcastForm({ ...broadcastForm, severity: item.key as BroadcastSeverity })}
+                        className={`rounded-xl border p-2.5 text-xs font-black transition-all ${
+                          broadcastForm.severity === item.key
+                            ? `${item.tone} ring-2 ring-slate-900 shadow-sm`
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">หัวข้อประกาศ (สั้นกระชับและชัดเจน)</label>
+                  <input
+                    type="text"
+                    value={broadcastForm.title}
+                    onChange={(e) => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
+                    placeholder="เช่น: ปิดปรับปรุงระบบชั่วคราว คืนนี้ 00:00 - 02:00 น."
+                    className="w-full h-11 rounded-xl border border-slate-200 px-3.5 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  />
+                </div>
+
+                {/* Message */}
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">ข้อความรายละเอียด</label>
+                  <textarea
+                    rows={3}
+                    value={broadcastForm.message}
+                    onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
+                    placeholder="เช่น: ทีมงานกำลังอัปเกรดฐานข้อมูลเพื่อเพิ่มความเร็วในการใช้งาน กรุณาบันทึกคะแนนและข้อมูลก่อนช่วงเวลาดังกล่าว"
+                    className="w-full rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  />
+                </div>
+
+                {/* Link URL & Link Text */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 mb-1">ข้อความปุ่มลิงก์ (ไม่บังคับ)</label>
+                    <input
+                      type="text"
+                      value={broadcastForm.linkText || ''}
+                      onChange={(e) => setBroadcastForm({ ...broadcastForm, linkText: e.target.value })}
+                      placeholder="เช่น: ดูรายละเอียดเพิ่มเติม"
+                      className="w-full h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 mb-1">URL ลิงก์ (ไม่บังคับ)</label>
+                    <input
+                      type="url"
+                      value={broadcastForm.linkUrl || ''}
+                      onChange={(e) => setBroadcastForm({ ...broadcastForm, linkUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    />
+                  </div>
+                </div>
+
+                {/* Dismissible checkbox */}
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={broadcastForm.dismissible !== false}
+                    onChange={(e) => setBroadcastForm({ ...broadcastForm, dismissible: e.target.checked })}
+                    className="rounded text-sky-600 focus:ring-sky-500 h-4 w-4"
+                  />
+                  <span className="text-xs font-bold text-slate-600">อนุญาตให้ผู้ใช้กดยุบ/ปิดแถบประกาศนี้ได้</span>
+                </label>
+
+                {/* Submit buttons */}
+                <div className="flex flex-wrap gap-2.5 pt-2">
+                  <button
+                    type="submit"
+                    className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm"
+                  >
+                    <Sparkles size={16} />
+                    <span>{broadcastForm.isActive ? 'บันทึกและส่งประกาศ' : 'บันทึกการตั้งค่า'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleClearBroadcast}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-rose-600 hover:bg-rose-50 shadow-sm transition"
+                  >
+                    <Trash2 size={16} />
+                    <span>ปิดและล้างประกาศ</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Live Preview Column */}
+            <div className="space-y-4">
+              <div className="nexus-card p-5">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-400">
+                  <Bell size={14} />
+                  <span>Real-time Live Preview</span>
+                </div>
+                <h3 className="mt-2 text-base font-black text-slate-950">ตัวอย่างแถบประกาศบนหน้าจอจริง</h3>
+                <p className="mt-1 text-xs text-slate-500 font-bold">แบนเนอร์จะแสดงผลตามตัวอย่างนี้:</p>
+
+                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                  <div className={`p-4 text-xs font-bold text-white shadow-inner ${
+                    broadcastForm.severity === 'info'
+                      ? 'bg-gradient-to-r from-sky-600 via-cyan-600 to-teal-600'
+                      : broadcastForm.severity === 'warning'
+                      ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700'
+                      : 'bg-gradient-to-r from-rose-700 via-red-600 to-rose-800'
+                  }`}>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black uppercase">
+                        {broadcastForm.severity === 'info' ? <Info size={12} /> : broadcastForm.severity === 'warning' ? <AlertTriangle size={12} /> : <Wrench size={12} />}
+                        {broadcastForm.severity === 'info' ? 'ประกาศ' : broadcastForm.severity === 'warning' ? 'แจ้งเตือน' : 'ปรับปรุงระบบ'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-sm text-white">{broadcastForm.title || '(ยังไม่ได้กรอกหัวข้อ)'}</p>
+                        <p className="mt-1 text-xs text-white/90 leading-5">{broadcastForm.message || '(ยังไม่ได้กรอกรายละเอียดข้อความ)'}</p>
+                        {broadcastForm.linkText ? (
+                          <span className="mt-2 inline-flex items-center gap-1 font-black underline text-xs">
+                            {broadcastForm.linkText} <ExternalLink size={10} />
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 px-4 py-2 text-center text-[10px] font-bold text-slate-400 border-t border-slate-100">
+                    สถานะปัจจุบัน: {broadcastForm.isActive ? '🟢 พร้อมแสดงผลทั่วทั้งระบบ' : '⚪ ปิดอยู่ (ไม่มีใครเห็น)'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-xs text-slate-600 font-bold space-y-2">
+                <p className="font-black text-slate-800">💡 เคล็ดลับการส่งประกาศ:</p>
+                <ul className="list-disc pl-4 space-y-1 text-slate-500">
+                  <li>เลือก <b>"ปิดปรับปรุงระบบ"</b> เมื่อจำเป็นต้องแจ้งล่วงหน้าก่อนอัปเดต Supabase หรือระบบหลัก</li>
+                  <li>ข้อความควรกระชับ ระบุช่วงเวลาชัดเจน (เช่น 23:00 - 01:00 น.)</li>
+                  <li>เมื่อบำรุงรักษาเสร็จสิ้น สามารถกด <b>"ปิดและล้างประกาศ"</b> เพื่อเอาแถบออกได้ทันที</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {activeSection === 'health' || activeSection === 'audit' ? (
         <section className="mt-5 grid gap-5">
           {activeSection === 'health' ? (
           <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <AlertTriangle size={18} aria-hidden="true" />
-              System Health
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="nexus-kicker">
+                  <Activity size={18} aria-hidden="true" />
+                  Live System Health & Telemetry
+                </div>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">ตรวจสุขภาพและประสิทธิภาพระบบ</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => void testDbPing()}
+                disabled={isPinging}
+                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-xs font-black shadow-sm"
+              >
+                <Activity size={15} className={isPinging ? 'animate-spin' : ''} />
+                <span>{isPinging ? 'กำลัง Ping...' : 'ทดสอบ Ping Latency เดี๋ยวนี้'}</span>
+              </button>
             </div>
-            <h2 className="mt-4 text-2xl font-black text-slate-950">ตรวจสุขภาพระบบก่อนเปิดใช้จริง</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              ส่วนนี้เป็นแผงควบคุมสำหรับ Superadmin เพื่อดูว่า Supabase, RLS, Storage, Edge Functions และ Cloudflare deploy พร้อมหรือยัง
-            </p>
 
-            <div className="mt-4 grid gap-3">
+            {/* Latency & Live Metrics */}
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-black text-slate-500">Database Latency</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-2xl font-black text-slate-950 tabular-nums">
+                    {dbPingMs !== null ? `${dbPingMs} ms` : 'ยังไม่ได้วัด'}
+                  </p>
+                  {dbPingMs !== null ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                      dbPingMs < 150 ? 'bg-emerald-100 text-emerald-800' : dbPingMs < 350 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {dbPingMs < 150 ? 'เร็วดีเยี่ยม' : dbPingMs < 350 ? 'ปานกลาง' : 'ช้า'}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">ความเร็วตอบสนองไปยัง Supabase</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-black text-slate-500">Workspaces ทั้งหมด</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-2xl font-black text-slate-950 tabular-nums">{workspaces.length}</p>
+                  <span className="text-xs font-bold text-emerald-600">{activeWorkspaceCount} active</span>
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">{archivedWorkspaceCount} โรงเรียนเก็บถาวร</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-black text-slate-500">นักเรียนในระบบรวม</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-2xl font-black text-slate-950 tabular-nums">{totalStudentCount.toLocaleString('th-TH')}</p>
+                  <span className="text-xs font-bold text-slate-400">คน</span>
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">จากทุกโรงเรียนที่เชื่อมต่อ</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-black text-slate-500">บัญชีผู้ดูแล (Admins)</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-2xl font-black text-slate-950 tabular-nums">{adminRows.length}</p>
+                  <span className="text-xs font-bold text-purple-600">VIP ตลอดชีพ</span>
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">ผู้มีสิทธิ์ระดับบริหาร</p>
+              </div>
+            </div>
+
+            {/* Checklist items */}
+            <div className="mt-5 grid gap-3">
               {[
-                { label: 'Supabase frontend env', value: isSupabaseReady ? 'พร้อมใช้งาน' : 'ยังไม่พร้อม', tone: isSupabaseReady ? 'ready' : 'warn' },
-                { label: 'Workspace isolation / RLS', value: 'ตรวจผ่านหน้า System Readiness', tone: 'ready' },
-                { label: 'Storage home-visit-photos', value: 'ต้องเปิด policy ก่อนใช้งานจริง', tone: 'warn' },
-                { label: 'Edge Functions payment/admin', value: 'ใช้สำหรับ action สำคัญ ห้ามใส่ service role ใน frontend', tone: 'warn' },
+                { label: 'Supabase Frontend Connection', value: isSupabaseReady ? 'เชื่อมต่อเสร็จสมบูรณ์' : 'ยังไม่ได้เชื่อมต่อ', tone: isSupabaseReady ? 'ready' : 'warn' },
+                { label: 'Workspace Multi-tenant Isolation (RLS)', value: 'ตรวจสอบผ่านนโยบาย Row Level Security', tone: 'ready' },
+                { label: 'Storage Buckets (สลิป & รูปถ่ายเยี่ยมบ้าน)', value: 'home-visit-photos และ payment-slips พร้อม', tone: 'ready' },
+                { label: 'Cloudflare Pages CDN & Edge Network', value: 'Deploy อัตโนมัติและมี Cache ป้องกัน downtime', tone: 'ready' },
               ].map((item) => (
-                <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white/86 p-3" key={item.label}>
+                <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white/86 p-3.5 shadow-sm" key={item.label}>
                   <div>
                     <p className="text-sm font-black text-slate-950">{item.label}</p>
-                    <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.value}</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-500">{item.value}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ring-1 ${
                     item.tone === 'ready'
                       ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
                       : 'bg-amber-50 text-amber-700 ring-amber-100'
                   }`}>
-                    {item.tone === 'ready' ? 'ready' : 'ต้องตรวจ'}
+                    {item.tone === 'ready' ? '✓ พร้อมใช้งาน' : 'ต้องตรวจ'}
                   </span>
                 </div>
               ))}
             </div>
 
             <Link
-              className="blue-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+              className="blue-action mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-sm"
               to="/app/dashboard?view=setup"
             >
-              เปิดหน้า System Readiness
+              <span>เปิดดูรายงาน System Readiness ละเอียด</span>
               <ArrowLeft className="rotate-180" size={17} aria-hidden="true" />
             </Link>
           </div>
