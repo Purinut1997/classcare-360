@@ -82,10 +82,14 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, onThe
         <button
           type="button"
           onClick={onOpenGuide}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-black text-cyan-700 transition-all hover:bg-cyan-500/20 hover:border-cyan-500/50 hover:scale-[1.02] dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-300"
+          className="relative flex shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-teal-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-cyan-500/20 ring-1 ring-white/20 transition-all hover:shadow-lg hover:shadow-cyan-500/30 hover:scale-105 active:scale-95"
           title="เปิดตัวนำทางการใช้งานระบบ ClassCare 360 (5 ขั้นตอน)"
         >
-          <Compass size={15} className="text-cyan-600 dark:text-cyan-400 animate-spin duration-3000" />
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-200" />
+          </span>
+          <Compass size={15} className="animate-spin duration-3000 text-cyan-200" />
           <span className="hidden sm:inline">ตัวนำทางการใช้งาน</span>
         </button>
       )}

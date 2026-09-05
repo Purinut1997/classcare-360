@@ -13,6 +13,7 @@ import type { AppSessionContext } from '../../types/core';
 import { StatsGrid } from '../../components/dashboard/StatsGrid';
 import { StudentWatchlist, type WatchlistStudentItem } from '../../components/dashboard/StudentWatchlist';
 import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
+import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -982,6 +983,17 @@ export function DashboardPage({ session }: DashboardPageProps) {
             เช็กเวลาเรียน
           </Link>
         </div>
+      </div>
+
+      {/* 🚀 Onboarding Roadmap: ก้าวแรกสู่ ClassCare 360 (5 ขั้นตอน) */}
+      <div className="mt-5">
+        <OnboardingRoadmapCard
+          session={session}
+          classroomsCount={classrooms.length}
+          studentsCount={Number(stats[0]?.value || 0)}
+          hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
+          hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
+        />
       </div>
 
       {/* ⚠️ Pending Join Requests — Admin action required, show right after hero */}
