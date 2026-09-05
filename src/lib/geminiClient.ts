@@ -1,8 +1,7 @@
 export type GeminiModelId =
   | 'gemini-1.5-flash'
-  | 'gemini-1.5-pro'
   | 'gemini-2.0-flash'
-  | 'gemini-2.5-flash';
+  | 'gemini-1.5-pro';
 
 export interface GeminiModelOption {
   id: GeminiModelId;
@@ -16,30 +15,23 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
   {
     id: 'gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
-    tag: 'แนะนำที่สุด ⭐ (เสถียร)',
-    description: 'โมเดลยอดนิยม ตอบไว แม่นยำ รองรับทุก API Key ฟรีจาก Google AI Studio',
+    tag: 'แนะนำที่สุด ⭐ (โควตาฟรีสูงสุด 1,500 ครั้ง/วัน)',
+    description: 'เสถียรที่สุด ตอบไว โควตาฟรีสูงถึง 1,500 ครั้ง/วัน ใช้งานได้ตลอดทั้งวันไม่ติดลิมิต',
     speed: '⚡⚡⚡ เร็วมาก',
-  },
-  {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    tag: 'คิดลึกที่สุด 🧠',
-    description: 'วิเคราะห์ข้อมูลซับซ้อน ร่างรายงานวิชาการ และอ่านข้อมูลขนาดยาว',
-    speed: '⚡ ปานกลาง',
   },
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    tag: 'รุ่นความเร็วสูง',
-    description: 'ความเร็วสูงพิเศษ (ใช้กับโปรเจกต์ที่เปิดรับ)',
+    tag: 'รุ่นใหม่ความเร็วสูง 🚀',
+    description: 'โมเดลเจเนอเรชันใหม่ ตอบสนองฉับไว ปรับแต่งภาษาไทยได้ยอดเยี่ยม',
     speed: '⚡⚡⚡⚡ เร็วมาก',
   },
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    tag: 'รุ่นใหม่ล่าสุด ✨',
-    description: 'โมเดลเจเนอเรชันใหม่ล่าสุด ปรับแต่งภาษาไทยได้ยอดเยี่ยม',
-    speed: '⚡⚡⚡ เร็ว',
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    tag: 'คิดลึกที่สุด 🧠 (สำหรับบัญชี Billing)',
+    description: 'วิเคราะห์ข้อมูลซับซ้อน ร่างรายงานวิชาการเชิงลึก (แนะนำสำหรับโปรเจกต์ที่ผูก Billing)',
+    speed: '⚡ ปานกลาง',
   },
 ];
 
@@ -145,17 +137,26 @@ export async function callGeminiApi(
     body: JSON.stringify(payload),
   });
 
-  // Auto-fallback if the selected model returns 404
-  if (response.status === 404) {
+  // Auto-fallback if the selected model returns 404, 400 (e.g. model discontinued), or 429 (quota exceeded)
+  if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
     const supportedList = await listAvailableGeminiModels(apiKey);
-    const fallbackModel = supportedList.find((m) => m.includes('flash')) || supportedList[0];
+    // Prioritize gemini-1.5-flash which has the highest free tier quota (1,500 requests/day)
+    const fallbackModel =
+      supportedList.find((m) => m === 'gemini-1.5-flash') ||
+      supportedList.find((m) => m.includes('1.5-flash')) ||
+      supportedList.find((m) => m === 'gemini-2.0-flash') ||
+      'gemini-1.5-flash';
+
     if (fallbackModel && fallbackModel !== model) {
       const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
-      response = await fetch(fallbackEndpoint, {
+      const fallbackRes = await fetch(fallbackEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (fallbackRes.ok) {
+        response = fallbackRes;
+      }
     }
   }
 
