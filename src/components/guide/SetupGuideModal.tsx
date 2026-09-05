@@ -322,7 +322,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
   // 1. MINIMIZED FLOATING BADGE (TINY PILL IN CORNER)
   if (displayMode === 'minimized') {
     return (
-      <div className="fixed bottom-5 right-5 z-[100] animate-bounce">
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 sm:bottom-5 sm:right-5 z-[100] animate-bounce">
         <button
           type="button"
           onClick={() => setDisplayMode('floating')}
@@ -345,7 +345,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
     return (
       <aside
         aria-label="ตัวนำทางการใช้งานลอยบนหน้าจอ"
-        className="fixed bottom-4 right-4 z-[100] w-[calc(100vw-2rem)] max-w-md overflow-hidden rounded-2xl border border-cyan-500/40 bg-slate-900/95 text-slate-100 shadow-2xl shadow-cyan-950/60 backdrop-blur-xl ring-1 ring-white/10 transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 sm:bottom-4 sm:right-4 z-[100] w-[calc(100vw-2rem)] max-w-md overflow-hidden rounded-2xl border border-cyan-500/40 bg-slate-900/95 text-slate-100 shadow-2xl shadow-cyan-950/60 backdrop-blur-xl ring-1 ring-white/10 transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
       >
         {/* Glow Header Ambient */}
         <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-500/20 blur-2xl" />
