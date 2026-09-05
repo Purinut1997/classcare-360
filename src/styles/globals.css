@@ -1438,6 +1438,22 @@ body {
     opacity: 0;
   }
 }
+@keyframes scan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
 @keyframes system-aurora-drift {
   to {
     transform: translate3d(-1.5rem, 1rem, 0) rotate(-10deg) scale(1.08);
