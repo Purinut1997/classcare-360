@@ -132,11 +132,15 @@ export function SupportChat({
     } catch {
       // Ignore parse errors
     }
+    const savedEnding = window.localStorage.getItem("classcare_ai_polite_ending");
+    const initKa = savedEnding === "male" ? "ครับ" : "ค่ะ";
+    const initNaka = savedEnding === "male" ? "นะครับ" : "นะคะ";
+
     return [
       {
         id: `welcome-${Date.now()}`,
         role: "assistant",
-        content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+        content: `สวัสดี${initKa}คุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการ${initKa} ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลย${initNaka}`,
         timestamp: new Date().toLocaleTimeString("th-TH", {
           hour: "2-digit",
           minute: "2-digit",
@@ -191,6 +195,24 @@ export function SupportChat({
     () => MASCOT_OPTIONS.find((m) => m.id === mascotType) || MASCOT_OPTIONS[0],
     [mascotType]
   );
+
+  // Polite ending setting: 'female' (ค่ะ/นะคะ) vs 'male' (ครับ/นะครับ) vs 'neutral'
+  const [politeEnding, setPoliteEnding] = useState<"female" | "male" | "neutral">(() => {
+    try {
+      const saved = window.localStorage.getItem("classcare_ai_polite_ending") as "female" | "male" | "neutral";
+      if (saved && ["female", "male", "neutral"].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return "female";
+  });
+
+  const handleSelectPoliteEnding = (ending: "female" | "male" | "neutral") => {
+    setPoliteEnding(ending);
+    try {
+      window.localStorage.setItem("classcare_ai_polite_ending", ending);
+    } catch {}
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -462,11 +484,12 @@ export function SupportChat({
             academicYear: session.workspace?.academicYear,
             liveSchoolContext,
             allowFallback,
+            politeEnding,
           }
         );
       } else {
         // Use smart fallback engine
-        const fallback = getSmartFallbackResponse(text, activeLabel);
+        const fallback = getSmartFallbackResponse(text, activeLabel, politeEnding);
         const assistantMsg: ChatMessage = {
           id: `asst-${Date.now()}`,
           role: "assistant",
@@ -498,7 +521,7 @@ export function SupportChat({
       setAiMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
       // Graceful fallback on API error
-      const fallback = getSmartFallbackResponse(text, activeLabel);
+      const fallback = getSmartFallbackResponse(text, activeLabel, politeEnding);
       setAiMessages((prev) => [
         ...prev,
         {
@@ -1307,6 +1330,65 @@ export function SupportChat({
                   </div>
                 </div>
 
+                {/* Polite Ending & Teacher Tone Setting */}
+                <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-b from-indigo-50/70 via-white to-sky-50/50 p-3.5 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                      <span>🗣️</span>
+                      <span>คำลงท้ายสำหรับคุณครู (ร่างข้อความ/แชท):</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/90 px-2 py-0.5 rounded-full border border-indigo-200">
+                      {politeEnding === 'male' ? '👨‍🏫 ครับ / นะครับ' : politeEnding === 'female' ? '👩‍🏫 ค่ะ / นะคะ' : '🌟 สุภาพเป็นกลาง'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    กำหนดให้ AI ใช้คำลงท้ายที่ตรงกับคุณครู เมื่อช่วยร่างข้อความส่งผู้ปกครอง สมุดพก และตอบคำถาม
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPoliteEnding('female')}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
+                        politeEnding === 'female'
+                          ? 'border-pink-500 bg-pink-50/90 text-pink-950 shadow-xs ring-2 ring-pink-400 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-xl">👩‍🏫</span>
+                      <span className="text-xs font-bold">ครูผู้หญิง</span>
+                      <span className="text-[9px] text-pink-600 bg-pink-100/80 px-1.5 py-0.2 rounded-full font-bold">ค่ะ / นะคะ</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPoliteEnding('male')}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
+                        politeEnding === 'male'
+                          ? 'border-indigo-500 bg-indigo-50/90 text-indigo-950 shadow-xs ring-2 ring-indigo-400 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-xl">👨‍🏫</span>
+                      <span className="text-xs font-bold">ครูผู้ชาย</span>
+                      <span className="text-[9px] text-indigo-600 bg-indigo-100/80 px-1.5 py-0.2 rounded-full font-bold">ครับ / นะครับ</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPoliteEnding('neutral')}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
+                        politeEnding === 'neutral'
+                          ? 'border-sky-500 bg-sky-50/90 text-sky-950 shadow-xs ring-2 ring-sky-400 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-xl">🌟</span>
+                      <span className="text-xs font-bold">ทางการ / กลาง</span>
+                      <span className="text-[9px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-full font-bold">ตามบริบท</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Scope Selection */}
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">
@@ -1663,7 +1745,7 @@ export function SupportChat({
           <div className="pointer-events-none absolute right-full mr-3 hidden sm:flex items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200 group-hover:flex">
             <span className="text-sm">{currentMascot.emoji}</span>
             <span className="bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
-              มีอะไรให้{currentMascot.name}ช่วยไหมคะ? ✨
+              มีอะไรให้{currentMascot.name}ช่วยไหม{politeEnding === "male" ? "ครับ" : "คะ"}? ✨
             </span>
             <span className="absolute -right-1.5 top-1/2 -translate-y-1/2 border-4 border-transparent border-l-white/95" />
           </div>

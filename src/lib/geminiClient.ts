@@ -129,6 +129,7 @@ export async function callGeminiApi(
     academicYear?: string;
     liveSchoolContext?: string;
     allowFallback?: boolean;
+    politeEnding?: 'male' | 'female' | 'neutral';
   }
 ): Promise<string> {
   const allowFallback = contextInfo?.allowFallback !== false;
@@ -147,6 +148,20 @@ export async function callGeminiApi(
         ? `[บริบทปัจจุบัน: คุณครูกำลังเปิดหน้า '${contextInfo.activeView}' ห้องเรียน: '${contextInfo.classroomName || 'ไม่ได้เลือก'}' ปีการศึกษา: '${contextInfo.academicYear || '2569'}']\n\n`
         : '');
 
+  // Dynamic polite ending rules based on teacher preference (Male vs Female vs Neutral)
+  const politeInstruction =
+    contextInfo?.politeEnding === 'male'
+      ? `\n\n[ข้อกำหนดสำคัญสูงสุดเรื่องเพศและคำลงท้ายของคุณครู]:
+คุณครูผู้ใช้งานระบบนี้คือ "คุณครูผู้ชาย (เพศชาย)"
+1. เมื่อคุณร่างข้อความประกาศ, จดหมาย หรือข้อความสื่อสารกับผู้ปกครอง (เช่น ทาง LINE / ปพ.6 / หนังสือเชิญประชุมผู้ปกครอง / ข้อความส่งตัวนักเรียน) คุณครูจะเป็นผู้ส่งข้อความนี้เอง ดังนั้นต้องใช้คำลงท้ายสำหรับคุณครูผู้ชายเท่านั้น เช่น "ครับ", "นะครับ", "ครับผม" (เช่น "ร่วมกับคุณครูประจำชั้นครับ", "ยินดีต้อนรับครับ", "ขอบพระคุณครับ") ห้ามใช้ "ค่ะ" หรือ "นะคะ" ในร่างข้อความโดยเด็ดขาด!
+2. ในการสนทนากับคุณครู ให้สุภาพและเป็นกันเอง`
+      : contextInfo?.politeEnding === 'female'
+      ? `\n\n[ข้อกำหนดสำคัญสูงสุดเรื่องเพศและคำลงท้ายของคุณครู]:
+คุณครูผู้ใช้งานระบบนี้คือ "คุณครูผู้หญิง (เพศหญิง)"
+1. เมื่อคุณร่างข้อความประกาศ หรือข้อความสื่อสารกับผู้ปกครอง ให้ใช้คำลงท้าย "ค่ะ", "นะคะ" (เช่น "ร่วมกับคุณครูประจำชั้นค่ะ", "ขอบคุณค่ะ")
+2. ในการสนทนากับคุณครู ให้สุภาพอ่อนหวาน "ค่ะ", "นะคะ"`
+      : `\n\n[ข้อกำหนดสำคัญเรื่องคำลงท้าย]: ใช้ภาษาทางการสุภาพเป็นกลาง เหมาะสมสำหรับหนังสือและประกาศราชการของสถานศึกษา`;
+
   // Map messages to Gemini API format
   const contents = messages
     .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -163,7 +178,7 @@ export async function callGeminiApi(
   const payload = {
     contents,
     systemInstruction: {
-      parts: [{ text: SYSTEM_INSTRUCTION }],
+      parts: [{ text: SYSTEM_INSTRUCTION + politeInstruction }],
     },
     generationConfig: {
       temperature: 0.7,
@@ -445,11 +460,17 @@ export function parseAssistantResponse(rawText: string): {
 /**
  * Smart Fallback Engine: Answers common questions when no Gemini API Key is configured yet.
  */
-export function getSmartFallbackResponse(userPrompt: string, activeView: string): {
+export function getSmartFallbackResponse(
+  userPrompt: string,
+  activeView: string,
+  politeEnding: 'male' | 'female' | 'neutral' = 'female'
+): {
   cleanText: string;
   actions: AssistantAction[];
 } {
   const lower = userPrompt.toLowerCase();
+  const ka = politeEnding === 'male' ? 'ครับ' : 'ค่ะ';
+  const naka = politeEnding === 'male' ? 'นะครับ' : 'นะคะ';
 
   // Check for whole-year holiday request
   if (
@@ -539,9 +560,9 @@ export function getSmartFallbackResponse(userPrompt: string, activeView: string)
 
   // 5. Parent LINE message draft
   if (lower.includes('line') || lower.includes('ผู้ปกครอง') || lower.includes('ร่างข้อความ')) {
-    const sampleMsg = `เรียน ผู้ปกครองของ [ชื่อนักเรียน]\n\nทางโรงเรียนขอแจ้งให้ทราบว่า ในช่วงวันที่ [ระบุวันที่] นักเรียนได้ขาดเรียนติดต่อกัน 3 วัน คุณครูประจำชั้นมีความห่วงใยในสุขภาพและความเป็นอยู่ของน้อง หากน้องมีอาการป่วยหรือไม่สะดวกประการใด รบกวนผู้ปกครองติดต่อกลับครูประจำชั้นที่เบอร์ [เบอร์โทรครู] นะคะ\n\nขอขอบพระคุณในความร่วมมือค่ะ\nครูประจำชั้น`;
+    const sampleMsg = `เรียน ผู้ปกครองของ [ชื่อนักเรียน]\n\nทางโรงเรียนขอแจ้งให้ทราบว่า ในช่วงวันที่ [ระบุวันที่] นักเรียนได้ขาดเรียนติดต่อกัน 3 วัน คุณครูประจำชั้นมีความห่วงใยในสุขภาพและความเป็นอยู่ของน้อง หากน้องมีอาการป่วยหรือไม่สะดวกประการใด รบกวนผู้ปกครองติดต่อกลับครูประจำชั้นที่เบอร์ [เบอร์โทรครู] ${naka}\n\nขอขอบพระคุณในความร่วมมือ${ka}\nครูประจำชั้น`;
     return {
-      cleanText: `📝 **ร่างข้อความส่ง LINE แจ้งผู้ปกครอง:**\n\n${sampleMsg}\n\n*(สามารถกดปุ่มคัดลอกข้อความด้านล่าง แล้วนำไปปรับใช้ได้ทันทีค่ะ)*`,
+      cleanText: `📝 **ร่างข้อความส่ง LINE แจ้งผู้ปกครอง:**\n\n${sampleMsg}\n\n*(สามารถกดปุ่มคัดลอกข้อความด้านล่าง แล้วนำไปปรับใช้ได้ทันที${ka})*`,
       actions: [
         { type: 'copy', label: '📋 คัดลอกข้อความ', payload: sampleMsg },
       ],
@@ -551,7 +572,7 @@ export function getSmartFallbackResponse(userPrompt: string, activeView: string)
   // 6. School Calendar & Holidays
   if (lower.includes('ปฏิทิน') || lower.includes('วันหยุด') || lower.includes('วันสอบ') || lower.includes('กิจกรรม')) {
     return {
-      cleanText: `📅 **ระบบปฏิทินโรงเรียนและบันทึกวันหยุด (School Calendar):**\n\n- คุณครูสามารถดูและบันทึกวันหยุด, วันสอบ, กิจกรรมโรงเรียน หรือวันเรียนชดเชยได้\n- มีนโยบายควบคุมการเช็คชื่อ: กำหนดให้ **"ไม่นับเป็นวันเรียน (ข้ามเช็คชื่อ)"** ได้ เพื่อไม่ให้เสียสถิติเวลาเรียน 80% ของนักเรียน\n- สั่งให้น้องแคร์ช่วยบันทึกวันหยุดได้ เช่นพิมพ์: *"ช่วยบันทึกวันหยุด 23 ตุลาคม วันปิยมหาราช"* หรือ *"ช่วยลงวันหยุดราชการทั้งปี 2569"* ได้เลยค่ะ!`,
+      cleanText: `📅 **ระบบปฏิทินโรงเรียนและบันทึกวันหยุด (School Calendar):**\n\n- คุณครูสามารถดูและบันทึกวันหยุด, วันสอบ, กิจกรรมโรงเรียน หรือวันเรียนชดเชยได้\n- มีนโยบายควบคุมการเช็คชื่อ: กำหนดให้ **"ไม่นับเป็นวันเรียน (ข้ามเช็คชื่อ)"** ได้ เพื่อไม่ให้เสียสถิติเวลาเรียน 80% ของนักเรียน\n- สั่งให้น้องแคร์ช่วยบันทึกวันหยุดได้ เช่นพิมพ์: *"ช่วยบันทึกวันหยุด 23 ตุลาคม วันปิยมหาราช"* หรือ *"ช่วยลงวันหยุดราชการทั้งปี 2569"* ได้เลย${ka}!`,
       actions: [
         { type: 'navigate', target: '/app/dashboard?view=school-calendar', label: '📅 เปิดดูปฏิทินโรงเรียน' },
       ],
@@ -560,7 +581,7 @@ export function getSmartFallbackResponse(userPrompt: string, activeView: string)
 
   // General default fallback
   return {
-    cleanText: `สวัสดีค่ะคุณครู! น้องแคร์ยินดีช่วยเหลือค่ะ 😊\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeView}"** คุณครูสามารถกดเลือก **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่สงสัยเกี่ยวกับเมนูและการใช้งานระบบ ClassCare 360 ได้เลยนะคะ\n\n*(💡 หมายเหตุ: หากต้องการให้ AI ช่วยวิเคราะห์ข้อมูลเชิงลึกอิสระ สามารถใส่ Gemini API Key ในหน้าตั้งค่า VIP ได้เลยค่ะ)*`,
+    cleanText: `สวัสดี${ka}คุณครู! น้องแคร์ยินดีช่วยเหลือ${ka} 😊\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeView}"** คุณครูสามารถกดเลือก **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่สงสัยเกี่ยวกับเมนูและการใช้งานระบบ ClassCare 360 ได้เลย${naka}\n\n*(💡 หมายเหตุ: หากต้องการให้ AI ช่วยวิเคราะห์ข้อมูลเชิงลึกอิสระ สามารถใส่ Gemini API Key ในหน้าตั้งค่า VIP ได้เลย${ka})*`,
     actions: [
       { type: 'navigate', target: '/app/dashboard?view=help-center', label: '📖 เปิดคู่มือการใช้งานระบบ' },
     ],
