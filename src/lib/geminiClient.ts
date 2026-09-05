@@ -2,6 +2,7 @@ export type GeminiModelId =
   | 'auto'
   | 'gemini-1.5-flash'
   | 'gemini-2.0-flash'
+  | 'gemini-3.5-flash'
   | 'gemini-1.5-pro';
 
 export interface GeminiModelOption {
@@ -23,7 +24,7 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
   {
     id: 'gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
-    tag: 'โควตาฟรีสูงสุด 1,500 ครั้ง/วัน',
+    tag: 'โควตาฟรีสูงสุด 1,500 ครั้ง/วัน ⭐',
     description: 'เสถียรที่สุด ตอบไว โควตาฟรีสูงถึง 1,500 ครั้ง/วัน ใช้งานได้ตลอดทั้งวันไม่ติดลิมิต',
     speed: '⚡⚡⚡ เร็วมาก',
   },
@@ -32,6 +33,13 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
     name: 'Gemini 2.0 Flash',
     tag: 'รุ่นใหม่ความเร็วสูง 🚀',
     description: 'โมเดลเจเนอเรชันใหม่ ตอบสนองฉับไว ปรับแต่งภาษาไทยได้ยอดเยี่ยม',
+    speed: '⚡⚡⚡⚡ เร็วมาก',
+  },
+  {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    tag: 'รุ่นล่าสุด 🌟 (จำกัด 20 ครั้ง/วัน)',
+    description: 'โมเดลรุ่นใหม่ล่าสุดในคอนโซล (บัญชีฟรีจำกัด 20 ครั้งต่อวัน แนะนำผูก Billing หรือใช้ Auto)',
     speed: '⚡⚡⚡⚡ เร็วมาก',
   },
   {
