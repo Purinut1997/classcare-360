@@ -175,7 +175,7 @@ export async function fetchLiveSchoolDataContext(
       // 7.1 Savings
       supabase
         .from('savings_accounts')
-        .select('student_id, balance')
+        .select('student_id, balance, metadata')
         .eq('workspace_id', workspaceId)
         .limit(200),
 
@@ -681,10 +681,14 @@ export async function fetchLiveSchoolDataContext(
     // =========================================================================
     context += `\n--- [มิติที่ 7: ยอดเงินออมนักเรียน และปฏิทินวันหยุดโรงเรียน] ---\n`;
     let totalSavingsBalance = 0;
-    (savingsAccounts || []).forEach((sa) => {
+    let totalOpeningBalance = 0;
+    (savingsAccounts || []).forEach((sa: any) => {
       totalSavingsBalance += Number(sa.balance || 0);
+      if (sa.metadata?.opening_balance) {
+        totalOpeningBalance += Number(sa.metadata.opening_balance || 0);
+      }
     });
-    context += `• ยอดเงินออมรวมของนักเรียน: ${totalSavingsBalance.toLocaleString('th-TH')} บาท (จาก ${(savingsAccounts || []).length} บัญชี)\n`;
+    context += `• ยอดเงินออมรวมของนักเรียน: ${totalSavingsBalance.toLocaleString('th-TH')} บาท (จาก ${(savingsAccounts || []).length} บัญชี)${totalOpeningBalance > 0 ? ` โดยเป็นยอดยกมาจากชั้นเรียนก่อนหน้า ${totalOpeningBalance.toLocaleString('th-TH')} บาท` : ''}\n`;
 
     const eventsList = calendarDays || [];
     if (eventsList.length > 0) {
