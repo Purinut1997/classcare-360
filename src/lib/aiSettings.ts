@@ -30,7 +30,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
   const result: EffectiveAiConfig = {
     apiKey: null,
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     source: 'none',
     isVip,
     canConfigureWorkspace: isSuperadmin || (isVip && isWorkspaceOwner),
@@ -48,7 +48,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
   if (cachedPersonalKey && cachedPersonalKey.trim().length > 10) {
     result.apiKey = cachedPersonalKey.trim();
-    result.model = cachedPersonalModel || 'gemini-2.0-flash';
+    result.model = cachedPersonalModel || 'gemini-1.5-flash';
     result.source = 'personal';
     return result;
   }
@@ -59,7 +59,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
   if (cachedWorkspaceKey && cachedWorkspaceKey.trim().length > 10) {
     result.apiKey = cachedWorkspaceKey.trim();
-    result.model = cachedWorkspaceModel || 'gemini-2.0-flash';
+    result.model = cachedWorkspaceModel || 'gemini-1.5-flash';
     result.source = 'workspace';
     return result;
   }
@@ -77,7 +77,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
         if (profData?.personal_gemini_api_key) {
           result.apiKey = profData.personal_gemini_api_key;
-          result.model = (profData.personal_ai_model as GeminiModelId) || 'gemini-2.0-flash';
+          result.model = (profData.personal_ai_model as GeminiModelId) || 'gemini-1.5-flash';
           result.source = 'personal';
           localStorage.setItem(`classcare_personal_ai_key_${profileId}`, profData.personal_gemini_api_key);
           return result;
@@ -94,7 +94,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
         if (wsData?.gemini_api_key && wsData.is_ai_enabled !== false) {
           result.apiKey = wsData.gemini_api_key;
-          result.model = (wsData.ai_model as GeminiModelId) || 'gemini-2.0-flash';
+          result.model = (wsData.ai_model as GeminiModelId) || 'gemini-1.5-flash';
           result.source = 'workspace';
           localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, wsData.gemini_api_key);
           return result;
@@ -114,7 +114,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 export async function savePersonalAiConfig(
   session: AppSessionContext,
   apiKey: string,
-  model: GeminiModelId = 'gemini-2.0-flash'
+  model: GeminiModelId = 'gemini-1.5-flash'
 ): Promise<void> {
   const profileId = session.profile.id;
   localStorage.setItem(`classcare_personal_ai_key_${profileId}`, apiKey.trim());
@@ -141,7 +141,7 @@ export async function savePersonalAiConfig(
 export async function saveWorkspaceAiConfig(
   session: AppSessionContext,
   apiKey: string,
-  model: GeminiModelId = 'gemini-2.0-flash'
+  model: GeminiModelId = 'gemini-1.5-flash'
 ): Promise<void> {
   const workspaceId = session.workspace?.id;
   if (!workspaceId) return;
@@ -171,7 +171,7 @@ export async function saveWorkspaceAiConfig(
 export async function superadminGrantWorkspaceAiKey(
   targetWorkspaceId: string,
   apiKey: string,
-  model: GeminiModelId = 'gemini-2.0-flash'
+  model: GeminiModelId = 'gemini-1.5-flash'
 ): Promise<void> {
   localStorage.setItem(`classcare_workspace_ai_key_${targetWorkspaceId}`, apiKey.trim());
   localStorage.setItem(`classcare_workspace_ai_model_${targetWorkspaceId}`, model);

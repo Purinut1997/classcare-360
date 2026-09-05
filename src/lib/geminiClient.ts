@@ -1,8 +1,8 @@
 export type GeminiModelId =
-  | 'gemini-2.0-flash'
   | 'gemini-1.5-flash'
   | 'gemini-1.5-pro'
-  | 'gemini-2.0-flash-lite';
+  | 'gemini-2.0-flash'
+  | 'gemini-2.5-flash';
 
 export interface GeminiModelOption {
   id: GeminiModelId;
@@ -14,18 +14,11 @@ export interface GeminiModelOption {
 
 export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    tag: 'แนะนำที่สุด ⭐',
-    description: 'เร็วมาก ฉลาดรอบด้าน เหมาะที่สุดสำหรับแชทบอทตอบคำถามและสรุปข้อมูล',
-    speed: '⚡⚡⚡ เร็วมาก',
-  },
-  {
     id: 'gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
-    tag: 'เสถียร มาตรฐาน',
-    description: 'โมเดลยอดนิยม ตอบไว แม่นยำ ประหยัดโควต้า',
-    speed: '⚡⚡⚡ เร็ว',
+    tag: 'แนะนำที่สุด ⭐ (เสถียร)',
+    description: 'โมเดลยอดนิยม ตอบไว แม่นยำ รองรับทุก API Key ฟรีจาก Google AI Studio',
+    speed: '⚡⚡⚡ เร็วมาก',
   },
   {
     id: 'gemini-1.5-pro',
@@ -35,11 +28,18 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
     speed: '⚡ ปานกลาง',
   },
   {
-    id: 'gemini-2.0-flash-lite',
-    name: 'Gemini 2.0 Flash Lite',
-    tag: 'ประหยัดสุดขีด ⚡',
-    description: 'กินทรัพยากรน้อย เหมาะกับการประมวลผลสั้นๆ รวดเร็ว',
-    speed: '⚡⚡⚡⚡ เร็วสุด',
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    tag: 'รุ่นความเร็วสูง',
+    description: 'ความเร็วสูงพิเศษ (ใช้กับโปรเจกต์ที่เปิดรับ)',
+    speed: '⚡⚡⚡⚡ เร็วมาก',
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    tag: 'รุ่นใหม่ล่าสุด ✨',
+    description: 'โมเดลเจเนอเรชันใหม่ล่าสุด ปรับแต่งภาษาไทยได้ยอดเยี่ยม',
+    speed: '⚡⚡⚡ เร็ว',
   },
 ];
 
@@ -77,6 +77,7 @@ const SYSTEM_INSTRUCTION = `
 
 /**
  * Call Google Gemini REST API directly with the provided API key.
+ * Includes automatic fallback to gemini-1.5-flash if the primary model returns 404.
  */
 export async function callGeminiApi(
   apiKey: string,
@@ -116,11 +117,21 @@ export async function callGeminiApi(
     },
   };
 
-  const response = await fetch(endpoint, {
+  let response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+
+  // Auto-fallback if the selected model is 404 on Google's API
+  if (response.status === 404 && model !== 'gemini-1.5-flash') {
+    const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    response = await fetch(fallbackEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
@@ -137,16 +148,12 @@ export async function callGeminiApi(
   return rawText;
 }
 
-/**
- * Test if a Gemini API Key is valid and can generate content.
- */
-export async function testGeminiApiKey(apiKey: string, model: GeminiModelId = 'gemini-2.0-flash'): Promise<{ success: boolean; message: string }> {
-  if (!apiKey || apiKey.trim().length < 20) {
-    return { success: false, message: 'กรุณากรอก API Key ที่ถูกต้อง' };
-  }
-
+async function attemptTestModel(
+  apiKey: string,
+  model: string
+): Promise<{ ok: boolean; status: number; errorMsg?: string }> {
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -156,17 +163,70 @@ export async function testGeminiApiKey(apiKey: string, model: GeminiModelId = 'g
       }),
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
+    if (response.ok) {
+      return { ok: true, status: response.status };
+    }
+
+    const err = await response.json().catch(() => ({}));
+    return {
+      ok: false,
+      status: response.status,
+      errorMsg: err.error?.message,
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      status: 0,
+      errorMsg: e.message,
+    };
+  }
+}
+
+/**
+ * Test if a Gemini API Key is valid and can generate content.
+ * Automatically tries fallback model (gemini-1.5-flash) if the chosen model returns 404.
+ */
+export async function testGeminiApiKey(
+  apiKey: string,
+  model: GeminiModelId = 'gemini-1.5-flash'
+): Promise<{ success: boolean; message: string; autoSwitchedModel?: GeminiModelId }> {
+  if (!apiKey || apiKey.trim().length < 20) {
+    return { success: false, message: 'กรุณากรอก API Key ที่ถูกต้อง' };
+  }
+
+  const cleanKey = apiKey.trim();
+
+  try {
+    // 1. Try testing with the requested model
+    const primaryRes = await attemptTestModel(cleanKey, model);
+    if (primaryRes.ok) {
       return {
-        success: false,
-        message: err.error?.message || `การทดสอบล้มเหลว (รหัส ${response.status}) ตรวจสอบ API Key อีกครั้ง`,
+        success: true,
+        message: `เชื่อมต่อ Google Gemini API (${model}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
       };
     }
 
+    // 2. If 404 (endpoint or model not found for this key), try fallback models
+    if (primaryRes.status === 404) {
+      const fallbackList: GeminiModelId[] = (['gemini-1.5-flash', 'gemini-1.5-pro'] as GeminiModelId[]).filter(
+        (m) => m !== model
+      );
+
+      for (const fb of fallbackList) {
+        const fbRes = await attemptTestModel(cleanKey, fb);
+        if (fbRes.ok) {
+          return {
+            success: true,
+            message: `เชื่อมต่อสำเร็จ! (ระบบตรวจพบและสลับใช้ ${fb} ให้อัตโนมัติ เนื่องจากโมเดลเดิมไม่รองรับกับคีย์นี้) 🎉`,
+            autoSwitchedModel: fb,
+          };
+        }
+      }
+    }
+
     return {
-      success: true,
-      message: 'เชื่อมต่อ Google Gemini API สำเร็จ! พร้อมใช้งานแล้ว 🎉',
+      success: false,
+      message: primaryRes.errorMsg || `การทดสอบล้มเหลว (รหัส ${primaryRes.status}) ตรวจสอบ API Key อีกครั้ง`,
     };
   } catch (err: any) {
     return {

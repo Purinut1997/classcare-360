@@ -36,7 +36,7 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
 
   const [aiConfig, setAiConfig] = useState<EffectiveAiConfig | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState<GeminiModelId>('gemini-2.0-flash');
+  const [selectedModel, setSelectedModel] = useState<GeminiModelId>('gemini-1.5-flash');
   const [showKey, setShowKey] = useState(false);
 
   const [isTesting, setIsTesting] = useState(false);
@@ -63,6 +63,9 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
     setTestResult(null);
     const res = await testGeminiApiKey(apiKeyInput.trim(), selectedModel);
     setTestResult(res);
+    if (res.autoSwitchedModel) {
+      setSelectedModel(res.autoSwitchedModel);
+    }
     setIsTesting(false);
   };
 

@@ -118,7 +118,7 @@ export function SupportChat({
   // Settings Modal form state
   const [customKeyInput, setCustomKeyInput] = useState("");
   const [selectedModel, setSelectedModel] =
-    useState<GeminiModelId>("gemini-2.0-flash");
+    useState<GeminiModelId>("gemini-1.5-flash");
   const [keyScope, setKeyScope] = useState<"workspace" | "personal">(
     "workspace"
   );
@@ -416,6 +416,9 @@ export function SupportChat({
     setTestResult(null);
     const res = await testGeminiApiKey(customKeyInput.trim(), selectedModel);
     setTestResult(res);
+    if (res.autoSwitchedModel) {
+      setSelectedModel(res.autoSwitchedModel);
+    }
     setIsTesting(false);
   };
 
