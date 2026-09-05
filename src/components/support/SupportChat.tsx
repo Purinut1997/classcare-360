@@ -49,6 +49,8 @@ import {
   type GeminiModelId,
 } from "../../lib/geminiClient";
 import {
+  deletePersonalAiConfig,
+  deleteWorkspaceAiConfig,
   getEffectiveAiConfig,
   savePersonalAiConfig,
   saveWorkspaceAiConfig,
@@ -695,6 +697,23 @@ export function SupportChat({
     await loadAiConfig();
     setIsSettingsOpen(false);
     setTestResult(null);
+  };
+
+  // Delete API Key Configuration
+  const handleDeleteKey = async () => {
+    if (!session) return;
+    const scopeName = keyScope === "workspace" ? "Key โรงเรียน" : "Key ส่วนตัว";
+    if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ ${scopeName} ออกจากระบบ? (ระบบจะเปลี่ยนกลับไปใช้โหมดมาตรฐาน)`)) {
+      return;
+    }
+    if (keyScope === "workspace") {
+      await deleteWorkspaceAiConfig(session);
+    } else {
+      await deletePersonalAiConfig(session);
+    }
+    setCustomKeyInput("");
+    setTestResult(null);
+    await loadAiConfig();
   };
 
   return (
@@ -1444,13 +1463,24 @@ export function SupportChat({
 
               {/* Settings Action Buttons Footer */}
               <div className="flex gap-2 p-4 border-t border-slate-200 bg-white shadow-xs">
+                {customKeyInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteKey}
+                    title="ลบ Key นี้ออกจากระบบ"
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs flex items-center gap-1 shrink-0"
+                  >
+                    <Trash2 size={14} />
+                    <span>ลบ Key</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleTestKey}
-                  disabled={isTesting}
+                  disabled={isTesting || !customKeyInput.trim()}
                   className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
                 >
-                  {isTesting ? "กำลังตรวจ..." : "ทดสอบเชื่อมต่อ"}
+                  {isTesting ? "กำลังตรวจ..." : "ทดสอบ"}
                 </button>
                 <button
                   type="button"

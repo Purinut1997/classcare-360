@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Save,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 
@@ -19,6 +20,7 @@ import {
   type GeminiModelId,
 } from '../../lib/geminiClient';
 import {
+  deleteWorkspaceAiConfig,
   getEffectiveAiConfig,
   isUserVip,
   saveWorkspaceAiConfig,
@@ -81,6 +83,26 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
       setTimeout(() => setSaveNotice(null), 4000);
     } catch (e: any) {
       setSaveNotice(e.message || 'บันทึกไม่สำเร็จ');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบ Google Gemini API Key ของโรงเรียนออกจากระบบ? (ครูทุกคนในโรงเรียนจะกลับไปใช้ระบบคลังความรู้มาตรฐานหรือใช้ Key ส่วนตัว)')) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await deleteWorkspaceAiConfig(session);
+      setApiKeyInput('');
+      const updated = await getEffectiveAiConfig(session);
+      setAiConfig(updated);
+      setTestResult(null);
+      setSaveNotice('ลบ API Key ประจำโรงเรียนเรียบร้อยแล้ว');
+      setTimeout(() => setSaveNotice(null), 4000);
+    } catch (e: any) {
+      setSaveNotice(e.message || 'ลบไม่สำเร็จ');
     } finally {
       setIsSaving(false);
     }
@@ -348,6 +370,18 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
             {/* Action Buttons */}
             {isOwnerOrAdmin && (
               <div className="flex flex-wrap items-center gap-2.5 pt-2">
+                {apiKeyInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 shadow-xs hover:bg-rose-100 hover:border-rose-300 transition active:scale-98"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                    <span>ลบ Key โรงเรียน</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleTestKey}

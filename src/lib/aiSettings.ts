@@ -234,8 +234,13 @@ export async function savePersonalAiConfig(
   const cleanKey = apiKey.trim();
 
   // 1. Immediate local cache for responsive UI
-  localStorage.setItem(`classcare_personal_ai_key_${profileId}`, cleanKey);
-  localStorage.setItem(`classcare_personal_ai_model_${profileId}`, model);
+  if (cleanKey.length > 5) {
+    localStorage.setItem(`classcare_personal_ai_key_${profileId}`, cleanKey);
+    localStorage.setItem(`classcare_personal_ai_model_${profileId}`, model);
+  } else {
+    localStorage.removeItem(`classcare_personal_ai_key_${profileId}`);
+    localStorage.removeItem(`classcare_personal_ai_model_${profileId}`);
+  }
 
   // 2. Permanent cloud sync to profiles.metadata (persists across all devices/machines for this user ID)
   if (isSupabaseReady && supabase) {
@@ -249,7 +254,7 @@ export async function savePersonalAiConfig(
       const existingMeta = (prof?.metadata as Record<string, unknown>) || {};
       const updatedMeta = {
         ...existingMeta,
-        personal_gemini_api_key: cleanKey,
+        personal_gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
         personal_ai_model: model,
       };
 
@@ -263,7 +268,7 @@ export async function savePersonalAiConfig(
         await supabase
           .from('profiles')
           .update({
-            personal_gemini_api_key: cleanKey,
+            personal_gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
             personal_ai_model: model,
           })
           .eq('id', profileId);
@@ -290,8 +295,13 @@ export async function saveWorkspaceAiConfig(
   const cleanKey = apiKey.trim();
 
   // 1. Immediate local cache
-  localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, cleanKey);
-  localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, model);
+  if (cleanKey.length > 5) {
+    localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, cleanKey);
+    localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, model);
+  } else {
+    localStorage.removeItem(`classcare_workspace_ai_key_${workspaceId}`);
+    localStorage.removeItem(`classcare_workspace_ai_model_${workspaceId}`);
+  }
 
   // 2. Permanent cloud sync to workspaces.settings
   if (isSupabaseReady && supabase) {
@@ -305,9 +315,9 @@ export async function saveWorkspaceAiConfig(
       const existingSettings = (ws?.settings as Record<string, unknown>) || {};
       const updatedSettings = {
         ...existingSettings,
-        gemini_api_key: cleanKey,
+        gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
         ai_model: model,
-        is_ai_enabled: true,
+        is_ai_enabled: cleanKey.length > 5,
       };
 
       await supabase
@@ -320,9 +330,9 @@ export async function saveWorkspaceAiConfig(
         await supabase
           .from('workspaces')
           .update({
-            gemini_api_key: cleanKey,
+            gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
             ai_model: model,
-            is_ai_enabled: true,
+            is_ai_enabled: cleanKey.length > 5,
           })
           .eq('id', workspaceId);
       } catch {
@@ -332,6 +342,20 @@ export async function saveWorkspaceAiConfig(
       console.warn('Could not update workspace AI key in database:', e);
     }
   }
+}
+
+/**
+ * Deletes workspace-level AI Key (removes from device and cloud).
+ */
+export async function deleteWorkspaceAiConfig(session: AppSessionContext): Promise<void> {
+  await saveWorkspaceAiConfig(session, '', 'gemini-1.5-flash');
+}
+
+/**
+ * Deletes personal AI Key (removes from device and cloud).
+ */
+export async function deletePersonalAiConfig(session: AppSessionContext): Promise<void> {
+  await savePersonalAiConfig(session, '', 'gemini-1.5-flash');
 }
 
 /**
