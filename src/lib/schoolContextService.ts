@@ -22,7 +22,7 @@ export async function fetchLiveSchoolDataContext(
   const workspaceTitle = session.workspace.name || '';
 
   try {
-    // Parallel fetch across all 7 school management dimensions
+    // Parallel fetch across all school management dimensions
     const [
       { data: classrooms },
       { data: students },
@@ -37,6 +37,11 @@ export async function fetchLiveSchoolDataContext(
       { data: dutyAssignments },
       { data: savingsAccounts },
       { data: calendarDays },
+      { data: careCases },
+      { data: homeVisits },
+      { data: earlyWarnings },
+      { data: dailyBriefs },
+      { data: periodLocks },
     ] = await Promise.all([
       // 1. Classrooms
       supabase
@@ -181,6 +186,78 @@ export async function fetchLiveSchoolDataContext(
         .eq('workspace_id', workspaceId)
         .order('calendar_date', { ascending: true })
         .limit(100),
+
+      // 8. Student Care Cases
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('student_care_cases')
+            .select('student_id, case_type, risk_level, status, summary, next_action')
+            .eq('workspace_id', workspaceId)
+            .limit(50);
+          return { data: data || [] };
+        } catch {
+          return { data: [] };
+        }
+      })(),
+
+      // 9. Home Visits
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('student_home_visits')
+            .select('student_id, status, completion_percent, visited_at, household_income_monthly, distance_km')
+            .eq('workspace_id', workspaceId)
+            .limit(100);
+          return { data: data || [] };
+        } catch {
+          return { data: [] };
+        }
+      })(),
+
+      // 10. Early Warning Signals
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('early_warning_signals')
+            .select('student_id, signal_type, severity, risk_score, reason, status')
+            .eq('workspace_id', workspaceId)
+            .eq('status', 'open')
+            .limit(50);
+          return { data: data || [] };
+        } catch {
+          return { data: [] };
+        }
+      })(),
+
+      // 11. Daily School Briefs
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('daily_school_briefs')
+            .select('brief_date, report_type, title, summary, highlights, tomorrow_plan, status')
+            .eq('workspace_id', workspaceId)
+            .order('brief_date', { ascending: false })
+            .limit(5);
+          return { data: data || [] };
+        } catch {
+          return { data: [] };
+        }
+      })(),
+
+      // 12. Period Locks
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('data_period_locks')
+            .select('module_key, period_name, is_locked, locked_reason')
+            .eq('workspace_id', workspaceId)
+            .limit(20);
+          return { data: data || [] };
+        } catch {
+          return { data: [] };
+        }
+      })(),
     ]);
 
     // Load timetable schedule settings from local/workspace configuration
@@ -362,6 +439,12 @@ export async function fetchLiveSchoolDataContext(
       context += `• การตรวจวัดสุขภาพและ BMI: บันทึกไว้แล้ว ${growthRecords.length} รายการ (มีข้อมูลน้ำหนัก-ส่วนสูงพร้อมวิเคราะห์เกณฑ์การเจริญเติบโต)\n`;
     }
 
+    const milkRecords = (healthRecords || []).filter((r) => r.record_type === 'milk');
+    const toothRecords = (healthRecords || []).filter((r) => r.record_type === 'toothbrushing');
+    if (milkRecords.length > 0 || toothRecords.length > 0) {
+      context += `• บันทึกสุขนิสัยประจำวัน: ดื่มนมแล้ว ${milkRecords.length} รายการ, แปรงฟันหลังอาหารแล้ว ${toothRecords.length} รายการ\n`;
+    }
+
     // =========================================================================
     // มิติที่ 4: บันทึกพฤติกรรม & การดูแลช่วยเหลือ (Behavior & Pastoral Care)
     // =========================================================================
@@ -396,6 +479,44 @@ export async function fetchLiveSchoolDataContext(
       context += `• นักเรียนที่อยู่ในสถานะต้องเฝ้าระวังหรือติดตามดูแลพิเศษ (Watch List):\n`;
       watchList.slice(0, 5).forEach((w, idx) => {
         context += `  ${idx + 1}. ${w}\n`;
+      });
+    }
+
+    // Care Cases
+    const careList = (careCases || []) as any[];
+    const urgentCare = careList.filter((c) => c.risk_level === 'urgent' || c.status === 'open');
+    if (careList.length > 0) {
+      context += `• ระบบดูแลช่วยเหลือนักเรียน: มีเคสบันทึก ${careList.length} เคส (${urgentCare.length > 0 ? `เคสต้องติดตามเร่งด่วน: ${urgentCare.length} เคส` : 'ไม่มีเคสด่วน'})\n`;
+      urgentCare.slice(0, 5).forEach((c, idx) => {
+        const s = studentMap.get(c.student_id);
+        const sName = s ? `${s.first_name} ${s.last_name}` : 'นักเรียน';
+        context += `  ${idx + 1}. ${sName}: [${c.case_type}] ${c.summary} (การดำเนินการ: ${c.next_action || 'รอติดตาม'})\n`;
+      });
+    }
+
+    // Home Visits
+    const visitsList = (homeVisits || []) as any[];
+    if (visitsList.length > 0) {
+      const completedVisits = visitsList.filter(
+        (v) => v.status === 'certified' || v.status === 'submitted' || v.completion_percent === 100
+      );
+      const pct = studentList.length > 0 ? ((completedVisits.length / studentList.length) * 100).toFixed(1) : '0';
+      context += `• สถิติการเยี่ยมบ้านนักเรียน: เยี่ยมแล้ว ${visitsList.length} คน (สมบูรณ์ ${completedVisits.length}/${studentList.length} คน คิดเป็น ${pct}%)\n`;
+
+      const lowIncome = visitsList.filter((v) => v.household_income_monthly && Number(v.household_income_monthly) < 5000);
+      if (lowIncome.length > 0) {
+        context += `  - นักเรียนที่ครอบครัวมีรายได้น้อย (ควรพิจารณาทุนการศึกษา/ช่วยเหลือกองทุน): ${lowIncome.length} คน\n`;
+      }
+    }
+
+    // Early Warning Signals
+    const warningsList = (earlyWarnings || []) as any[];
+    if (warningsList.length > 0) {
+      context += `• สัญญาณเตือนความเสี่ยงล่วงหน้า (Early Warning Signals) ${warningsList.length} รายการ:\n`;
+      warningsList.slice(0, 5).forEach((w, idx) => {
+        const s = studentMap.get(w.student_id);
+        const sName = s ? `${s.first_name} ${s.last_name}` : 'นักเรียน';
+        context += `  ${idx + 1}. ${sName} [ระดับ: ${w.severity}]: ${w.reason}\n`;
       });
     }
 
@@ -577,6 +698,21 @@ export async function fetchLiveSchoolDataContext(
       }
     } else {
       context += `• ปฏิทินโรงเรียน: ยังไม่มีการบันทึกวันหยุดพิเศษในระบบ\n`;
+    }
+
+    // Daily Briefs & Period Locks
+    const briefsList = (dailyBriefs || []) as any[];
+    if (briefsList.length > 0) {
+      context += `• บันทึกสรุปประจำวันล่าสุดของโรงเรียน (Daily School Brief):\n`;
+      briefsList.slice(0, 3).forEach((b) => {
+        context += `  - วันที่ ${b.brief_date} [${b.title}]: ${b.summary || b.highlights || '-'}${b.tomorrow_plan ? ` (แผนพรุ่งนี้: ${b.tomorrow_plan})` : ''}\n`;
+      });
+    }
+
+    const locksList = (periodLocks || []) as any[];
+    const activeLocks = locksList.filter((l) => l.is_locked);
+    if (activeLocks.length > 0) {
+      context += `• การล็อกงวดเวลาข้อมูล (Period Locks): มีการล็อกงวดเวลาข้อมูล ${activeLocks.length} รายการ (${activeLocks.map((l) => `${l.module_key}:${l.period_name}`).join(', ')})\n`;
     }
 
     // --- Grounding & Action Guidelines for AI Assistant ---
