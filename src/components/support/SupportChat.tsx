@@ -109,7 +109,30 @@ export function SupportChat({
   // AI Chat Assistant State
   // -------------------------------------------------------------
   const [aiConfig, setAiConfig] = useState<EffectiveAiConfig | null>(null);
-  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
+  const [aiMessages, setAiMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = window.sessionStorage.getItem("classcare_ai_messages");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return [
+      {
+        id: `welcome-${Date.now()}`,
+        role: "assistant",
+        content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+        timestamp: new Date().toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      },
+    ];
+  });
   const [aiInput, setAiInput] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -149,33 +172,37 @@ export function SupportChat({
     void loadAiConfig();
   }, [loadAiConfig]);
 
-  // Handle reset chat conversation
+  // Persist messages in sessionStorage so they remain during page switches and clear only when closing the tab/browser
+  useEffect(() => {
+    if (aiMessages.length > 0) {
+      try {
+        window.sessionStorage.setItem("classcare_ai_messages", JSON.stringify(aiMessages));
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [aiMessages]);
+
+  // Handle manual reset chat conversation (via 🔄 button)
   const handleResetChat = useCallback(() => {
-    setAiMessages([
-      {
-        id: `welcome-${Date.now()}`,
-        role: "assistant",
-        content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
-        timestamp: new Date().toLocaleTimeString("th-TH", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
+    const freshWelcome: ChatMessage = {
+      id: `welcome-${Date.now()}`,
+      role: "assistant",
+      content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+      timestamp: new Date().toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    setAiMessages([freshWelcome]);
+    try {
+      window.sessionStorage.setItem("classcare_ai_messages", JSON.stringify([freshWelcome]));
+    } catch {
+      // Ignore
+    }
     setAiInput("");
     setIsAiLoading(false);
   }, [activeLabel]);
-
-  // Track previous active view to automatically reset chat context when navigating between menus
-  const prevViewRef = useRef(activeView);
-  useEffect(() => {
-    if (prevViewRef.current !== activeView) {
-      prevViewRef.current = activeView;
-      handleResetChat();
-    } else if (aiMessages.length === 0) {
-      handleResetChat();
-    }
-  }, [activeView, handleResetChat, aiMessages.length]);
 
   // Auto scroll to bottom
   useEffect(() => {
