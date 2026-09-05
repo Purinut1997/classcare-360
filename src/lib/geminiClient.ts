@@ -1,4 +1,5 @@
 export type GeminiModelId =
+  | 'auto'
   | 'gemini-1.5-flash'
   | 'gemini-2.0-flash'
   | 'gemini-1.5-pro';
@@ -13,9 +14,16 @@ export interface GeminiModelOption {
 
 export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
   {
+    id: 'auto',
+    name: 'Auto Model (แนะนำสูงสุด ✨)',
+    tag: 'อัจฉริยะ 🤖 (แนะนำ)',
+    description: 'ระบบตรวจจับและเลือกโมเดลที่มีโควตาพร้อมใช้งานให้อัตโนมัติ สลับรุ่นทันทีเมื่อรุ่นใดรุ่นหนึ่งเต็ม',
+    speed: '⚡⚡⚡⚡ อัตโนมัติ',
+  },
+  {
     id: 'gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
-    tag: 'แนะนำที่สุด ⭐ (โควตาฟรีสูงสุด 1,500 ครั้ง/วัน)',
+    tag: 'โควตาฟรีสูงสุด 1,500 ครั้ง/วัน',
     description: 'เสถียรที่สุด ตอบไว โควตาฟรีสูงถึง 1,500 ครั้ง/วัน ใช้งานได้ตลอดทั้งวันไม่ติดลิมิต',
     speed: '⚡⚡⚡ เร็วมาก',
   },
@@ -97,7 +105,8 @@ export async function callGeminiApi(
     liveSchoolContext?: string;
   }
 ): Promise<string> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const initialModel = model === 'auto' ? 'gemini-1.5-flash' : model;
+  let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${initialModel}:generateContent?key=${apiKey}`;
 
   // Build context prefix
   const contextNote = contextInfo?.liveSchoolContext
@@ -139,15 +148,9 @@ export async function callGeminiApi(
 
   // Auto-fallback if the selected model returns 404, 400 (e.g. model discontinued), or 429 (quota exceeded)
   if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
-    const supportedList = await listAvailableGeminiModels(apiKey);
-    // Prioritize gemini-1.5-flash which has the highest free tier quota (1,500 requests/day)
-    const fallbackModel =
-      supportedList.find((m) => m === 'gemini-1.5-flash') ||
-      supportedList.find((m) => m.includes('1.5-flash')) ||
-      supportedList.find((m) => m === 'gemini-2.0-flash') ||
-      'gemini-1.5-flash';
-
-    if (fallbackModel && fallbackModel !== model) {
+    // Sequentially try high-quota stable models
+    const fallbackCandidates = ['gemini-1.5-flash', 'gemini-2.0-flash'].filter((m) => m !== initialModel);
+    for (const fallbackModel of fallbackCandidates) {
       const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
       const fallbackRes = await fetch(fallbackEndpoint, {
         method: 'POST',
@@ -156,6 +159,7 @@ export async function callGeminiApi(
       });
       if (fallbackRes.ok) {
         response = fallbackRes;
+        break;
       }
     }
   }
@@ -273,7 +277,7 @@ export async function testGeminiApiKey(
 
     // 2. Test user's selected model first, followed by stable flash models (never auto-pick 2.5)
     const testQueue: string[] = [
-      model,
+      model === 'auto' ? 'gemini-1.5-flash' : model,
       'gemini-1.5-flash',
       'gemini-2.0-flash',
     ].filter((m, idx, arr) => arr.indexOf(m) === idx);
@@ -288,6 +292,13 @@ export async function testGeminiApiKey(
 
       const testRes = await attemptTestModel(cleanKey, matchedModel);
       if (testRes.ok) {
+        if (model === 'auto') {
+          return {
+            success: true,
+            message: `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบเปิดโหมด Auto Model พร้อมสลับโมเดลที่ดีที่สุดและมีโควตาให้อัตโนมัติ 🎉)`,
+            autoSwitchedModel: 'auto',
+          };
+        }
         const switched = matchedModel !== model;
         return {
           success: true,
