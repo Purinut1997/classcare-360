@@ -4,9 +4,13 @@ import { ContextNav } from '../components/dashboard/ContextNav';
 import { MobileNav } from '../components/dashboard/MobileNav';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { Topbar } from '../components/dashboard/Topbar';
+import { SetupGuideModal } from '../components/guide/SetupGuideModal';
 import { SupportChat } from '../components/support/SupportChat';
 import type { AppNavItem } from '../routes/appRoutes';
 import type { AppSessionContext } from '../types/core';
+
+// Ensure the guide automatically pops up on initial system load/login
+let hasAutoPoppedInCurrentSession = false;
 
 interface AppShellProps {
   activeView: string;
@@ -17,10 +21,25 @@ interface AppShellProps {
 
 export function AppShell({ activeView, children, navItems, session }: AppShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(() => {
+    if (!hasAutoPoppedInCurrentSession) {
+      hasAutoPoppedInCurrentSession = true;
+      const pref = window.localStorage.getItem('classcare_guide_auto_popup');
+      return pref !== 'false';
+    }
+    return false;
+  });
   const [theme, setTheme] = useState<'light' | 'nexus'>(() => {
     return window.localStorage.getItem('classcare-theme') === 'light' ? 'light' : 'nexus';
   });
   const activeLabel = navItems.find((item) => item.key === activeView)?.label || 'ClassCare 360';
+
+  // Listen for global open guide trigger events
+  useEffect(() => {
+    const handleOpenGuide = () => setIsGuideOpen(true);
+    window.addEventListener('open-setup-guide', handleOpenGuide);
+    return () => window.removeEventListener('open-setup-guide', handleOpenGuide);
+  }, []);
 
   // Close sidebar when navigating to a different view
   useEffect(() => {
@@ -52,6 +71,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
           activeLabel={activeLabel}
           navItems={navItems}
           onMenuToggle={() => setIsMenuOpen(true)}
+          onOpenGuide={() => setIsGuideOpen(true)}
           onThemeToggle={() => setTheme((current) => (current === 'nexus' ? 'light' : 'nexus'))}
           session={session}
           theme={theme}
@@ -61,6 +81,11 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
       </div>
       <MobileNav activeView={activeView} navItems={navItems} />
       {session ? <SupportChat activeLabel={activeLabel} activeView={activeView} session={session} /> : null}
+      <SetupGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        session={session}
+      />
     </div>
   );
 }

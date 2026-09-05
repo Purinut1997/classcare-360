@@ -1,4 +1,4 @@
-import { Bell, Building2, Menu, Moon, Sun } from 'lucide-react';
+import { Bell, BookOpen, Building2, Menu, Moon, Sun } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { withDemoContext } from '../../lib/auth';
@@ -12,6 +12,7 @@ interface TopbarProps {
   activeLabel: string;
   navItems: AppNavItem[];
   onMenuToggle: () => void;
+  onOpenGuide?: () => void;
   onThemeToggle: () => void;
   session?: AppSessionContext;
   theme: 'light' | 'nexus';
@@ -22,7 +23,7 @@ function getInitials(displayName?: string) {
   return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 }
 
-export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, session, theme }: TopbarProps) {
+export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, onThemeToggle, session, theme }: TopbarProps) {
   const location = useLocation();
   const workspace = session?.workspace;
   const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
@@ -76,6 +77,18 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onThemeToggle, ses
       </div>
 
       <GlobalSearch navItems={navItems} session={session} />
+
+      {onOpenGuide && (
+        <button
+          type="button"
+          onClick={onOpenGuide}
+          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-black text-amber-700 transition-all hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-[1.02] dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300"
+          title="เปิดคู่มือแนะนำขั้นตอนการตั้งค่าระบบ (5 ขั้นตอน)"
+        >
+          <BookOpen size={15} className="text-amber-600 dark:text-amber-400" />
+          <span className="hidden sm:inline">คู่มือเริ่มต้นระบบ</span>
+        </button>
+      )}
 
       <button
         aria-label={theme === 'nexus' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}

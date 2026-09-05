@@ -281,13 +281,23 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
               student, schedule และ report settings ร่วมกัน
             </p>
           </div>
-          {canManageWorkspace(session.profile.role) ? <ContextLink
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#3a2817] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(58,40,23,0.18)] transition hover:-translate-y-0.5"
-            to="/app/dashboard?view=workspace-settings"
-          >
-            เปิดศูนย์จัดการโรงเรียน
-            <LinkIcon size={17} aria-hidden="true" />
-          </ContextLink> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-setup-guide'))}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 text-sm font-black text-white shadow-md transition hover:-translate-y-0.5"
+            >
+              <BookOpen size={17} aria-hidden="true" />
+              เปิดไกด์พาทำ 5 ขั้นตอน
+            </button>
+            {canManageWorkspace(session.profile.role) ? <ContextLink
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#3a2817] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(58,40,23,0.18)] transition hover:-translate-y-0.5"
+              to="/app/dashboard?view=workspace-settings"
+            >
+              เปิดศูนย์จัดการโรงเรียน
+              <LinkIcon size={17} aria-hidden="true" />
+            </ContextLink> : null}
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-5">
