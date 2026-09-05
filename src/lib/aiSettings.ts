@@ -122,13 +122,17 @@ export async function savePersonalAiConfig(
 
   if (isSupabaseReady && supabase) {
     try {
-      await supabase
-        .from('profiles')
-        .update({
-          personal_gemini_api_key: apiKey.trim(),
-          personal_ai_model: model,
-        })
-        .eq('id', profileId);
+      // Safely probe if personal_ai_model column exists before triggering mutation
+      const check = await supabase.from('profiles').select('personal_ai_model').limit(1);
+      if (!check.error) {
+        await supabase
+          .from('profiles')
+          .update({
+            personal_gemini_api_key: apiKey.trim(),
+            personal_ai_model: model,
+          })
+          .eq('id', profileId);
+      }
     } catch (e) {
       console.warn('Could not update profile AI key in database, saved locally:', e);
     }
@@ -151,14 +155,18 @@ export async function saveWorkspaceAiConfig(
 
   if (isSupabaseReady && supabase) {
     try {
-      await supabase
-        .from('workspaces')
-        .update({
-          gemini_api_key: apiKey.trim(),
-          ai_model: model,
-          is_ai_enabled: true,
-        })
-        .eq('id', workspaceId);
+      // Safely probe if ai_model column exists before triggering mutation
+      const check = await supabase.from('workspaces').select('ai_model').limit(1);
+      if (!check.error) {
+        await supabase
+          .from('workspaces')
+          .update({
+            gemini_api_key: apiKey.trim(),
+            ai_model: model,
+            is_ai_enabled: true,
+          })
+          .eq('id', workspaceId);
+      }
     } catch (e) {
       console.warn('Could not update workspace AI key in database, saved locally:', e);
     }
