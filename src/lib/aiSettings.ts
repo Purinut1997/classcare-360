@@ -50,6 +50,12 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
     result.apiKey = cachedPersonalKey.trim();
     result.model = cachedPersonalModel || 'gemini-1.5-flash';
     result.source = 'personal';
+
+    // Proactively sync local key to cloud profile metadata in background so other devices receive it
+    if (isSupabaseReady && supabase && profileId) {
+      void syncPersonalKeyToCloud(profileId, cachedPersonalKey.trim(), result.model);
+    }
+
     return result;
   }
 
@@ -61,47 +67,103 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
     result.apiKey = cachedWorkspaceKey.trim();
     result.model = cachedWorkspaceModel || 'gemini-1.5-flash';
     result.source = 'workspace';
+
+    // Proactively sync local workspace key to cloud workspace settings in background
+    if (isSupabaseReady && supabase && workspaceId) {
+      void syncWorkspaceKeyToCloud(workspaceId, cachedWorkspaceKey.trim(), result.model);
+    }
+
     return result;
   }
 
-  // 3. If Supabase is available, query database
+  // 3. If local cache was empty (e.g. logged in on a new device/machine), query Supabase
   if (isSupabaseReady && supabase) {
     try {
-      // Check personal key from profiles table
+      // 3.1 Check Personal Key in Supabase (from profiles.metadata which is always available across all instances)
       if (profileId) {
         const { data: profData } = await supabase
           .from('profiles')
-          .select('personal_gemini_api_key, personal_ai_model')
+          .select('metadata')
           .eq('id', profileId)
-          .single();
+          .maybeSingle();
 
-        if (profData?.personal_gemini_api_key) {
-          result.apiKey = profData.personal_gemini_api_key;
-          result.model = (profData.personal_ai_model as GeminiModelId) || 'gemini-1.5-flash';
+        const meta = (profData?.metadata as Record<string, unknown>) || {};
+        const personalKey = typeof meta.personal_gemini_api_key === 'string' ? meta.personal_gemini_api_key.trim() : null;
+        const personalModel = (meta.personal_ai_model as GeminiModelId) || 'gemini-1.5-flash';
+
+        if (personalKey && personalKey.length > 10) {
+          result.apiKey = personalKey;
+          result.model = personalModel;
           result.source = 'personal';
-          localStorage.setItem(`classcare_personal_ai_key_${profileId}`, profData.personal_gemini_api_key);
+          localStorage.setItem(`classcare_personal_ai_key_${profileId}`, personalKey);
+          localStorage.setItem(`classcare_personal_ai_model_${profileId}`, personalModel);
           return result;
+        }
+
+        // Also check if dedicated column personal_gemini_api_key exists
+        try {
+          const { data: directProf } = await supabase
+            .from('profiles')
+            .select('personal_gemini_api_key, personal_ai_model')
+            .eq('id', profileId)
+            .maybeSingle();
+
+          if (directProf?.personal_gemini_api_key) {
+            result.apiKey = directProf.personal_gemini_api_key;
+            result.model = (directProf.personal_ai_model as GeminiModelId) || 'gemini-1.5-flash';
+            result.source = 'personal';
+            localStorage.setItem(`classcare_personal_ai_key_${profileId}`, directProf.personal_gemini_api_key);
+            localStorage.setItem(`classcare_personal_ai_model_${profileId}`, result.model);
+            return result;
+          }
+        } catch {
+          // Dedicated column might not exist, metadata already handled it
         }
       }
 
-      // Check workspace key from workspaces table
+      // 3.2 Check Workspace Key in Supabase (from workspaces.settings which is always available)
       if (workspaceId) {
         const { data: wsData } = await supabase
           .from('workspaces')
-          .select('gemini_api_key, ai_model, is_ai_enabled')
+          .select('settings')
           .eq('id', workspaceId)
-          .single();
+          .maybeSingle();
 
-        if (wsData?.gemini_api_key && wsData.is_ai_enabled !== false) {
-          result.apiKey = wsData.gemini_api_key;
-          result.model = (wsData.ai_model as GeminiModelId) || 'gemini-1.5-flash';
+        const wsSettings = (wsData?.settings as Record<string, unknown>) || {};
+        const wsKey = typeof wsSettings.gemini_api_key === 'string' ? wsSettings.gemini_api_key.trim() : null;
+        const wsModel = (wsSettings.ai_model as GeminiModelId) || 'gemini-1.5-flash';
+
+        if (wsKey && wsKey.length > 10 && wsSettings.is_ai_enabled !== false) {
+          result.apiKey = wsKey;
+          result.model = wsModel;
           result.source = 'workspace';
-          localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, wsData.gemini_api_key);
+          localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, wsKey);
+          localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, wsModel);
           return result;
         }
+
+        // Also check if dedicated column gemini_api_key exists
+        try {
+          const { data: directWs } = await supabase
+            .from('workspaces')
+            .select('gemini_api_key, ai_model, is_ai_enabled')
+            .eq('id', workspaceId)
+            .maybeSingle();
+
+          if (directWs?.gemini_api_key && directWs.is_ai_enabled !== false) {
+            result.apiKey = directWs.gemini_api_key;
+            result.model = (directWs.ai_model as GeminiModelId) || 'gemini-1.5-flash';
+            result.source = 'workspace';
+            localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, directWs.gemini_api_key);
+            localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, result.model);
+            return result;
+          }
+        } catch {
+          // Dedicated column might not exist, settings already handled it
+        }
       }
-    } catch {
-      // Table columns may still be pending migration; local storage fallback works seamlessly
+    } catch (e) {
+      console.warn('Could not query cloud AI settings:', e);
     }
   }
 
@@ -109,7 +171,59 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 }
 
 /**
+ * Background helper to sync local personal key into user's profile metadata in Supabase
+ */
+async function syncPersonalKeyToCloud(profileId: string, apiKey: string, model: GeminiModelId): Promise<void> {
+  if (!isSupabaseReady || !supabase) return;
+  try {
+    const { data: prof } = await supabase.from('profiles').select('metadata').eq('id', profileId).maybeSingle();
+    const currentMeta = (prof?.metadata as Record<string, unknown>) || {};
+    if (currentMeta.personal_gemini_api_key !== apiKey || currentMeta.personal_ai_model !== model) {
+      await supabase
+        .from('profiles')
+        .update({
+          metadata: {
+            ...currentMeta,
+            personal_gemini_api_key: apiKey.trim(),
+            personal_ai_model: model,
+          },
+        })
+        .eq('id', profileId);
+    }
+  } catch {
+    // Non-blocking background sync
+  }
+}
+
+/**
+ * Background helper to sync local workspace key into workspace settings in Supabase
+ */
+async function syncWorkspaceKeyToCloud(workspaceId: string, apiKey: string, model: GeminiModelId): Promise<void> {
+  if (!isSupabaseReady || !supabase) return;
+  try {
+    const { data: ws } = await supabase.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle();
+    const currentSettings = (ws?.settings as Record<string, unknown>) || {};
+    if (currentSettings.gemini_api_key !== apiKey || currentSettings.ai_model !== model) {
+      await supabase
+        .from('workspaces')
+        .update({
+          settings: {
+            ...currentSettings,
+            gemini_api_key: apiKey.trim(),
+            ai_model: model,
+            is_ai_enabled: true,
+          },
+        })
+        .eq('id', workspaceId);
+    }
+  } catch {
+    // Non-blocking background sync
+  }
+}
+
+/**
  * Saves personal AI Key and Model for a teacher.
+ * Saves both to local device cache and permanently to cloud database (profile metadata).
  */
 export async function savePersonalAiConfig(
   session: AppSessionContext,
@@ -117,30 +231,54 @@ export async function savePersonalAiConfig(
   model: GeminiModelId = 'gemini-1.5-flash'
 ): Promise<void> {
   const profileId = session.profile.id;
-  localStorage.setItem(`classcare_personal_ai_key_${profileId}`, apiKey.trim());
+  const cleanKey = apiKey.trim();
+
+  // 1. Immediate local cache for responsive UI
+  localStorage.setItem(`classcare_personal_ai_key_${profileId}`, cleanKey);
   localStorage.setItem(`classcare_personal_ai_model_${profileId}`, model);
 
+  // 2. Permanent cloud sync to profiles.metadata (persists across all devices/machines for this user ID)
   if (isSupabaseReady && supabase) {
     try {
-      // Safely probe if personal_ai_model column exists before triggering mutation
-      const check = await supabase.from('profiles').select('personal_ai_model').limit(1);
-      if (!check.error) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('metadata')
+        .eq('id', profileId)
+        .maybeSingle();
+
+      const existingMeta = (prof?.metadata as Record<string, unknown>) || {};
+      const updatedMeta = {
+        ...existingMeta,
+        personal_gemini_api_key: cleanKey,
+        personal_ai_model: model,
+      };
+
+      await supabase
+        .from('profiles')
+        .update({ metadata: updatedMeta })
+        .eq('id', profileId);
+
+      // Also attempt update on direct column if migrated
+      try {
         await supabase
           .from('profiles')
           .update({
-            personal_gemini_api_key: apiKey.trim(),
+            personal_gemini_api_key: cleanKey,
             personal_ai_model: model,
           })
           .eq('id', profileId);
+      } catch {
+        // Safe to ignore if direct column is not in DB schema yet
       }
     } catch (e) {
-      console.warn('Could not update profile AI key in database, saved locally:', e);
+      console.warn('Could not update profile AI key in database:', e);
     }
   }
 }
 
 /**
  * Saves workspace-level AI Key and Model (School Shared Key).
+ * Saves both to local device cache and permanently to cloud database (workspace settings).
  */
 export async function saveWorkspaceAiConfig(
   session: AppSessionContext,
@@ -149,26 +287,49 @@ export async function saveWorkspaceAiConfig(
 ): Promise<void> {
   const workspaceId = session.workspace?.id;
   if (!workspaceId) return;
+  const cleanKey = apiKey.trim();
 
-  localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, apiKey.trim());
+  // 1. Immediate local cache
+  localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, cleanKey);
   localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, model);
 
+  // 2. Permanent cloud sync to workspaces.settings
   if (isSupabaseReady && supabase) {
     try {
-      // Safely probe if ai_model column exists before triggering mutation
-      const check = await supabase.from('workspaces').select('ai_model').limit(1);
-      if (!check.error) {
+      const { data: ws } = await supabase
+        .from('workspaces')
+        .select('settings')
+        .eq('id', workspaceId)
+        .maybeSingle();
+
+      const existingSettings = (ws?.settings as Record<string, unknown>) || {};
+      const updatedSettings = {
+        ...existingSettings,
+        gemini_api_key: cleanKey,
+        ai_model: model,
+        is_ai_enabled: true,
+      };
+
+      await supabase
+        .from('workspaces')
+        .update({ settings: updatedSettings })
+        .eq('id', workspaceId);
+
+      // Also attempt update on direct column if migrated
+      try {
         await supabase
           .from('workspaces')
           .update({
-            gemini_api_key: apiKey.trim(),
+            gemini_api_key: cleanKey,
             ai_model: model,
             is_ai_enabled: true,
           })
           .eq('id', workspaceId);
+      } catch {
+        // Safe to ignore if direct column is not in DB schema yet
       }
     } catch (e) {
-      console.warn('Could not update workspace AI key in database, saved locally:', e);
+      console.warn('Could not update workspace AI key in database:', e);
     }
   }
 }
@@ -181,14 +342,38 @@ export async function superadminGrantWorkspaceAiKey(
   apiKey: string,
   model: GeminiModelId = 'gemini-1.5-flash'
 ): Promise<void> {
-  localStorage.setItem(`classcare_workspace_ai_key_${targetWorkspaceId}`, apiKey.trim());
+  const cleanKey = apiKey.trim();
+  localStorage.setItem(`classcare_workspace_ai_key_${targetWorkspaceId}`, cleanKey);
   localStorage.setItem(`classcare_workspace_ai_model_${targetWorkspaceId}`, model);
 
   if (isSupabaseReady && supabase) {
-    await supabase.rpc('set_workspace_ai_key', {
-      target_workspace_id: targetWorkspaceId,
-      new_api_key: apiKey.trim(),
-      new_model: model,
-    });
+    try {
+      const { data: ws } = await supabase
+        .from('workspaces')
+        .select('settings')
+        .eq('id', targetWorkspaceId)
+        .maybeSingle();
+
+      const existingSettings = (ws?.settings as Record<string, unknown>) || {};
+      await supabase
+        .from('workspaces')
+        .update({
+          settings: {
+            ...existingSettings,
+            gemini_api_key: cleanKey,
+            ai_model: model,
+            is_ai_enabled: true,
+          },
+        })
+        .eq('id', targetWorkspaceId);
+
+      await supabase.rpc('set_workspace_ai_key', {
+        target_workspace_id: targetWorkspaceId,
+        new_api_key: cleanKey,
+        new_model: model,
+      });
+    } catch {
+      // Ignored if RPC doesn't exist
+    }
   }
 }
