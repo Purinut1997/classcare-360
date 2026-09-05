@@ -196,7 +196,7 @@ const quickLinks: Array<HelpLinkAccess & { label: string; href: string; icon: ty
   { label: 'เพิ่มหรือนำเข้านักเรียน', href: '/app/dashboard?view=import-export', icon: DatabaseZap, allowedRoles: ownerRoles, moduleKey: 'import_export' },
   { label: 'ตรวจรายชื่อผิด/ซ้ำ', href: '/app/dashboard?view=students&studentView=quality', icon: Search, allowedRoles: teacherRoles, moduleKey: 'students' },
   { label: 'ตั้งตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList, allowedRoles: teacherRoles, moduleKey: 'attendance' },
-  { label: 'กรอกคะแนน', href: '/app/dashboard?view=scores&scoreView=entry', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
+  { label: 'กรอกคะแนน', href: '/app/dashboard?view=scores&scoreView=excel', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
   { label: 'ออกรายงาน', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet, allowedRoles: reportRoles, moduleKey: 'reports' },
 ];
 

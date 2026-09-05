@@ -7,11 +7,15 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Copy,
   Download,
   FileSpreadsheet,
   Gauge,
   HelpCircle,
+  Info,
+  Keyboard,
   Layers,
+  Lightbulb,
   Plus,
   RotateCcw,
   Save,
@@ -340,9 +344,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
     weight: '10',
   });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(true);
 
   useEffect(() => {
-    const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'entry';
+    const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'excel';
     if (nextScoreView !== scoreView) {
       setScoreView(nextScoreView);
     }
@@ -1557,6 +1562,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
           {/* Action Buttons */}
           <div className="flex items-center gap-2 shrink-0">
             <button
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-100 hover:border-amber-300"
+              onClick={() => setIsGuideOpen(true)}
+              title="เปิดดูคู่มือการใช้งานระบบคะแนนและตาราง Excel"
+              type="button"
+            >
+              <BookOpen size={15} className="text-amber-700" aria-hidden="true" />
+              คู่มือการใช้งาน
+            </button>
+            <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-cyan-700"
               onClick={() => setIsCreateModalOpen(true)}
               type="button"
@@ -2653,6 +2667,215 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 6. User Guide Modal Dialog (เด้งขึ้นอัตโนมัติเมื่อเข้าหน้า พร้อมเปิดดูได้ตลอดเวลา) */}
+      {isGuideOpen ? (
+        <div
+          aria-labelledby="modal-score-guide-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs"
+          role="dialog"
+        >
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-950 via-cyan-950 to-slate-900 px-6 py-5 text-white">
+              <div className="flex items-center gap-3.5">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/30 backdrop-blur-sm">
+                  <BookOpen size={24} aria-hidden="true" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/20 px-2.5 py-0.5 text-[11px] font-black text-cyan-200 ring-1 ring-cyan-400/30">
+                      <Sparkles size={11} aria-hidden="true" />
+                      ClassCare 360 • Score Manual
+                    </span>
+                  </div>
+                  <h2 className="mt-1 text-lg font-black text-white sm:text-xl" id="modal-score-guide-title">
+                    คู่มือการใช้งานระบบบันทึกคะแนน (ตารางรวมแบบ Excel)
+                  </h2>
+                  <p className="text-xs font-bold text-slate-300">
+                    แนวทางใช้งานตารางกรอกคะแนน, แป้นพิมพ์ลัด, วางข้อมูลจาก Excel และการตัดเกรด 0 - 4
+                  </p>
+                </div>
+              </div>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-2xl bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
+                onClick={() => setIsGuideOpen(false)}
+                type="button"
+                aria-label="ปิดหน้าต่างคู่มือ"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-700">
+              {/* 1. Quick Start 3 Steps */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-cyan-100 text-cyan-800 text-xs">1</span>
+                  <h3>เริ่มต้นใช้งานด่วนใน 3 ขั้นตอน</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:bg-slate-50">
+                    <div className="flex items-center gap-2 text-cyan-700">
+                      <Table size={16} />
+                      <h4 className="text-xs font-black text-slate-900">1. เลือกห้องและวิชา</h4>
+                    </div>
+                    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
+                      เลือกห้องเรียน เช่น <strong>ป.5, ป.6</strong> และเลือกรายวิชาจากแถบด้านบน หากยังไม่มีชิ้นงานให้กดปุ่ม <strong>&ldquo;สร้างชุดคะแนนใหม่&rdquo;</strong>
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4 transition hover:bg-cyan-50/80">
+                    <div className="flex items-center gap-2 text-cyan-800">
+                      <Copy size={16} />
+                      <h4 className="text-xs font-black text-slate-900">2. กรอกหรือวางคะแนน</h4>
+                    </div>
+                    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
+                      คลิกช่องเพื่อพิมพ์คะแนนโดยตรง หรือ <strong>Copy จากไฟล์ Excel</strong> มากด <strong>Ctrl + V</strong> วางลงทั้งคอลัมน์ได้ทันที
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 transition hover:bg-emerald-50/80">
+                    <div className="flex items-center gap-2 text-emerald-800">
+                      <CheckCircle2 size={16} />
+                      <h4 className="text-xs font-black text-slate-900">3. ตรวจเกรด &amp; บันทึก</h4>
+                    </div>
+                    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-600">
+                      ระบบคำนวณคะแนนรวมและเกรด 0-4 สดทันที เมื่อกรอกครบแล้วกดปุ่ม <strong>&ldquo;บันทึกคะแนน&rdquo;</strong> ด้านล่าง
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 2. Keyboard Navigation Guide */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs space-y-3">
+                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                  <Keyboard size={18} className="text-cyan-700" />
+                  <h3>คีย์บอร์ดนำทางในตาราง (เหมือน Microsoft Excel)</h3>
+                </div>
+                <p className="text-xs font-medium text-slate-500">
+                  ช่วยให้คุณครูกรอกคะแนนได้รวดเร็วโดยไม่ต้องเอื้อมมือไปจับเมาส์:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <span className="font-bold text-slate-700">เลื่อนช่องคะแนนอิสระ</span>
+                    <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">↑</kbd>
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">↓</kbd>
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">←</kbd>
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">→</kbd>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <span className="font-bold text-slate-700">ลงไปนักเรียนคนถัดไปทันที</span>
+                    <kbd className="rounded-md border border-slate-300 bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-xs">
+                      Enter
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <span className="font-bold text-slate-700">เลื่อนไปคอลัมน์ถัดไป / ย้อนหลัง</span>
+                    <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Tab</kbd>
+                      <span className="text-slate-400">/</span>
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Shift+Tab</kbd>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <span className="font-bold text-slate-700">ลบคะแนนในช่องที่เลือก</span>
+                    <span className="flex items-center gap-1 font-mono text-[11px] font-black text-slate-800">
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Backspace</kbd>
+                      <span className="text-slate-400">/</span>
+                      <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 shadow-xs">Del</kbd>
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              {/* 3. Batch Paste from Excel */}
+              <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4.5 space-y-2.5">
+                <div className="flex items-center gap-2 text-sm font-black text-amber-950">
+                  <Lightbulb size={18} className="text-amber-600" />
+                  <h3>เคล็ดลับเด็ด! คัดลอกและวางจากไฟล์ Excel (Batch Paste)</h3>
+                </div>
+                <p className="text-xs font-medium leading-5 text-amber-900">
+                  หากมีไฟล์คะแนนใน Microsoft Excel หรือ Google Sheets อยู่แล้ว คุณครูไม่ต้องเสียเวลาพิมพ์ทีละคน:
+                </p>
+                <ol className="list-decimal pl-5 text-xs font-medium leading-6 text-amber-950 space-y-1">
+                  <li>ในโปรแกรม <strong>Excel / Sheets</strong>: คลุมแถบคะแนนทั้งคอลัมน์ของนักเรียน แล้วกด <kbd className="rounded border border-amber-300 bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold">Ctrl + C</kbd></li>
+                  <li>ใน <strong>ClassCare 360</strong>: คลิกที่ช่องคะแนนของ <strong>นักเรียนคนแรก</strong> ในชิ้นงานนั้น</li>
+                  <li>กด <kbd className="rounded border border-amber-300 bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold">Ctrl + V</kbd> : ระบบจะนำคะแนนทั้งหมดมาเรียงต่อกันให้อัตโนมัติตามลำดับนักเรียนทันที!</li>
+                </ol>
+              </section>
+
+              {/* 4. Thai Grade Scale 0-4 */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                    <Award size={18} className="text-cyan-700" />
+                    <h3>เกณฑ์การตัดเกรด 8 ระดับ (มาตรฐาน สพฐ. / กระทรวงศึกษาธิการ)</h3>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-500">คำนวณถ่วงน้ำหนัก % อัตโนมัติ</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  {[
+                    { badge: 'bg-emerald-100 text-emerald-800 ring-emerald-300', grade: '4', label: 'ดีเยี่ยม', range: '80 - 100%' },
+                    { badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200', grade: '3.5', label: 'ดีมาก', range: '75 - 79%' },
+                    { badge: 'bg-teal-50 text-teal-800 ring-teal-200', grade: '3', label: 'ดี', range: '70 - 74%' },
+                    { badge: 'bg-cyan-50 text-cyan-800 ring-cyan-200', grade: '2.5', label: 'ค่อนข้างดี', range: '65 - 69%' },
+                    { badge: 'bg-blue-50 text-blue-800 ring-blue-200', grade: '2', label: 'ปานกลาง', range: '60 - 64%' },
+                    { badge: 'bg-amber-50 text-amber-800 ring-amber-200', grade: '1.5', label: 'พอใช้', range: '55 - 59%' },
+                    { badge: 'bg-orange-50 text-orange-800 ring-orange-200', grade: '1', label: 'ผ่านเกณฑ์', range: '50 - 54%' },
+                    { badge: 'bg-rose-50 text-rose-800 ring-rose-200', grade: '0', label: 'ต่ำกว่าเกณฑ์', range: '0 - 49%' },
+                  ].map((item) => (
+                    <div key={item.grade} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs">
+                      <div>
+                        <div className="font-bold text-slate-800">{item.range}</div>
+                        <div className="text-[10px] font-medium text-slate-500">{item.label}</div>
+                      </div>
+                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black ring-1 ${item.badge}`}>
+                        {item.grade}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* 5. Export & Reports */}
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                  <Download size={16} className="text-cyan-700" />
+                  <h3>การส่งออกไฟล์ Excel และเอกสาร ปพ.5</h3>
+                </div>
+                <p className="text-xs font-medium leading-5 text-slate-600">
+                  • <strong>Export ตาราง Excel (.CSV):</strong> กดปุ่ม &ldquo;Export ตาราง Excel&rdquo; ด้านบนเพื่อดาวน์โหลดคะแนนทุกชิ้นงาน คะแนนรวม ร้อยละ และเกรด ไปเปิดในโปรแกรม Excel ได้ทันที<br />
+                  • <strong>พิมพ์รายงาน ปพ.5 ทางการ:</strong> สามารถไปที่เมนู <strong>&ldquo;รายงาน (Reports)&rdquo;</strong> ทางแถบเมนูด้านซ้าย เพื่อพิมพ์แบบบันทึกผลการเรียนรายวิชาหรือดาวน์โหลดเป็น PDF ทางการ
+                </p>
+              </section>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-slate-500 text-center sm:text-left">
+                <Info size={14} className="text-cyan-700 shrink-0" />
+                คุณครูสามารถกดเปิดคู่มือนี้ซ้ำได้ตลอดเวลา โดยคลิกปุ่ม &ldquo;คู่มือการใช้งาน&rdquo; ที่แถบด้านบน
+              </p>
+              <button
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-cyan-600/20 transition hover:bg-cyan-700"
+                onClick={() => setIsGuideOpen(false)}
+                type="button"
+              >
+                <CheckCircle2 size={16} />
+                เข้าใจแล้ว เริ่มกรอกคะแนน
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

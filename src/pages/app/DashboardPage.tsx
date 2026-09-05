@@ -634,7 +634,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       detail: 'ตรวจรายการคะแนนที่บันทึกแล้วในระบบ',
       icon: ClipboardList,
       label: 'ตรวจและกรอกคะแนน',
-      path: '/app/dashboard?view=scores&scoreView=entry',
+      path: '/app/dashboard?view=scores&scoreView=excel',
       status: `${analyticsData.scores.assessmentCount} ชุดคะแนน`,
       tone: 'text-sky-700 bg-sky-50',
     },
@@ -774,7 +774,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         {/* Card 2: Scores */}
         <Link
           className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-white to-cyan-50/60 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-sky-500/10"
-          to="/app/dashboard?view=scores&scoreView=entry"
+          to="/app/dashboard?view=scores&scoreView=excel"
         >
           <div>
             <div className="flex items-center justify-between">
