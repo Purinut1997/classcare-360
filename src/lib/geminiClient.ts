@@ -43,17 +43,19 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
   },
 ];
 
+export interface AssistantAction {
+  type: 'navigate' | 'copy' | 'handover' | 'calendar';
+  target?: string;
+  label: string;
+  payload?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  actions?: Array<{
-    type: 'navigate' | 'copy' | 'handover';
-    target?: string;
-    label: string;
-    payload?: string;
-  }>;
+  actions?: AssistantAction[];
 }
 
 const SYSTEM_INSTRUCTION = `
@@ -77,6 +79,11 @@ const SYSTEM_INSTRUCTION = `
    - คุณต้องอิงข้อมูลนักเรียน รายชื่อ และสถิติการมาเรียนจาก [ข้อมูลจริงจากฐานข้อมูลระบบ ClassCare 360] ที่แนบมาให้ในบริบทเท่านั้น!
    - ห้ามกุชื่อหรือแต่งชื่อนักเรียน นามสกุล หรือสมมุติสถิติตัวเลขขึ้นมาเองโดยเด็ดขาด (DO NOT FABRICATE OR HALLUCINATE NAMES/DATA)!
    - หากในข้อมูลระบุว่า "ยังไม่มีบันทึกข้อมูลการเช็คชื่อ" หรือ "ไม่มีนักเรียนขาดเรียน" ให้แจ้งคุณครูตามตรง เช่น: "จากการตรวจสอบข้อมูลจริงในระบบ ClassCare 360 ปัจจุบันยังไม่มีบันทึกการขาดเรียนของนักเรียนในห้องนี้ค่ะ คุณครูสามารถเข้าไปเริ่มบันทึกเช็คชื่อได้ที่ [NAVIGATE:teacher-work:เปิดหน้าเช็คชื่อ]"
+8. เมื่อคุณครูขอให้คุณช่วยบันทึกวันหยุด, วันสอบ, หรือวันกิจกรรมลงปฏิทินโรงเรียน (เช่น "ช่วยบันทึกวันหยุด 23 ต.ค. วันปิยมหาราช ให้หน่อย" หรือ "เพิ่มวันสอบ"):
+   - ให้สรุปข้อความยืนยัน และสร้างปุ่ม Action สำหรับบันทึกลงปฏิทินในรูปแบบ:
+     [CALENDAR:YYYY-MM-DD:type:ชื่อวันหรือกิจกรรม:ข้อความบนปุ่ม]
+     (โดย type ได้แก่ holiday=วันหยุด, exam=วันสอบ, activity=กิจกรรม, makeup=เรียนชดเชย)
+     ตัวอย่าง: [CALENDAR:2026-10-23:holiday:วันปิยมหาราช:📅 บันทึกวันหยุดลงปฏิทินทันที]
 `.trim();
 
 /**
@@ -295,9 +302,9 @@ export async function testGeminiApiKey(
  */
 export function parseAssistantResponse(rawText: string): {
   cleanText: string;
-  actions: Array<{ type: 'navigate' | 'copy' | 'handover'; target?: string; label: string; payload?: string }>;
+  actions: AssistantAction[];
 } {
-  const actions: Array<{ type: 'navigate' | 'copy' | 'handover'; target?: string; label: string; payload?: string }> = [];
+  const actions: AssistantAction[] = [];
 
   // 1. Extract [NAVIGATE:view:label]
   let text = rawText.replace(/\[NAVIGATE:([^:\]]+):([^\]]+)\]/g, (_, view, label) => {
@@ -330,6 +337,21 @@ export function parseAssistantResponse(rawText: string): {
     return '';
   });
 
+  // 4. Extract [CALENDAR:date:type:title:label]
+  text = text.replace(/\[CALENDAR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]/g, (_, date, type, title, label) => {
+    actions.push({
+      type: 'calendar',
+      label: label.trim(),
+      target: date.trim(),
+      payload: JSON.stringify({
+        date: date.trim(),
+        type: type.trim(),
+        title: title.trim(),
+      }),
+    });
+    return '';
+  });
+
   return { cleanText: text.trim(), actions };
 }
 
@@ -338,7 +360,7 @@ export function parseAssistantResponse(rawText: string): {
  */
 export function getSmartFallbackResponse(userPrompt: string, activeView: string): {
   cleanText: string;
-  actions: Array<{ type: 'navigate' | 'copy' | 'handover'; target?: string; label: string; payload?: string }>;
+  actions: AssistantAction[];
 } {
   const lower = userPrompt.toLowerCase();
 
@@ -389,6 +411,16 @@ export function getSmartFallbackResponse(userPrompt: string, activeView: string)
       cleanText: `📝 **ร่างข้อความส่ง LINE แจ้งผู้ปกครอง:**\n\n${sampleMsg}\n\n*(สามารถกดปุ่มคัดลอกข้อความด้านล่าง แล้วนำไปปรับใช้ได้ทันทีค่ะ)*`,
       actions: [
         { type: 'copy', label: '📋 คัดลอกข้อความ', payload: sampleMsg },
+      ],
+    };
+  }
+
+  // 6. School Calendar & Holidays
+  if (lower.includes('ปฏิทิน') || lower.includes('วันหยุด') || lower.includes('วันสอบ') || lower.includes('กิจกรรม')) {
+    return {
+      cleanText: `📅 **ระบบปฏิทินโรงเรียนและบันทึกวันหยุด (School Calendar):**\n\n- คุณครูสามารถดูและบันทึกวันหยุด, วันสอบ, กิจกรรมโรงเรียน หรือวันเรียนชดเชยได้\n- มีนโยบายควบคุมการเช็คชื่อ: กำหนดให้ **"ไม่นับเป็นวันเรียน (ข้ามเช็คชื่อ)"** ได้ เพื่อไม่ให้เสียสถิติเวลาเรียน 80% ของนักเรียน\n- สั่งให้น้องแคร์ช่วยบันทึกวันหยุดได้ เช่นพิมพ์: *"ช่วยบันทึกวันหยุด 23 ตุลาคม วันปิยมหาราช"* ได้เลยค่ะ!`,
+      actions: [
+        { type: 'navigate', target: '/app/dashboard?view=school-calendar', label: '📅 เปิดดูปฏิทินโรงเรียน' },
       ],
     };
   }

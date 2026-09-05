@@ -20,13 +20,14 @@ export async function fetchLiveSchoolDataContext(
   const workspaceTitle = session.workspace.name || '';
 
   try {
-    // 1. Fetch classrooms, students, attendance, behavior, and savings in parallel
+    // 1. Fetch classrooms, students, attendance, behavior, savings, and calendar in parallel
     const [
       { data: classrooms },
       { data: students },
       { data: attendanceRecords },
       { data: behaviorRecords },
       { data: savingsAccounts },
+      { data: calendarDays },
     ] = await Promise.all([
       supabase
         .from('classrooms')
@@ -54,6 +55,11 @@ export async function fetchLiveSchoolDataContext(
         .select('student_id, balance')
         .eq('workspace_id', workspaceId)
         .limit(100),
+      supabase
+        .from('school_calendar_days')
+        .select('calendar_date, title, day_type, affects_attendance')
+        .eq('workspace_id', workspaceId)
+        .order('calendar_date', { ascending: true }),
     ]);
 
     const studentList = students || [];
@@ -165,7 +171,25 @@ export async function fetchLiveSchoolDataContext(
     context += `• บันทึกพฤติกรรมในระบบ: มีการบันทึก ${(behaviorRecords || []).length} รายการ\n`;
     context += `• ยอดเงินออมรวมของนักเรียน: ${totalSavingsBalance.toLocaleString('th-TH')} บาท (จาก ${(savingsAccounts || []).length} บัญชี)\n`;
 
-    context += `\n[คำแนะนำสำคัญสำหรับ AI]: เมื่อคุณครูถามจำนวนนักเรียนในห้องใด ให้ตอบเฉพาะจำนวนของห้องนั้น (เช่น ถ้าถามห้อง ป.5/1 ให้ตอบว่ามี ${studentsByClassroom.get('ป.5/1')?.length ?? 0} คน) อย่าตอบด้วยยอดรวมทั้งโรงเรียนเด็ดขาด!\n`;
+    // School Calendar & Holidays
+    context += `\n--- [ปฏิทินโรงเรียน วันหยุด และวันสำคัญจริง] ---\n`;
+    const eventsList = calendarDays || [];
+    if (eventsList.length > 0) {
+      context += `• มีวันพิเศษ/วันหยุดบันทึกในระบบทั้งหมด: ${eventsList.length} วัน ได้แก่:\n`;
+      eventsList.slice(0, 20).forEach((ev) => {
+        const typeThai = ev.day_type === 'holiday' ? 'วันหยุด' : ev.day_type === 'exam' ? 'วันสอบ' : ev.day_type === 'activity' ? 'กิจกรรม' : ev.day_type === 'makeup' ? 'เรียนชดเชย' : 'วันพิเศษ';
+        context += `  - วันที่ ${ev.calendar_date}: ${ev.title} (${typeThai}${ev.affects_attendance === false ? ' / ไม่นับเป็นวันเรียน' : ''})\n`;
+      });
+      if (eventsList.length > 20) {
+        context += `  และอีก ${eventsList.length - 20} วันในระบบ\n`;
+      }
+    } else {
+      context += `• ปฏิทินโรงเรียน: ยังไม่มีการบันทึกวันหยุดพิเศษในระบบ\n`;
+    }
+
+    context += `\n[คำแนะนำสำคัญสำหรับ AI]:\n`;
+    context += `1. เมื่อคุณครูถามจำนวนนักเรียนในห้องใด ให้ตอบเฉพาะจำนวนของห้องนั้น (เช่น ถ้าถามห้อง ป.5/1 ให้ตอบว่ามี ${studentsByClassroom.get('ป.5/1')?.length ?? 0} คน) อย่าตอบด้วยยอดรวมทั้งโรงเรียนเด็ดขาด!\n`;
+    context += `2. เมื่อคุณครูขอให้บันทึกวันหยุด, วันสอบ, หรือกิจกรรมลงปฏิทินโรงเรียน (เช่น "บันทึกวันหยุด 23 ต.ค. วันปิยมหาราช") ให้สรุปรายละเอียดวันและสร้างปุ่มยืนยันบันทึกในรูปแบบ:\n   [CALENDAR:YYYY-MM-DD:holiday:ชื่อวันหยุด:📅 บันทึกวันหยุดลงปฏิทินทันที]\n   (โดย type ได้แก่ holiday, exam, activity, makeup) เพื่อให้คุณครูกดบันทึกลงฐานข้อมูลได้ทันทีใน 1 คลิก!\n`;
     context += `=== [สิ้นสุดข้อมูลจริงจากระบบ ClassCare 360] ===\n\n`;
 
     return context;

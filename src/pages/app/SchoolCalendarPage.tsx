@@ -247,6 +247,12 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
   useEffect(() => {
     void loadEvents();
+
+    const handleCalendarUpdate = () => {
+      void loadEvents();
+    };
+    window.addEventListener('classcare-calendar-updated', handleCalendarUpdate);
+    return () => window.removeEventListener('classcare-calendar-updated', handleCalendarUpdate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.workspace?.id]);
 

@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Bot,
+  CalendarDays,
   Check,
   CheckCircle2,
   Clock3,
@@ -29,7 +30,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { supabase } from "../../lib/supabaseClient";
+import { supabase, isSupabaseReady } from "../../lib/supabaseClient";
 import type { AppSessionContext } from "../../types/core";
 import {
   ALL_PROMPT_CATEGORIES,
@@ -429,9 +430,78 @@ export function SupportChat({
     }
   };
 
-  // Action Click Handler (Navigate or Copy or Handover)
+  // Direct Calendar Event Saver for AI Assistant
+  const handleSaveCalendarEvent = async (payloadStr: string) => {
+    try {
+      const { date, type, title } = JSON.parse(payloadStr);
+      if (!date || !title) return;
+
+      const workspaceId = session.workspace?.id;
+      const isHoliday = type === "holiday";
+      let success = false;
+
+      if (isSupabaseReady && supabase && workspaceId) {
+        try {
+          const { error } = await supabase.from("school_calendar_days").insert({
+            workspace_id: workspaceId,
+            calendar_date: date,
+            day_type: type,
+            title: title,
+            affects_attendance: !isHoliday,
+            affects_reports: true,
+            created_by: session.profile.id,
+            metadata: { attendancePolicy: isHoliday ? "skip" : "normal" },
+          });
+          if (!error) success = true;
+        } catch {
+          // Fallback handled below
+        }
+      }
+
+      // Local storage backup for immediate rendering
+      const storageKey = `classcare:data-safety:${workspaceId || session.profile.id}`;
+      const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+      const existingRules = state.calendarRules || [];
+      state.calendarRules = [
+        ...existingRules,
+        {
+          id: `ai-cal-${Date.now()}`,
+          date,
+          title,
+          type,
+          attendancePolicy: isHoliday ? "skip" : "normal",
+          source: success ? "supabase" : "local",
+        },
+      ];
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+
+      // Broadcast update event so SchoolCalendarPage reloads live
+      window.dispatchEvent(new CustomEvent("classcare-calendar-updated"));
+
+      const typeThai = type === "holiday" ? "วันหยุด" : type === "exam" ? "วันสอบ" : "วันกิจกรรม";
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `asst-cal-saved-${Date.now()}`,
+          role: "assistant",
+          content: `✅ **บันทึก ${typeThai} สำเร็จแล้วค่ะ!**\n\n- **รายการ:** ${title}\n- **วันที่:** ${date}\n- **นโยบายเวลาเรียน:** ${isHoliday ? "ไม่นับเป็นวันเรียน (ข้ามการเช็กชื่ออัตโนมัติ ไม่กระทบสถิติ 80%)" : "เช็กชื่อตามปกติ"}\n\nระบบอัปเดตลงในปฏิทินโรงเรียนเรียบร้อยแล้วค่ะ คุณครูสามารถเปิดดูในปฏิทินได้เลยนะคะ`,
+          timestamp: new Date().toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          actions: [
+            { type: "navigate", target: "/app/dashboard?view=school-calendar", label: "📅 ไปที่หน้าปฏิทินโรงเรียน" },
+          ],
+        },
+      ]);
+    } catch (e: any) {
+      alert(`ไม่สามารถบันทึกปฏิทินได้: ${e.message || e}`);
+    }
+  };
+
+  // Action Click Handler (Navigate or Copy or Handover or Calendar)
   const handleActionClick = (action: {
-    type: "navigate" | "copy" | "handover";
+    type: "navigate" | "copy" | "handover" | "calendar";
     target?: string;
     label: string;
     payload?: string;
@@ -449,6 +519,8 @@ export function SupportChat({
       setMode("new");
       setSubject(action.target || "ขอความช่วยเหลือจากแอดมิน");
       setBody(action.payload || "");
+    } else if (action.type === "calendar" && action.payload) {
+      void handleSaveCalendarEvent(action.payload);
     }
   };
 
@@ -616,13 +688,18 @@ export function SupportChat({
                                 type="button"
                                 onClick={() => handleActionClick(act)}
                                 className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-xs ${
-                                  act.type === "navigate"
+                                  act.type === "calendar"
+                                    ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 active:scale-95"
+                                    : act.type === "navigate"
                                     ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
                                     : act.type === "copy"
                                     ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
                                     : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
                                 }`}
                               >
+                                {act.type === "calendar" && (
+                                  <CalendarDays size={12} className="text-rose-600" />
+                                )}
                                 {act.type === "navigate" && (
                                   <ExternalLink size={12} />
                                 )}
