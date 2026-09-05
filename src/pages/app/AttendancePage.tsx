@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BellRing,
@@ -6,10 +6,16 @@ import {
   Check,
   ClipboardCheck,
   Clock3,
+  Filter,
   Home,
   Save,
+  Search,
   Send,
   ShieldCheck,
+  Sparkles,
+  UserCheck,
+  Users,
+  X,
 } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
@@ -183,10 +189,37 @@ export function AttendancePage({ session }: AttendancePageProps) {
     [classroomStudents, marks],
   );
 
+  const [showStartPrompt, setShowStartPrompt] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'alert' | 'present'>('all');
+  const rosterRef = useRef<HTMLDivElement>(null);
+
   const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
   const activeModeCopy = modeCopy[mode];
   const ModeIcon = activeModeCopy.icon;
   const sessionLabel = `${mode === 'homeroom' ? 'ประจำวัน' : 'รายวิชา'} | ${periodLabel}`;
+
+  const filteredStudents = useMemo(() => {
+    return classroomStudents.filter((student) => {
+      if (searchTerm.trim()) {
+        const query = searchTerm.trim().toLowerCase();
+        const code = (student.student_code || '').toLowerCase();
+        const fullName = `${student.first_name} ${student.last_name}`.toLowerCase();
+        const nickname = (student.nickname || '').toLowerCase();
+        if (!code.includes(query) && !fullName.includes(query) && !nickname.includes(query)) {
+          return false;
+        }
+      }
+      const mark = marks[student.id] || 'present';
+      if (statusFilter === 'alert') {
+        return (['absent', 'late', 'leave', 'sick', 'activity'] as AttendanceStatus[]).includes(mark);
+      }
+      if (statusFilter === 'present') {
+        return mark === 'present';
+      }
+      return true;
+    });
+  }, [classroomStudents, marks, searchTerm, statusFilter]);
 
   const [scopeFilter, setScopeFilter] = useState<'homeroom' | 'all'>('homeroom');
 
@@ -277,12 +310,53 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }, [classroomId, records, students]);
 
   useEffect(() => {
-    setAttendanceSession(null);
-    setRecords([]);
     setScheduleOptions(getAttendanceOptionsFromSchedule(session.workspace?.id));
     setSubjectName(modeCopy[mode].subject);
     setPeriodLabel(mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
   }, [mode, session.workspace?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkExistingSession() {
+      if (!classroomId || !attendanceDate) return;
+      if (!supabase || !session.workspace || demoMode) {
+        if (!attendanceSession && attendanceDate === getTodayDate() && classroomStudents.length > 0) {
+          setShowStartPrompt(true);
+        }
+        return;
+      }
+      const normalizedPeriod = periodLabel;
+      const { data, error } = await supabase
+        .from('attendance_sessions')
+        .select('id,classroom_id,attendance_date,period_label,subject_name,status')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', classroomId)
+        .eq('attendance_date', attendanceDate)
+        .eq('period_label', normalizedPeriod)
+        .maybeSingle();
+
+      if (!isMounted) return;
+      if (data && !error) {
+        const foundSession = data as AttendanceSessionRow;
+        setAttendanceSession(foundSession);
+        setEditSessionDate(foundSession.attendance_date);
+        await loadSessionRecords(foundSession);
+        setShowStartPrompt(false);
+      } else {
+        setAttendanceSession(null);
+        setRecords([]);
+        if (attendanceDate === getTodayDate() && classroomStudents.length > 0) {
+          setShowStartPrompt(true);
+        } else {
+          setShowStartPrompt(false);
+        }
+      }
+    }
+    void checkExistingSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [attendanceDate, classroomId, classroomStudents.length, demoMode, mode, periodLabel, session.workspace]);
 
   useEffect(() => {
     let active = true;
@@ -324,10 +398,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setRecords((data || []) as AttendanceRecordRow[]);
   }
 
-  async function handleCreateSession(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleCreateSession(event?: FormEvent<HTMLFormElement>) {
+    if (event) event.preventDefault();
     setIsSubmitting(true);
     setNotice(null);
+    setShowStartPrompt(false);
 
     if (calendarPolicy && !calendarPolicy.affects_attendance) {
       setNotice(`วันที่เลือกเป็น ${calendarPolicy.title} ระบบจึงไม่สร้างรอบเช็กชื่อตามปฏิทินโรงเรียน`);
@@ -375,6 +450,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
         ],
       });
       setIsSubmitting(false);
+      setTimeout(() => {
+        rosterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
       return;
     }
 
@@ -427,6 +505,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
       ],
     });
     setIsSubmitting(false);
+    setTimeout(() => {
+      rosterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
   }
 
   async function handleCorrectSessionDate() {
@@ -688,6 +769,85 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
   return (
     <main className="app-page">
+      {/* Guided Pop-up: เริ่มเช็คชื่อวันนี้ทันที */}
+      {showStartPrompt && !attendanceSession && classroomStudents.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-3xl border border-amber-200/80 bg-white p-6 shadow-2xl ring-1 ring-slate-900/10 sm:p-7">
+            <button
+              className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              onClick={() => setShowStartPrompt(false)}
+              type="button"
+              aria-label="ปิด"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/30">
+                <Clock3 size={24} className="animate-pulse" />
+              </span>
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-black text-amber-800 ring-1 ring-amber-200">
+                  <Sparkles size={12} /> เช็คชื่อประจำวัน
+                </span>
+                <h3 className="mt-1 text-xl font-black text-slate-950">
+                  เริ่มเช็คชื่อวันนี้
+                </h3>
+              </div>
+            </div>
+
+            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+              พร้อมเช็คชื่อประจำวันสำหรับนักเรียนในห้องแล้ว กดเริ่มเช็คชื่อเพื่อติ๊กเลือกสถานะรายคนได้ทันที โดยไม่ต้องเลื่อนหาปุ่ม
+            </p>
+
+            <div className="mt-4 grid gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 text-xs font-bold text-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">📅 วันที่</span>
+                <span className="font-black text-slate-900">
+                  {new Intl.DateTimeFormat('th-TH', { dateStyle: 'long' }).format(new Date(`${attendanceDate}T12:00:00`))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">🏫 ห้องเรียน</span>
+                <span className="font-black text-teal-800 flex items-center gap-1">
+                  ⭐ {selectedClassroom?.name || '-'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">⏰ คาบ/ช่วงเวลา</span>
+                <span className="font-black text-slate-900">
+                  {periodLabel} ({mode === 'homeroom' ? 'โฮมรูม/ประจำวัน' : subjectName})
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">👥 จำนวนนักเรียน</span>
+                <span className="font-black text-slate-900">{classroomStudents.length} คน</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-2.5">
+              <button
+                className="amber-action flex h-13 w-full items-center justify-center gap-2.5 rounded-2xl text-base font-black shadow-lg shadow-amber-500/20 active:scale-98 transition"
+                disabled={isSubmitting}
+                onClick={() => void handleCreateSession()}
+                type="button"
+              >
+                <Clock3 size={20} />
+                <span>เริ่มเช็คชื่อวันนี้ทันที</span>
+              </button>
+
+              <button
+                className="h-11 w-full rounded-2xl border border-slate-200 text-xs font-black text-slate-600 hover:bg-slate-50 transition"
+                onClick={() => setShowStartPrompt(false)}
+                type="button"
+              >
+                เลือกห้องอื่น หรือเปลี่ยนวันที่ก่อน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="app-page-header">
         <div>
           <div className="nexus-kicker">
@@ -894,28 +1054,49 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         </div>
 
-        <div className="app-panel-pad">
+        <div className="app-panel-pad" ref={rosterRef}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-black text-teal-700">
-                {attendanceSession ? `${attendanceSession.period_label} | ${attendanceSession.subject_name || 'ไม่ระบุวิชา'}` : 'ยังไม่ได้เริ่มเช็คเวลา'}
-              </p>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-black ${
+                  attendanceSession ? 'bg-teal-50 text-teal-800 ring-1 ring-teal-200' : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+                }`}>
+                  <Clock3 size={13} />
+                  {attendanceSession ? `${attendanceSession.period_label} | ${attendanceSession.subject_name || 'ไม่ระบุวิชา'}` : 'ยังไม่ได้เริ่มเช็คเวลา'}
+                </span>
+                {attendanceSession?.status === 'submitted' && (
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-200">
+                    บันทึกแล้ว
+                  </span>
+                )}
+              </div>
               <h2 className="mt-1 text-2xl font-black text-slate-950">
-                รายชื่อนักเรียน {classroomStudents.length} คน
+                รายชื่อนักเรียน {filteredStudents.length} {filteredStudents.length !== classroomStudents.length ? `จาก ${classroomStudents.length}` : ''} คน
               </h2>
-              <p className="mt-1 text-xs font-bold text-slate-500">
+              <p className="mt-0.5 text-xs font-bold text-slate-500">
                 {selectedClassroom?.name || '-'} | {mode === 'homeroom' ? 'บันทึกของครูที่ปรึกษา' : 'บันทึกของครูประจำวิชา'}
               </p>
             </div>
-            <button
-              className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={isSubmitting || !attendanceSession || classroomStudents.length === 0}
-              onClick={handleSaveRecords}
-              type="button"
-            >
-              บันทึกเวลาเรียน
-              <Save size={17} aria-hidden="true" />
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="inline-flex h-11 items-center gap-1.5 rounded-2xl border border-teal-200 bg-teal-50 px-4 text-xs font-black text-teal-800 hover:bg-teal-100 transition active:scale-95 disabled:opacity-50"
+                disabled={classroomStudents.length === 0}
+                onClick={() => markAll('present')}
+                type="button"
+              >
+                <Sparkles size={15} className="text-teal-600" />
+                ⚡ มาทุกคน
+              </button>
+              <button
+                className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-md disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={isSubmitting || !attendanceSession || classroomStudents.length === 0}
+                onClick={handleSaveRecords}
+                type="button"
+              >
+                <Save size={16} aria-hidden="true" />
+                <span>บันทึกเวลาเรียน</span>
+              </button>
+            </div>
           </div>
 
           {attendanceSession ? (
@@ -938,51 +1119,186 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </div>
           ) : null}
 
-          <div className="mt-4">
-            {classroomStudents.length > 0 ? (
-              <div className="app-data-table overflow-x-auto">
-                <div className="min-w-[980px]">
-                  <div className="grid grid-cols-[140px_minmax(220px,1fr)_390px_260px] gap-3 border-b border-[#ead8bd] bg-[#fff8ef]/80 px-4 py-3 text-xs font-black text-slate-500">
-                    <span>รหัส</span>
-                    <span>นักเรียน</span>
-                    <span>สถานะ</span>
+          {classroomStudents.length > 0 && (
+            <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-y border-slate-100 py-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหานักเรียน (ชื่อ, เลขที่, ชื่อเล่น)..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="nexus-field h-9 w-full pl-9 pr-7 text-xs"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-black pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className={`rounded-xl px-3 py-1.5 transition whitespace-nowrap ${
+                    statusFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  ทั้งหมด ({classroomStudents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('alert')}
+                  className={`rounded-xl px-3 py-1.5 transition whitespace-nowrap ${
+                    statusFilter === 'alert'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-rose-50 text-rose-700 hover:bg-rose-100 ring-1 ring-rose-200'
+                  }`}
+                >
+                  ขาด/สาย/ลา ({alertStudents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('present')}
+                  className={`rounded-xl px-3 py-1.5 transition whitespace-nowrap ${
+                    statusFilter === 'present'
+                      ? 'bg-teal-700 text-white shadow-xs'
+                      : 'bg-teal-50 text-teal-800 hover:bg-teal-100 ring-1 ring-teal-200'
+                  }`}
+                >
+                  มา ({summary.find((s) => s.value === 'present')?.count || 0})
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Touch Cards (< md) */}
+          <div className="mt-4 grid gap-3 md:hidden">
+            {filteredStudents.map((student, index) => {
+              const currentStatus = marks[student.id] || 'present';
+              const isAlert = (['absent', 'late', 'leave', 'sick'] as AttendanceStatus[]).includes(currentStatus);
+              const currentTone = statusOptions.find((o) => o.value === currentStatus)?.tone || '';
+              return (
+                <div
+                  key={student.id}
+                  className={`rounded-2xl border p-3.5 transition shadow-xs ${
+                    isAlert
+                      ? 'border-rose-300 bg-rose-50/50 ring-1 ring-rose-200'
+                      : 'border-slate-200/90 bg-white hover:border-teal-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-xs font-black text-slate-700">
+                        {student.student_code ? student.student_code.replace(/^[A-Za-z]+-?/, '') : index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-base font-black text-slate-900 leading-tight">
+                          {student.first_name} {student.last_name}
+                        </p>
+                        <p className="mt-0.5 text-xs font-bold text-slate-500">
+                          {student.nickname ? `น้อง${student.nickname}` : student.student_code ? `รหัส ${student.student_code}` : 'นักเรียน'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ring-1 ${currentTone}`}>
+                      {statusLabels[currentStatus]}
+                    </span>
+                  </div>
+
+                  {/* Touch Status Buttons (min 44px height for mobile touch target ergonomics) */}
+                  <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                    {statusOptions.map((option) => {
+                      const isActive = currentStatus === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setMarks((prev) => ({ ...prev, [student.id]: option.value }))}
+                          className={`flex h-11 items-center justify-center gap-1 rounded-xl text-xs font-black transition active:scale-95 ${
+                            isActive
+                              ? `${option.tone} ring-2 ring-current shadow-xs font-black`
+                              : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-white'
+                          }`}
+                        >
+                          {isActive && <Check size={14} className="stroke-[3]" />}
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Quick Note input */}
+                  <div className="mt-2.5">
+                    <input
+                      className="nexus-field h-9 w-full px-3 text-xs"
+                      placeholder={`หมายเหตุ: ${statusLabels[currentStatus] || 'ปกติ'} (ถ้ามี)...`}
+                      value={notes[student.id] || ''}
+                      onChange={(e) => setNotes((prev) => ({ ...prev, [student.id]: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (>= md) */}
+          <div className="mt-4 hidden md:block">
+            {filteredStudents.length > 0 ? (
+              <div className="app-data-table overflow-x-auto rounded-2xl border border-slate-200">
+                <div className="min-w-[900px]">
+                  <div className="grid grid-cols-[110px_minmax(200px,1fr)_390px_230px] gap-3 border-b border-[#ead8bd] bg-[#fff8ef]/80 px-4 py-3 text-xs font-black text-slate-500">
+                    <span>รหัส/เลขที่</span>
+                    <span>ชื่อ-สกุล นักเรียน</span>
+                    <span>สถานะเช็คชื่อ</span>
                     <span>หมายเหตุ</span>
                   </div>
-                  {classroomStudents.map((student) => (
+                  {filteredStudents.map((student, idx) => (
                     <div
-                      className="grid grid-cols-[140px_minmax(220px,1fr)_390px_260px] items-center gap-3 border-b border-[#ead8bd]/70 px-4 py-3 last:border-b-0"
+                      className="grid grid-cols-[110px_minmax(200px,1fr)_390px_230px] items-center gap-3 border-b border-[#ead8bd]/70 px-4 py-2.5 last:border-b-0 hover:bg-slate-50/70 transition"
                       key={student.id}
                     >
-                      <p className="text-sm font-black text-slate-600">{student.student_code || '-'}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-100 text-xs font-black text-slate-600">
+                          {student.student_code ? student.student_code.replace(/^[A-Za-z]+-?/, '') : idx + 1}
+                        </span>
+                        <span className="text-xs font-black text-slate-600">{student.student_code || '-'}</span>
+                      </div>
                       <div className="min-w-0">
                         <p className="truncate font-black text-slate-950">
                           {student.first_name} {student.last_name}
                         </p>
-                        <p className="mt-0.5 truncate text-xs font-bold text-slate-500">{student.nickname || 'ยังไม่มีชื่อเล่น'}</p>
+                        <p className="mt-0.5 truncate text-xs font-bold text-slate-500">{student.nickname ? `น้อง${student.nickname}` : 'ยังไม่มีชื่อเล่น'}</p>
                       </div>
                       <div className="grid grid-cols-6 gap-1.5">
                         {statusOptions.map((option) => {
                           const isActive = marks[student.id] === option.value;
-
                           return (
                             <button
-                              className={`inline-flex h-8 items-center justify-center gap-1 rounded-xl px-2 text-xs font-black ring-1 transition hover:-translate-y-0.5 ${
+                              className={`inline-flex h-9 items-center justify-center gap-1 rounded-xl px-2 text-xs font-black ring-1 transition hover:-translate-y-0.5 active:scale-95 ${
                                 isActive ? option.tone : 'bg-white/85 text-slate-500 ring-slate-200 hover:bg-white'
                               }`}
                               key={option.value}
                               onClick={() => setMarks((current) => ({ ...current, [student.id]: option.value }))}
                               type="button"
                             >
-                              {isActive ? <Check size={13} aria-hidden="true" /> : null}
+                              {isActive ? <Check size={13} className="stroke-[3]" aria-hidden="true" /> : null}
                               {option.label}
                             </button>
                           );
                         })}
                       </div>
                       <input
-                        className="nexus-field h-9 px-3"
+                        className="nexus-field h-9 px-3 text-xs"
                         onChange={(event) => setNotes((current) => ({ ...current, [student.id]: event.target.value }))}
-                        placeholder={`หมายเหตุ: ${statusLabels[marks[student.id] || 'present']}`}
+                        placeholder={`หมายเหตุ (${statusLabels[marks[student.id] || 'present']})`}
                         value={notes[student.id] || ''}
                       />
                     </div>
@@ -990,27 +1306,73 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 </div>
               </div>
             ) : null}
-
-            {!isLoading && classroomStudents.length === 0 ? (
-              <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">
-                ยังไม่มีนักเรียนในห้องนี้ ให้เพิ่มหรือนำเข้ารายชื่อนักเรียนก่อน จึงจะเช็คเวลาเรียนได้
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Link
-                    className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 text-xs font-black text-white transition hover:-translate-y-0.5"
-                    to="/app/dashboard?view=students"
-                  >
-                    เพิ่มนักเรียน
-                  </Link>
-                  <Link
-                    className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black text-amber-900 ring-1 ring-amber-200 transition hover:-translate-y-0.5"
-                    to="/app/dashboard?view=import-export"
-                  >
-                    นำเข้ารายชื่อ
-                  </Link>
-                </div>
-              </div>
-            ) : null}
           </div>
+
+          {classroomStudents.length > 0 && filteredStudents.length === 0 && (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+              <p className="text-sm font-bold text-slate-500">ไม่พบนักเรียนที่ตรงกับคำค้นหา "{searchTerm}"</p>
+              <button
+                type="button"
+                onClick={() => { setSearchTerm(''); setStatusFilter('all'); }}
+                className="mt-2 text-xs font-black text-teal-700 hover:underline"
+              >
+                ล้างคำค้นหาและตัวกรอง
+              </button>
+            </div>
+          )}
+
+          {!isLoading && classroomStudents.length === 0 ? (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm font-bold leading-6 text-amber-900">
+              ยังไม่มีนักเรียนในห้องนี้ ให้เพิ่มหรือนำเข้ารายชื่อนักเรียนก่อน จึงจะเช็คเวลาเรียนได้
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 text-xs font-black text-white transition hover:-translate-y-0.5"
+                  to="/app/dashboard?view=students"
+                >
+                  เพิ่มนักเรียน
+                </Link>
+                <Link
+                  className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black text-amber-900 ring-1 ring-amber-200 transition hover:-translate-y-0.5"
+                  to="/app/dashboard?view=import-export"
+                >
+                  นำเข้ารายชื่อ
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Sticky Bottom Save & Summary Dock */}
+          {classroomStudents.length > 0 && (
+            <div className="sticky bottom-3 z-30 mx-auto mt-6 w-full rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-xl backdrop-blur-md">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-black">
+                  <span className="rounded-lg bg-teal-50 px-2.5 py-1 text-teal-800 ring-1 ring-teal-200">
+                    มา {summary.find((s) => s.value === 'present')?.count || 0}
+                  </span>
+                  <span className="rounded-lg bg-rose-50 px-2.5 py-1 text-rose-800 ring-1 ring-rose-200">
+                    ขาด {summary.find((s) => s.value === 'absent')?.count || 0}
+                  </span>
+                  <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-amber-800 ring-1 ring-amber-200">
+                    สาย {summary.find((s) => s.value === 'late')?.count || 0}
+                  </span>
+                  {(summary.find((s) => s.value === 'leave')?.count || 0) + (summary.find((s) => s.value === 'sick')?.count || 0) > 0 && (
+                    <span className="rounded-lg bg-sky-50 px-2.5 py-1 text-sky-800 ring-1 ring-sky-200">
+                      ลา/ป่วย {(summary.find((s) => s.value === 'leave')?.count || 0) + (summary.find((s) => s.value === 'sick')?.count || 0)}
+                    </span>
+                  )}
+                </div>
+                <button
+                  className="dark-action inline-flex h-10 items-center justify-center gap-2 rounded-xl px-5 text-xs font-black shadow-md disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={isSubmitting || !attendanceSession}
+                  onClick={handleSaveRecords}
+                  type="button"
+                >
+                  <Save size={15} aria-hidden="true" />
+                  บันทึกผล ({classroomStudents.length} คน)
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </main>
