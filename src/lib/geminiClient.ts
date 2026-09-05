@@ -123,14 +123,18 @@ export async function callGeminiApi(
     body: JSON.stringify(payload),
   });
 
-  // Auto-fallback if the selected model is 404 on Google's API
-  if (response.status === 404 && model !== 'gemini-1.5-flash') {
-    const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    response = await fetch(fallbackEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+  // Auto-fallback if the selected model returns 404
+  if (response.status === 404) {
+    const supportedList = await listAvailableGeminiModels(apiKey);
+    const fallbackModel = supportedList.find((m) => m.includes('flash')) || supportedList[0];
+    if (fallbackModel && fallbackModel !== model) {
+      const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
+      response = await fetch(fallbackEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
   }
 
   if (!response.ok) {
@@ -146,6 +150,26 @@ export async function callGeminiApi(
   }
 
   return rawText;
+}
+
+/**
+ * Discovers models available for this API key via Google's models.list endpoint.
+ */
+export async function listAvailableGeminiModels(apiKey: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const serverModels: Array<{ name: string; supportedGenerationMethods?: string[] }> =
+      data.models || [];
+    return serverModels
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => m.name.replace(/^models\//, ''));
+  } catch {
+    return [];
+  }
 }
 
 async function attemptTestModel(
@@ -184,7 +208,7 @@ async function attemptTestModel(
 
 /**
  * Test if a Gemini API Key is valid and can generate content.
- * Automatically tries fallback model (gemini-1.5-flash) if the chosen model returns 404.
+ * Dynamically checks models.list for key validity and supported models.
  */
 export async function testGeminiApiKey(
   apiKey: string,
@@ -197,36 +221,55 @@ export async function testGeminiApiKey(
   const cleanKey = apiKey.trim();
 
   try {
-    // 1. Try testing with the requested model
-    const primaryRes = await attemptTestModel(cleanKey, model);
-    if (primaryRes.ok) {
+    // 1. Validate key and discover supported models from Google
+    const listRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`
+    );
+
+    if (!listRes.ok) {
+      const err = await listRes.json().catch(() => ({}));
       return {
-        success: true,
-        message: `เชื่อมต่อ Google Gemini API (${model}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
+        success: false,
+        message: err.error?.message || `API Key ไม่ถูกต้อง หรือไม่สามารถเชื่อมต่อได้ (รหัส ${listRes.status})`,
       };
     }
 
-    // 2. If 404 (endpoint or model not found for this key), try fallback models
-    if (primaryRes.status === 404) {
-      const fallbackList: GeminiModelId[] = (['gemini-1.5-flash', 'gemini-1.5-pro'] as GeminiModelId[]).filter(
-        (m) => m !== model
-      );
+    const listData = await listRes.json();
+    const serverModels: Array<{ name: string; supportedGenerationMethods?: string[] }> =
+      listData.models || [];
+    const supportedList = serverModels
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => m.name.replace(/^models\//, ''));
 
-      for (const fb of fallbackList) {
-        const fbRes = await attemptTestModel(cleanKey, fb);
-        if (fbRes.ok) {
-          return {
-            success: true,
-            message: `เชื่อมต่อสำเร็จ! (ระบบตรวจพบและสลับใช้ ${fb} ให้อัตโนมัติ เนื่องจากโมเดลเดิมไม่รองรับกับคีย์นี้) 🎉`,
-            autoSwitchedModel: fb,
-          };
-        }
-      }
+    if (supportedList.length === 0) {
+      return {
+        success: false,
+        message: 'API Key ใช้งานได้ แต่ไม่พบโมเดลที่รองรับการสร้างเนื้อหาในบัญชีนี้',
+      };
+    }
+
+    // 2. Determine target model
+    let targetModel =
+      supportedList.find((m) => m === model) ||
+      supportedList.find((m) => m.includes('flash')) ||
+      supportedList[0];
+
+    // 3. Test generateContent with targetModel
+    const testRes = await attemptTestModel(cleanKey, targetModel);
+    if (testRes.ok) {
+      const switched = targetModel !== model;
+      return {
+        success: true,
+        message: switched
+          ? `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบจับคู่โมเดล ${targetModel} ที่พร้อมใช้งานในบัญชีของคุณให้อัตโนมัติ 🎉)`
+          : `เชื่อมต่อ Google Gemini API (${targetModel}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
+        autoSwitchedModel: targetModel as GeminiModelId,
+      };
     }
 
     return {
       success: false,
-      message: primaryRes.errorMsg || `การทดสอบล้มเหลว (รหัส ${primaryRes.status}) ตรวจสอบ API Key อีกครั้ง`,
+      message: testRes.errorMsg || `ทดสอบสร้างเนื้อหาล้มเหลว (รหัส ${testRes.status})`,
     };
   } catch (err: any) {
     return {
