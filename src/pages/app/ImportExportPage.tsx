@@ -571,6 +571,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [selectedManagedStudentIds, setSelectedManagedStudentIds] = useState<string[]>([]);
   const [reviewClassification, setReviewClassification] = useState<RosterReviewClassification>('belongs_here');
   const [reviewNote, setReviewNote] = useState('');
+  const [activeMainTab, setActiveMainTab] = useState<'import' | 'roster' | 'export_backup'>('import');
 
   const classroomNameById = useMemo(
     () => Object.fromEntries(classrooms.map((classroom) => [classroom.id, classroom.name])),
@@ -1634,62 +1635,113 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </div>
       </div>
 
-      <section className="mt-5 rounded-[2rem] border border-amber-200 bg-white/95 p-4 shadow-[0_18px_50px_rgba(146,92,28,0.10)]">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-sm font-black text-amber-700">เพิ่มรายชื่อนักเรียน</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">นำเข้าให้เสร็จจากตรงนี้ได้เลย</h2>
-            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
-              เลือกไฟล์ก่อน ระบบจะสร้าง preview ให้ตรวจ ถ้าแถวผ่านตรวจแล้วปุ่มนำเข้าจะกดได้ทันที
-            </p>
-          </div>
+      {/* 🧭 Top-Level Workstream Tabs */}
+      <nav className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-3" aria-label="หมวดหมู่งานนำเข้าส่งออก">
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('import')}
+          className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+            activeMainTab === 'import'
+              ? 'bg-amber-600 text-white shadow-md'
+              : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+          }`}
+        >
+          <FileUp size={17} />
+          📥 นำเข้าข้อมูล (CSV / DMC / ผู้ปกครอง)
+          {(previewRows.length > 0 || guardianPreviewRows.length > 0) && (
+            <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs font-black">
+              {previewRows.length + guardianPreviewRows.length} แถว
+            </span>
+          )}
+        </button>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[620px] xl:grid-cols-4">
-            <button
-              className="amber-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-              onClick={() => dmcFileInputRef.current?.click()}
-              type="button"
-            >
-              <FileUp size={17} aria-hidden="true" />
-              เลือกไฟล์ DMC
-            </button>
-            <button
-              className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
-              onClick={() => studentCsvInputRef.current?.click()}
-              type="button"
-            >
-              <Upload size={17} aria-hidden="true" />
-              เลือก CSV
-            </button>
-            <button
-              className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
-              onClick={() => guardianCsvInputRef.current?.click()}
-              type="button"
-            >
-              <Upload size={17} aria-hidden="true" />
-              ผู้ปกครอง CSV
-            </button>
-            <button
-              className="dark-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white"
-              disabled={isSubmitting || validPreviewRows.length === 0}
-              onClick={() => void importValidRows()}
-              type="button"
-            >
-              <Save size={17} aria-hidden="true" />
-              นำเข้า {validPreviewRows.length} แถว
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('roster')}
+          className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+            activeMainTab === 'roster'
+              ? 'bg-cyan-700 text-white shadow-md'
+              : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+          }`}
+        >
+          <Users size={17} />
+          🧹 จัดการบัญชีรายชื่อ & ลบชื่อซ้ำ
+          <span className="ml-1 rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-black">
+            {students.length} คน
+          </span>
+        </button>
 
-        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-600 lg:grid-cols-3">
-          <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">1. เลือกไฟล์ DMC/CSV</div>
-          <div className="rounded-2xl bg-cyan-50 px-4 py-3 ring-1 ring-cyan-100">2. เลือกห้องและตรวจ preview</div>
-          <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">3. กดนำเข้ารายชื่อที่ผ่านตรวจ</div>
-        </div>
-      </section>
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('export_backup')}
+          className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+            activeMainTab === 'export_backup'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+          }`}
+        >
+          <Download size={17} />
+          📤 ส่งออก & สำรองข้อมูล Workspace
+        </button>
+      </nav>
 
-      <section className="mt-5 grid gap-5">
-        <aside className="grid gap-5">
+      {activeMainTab === 'import' && (
+        <div className="mt-5 space-y-5">
+          <section className="rounded-[2rem] border border-amber-200 bg-white/95 p-4 shadow-[0_18px_50px_rgba(146,92,28,0.10)]">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-sm font-black text-amber-700">เพิ่มรายชื่อนักเรียน</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">นำเข้าให้เสร็จจากตรงนี้ได้เลย</h2>
+                <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
+                  เลือกไฟล์ก่อน ระบบจะสร้าง preview ให้ตรวจ ถ้าแถวผ่านตรวจแล้วปุ่มนำเข้าจะกดได้ทันที
+                </p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[620px] xl:grid-cols-4">
+                <button
+                  className="amber-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                  onClick={() => dmcFileInputRef.current?.click()}
+                  type="button"
+                >
+                  <FileUp size={17} aria-hidden="true" />
+                  เลือกไฟล์ DMC
+                </button>
+                <button
+                  className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
+                  onClick={() => studentCsvInputRef.current?.click()}
+                  type="button"
+                >
+                  <Upload size={17} aria-hidden="true" />
+                  เลือก CSV
+                </button>
+                <button
+                  className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
+                  onClick={() => guardianCsvInputRef.current?.click()}
+                  type="button"
+                >
+                  <Upload size={17} aria-hidden="true" />
+                  ผู้ปกครอง CSV
+                </button>
+                <button
+                  className="dark-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white"
+                  disabled={isSubmitting || validPreviewRows.length === 0}
+                  onClick={() => void importValidRows()}
+                  type="button"
+                >
+                  <Save size={17} aria-hidden="true" />
+                  นำเข้า {validPreviewRows.length} แถว
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 text-sm font-bold text-slate-600 lg:grid-cols-3">
+              <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">1. เลือกไฟล์ DMC/CSV</div>
+              <div className="rounded-2xl bg-cyan-50 px-4 py-3 ring-1 ring-cyan-100">2. เลือกห้องและตรวจ preview</div>
+              <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">3. กดนำเข้ารายชื่อที่ผ่านตรวจ</div>
+            </div>
+          </section>
+
+          <section className="grid gap-5 lg:grid-cols-2">
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <FileUp size={16} aria-hidden="true" />
@@ -1838,10 +1890,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <Download size={17} aria-hidden="true" />
                 ดาวน์โหลด Template
               </button>
-              <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={exportStudents} type="button">
-                <Download size={17} aria-hidden="true" />
-                Export นักเรียน CSV
-              </button>
               <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/70 p-4 text-center transition hover:bg-white">
                 <Upload className="text-cyan-700" size={26} aria-hidden="true" />
                 <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ CSV เพื่อ preview</span>
@@ -1885,27 +1933,170 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             </div>
           </div>
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <ShieldCheck size={16} aria-hidden="true" />
-              Backup
-            </div>
-            <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
-              สร้าง backup package ราย workspace เป็น JSON สำหรับส่งต่อ ย้ายเครื่อง หรือต่อยอดเข้า Google Drive Cold Storage
-            </p>
-            <button
-              className="amber-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={isSubmitting || isLoading}
-              onClick={() => void createBackupManifest()}
-              type="button"
-            >
-              <Save size={17} aria-hidden="true" />
-              สร้าง Backup Package
-            </button>
-          </div>
-        </aside>
+          </section>
 
-        <section className="grid gap-5">
+          {/* Import Preview */}
+          <div className="nexus-card p-4 sm:p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-black text-cyan-700">Import Preview</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  พร้อม import {validPreviewRows.length} แถว | ต้องแก้ไข {invalidPreviewRows.length} แถว
+                </h2>
+              </div>
+              <button
+                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={isSubmitting || validPreviewRows.length === 0}
+                onClick={() => void importValidRows()}
+                type="button"
+              >
+                <Upload size={17} aria-hidden="true" />
+                Import แถวที่ผ่าน
+              </button>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-left">
+                <thead>
+                  <tr className="text-xs font-black uppercase text-slate-500">
+                    <th className="px-3 py-3">แถว</th>
+                    <th className="px-3 py-3">รหัส</th>
+                    <th className="px-3 py-3">นักเรียน</th>
+                    <th className="px-3 py-3">ห้องเรียน</th>
+                    <th className="px-3 py-3">ผลตรวจ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {previewRows.map((row) => (
+                    <tr className="hover:bg-slate-50" key={`${row.rowNumber}-${row.studentCode}-${row.firstName}`}>
+                      <td className="whitespace-nowrap px-3 py-3 font-black text-slate-600">{row.rowNumber}</td>
+                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.studentCode || '-'}</td>
+                      <td className="px-3 py-3">
+                        <p className="font-black text-slate-950">{row.firstName} {row.lastName}</p>
+                        <p className="text-xs font-bold text-slate-500">
+                          {row.source === 'dmc'
+                            ? `อ่านข้อมูล ${row.populatedFieldCount || 0}/${row.sourceColumnCount || 0} ช่องจาก DMC`
+                            : row.nickname || 'ไม่มีชื่อเล่น'}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName || '-'}</td>
+                      <td className="px-3 py-3">
+                        {row.errors.length === 0 && row.warnings.length === 0 ? (
+                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
+                        ) : row.errors.length === 0 && !row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')) ? (
+                          <div className="grid gap-1">
+                            <span className="w-fit rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
+                              อัปเดตข้อมูลเดิม
+                            </span>
+                            {row.warnings.map((message) => <span className="text-xs font-bold text-sky-700" key={message}>{message}</span>)}
+                          </div>
+                        ) : (
+                          <div className="grid gap-1 text-xs font-bold text-amber-700">
+                            {[...row.errors, ...row.warnings].map((message) => <span key={message}>{message}</span>)}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {previewRows.length === 0 ? (
+              <div className="mt-4 nexus-muted-box p-4 text-sm font-bold text-slate-600">
+                ยังไม่มี preview ให้เลือก CSV template ที่กรอกข้อมูลแล้วก่อน import
+              </div>
+            ) : null}
+          </div>
+
+          {/* Guardian Preview */}
+          <div className="nexus-card p-4 sm:p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-black text-teal-700">Guardian Preview</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  พร้อม import {validGuardianRows.length} แถว | ต้องแก้ไข {invalidGuardianRows.length} แถว
+                </h2>
+              </div>
+              <button
+                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={isSubmitting || validGuardianRows.length === 0}
+                onClick={() => void importGuardianRows()}
+                type="button"
+              >
+                <Upload size={17} aria-hidden="true" />
+                Import ผู้ปกครอง
+              </button>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-left">
+                <thead>
+                  <tr className="text-xs font-black uppercase text-slate-500">
+                    <th className="px-3 py-3">แถว</th>
+                    <th className="px-3 py-3">นักเรียน</th>
+                    <th className="px-3 py-3">ผู้ปกครอง</th>
+                    <th className="px-3 py-3">ติดต่อ</th>
+                    <th className="px-3 py-3">เชิญ Portal</th>
+                    <th className="px-3 py-3">ผลตรวจ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {guardianPreviewRows.map((row) => (
+                    <tr className="hover:bg-slate-50" key={`${row.rowNumber}-${row.studentCode}-${row.guardianEmail}-${row.guardianName}`}>
+                      <td className="whitespace-nowrap px-3 py-3 font-black text-slate-600">{row.rowNumber}</td>
+                      <td className="px-3 py-3">
+                        <p className="font-black text-slate-950">{row.studentName}</p>
+                        <p className="text-xs font-bold text-slate-500">รหัส {row.studentCode || '-'}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <p className="font-black text-slate-950">{row.guardianName || '-'}</p>
+                        <p className="text-xs font-bold text-slate-500">{row.relation} | {row.consentStatus}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <p className="font-bold text-slate-600">{row.guardianEmail || '-'}</p>
+                        <p className="text-xs font-bold text-slate-500">{row.guardianPhone || '-'}</p>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
+                          row.createPortalInvite
+                            ? 'bg-cyan-50 text-cyan-700 ring-cyan-100'
+                            : 'bg-slate-50 text-slate-500 ring-slate-100'
+                        }`}>
+                          {row.createPortalInvite ? 'สร้าง invite' : 'ไม่สร้าง'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.errors.length === 0 ? (
+                          <div className="grid gap-1">
+                            <span className="w-fit rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
+                            {row.warnings.map((message) => (
+                              <span className="text-xs font-bold text-amber-700" key={message}>{message}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="grid gap-1 text-xs font-bold text-amber-700">
+                            {[...row.errors, ...row.warnings].map((message) => <span key={message}>{message}</span>)}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {guardianPreviewRows.length === 0 ? (
+              <div className="mt-4 nexus-muted-box p-4 text-sm font-bold text-slate-600">
+                ยังไม่มี preview ผู้ปกครอง ให้เลือก Guardian CSV ก่อน import หรือสร้างคำเชิญ Portal
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {activeMainTab === 'roster' && (
+        <section className="mt-5 space-y-5">
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div>
@@ -2334,189 +2525,85 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             ) : null}
           </div>
+        </section>
+      )}
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-black text-cyan-700">Import Preview</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  พร้อม import {validPreviewRows.length} แถว | ต้องแก้ไข {invalidPreviewRows.length} แถว
-                </h2>
+      {activeMainTab === 'export_backup' && (
+        <section className="mt-5 space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2">
+            {/* Data Export & Templates */}
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="nexus-kicker">
+                <Download size={16} aria-hidden="true" />
+                Export ข้อมูล & ไฟล์ตัวอย่าง
               </div>
-              <button
-                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={isSubmitting || validPreviewRows.length === 0}
-                onClick={() => void importValidRows()}
-                type="button"
-              >
-                <Upload size={17} aria-hidden="true" />
-                Import แถวที่ผ่าน
-              </button>
-            </div>
-
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-100 text-left">
-                <thead>
-                  <tr className="text-xs font-black uppercase text-slate-500">
-                    <th className="px-3 py-3">แถว</th>
-                    <th className="px-3 py-3">รหัส</th>
-                    <th className="px-3 py-3">นักเรียน</th>
-                    <th className="px-3 py-3">ห้องเรียน</th>
-                    <th className="px-3 py-3">ผลตรวจ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {previewRows.map((row) => (
-                    <tr className="hover:bg-slate-50" key={`${row.rowNumber}-${row.studentCode}-${row.firstName}`}>
-                      <td className="whitespace-nowrap px-3 py-3 font-black text-slate-600">{row.rowNumber}</td>
-                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.studentCode || '-'}</td>
-                      <td className="px-3 py-3">
-                        <p className="font-black text-slate-950">{row.firstName} {row.lastName}</p>
-                        <p className="text-xs font-bold text-slate-500">
-                          {row.source === 'dmc'
-                            ? `อ่านข้อมูล ${row.populatedFieldCount || 0}/${row.sourceColumnCount || 0} ช่องจาก DMC`
-                            : row.nickname || 'ไม่มีชื่อเล่น'}
-                        </p>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.classroomName || '-'}</td>
-                      <td className="px-3 py-3">
-                        {row.errors.length === 0 && row.warnings.length === 0 ? (
-                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
-                        ) : row.errors.length === 0 && !row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')) ? (
-                          <div className="grid gap-1">
-                            <span className="w-fit rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
-                              อัปเดตข้อมูลเดิม
-                            </span>
-                            {row.warnings.map((message) => <span className="text-xs font-bold text-sky-700" key={message}>{message}</span>)}
-                          </div>
-                        ) : (
-                          <div className="grid gap-1 text-xs font-bold text-amber-700">
-                            {[...row.errors, ...row.warnings].map((message) => <span key={message}>{message}</span>)}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {previewRows.length === 0 ? (
-              <div className="mt-4 nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ยังไม่มี preview ให้เลือก CSV template ที่กรอกข้อมูลแล้วก่อน import
-              </div>
-            ) : null}
-          </div>
-
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-black text-teal-700">Guardian Preview</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  พร้อม import {validGuardianRows.length} แถว | ต้องแก้ไข {invalidGuardianRows.length} แถว
-                </h2>
-              </div>
-              <button
-                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={isSubmitting || validGuardianRows.length === 0}
-                onClick={() => void importGuardianRows()}
-                type="button"
-              >
-                <Upload size={17} aria-hidden="true" />
-                Import ผู้ปกครอง
-              </button>
-            </div>
-
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-100 text-left">
-                <thead>
-                  <tr className="text-xs font-black uppercase text-slate-500">
-                    <th className="px-3 py-3">แถว</th>
-                    <th className="px-3 py-3">นักเรียน</th>
-                    <th className="px-3 py-3">ผู้ปกครอง</th>
-                    <th className="px-3 py-3">ติดต่อ</th>
-                    <th className="px-3 py-3">เชิญ Portal</th>
-                    <th className="px-3 py-3">ผลตรวจ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {guardianPreviewRows.map((row) => (
-                    <tr className="hover:bg-slate-50" key={`${row.rowNumber}-${row.studentCode}-${row.guardianEmail}-${row.guardianName}`}>
-                      <td className="whitespace-nowrap px-3 py-3 font-black text-slate-600">{row.rowNumber}</td>
-                      <td className="px-3 py-3">
-                        <p className="font-black text-slate-950">{row.studentName}</p>
-                        <p className="text-xs font-bold text-slate-500">รหัส {row.studentCode || '-'}</p>
-                      </td>
-                      <td className="px-3 py-3">
-                        <p className="font-black text-slate-950">{row.guardianName || '-'}</p>
-                        <p className="text-xs font-bold text-slate-500">{row.relation} | {row.consentStatus}</p>
-                      </td>
-                      <td className="px-3 py-3">
-                        <p className="font-bold text-slate-600">{row.guardianEmail || '-'}</p>
-                        <p className="text-xs font-bold text-slate-500">{row.guardianPhone || '-'}</p>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3">
-                        <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
-                          row.createPortalInvite
-                            ? 'bg-cyan-50 text-cyan-700 ring-cyan-100'
-                            : 'bg-slate-50 text-slate-500 ring-slate-100'
-                        }`}>
-                          {row.createPortalInvite ? 'สร้าง invite' : 'ไม่สร้าง'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        {row.errors.length === 0 ? (
-                          <div className="grid gap-1">
-                            <span className="w-fit rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
-                            {row.warnings.map((message) => (
-                              <span className="text-xs font-bold text-amber-700" key={message}>{message}</span>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="grid gap-1 text-xs font-bold text-amber-700">
-                            {[...row.errors, ...row.warnings].map((message) => <span key={message}>{message}</span>)}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {guardianPreviewRows.length === 0 ? (
-              <div className="mt-4 nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ยังไม่มี preview ผู้ปกครอง ให้เลือก Guardian CSV ก่อน import หรือสร้างคำเชิญ Portal
-              </div>
-            ) : null}
-          </div>
-
-          <div className="nexus-card p-4 sm:p-5">
-            <p className="text-sm font-black text-cyan-700">Backup History</p>
-            <div className="mt-4 grid gap-3 rounded-3xl bg-slate-950 p-4 text-white">
-              <div>
-                <p className="text-sm font-black text-cyan-100">Workspace Backup Package</p>
-                <p className="mt-2 text-xs font-bold leading-5 text-slate-300">
-                  Export เป็น JSON สำหรับส่งต่อ/ย้ายเครื่อง และ import กลับแบบ preview ก่อนบันทึกจริง
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
+                ส่งออกรายชื่อนักเรียนทั้งหมดเป็น CSV หรือดาวน์โหลดไฟล์ Template สำหรับนำเข้าข้อมูล
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
-                  className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={isSubmitting}
-                  onClick={() => void createBackupManifest()}
+                  className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black sm:col-span-2"
+                  onClick={exportStudents}
                   type="button"
                 >
                   <Download size={17} aria-hidden="true" />
-                  Export JSON
+                  Export นักเรียนทั้งหมด ({students.length} คน)
                 </button>
-                <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-50">
+                <button
+                  className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                  onClick={exportTemplate}
+                  type="button"
+                >
+                  <Download size={17} aria-hidden="true" />
+                  Template นักเรียน CSV
+                </button>
+                <button
+                  className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
+                  onClick={exportGuardianTemplate}
+                  type="button"
+                >
+                  <Download size={17} aria-hidden="true" />
+                  Template ผู้ปกครอง CSV
+                </button>
+              </div>
+            </div>
+
+            {/* Workspace Backup Package */}
+            <div className="nexus-card p-4 sm:p-5">
+              <div className="nexus-kicker">
+                <ShieldCheck size={16} aria-hidden="true" />
+                สร้าง Workspace Backup Package
+              </div>
+              <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
+                สร้าง backup package ราย workspace เป็น JSON สำหรับส่งต่อ ย้ายเครื่อง หรือกู้คืน
+              </p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={isSubmitting || isLoading}
+                  onClick={() => void createBackupManifest()}
+                  type="button"
+                >
+                  <Save size={17} aria-hidden="true" />
+                  สร้าง Backup Package
+                </button>
+                <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-cyan-50">
                   <Upload size={17} aria-hidden="true" />
-                  ตรวจ Backup
-                  <input accept=".json,application/json" className="sr-only" onChange={(event) => void handleBackupPackageFileChange(event)} type="file" />
+                  ตรวจ Backup JSON
+                  <input
+                    accept=".json,application/json"
+                    className="sr-only"
+                    onChange={(event) => void handleBackupPackageFileChange(event)}
+                    type="file"
+                  />
                 </label>
               </div>
             </div>
+          </div>
+
+          {/* Backup Package Preview & History */}
+          <div className="nexus-card p-4 sm:p-5">
+            <p className="text-sm font-black text-cyan-700">Backup Package Preview & ประวัติการสำรอง</p>
 
             {backupPackagePreview ? (
               <div className="mt-4 rounded-3xl bg-white/85 p-4 ring-1 ring-cyan-100">
@@ -2576,7 +2663,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             </div>
           </div>
         </section>
-      </section>
+      )}
 
       {notice ? (
         <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">

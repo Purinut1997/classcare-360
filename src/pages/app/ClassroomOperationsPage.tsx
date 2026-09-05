@@ -1095,23 +1095,16 @@ export function ClassroomOperationsPage({
       : mode === "year"
         ? "rollover"
         : "duty";
-  const visibleTabs = mode === "year"
-    ? tabs.filter((item) => item.key === "rollover" || item.key === "archive")
-    : tabs.filter((item) => item.key === modeTab);
-  const pageTitle = mode === "duty"
-    ? "ตารางเวรและจิตพิสัย"
-    : mode === "locks"
-      ? "ควบคุมงวดข้อมูล"
-      : mode === "year"
-        ? "ปิดชั้นและคลังปีการศึกษา"
-        : "Portal และ QR ผู้ปกครอง";
-  const pageDescription = mode === "duty"
-    ? "ออกแบบหน้าที่รายวัน จัดเวรอย่างสมดุล ตรวจผล คนแทน และเชื่อมคะแนนจิตพิสัย"
-    : mode === "locks"
-      ? "ล็อกเวลาเรียน คะแนน และเงินออมหลังตรวจ พร้อมขั้นตอนขอและอนุมัติปลดล็อก"
-      : mode === "year"
-        ? "Preview → Approve → Execute → Undo พร้อม Snapshot สำหรับค้นย้อนหลัง"
-        : "สร้างคำเชิญผู้ปกครองแบบหมดอายุได้ เพิกถอนได้ และไม่ใช้เลขบัตรประชาชน";
+  const isYearOrLock = mode === "year" || mode === "locks";
+  const visibleTabs = isYearOrLock
+    ? tabs.filter((item) => item.key === "locks" || item.key === "rollover" || item.key === "archive")
+    : tabs.filter((item) => item.key === "duty" || item.key === "parent-qr");
+  const pageTitle = isYearOrLock
+    ? "ปีการศึกษาและควบคุมข้อมูล"
+    : "กิจกรรมประจำห้อง & ผู้ปกครอง";
+  const pageDescription = isYearOrLock
+    ? "ล็อกงวดข้อมูล (เวลาเรียน/คะแนน/เงินออม), เลื่อนชั้นเรียนข้ามปีการศึกษา และเรียกดูคลังข้อมูลย้อนหลัง"
+    : "จัดเวรประจำวัน, มอบหมายงาน, บันทึกผลจิตพิสัย และสร้าง Portal QR ให้ผู้ปกครอง";
 
   return (
     <main className="app-page">
@@ -1169,7 +1162,7 @@ export function ClassroomOperationsPage({
         /> : null}
       </section> : null}
 
-      {visibleTabs.length > 1 ? <nav className="mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 sm:grid-cols-2">
+      {visibleTabs.length > 1 ? <nav className={`mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 ${visibleTabs.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         {visibleTabs.map((item) => {
           const Icon = item.icon;
           return (

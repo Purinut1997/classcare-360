@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Building2, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, planLabels, planLimits } from '../../lib/entitlements';
@@ -207,6 +207,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     fromYear: session.workspace?.academicYear || '2569',
     toYear: String(Number(session.workspace?.academicYear || '2569') + 1),
   });
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'classrooms' | 'members' | 'all'>('profile');
 
   useEffect(() => {
     let isMounted = true;
@@ -1164,25 +1165,72 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </span>
         </div>
 
-        <div className="workspace-settings-nav mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-          {workspaceControlSections.map((section, index) => (
-            <a
-              className="workspace-settings-nav-card group p-4 transition"
-              href={section.href}
-              key={section.href}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-base font-black text-slate-950">{section.label}</p>
-                <span className="workspace-settings-nav-index">{String(index + 1).padStart(2, '0')}</span>
-              </div>
-              <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{section.body}</p>
-            </a>
-          ))}
+        {/* 🧭 Tab Switcher */}
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-200/80 pt-4">
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('profile')}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+              activeSettingsTab === 'profile'
+                ? 'bg-amber-600 text-white shadow-md'
+                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+            }`}
+          >
+            <School size={17} />
+            🏫 ข้อมูลโรงเรียน & ผู้ลงนาม
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('classrooms')}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+              activeSettingsTab === 'classrooms'
+                ? 'bg-cyan-700 text-white shadow-md'
+                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+            }`}
+          >
+            <Building2 size={17} />
+            📚 จัดการห้องเรียน & ครูประจำชั้น
+            <span className="ml-1 rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-black">
+              {classrooms.length} ห้อง
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('members')}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
+              activeSettingsTab === 'members'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+            }`}
+          >
+            <Users size={17} />
+            👥 อนุมัติครู & สิทธิ์สมาชิก
+            {pendingMembers.length > 0 && (
+              <span className="ml-1 rounded-full bg-rose-500 text-white px-2 py-0.5 text-xs font-black">
+                {pendingMembers.length} รออนุมัติ
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('all')}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${
+              activeSettingsTab === 'all'
+                ? 'bg-slate-900 text-white shadow-md'
+                : 'bg-white text-slate-500 hover:bg-slate-100 ring-1 ring-slate-200'
+            }`}
+          >
+            📋 แสดงทั้งหมด
+          </button>
         </div>
       </section>
 
       <section className="workspace-settings-workbench mt-5 grid gap-5 xl:grid-cols-12 xl:items-start">
-        <div className="workspace-settings-forms grid gap-5 xl:col-span-8 xl:grid-cols-2">
+        <div className={`workspace-settings-forms grid gap-5 ${
+          activeSettingsTab === 'classrooms' || activeSettingsTab === 'all' ? 'xl:col-span-8' : 'xl:col-span-12'
+        } xl:grid-cols-2`}>
+          {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && (
+            <>
           <form id="workspace-profile" className="workspace-settings-form workspace-profile-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <ShieldCheck size={16} aria-hidden="true" />
@@ -1369,7 +1417,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               บันทึกการเปิดรายงานหน้าแรก
             </button>
           </form>
+            </>
+          )}
 
+          {(activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
           <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void createClassroom(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <Plus size={16} aria-hidden="true" />
@@ -1430,7 +1481,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               เพิ่มห้องเรียน
             </button>
           </form>
+          )}
 
+          {(activeSettingsTab === 'members' || activeSettingsTab === 'all') && (
           <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void addWorkspaceMember(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <UserPlus size={16} aria-hidden="true" />
@@ -1506,9 +1559,13 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               </div>
             ) : null}
           </form>
+          )}
         </div>
 
-        <section id="workspace-classrooms" className="workspace-classroom-panel scroll-mt-24 nexus-card p-4 sm:p-5 xl:sticky xl:top-24 xl:col-span-4">
+        {(activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
+        <section id="workspace-classrooms" className={`workspace-classroom-panel scroll-mt-24 nexus-card p-4 sm:p-5 ${
+          activeSettingsTab === 'classrooms' ? 'xl:col-span-4' : 'xl:sticky xl:top-24 xl:col-span-4'
+        }`}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-black text-cyan-700">Classrooms</p>
@@ -1590,251 +1647,262 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             ) : null}
           </div>
         </section>
+        )}
       </section>
 
-      <section id="workspace-members" className="scroll-mt-24 nexus-card mt-5 p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-              <Users size={17} aria-hidden="true" />
-              Workspace Members
-            </div>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">สมาชิกใน workspace</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              ครูเจ้าของ workspace ใช้งานโมดูลห้องเรียนได้เหมือนครูทั่วไป และจัดการสมาชิก/แพ็กเกจ/ตั้งค่าได้ในบัญชีเดียว
-            </p>
-          </div>
-          <span className="w-fit rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-            {activeMembers.length} active | {pendingMembers.length} รออนุมัติ
-          </span>
-        </div>
-
-        {pendingMembers.length > 0 ? (
-          <div className="mt-4 rounded-[1.75rem] border border-sky-100 bg-sky-50/70 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {(activeSettingsTab === 'members' || activeSettingsTab === 'all') && (
+        <>
+          <section id="workspace-members" className="scroll-mt-24 nexus-card mt-5 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-black text-sky-700">Approval Queue</p>
-                <h3 className="mt-1 text-xl font-black text-slate-950">คำขอเข้า workspace รออนุมัติ</h3>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                  ตรวจอีเมลและชื่อผู้ใช้ก่อนอนุมัติ เพื่อกันครูต่างโรงเรียนหรือบัญชีที่ไม่เกี่ยวข้องเข้า workspace
+                <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+                  <Users size={17} aria-hidden="true" />
+                  Workspace Members
+                </div>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">สมาชิกใน workspace</h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                  ครูเจ้าของ workspace ใช้งานโมดูลห้องเรียนได้เหมือนครูทั่วไป และจัดการสมาชิก/แพ็กเกจ/ตั้งค่าได้ในบัญชีเดียว
                 </p>
               </div>
-              <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
-                {pendingMembers.length} คำขอ
+              <span className="w-fit rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                {activeMembers.length} active | {pendingMembers.length} รออนุมัติ
               </span>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              {pendingMembers.map((member) => (
-                <article className="rounded-3xl bg-white/90 p-4 ring-1 ring-sky-100" key={member.profile_id}>
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
-                          รออนุมัติ
-                        </span>
-                        <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-cyan-100">
-                          {roleLabels[member.role]}
-                        </span>
-                      </div>
-                      <p className="mt-2 truncate text-lg font-black text-slate-950">{member.display_name}</p>
-                      <p className="mt-1 truncate text-sm font-bold text-slate-500">{member.email}</p>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                      <button
-                        className="inline-flex h-10 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isMemberSubmitting}
-                        onClick={() => void setWorkspaceMemberStatus(member, 'active')}
-                        type="button"
-                      >
-                        อนุมัติ
-                      </button>
-                      <button
-                        className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-100 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isMemberSubmitting}
-                        onClick={() => void setWorkspaceMemberStatus(member, 'removed')}
-                        type="button"
-                      >
-                        ปฏิเสธ
-                      </button>
-                    </div>
+            {pendingMembers.length > 0 ? (
+              <div className="mt-4 rounded-[1.75rem] border border-sky-100 bg-sky-50/70 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-sky-700">Approval Queue</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">คำขอเข้า workspace รออนุมัติ</h3>
+                    <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                      ตรวจอีเมลและชื่อผู้ใช้ก่อนอนุมัติ เพื่อกันครูต่างโรงเรียนหรือบัญชีที่ไม่เกี่ยวข้องเข้า workspace
+                    </p>
                   </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid gap-3">
-          {visibleMembers.map((member) => {
-            const isProtectedOwner = member.role === 'teacher_owner';
-            const isCurrentUser = member.profile_id === session.profile.id;
-
-            return (
-              <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={member.profile_id}>
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-cyan-100">
-                        {roleLabels[member.role]}
-                      </span>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
-                          member.status === 'active'
-                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
-                            : member.status === 'invited'
-                              ? 'bg-sky-50 text-sky-700 ring-sky-100'
-                            : member.status === 'suspended'
-                              ? 'bg-amber-50 text-amber-700 ring-amber-100'
-                              : 'bg-slate-100 text-slate-500 ring-slate-200'
-                        }`}
-                      >
-                        {memberStatusLabels[member.status]}
-                      </span>
-                      {isCurrentUser ? (
-                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                          คุณ
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 truncate text-lg font-black text-slate-950">{member.display_name}</p>
-                    <p className="mt-1 truncate text-sm font-bold text-slate-500">{member.email}</p>
-                  </div>
-
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                    <button
-                      className="inline-flex h-10 items-center justify-center rounded-2xl border border-amber-100 bg-white px-4 text-sm font-black text-amber-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={isMemberSubmitting || isProtectedOwner || isCurrentUser || member.status === 'suspended'}
-                      onClick={() => void setWorkspaceMemberStatus(member, 'suspended')}
-                      type="button"
-                    >
-                      พักสิทธิ์
-                    </button>
-                    <button
-                      className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={isMemberSubmitting || member.status === 'active'}
-                      onClick={() => void setWorkspaceMemberStatus(member, 'active')}
-                      type="button"
-                    >
-                      เปิดสิทธิ์
-                    </button>
-                  </div>
+                  <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
+                    {pendingMembers.length} คำขอ
+                  </span>
                 </div>
-              </article>
-            );
-          })}
 
-          {members.length === 0 ? (
-            <div className="nexus-muted-box p-4 text-sm font-bold leading-6 text-slate-600">
-              ยังโหลดสมาชิกไม่ได้หรือยังไม่มีสมาชิกใน workspace นี้ หากเพิ่งเพิ่มฟีเจอร์นี้ โปรดรัน SQL ในไฟล์ tmp/supabase-workspace-member-admin.sql ก่อน
+                <div className="mt-4 grid gap-3">
+                  {pendingMembers.map((member) => (
+                    <article className="rounded-3xl bg-white/90 p-4 ring-1 ring-sky-100" key={member.profile_id}>
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
+                              รออนุมัติ
+                            </span>
+                            <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-cyan-100">
+                              {roleLabels[member.role]}
+                            </span>
+                          </div>
+                          <p className="mt-2 truncate text-lg font-black text-slate-950">{member.display_name}</p>
+                          <p className="mt-1 truncate text-sm font-bold text-slate-500">{member.email}</p>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                          <button
+                            className="inline-flex h-10 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isMemberSubmitting}
+                            onClick={() => void setWorkspaceMemberStatus(member, 'active')}
+                            type="button"
+                          >
+                            อนุมัติ
+                          </button>
+                          <button
+                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-100 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isMemberSubmitting}
+                            onClick={() => void setWorkspaceMemberStatus(member, 'removed')}
+                            type="button"
+                          >
+                            ปฏิเสธ
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid gap-3">
+              {visibleMembers.map((member) => {
+                const isProtectedOwner = member.role === 'teacher_owner';
+                const isCurrentUser = member.profile_id === session.profile.id;
+
+                return (
+                  <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={member.profile_id}>
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-cyan-100">
+                            {roleLabels[member.role]}
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
+                              member.status === 'active'
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                                : member.status === 'invited'
+                                  ? 'bg-sky-50 text-sky-700 ring-sky-100'
+                                : member.status === 'suspended'
+                                  ? 'bg-amber-50 text-amber-700 ring-amber-100'
+                                  : 'bg-slate-100 text-slate-500 ring-slate-200'
+                            }`}
+                          >
+                            {memberStatusLabels[member.status]}
+                          </span>
+                          {isCurrentUser ? (
+                            <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                              คุณ
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 truncate text-lg font-black text-slate-950">{member.display_name}</p>
+                        <p className="mt-1 truncate text-sm font-bold text-slate-500">{member.email}</p>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-2xl border border-amber-100 bg-white px-4 text-sm font-black text-amber-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isMemberSubmitting || isProtectedOwner || isCurrentUser || member.status === 'suspended'}
+                          onClick={() => void setWorkspaceMemberStatus(member, 'suspended')}
+                          type="button"
+                        >
+                          พักสิทธิ์
+                        </button>
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isMemberSubmitting || member.status === 'active'}
+                          onClick={() => void setWorkspaceMemberStatus(member, 'active')}
+                          type="button"
+                        >
+                          เปิดสิทธิ์
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+
+              {members.length === 0 ? (
+                <div className="nexus-muted-box p-4 text-sm font-bold leading-6 text-slate-600">
+                  ยังโหลดสมาชิกไม่ได้หรือยังไม่มีสมาชิกใน workspace นี้ หากเพิ่งเพิ่มฟีเจอร์นี้ โปรดรัน SQL ในไฟล์ tmp/supabase-workspace-member-admin.sql ก่อน
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          {canUseDestructiveActions && useRealBackend ? <MemberAccessControl classrooms={activeClassrooms} session={session} /> : null}
+
+          {memberNotice ? (
+            <div className="mt-5 flex gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/90 p-3 text-sm font-bold leading-6 text-cyan-900 shadow-sm">
+              <Users className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
+              <p>{memberNotice}</p>
             </div>
           ) : null}
-        </div>
-      </section>
+        </>
+      )}
 
-      {canUseDestructiveActions && useRealBackend ? <MemberAccessControl classrooms={activeClassrooms} session={session} /> : null}
-
-      {memberNotice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/90 p-3 text-sm font-bold leading-6 text-cyan-900 shadow-sm">
-          <Users className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-          <p>{memberNotice}</p>
-        </div>
-      ) : null}
-
-      <section className="mt-5 grid gap-5 xl:grid-cols-2">
-        <div id="workspace-backup" className="scroll-mt-24 nexus-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-            <Download size={17} aria-hidden="true" />
-            Backup & Debug Snapshot
-          </div>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">สำรองข้อมูลตั้งค่า workspace</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            ดาวน์โหลด snapshot สำหรับตรวจโรงเรียน ห้องเรียน สมาชิก และจำนวนเด็กต่อห้อง ใช้ส่ง debug ได้เมื่อเจอปัญหาข้อมูลไม่โผล่หรือ workspace ซ้ำ
-          </p>
-          <button
-            className="blue-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-            onClick={exportSettingsSnapshot}
-            type="button"
-          >
-            Export settings snapshot
-            <Download size={17} aria-hidden="true" />
-          </button>
-        </div>
-
-        <div id="workspace-rollover" className="scroll-mt-24 nexus-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-            <RotateCcw size={17} aria-hidden="true" />
-            Academic Year Rollover
-          </div>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">เตรียมเลื่อนชั้นปีถัดไป</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            รอบนี้ทำเป็น preview/export ก่อน เพื่อกันการย้ายข้อมูลผิดปี เมื่อพร้อมค่อยผูก Edge Function ให้สร้างห้องปีใหม่และย้ายนักเรียนแบบมี audit log
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm font-black text-slate-700">
-              ปีเดิม
-              <input
-                className="nexus-field h-11 px-3"
-                onChange={(event) => setRolloverForm((current) => ({ ...current, fromYear: event.target.value }))}
-                value={rolloverForm.fromYear}
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-black text-slate-700">
-              ปีถัดไป
-              <input
-                className="nexus-field h-11 px-3"
-                onChange={(event) => setRolloverForm((current) => ({ ...current, toYear: event.target.value }))}
-                value={rolloverForm.toYear}
-              />
-            </label>
-          </div>
-          <button
-            className="dark-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-            onClick={exportRolloverPlan}
-            type="button"
-          >
-            สร้างแผนเลื่อนชั้น
-            <Download size={17} aria-hidden="true" />
-          </button>
-        </div>
-      </section>
-
-      {canUseDestructiveActions ? (
-      <section className="mt-5 rounded-[28px] border border-rose-200 bg-rose-50/45 p-4 shadow-sm sm:p-5">
-        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
-              <AlertTriangle size={15} aria-hidden="true" />
-              Danger Zone
+      {(activeSettingsTab === 'profile' || activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
+        <section className="mt-5 grid gap-5 xl:grid-cols-2">
+          {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && (
+            <div id="workspace-backup" className={`scroll-mt-24 nexus-card p-4 sm:p-5 ${activeSettingsTab === 'profile' ? 'xl:col-span-2' : ''}`}>
+              <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+                <Download size={17} aria-hidden="true" />
+                Backup & Debug Snapshot
+              </div>
+              <h2 className="mt-2 text-2xl font-black text-slate-950">สำรองข้อมูลตั้งค่า workspace</h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                ดาวน์โหลด snapshot สำหรับตรวจโรงเรียน ห้องเรียน สมาชิก และจำนวนเด็กต่อห้อง ใช้ส่ง debug ได้เมื่อเจอปัญหาข้อมูลไม่โผล่หรือ workspace ซ้ำ
+              </p>
+              <button
+                className="blue-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                onClick={exportSettingsSnapshot}
+                type="button"
+              >
+                Export settings snapshot
+                <Download size={17} aria-hidden="true" />
+              </button>
             </div>
-            <h2 className="mt-3 text-2xl font-black text-slate-950">จัดการ workspace นี้</h2>
-            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
-              เก็บถาวรเหมาะกับ workspace ที่ไม่ใช้งานแล้ว ส่วนลบถาวรใช้เฉพาะ workspace ที่สร้างซ้ำหรือผิดเท่านั้น เพราะข้อมูลที่ผูกกับ workspace จะถูกลบตาม cascade ของฐานข้อมูล
-            </p>
+          )}
+
+          {(activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
+            <div id="workspace-rollover" className={`scroll-mt-24 nexus-card p-4 sm:p-5 ${activeSettingsTab === 'classrooms' ? 'xl:col-span-2' : ''}`}>
+              <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+                <RotateCcw size={17} aria-hidden="true" />
+                Academic Year Rollover
+              </div>
+              <h2 className="mt-2 text-2xl font-black text-slate-950">เตรียมเลื่อนชั้นปีถัดไป</h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                รอบนี้ทำเป็น preview/export ก่อน เพื่อกันการย้ายข้อมูลผิดปี เมื่อพร้อมค่อยผูก Edge Function ให้สร้างห้องปีใหม่และย้ายนักเรียนแบบมี audit log
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ปีเดิม
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setRolloverForm((current) => ({ ...current, fromYear: event.target.value }))}
+                    value={rolloverForm.fromYear}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ปีถัดไป
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setRolloverForm((current) => ({ ...current, toYear: event.target.value }))}
+                    value={rolloverForm.toYear}
+                  />
+                </label>
+              </div>
+              <button
+                className="dark-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                onClick={exportRolloverPlan}
+                type="button"
+              >
+                สร้างแผนเลื่อนชั้น
+                <Download size={17} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && canUseDestructiveActions ? (
+        <section className="mt-5 rounded-[28px] border border-rose-200 bg-rose-50/45 p-4 shadow-sm sm:p-5">
+          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
+                <AlertTriangle size={15} aria-hidden="true" />
+                Danger Zone
+              </div>
+              <h2 className="mt-3 text-2xl font-black text-slate-950">จัดการ workspace นี้</h2>
+              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
+                เก็บถาวรเหมาะกับ workspace ที่ไม่ใช้งานแล้ว ส่วนลบถาวรใช้เฉพาะ workspace ที่สร้างซ้ำหรือผิดเท่านั้น เพราะข้อมูลที่ผูกกับ workspace จะถูกลบตาม cascade ของฐานข้อมูล
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting || !session.workspace}
+                onClick={() => void archiveCurrentWorkspace()}
+                type="button"
+              >
+                <Archive size={17} aria-hidden="true" />
+                เก็บถาวร workspace
+              </button>
+              <button
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-rose-700 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting || !session.workspace}
+                onClick={() => void deleteCurrentWorkspacePermanently()}
+                type="button"
+              >
+                <Trash2 size={17} aria-hidden="true" />
+                ลบ workspace ถาวร
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isSubmitting || !session.workspace}
-              onClick={() => void archiveCurrentWorkspace()}
-              type="button"
-            >
-              <Archive size={17} aria-hidden="true" />
-              เก็บถาวร workspace
-            </button>
-            <button
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-rose-700 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isSubmitting || !session.workspace}
-              onClick={() => void deleteCurrentWorkspacePermanently()}
-              type="button"
-            >
-              <Trash2 size={17} aria-hidden="true" />
-              ลบ workspace ถาวร
-            </button>
-          </div>
-        </div>
-      </section>
+        </section>
       ) : null}
 
       {pendingClassroomDelete ? (

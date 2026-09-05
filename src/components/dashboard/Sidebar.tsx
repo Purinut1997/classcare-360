@@ -1,4 +1,4 @@
-import { ChevronDown, PanelLeftClose, ServerCog, X } from 'lucide-react';
+import { Building2, ChevronDown, PanelLeftClose, ServerCog, X } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 
 import type { AppNavItem } from '../../routes/appRoutes';
@@ -27,15 +27,17 @@ const coreDirectItemKeys = [
 const sidebarSections = [
   {
     key: 'daily-tools',
-    label: 'เครื่องมือเสริมในห้อง',
-    itemKeys: ['student-health', 'classroom-operations', 'randomizer', 'parent-access', 'automation', 'daily-brief'],
+    label: 'เครื่องมือประจำห้อง',
+    itemKeys: ['student-health', 'classroom-operations', 'randomizer', 'automation', 'daily-brief'],
   },
   {
     key: 'school-management',
-    label: 'บริหารโรงเรียน & ตั้งค่า',
-    itemKeys: ['school-calendar', 'workspace-settings', 'period-locks', 'academic-year', 'import-export', 'data-safety', 'workspace-switch', 'help-center', 'setup', 'audit', 'notifications'],
+    label: 'บริหารโรงเรียน & ระบบ',
+    itemKeys: ['school-calendar', 'workspace-settings', 'academic-year', 'import-export', 'data-safety'],
   },
 ];
+
+const utilityItemKeys = ['notifications', 'help-center', 'package'];
 
 export function Sidebar({
   activeView,
@@ -52,13 +54,29 @@ export function Sidebar({
 
   const secondarySections = sidebarSections
     .map((section) => {
-      const items = section.itemKeys
+      let keys = section.itemKeys;
+      if (section.key === 'school-management' && session?.profile.role === 'superadmin') {
+        keys = [...keys, 'setup', 'audit'];
+      }
+      const items = keys
         .map((key) => navItems.find((item) => item.key === key))
         .filter((item): item is AppNavItem => Boolean(item));
       items.forEach((item) => renderedKeys.add(item.key));
       return { ...section, items };
     })
     .filter((section) => section.items.length > 0);
+
+  const utilityItems = utilityItemKeys
+    .map((key) => navItems.find((item) => item.key === key))
+    .filter((item): item is AppNavItem => Boolean(item));
+  utilityItems.forEach((item) => renderedKeys.add(item.key));
+
+  // Mark alias/integrated keys as rendered so they don't leak to 'อื่น ๆ'
+  renderedKeys.add('workspace-switch');
+  renderedKeys.add('period-locks');
+  renderedKeys.add('parent-access');
+  renderedKeys.add('setup');
+  renderedKeys.add('audit');
 
   const otherItems = navItems.filter(
     (item) => !renderedKeys.has(item.key) && item.key !== 'superadmin-dashboard',
@@ -81,6 +99,30 @@ export function Sidebar({
           <X size={19} aria-hidden="true" />
         </button>
       </div>
+
+      {/* 🏫 Top Workspace Selector Card */}
+      {session?.workspace ? (
+        <div className="px-3 pb-1 pt-1">
+          <Link
+            className="flex items-center gap-2.5 rounded-2xl bg-white/[0.08] p-2.5 text-left ring-1 ring-white/15 transition hover:bg-white/15 group"
+            onClick={onClose}
+            to="/app/select-workspace"
+            title="คลิกเพื่อสลับโรงเรียน / Workspace"
+          >
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-500/20 text-cyan-300 group-hover:bg-cyan-500/30">
+              <Building2 size={16} aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-black text-white group-hover:text-cyan-200">
+                {session.workspace.schoolName || session.workspace.name}
+              </p>
+              <p className="truncate text-[10px] font-bold text-slate-300">
+                ปี {session.workspace.academicYear || 'ปัจจุบัน'} · สลับ Workspace ▾
+              </p>
+            </div>
+          </Link>
+        </div>
+      ) : null}
 
       <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
         {/* Core Direct 1-Click Teacher Items */}
@@ -153,6 +195,29 @@ export function Sidebar({
               })}
             </div>
           </details>
+        ) : null}
+
+        {/* 🔻 Footer Utilities (แจ้งเตือน / คู่มือใช้งาน / แพ็กเกจ) */}
+        {utilityItems.length > 0 ? (
+          <div className="mt-3 grid gap-1 border-t border-white/10 pt-2">
+            {utilityItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                  key={item.key}
+                  onClick={onClose}
+                  to={item.path}
+                >
+                  <Icon size={17} aria-hidden="true" />
+                  <span className="truncate">{item.label}</span>
+                  {item.key === 'notifications' && (
+                    <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-rose-500" aria-label="แจ้งเตือนใหม่" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         ) : null}
       </nav>
 

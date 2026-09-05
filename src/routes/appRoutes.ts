@@ -1,4 +1,4 @@
-import { Archive, Bell, Building2, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
+import { Archive, Bell, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
 
 import type { ModuleKey } from '../types/core';
 
@@ -147,14 +147,14 @@ export const appNavItems: AppNavItem[] = [
   {
     key: 'period-locks',
     label: 'ล็อกงวดข้อมูล',
-    icon: ShieldEllipsis,
+    icon: LockKeyhole,
     moduleKey: 'support',
     path: '/app/dashboard?view=period-locks',
   },
   {
     key: 'academic-year',
     label: 'ปิดชั้นและคลังปีการศึกษา',
-    icon: GraduationCap,
+    icon: CalendarCheck,
     moduleKey: 'support',
     path: '/app/dashboard?view=academic-year',
   },
