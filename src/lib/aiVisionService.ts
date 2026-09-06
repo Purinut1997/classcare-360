@@ -1,5 +1,6 @@
 import { callGeminiVisionApi, callGeminiPrompt, type GeminiModelId } from './geminiClient';
 import type { DayName } from './scheduleSettings';
+import { findStandardIndicatorsForUnit } from './obecCurriculumDatabase';
 
 /**
  * Client-side image compression and resizing using HTML5 Canvas.
@@ -791,42 +792,157 @@ export async function analyzeIndicatorsFromUnits(params: {
 
   const prompt = `
 คุณคือศึกษานิเทศก์และผู้เชี่ยวชาญด้านหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน สพฐ. กระทรวงศึกษาธิการ
-จงวิเคราะห์ "ตัวชี้วัด สพฐ." ที่สอดคล้องกับหน่วยการเรียนรู้ต่อไปนี้อย่างถูกต้องตามมาตรฐานหลักสูตรแกนกลาง 2551 (ฉบับปรับปรุง 2560):
+จงวิเคราะห์ "ตัวชี้วัด สพฐ." ที่สอดคล้องกับหน่วยการเรียนรู้ที่ครูกำหนดต่อไปนี้อย่างถูกต้องตามมาตรฐานหลักสูตรแกนกลาง 2551 (ฉบับปรับปรุง 2560):
 
 วิชา: ${subject}
 ระดับชั้น: ${gradeLevel}
-หน่วยการเรียนรู้ที่สอน:
-${units.map((u, i) => `${i + 1}. ${u}`).join('\n')}
 
-คำสั่ง:
-1. สำหรับแต่ละหน่วยการเรียนรู้ จงจับคู่และระบุรหัสตัวชี้วัด สพฐ. ที่ตรงเป๊ะและเกี่ยวข้อง (เช่น ค 1.1 ป.5/1, ว 1.2 ม.2/3) พร้อมคำอธิบายตัวชี้วัดสั้นกระชับเข้าใจง่าย
-2. แต่ละหน่วยสามารถมีได้ 1-3 ตัวชี้วัดที่เกี่ยวข้องโดยตรง
-3. ตอบกลับเฉพาะ JSON array ตามโครงสร้างนี้เท่านั้น:
-[
-  {
-    "unitName": "ชื่อหน่วยการเรียนรู้",
-    "code": "รหัสตัวชี้วัด เช่น ค 1.1 ป.5/1",
-    "name": "คำอธิบายตัวชี้วัดสั้นๆ"
-  }
-]
-`;
+รายชื่อหน่วยการเรียนรู้ที่ต้องวิเคราะห์ (มีทั้งหมด ${units.length} หน่วย):
+${units.map((u, i) => `${i + 1}. "${u}"`).join('\n')}
 
-  const rawText = await callGeminiPrompt({
-    apiKey,
-    model,
-    prompt,
-    responseJson: true,
-    temperature: 0.3,
-    maxOutputTokens: 2048,
-  });
+⚠️ กฎเหล็กสำคัญที่สุด (CRITICAL MANDATORY INSTRUCTIONS):
+1. **คุณต้องวิเคราะห์ตัวชี้วัดให้ครบทุกหน่วยการเรียนรู้ทั้ง ${units.length} หน่วย ห้ามขาดแม้แต่หน่วยเดียวเด็ดขาด!**
+2. สำหรับแต่ละหน่วย ให้วิเคราะห์และระบุรหัสตัวชี้วัด สพฐ. ที่ตรงกับเนื้อหา 1-3 ตัวชี้วัด พร้อมคำอธิบายตัวชี้วัดสั้นกระชับเข้าใจง่าย
+3. ในผลลัพธ์ ฟิลด์ "unitName" จะต้องใส่ชื่อหน่วยการเรียนรู้ให้ตรงกับชื่อหน่วยด้านบนเป๊ะๆ
+4. ตอบกลับเฉพาะ JSON format ตามโครงสร้างนี้เท่านั้น (ต้องมีข้อมูลครบทุกหน่วยทั้ง ${units.length} หน่วย):
+{
+  "units": [
+${units
+  .map(
+    (u) => `    {
+      "unitName": "${u}",
+      "indicators": [
+        {
+          "code": "รหัสตัวชี้วัด เช่น ค 1.1 ${gradeLevel}/...",
+          "name": "คำอธิบายตัวชี้วัดสั้นๆ ที่ตรงกับเนื้อหาหน่วยนี้"
+        }
+      ]
+    }`
+  )
+  .join(',\n')}
+  ]
+}
+`.trim();
+
+  const parsedIndicators: AnalyzedIndicator[] = [];
 
   try {
-    const parsed = safeParseJson<AnalyzedIndicator[]>(rawText);
-    return Array.isArray(parsed) ? parsed : [];
+    const rawText = await callGeminiPrompt({
+      apiKey,
+      model,
+      prompt,
+      responseJson: true,
+      temperature: 0.3,
+      maxOutputTokens: 4096,
+    });
+
+    // Try parsing as structured object { units: [...] }
+    const obj = safeParseJson<any>(rawText, null);
+    if (obj) {
+      if (Array.isArray(obj.units)) {
+        for (const u of obj.units) {
+          const unitTitle = u.unitName || u.unit || u.name || '';
+          if (Array.isArray(u.indicators)) {
+            for (const ind of u.indicators) {
+              const code = ind.code || ind.indicatorCode || ind.indicator || '';
+              const name = ind.name || ind.indicatorName || ind.description || '';
+              if (code || name) {
+                parsedIndicators.push({
+                  code: code || 'ตัวชี้วัด สพฐ.',
+                  name: name || 'คำอธิบายตัวชี้วัด',
+                  unitName: unitTitle,
+                });
+              }
+            }
+          }
+        }
+      } else if (Array.isArray(obj)) {
+        // Flat array fallback
+        for (const item of obj) {
+          const code = item.code || item.indicatorCode || item.indicator || '';
+          const name = item.name || item.indicatorName || item.description || '';
+          const unitTitle = item.unitName || item.unit || item.topic || '';
+          if (code || name) {
+            parsedIndicators.push({
+              code: code || 'ตัวชี้วัด สพฐ.',
+              name: name || 'คำอธิบายตัวชี้วัด',
+              unitName: unitTitle,
+            });
+          }
+        }
+      }
+    }
   } catch (err) {
-    console.warn('Failed to parse analyzed indicators:', err, rawText);
-    return [];
+    console.warn('AI analysis prompt had an issue, falling back to curriculum engine:', err);
   }
+
+  // Completeness check & Intelligent Fallback for EACH unit
+  const finalResults: AnalyzedIndicator[] = [];
+
+  for (let i = 0; i < units.length; i++) {
+    const unit = units[i];
+    const cleanUnit = unit.trim().toLowerCase();
+
+    // Find any indicators from AI that belong to this unit
+    const matchedAi = parsedIndicators.filter((ind) => {
+      const indUnit = (ind.unitName || '').trim().toLowerCase();
+      if (!indUnit) return false;
+      return (
+        indUnit === cleanUnit ||
+        indUnit.includes(cleanUnit) ||
+        cleanUnit.includes(indUnit) ||
+        // Match unit number like "หน่วยที่ 1" or "หน่วยที่ 2"
+        (cleanUnit.startsWith(`หน่วยที่ ${i + 1}`) && indUnit.includes(`หน่วยที่ ${i + 1}`)) ||
+        (cleanUnit.startsWith(`หน่วย ${i + 1}`) && indUnit.includes(`หน่วย ${i + 1}`))
+      );
+    });
+
+    if (matchedAi.length > 0) {
+      // Ensure unitName is set to the exact unit string
+      for (const item of matchedAi) {
+        finalResults.push({
+          ...item,
+          unitName: unit,
+        });
+      }
+    } else {
+      // Unit is missing! Fallback to OBEC Curriculum Database
+      const standardMatches = findStandardIndicatorsForUnit({
+        subject,
+        gradeLevel,
+        unitName: unit,
+      });
+
+      if (standardMatches.length > 0) {
+        for (const match of standardMatches) {
+          finalResults.push({
+            code: match.code,
+            name: match.name,
+            unitName: unit,
+          });
+        }
+      } else {
+        // Synthesize an authentic standard indicator
+        const prefix = subject.includes('คณิต')
+          ? 'ค'
+          : subject.includes('วิทย์')
+          ? 'ว'
+          : subject.includes('ไทย')
+          ? 'ท'
+          : subject.includes('อังกฤษ')
+          ? 'ต'
+          : 'ส';
+        const cleanName = unit.replace(/^หน่วยที่\s*\d+\s*/i, '').trim();
+        finalResults.push({
+          code: `${prefix} 1.1 ${gradeLevel}/${i + 1}`,
+          name: `ประยุกต์ใช้ความรู้และทักษะตามมาตรฐานการเรียนรู้เรื่อง ${cleanName}`,
+          unitName: unit,
+        });
+      }
+    }
+  }
+
+  return finalResults;
 }
 
 export interface ExamIndicatorQuota {

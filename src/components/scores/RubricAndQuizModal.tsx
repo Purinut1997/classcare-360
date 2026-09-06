@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -145,6 +145,39 @@ export function RubricAndQuizModal({
     }));
   };
 
+  const findBestMatchingUnit = (rawUnitName: string, availableUnits: ExamUnitItem[]): string => {
+    if (!rawUnitName) return availableUnits[0]?.name || '';
+    const trimmed = rawUnitName.trim();
+    // 1. Exact match
+    const exact = availableUnits.find((u) => u.name.trim() === trimmed);
+    if (exact) return exact.name;
+    // 2. Substring match
+    const sub = availableUnits.find(
+      (u) => u.name.includes(trimmed) || trimmed.includes(u.name)
+    );
+    if (sub) return sub.name;
+    // 3. Match without prefix "หน่วยที่ X"
+    const cleanRaw = trimmed.replace(/^หน่วยที่\s*\d+\s*/i, '').trim();
+    if (cleanRaw) {
+      const keyMatch = availableUnits.find((u) => {
+        const cleanU = u.name.replace(/^หน่วยที่\s*\d+\s*/i, '').trim();
+        return cleanU.includes(cleanRaw) || cleanRaw.includes(cleanU);
+      });
+      if (keyMatch) return keyMatch.name;
+    }
+    return availableUnits[0]?.name || rawUnitName;
+  };
+
+  // Keep indicators balanced with total exam question count in balanced mode
+  useEffect(() => {
+    if (indicatorMode === 'balanced' && examIndicators.length > 0) {
+      const currentSum = examIndicators.reduce((acc, curr) => acc + (Number(curr.count) || 0), 0);
+      if (currentSum !== totalExamQuestions) {
+        setExamIndicators((prev) => rebalanceIndicators(prev, totalExamQuestions));
+      }
+    }
+  }, [totalExamQuestions, indicatorMode]);
+
   const handleAddUnit = () => {
     const trimmed = newUnitInput.trim();
     if (!trimmed) return;
@@ -187,7 +220,7 @@ export function RubricAndQuizModal({
         id: `ind-${Date.now()}-${idx}`,
         code: item.code,
         name: item.name,
-        unitName: item.unitName || examUnits[0]?.name || '',
+        unitName: findBestMatchingUnit(item.unitName, examUnits),
         count: Math.max(1, base + (idx < remainder ? 1 : 0)),
       }));
       setExamIndicators(newItems);
