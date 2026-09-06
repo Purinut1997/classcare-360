@@ -306,6 +306,11 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                 {unreadCount}
               </span>
             ) : null}
+
+            {/* Illuminated AI Mini Badge */}
+            <span className="absolute -bottom-1.5 z-20 rounded-full bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-white shadow-xs border border-white/60">
+              AI
+            </span>
           </button>
 
           <span

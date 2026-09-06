@@ -639,6 +639,18 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                 <Printer size={17} aria-hidden="true" />
                 พิมพ์
               </button>
+              <button
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('classcare:open-ai-chat'));
+                }}
+                type="button"
+                title="ปรึกษาหรือถามกิจกรรมปฏิทินโรงเรียนกับน้องแคร์ AI"
+              >
+                <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
+                <span>✨ ปรึกษาปฏิทินด้วย AI</span>
+                <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+              </button>
               {canEditCalendar && (
                 <button
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 text-sm font-black text-rose-700 hover:bg-rose-100 transition shadow-xs active:scale-95"
@@ -646,7 +658,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                   type="button"
                   title="นำเข้าวันหยุดราชการไทยตลอดทั้งปีในคลิกเดียว"
                 >
-                  <Sparkles size={17} aria-hidden="true" className="text-rose-600 animate-pulse" />
+                  <Sparkles size={15} aria-hidden="true" className="text-rose-600" />
                   โหลดวันหยุดราชการทั้งปี
                 </button>
               )}

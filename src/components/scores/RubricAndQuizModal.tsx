@@ -1286,17 +1286,18 @@ export function RubricAndQuizModal({
                       type="button"
                       onClick={handleAnalyzeIndicators}
                       disabled={isAnalyzingIndicators || examUnits.length === 0}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs hover:from-violet-700 hover:to-indigo-700 transition disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
                     >
                       {isAnalyzingIndicators ? (
                         <>
-                          <Loader2 size={13} className="animate-spin" />
-                          <span>กำลังวิเคราะห์...</span>
+                          <Loader2 size={14} className="animate-spin text-amber-300" />
+                          <span>กำลังวิเคราะห์ตัวชี้วัด สพฐ...</span>
                         </>
                       ) : (
                         <>
-                          <Sparkles size={13} />
-                          <span>✨ ให้ AI วิเคราะห์ตัวชี้วัดจากหน่วย</span>
+                          <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                          <span>✨ ให้ AI วิเคราะห์ตัวชี้วัด สพฐ.</span>
+                          <span className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                         </>
                       )}
                     </button>
@@ -2069,7 +2070,7 @@ export function RubricAndQuizModal({
 
           {activeTab === 'rubric' ? (
             <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
               disabled={
                 isGenerating ||
                 hasApiKey === false ||
@@ -2083,19 +2084,20 @@ export function RubricAndQuizModal({
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>กำลังออกแบบเกณฑ์ Rubrics...</span>
+                  <Loader2 className="animate-spin text-amber-300" size={16} />
+                  <span>กำลังออกแบบเกณฑ์ Rubrics ด้วย AI...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} />
-                  <span>{rubricResult ? 'สร้างเกณฑ์ใหม่' : 'ออกแบบเกณฑ์ Rubrics 4 ระดับ'}</span>
+                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
+                  <span>{rubricResult ? '✨ ให้ AI ออกแบบเกณฑ์ใหม่' : '✨ ออกแบบเกณฑ์ Rubrics 4 ระดับ'}</span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}
             </button>
           ) : activeTab === 'quiz' ? (
             <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
               disabled={
                 isGenerating ||
                 hasApiKey === false ||
@@ -2110,16 +2112,16 @@ export function RubricAndQuizModal({
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>กำลังสร้างข้อสอบซ่อมเสริม...</span>
+                  <Loader2 className="animate-spin text-amber-300" size={16} />
+                  <span>กำลังสร้างข้อสอบซ่อมเสริมด้วย AI...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} />
+                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
                   <span>
                     {quizResult
-                      ? 'สร้างข้อสอบชุดใหม่'
-                      : `สร้างข้อสอบซ่อมเสริม ${questionCount} ข้อ (${
+                      ? '✨ ให้ AI สร้างข้อสอบชุดใหม่'
+                      : `✨ สร้างข้อสอบซ่อมเสริม ${questionCount} ข้อ (${
                           choiceType === '4-choices'
                             ? '4 ตัวเลือก'
                             : choiceType === '3-choices'
@@ -2129,12 +2131,13 @@ export function RubricAndQuizModal({
                             : 'ถูก/ผิด'
                         })`}
                   </span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}
             </button>
           ) : (
             <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
               disabled={
                 isGenerating ||
                 hasApiKey === false ||
@@ -2148,19 +2151,20 @@ export function RubricAndQuizModal({
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>กำลังออกข้อสอบ {examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} & Blueprint...</span>
+                  <Loader2 className="animate-spin text-amber-300" size={16} />
+                  <span>กำลังออกข้อสอบ {examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} & Blueprint ด้วย AI...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} />
+                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
                   <span>
                     {examResult
-                      ? 'ออกข้อสอบชุดใหม่'
-                      : `ออกข้อสอบ${examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} (${examPart1Count} ข้อปรนัย${
+                      ? '✨ ให้ AI ออกข้อสอบชุดใหม่'
+                      : `✨ ออกข้อสอบ${examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} (${examPart1Count} ข้อปรนัย${
                           examIncludePart2 ? ` + ${examPart2Count} ข้ออัตนัย` : ''
                         })`}
                   </span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}
             </button>

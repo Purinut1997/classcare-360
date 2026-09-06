@@ -1359,12 +1359,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
-                  className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-amber-900 bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 shadow-sm"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
                   onClick={() => setIsOcrModalOpen(true)}
+                  title="ถ่ายภาพตารางสอนกระดาษเพื่อนำเข้าสู่ระบบด้วย AI Vision"
                   type="button"
                 >
-                  <Sparkles size={17} aria-hidden="true" className="text-amber-600" />
-                  สแกนตารางด้วย AI
+                  <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
+                  <span>✨ สแกนตารางสอน AI Vision</span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </button>
                 <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
                   <Save size={17} aria-hidden="true" />

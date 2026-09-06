@@ -1109,13 +1109,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 ⚡ มาทุกคน
               </button>
               <button
-                className="inline-flex h-11 items-center gap-1.5 rounded-2xl border border-amber-300 bg-amber-50 px-4 text-xs font-black text-amber-900 hover:bg-amber-100 transition active:scale-95 disabled:opacity-50 shadow-xs"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-4 text-xs font-black text-white shadow-md shadow-teal-500/25 hover:shadow-lg hover:shadow-teal-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
                 disabled={classroomStudents.length === 0}
                 onClick={() => setIsOcrModalOpen(true)}
+                title="ถ่ายภาพใบเช็คชื่อกระดาษเพื่อตรวจจับการมาเรียนด้วย AI Vision"
                 type="button"
               >
-                <Camera size={15} className="text-amber-600" />
-                📸 สแกนใบเช็คชื่อ
+                <Camera size={15} className="text-cyan-200" />
+                <span>📸 สแกนใบเช็คชื่อ AI Vision</span>
+                <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
               </button>
               <button
                 className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-md disabled:cursor-not-allowed disabled:bg-slate-300"

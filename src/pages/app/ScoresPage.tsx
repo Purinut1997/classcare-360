@@ -2119,24 +2119,26 @@ export function ScoresPage({ session }: ScoresPageProps) {
             ) : null}
 
             <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-900 transition hover:bg-violet-100 shadow-2xs"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
               onClick={() => setIsRubricModalOpen(true)}
-              title="ออกแบบเกณฑ์ Rubric 4 ระดับ และข้อสอบซ่อมเสริมตามตัวชี้วัด สพฐ."
+              title="ออกแบบข้อสอบกลางภาค/ปลายภาค เกณฑ์ Rubric 4 ระดับ และข้อสอบซ่อมเสริมตามตัวชี้วัด สพฐ. ด้วย AI"
               type="button"
             >
-              <Sparkles size={13} className="text-violet-600" aria-hidden="true" />
-              AI Rubric & ข้อสอบซ่อมเสริม
+              <Sparkles size={13} className="text-amber-300 animate-pulse" aria-hidden="true" />
+              <span>✨ ออกแบบข้อสอบ & รูบริก สพฐ.</span>
+              <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
             </button>
 
             {selectedAssessment ? (
               <button
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-300 bg-indigo-50 px-3 text-xs font-black text-indigo-900 transition hover:bg-indigo-100 shadow-2xs"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3.5 text-xs font-black text-white shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
                 onClick={() => setIsScoreOcrOpen(true)}
-                title="ถ่ายภาพใบคะแนนกระดาษเพื่อสแกนคะแนนลงระบบ"
+                title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI Vision"
                 type="button"
               >
-                <Camera size={13} className="text-indigo-600" aria-hidden="true" />
-                สแกนใบคะแนน
+                <Camera size={13} className="text-cyan-200" aria-hidden="true" />
+                <span>📸 สแกนใบคะแนน AI Vision</span>
+                <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
               </button>
             ) : null}
           </div>
@@ -2750,13 +2752,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       {selectedAssessment.status === 'published' ? 'กลับเป็นฉบับร่าง' : 'เผยแพร่คะแนน'}
                     </button>
                     <button
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-300 bg-indigo-50 px-3 text-xs font-black text-indigo-900 hover:bg-indigo-100 transition shadow-2xs"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3.5 text-xs font-black text-white shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
                       onClick={() => setIsScoreOcrOpen(true)}
-                      title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI"
+                      title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI Vision"
                       type="button"
                     >
-                      <Camera size={14} className="text-indigo-600" aria-hidden="true" />
-                      สแกนใบคะแนนด้วย AI
+                      <Camera size={14} className="text-cyan-200" aria-hidden="true" />
+                      <span>📸 สแกนใบคะแนน AI Vision</span>
+                      <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                     </button>
                     <button
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition shadow-2xs"

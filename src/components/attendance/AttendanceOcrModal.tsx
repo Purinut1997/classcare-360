@@ -406,20 +406,21 @@ export function AttendanceOcrModal({
 
           {!parsedResult ? (
             <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-teal-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
               disabled={!previewUrl || isProcessing || hasApiKey === false}
               onClick={handleAnalyze}
               type="button"
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>กำลังตรวจจับการเช็คชื่อ...</span>
+                  <Loader2 className="animate-spin text-amber-300" size={16} />
+                  <span>กำลังให้ AI Vision ตรวจจับการเช็คชื่อ...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} />
-                  <span>เริ่มสแกนใบเช็คชื่อ</span>
+                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
+                  <span>✨ ตรวจจับการเช็คชื่อด้วย AI Vision</span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}
             </button>

@@ -500,20 +500,21 @@ export function ScheduleOcrModal({
 
           {!parsedResult ? (
             <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-amber-600 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
               disabled={!previewUrl || isProcessing || hasApiKey === false}
               onClick={handleAnalyze}
               type="button"
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>กำลังวิเคราะห์ตารางสอน...</span>
+                  <Loader2 className="animate-spin text-white" size={16} />
+                  <span>กำลังให้ AI Vision วิเคราะห์ตารางสอน...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} />
-                  <span>เริ่มวิเคราะห์ด้วย AI</span>
+                  <Sparkles size={16} className="text-yellow-200 animate-pulse" />
+                  <span>✨ วิเคราะห์ตารางสอนด้วย AI Vision</span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}
             </button>

@@ -1773,6 +1773,11 @@ export function SupportChat({
           </span>
         ) : null}
 
+        {/* Illuminated AI Mini Badge */}
+        <span className="absolute -bottom-1 z-20 rounded-full bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-md border border-white/60">
+          AI
+        </span>
+
         {/* Floating Tooltip Bubble with Pointer Arrow */}
         {!open && (
           <div className="pointer-events-none absolute right-full mr-3 hidden sm:flex items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200 group-hover:flex">
