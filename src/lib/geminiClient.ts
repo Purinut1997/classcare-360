@@ -1,9 +1,11 @@
 export type GeminiModelId =
   | 'auto'
+  | 'gemini-2.5-flash'
+  | 'gemini-2.0-flash'
+  | 'gemini-2.5-pro'
   | 'gemini-3.6-flash'
   | 'gemini-3.5-flash'
   | 'gemini-1.5-flash'
-  | 'gemini-2.0-flash'
   | 'gemini-1.5-pro';
 
 export interface GeminiModelOption {
@@ -20,7 +22,7 @@ export const AUTO_MODEL_OPTION: GeminiModelOption = {
   id: 'auto',
   name: 'Auto Model (สลับรุ่นอัตโนมัติ)',
   tag: 'แนะนำสูงสุด ✨',
-  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 3.6 ➔ 3.5 ➔ 1.5) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่มีวันติดลิมิต',
+  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 2.5 ➔ 2.0 ➔ 2.5 Pro) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่มีวันติดลิมิต',
   speed: '⚡⚡⚡⚡ อัจฉริยะ',
   quota: 'ไม่มีวันหมด (สลับรุ่นอัตโนมัติ)',
   highlight: true,
@@ -28,38 +30,37 @@ export const AUTO_MODEL_OPTION: GeminiModelOption = {
 
 export const MANUAL_GEMINI_MODELS: GeminiModelOption[] = [
   {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    tag: 'รุ่นล่าสุด Google แนะนำ 🌟',
-    description: 'โมเดลรุ่นใหม่ล่าสุดที่ Google AI แนะนำให้อัปเกรดแทน 2.0 ทำงานรวดเร็ว ฉลาด และภาษาไทยยอดเยี่ยม',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    tag: 'รุ่นหลักล่าสุด แนะนำ 🌟',
+    description: 'โมเดลรุ่นใหม่ล่าสุดของ Google AI Studio ประมวลผลรวดเร็ว ฉลาด และแม่นยำสูง',
     speed: '⚡⚡⚡⚡ เร็วมาก',
-    quota: 'รุ่นล่าสุดของ Google AI Studio',
+    quota: 'รุ่นหลัก Google AI Studio',
     highlight: true,
   },
   {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    tag: 'รุ่นใหม่ 🌟 (20 ครั้ง/วัน)',
-    description: 'โมเดลรุ่นใหม่ใน Google AI Studio ฉลาด ละเอียด และตอบคำถามได้ตรงจุดที่สุด',
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    tag: 'เสถียรภาพสูง ⭐',
+    description: 'โมเดลตอบสนองเร็วพิเศษ เหมาะสำหรับงานสร้างข้อสอบ รูบริก และแชทบอท',
     speed: '⚡⚡⚡⚡ เร็วมาก',
-    quota: '20 ครั้ง/วัน (หรือใช้ตาม Billing)',
+    quota: 'Google AI Studio',
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    tag: 'คิดวิเคราะห์ขั้นสูง 🧠',
+    description: 'ความสามารถในการคิดวิเคราะห์เชิงลึกระดับสูง ร่างข้อสอบและรูบริกที่ซับซ้อน',
+    speed: '⚡ ปานกลาง',
+    quota: 'สำหรับงานวิเคราะห์เชิงลึก',
   },
   {
     id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    tag: 'โควตาฟรีสูงสุด 1,500 ครั้ง/วัน ⭐',
-    description: 'เสถียรที่สุด ตอบไว โควตาฟรีสูงถึง 1,500 ครั้ง/วัน ใช้งานต่อเนื่องทั้งวันไม่ติดลิมิต',
-    speed: '⚡⚡⚡ เร็วมาก',
-    quota: '1,500 ครั้ง/วัน (ฟรีสูงสุด)',
-    highlight: true,
-  },
-  {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    tag: 'คิดลึกที่สุด 🧠',
-    description: 'วิเคราะห์ข้อมูลซับซ้อน ร่างรายงานวิชาการเชิงลึก (แนะนำสำหรับโปรเจกต์ที่ผูก Billing)',
-    speed: '⚡ ปานกลาง',
-    quota: '2 ครั้ง/นาที (หรือตาม Billing)',
+    name: 'Gemini 1.5 Flash (Legacy)',
+    tag: 'รุ่นเดิม',
+    description: 'โมเดลรุ่นเดิม (หากบัญชีไม่รองรับ ระบบจะสลับไป 2.5 Flash ให้อัตโนมัติ)',
+    speed: '⚡⚡⚡ เร็ว',
+    quota: 'Legacy Model',
   },
 ];
 
@@ -67,6 +68,25 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
   AUTO_MODEL_OPTION,
   ...MANUAL_GEMINI_MODELS,
 ];
+
+/**
+ * Returns prioritized candidate models for API execution.
+ */
+export function getCandidateModels(preferredModel?: string): string[] {
+  const clean = preferredModel && preferredModel !== 'auto' ? preferredModel : 'gemini-2.5-flash';
+  const normalized =
+    clean === 'gemini-3.6-flash' || clean === 'gemini-3.5-flash'
+      ? 'gemini-2.5-flash'
+      : clean;
+
+  return [
+    normalized,
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.5-pro',
+    'gemini-1.5-flash',
+  ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+}
 
 export interface AssistantAction {
   type: 'navigate' | 'copy' | 'handover' | 'calendar' | 'calendar_batch';
@@ -144,12 +164,9 @@ export async function callGeminiApi(
   }
 ): Promise<string> {
   const allowFallback = contextInfo?.allowFallback !== false;
-  // Automatically alias discontinued gemini-2.0-flash to gemini-3.6-flash
-  const effectiveModel = model === 'gemini-2.0-flash' ? 'gemini-3.6-flash' : model;
-  // Auto Model Candidate Hierarchy (Smartest -> Fastest -> Highest Quota)
-  const autoHierarchy = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-1.5-flash'];
-  const isAuto = effectiveModel === 'auto';
-  const initialModel = isAuto ? autoHierarchy[0] : effectiveModel;
+  const candidates = getCandidateModels(model);
+  const isAuto = model === 'auto';
+  const initialModel = candidates[0];
   let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${initialModel}:generateContent?key=${apiKey}`;
 
   // Build context prefix
@@ -207,12 +224,7 @@ export async function callGeminiApi(
   // Auto-fallback if the selected model returns 404, 400 (e.g. model discontinued), or 429 (quota exceeded)
   if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
     if (allowFallback) {
-      const fallbackCandidates = (
-        isAuto
-          ? autoHierarchy
-          : ['gemini-1.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash']
-      ).filter((m) => m !== initialModel);
-
+      let fallbackCandidates = candidates.filter((m) => m !== initialModel);
       for (const fallbackModel of fallbackCandidates) {
         const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
         const fallbackRes = await fetch(fallbackEndpoint, {
@@ -223,6 +235,25 @@ export async function callGeminiApi(
         if (fallbackRes.ok) {
           response = fallbackRes;
           break;
+        }
+      }
+
+      // If still not ok and it's 404, dynamically discover supported models from Google
+      if (!response.ok && response.status === 404) {
+        const liveModels = await listAvailableGeminiModels(apiKey);
+        for (const liveM of liveModels.slice(0, 3)) {
+          if (!candidates.includes(liveM)) {
+            const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${liveM}:generateContent?key=${apiKey}`;
+            const liveRes = await fetch(fallbackEndpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            if (liveRes.ok) {
+              response = liveRes;
+              break;
+            }
+          }
         }
       }
     }
@@ -276,10 +307,8 @@ export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise
     cleanBase64 = dataUrlMatch[2];
   }
 
-  const modelInput = options.model && options.model !== 'auto' ? options.model : 'gemini-1.5-flash';
-  const effectiveModel = modelInput === 'gemini-2.0-flash' ? 'gemini-3.6-flash' : modelInput;
-  const autoHierarchy = ['gemini-1.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
-  const initialModel = effectiveModel || autoHierarchy[0];
+  const candidateModels = getCandidateModels(options.model);
+  const initialModel = candidateModels[0];
 
   const payload: Record<string, unknown> = {
     contents: [
@@ -320,7 +349,7 @@ export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise
 
   // Fallback hierarchy if primary model is unavailable or rate limited
   if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
-    const fallbackCandidates = autoHierarchy.filter((m) => m !== initialModel);
+    const fallbackCandidates = candidateModels.filter((m) => m !== initialModel);
     for (const fallbackModel of fallbackCandidates) {
       const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey.trim()}`;
       const fallbackRes = await fetch(fallbackEndpoint, {
@@ -331,6 +360,24 @@ export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise
       if (fallbackRes.ok) {
         response = fallbackRes;
         break;
+      }
+    }
+
+    if (!response.ok && response.status === 404) {
+      const liveModels = await listAvailableGeminiModels(apiKey.trim());
+      for (const liveM of liveModels.slice(0, 3)) {
+        if (!candidateModels.includes(liveM)) {
+          const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${liveM}:generateContent?key=${apiKey.trim()}`;
+          const liveRes = await fetch(fallbackEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (liveRes.ok) {
+            response = liveRes;
+            break;
+          }
+        }
       }
     }
   }
@@ -373,20 +420,7 @@ export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<st
     throw new Error('กรุณาระบุ Gemini API Key ก่อนใช้งาน');
   }
 
-  const modelInput = options.model && options.model !== 'auto' ? options.model : 'gemini-1.5-flash';
-  // Map any outdated or unavailable model names safely to fast official models
-  const effectiveModel =
-    modelInput === 'gemini-2.0-flash' ||
-    modelInput === 'gemini-3.6-flash' ||
-    modelInput === 'gemini-3.5-flash'
-      ? 'gemini-1.5-flash'
-      : modelInput;
-  const candidateModels = [
-    effectiveModel,
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
-  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
-
+  const candidateModels = getCandidateModels(options.model);
   const initialModel = candidateModels[0];
 
   const payload: Record<string, unknown> = {
@@ -429,6 +463,24 @@ export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<st
       if (fallbackRes.ok) {
         response = fallbackRes;
         break;
+      }
+    }
+
+    if (!response.ok && response.status === 404) {
+      const liveModels = await listAvailableGeminiModels(apiKey.trim());
+      for (const liveM of liveModels.slice(0, 3)) {
+        if (!candidateModels.includes(liveM)) {
+          const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${liveM}:generateContent?key=${apiKey.trim()}`;
+          const liveRes = await fetch(fallbackEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (liveRes.ok) {
+            response = liveRes;
+            break;
+          }
+        }
       }
     }
   }
@@ -547,14 +599,8 @@ export async function testGeminiApiKey(
       };
     }
 
-    const effectiveModel = model === 'gemini-2.0-flash' ? 'gemini-3.6-flash' : model;
-    // 2. Test user's selected model first, followed by stable flash models (never auto-pick 2.5)
-    const testQueue: string[] = [
-      effectiveModel === 'auto' ? 'gemini-1.5-flash' : effectiveModel,
-      'gemini-1.5-flash',
-      'gemini-3.6-flash',
-      'gemini-3.5-flash',
-    ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+    // 2. Test user's selected model first, followed by stable candidate models
+    const testQueue: string[] = getCandidateModels(model);
 
     let lastError = '';
     for (const targetModel of testQueue) {

@@ -17,11 +17,19 @@ export function isUserVip(session: AppSessionContext | null | undefined): boolea
   return session.subscription?.planCode === 'VIP_YEARLY';
 }
 
+function normalizeStoredModel(m?: string | null): GeminiModelId {
+  if (!m || m === 'gemini-1.5-flash' || m === 'gemini-3.6-flash' || m === 'gemini-3.5-flash') {
+    return 'gemini-2.5-flash';
+  }
+  return m as GeminiModelId;
+}
+
 /**
- * Resolves the effective AI Key and Model following the priority hierarchy:
- * 1. Personal Key (if configured by user or granted by superadmin)
- * 2. Workspace School Key (if configured by workspace owner or granted by superadmin)
- * 3. None (fallback knowledge engine)
+ * Resolves the effective AI Key and Model for the current session.
+ * Prioritizes:
+ * 1. Personal Key (LocalStorage -> Profile Metadata)
+ * 2. Workspace Shared Key (LocalStorage -> Workspace Settings)
+ * 3. Fallback to empty (Requires user or admin to provide a key)
  */
 export async function getEffectiveAiConfig(session: AppSessionContext | null | undefined): Promise<EffectiveAiConfig> {
   const isVip = isUserVip(session);
@@ -30,7 +38,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
   const result: EffectiveAiConfig = {
     apiKey: null,
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     source: 'none',
     isVip,
     canConfigureWorkspace: isSuperadmin || (isVip && isWorkspaceOwner),
@@ -48,7 +56,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
   if (cachedPersonalKey && cachedPersonalKey.trim().length > 10) {
     result.apiKey = cachedPersonalKey.trim();
-    result.model = cachedPersonalModel || 'gemini-1.5-flash';
+    result.model = normalizeStoredModel(cachedPersonalModel);
     result.source = 'personal';
 
     // Proactively sync local key to cloud profile metadata in background so other devices receive it
@@ -65,7 +73,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
   if (cachedWorkspaceKey && cachedWorkspaceKey.trim().length > 10) {
     result.apiKey = cachedWorkspaceKey.trim();
-    result.model = cachedWorkspaceModel || 'gemini-1.5-flash';
+    result.model = normalizeStoredModel(cachedWorkspaceModel);
     result.source = 'workspace';
 
     // Proactively sync local workspace key to cloud workspace settings in background
@@ -89,7 +97,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
         const meta = (profData?.metadata as Record<string, unknown>) || {};
         const personalKey = typeof meta.personal_gemini_api_key === 'string' ? meta.personal_gemini_api_key.trim() : null;
-        const personalModel = (meta.personal_ai_model as GeminiModelId) || 'gemini-1.5-flash';
+        const personalModel = normalizeStoredModel(meta.personal_ai_model as string);
 
         if (personalKey && personalKey.length > 10) {
           result.apiKey = personalKey;
@@ -110,7 +118,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
           if (directProf?.personal_gemini_api_key) {
             result.apiKey = directProf.personal_gemini_api_key;
-            result.model = (directProf.personal_ai_model as GeminiModelId) || 'gemini-1.5-flash';
+            result.model = normalizeStoredModel(directProf.personal_ai_model);
             result.source = 'personal';
             localStorage.setItem(`classcare_personal_ai_key_${profileId}`, directProf.personal_gemini_api_key);
             localStorage.setItem(`classcare_personal_ai_model_${profileId}`, result.model);
@@ -131,7 +139,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
         const wsSettings = (wsData?.settings as Record<string, unknown>) || {};
         const wsKey = typeof wsSettings.gemini_api_key === 'string' ? wsSettings.gemini_api_key.trim() : null;
-        const wsModel = (wsSettings.ai_model as GeminiModelId) || 'gemini-1.5-flash';
+        const wsModel = normalizeStoredModel(wsSettings.ai_model as string);
 
         if (wsKey && wsKey.length > 10 && wsSettings.is_ai_enabled !== false) {
           result.apiKey = wsKey;
@@ -152,18 +160,18 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
           if (directWs?.gemini_api_key && directWs.is_ai_enabled !== false) {
             result.apiKey = directWs.gemini_api_key;
-            result.model = (directWs.ai_model as GeminiModelId) || 'gemini-1.5-flash';
+            result.model = normalizeStoredModel(directWs.ai_model);
             result.source = 'workspace';
             localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, directWs.gemini_api_key);
             localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, result.model);
             return result;
           }
         } catch {
-          // Dedicated column might not exist, settings already handled it
+          // Dedicated column might not exist
         }
       }
-    } catch (e) {
-      console.warn('Could not query cloud AI settings:', e);
+    } catch (err) {
+      console.warn('Could not query cloud AI settings:', err);
     }
   }
 
@@ -228,7 +236,7 @@ async function syncWorkspaceKeyToCloud(workspaceId: string, apiKey: string, mode
 export async function savePersonalAiConfig(
   session: AppSessionContext,
   apiKey: string,
-  model: GeminiModelId = 'gemini-1.5-flash'
+  model: GeminiModelId = 'gemini-2.5-flash'
 ): Promise<void> {
   const profileId = session.profile.id;
   const cleanKey = apiKey.trim();
@@ -288,7 +296,7 @@ export async function savePersonalAiConfig(
 export async function saveWorkspaceAiConfig(
   session: AppSessionContext,
   apiKey: string,
-  model: GeminiModelId = 'gemini-1.5-flash'
+  model: GeminiModelId = 'gemini-2.5-flash'
 ): Promise<void> {
   const workspaceId = session.workspace?.id;
   if (!workspaceId) return;
@@ -348,14 +356,14 @@ export async function saveWorkspaceAiConfig(
  * Deletes workspace-level AI Key (removes from device and cloud).
  */
 export async function deleteWorkspaceAiConfig(session: AppSessionContext): Promise<void> {
-  await saveWorkspaceAiConfig(session, '', 'gemini-1.5-flash');
+  await saveWorkspaceAiConfig(session, '', 'gemini-2.5-flash');
 }
 
 /**
  * Deletes personal AI Key (removes from device and cloud).
  */
 export async function deletePersonalAiConfig(session: AppSessionContext): Promise<void> {
-  await savePersonalAiConfig(session, '', 'gemini-1.5-flash');
+  await savePersonalAiConfig(session, '', 'gemini-2.5-flash');
 }
 
 /**
@@ -364,7 +372,7 @@ export async function deletePersonalAiConfig(session: AppSessionContext): Promis
 export async function superadminGrantWorkspaceAiKey(
   targetWorkspaceId: string,
   apiKey: string,
-  model: GeminiModelId = 'gemini-1.5-flash'
+  model: GeminiModelId = 'gemini-2.5-flash'
 ): Promise<void> {
   const cleanKey = apiKey.trim();
   localStorage.setItem(`classcare_workspace_ai_key_${targetWorkspaceId}`, cleanKey);
