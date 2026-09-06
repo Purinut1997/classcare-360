@@ -1,17 +1,44 @@
 # ClassCare 360
 
-ระบบผู้ช่วยครูและดูแลนักเรียนครบวงจร  
+ระบบผู้ช่วยครูและดูแลนักเรียนครบวงจร (School Academic & Student 360 Ecosystem)  
 Created by MIKPURINUT
+
+📖 **คู่มือการใช้งานระบบฉบับสมบูรณ์:** ดูรายละเอียดทุกโมดูลได้ที่ [docs/MANUAL.md](docs/MANUAL.md)  
+💡 **คู่มือใช้งานในแอป (In-App Help Center):** เข้าใช้งานได้ที่เมนู `คู่มือใช้งาน` (`/app/dashboard?view=help-center`)
+
+---
+
+## ✨ ไฮไลท์ฟังก์ชันสำคัญล่าสุด (Latest Features Highlight)
+
+1. **ศูนย์ออกแบบข้อสอบกลางภาค/ปลายภาค & รูบริก สพฐ. (AI Exam & Rubric Hub):**
+   - **Multi-Unit Input:** ใส่หน่วยการเรียนรู้ได้หลายหน่วยในครั้งเดียว พร้อมจัดหมวดหมู่อย่างเป็นระเบียบ
+   - **AI OBEC Indicator Analyzer:** AI ช่วยวิเคราะห์และดึงรหัสตัวชี้วัด สพฐ. ที่ตรงกับแต่ละหน่วยการเรียนรู้ให้อัตโนมัติ พร้อมให้ครูป้อน/แก้ไขเพิ่มเติมได้อิสระ
+   - **Indicator Quota Allocation:** จัดสรรจำนวนข้อสอบตามตัวชี้วัดได้ทั้งแบบสมดุลอัตโนมัติ (Auto-balanced) หรือกำหนดจำนวนข้อต่อตัวชี้วัดเอง
+   - **Mandatory Indicator Tagging:** บังคับแสดงรหัสตัวชี้วัดกำกับท้ายโจทย์ข้อสอบทุกข้ออย่างชัดเจน เช่น `(ตัวชี้วัด: ค 1.1 ม.1/2)`
+   - **Test Blueprint Generation:** สร้างผังการสร้างข้อสอบตารางสองมิติ คำนวณสัดส่วนร้อยละและจำแนกตามระดับพฤติกรรมบลูม (Bloom's Taxonomy)
+   - **Teacher's Answer Key & Student Exam Sheet:** จัดหน้าข้อสอบ A4 สำหรับพิมพ์ให้นักเรียน และชุดเฉลยพร้อมคำอธิบายละเอียดสำหรับครู
+   - **4-Level Rubric Criteria Generator:** สร้างเกณฑ์การประเมินตามสภาพจริง 4 ระดับ (ดีเยี่ยม, ดี, พอใช้, ปรับปรุง) อิงตัวชี้วัดหรือภาระงาน
+   - **Remedial Quiz Generator:** สร้างแบบทดสอบย่อยซ่อมเสริม 1-30 ข้อ (ตัวเลือก หรือ ถูก/ผิด)
+
+2. **UX สมาร์ทโฟนระดับ Super-App (Smartphone Super-App Dock):**
+   - **Ergonomic 5-Action Bottom Dock:** แถบนำทางด้านล่าง 5 ปุ่ม จัดวางตามหลักสรีรศาสตร์ จับถนัดมือ
+   - **Center Hero Floating Action Button (58px):** ปุ่มผู้ช่วย AI "น้องแคร์ AI" ขนาดใหญ่ 58px ยกสูง Floating ตรงกลางบาร์ล่าง เรียกใช้งานได้ทันทีจากทุกหน้า
+   - **12-Module Quick Launcher Sheet:** หน้าต่าง Drawer รวมทางลัด 12 หมวดหมู่ พร้อมระบบค้นหาทันใจ (Live Search Filter)
+
+3. **ระบบผู้ช่วยตารางสอนอัจฉริยะ & ปฏิทินกิจกรรมโรงเรียน (Schedule & School Calendar):**
+   - **Smart Daily Schedule Assistant:** ปรึกษาและถามตารางสอนรายวัน/รายสัปดาห์กับ "น้องแคร์ AI" ได้โดยตรง
+   - **School Calendar with Activity Dots:** ปฏิทินโรงเรียนพร้อมจุดสี Dots Indicator จำแนกประเภทกิจกรรม และ Responsive Header บนมือถือ
+
+4. **คู่มือใช้งานและศูนย์แก้ปัญหาอัจฉริยะ (Revamped In-App Help Center):**
+   - อัปเกรดการ์ดคู่มือครบ 18 หัวข้อ พร้อม Category Filter Tabs แยกตามหมวดหมู่การใช้งาน
+   - เพิ่มคำแนะนำและทางลัดแก้ปัญหาที่พบบ่อย (Troubleshooting & Readiness Checklist)
+
+---
 
 ## สถานะปัจจุบัน
 
-โปรเจคอยู่ระหว่าง foundation หลักของ ClassCare 360: Auth/Workspace, Student 360, Attendance, Report Center, Payment Review, Parent/Student Portal และ theme refresh ตาม reference
+โปรเจคพัฒนาฟังก์ชันหลักและส่วนต่อขยายครบถ้วนสมบูรณ์: Auth/Workspace, Student 360, Attendance, DMC Import, Score Book, Report Center (ปพ.5/6), Payment Review, Parent/Student Portal, School Calendar, Schedule, AI Exam Hub และ Super-App Mobile Navigation
 
-ทำแล้ว:
-
-- อ่าน requirement หลักจาก `Prompt.txt`
-- แบ่งเฟสและบันทึกสถานะใน `PROJECT_STATUS.md`
-- สร้างเอกสาร Phase 1 ใน `docs/`
 - เริ่ม scaffold React + Vite + TypeScript
 - เพิ่ม Tailwind CSS และ dashboard shell โทนสดใส
 - เพิ่ม typed foundation สำหรับ env, Supabase client, auth routing, roles และ entitlements
