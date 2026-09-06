@@ -21,6 +21,7 @@ import { getEffectiveAiConfig } from '../../lib/aiSettings';
 import {
   generateRemedialQuiz,
   generateRubricCriteria,
+  type QuizChoiceType,
   type RemedialQuizResult,
   type RubricResult,
 } from '../../lib/aiVisionService';
@@ -50,6 +51,7 @@ export function RubricAndQuizModal({
   const [taskDescription, setTaskDescription] = useState('การแก้โจทย์ปัญหาเศษส่วนและจำนวนคละ 2 ขั้นตอน');
   const [focusTopics, setFocusTopics] = useState('การบวก ลบ เศษส่วนที่ตัวส่วนไม่เท่ากัน');
   const [questionCount, setQuestionCount] = useState(5);
+  const [choiceType, setChoiceType] = useState<QuizChoiceType>('4-choices');
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [rubricResult, setRubricResult] = useState<RubricResult | null>(null);
@@ -111,7 +113,8 @@ export function RubricAndQuizModal({
         gradeLevel,
         indicator,
         focusTopics,
-        questionCount
+        questionCount,
+        choiceType
       );
       setQuizResult(res);
     } catch (err) {
@@ -227,30 +230,62 @@ export function RubricAndQuizModal({
             </div>
           )}
 
+          {/* Required Fields Banner */}
+          <div className="flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50/70 px-4 py-2.5 text-xs text-rose-900 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-[10px] font-black text-white shadow-xs">*</span>
+              <span className="font-black text-rose-950">
+                ช่องที่มีป้าย <span className="rounded bg-rose-200/80 px-1.5 py-0.5 text-[10px] font-black text-rose-800">จำเป็น *</span> ต้องระบุข้อมูลให้ครบถ้วนเพื่อให้ AI ออกแบบเนื้อหาได้ตรงหลักสูตร
+              </span>
+            </div>
+            <span className="hidden sm:inline text-[11px] font-bold text-rose-700/80">ระบบ สพฐ. มาตรฐาน</span>
+          </div>
+
           {/* Form Inputs */}
-          <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-            <label className="grid gap-1.5 text-xs font-black text-slate-700">
-              วิชา
+          <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-4 shadow-xs">
+            <label className="grid gap-1.5 text-xs font-black text-slate-800">
+              <div className="flex items-center justify-between">
+                <span>วิชา</span>
+                <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+              </div>
               <input
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
+                className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                  !subject.trim()
+                    ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                    : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                }`}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="เช่น คณิตศาสตร์"
                 value={subject}
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-black text-slate-700">
-              ระดับชั้น
+            <label className="grid gap-1.5 text-xs font-black text-slate-800">
+              <div className="flex items-center justify-between">
+                <span>ระดับชั้น</span>
+                <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+              </div>
               <input
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
+                className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                  !gradeLevel.trim()
+                    ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                    : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                }`}
                 onChange={(e) => setGradeLevel(e.target.value)}
                 placeholder="เช่น ป.5 หรือ ม.2"
                 value={gradeLevel}
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-black text-slate-700">
-              ตัวชี้วัด สพฐ.
+            <label className="grid gap-1.5 text-xs font-black text-slate-800">
+              <div className="flex items-center justify-between">
+                <span>ตัวชี้วัด สพฐ.</span>
+                <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+              </div>
               <input
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
+                className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                  !indicator.trim()
+                    ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                    : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                }`}
                 onChange={(e) => setIndicator(e.target.value)}
                 placeholder="เช่น ค 1.1 ป.5/1 หรือ ว 1.2 ม.2/1"
                 value={indicator}
@@ -261,10 +296,17 @@ export function RubricAndQuizModal({
           {/* TAB 1: Rubric Generator */}
           {activeTab === 'rubric' && (
             <div className="space-y-4">
-              <label className="grid gap-1.5 text-xs font-black text-slate-700">
-                ลักษณะงาน / ชิ้นงานที่จะประเมิน
+              <label className="grid gap-1.5 text-xs font-black text-slate-800">
+                <div className="flex items-center justify-between">
+                  <span>ลักษณะงาน / ชิ้นงานที่จะประเมิน</span>
+                  <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+                </div>
                 <input
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
+                  className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                    !taskDescription.trim()
+                      ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                      : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                  }`}
                   onChange={(e) => setTaskDescription(e.target.value)}
                   placeholder="เช่น ใบงานการแก้โจทย์ปัญหา, รายงานการทดลองวิทยาศาสตร์, การเขียนเรียงความ"
                   value={taskDescription}
@@ -358,28 +400,93 @@ export function RubricAndQuizModal({
           {/* TAB 2: Remedial Quiz Generator */}
           {activeTab === 'quiz' && (
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-                <label className="grid gap-1.5 text-xs font-black text-slate-700">
-                  หัวข้อหรือเนื้อหาที่นักเรียนทำผิดบ่อย (ซ่อมเสริมเฉพาะจุด)
-                  <input
-                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
-                    onChange={(e) => setFocusTopics(e.target.value)}
-                    placeholder="เช่น การบวกเศษส่วนที่ตัวส่วนไม่เท่ากัน"
-                    value={focusTopics}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-black text-slate-700">
-                  จำนวนข้อ
+              {/* Focus Topics */}
+              <label className="grid gap-1.5 text-xs font-black text-slate-800">
+                <div className="flex items-center justify-between">
+                  <span>หัวข้อหรือเนื้อหาที่นักเรียนทำผิดบ่อย (ซ่อมเสริมเฉพาะจุด)</span>
+                  <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+                </div>
+                <input
+                  className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                    !focusTopics.trim()
+                      ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                      : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                  }`}
+                  onChange={(e) => setFocusTopics(e.target.value)}
+                  placeholder="เช่น การบวกเศษส่วนที่ตัวส่วนไม่เท่ากัน"
+                  value={focusTopics}
+                />
+              </label>
+
+              {/* Configurable Question Count & Choice Type */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* 1. Custom Question Count */}
+                <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800">จำนวนข้อที่ต้องการ</span>
+                    <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={questionCount}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (isNaN(val)) setQuestionCount(1);
+                          else setQuestionCount(Math.min(30, Math.max(1, val)));
+                        }}
+                        className="h-10 w-24 rounded-xl border-2 border-slate-300 bg-white px-3 text-center text-sm font-black text-slate-900 shadow-xs focus:border-violet-500 focus:ring-2 focus:ring-violet-200 focus:outline-none"
+                      />
+                    </div>
+                    <span className="text-xs font-bold text-slate-600">ข้อ</span>
+                    <div className="flex items-center gap-1 ml-auto flex-wrap">
+                      {[3, 5, 10, 15, 20].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setQuestionCount(num)}
+                          className={`h-8 rounded-lg px-2.5 text-xs font-black transition ${
+                            questionCount === num
+                              ? 'bg-violet-600 text-white shadow-xs ring-2 ring-violet-300'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    💡 พิมพ์ตัวเลขได้อิสระ (1 - 30 ข้อ) หรือคลิกเลือกปุ่มลัด
+                  </p>
+                </div>
+
+                {/* 2. Configurable Choice Type */}
+                <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800">รูปแบบตัวเลือก</span>
+                    <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+                  </div>
                   <select
-                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
-                    onChange={(e) => setQuestionCount(Number(e.target.value))}
-                    value={questionCount}
+                    value={choiceType}
+                    onChange={(e) => setChoiceType(e.target.value as QuizChoiceType)}
+                    className="h-10 w-full rounded-xl border-2 border-slate-300 bg-white px-3 text-xs font-black text-slate-900 shadow-xs focus:border-violet-500 focus:ring-2 focus:ring-violet-200 focus:outline-none cursor-pointer"
                   >
-                    <option value={3}>3 ข้อ</option>
-                    <option value={5}>5 ข้อ</option>
-                    <option value={10}>10 ข้อ</option>
+                    <option value="4-choices">4 ตัวเลือก (ก, ข, ค, ง - มาตรฐาน สพฐ.)</option>
+                    <option value="3-choices">3 ตัวเลือก (ก, ข, ค - ประถมต้น ป.1-ป.3)</option>
+                    <option value="5-choices">5 ตัวเลือก (ก, ข, ค, ง, จ - มัธยม/แข่งขัน)</option>
+                    <option value="true-false">ถูก / ผิด (2 ตัวเลือก - ตรวจสอบมโนทัศน์)</option>
                   </select>
-                </label>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    {choiceType === '4-choices' && '📌 4 ตัวเลือก ก-ง ตามรูปแบบข้อสอบมาตรฐาน'}
+                    {choiceType === '3-choices' && '📌 3 ตัวเลือก ก-ค เหมาะกับเด็กเล็กหรือนักเรียนกลุ่มพิเศษ'}
+                    {choiceType === '5-choices' && '📌 5 ตัวเลือก ก-จ เพิ่มความลึกของตัวลวงระดับมัธยม'}
+                    {choiceType === 'true-false' && '📌 2 ตัวเลือก ถูก/ผิด เน้นดักจุดที่มักสับสน'}
+                  </p>
+                </div>
               </div>
 
               {!quizResult ? (
@@ -391,7 +498,7 @@ export function RubricAndQuizModal({
                     คลิกปุ่มด้านล่างเพื่อสร้างชุดข้อสอบซ่อมเสริมพร้อมเฉลยละเอียด
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    AI จะสร้างข้อสอบ 4 ตัวเลือก (ก, ข, ค, ง) ที่ตรงกับตัวชี้วัด สพฐ. เพื่อให้นักเรียนทำซ่อมได้ทันที
+                    AI จะสร้างข้อสอบ {choiceType === '4-choices' ? '4 ตัวเลือก (ก, ข, ค, ง)' : choiceType === '3-choices' ? '3 ตัวเลือก (ก, ข, ค)' : choiceType === '5-choices' ? '5 ตัวเลือก (ก, ข, ค, ง, จ)' : 'ถูก / ผิด'} จำนวน {questionCount} ข้อ พร้อมเฉลยละเอียดและวิเคราะห์จุดลวง
                   </p>
                 </div>
               ) : (
@@ -479,7 +586,14 @@ export function RubricAndQuizModal({
           {activeTab === 'rubric' ? (
             <button
               className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
-              disabled={isGenerating || hasApiKey === false}
+              disabled={
+                isGenerating ||
+                hasApiKey === false ||
+                !subject.trim() ||
+                !gradeLevel.trim() ||
+                !indicator.trim() ||
+                !taskDescription.trim()
+              }
               onClick={handleGenerateRubric}
               type="button"
             >
@@ -498,7 +612,15 @@ export function RubricAndQuizModal({
           ) : (
             <button
               className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
-              disabled={isGenerating || hasApiKey === false}
+              disabled={
+                isGenerating ||
+                hasApiKey === false ||
+                !subject.trim() ||
+                !gradeLevel.trim() ||
+                !indicator.trim() ||
+                !focusTopics.trim() ||
+                questionCount < 1
+              }
               onClick={handleGenerateQuiz}
               type="button"
             >
@@ -510,7 +632,19 @@ export function RubricAndQuizModal({
               ) : (
                 <>
                   <Sparkles size={16} />
-                  <span>{quizResult ? 'สร้างข้อสอบชุดใหม่' : `สร้างข้อสอบซ่อมเสริม ${questionCount} ข้อ`}</span>
+                  <span>
+                    {quizResult
+                      ? 'สร้างข้อสอบชุดใหม่'
+                      : `สร้างข้อสอบซ่อมเสริม ${questionCount} ข้อ (${
+                          choiceType === '4-choices'
+                            ? '4 ตัวเลือก'
+                            : choiceType === '3-choices'
+                            ? '3 ตัวเลือก'
+                            : choiceType === '5-choices'
+                            ? '5 ตัวเลือก'
+                            : 'ถูก/ผิด'
+                        })`}
+                  </span>
                 </>
               )}
             </button>

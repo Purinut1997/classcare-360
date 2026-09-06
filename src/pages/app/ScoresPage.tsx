@@ -1066,7 +1066,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [demoMode, session.profile.id, session.workspace]);
+  }, [demoMode, session.profile.id, session.workspace?.id]);
 
   useEffect(() => {
     if (subjectOptions.length > 0 && (!subjectFilter || !subjectOptions.includes(subjectFilter))) {

@@ -438,10 +438,12 @@ export async function generateRubricCriteria(
 export interface QuizQuestion {
   questionNumber: number;
   questionText: string;
-  choices: Array<{ key: 'ก' | 'ข' | 'ค' | 'ง'; text: string }>;
-  correctAnswer: 'ก' | 'ข' | 'ค' | 'ง';
+  choices: Array<{ key: string; text: string }>;
+  correctAnswer: string;
   explanation: string;
 }
+
+export type QuizChoiceType = '4-choices' | '3-choices' | '5-choices' | 'true-false';
 
 export interface RemedialQuizResult {
   title: string;
@@ -458,15 +460,38 @@ export async function generateRemedialQuiz(
   gradeLevel: string,
   indicator: string,
   focusTopics: string,
-  questionCount = 5
+  questionCount = 5,
+  choiceType: QuizChoiceType = '4-choices'
 ): Promise<RemedialQuizResult> {
+  const choiceDescMap: Record<QuizChoiceType, { format: string; sample: string }> = {
+    '4-choices': {
+      format: 'แบบเลือกตอบ 4 ตัวเลือก (ก, ข, ค, ง)',
+      sample: '[{ "key": "ก", "text": "..." }, { "key": "ข", "text": "..." }, { "key": "ค", "text": "..." }, { "key": "ง", "text": "..." }]',
+    },
+    '3-choices': {
+      format: 'แบบเลือกตอบ 3 ตัวเลือก (ก, ข, ค) เหมาะกับชั้นประถมศึกษาตอนต้น',
+      sample: '[{ "key": "ก", "text": "..." }, { "key": "ข", "text": "..." }, { "key": "ค", "text": "..." }]',
+    },
+    '5-choices': {
+      format: 'แบบเลือกตอบ 5 ตัวเลือก (ก, ข, ค, ง, จ) สำหรับมัธยมศึกษา',
+      sample: '[{ "key": "ก", "text": "..." }, { "key": "ข", "text": "..." }, { "key": "ค", "text": "..." }, { "key": "ง", "text": "..." }, { "key": "จ", "text": "..." }]',
+    },
+    'true-false': {
+      format: 'แบบเลือกตอบ 2 ตัวเลือก ถูก หรือ ผิด (ก. ถูก, ข. ผิด)',
+      sample: '[{ "key": "ก", "text": "ถูก" }, { "key": "ข", "text": "ผิด" }]',
+    },
+  };
+
+  const choiceSetting = choiceDescMap[choiceType] || choiceDescMap['4-choices'];
+
   const prompt = `
 สร้างแบบทดสอบซ่อมเสริม (Remedial Quiz) สำหรับนักเรียนที่สอบไม่ผ่านตามตัวชี้วัด สพฐ.
 วิชา: ${subject}
 ระดับชั้น: ${gradeLevel}
 ตัวชี้วัด สพฐ.: ${indicator}
 หัวข้อที่ต้องซ่อมเสริมเป็นพิเศษ: ${focusTopics || 'เนื้อหาหลักตามตัวชี้วัด'}
-จำนวนข้อ: ${questionCount} ข้อ (แบบเลือกตอบ 4 ตัวเลือก ก, ข, ค, ง)
+จำนวนข้อ: ${questionCount} ข้อ
+รูปแบบตัวเลือก: ${choiceSetting.format}
 
 ให้ตอบกลับเป็น JSON เท่านั้น:
 {
@@ -478,12 +503,7 @@ export async function generateRemedialQuiz(
     {
       "questionNumber": 1,
       "questionText": "โจทย์คำถามที่สอดคล้องกับตัวชี้วัด",
-      "choices": [
-        { "key": "ก", "text": "ตัวเลือก ก" },
-        { "key": "ข", "text": "ตัวเลือก ข" },
-        { "key": "ค", "text": "ตัวเลือก ค" },
-        { "key": "ง", "text": "ตัวเลือก ง" }
-      ],
+      "choices": ${choiceSetting.sample},
       "correctAnswer": "ก",
       "explanation": "คำอธิบายเฉลยอย่างละเอียด เพื่อให้ครูใช้อธิบายนักเรียนซ่อมเสริม"
     }

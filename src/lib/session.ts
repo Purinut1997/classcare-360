@@ -365,8 +365,10 @@ export function useAppSession(search: string): UseAppSessionResult {
       return undefined;
     }
 
-    async function loadSession() {
-      setState('loading');
+    async function loadSession(isBackground = false) {
+      if (!isBackground) {
+        setState('loading');
+      }
       setError(null);
 
       try {
@@ -376,22 +378,33 @@ export function useAppSession(search: string): UseAppSessionResult {
         setState('ready');
       } catch (loadError) {
         if (!isMounted) return;
-        setSession(null);
-        setState('error');
-        setError(loadError instanceof Error ? loadError.message : 'โหลด session ไม่สำเร็จ');
+        if (!isBackground) {
+          setSession(null);
+          setState('error');
+          setError(loadError instanceof Error ? loadError.message : 'โหลด session ไม่สำเร็จ');
+        }
       }
     }
 
-    void loadSession();
+    void loadSession(false);
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void loadSession();
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setState('ready');
+        return;
+      }
+      if (event === 'TOKEN_REFRESHED') {
+        // Token refreshed silently in background — do NOT unmount the app or reset UI
+        return;
+      }
+      void loadSession(true);
     });
 
     const handleSessionRefresh = () => {
-      void loadSession();
+      void loadSession(true);
     };
     window.addEventListener(sessionRefreshEvent, handleSessionRefresh);
 
