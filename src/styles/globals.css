@@ -372,7 +372,7 @@
 
   .app-mobile-nav a,
   .app-mobile-nav button.nav-item-btn {
-    @apply flex h-13 min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[9.5px] font-black text-slate-500 transition-all hover:bg-slate-100/80 active:scale-95;
+    @apply flex h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[9.5px] font-black text-slate-500 transition-all hover:bg-slate-100/80 active:scale-95;
   }
 
   .app-mobile-nav a.is-active,
