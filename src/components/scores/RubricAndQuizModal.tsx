@@ -665,78 +665,160 @@ export function RubricAndQuizModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden">
+      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-violet-500/10 via-white to-transparent px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-violet-400 text-white shadow-md">
-              <Sparkles size={20} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 ring-2 ring-white">
+              <Sparkles size={22} className="animate-pulse text-amber-300" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-900">
-                ✨ ศูนย์ออกแบบข้อสอบ & รูบริก สพฐ. (Assessment & Exam Paper Hub)
-              </h3>
-              <p className="text-xs font-bold text-slate-500">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                  ศูนย์ออกแบบข้อสอบ & รูบริก สพฐ.
+                </h3>
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700 border border-violet-200">
+                  OBEC Studio
+                </span>
+              </div>
+              <p className="text-xs font-bold text-slate-500 mt-0.5">
                 ออกแบบเกณฑ์รูบริก 4 ระดับ, ข้อสอบซ่อมเสริม และข้อสอบกลางภาค/ปลายภาคพร้อม Test Blueprint ในคลิกเดียว
               </p>
             </div>
           </div>
           <button
-            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
             onClick={onClose}
             type="button"
+            aria-label="ปิดหน้าต่าง"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-slate-100 bg-slate-50/70 px-6 overflow-x-auto">
-          <button
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-black transition shrink-0 ${
-              activeTab === 'rubric'
-                ? 'border-violet-600 text-violet-800'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-            onClick={() => {
-              setActiveTab('rubric');
-              setErrorMessage(null);
-            }}
-            type="button"
-          >
-            <FileCheck2 size={16} />
-            <span>1. เกณฑ์รูบริก 4 ระดับ (Rubric)</span>
-          </button>
-          <button
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-black transition shrink-0 ${
-              activeTab === 'quiz'
-                ? 'border-violet-600 text-violet-800'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-            onClick={() => {
-              setActiveTab('quiz');
-              setErrorMessage(null);
-            }}
-            type="button"
-          >
-            <GraduationCap size={16} />
-            <span>2. ข้อสอบซ่อมเสริม (Remedial Quiz)</span>
-          </button>
-          <button
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-black transition shrink-0 ${
-              activeTab === 'exam'
-                ? 'border-violet-600 text-violet-800'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-            onClick={() => {
-              setActiveTab('exam');
-              setErrorMessage(null);
-            }}
-            type="button"
-          >
-            <BookOpen size={16} />
-            <span>3. ข้อสอบกลางภาค / ปลายภาค (Semester Exam)</span>
-          </button>
+        {/* Executive Segmented Navigation Tabs */}
+        <div className="border-b border-slate-200/70 bg-gradient-to-b from-slate-50/80 to-white px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-2 rounded-2xl bg-slate-200/70 p-1.5 ring-1 ring-slate-300/60 sm:grid sm:grid-cols-3 overflow-x-auto no-scrollbar scrollbar-none">
+            {/* Tab 1: Rubric */}
+            <button
+              className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-black transition-all duration-200 shrink-0 sm:shrink text-left cursor-pointer ${
+                activeTab === 'rubric'
+                  ? 'bg-white text-slate-900 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/5'
+                  : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+              }`}
+              onClick={() => {
+                setActiveTab('rubric');
+                setErrorMessage(null);
+              }}
+              type="button"
+            >
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                  activeTab === 'rubric'
+                    ? 'bg-violet-600 text-white shadow-xs shadow-violet-600/30'
+                    : 'bg-slate-200 text-slate-500'
+                }`}
+              >
+                <FileCheck2 size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-black text-slate-900">1. เกณฑ์รูบริก 4 ระดับ</span>
+                </div>
+                <span
+                  className={`block text-[11px] truncate font-bold ${
+                    activeTab === 'rubric' ? 'text-violet-600' : 'text-slate-400'
+                  }`}
+                >
+                  Rubric Assessment
+                </span>
+              </div>
+              {activeTab === 'rubric' && (
+                <span className="hidden sm:inline-block h-2 w-2 rounded-full bg-violet-600 shrink-0 mr-1" />
+              )}
+            </button>
+
+            {/* Tab 2: Remedial Quiz */}
+            <button
+              className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-black transition-all duration-200 shrink-0 sm:shrink text-left cursor-pointer ${
+                activeTab === 'quiz'
+                  ? 'bg-white text-slate-900 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/5'
+                  : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+              }`}
+              onClick={() => {
+                setActiveTab('quiz');
+                setErrorMessage(null);
+              }}
+              type="button"
+            >
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                  activeTab === 'quiz'
+                    ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30'
+                    : 'bg-slate-200 text-slate-500'
+                }`}
+              >
+                <GraduationCap size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-black text-slate-900">2. ข้อสอบซ่อมเสริม</span>
+                </div>
+                <span
+                  className={`block text-[11px] truncate font-bold ${
+                    activeTab === 'quiz' ? 'text-emerald-600' : 'text-slate-400'
+                  }`}
+                >
+                  Remedial Quick Quiz
+                </span>
+              </div>
+              {activeTab === 'quiz' && (
+                <span className="hidden sm:inline-block h-2 w-2 rounded-full bg-emerald-600 shrink-0 mr-1" />
+              )}
+            </button>
+
+            {/* Tab 3: Semester Exam */}
+            <button
+              className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-black transition-all duration-200 shrink-0 sm:shrink text-left cursor-pointer ${
+                activeTab === 'exam'
+                  ? 'bg-white text-slate-900 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/5'
+                  : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+              }`}
+              onClick={() => {
+                setActiveTab('exam');
+                setErrorMessage(null);
+              }}
+              type="button"
+            >
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                  activeTab === 'exam'
+                    ? 'bg-indigo-600 text-white shadow-xs shadow-indigo-600/30'
+                    : 'bg-slate-200 text-slate-500'
+                }`}
+              >
+                <BookOpen size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-black text-slate-900">3. ข้อสอบกลาง/ปลายภาค</span>
+                  <span className="rounded bg-indigo-50 px-1.5 py-0.2 text-[9.5px] font-black text-indigo-700 border border-indigo-200/80 shrink-0">
+                    สพฐ.
+                  </span>
+                </div>
+                <span
+                  className={`block text-[11px] truncate font-bold ${
+                    activeTab === 'exam' ? 'text-indigo-600' : 'text-slate-400'
+                  }`}
+                >
+                  Blueprint & Semester Exam
+                </span>
+              </div>
+              {activeTab === 'exam' && (
+                <span className="hidden sm:inline-block h-2 w-2 rounded-full bg-indigo-600 shrink-0 mr-1" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}

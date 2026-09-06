@@ -1794,3 +1794,17 @@ body {
 .schedule-v2 img[alt="โลโก้โรงเรียน"] {
   mix-blend-mode: multiply;
 }
+
+/* 🎨 Scrollbar Hide Utilities (cross-browser) */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  height: 0px;
+}
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
