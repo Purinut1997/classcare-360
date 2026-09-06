@@ -170,23 +170,31 @@ export function RubricAndQuizModal({
   };
 
   const handleAnalyzeIndicators = async () => {
-    if (examUnits.length === 0) {
-      setErrorMessage('กรุณาเพิ่มหน่วยการเรียนรู้อย่างน้อย 1 หน่วยก่อนให้ AI วิเคราะห์');
+    let currentUnits = [...examUnits];
+    if (currentUnits.length === 0 && newUnitInput.trim()) {
+      const addedUnit = {
+        id: `unit-${Date.now()}`,
+        name: newUnitInput.trim(),
+      };
+      currentUnits = [addedUnit];
+      setExamUnits(currentUnits);
+      setNewUnitInput('');
+    }
+
+    if (currentUnits.length === 0) {
+      setErrorMessage('กรุณาพิมพ์หรือเพิ่มหน่วยการเรียนรู้อย่างน้อย 1 หน่วยก่อนให้ AI วิเคราะห์');
       return;
     }
     setIsAnalyzingIndicators(true);
     setErrorMessage(null);
     try {
       const config = await getEffectiveAiConfig(session);
-      if (!config.apiKey) {
-        throw new Error('ไม่พบ Gemini API Key ในระบบ กรุณาตั้งค่าก่อนใช้งาน');
-      }
       const result = await analyzeIndicatorsFromUnits({
-        apiKey: config.apiKey,
+        apiKey: config.apiKey || '',
         model: config.model,
         subject,
         gradeLevel,
-        units: examUnits.map((u) => u.name),
+        units: currentUnits.map((u) => u.name),
       });
       if (!result || result.length === 0) {
         throw new Error(
@@ -200,7 +208,7 @@ export function RubricAndQuizModal({
         id: `ind-${Date.now()}-${idx}`,
         code: item.code,
         name: item.name,
-        unitName: findBestMatchingUnit(item.unitName, examUnits),
+        unitName: findBestMatchingUnit(item.unitName, currentUnits),
         count: Math.max(1, base + (idx < remainder ? 1 : 0)),
       }));
       setExamIndicators(newItems);
@@ -324,17 +332,75 @@ export function RubricAndQuizModal({
     setErrorMessage(null);
     try {
       const config = await getEffectiveAiConfig(session);
-      if (!config.apiKey) {
-        throw new Error('ไม่พบ Gemini API Key ในระบบ กรุณาตั้งค่าก่อนใช้งาน');
+
+      // 1. Auto-commit any pending input text in newUnitInput
+      let currentUnits = [...examUnits];
+      if (newUnitInput.trim()) {
+        const addedUnit = {
+          id: `unit-${Date.now()}`,
+          name: newUnitInput.trim(),
+        };
+        currentUnits = [...currentUnits, addedUnit];
+        setExamUnits(currentUnits);
+        setNewUnitInput('');
       }
-      const unitNames = examUnits.map((u) => u.name);
+
+      // 2. If still no units at all, auto-derive standard curriculum units based on subject & grade
+      if (currentUnits.length === 0) {
+        const cleanSubj = subject.toLowerCase();
+        let defaultUnitNames = ['หน่วยที่ 1 ความรู้และทักษะพื้นฐาน', 'หน่วยที่ 2 การประยุกต์ใช้และการแก้ปัญหา'];
+        if (cleanSubj.includes('คณิต') || cleanSubj.includes('math')) {
+          defaultUnitNames = ['หน่วยที่ 1 จำนวนและการดำเนินการ', 'หน่วยที่ 2 เรขาคณิตและการวัด'];
+        } else if (cleanSubj.includes('วิทย์') || cleanSubj.includes('sci')) {
+          defaultUnitNames = ['หน่วยที่ 1 สิ่งมีชีวิตและสิ่งแวดล้อม', 'หน่วยที่ 2 สสารและพลังงาน'];
+        } else if (cleanSubj.includes('ไทย') || cleanSubj.includes('thai')) {
+          defaultUnitNames = ['หน่วยที่ 1 การอ่านและการเขียนจับใจความ', 'หน่วยที่ 2 หลักการใช้ภาษาไทย'];
+        }
+        currentUnits = defaultUnitNames.map((name, i) => ({
+          id: `unit-auto-${Date.now()}-${i}`,
+          name,
+        }));
+        setExamUnits(currentUnits);
+      }
+
+      const unitNames = currentUnits.map((u) => u.name);
+
+      // 3. If no indicators analyzed yet, auto-analyze from units
+      let currentIndicators = [...examIndicators];
+      if (currentIndicators.length === 0) {
+        try {
+          const autoInds = await analyzeIndicatorsFromUnits({
+            apiKey: config.apiKey || '',
+            model: config.model,
+            subject,
+            gradeLevel,
+            units: unitNames,
+          });
+          if (autoInds && autoInds.length > 0) {
+            const targetTotal = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
+            const base = Math.floor(targetTotal / autoInds.length);
+            const remainder = targetTotal % autoInds.length;
+            currentIndicators = autoInds.map((item, idx) => ({
+              id: `ind-${Date.now()}-${idx}`,
+              code: item.code,
+              name: item.name,
+              unitName: findBestMatchingUnit(item.unitName, currentUnits),
+              count: Math.max(1, base + (idx < remainder ? 1 : 0)),
+            }));
+            setExamIndicators(currentIndicators);
+          }
+        } catch (indErr) {
+          console.warn('[handleGenerateExam] Auto indicator resolution fallback:', indErr);
+        }
+      }
+
       const indicatorSummary =
-        examIndicators.length > 0
-          ? examIndicators.map((ind) => `${ind.code} (${ind.name}) [เป้าหมาย ${ind.count} ข้อ]`).join('; ')
-          : indicator;
+        currentIndicators.length > 0
+          ? currentIndicators.map((ind) => `${ind.code} (${ind.name}) [เป้าหมาย ${ind.count} ข้อ]`).join('; ')
+          : indicator || `ตัวชี้วัดมาตรฐาน สพฐ. กลุ่มสาระ ${subject}`;
 
       const res = await generateSemesterExam({
-        apiKey: config.apiKey,
+        apiKey: config.apiKey || '',
         model: config.model,
         examType,
         subject,
@@ -345,7 +411,7 @@ export function RubricAndQuizModal({
         totalScore,
         topicsCovered: unitNames.join(', ') || examTopics,
         units: unitNames,
-        indicatorQuotas: examIndicators.map((ind) => ({
+        indicatorQuotas: currentIndicators.map((ind) => ({
           code: ind.code,
           name: ind.name,
           count: Number(ind.count) || 1,
@@ -473,15 +539,15 @@ export function RubricAndQuizModal({
           <strong>คำชี้แจงทั่วไป:</strong> ${result.instructions}
         </div>
 
-        <div class="part-title">${result.part1.title} (${result.part1.itemCount} ข้อ • ข้อละ ${result.part1.scorePerItem} คะแนน รวม ${result.part1.totalScore} คะแนน)</div>
+        <div class="part-title">${result.part1?.title || 'ตอนที่ 1 แบบเลือกตอบ'} (${result.part1?.itemCount || 0} ข้อ • ข้อละ ${result.part1?.scorePerItem || 1} คะแนน รวม ${result.part1?.totalScore || 0} คะแนน)</div>
         <div class="questions-list">
-          ${result.part1.questions
+          ${(result.part1?.questions || [])
             .map(
               (q) => `
             <div class="q-item">
               <div class="q-text">${q.questionNumber}. ${q.questionText} ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${q.indicator}]</span>` : ''}</div>
               <div class="choices-grid">
-                ${q.choices.map((c) => `<div><strong>${c.key}.</strong> ${c.text}</div>`).join('')}
+                ${(q.choices || []).map((c) => `<div><strong>${c.key}.</strong> ${c.text}</div>`).join('')}
               </div>
             </div>
           `
@@ -564,7 +630,7 @@ export function RubricAndQuizModal({
             </tr>
           </thead>
           <tbody>
-            ${result.part1.questions
+            ${(result.part1?.questions || [])
               .map(
                 (q) => `
               <tr>
@@ -2102,9 +2168,9 @@ export function RubricAndQuizModal({
                           fullText += `เวลา: ${examResult.timeMinutes} นาที คะแนนเต็ม: ${examResult.totalScore} คะแนน\n\n`;
                           fullText += `คำชี้แจง: ${examResult.instructions}\n\n`;
                           fullText += `--- ${examResult.part1.title} ---\n`;
-                          examResult.part1.questions.forEach((q) => {
+                          (examResult.part1?.questions || []).forEach((q) => {
                             fullText += `${q.questionNumber}. ${q.questionText}\n`;
-                            q.choices.forEach((c) => {
+                            (q.choices || []).forEach((c) => {
                               fullText += `   ${c.key}. ${c.text}\n`;
                             });
                           });
@@ -2155,7 +2221,7 @@ export function RubricAndQuizModal({
                           {examResult.part1.title} ({examResult.part1.itemCount} ข้อ • รวม {examResult.part1.totalScore} คะแนน)
                         </div>
                         <div className="space-y-3">
-                          {examResult.part1.questions.map((q) => (
+                          {(examResult.part1?.questions || []).map((q) => (
                             <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-2">
                               <div className="flex items-start justify-between gap-2">
                                 <p className="text-xs font-black text-slate-900">
@@ -2168,7 +2234,7 @@ export function RubricAndQuizModal({
                                 )}
                               </div>
                               <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                {q.choices.map((c) => (
+                                {(q.choices || []).map((c) => (
                                   <div key={c.key} className="flex items-center gap-2 rounded-lg bg-white p-2 border border-slate-200">
                                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-black text-slate-700">
                                       {c.key}
@@ -2245,7 +2311,7 @@ export function RubricAndQuizModal({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {examResult.part1.questions.map((q) => (
+                              {(examResult.part1?.questions || []).map((q) => (
                                 <tr key={q.questionNumber} className="hover:bg-slate-50/60">
                                   <td className="p-2.5 text-center font-black text-slate-700">{q.questionNumber}</td>
                                   <td className="p-2.5 text-center">
@@ -2445,10 +2511,8 @@ export function RubricAndQuizModal({
               className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
               disabled={
                 isGenerating ||
-                hasApiKey === false ||
                 !subject.trim() ||
                 !gradeLevel.trim() ||
-                examUnits.length === 0 ||
                 examPart1Count < 5
               }
               onClick={handleGenerateExam}

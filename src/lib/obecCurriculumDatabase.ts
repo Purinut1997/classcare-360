@@ -374,5 +374,10 @@ export function findStandardIndicatorsForUnit(params: {
     return scored.slice(0, 3).map((s) => s.ind);
   }
 
+  // Fallback: If no keyword matched, provide the first 2-3 standard indicators of that grade
+  if (indicatorsForGrade && indicatorsForGrade.length > 0) {
+    return indicatorsForGrade.slice(0, 2);
+  }
+
   return [];
 }

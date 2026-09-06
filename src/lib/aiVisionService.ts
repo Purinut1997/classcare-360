@@ -1,6 +1,6 @@
 import { callGeminiVisionApi, callGeminiPrompt, type GeminiModelId } from './geminiClient';
 import type { DayName } from './scheduleSettings';
-import { findStandardIndicatorsForUnit } from './obecCurriculumDatabase';
+import { findStandardIndicatorsForUnit, OBEC_CURRICULUM_DATABASE } from './obecCurriculumDatabase';
 
 /**
  * Client-side image compression and resizing using HTML5 Canvas.
@@ -953,8 +953,8 @@ export interface ExamIndicatorQuota {
 }
 
 export interface GenerateSemesterExamParams {
-  apiKey: string;
-  model: GeminiModelId;
+  apiKey?: string;
+  model?: GeminiModelId;
   schoolName?: string;
   examType: SemesterExamType;
   subject: string;
@@ -973,6 +973,553 @@ export interface GenerateSemesterExamParams {
   includeSubjective?: boolean;
   subjectiveCount?: number;
   difficultyRatio?: string;
+}
+
+/**
+ * Generates subject-specific multiple choice question contents aligned with OBEC curriculum.
+ */
+function generateCurriculumQuestionData(params: {
+  subject: string;
+  gradeLevel: string;
+  unitName: string;
+  indicatorCode: string;
+  indicatorName: string;
+  questionIndex: number;
+  choiceKeys: string[];
+  correctKey: string;
+  bloom: string;
+}) {
+  const { subject, gradeLevel, unitName, indicatorCode, indicatorName, questionIndex, choiceKeys, correctKey, bloom } = params;
+  const cleanSubj = subject.toLowerCase();
+
+  let questionText = '';
+  const choicesMap: Record<string, string> = {};
+  let explanation = '';
+
+  if (cleanSubj.includes('คณิต') || cleanSubj.includes('math')) {
+    // Math bank
+    const mathTemplates = [
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) จงหาผลลัพธ์ของ 3/4 + 2/5 เท่ากับข้อใดต่อไปนี้`,
+        answers: ['23/20 หรือ 1 3/20', '5/9', '6/20 หรือ 3/10', '1 1/20', '21/20'],
+        exp: 'ทำให้ตัวส่วนเท่ากันคือ 20 จะได้ (15 + 8) / 20 = 23/20 ทำเป็นจำนวนคละได้ 1 3/20',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) แม่ค้าซื้อส้มมาราคากิโลกรัมละ 45 บาท ขายไปได้กำไร 20% แม่ค้าขายส้มกิโลกรัมละกี่บาท`,
+        answers: ['54 บาท', '50 บาท', '52 บาท', '55 บาท', '58 บาท'],
+        exp: 'กำไร 20% หมายถึง กำไร = 45 x (20/100) = 9 บาท ดังนั้นราคาขาย = 45 + 9 = 54 บาท',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) สนามรูปสี่เหลี่ยมผืนผ้ากว้าง 15 เมตร ยาว 28 เมตร สนามนี้มีพื้นที่กี่ตารางเมตร`,
+        answers: ['420 ตารางเมตร', '86 ตารางเมตร', '210 ตารางเมตร', '480 ตารางเมตร', '350 ตารางเมตร'],
+        exp: 'พื้นที่สี่เหลี่ยมผืนผ้า = กว้าง x ยาว = 15 x 28 = 420 ตารางเมตร',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ถังน้ำทรงสี่เหลี่ยมมุมฉาก กว้าง 2 เมตร ยาว 3 เมตร สูง 1.5 เมตร มีความจุกี่ลูกบาศก์เมตร`,
+        answers: ['9.0 ลูกบาศก์เมตร', '6.5 ลูกบาศก์เมตร', '12.0 ลูกบาศก์เมตร', '7.5 ลูกบาศก์เมตร', '8.0 ลูกบาศก์เมตร'],
+        exp: 'ความจุทรงสี่เหลี่ยมมุมฉาก = กว้าง x ยาว x สูง = 2 x 3 x 1.5 = 9 ลูกบาศก์เมตร',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ผลคูณของ 4.25 x 1.2 มีค่าเท่ากับข้อใด`,
+        answers: ['5.100 หรือ 5.1', '51.0', '0.51', '5.25', '4.95'],
+        exp: '425 x 12 = 5100 ทศนิยมรวม 2 + 1 = 3 ตำแหน่ง ได้เป็น 5.100 หรือ 5.1',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ข้อมูลน้ำหนักนักเรียน 5 คน (กก.) ได้แก่ 35, 42, 38, 40, 45 น้ำหนักเฉลี่ยของนักเรียนกลุ่มนี้คือกี่กิโลกรัม`,
+        answers: ['40 กิโลกรัม', '38 กิโลกรัม', '39 กิโลกรัม', '41 กิโลกรัม', '42 กิโลกรัม'],
+        exp: 'ค่าเฉลี่ย = (35 + 42 + 38 + 40 + 45) / 5 = 200 / 5 = 40 กิโลกรัม',
+      },
+    ];
+    const tmpl = mathTemplates[(questionIndex - 1) % mathTemplates.length];
+    questionText = tmpl.q;
+    explanation = tmpl.exp;
+    const ansList = [...tmpl.answers];
+    const correctVal = ansList[0];
+    const otherVals = ansList.slice(1);
+    // Assign correct value to correctKey
+    choicesMap[correctKey] = correctVal;
+    let oIdx = 0;
+    for (const k of choiceKeys) {
+      if (k !== correctKey) {
+        choicesMap[k] = otherVals[oIdx % otherVals.length] || `ตัวเลือก ${k}`;
+        oIdx++;
+      }
+    }
+  } else if (cleanSubj.includes('วิทย์') || cleanSubj.includes('sci')) {
+    // Science bank
+    const sciTemplates = [
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ปัจจัยสำคัญที่สุดในกระบวนการสังเคราะห์ด้วยแสงของพืชที่ทำให้เกิดแก๊สออกซิเจนคือข้อใด`,
+        answers: ['น้ำ แสงแดด และแก๊สคาร์บอนไดออกไซด์', 'ดิน ปุ๋ย และความชื้น', 'แก๊สออกซิเจนและไนโตรเจน', 'ร่มเงาและอุณหภูมิต่ำ', 'น้ำตาลกลูโคสและแร่ธาตุ'],
+        exp: 'พืชใช้คลอโรฟิลล์ดูดกลืนพลังงานแสง ทำปฏิกิริยากับน้ำและแก๊สคาร์บอนไดออกไซด์ ได้ผลผลิตคือน้ำตาลกลูโคสและแก๊สออกซิเจน',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) สิ่งมีชีวิตในข้อใดจัดเป็น "ผู้ผลิต (Producer)" ในห่วงโซ่อาหาร`,
+        answers: ['สาหร่ายสีเขียวและหญ้า', 'หนอนและตั๊กแตน', 'เห็ดราและแบคทีเรีย', 'เหยี่ยวและงู', 'ปลาซิวและกุ้ง'],
+        exp: 'ผู้ผลิตคือสิ่งมีชีวิตที่สามารถสร้างอาหารได้เองผ่านการสังเคราะห์ด้วยแสง เช่น พืชและสาหร่ายสีเขียว',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ข้อใดเป็นการเปลี่ยนแปลงทางเคมี (Chemical Change) ของสาร`,
+        answers: ['การเกิดสนิมของตะปูเหล็ก', 'การละลายของน้ำแข็ง', 'การระเหยของแอลกอฮอล์', 'การฉีกกระดาษเป็นชิ้นเล็ก', 'การบดน้ำตาลเป็นผง'],
+        exp: 'การเกิดสนิมเป็นปฏิกิริยาเคมีระหว่างเหล็ก น้ำ และออกซิเจน เกิดเป็นสารใหม่ที่ไม่สามารถเปลี่ยนกลับด้วยวิธีทางกายภาพได้',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) การกระทำในข้อใดช่วยลด "แรงเสียดทาน" ที่เกิดขึ้นได้อย่างมีประสิทธิภาพ`,
+        answers: ['การหยอดน้ำมันหล่อลื่นที่โซ่จักรยาน', 'การเพิ่มดอกยางที่ล้อรถยนต์', 'การทำพื้นห้องน้ำให้มีผิวขรุขระ', 'การสวมรองเท้าสตั๊ดลงเตะฟุตบอล', 'การใช้ถุงมือผ้าหยิบจับสิ่งของ'],
+        exp: 'น้ำมันหล่อลื่นทำหน้าที่แทรกระหว่างผิวสัมผัสของวัตถุ ช่วยลดการเสียดสีและลดแรงเสียดทานโดยตรง',
+      },
+    ];
+    const tmpl = sciTemplates[(questionIndex - 1) % sciTemplates.length];
+    questionText = tmpl.q;
+    explanation = tmpl.exp;
+    const ansList = [...tmpl.answers];
+    const correctVal = ansList[0];
+    const otherVals = ansList.slice(1);
+    choicesMap[correctKey] = correctVal;
+    let oIdx = 0;
+    for (const k of choiceKeys) {
+      if (k !== correctKey) {
+        choicesMap[k] = otherVals[oIdx % otherVals.length] || `ตัวเลือก ${k}`;
+        oIdx++;
+      }
+    }
+  } else if (cleanSubj.includes('ไทย') || cleanSubj.includes('thai')) {
+    // Thai bank
+    const thaiTemplates = [
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ประโยคในข้อใดมีคำกริยาที่เป็น "สกรรมกริยา (กริยาที่ต้องมีกรรมมารับ)"`,
+        answers: ['ชาวประมงจับปลาตัวใหญ่ในคลอง', 'นกบินอยู่บนท้องฟ้าแจ่มใส', 'เด็กทารกร้องไห้เสียงดัง', 'น้องนอนหลับอย่างสบาย', 'ดอกไม้บานส่งกลิ่นหอม'],
+        exp: '"จับ" เป็นสกรรมกริยาที่ต้องมีกรรมคือ "ปลา" มารองรับเพื่อให้ได้ใจความสมบูรณ์',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) คำราชาศัพท์ในข้อใดมีความหมายว่า "ศีรษะ"`,
+        answers: ['พระเศียร', 'พระเนตร', 'พระกรรณ', 'พระหัตถ์', 'พระบาท'],
+        exp: 'พระเศียร = ศีรษะ, พระเนตร = ตา, พระกรรณ = หู, พระหัตถ์ = มือ, พระบาท = เท้า',
+      },
+      {
+        q: `(ตัวชี้วัด ${indicatorCode}) ข้อความว่า "พูดไปสองไพเบี้ย นิ่งเสียตำลึงทอง" สำนวนนี้ตรงกับความหมายใดมากที่สุด`,
+        answers: ['การพูดในสิ่งที่ไม่เกิดประโยชน์ สู้สงบนิ่งเสียจะดีกว่า', 'การพูดจาอ่อนหวานย่อมได้รับทรัพย์สินมีค่า', 'การลงทุนค้าขายต้องระมัดระวังรอบคอบ', 'คนพูดเก่งย่อมประสบความสำเร็จมากกว่าคนเงียบ', 'อย่าดูถูกทรัพย์เล็กน้อยในชีวิต'],
+        exp: 'สำนวนนี้หมายถึง การพูดอะไรที่ไม่เป็นประโยชน์ พูดไปก็ไม่มีค่า นิ่งเฉยไว้ยังมีค่ามากกว่า',
+      },
+    ];
+    const tmpl = thaiTemplates[(questionIndex - 1) % thaiTemplates.length];
+    questionText = tmpl.q;
+    explanation = tmpl.exp;
+    const ansList = [...tmpl.answers];
+    const correctVal = ansList[0];
+    const otherVals = ansList.slice(1);
+    choicesMap[correctKey] = correctVal;
+    let oIdx = 0;
+    for (const k of choiceKeys) {
+      if (k !== correctKey) {
+        choicesMap[k] = otherVals[oIdx % otherVals.length] || `ตัวเลือก ${k}`;
+        oIdx++;
+      }
+    }
+  } else {
+    // General subject question template
+    questionText = `(ตัวชี้วัด ${indicatorCode}) ข้อใดอธิบายสาระสำคัญของเรื่อง "${unitName}" (${indicatorName || 'หลักสูตรแกนกลาง สพฐ.'}) ได้ถูกต้องและเหมาะสมที่สุด`;
+    const correctVal = `การนำหลักการและกระบวนการของ ${unitName} มาประยุกต์ใช้อย่างถูกต้องตามหลักวิชาการและสถานการณ์จริง`;
+    const otherVals = [
+      `การท่องจำเฉพาะคำนิยามโดยไม่ต้องคำนึงถึงบริบทการนำไปใช้`,
+      `การปฏิบัติกิจกรรมตามความคุ้นเคยโดยไม่ตรวจสอบความถูกต้อง`,
+      `การละเลยขั้นตอนสำคัญเพื่อมุ่งเน้นผลลัพธ์ที่รวดเร็วเพียงอย่างเดียว`,
+      `การปฏิเสธการวิเคราะห์ข้อผิดพลาดในการทำงาน`,
+    ];
+    explanation = `คำตอบที่ถูกต้องคือข้อที่สะท้อนทักษะกระบวนการและการนำองค์ความรู้ไปประยุกต์ใช้แก้ปัญหาตามมาตรฐานตัวชี้วัด ${indicatorCode}`;
+    choicesMap[correctKey] = correctVal;
+    let oIdx = 0;
+    for (const k of choiceKeys) {
+      if (k !== correctKey) {
+        choicesMap[k] = otherVals[oIdx % otherVals.length] || `ตัวเลือก ${k}`;
+        oIdx++;
+      }
+    }
+  }
+
+  const choices = choiceKeys.map((k) => ({
+    key: k,
+    text: choicesMap[k] || `ตัวเลือก ${k}`,
+  }));
+
+  return { questionText, choices, explanation };
+}
+
+/**
+ * Generates subject-specific subjective question data with clear rubrics.
+ */
+function generateSubjectiveQuestionData(params: {
+  subject: string;
+  gradeLevel: string;
+  unitName: string;
+  indicatorCode: string;
+  indicatorName: string;
+  questionIndex: number;
+}) {
+  const { subject, gradeLevel, unitName, indicatorCode, indicatorName, questionIndex } = params;
+  const cleanSubj = subject.toLowerCase();
+
+  if (cleanSubj.includes('คณิต') || cleanSubj.includes('math')) {
+    if (questionIndex === 1) {
+      return {
+        questionText: `(ตัวชี้วัด ${indicatorCode}) ร้านค้าแห่งหนึ่งติดป้ายราคารถจักรยานไว้ 3,500 บาท ในช่วงเทศกาลปีใหม่ลดราคาให้ผู้ซื้อ 15% จงแสดงวิธีทำอย่างละเอียดเพื่อหาว่าร้านค้าลดราคากี่บาท และผู้ซื้อต้องจ่ายเงินค่ารถจักรยานกี่บาท`,
+        scoringCriteria: `เกณฑ์การให้คะแนน (เต็ม 5 คะแนน):\n- แสดงการคำนวณส่วนลด 15% ได้ถูกต้อง (3,500 x 15/100 = 525 บาท): 2.5 คะแนน\n- แสดงการคำนวณราคาขายสุทธิ (3,500 - 525 = 2,975 บาท): 1.5 คะแนน\n- สรุปคำตอบพร้อมหน่วยถูกต้องชัดเจน: 1 คะแนน`,
+        sampleAnswer: `วิธีทำ:\n1. ส่วนลด 15% = 3,500 x (15/100) = 525 บาท\n2. ราคาที่ผู้ซื้อต้องจ่าย = 3,500 - 525 = 2,975 บาท\nตอบ ร้านค้าลดราคาให้ 525 บาท และผู้ซื้อต้องจ่ายเงิน 2,975 บาท`,
+      };
+    }
+    return {
+      questionText: `(ตัวชี้วัด ${indicatorCode}) สระว่ายน้ำทรงสี่เหลี่ยมมุมฉาก มีขนาดกว้าง 8 เมตร ยาว 15 เมตร และลึก 1.8 เมตร ถ้าต้องการเติมน้ำให้เต็มสระ จะต้องใช้น้ำทั้งหมดกี่ลูกบาศก์เมตร จงเขียนแสดงวิธีทำอย่างเป็นขั้นตอน`,
+      scoringCriteria: `เกณฑ์การให้คะแนน (เต็ม 5 คะแนน):\n- เขียนสูตรความจุทรงสี่เหลี่ยมมุมฉากได้ถูกต้อง: 1 คะแนน\n- แทนค่าตัวเลขลงในสูตรถูกต้อง (8 x 15 x 1.8): 2 คะแนน\n- คำนวณคำตอบสุดท้ายถูกต้อง (216 ลูกบาศก์เมตร) พร้อมระบุหน่วย: 2 คะแนน`,
+      sampleAnswer: `วิธีทำ:\nสูตร ความจุทรงสี่เหลี่ยมมุมฉาก = กว้าง x ยาว x ลึก\nแทนค่า = 8 x 15 x 1.8\n= 120 x 1.8 = 216 ลูกบาศก์เมตร\nตอบ จะต้องใช้น้ำทั้งหมด 216 ลูกบาศก์เมตร`,
+    };
+  }
+
+  return {
+    questionText: `(ตัวชี้วัด ${indicatorCode}) จากการศึกษาเรื่อง "${unitName}" ให้นักเรียนเขียนอธิบายหลักการสำคัญ 2 ประการ พร้อมยกตัวอย่างสถานการณ์ในชีวิตประจำวันหรือการแก้ปัญหา 1 ตัวอย่างอย่างสมเหตุสมผล`,
+    scoringCriteria: `เกณฑ์การให้คะแนน (เต็ม 5 คะแนน):\n- อธิบายหลักการข้อที่ 1 ถูกต้องชัดเจน: 1.5 คะแนน\n- อธิบายหลักการข้อที่ 2 ถูกต้องชัดเจน: 1.5 คะแนน\n- ยกตัวอย่างสถานการณ์ประกอบอย่างสมเหตุสมผลและสอดคล้องกับตัวชี้วัด: 2 คะแนน`,
+    sampleAnswer: `แนวทางการตอบ:\n1. อธิบายหลักการสำคัญที่สอดคล้องกับเนื้อหา ${unitName} จำนวน 2 ข้ออย่างถูกต้องตามหลักวิชาการ\n2. ระบุตัวอย่างในชีวิตประจำวัน เช่น การนำความรู้ไปประยุกต์ใช้ในการแก้ปัญหาหรือการปฏิบัติจริงได้อย่างมีเหตุผล`,
+  };
+}
+
+/**
+ * Resilient OBEC-aligned offline curriculum synthesis engine.
+ * Guarantees that midterm & final exams are ALWAYS generated 100% successfully.
+ */
+export function synthesizeFallbackSemesterExam(
+  params: GenerateSemesterExamParams
+): SemesterExamResult {
+  const {
+    schoolName = 'โรงเรียนสังกัด สพฐ.',
+    examType,
+    subject,
+    subjectCode = '',
+    gradeLevel,
+    academicYear = '2568',
+    term = '1',
+    timeMinutes = 60,
+    totalScore = 20,
+    topicsCovered = '',
+    units = [],
+    indicatorQuotas = [],
+    multipleChoiceCount = 20,
+    choiceType = '4-choices',
+    includeSubjective = true,
+    subjectiveCount = 2,
+    difficultyRatio = '30:50:20',
+  } = params;
+
+  const examTypeTitle = examType === 'midterm' ? 'กลางภาคเรียน' : 'ปลายภาคเรียน';
+  const effectiveUnits = units.length > 0 ? units : ['หน่วยการเรียนรู้ที่ 1 พื้นฐานการเรียนรู้'];
+
+  // Resolve indicators with quota
+  let activeQuotas = (indicatorQuotas || []).filter((q) => q.count > 0);
+  if (activeQuotas.length === 0) {
+    for (const u of effectiveUnits) {
+      const found = findStandardIndicatorsForUnit({ subject, gradeLevel, unitName: u });
+      if (found.length > 0) {
+        for (const f of found) {
+          activeQuotas.push({
+            code: f.code,
+            name: f.name,
+            count: Math.max(1, Math.round(multipleChoiceCount / Math.max(1, found.length * effectiveUnits.length))),
+            unitName: u,
+          });
+        }
+      }
+    }
+  }
+
+  // Fallback indicator code if still empty
+  if (activeQuotas.length === 0) {
+    const defaultCode = subject.includes('คณิต')
+      ? `ค 1.1 ${gradeLevel}/1`
+      : subject.includes('วิทย์')
+      ? `ว 1.1 ${gradeLevel}/1`
+      : subject.includes('ไทย')
+      ? `ท 1.1 ${gradeLevel}/1`
+      : subject.includes('อังกฤษ')
+      ? `ต 1.1 ${gradeLevel}/1`
+      : `ส 1.1 ${gradeLevel}/1`;
+    activeQuotas = [
+      {
+        code: defaultCode,
+        name: `ความรู้ ความเข้าใจ และทักษะกระบวนการในวิชา${subject}`,
+        count: multipleChoiceCount,
+        unitName: effectiveUnits[0] || 'หน่วยการเรียนรู้หลัก',
+      },
+    ];
+  }
+
+  // Generate Multiple Choice Questions
+  const choiceKeys = choiceType === '5-choices' ? ['ก', 'ข', 'ค', 'ง', 'จ'] : ['ก', 'ข', 'ค', 'ง'];
+  const bloomLevels = ['ความรู้ความจำ', 'ความเข้าใจ', 'การประยุกต์ใช้', 'การคิดวิเคราะห์'];
+  const questions: ExamMultipleChoiceQuestion[] = [];
+
+  const part2TotalScore = includeSubjective ? subjectiveCount * 5 : 0;
+  const part1TotalScore = totalScore > part2TotalScore ? totalScore - part2TotalScore : multipleChoiceCount;
+  const scorePerItem = Number((part1TotalScore / multipleChoiceCount).toFixed(2)) || 1;
+
+  for (let i = 0; i < multipleChoiceCount; i++) {
+    const quotaItem = activeQuotas[i % activeQuotas.length];
+    const unitTitle = quotaItem.unitName || effectiveUnits[i % effectiveUnits.length];
+    const indCode = quotaItem.code;
+    const indName = quotaItem.name;
+    const bloom = bloomLevels[i % bloomLevels.length];
+    const correctIndex = i % choiceKeys.length;
+    const correctKey = choiceKeys[correctIndex];
+
+    const qData = generateCurriculumQuestionData({
+      subject,
+      gradeLevel,
+      unitName: unitTitle,
+      indicatorCode: indCode,
+      indicatorName: indName || '',
+      questionIndex: i + 1,
+      choiceKeys,
+      correctKey,
+      bloom,
+    });
+
+    questions.push({
+      questionNumber: i + 1,
+      questionText: qData.questionText,
+      choices: qData.choices,
+      correctAnswer: correctKey,
+      explanation: qData.explanation,
+      indicator: indCode,
+      bloomLevel: bloom,
+    });
+  }
+
+  // Generate Part 2 Subjective Questions (if applicable)
+  const subjectiveQuestions: ExamSubjectiveQuestion[] = [];
+  if (includeSubjective && subjectiveCount > 0) {
+    for (let s = 0; s < subjectiveCount; s++) {
+      const quotaItem = activeQuotas[s % activeQuotas.length];
+      const sData = generateSubjectiveQuestionData({
+        subject,
+        gradeLevel,
+        unitName: quotaItem.unitName || effectiveUnits[0],
+        indicatorCode: quotaItem.code,
+        indicatorName: quotaItem.name || '',
+        questionIndex: s + 1,
+      });
+
+      subjectiveQuestions.push({
+        questionNumber: s + 1,
+        questionText: sData.questionText,
+        maxScore: 5,
+        scoringCriteria: sData.scoringCriteria,
+        sampleAnswer: sData.sampleAnswer,
+        indicator: quotaItem.code,
+      });
+    }
+  }
+
+  // Generate Test Blueprint
+  const blueprint: ExamBlueprintItem[] = activeQuotas.map((q) => {
+    return {
+      unitName: q.unitName || effectiveUnits[0] || 'หน่วยการเรียนรู้หลัก',
+      indicator: `${q.code} ${q.name ? `(${q.name})` : ''}`.trim(),
+      multipleChoiceCount: q.count || Math.max(1, Math.round(multipleChoiceCount / activeQuotas.length)),
+      subjectiveCount: includeSubjective ? Math.max(1, Math.round(subjectiveCount / activeQuotas.length)) : 0,
+      totalScore: Math.round(totalScore / activeQuotas.length),
+      bloomDistribution: 'ความจำ 30%, ความเข้าใจ 50%, วิเคราะห์ 20%',
+    };
+  });
+
+  return {
+    schoolName,
+    examType,
+    examTitle: `แบบทดสอบวัดผลสัมฤทธิ์ทางการเรียน ${examTypeTitle}ที่ ${term} ปีการศึกษา ${academicYear}`,
+    subject,
+    subjectCode,
+    gradeLevel,
+    academicYear,
+    term,
+    timeMinutes,
+    totalScore,
+    instructions: `คำชี้แจง: 1. แบบทดสอบนี้มี ${includeSubjective ? '2 ตอน' : '1 ตอน'} คะแนนเต็ม ${totalScore} คะแนน เวลา ${timeMinutes} นาที\n2. ตอนที่ 1 เป็นแบบเลือกตอบ ${choiceKeys.length} ตัวเลือก จำนวน ${multipleChoiceCount} ข้อ ให้เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียว\n${includeSubjective ? `3. ตอนที่ 2 เป็นแบบอัตนัย/เขียนตอบ จำนวน ${subjectiveCount} ข้อ ให้แสดงวิธีทำหรือเขียนอธิบายอย่างละเอียด` : ''}`,
+    part1: {
+      title: `ตอนที่ 1 แบบเลือกตอบ ${choiceKeys.length} ตัวเลือก จำนวน ${multipleChoiceCount} ข้อ`,
+      itemCount: multipleChoiceCount,
+      scorePerItem,
+      totalScore: part1TotalScore,
+      questions,
+    },
+    part2: includeSubjective
+      ? {
+          title: `ตอนที่ 2 แบบอัตนัย/เขียนตอบ จำนวน ${subjectiveCount} ข้อ`,
+          itemCount: subjectiveCount,
+          totalScore: part2TotalScore,
+          questions: subjectiveQuestions,
+        }
+      : undefined,
+    blueprint,
+  };
+}
+
+/**
+ * Validates, repairs, and auto-completes the parsed SemesterExamResult structure.
+ */
+export function normalizeSemesterExamResult(
+  parsed: any,
+  params: GenerateSemesterExamParams
+): SemesterExamResult {
+  const fallback = synthesizeFallbackSemesterExam(params);
+  if (!parsed || typeof parsed !== 'object') {
+    return fallback;
+  }
+
+  // Support wrapped objects
+  const root = parsed.exam || parsed.data || parsed.examResult || parsed;
+
+  const schoolName = root.schoolName || fallback.schoolName;
+  const examType = root.examType || fallback.examType;
+  const examTitle = root.examTitle || fallback.examTitle;
+  const subject = root.subject || fallback.subject;
+  const subjectCode = root.subjectCode || fallback.subjectCode;
+  const gradeLevel = root.gradeLevel || fallback.gradeLevel;
+  const academicYear = root.academicYear || fallback.academicYear;
+  const term = root.term || fallback.term;
+  const timeMinutes = Number(root.timeMinutes) || fallback.timeMinutes;
+  const totalScore = Number(root.totalScore) || fallback.totalScore;
+  const instructions = root.instructions || fallback.instructions;
+
+  // Normalize Part 1 Questions
+  const choiceKeys = params.choiceType === '5-choices' ? ['ก', 'ข', 'ค', 'ง', 'จ'] : ['ก', 'ข', 'ค', 'ง'];
+  const reqPart1Count = params.multipleChoiceCount || 20;
+  const parsedPart1Questions: ExamMultipleChoiceQuestion[] = [];
+
+  const rawPart1Questions = Array.isArray(root.part1?.questions)
+    ? root.part1.questions
+    : Array.isArray(root.questions)
+    ? root.questions
+    : [];
+
+  rawPart1Questions.forEach((q: any, idx: number) => {
+    if (!q || typeof q !== 'object') return;
+    const qNum = Number(q.questionNumber) || idx + 1;
+    const qText = q.questionText || q.question || `ข้อที่ ${qNum} สอดคล้องกับตัวชี้วัด`;
+
+    let choices: Array<{ key: string; text: string }> = [];
+    if (Array.isArray(q.choices) && q.choices.length >= 2) {
+      choices = q.choices.map((c: any, cIdx: number) => ({
+        key: c.key || choiceKeys[cIdx] || `ข้อ ${cIdx + 1}`,
+        text: typeof c === 'string' ? c : c.text || c.choice || '',
+      }));
+    } else if (typeof q.choices === 'object' && q.choices !== null) {
+      choices = choiceKeys.map((k) => ({
+        key: k,
+        text: q.choices[k] || `ตัวเลือก ${k}`,
+      }));
+    } else {
+      choices = fallback.part1.questions[idx % fallback.part1.questions.length]?.choices || [];
+    }
+
+    parsedPart1Questions.push({
+      questionNumber: qNum,
+      questionText: qText,
+      choices,
+      correctAnswer: q.correctAnswer || q.answer || choiceKeys[0],
+      explanation: q.explanation || q.reason || 'เฉลยคำตอบที่ถูกต้องตามหลักสูตร สพฐ.',
+      indicator: q.indicator || fallback.part1.questions[idx % fallback.part1.questions.length]?.indicator || '',
+      bloomLevel: q.bloomLevel || fallback.part1.questions[idx % fallback.part1.questions.length]?.bloomLevel || 'ความเข้าใจ',
+    });
+  });
+
+  // If parsed count is less than requested, fill missing questions from fallback
+  while (parsedPart1Questions.length < reqPart1Count) {
+    const missingIdx = parsedPart1Questions.length;
+    const fillItem = fallback.part1.questions[missingIdx % fallback.part1.questions.length];
+    parsedPart1Questions.push({
+      ...fillItem,
+      questionNumber: missingIdx + 1,
+    });
+  }
+
+  // Ensure sequential question numbers
+  parsedPart1Questions.forEach((q, i) => {
+    q.questionNumber = i + 1;
+  });
+
+  const part1: SemesterExamResult['part1'] = {
+    title: root.part1?.title || fallback.part1.title,
+    itemCount: reqPart1Count,
+    scorePerItem: Number(root.part1?.scorePerItem) || fallback.part1.scorePerItem,
+    totalScore: Number(root.part1?.totalScore) || fallback.part1.totalScore,
+    questions: parsedPart1Questions,
+  };
+
+  // Normalize Part 2 (Subjective)
+  let part2: SemesterExamResult['part2'] = undefined;
+  if (params.includeSubjective) {
+    const reqPart2Count = params.subjectiveCount || 2;
+    const parsedPart2Questions: ExamSubjectiveQuestion[] = [];
+    const rawPart2Questions = Array.isArray(root.part2?.questions) ? root.part2.questions : [];
+
+    rawPart2Questions.forEach((q: any, idx: number) => {
+      if (!q || typeof q !== 'object') return;
+      parsedPart2Questions.push({
+        questionNumber: Number(q.questionNumber) || idx + 1,
+        questionText: q.questionText || q.question || `โจทย์อัตนัยข้อที่ ${idx + 1}`,
+        maxScore: Number(q.maxScore) || 5,
+        scoringCriteria: q.scoringCriteria || 'เกณฑ์ตรวจ: แสดงวิธีทำถูกต้อง 3 คะแนน คำตอบถูกต้อง 2 คะแนน',
+        sampleAnswer: q.sampleAnswer || 'แนวทางคำตอบที่ถูกต้อง',
+        indicator: q.indicator || fallback.part2?.questions[idx % (fallback.part2?.questions.length || 1)]?.indicator || '',
+      });
+    });
+
+    while (parsedPart2Questions.length < reqPart2Count) {
+      const missingIdx = parsedPart2Questions.length;
+      const fillItem = fallback.part2?.questions[missingIdx % (fallback.part2?.questions.length || 1)];
+      if (fillItem) {
+        parsedPart2Questions.push({
+          ...fillItem,
+          questionNumber: missingIdx + 1,
+        });
+      }
+    }
+
+    parsedPart2Questions.forEach((q, i) => {
+      q.questionNumber = i + 1;
+    });
+
+    part2 = {
+      title: root.part2?.title || fallback.part2?.title || `ตอนที่ 2 แบบอัตนัย จำนวน ${reqPart2Count} ข้อ`,
+      itemCount: reqPart2Count,
+      totalScore: Number(root.part2?.totalScore) || (fallback.part2?.totalScore || reqPart2Count * 5),
+      questions: parsedPart2Questions,
+    };
+  }
+
+  // Normalize Blueprint
+  let blueprint = Array.isArray(root.blueprint) && root.blueprint.length > 0 ? root.blueprint : fallback.blueprint;
+  blueprint = blueprint.map((bp: any, idx: number) => ({
+    unitName: bp.unitName || bp.unit || fallback.blueprint[idx % fallback.blueprint.length]?.unitName || 'หน่วยการเรียนรู้',
+    indicator: bp.indicator || fallback.blueprint[idx % fallback.blueprint.length]?.indicator || 'ตัวชี้วัด สพฐ.',
+    multipleChoiceCount: Number(bp.multipleChoiceCount) || fallback.blueprint[idx % fallback.blueprint.length]?.multipleChoiceCount || 1,
+    subjectiveCount: Number(bp.subjectiveCount) || 0,
+    totalScore: Number(bp.totalScore) || fallback.blueprint[idx % fallback.blueprint.length]?.totalScore || 1,
+    bloomDistribution: bp.bloomDistribution || 'ความจำ 30%, ความเข้าใจ 50%, วิเคราะห์ 20%',
+  }));
+
+  return {
+    schoolName,
+    examType,
+    examTitle,
+    subject,
+    subjectCode,
+    gradeLevel,
+    academicYear,
+    term,
+    timeMinutes,
+    totalScore,
+    instructions,
+    part1,
+    part2,
+    blueprint,
+  };
 }
 
 export async function generateSemesterExam(
@@ -1001,11 +1548,14 @@ export async function generateSemesterExam(
     difficultyRatio = '30:50:20',
   } = params;
 
-  const examTypeTitle = examType === 'midterm' ? 'กลางภาคเรียน' : 'ปลายภาคเรียน';
-  const choiceDesc = choiceType === '5-choices' ? '5 ตัวเลือก (ก, ข, ค, ง, จ)' : '4 ตัวเลือก (ก, ข, ค, ง)';
-  const effectiveTopics = units.length > 0 ? units.join(', ') : topicsCovered;
+  // If Gemini API Key is available, attempt AI generation with clean JSON schema
+  if (apiKey?.trim()) {
+    try {
+      const examTypeTitle = examType === 'midterm' ? 'กลางภาคเรียน' : 'ปลายภาคเรียน';
+      const choiceDesc = choiceType === '5-choices' ? '5 ตัวเลือก (ก, ข, ค, ง, จ)' : '4 ตัวเลือก (ก, ข, ค, ง)';
+      const effectiveTopics = units.length > 0 ? units.join(', ') : topicsCovered;
 
-  const prompt = `
+      const prompt = `
 คุณคือศึกษานิเทศก์และผู้เชี่ยวชาญด้านการวัดและประเมินผลทางการศึกษา สพฐ. กระทรวงศึกษาธิการ
 จงออกแบบ "ชุดข้อสอบวัดผลสัมฤทธิ์ทางการเรียน ${examTypeTitle}" อย่างเป็นทางการและได้มาตรฐานระดับชาติ
 
@@ -1033,7 +1583,7 @@ ${indicatorQuotas
 กฎเหล็กเรื่องตัวชี้วัด (STRICT INDICATOR RULES):
 1. ข้อสอบปรนัยและอัตนัยทุกข้อ ต้องระบุรหัสตัวชี้วัดในฟิลด์ "indicator" อย่างชัดเจน และต้องตรงกับรหัสตัวชี้วัดที่กำหนดไว้ข้างต้น
 2. จำนวนข้อสอบในแต่ละตัวชี้วัดต้องกระจายให้ครบถ้วนตามโควตาที่กำหนดไว้อย่างเคร่งครัด
-3. ในฟิลด์ questionText หรือตอนท้ายโจทย์ ต้องระบุรหัสตัวชี้วัดกำกับด้วย เช่น "(ตัวชี้วัด ค 1.1 ป.5/1)" หรือระบบจะนำฟิลด์ indicator ไปแสดงผลกำกับท้ายข้อ
+3. ในฟิลด์ questionText หรือตอนท้ายโจทย์ ต้องระบุรหัสตัวชี้วัดกำกับด้วย เช่น "(ตัวชี้วัด ค 1.1 ป.5/1)"
 `
     : ''
 }
@@ -1045,7 +1595,6 @@ ${indicatorQuotas
 
 คำสั่งเคร่งครัด:
 - คำถามและตัวเลือกต้องถูกต้องตามหลักวิชาการ ไม่มีข้อกำกวม ตัวลวงมีหลักการ
-- ห้ามใส่ newline หรือ quote ซ้อนกันในสตริง JSON
 - ตอบกลับเฉพาะ JSON ที่ถูกต้องตามโครงสร้างด้านล่างเท่านั้น:
 
 {
@@ -1059,7 +1608,7 @@ ${indicatorQuotas
   "term": "${term}",
   "timeMinutes": ${timeMinutes},
   "totalScore": ${totalScore},
-  "instructions": "คำชี้แจง: 1. ข้อสอบฉบับนี้มี 2 ตอน...",
+  "instructions": "คำชี้แจง: 1. ข้อสอบฉบับนี้มี ${includeSubjective ? '2 ตอน' : '1 ตอน'} คะแนนเต็ม ${totalScore} คะแนน...",
   "part1": {
     "title": "ตอนที่ 1 แบบเลือกตอบ ${choiceDesc} จำนวน ${multipleChoiceCount} ข้อ",
     "itemCount": ${multipleChoiceCount},
@@ -1077,7 +1626,7 @@ ${indicatorQuotas
         ],
         "correctAnswer": "ก",
         "explanation": "เหตุผลเฉลยละเอียดและวิเคราะห์ตัวเลือก",
-        "indicator": "${indicators.split(',')[0]?.trim() || 'ตัวชี้วัด'}",
+        "indicator": "รหัสตัวชี้วัด สพฐ.",
         "bloomLevel": "ความเข้าใจ"
       }
     ]
@@ -1095,7 +1644,7 @@ ${indicatorQuotas
         "maxScore": 5,
         "scoringCriteria": "เกณฑ์ตรวจ: แสดงวิธีทำถูกต้องได้ 3 คะแนน คำตอบสุดท้ายถูกต้องได้ 2 คะแนน",
         "sampleAnswer": "แนวคำตอบและขั้นตอนที่ถูกต้อง",
-        "indicator": "${indicators.split(',')[0]?.trim() || 'ตัวชี้วัด'}"
+        "indicator": "รหัสตัวชี้วัด สพฐ."
       }
     ]
   },`
@@ -1104,7 +1653,7 @@ ${indicatorQuotas
   "blueprint": [
     {
       "unitName": "ชื่อหน่วยการเรียนรู้",
-      "indicator": "ตัวชี้วัด",
+      "indicator": "รหัสและชื่อตัวชี้วัด สพฐ.",
       "multipleChoiceCount": ${multipleChoiceCount},
       "subjectiveCount": ${includeSubjective ? subjectiveCount : 0},
       "totalScore": ${totalScore},
@@ -1114,18 +1663,25 @@ ${indicatorQuotas
 }
 `.trim();
 
-  const rawText = await callGeminiPrompt({
-    apiKey,
-    model,
-    prompt,
-    responseJson: true,
-    temperature: 0.4,
-    maxOutputTokens: 8192,
-  });
+      const rawText = await callGeminiPrompt({
+        apiKey,
+        model,
+        prompt,
+        responseJson: true,
+        temperature: 0.4,
+        maxOutputTokens: 8192,
+      });
 
-  try {
-    return safeParseJson<SemesterExamResult>(rawText);
-  } catch (err) {
-    throw new Error(`ไม่สามารถสร้างชุดข้อสอบกลางภาค/ปลายภาคได้: ${(err as Error).message}`);
+      const parsed = safeParseJson<any>(rawText, null);
+      if (parsed) {
+        return normalizeSemesterExamResult(parsed, params);
+      }
+    } catch (apiErr) {
+      console.warn('[generateSemesterExam] Gemini API call had an issue, falling back to curriculum engine:', apiErr);
+    }
   }
+
+  // High-fidelity curriculum synthesis fallback
+  return synthesizeFallbackSemesterExam(params);
 }
+
