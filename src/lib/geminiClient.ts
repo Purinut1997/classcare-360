@@ -341,6 +341,100 @@ export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise
   return rawText;
 }
 
+export interface GeminiPromptOptions {
+  apiKey: string;
+  model?: GeminiModelId;
+  prompt: string;
+  systemInstruction?: string;
+  responseJson?: boolean;
+  temperature?: number;
+}
+
+/**
+ * Call Google Gemini API directly with a text prompt and automatic fallback.
+ * Solves HTTP 404 / 400 / 429 errors seamlessly by falling back to stable models (e.g. gemini-1.5-flash).
+ */
+export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<string> {
+  const { apiKey, prompt, systemInstruction, responseJson, temperature = 0.4 } = options;
+  if (!apiKey?.trim()) {
+    throw new Error('กรุณาระบุ Gemini API Key ก่อนใช้งาน');
+  }
+
+  const modelInput = options.model && options.model !== 'auto' ? options.model : 'gemini-1.5-flash';
+  // Map any outdated or unavailable model names safely
+  const effectiveModel = modelInput === 'gemini-2.0-flash' ? 'gemini-1.5-flash' : modelInput;
+  const candidateModels = [
+    effectiveModel,
+    'gemini-1.5-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-1.5-pro',
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+
+  const initialModel = candidateModels[0];
+
+  const payload: Record<string, unknown> = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      temperature,
+      maxOutputTokens: 4096,
+      ...(responseJson ? { responseMimeType: 'application/json' } : {}),
+    },
+  };
+
+  if (systemInstruction) {
+    payload.systemInstruction = {
+      parts: [{ text: systemInstruction }],
+    };
+  }
+
+  let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${initialModel}:generateContent?key=${apiKey.trim()}`;
+  let response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  // Fallback hierarchy if primary model returns 404, 400, or 429
+  if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
+    const fallbackCandidates = candidateModels.filter((m) => m !== initialModel);
+    for (const fallbackModel of fallbackCandidates) {
+      const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey.trim()}`;
+      const fallbackRes = await fetch(fallbackEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (fallbackRes.ok) {
+        response = fallbackRes;
+        break;
+      }
+    }
+  }
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    let errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+    if (response.status === 429) {
+      errMsg = 'โควตาการใช้งาน Gemini เต็มชั่วคราว (429 Quota Exceeded) กรุณารอสักครู่แล้วลองใหม่';
+    }
+    throw new Error(`Gemini API Error: ${errMsg}`);
+  }
+
+  const data = await response.json();
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    throw new Error('โมเดลไม่ได้ส่งข้อมูลผลลัพธ์กลับมา');
+  }
+
+  return rawText;
+}
+
 /**
  * Discovers models available for this API key via Google's models.list endpoint.
  */

@@ -1,4 +1,4 @@
-import { callGeminiVisionApi, type GeminiModelId } from './geminiClient';
+import { callGeminiVisionApi, callGeminiPrompt, type GeminiModelId } from './geminiClient';
 import type { DayName } from './scheduleSettings';
 
 /**
@@ -417,26 +417,22 @@ export async function generateRubricCriteria(
 }
 `.trim();
 
-  // Call Gemini API via prompt
-  const effectiveModel = model === 'auto' ? 'gemini-1.5-flash' : model;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${effectiveModel}:generateContent?key=${apiKey.trim()}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
-    }),
+  // Call Gemini API via prompt with automatic fallback hierarchy to prevent 404/400/429
+  const rawText = await callGeminiPrompt({
+    apiKey,
+    model,
+    prompt,
+    responseJson: true,
+    temperature: 0.4,
   });
 
-  if (!response.ok) {
-    throw new Error(`Gemini API Error: HTTP ${response.status}`);
-  }
-
-  const data = await response.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
   const jsonStr = extractJsonFromMarkdown(rawText || '{}');
-  return JSON.parse(jsonStr) as RubricResult;
+  try {
+    return JSON.parse(jsonStr) as RubricResult;
+  } catch {
+    const cleaned = jsonStr.replace(/,\s*([\]}])/g, '$1');
+    return JSON.parse(cleaned) as RubricResult;
+  }
 }
 
 export interface QuizQuestion {
@@ -495,23 +491,20 @@ export async function generateRemedialQuiz(
 }
 `.trim();
 
-  const effectiveModel = model === 'auto' ? 'gemini-1.5-flash' : model;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${effectiveModel}:generateContent?key=${apiKey.trim()}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.5 },
-    }),
+  // Call Gemini API via prompt with automatic fallback hierarchy to prevent 404/400/429
+  const rawText = await callGeminiPrompt({
+    apiKey,
+    model,
+    prompt,
+    responseJson: true,
+    temperature: 0.5,
   });
 
-  if (!response.ok) {
-    throw new Error(`Gemini API Error: HTTP ${response.status}`);
-  }
-
-  const data = await response.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
   const jsonStr = extractJsonFromMarkdown(rawText || '{}');
-  return JSON.parse(jsonStr) as RemedialQuizResult;
+  try {
+    return JSON.parse(jsonStr) as RemedialQuizResult;
+  } catch {
+    const cleaned = jsonStr.replace(/,\s*([\]}])/g, '$1');
+    return JSON.parse(cleaned) as RemedialQuizResult;
+  }
 }
