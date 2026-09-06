@@ -83,44 +83,18 @@ export function RubricAndQuizModal({
   const [semester, setSemester] = useState('2');
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [totalScore, setTotalScore] = useState(20);
-  const [examTopics, setExamTopics] = useState('การบวก ลบ คูณ หารเศษส่วน และโจทย์ปัญหาระคน');
-  const [examPart1Count, setExamPart1Count] = useState(15);
+  const [examTopics, setExamTopics] = useState('');
+  const [examPart1Count, setExamPart1Count] = useState(18);
   const [examPart1ChoiceType, setExamPart1ChoiceType] = useState<'4-choices' | '5-choices'>('4-choices');
   const [examIncludePart2, setExamIncludePart2] = useState(true);
   const [examPart2Count, setExamPart2Count] = useState(2);
   const [examDifficulty, setExamDifficulty] = useState<'balanced' | 'basic' | 'advanced'>('balanced');
   const [examViewSubTab, setExamViewSubTab] = useState<'paper' | 'key' | 'blueprint'>('paper');
 
-  // Semester Exam: Multi-Unit & Indicator Analysis States
-  const [examUnits, setExamUnits] = useState<ExamUnitItem[]>([
-    { id: 'u-1', name: 'หน่วยที่ 1 การบวก ลบ คูณ หารเศษส่วน และจำนวนคละ' },
-    { id: 'u-2', name: 'หน่วยที่ 2 ทศนิยม และการบวก ลบ คูณ หารทศนิยม' },
-  ]);
+  // Semester Exam: Multi-Unit & Indicator Analysis States (Start empty without leftover data)
+  const [examUnits, setExamUnits] = useState<ExamUnitItem[]>([]);
   const [newUnitInput, setNewUnitInput] = useState('');
-
-  const [examIndicators, setExamIndicators] = useState<ExamIndicatorItem[]>([
-    {
-      id: 'ind-1',
-      code: 'ค 1.1 ป.5/3',
-      name: 'หาผลบวก ผลลบของเศษส่วนและจำนวนคละ',
-      unitName: 'หน่วยที่ 1 การบวก ลบ คูณ หารเศษส่วน และจำนวนคละ',
-      count: 6,
-    },
-    {
-      id: 'ind-2',
-      code: 'ค 1.1 ป.5/5',
-      name: 'แสดงวิธีหาคำตอบของโจทย์ปัญหาการบวก การลบ การคูณ การหารเศษส่วน 2 ขั้นตอน',
-      unitName: 'หน่วยที่ 1 การบวก ลบ คูณ หารเศษส่วน และจำนวนคละ',
-      count: 6,
-    },
-    {
-      id: 'ind-3',
-      code: 'ค 1.1 ป.5/1',
-      name: 'เขียนเศษส่วนที่มีตัวส่วนเป็นตัวประกอบของ 10 หรือ 100 หรือ 1,000 ในรูปทศนิยม',
-      unitName: 'หน่วยที่ 2 ทศนิยม และการบวก ลบ คูณ หารทศนิยม',
-      count: 5,
-    },
-  ]);
+  const [examIndicators, setExamIndicators] = useState<ExamIndicatorItem[]>([]);
   const [isAnalyzingIndicators, setIsAnalyzingIndicators] = useState(false);
   const [indicatorMode, setIndicatorMode] = useState<'balanced' | 'custom'>('balanced');
   const [showIndicatorInStudentPaper, setShowIndicatorInStudentPaper] = useState(true);
@@ -187,6 +161,12 @@ export function RubricAndQuizModal({
 
   const handleRemoveUnit = (id: string) => {
     setExamUnits((prev) => prev.filter((u) => u.id !== id));
+  };
+
+  const handleClearAllUnits = () => {
+    setExamUnits([]);
+    setExamIndicators([]);
+    setNewUnitInput('');
   };
 
   const handleAnalyzeIndicators = async () => {
@@ -1320,38 +1300,65 @@ export function RubricAndQuizModal({
                       จำเป็น *
                     </span>
                   </div>
-                  <span className="text-[11px] font-medium text-slate-500">
-                    ใส่หลายหน่วยเพื่อรวมเป็นข้อสอบชุดเดียว
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-medium text-slate-500">
+                      ใส่หลายหน่วยเพื่อรวมเป็นข้อสอบชุดเดียว
+                    </span>
+                    {examUnits.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllUnits}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-black text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition cursor-pointer"
+                        title="ล้างหน่วยการเรียนรู้ทั้งหมดเพื่อเริ่มใหม่"
+                      >
+                        <Trash2 size={12} />
+                        <span>ล้างหน่วยทั้งหมด</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* List of current units */}
-                <div className="space-y-2">
-                  {examUnits.map((u, idx) => (
-                    <div
-                      key={u.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs transition hover:border-violet-300"
-                    >
-                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                        <span className="shrink-0 rounded-lg bg-violet-100 px-2 py-1 text-[11px] font-black text-violet-800 border border-violet-200">
-                          หน่วยที่ {idx + 1}
-                        </span>
-                        <span className="text-xs font-bold text-slate-800 truncate">
-                          {u.name}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveUnit(u.id)}
-                        disabled={examUnits.length <= 1}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                        title={examUnits.length <= 1 ? 'ต้องมีอย่างน้อย 1 หน่วย' : 'ลบหน่วยนี้'}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                {examUnits.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/40 py-5 px-4 text-center">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600 mb-1.5">
+                      <Layers size={18} />
                     </div>
-                  ))}
-                </div>
+                    <p className="text-xs font-black text-slate-800">ยังไม่มีข้อมูลหน่วยการเรียนรู้</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">
+                      พิมพ์ชื่อหน่วยการเรียนรู้ด้านล่าง แล้วกด <strong>+ เพิ่มหน่วย</strong> (สามารถใส่ได้หลายหน่วย)
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {examUnits.map((u, idx) => {
+                      const cleanTitle = u.name.replace(/^หน่วยที่\s*\d+[\s:.-]*/i, '').trim() || u.name;
+                      return (
+                        <div
+                          key={u.id}
+                          className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs transition hover:border-violet-300"
+                        >
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            <span className="shrink-0 rounded-lg bg-violet-100 px-2 py-1 text-[11px] font-black text-violet-800 border border-violet-200">
+                              หน่วยที่ {idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 truncate" title={u.name}>
+                              {cleanTitle}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveUnit(u.id)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
+                            title="ลบหน่วยนี้"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Add Unit input row */}
                 <div className="flex items-center gap-2 pt-1">
@@ -1365,14 +1372,14 @@ export function RubricAndQuizModal({
                         handleAddUnit();
                       }
                     }}
-                    placeholder="พิมพ์ชื่อหน่วยการเรียนรู้เพิ่มเติม เช่น หน่วยที่ 3 สถิติและความน่าจะเป็น แล้วกดเพิ่ม"
+                    placeholder="พิมพ์ชื่อหน่วยการเรียนรู้ เช่น เศษส่วน หรือ การนำเสนอข้อมูล แล้วกดเพิ่ม"
                     className="h-9 flex-1 rounded-xl border-2 border-slate-300 bg-white px-3 text-xs font-medium text-slate-900 shadow-xs focus:border-violet-500 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={handleAddUnit}
                     disabled={!newUnitInput.trim()}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-violet-700 disabled:opacity-40 transition shrink-0"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-violet-700 disabled:opacity-40 transition shrink-0 cursor-pointer"
                   >
                     <Plus size={14} /> เพิ่มหน่วย
                   </button>
@@ -1701,131 +1708,314 @@ export function RubricAndQuizModal({
                 </div>
               </div>
 
-              {/* Question Structure & Difficulty */}
-              <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-4">
-                {/* Part 1 Setup */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-800">ตอนที่ 1 ปรนัย (กากบาท)</span>
-                    <span className="text-[10px] font-bold text-violet-700">ข้อสอบเลือกตอบ</span>
-                  </div>
+              {/* Section 3: Question Structure & Difficulty (กำหนดจำนวนข้ออย่างง่ายดาย) */}
+              <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4 space-y-4">
+                {/* Header & Quick Presets */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={5}
-                        max={50}
-                        value={examPart1Count}
-                        onChange={(e) =>
-                          setExamPart1Count(
-                            Math.min(50, Math.max(5, parseInt(e.target.value, 10) || 10))
-                          )
-                        }
-                        className="h-9 w-16 rounded-xl border-2 border-slate-300 bg-white text-center text-xs font-black text-slate-900 focus:border-violet-500 focus:outline-none"
-                      />
-                      <span className="text-xs font-bold text-slate-600">ข้อ</span>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-[10px] font-black text-white">
+                      3
+                    </span>
+                    <div>
+                      <span className="text-xs font-black text-slate-900">
+                        โครงสร้างข้อสอบ & จำนวนข้อที่ต้องการ
+                      </span>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        เลือกขนาดยอดนิยมในคลิกเดียว หรือปรับแต่งจำนวนข้อปรนัย/อัตนัยได้ตามต้องการ
+                      </p>
                     </div>
-                    <div className="flex gap-1 flex-wrap">
-                      {[10, 15, 20, 30].map((n) => (
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-black text-slate-500 mr-1">ชุดยอดนิยม:</span>
+                    {[
+                      { label: '10 ข้อ', p1: 10, p2: 0, inc: false, badge: 'ควิซ' },
+                      { label: '15 ข้อ', p1: 15, p2: 0, inc: false, badge: 'ย่อย' },
+                      { label: '20 ข้อ', p1: 18, p2: 2, inc: true, badge: 'กลางภาค' },
+                      { label: '30 ข้อ', p1: 28, p2: 2, inc: true, badge: 'ปลายภาค' },
+                      { label: '40 ข้อ', p1: 36, p2: 4, inc: true, badge: 'สพฐ.' },
+                    ].map((preset) => {
+                      const isSelected =
+                        totalExamQuestions === (preset.p1 + (preset.inc ? preset.p2 : 0)) &&
+                        examIncludePart2 === preset.inc &&
+                        examPart1Count === preset.p1;
+                      return (
                         <button
-                          key={n}
+                          key={preset.label}
                           type="button"
-                          onClick={() => setExamPart1Count(n)}
-                          className={`h-7 rounded-lg px-2 text-[11px] font-black ${
-                            examPart1Count === n
-                              ? 'bg-violet-600 text-white'
-                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          onClick={() => {
+                            setExamPart1Count(preset.p1);
+                            setExamPart2Count(preset.p2);
+                            setExamIncludePart2(preset.inc);
+                          }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30 ring-2 ring-violet-400'
+                              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-violet-300'
                           }`}
                         >
-                          {n}
+                          <span>{preset.label}</span>
+                          <span
+                            className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                              isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {preset.badge}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Live Total Summary Banner */}
+                <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-3 text-white shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-xs">
+                      <Sparkles size={16} className="text-amber-300 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white/90">จำนวนข้อสอบรวมทั้งฉบับ:</span>
+                        <span className="text-lg font-black text-amber-300 font-mono tracking-tight">
+                          {totalExamQuestions} ข้อ
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-white/80">
+                        ตอนที่ 1 ปรนัย: <span className="font-bold text-white">{examPart1Count} ข้อ</span>
+                        {examIncludePart2 ? (
+                          <> · ตอนที่ 2 อัตนัย: <span className="font-bold text-white">{examPart2Count} ข้อ</span></>
+                        ) : (
+                          <> · <span className="text-white/70">(ไม่มีข้อสอบอัตนัย)</span></>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="hidden sm:flex items-center gap-1.5 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold text-white/90 border border-white/20">
+                    <Check size={14} className="text-emerald-300" />
+                    <span>ระบบจะเกลี่ยข้อให้อัตโนมัติ</span>
+                  </div>
+                </div>
+
+                {/* 3 Detail Cards: Part 1, Part 2, Bloom */}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {/* Card 1: ตอนที่ 1 ปรนัย (กากบาท) */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900">ตอนที่ 1 ปรนัย (กากบาท)</span>
+                        <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 border border-violet-100">
+                          เลือกตอบ
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">กด +/- หรือพิมพ์จำนวนข้อ</p>
+                    </div>
+
+                    {/* Stepper Controls */}
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExamPart1Count((c) => Math.max(5, c - 1))}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-base font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                        title="ลด 1 ข้อ"
+                      >
+                        -
+                      </button>
+                      <div className="flex items-center justify-center gap-1 rounded-xl border-2 border-violet-400/50 bg-violet-50/50 px-3 py-1">
+                        <input
+                          type="number"
+                          min={5}
+                          max={60}
+                          value={examPart1Count}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val)) setExamPart1Count(Math.min(60, Math.max(1, val)));
+                          }}
+                          className="w-12 text-center text-base font-black text-violet-950 bg-transparent focus:outline-none"
+                        />
+                        <span className="text-xs font-bold text-violet-800">ข้อ</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExamPart1Count((c) => Math.min(60, c + 1))}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-base font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                        title="เพิ่ม 1 ข้อ"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Quick Number Pills */}
+                    <div className="flex items-center justify-center gap-1 flex-wrap pt-1">
+                      {[10, 15, 20, 25, 30, 40].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setExamPart1Count(num)}
+                          className={`h-7 px-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                            examPart1Count === num
+                              ? 'bg-violet-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {num}
                         </button>
                       ))}
                     </div>
-                  </div>
-                  <select
-                    value={examPart1ChoiceType}
-                    onChange={(e) =>
-                      setExamPart1ChoiceType(e.target.value as '4-choices' | '5-choices')
-                    }
-                    className="h-8 w-full rounded-xl border-2 border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
-                  >
-                    <option value="4-choices">4 ตัวเลือก (ก, ข, ค, ง - มาตรฐาน สพฐ.)</option>
-                    <option value="5-choices">5 ตัวเลือก (ก, ข, ค, ง, จ - มัธยม/แข่งขัน)</option>
-                  </select>
-                </div>
 
-                {/* Part 2 Setup */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-800">ตอนที่ 2 อัตนัย (เขียนตอบ)</span>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-violet-800">
-                      <input
-                        type="checkbox"
-                        checked={examIncludePart2}
-                        onChange={(e) => setExamIncludePart2(e.target.checked)}
-                        className="h-4 w-4 rounded text-violet-600 focus:ring-violet-400"
-                      />
-                      <span>มีตอนที่ 2</span>
-                    </label>
-                  </div>
-                  {examIncludePart2 ? (
-                    <div className="flex items-center gap-2 pt-1">
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
-                        value={examPart2Count}
+                    {/* Choice count */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <select
+                        value={examPart1ChoiceType}
                         onChange={(e) =>
-                          setExamPart2Count(
-                            Math.min(5, Math.max(1, parseInt(e.target.value, 10) || 1))
+                          setExamPart1ChoiceType(e.target.value as '4-choices' | '5-choices')
+                        }
+                        className="h-8 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-2 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
+                      >
+                        <option value="4-choices">4 ตัวเลือก (ก, ข, ค, ง - มาตรฐาน สพฐ.)</option>
+                        <option value="5-choices">5 ตัวเลือก (ก, ข, ค, ง, จ - มัธยม/แข่งขัน)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Card 2: ตอนที่ 2 อัตนัย (เขียนตอบ) */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900">ตอนที่ 2 อัตนัย (เขียนตอบ)</span>
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-100">
+                          แสดงวิธีทำ
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">เลือกมีหรือไม่มีข้อสอบเขียนตอบ</p>
+                    </div>
+
+                    {/* Toggle: Include or Not */}
+                    <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setExamIncludePart2(false)}
+                        className={`py-1.5 text-center text-xs font-black rounded-lg transition cursor-pointer ${
+                          !examIncludePart2
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        ไม่มี (ปรนัยล้วน)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExamIncludePart2(true)}
+                        className={`py-1.5 text-center text-xs font-black rounded-lg transition cursor-pointer ${
+                          examIncludePart2
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        ✓ มีอัตนัย
+                      </button>
+                    </div>
+
+                    {examIncludePart2 ? (
+                      <>
+                        {/* Stepper for Part 2 */}
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExamPart2Count((c) => Math.max(1, c - 1))}
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-base font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                            title="ลด 1 ข้อ"
+                          >
+                            -
+                          </button>
+                          <div className="flex items-center justify-center gap-1 rounded-xl border-2 border-emerald-400/50 bg-emerald-50/50 px-3 py-1">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={examPart2Count}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val)) setExamPart2Count(Math.min(10, Math.max(1, val)));
+                              }}
+                              className="w-12 text-center text-base font-black text-emerald-950 bg-transparent focus:outline-none"
+                            />
+                            <span className="text-xs font-bold text-emerald-800">ข้อ</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setExamPart2Count((c) => Math.min(10, c + 1))}
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-base font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                            title="เพิ่ม 1 ข้อ"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Quick Pills for Part 2 */}
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {[1, 2, 3, 4, 5].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => setExamPart2Count(num)}
+                              className={`h-7 px-2.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                                examPart2Count === num
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {num} ข้อ
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-4 text-center">
+                        <p className="text-xs text-slate-400 italic">ข้อสอบฉบับนี้เป็นแบบปรนัยล้วน 100%</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card 3: ระดับพฤติกรรม (Bloom's Taxonomy) */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900">ระดับพฤติกรรม (Bloom)</span>
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-100">
+                          สพฐ.
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">กระจายความยากตามมาตรฐานผังข้อสอบ</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <select
+                        value={examDifficulty}
+                        onChange={(e) =>
+                          setExamDifficulty(
+                            e.target.value as 'balanced' | 'basic' | 'advanced'
                           )
                         }
-                        className="h-9 w-16 rounded-xl border-2 border-slate-300 bg-white text-center text-xs font-black text-slate-900 focus:border-violet-500 focus:outline-none"
-                      />
-                      <span className="text-xs font-bold text-slate-600">ข้อ</span>
-                      <div className="flex gap-1 ml-auto">
-                        {[1, 2, 3].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setExamPart2Count(n)}
-                            className={`h-7 rounded-lg px-2 text-[11px] font-black ${
-                              examPart2Count === n
-                                ? 'bg-violet-600 text-white'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                            }`}
-                          >
-                            {n} ข้อ
-                          </button>
-                        ))}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-2.5 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
+                      >
+                        <option value="balanced">สมดุล สพฐ. (จำ 30% : เข้าใจ 50% : วิเคราะห์ 20%)</option>
+                        <option value="basic">เน้นมโนทัศน์พื้นฐาน (จำ 50% : เข้าใจ 40% : ประยุกต์ 10%)</option>
+                        <option value="advanced">คิดวิเคราะห์ขั้นสูง (เข้าใจ 30% : ประยุกต์ 40% : วิเคราะห์ 30%)</option>
+                      </select>
+
+                      <div className="rounded-xl bg-indigo-50/60 border border-indigo-100/70 p-2.5 text-[11px] text-indigo-900">
+                        <p className="font-bold flex items-center gap-1">
+                          <CheckCircle2 size={13} className="text-indigo-600" />
+                          คำนวณลงผัง Test Blueprint อัตโนมัติ
+                        </p>
+                        <p className="text-[10px] text-indigo-600 mt-0.5">
+                          จัดลงตารางสองมิติ Bloom ครบถ้วนทุกข้อ
+                        </p>
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 pt-2 italic">ไม่มีข้อสอบตอนที่ 2 (ปรนัยล้วน)</p>
-                  )}
-                </div>
-
-                {/* Bloom Distribution */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-800">ระดับพฤติกรรม (Bloom)</span>
                   </div>
-                  <select
-                    value={examDifficulty}
-                    onChange={(e) =>
-                      setExamDifficulty(
-                        e.target.value as 'balanced' | 'basic' | 'advanced'
-                      )
-                    }
-                    className="h-9 w-full rounded-xl border-2 border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
-                  >
-                    <option value="balanced">สมดุล สพฐ. (จำ 30% : เข้าใจ 50% : วิเคราะห์ 20%)</option>
-                    <option value="basic">เน้นมโนทัศน์พื้นฐาน (จำ 50% : เข้าใจ 40% : ประยุกต์ 10%)</option>
-                    <option value="advanced">คิดวิเคราะห์ขั้นสูง (เข้าใจ 30% : ประยุกต์ 40% : วิเคราะห์ 30%)</option>
-                  </select>
-                  <p className="text-[11px] font-medium text-slate-500">
-                    💡 สอดคล้องตามมาตรฐานผังการสร้างข้อสอบของ สพฐ.
-                  </p>
                 </div>
               </div>
 
