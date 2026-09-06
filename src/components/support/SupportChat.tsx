@@ -768,7 +768,7 @@ export function SupportChat({
   };
 
   return (
-    <div className="support-widget fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[70] sm:bottom-6 sm:right-6">
+    <div className="support-widget no-print print:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[70] sm:bottom-6 sm:right-6">
       {open ? (
         <section
           aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"

@@ -18,7 +18,7 @@ import { ScheduleOcrModal } from '../../components/schedule/ScheduleOcrModal';
 import type { ParsedScheduleResult } from '../../lib/aiVisionService';
 
 import { getBangkokDate } from '../../lib/date';
-import { buildOfficialDocumentCode, formatThaiOfficialDate } from '../../lib/officialReport';
+import { buildOfficialDocumentCode, formatThaiOfficialDate, escapeOfficialHtml } from '../../lib/officialReport';
 import {
   buildSchedulePeriods,
   defaultDays,
@@ -242,6 +242,35 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const totalCells = settings.activeDays.length * periods.length;
   const completion = totalCells > 0 ? Math.round((usedCells / totalCells) * 100) : 0;
   const editingPeriod = editingCell ? periods.find((period) => period.index === editingCell.periodIndex) : null;
+
+  const workloadSummary = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; classrooms: Set<string>; count: number }>();
+    for (const day of settings.activeDays) {
+      for (const period of periods) {
+        const cell = settings.cells[makeScheduleCellKey(day, period.index)];
+        if (!cell || !cell.subject.trim()) continue;
+        const key = `${cell.subjectCode || ''}___${cell.subject.trim()}`;
+        const existing = map.get(key);
+        const room = cell.classroom || identity.classroomName || '';
+        if (existing) {
+          existing.count += 1;
+          if (room) existing.classrooms.add(room);
+        } else {
+          map.set(key, {
+            code: cell.subjectCode || '',
+            name: cell.subject.trim(),
+            classrooms: new Set(room ? [room] : []),
+            count: 1,
+          });
+        }
+      }
+    }
+    const items = Array.from(map.values()).sort((a, b) => b.count - a.count);
+    const totalPeriods = items.reduce((acc, it) => acc + it.count, 0);
+    const totalHours = Math.round(((totalPeriods * settings.periodMinutes) / 60) * 10) / 10;
+    return { items, totalPeriods, totalHours };
+  }, [settings, periods, identity.classroomName]);
+
   const scheduleClassroomOptions = useMemo(() => {
     const options = new Map<string, { label: string; value: string }>();
     workspaceClassrooms.forEach((classroom) => {
@@ -519,8 +548,423 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
   function printSchedule() {
     saveAll();
+
+    const documentCode = buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName);
+    const thaiDate = formatThaiOfficialDate(getBangkokDate());
+    const logoHtml = printLogoDataUrl
+      ? `<img class="sch-logo" src="${printLogoDataUrl}" alt="โลโก้โรงเรียน" />`
+      : '';
+
+    // Header columns HTML for print window
+    const headColumnsHtml = scheduleColumns.map((col) => {
+      if (col.type === 'lunch') {
+        return `<th style="width: 14mm;">พักกลางวัน<span class="sch-period-time">${col.start}-${col.end} น.</span></th>`;
+      }
+      return `<th>คาบที่ ${col.period.index}<span class="sch-period-time">${col.period.start}-${col.period.end} น.</span></th>`;
+    }).join('');
+
+    const dayColorClasses: Record<string, string> = {
+      'จันทร์': 'day-mon',
+      'อังคาร': 'day-tue',
+      'พุธ': 'day-wed',
+      'พฤหัสบดี': 'day-thu',
+      'ศุกร์': 'day-fri',
+      'เสาร์': 'day-sat',
+      'อาทิตย์': 'day-sun',
+    };
+
+    const bodyRowsHtml = settings.activeDays.map((day, dayIndex) => {
+      const dayClass = dayColorClasses[day] || '';
+      const cellsHtml = scheduleColumns.map((col) => {
+        if (col.type === 'lunch') {
+          return dayIndex === 0
+            ? `<td class="sch-lunch-cell" rowspan="${settings.activeDays.length}">พักรับประทานอาหารกลางวัน</td>`
+            : '';
+        }
+        const cell = settings.cells[makeScheduleCellKey(day, col.period.index)];
+        if (cell && cell.subject.trim()) {
+          return `<td class="sch-cell sch-cell-active">
+            <div class="sch-cell-code">${escapeOfficialHtml(cell.subjectCode || '')}</div>
+            <div class="sch-cell-subject">${escapeOfficialHtml(cell.subject)}</div>
+            ${cell.classroom ? `<div class="sch-cell-room">[${escapeOfficialHtml(cell.classroom)}]</div>` : ''}
+          </td>`;
+        }
+        return `<td class="sch-cell"><span style="color:#cbd5e1;">-</span></td>`;
+      }).join('');
+
+      return `<tr>
+        <th class="sch-day-cell ${dayClass}">${escapeOfficialHtml(day)}</th>
+        ${cellsHtml}
+      </tr>`;
+    }).join('');
+
+    const workloadItemsHtml = workloadSummary.items.map((it, idx) => {
+      const rooms = Array.from(it.classrooms).join(', ');
+      return `<span class="sch-workload-item">${idx + 1}. <strong>${escapeOfficialHtml(it.code ? `${it.code} ` : '')}${escapeOfficialHtml(it.name)}</strong> ${rooms ? `(${escapeOfficialHtml(rooms)})` : ''} <u>${it.count} คาบ</u></span>`;
+    }).join(' &nbsp;•&nbsp; ');
+
+    // 1. Try opening clean, dedicated standalone print window (eliminates all UI clutter)
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      const html = `<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>ตารางสอนครูรายบุคคล - ${escapeOfficialHtml(identity.teacherName || 'ครูผู้สอน')} (ปีการศึกษา ${escapeOfficialHtml(identity.academicYear)})</title>
+  <style>
+    @font-face {
+      font-family: 'TH Sarabun New';
+      font-style: normal;
+      font-weight: 400;
+      src: url('/fonts/THSarabun.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'TH Sarabun New';
+      font-style: normal;
+      font-weight: 700;
+      src: url('/fonts/THSarabun-Bold.ttf') format('truetype');
+    }
+    @page {
+      size: A4 landscape;
+      margin: 6mm 8mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #0f172a;
+      font-family: 'TH Sarabun New', 'TH Sarabun PSK', 'Sarabun', Tahoma, sans-serif;
+      font-size: 13pt;
+      line-height: 1.15;
+    }
+    .print-container {
+      width: 281mm;
+      max-height: 196mm;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sch-header {
+      display: grid;
+      grid-template-columns: 20mm 1fr 20mm;
+      align-items: center;
+      border-bottom: 2px solid #0f2742;
+      padding-bottom: 1.5mm;
+    }
+    .sch-logo-frame {
+      width: 20mm;
+      height: 20mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sch-logo {
+      max-width: 19mm;
+      max-height: 19mm;
+      object-fit: contain;
+    }
+    .sch-title-block {
+      text-align: center;
+    }
+    .sch-school-name {
+      font-size: 17pt;
+      font-weight: 700;
+      color: #0f2742;
+      line-height: 1.08;
+      margin: 0;
+    }
+    .sch-doc-title {
+      font-size: 14.5pt;
+      font-weight: 700;
+      color: #0369a1;
+      line-height: 1.12;
+      margin-top: 0.5mm;
+    }
+    .sch-teacher-info {
+      font-size: 12.5pt;
+      font-weight: 700;
+      color: #1e293b;
+      line-height: 1.12;
+      margin-top: 0.8mm;
+    }
+    .sch-meta-bar {
+      display: flex;
+      justify-content: space-between;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 1.5mm;
+      padding: 0.8mm 3mm;
+      font-size: 10pt;
+      color: #334155;
+      margin-top: 1.5mm;
+    }
+    .sch-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-top: 2mm;
+      border: 1.5px solid #0f2742;
+    }
+    .sch-table th, .sch-table td {
+      border: 1px solid #94a3b8;
+      text-align: center;
+      padding: 1mm 0.8mm;
+      vertical-align: middle;
+      overflow: hidden;
+    }
+    .sch-table thead th {
+      background: #e2e8f0;
+      color: #0f2742;
+      font-weight: 700;
+      font-size: 11.5pt;
+      border-bottom: 1.5px solid #0f2742;
+      padding: 1.2mm 0.8mm;
+      line-height: 1.08;
+    }
+    .sch-table thead th.day-header {
+      width: 22mm;
+      background: #cbd5e1;
+    }
+    .sch-period-time {
+      font-size: 9pt;
+      font-weight: 400;
+      color: #475569;
+      display: block;
+      margin-top: 0.3mm;
+    }
+    .sch-day-cell {
+      font-size: 13pt;
+      font-weight: 700;
+      width: 22mm;
+      line-height: 1.1;
+    }
+    .day-mon { background: #fef9c3 !important; color: #713f12 !important; border-left: 3.5mm solid #eab308 !important; }
+    .day-tue { background: #fce7f3 !important; color: #831843 !important; border-left: 3.5mm solid #ec4899 !important; }
+    .day-wed { background: #dcfce7 !important; color: #14532d !important; border-left: 3.5mm solid #22c55e !important; }
+    .day-thu { background: #ffedd5 !important; color: #7c2d12 !important; border-left: 3.5mm solid #f97316 !important; }
+    .day-fri { background: #e0f2fe !important; color: #0c4a6e !important; border-left: 3.5mm solid #0ea5e9 !important; }
+    .day-sat { background: #f3e8ff !important; color: #581c87 !important; border-left: 3.5mm solid #a855f7 !important; }
+    .day-sun { background: #fee2e2 !important; color: #7f1d1d !important; border-left: 3.5mm solid #ef4444 !important; }
+    
+    .sch-cell {
+      height: 13mm;
+      background: #ffffff;
+      padding: 0.8mm 0.8mm;
+      line-height: 1.05;
+    }
+    .sch-cell-active {
+      background: #f0fdfa;
+    }
+    .sch-cell-code {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .sch-cell-subject {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #0369a1;
+      margin-top: 0.2mm;
+      line-height: 1.05;
+    }
+    .sch-cell-room {
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 0.2mm;
+    }
+    .sch-lunch-cell {
+      background: #f8fafc;
+      color: #334155;
+      font-weight: 700;
+      font-size: 10.5pt;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      letter-spacing: 0.1em;
+      line-height: 1.1;
+    }
+    
+    .sch-workload-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #94a3b8;
+      border-top: none;
+      background: #f8fafc;
+      padding: 1.2mm 2.5mm;
+      font-size: 9.5pt;
+    }
+    .sch-workload-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1mm 3mm;
+      color: #1e293b;
+    }
+    .sch-workload-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5mm;
+    }
+    .sch-workload-total {
+      font-weight: 700;
+      color: #0891b2;
+      white-space: nowrap;
+      padding-left: 2.5mm;
+      border-left: 1px solid #cbd5e1;
+    }
+
+    .sch-cert {
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      border-left: 1.2mm solid #0891b2;
+      border-radius: 1.5mm;
+      color: #134e4a;
+      font-size: 9.5pt;
+      padding: 1mm 2mm;
+      margin-top: 2mm;
+      text-align: center;
+    }
+
+    .sch-signatures {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4mm;
+      text-align: center;
+      margin-top: 3.5mm;
+      font-size: 11pt;
+      line-height: 1.12;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .sch-signatures p {
+      margin: 0;
+    }
+    .sch-signatures p + p {
+      margin-top: 1mm;
+    }
+
+    .sch-footer {
+      border-top: 1px solid #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: #64748b;
+      padding-top: 0.8mm;
+      margin-top: 1.5mm;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-container">
+    <header class="sch-header">
+      <div class="sch-logo-frame">
+        ${logoHtml}
+      </div>
+      <div class="sch-title-block">
+        <h1 class="sch-school-name">${escapeOfficialHtml(identity.schoolName || 'โรงเรียน')}</h1>
+        <div class="sch-doc-title">ตารางสอนครูรายบุคคล (Teacher's Timetable)</div>
+        <div class="sch-teacher-info">
+          ครูผู้สอน: ${escapeOfficialHtml(identity.teacherName || '...........................................')} 
+          &nbsp;&nbsp;|&nbsp;&nbsp; ตำแหน่ง: ครู 
+          &nbsp;&nbsp;|&nbsp;&nbsp; ประจำชั้น: ${escapeOfficialHtml(identity.classroomName || 'ชั้น ป.5')}
+          &nbsp;&nbsp;|&nbsp;&nbsp; ภาคเรียนที่ 1 ปีการศึกษา ${escapeOfficialHtml(identity.academicYear || '2569')}
+        </div>
+      </div>
+      <div></div>
+    </header>
+
+    <div class="sch-meta-bar">
+      <span>รหัสเอกสาร: <strong>${escapeOfficialHtml(documentCode)}</strong></span>
+      <span>ตารางสอนประจำสัปดาห์: <strong>${escapeOfficialHtml(settings.courseTitle || 'ตารางสอน')}</strong></span>
+      <span>ภาระงานสอน: <strong>${workloadSummary.totalPeriods} คาบ/สัปดาห์ (${workloadSummary.totalHours} ชม.)</strong></span>
+      <span>ข้อมูล ณ วันที่: <strong>${escapeOfficialHtml(thaiDate)}</strong></span>
+    </div>
+
+    <table class="sch-table">
+      <thead>
+        <tr>
+          <th class="day-header">วัน / เวลา</th>
+          ${headColumnsHtml}
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRowsHtml}
+      </tbody>
+    </table>
+
+    <div class="sch-workload-strip">
+      <div class="sch-workload-list">
+        <strong>สรุปรายวิชาที่สอน:</strong>
+        ${workloadItemsHtml || '<span>ยังไม่มีรายวิชาในตาราง</span>'}
+      </div>
+      <div class="sch-workload-total">
+        รวมทั้งสิ้น ${workloadSummary.totalPeriods} คาบ / สัปดาห์
+      </div>
+    </div>
+
+    <div class="sch-cert">
+      ขอรับรองว่าตารางสอนฉบับนี้ ได้รับการจัดสรรคาบเรียนและรายวิชาถูกต้องตามโครงสร้างหลักสูตรสถานศึกษา และตารางการจัดกิจกรรมการเรียนรู้
+    </div>
+
+    <div class="sch-signatures">
+      <div>
+        <p>ลงชื่อ......................................................ครูผู้สอน</p>
+        <p>(${escapeOfficialHtml(identity.teacherName || '......................................................')})</p>
+        <p style="font-size:9.5pt; color:#475569;">ครูผู้รับผิดชอบการสอน</p>
+      </div>
+      <div>
+        <p>ลงชื่อ......................................................หัวหน้าวิชาการ</p>
+        <p>(${escapeOfficialHtml(identity.academicHeadName || '......................................................')})</p>
+        <p style="font-size:9.5pt; color:#475569;">หัวหน้าฝ่ายบริหารงานวิชาการ</p>
+      </div>
+      <div>
+        <p>ลงชื่อ......................................................ผู้อำนวยการโรงเรียน</p>
+        <p>(${escapeOfficialHtml(identity.directorName || '......................................................')})</p>
+        <p style="font-size:9.5pt; color:#475569;">ผู้อำนวยการ${escapeOfficialHtml(identity.schoolName || 'โรงเรียน')}</p>
+      </div>
+    </div>
+
+    <div class="sch-footer">
+      <span>เอกสารควบคุมภายในสถานศึกษา · จัดทำและพิมพ์จากระบบ ClassCare 360</span>
+      <span>${escapeOfficialHtml(documentCode)} · หน้า 1/1</span>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+      window.focus();
+      window.print();
+    });
+  </script>
+</body>
+</html>`;
+
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      return;
+    }
+
+    // 2. Fallback if popup blocked: print on current page with upgraded schedule-print-sheet
     window.print();
   }
+
+  const dayColorBadgeClasses: Record<string, string> = {
+    'จันทร์': 'bg-amber-100 text-amber-900 border-l-4 border-amber-500',
+    'อังคาร': 'bg-pink-100 text-pink-900 border-l-4 border-pink-500',
+    'พุธ': 'bg-emerald-100 text-emerald-900 border-l-4 border-emerald-500',
+    'พฤหัสบดี': 'bg-orange-100 text-orange-900 border-l-4 border-orange-500',
+    'ศุกร์': 'bg-sky-100 text-sky-900 border-l-4 border-sky-500',
+    'เสาร์': 'bg-purple-100 text-purple-900 border-l-4 border-purple-500',
+    'อาทิตย์': 'bg-rose-100 text-rose-900 border-l-4 border-rose-500',
+  };
 
   return (
     <main className="app-page">
@@ -537,149 +981,154 @@ export function SchedulePage({ session }: SchedulePageProps) {
           font-weight: 700;
           src: url('/fonts/THSarabun-Bold.ttf') format('truetype');
         }
-        @font-face {
-          font-family: 'TH Sarabun PSK';
-          font-style: italic;
-          font-weight: 400;
-          src: url('/fonts/THSarabun-Italic.ttf') format('truetype');
-        }
-        @font-face {
-          font-family: 'TH Sarabun PSK';
-          font-style: italic;
-          font-weight: 700;
-          src: url('/fonts/THSarabun-BoldItalic.ttf') format('truetype');
-        }
         @media print {
-          @page { size: A4 landscape; margin: 12mm; }
-          html, body { background: #fff !important; font-family: 'TH Sarabun PSK', 'TH Sarabun New', serif !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .app-sidebar, .app-shell-sidebar, .app-topbar, .app-mobile-nav, .print-hidden, .no-print { display: none !important; }
-          .app-page { padding: 0 !important; background: #fff !important; }
+          @page { size: A4 landscape; margin: 6mm 8mm; }
+          html, body { background: #fff !important; font-family: 'TH Sarabun New', 'TH Sarabun PSK', serif !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; margin: 0 !important; padding: 0 !important; }
+          .app-sidebar, .app-shell-sidebar, .app-topbar, .app-mobile-nav, .print-hidden, .no-print, .app-context-nav, .support-widget, .app-ambient-background, .app-shell-ambient, .system-broadcast-banner { display: none !important; }
+          .app-page { padding: 0 !important; margin: 0 !important; background: #fff !important; }
           .app-page > :not(.schedule-print-sheet) { display: none !important; }
-          .classcare-grid-bg { background: #fff !important; overflow: visible !important; }
-          .classcare-grid-bg > .pointer-events-none,
-          .classcare-grid-bg > .fixed { display: none !important; }
-          .schedule-print-sheet { box-sizing: border-box !important; display: block !important; width: 273mm !important; min-height: 0 !important; margin: 0 auto !important; padding: 0 !important; color: #0f172a !important; font-size: 16pt !important; line-height: 1 !important; }
-          .schedule-print-sheet, .schedule-print-sheet * { font-family: 'TH Sarabun New', 'TH Sarabun PSK', 'Noto Sans Thai', sans-serif !important; }
-          .schedule-print-sheet > div { min-height: 0 !important; }
           .schedule-screen { display: none !important; }
-          .schedule-print-title { font-size: 21pt !important; line-height: 1.08 !important; }
-          .schedule-print-subtitle { margin-top: 1mm !important; font-size: 17pt !important; line-height: 1.08 !important; }
-          .schedule-print-teacher { margin-top: 1mm !important; font-size: 16pt !important; line-height: 1.08 !important; }
-          .schedule-print-meta { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 2.5mm !important; display: flex !important; font-size: 12.5pt !important; justify-content: space-between !important; margin-top: 3mm !important; padding: 1.5mm 2.5mm !important; }
-          .schedule-print-table { border: 1px solid #b8c7d9 !important; border-collapse: separate !important; border-radius: 2.5mm !important; border-spacing: 0 !important; margin-top: 4mm !important; overflow: hidden !important; font-size: 15pt !important; line-height: 1.02 !important; table-layout: fixed !important; }
-          .schedule-print-table th, .schedule-print-table td { border: 0 !important; border-bottom: 1px solid #d8e1eb !important; border-right: 1px solid #d8e1eb !important; padding: 2.5px !important; }
-          .schedule-print-table tr > :last-child { border-right: 0 !important; }
-          .schedule-print-table tbody tr:last-child > * { border-bottom: 0 !important; }
-          .schedule-print-table thead th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-size: 15.5pt !important; line-height: 1.05 !important; font-weight: 700 !important; }
-          .schedule-print-table tbody th { background: #e6f7fb !important; color: #0f2742 !important; }
-          .schedule-print-table tbody tr:nth-child(even) td { background: #f8fafc !important; }
-          .schedule-print-table thead span { font-size: 13.5pt !important; line-height: 1 !important; }
-          .schedule-print-day { width: 24mm !important; }
-          .schedule-print-day-label { font-size: 16.5pt !important; line-height: 1.05 !important; }
-          .schedule-print-cell { height: 18.5mm !important; font-size: 15pt !important; line-height: 1.05 !important; }
-          .schedule-print-cell-code { font-size: 13.5pt !important; line-height: 1 !important; }
-          .schedule-print-cell-subject { margin-top: 0.5mm !important; font-size: 16pt !important; line-height: 1.03 !important; font-weight: 700 !important; }
-          .schedule-print-cell-classroom { margin-top: 0.5mm !important; font-size: 13pt !important; line-height: 1 !important; }
-          .schedule-print-lunch { width: 16mm !important; font-size: 14pt !important; line-height: 1 !important; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.06em; }
-          .schedule-print-signatures { margin-top: 5mm !important; font-size: 15pt !important; line-height: 1.08 !important; }
-          .schedule-print-signatures p + p { margin-top: 1mm !important; }
-          .schedule-print-certification { background: #f0fdfa !important; border: 1px solid #99f6e4 !important; border-left: 1.4mm solid #0891b2 !important; border-radius: 2mm !important; color: #134e4a !important; font-size: 12.5pt !important; margin-top: 3mm !important; padding: 1.5mm 2mm !important; }
-          .schedule-print-footer { border-top: 1px solid #666 !important; display: flex !important; font-size: 9pt !important; justify-content: space-between !important; margin-top: 4mm !important; padding-top: 1mm !important; }
+          .schedule-print-sheet { box-sizing: border-box !important; display: block !important; width: 281mm !important; max-height: 196mm !important; margin: 0 auto !important; padding: 0 !important; color: #0f172a !important; font-size: 13pt !important; line-height: 1.15 !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+          .schedule-print-sheet * { font-family: 'TH Sarabun New', 'TH Sarabun PSK', 'Noto Sans Thai', sans-serif !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
 
-      <section className="schedule-print-sheet hidden bg-white p-8 text-black">
-        <div className="relative">
-          {printLogoDataUrl ? (
-            <img alt="school logo" className="absolute left-0 top-0 h-20 w-20 object-contain" src={printLogoDataUrl} />
-          ) : null}
-          <div className="mx-auto max-w-[920px] text-center">
-            <h1 className="schedule-print-title text-xl font-bold">{identity.schoolName}</h1>
-            <p className="schedule-print-subtitle mt-2 text-lg font-bold">{settings.courseTitle || 'ตารางสอนประจำสัปดาห์'} ปีการศึกษา {identity.academicYear}</p>
-            <p className="schedule-print-teacher mt-2 text-lg font-bold">ครูผู้สอน {identity.teacherName || '................................................'}</p>
-          </div>
-          <div className="schedule-print-meta">
-            <span>ชั้น/ห้อง: {identity.classroomName || session.workspace?.classroomName || '-'}</span>
-            <span>รหัสเอกสาร: {buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName)}</span>
-            <span>ข้อมูล ณ {formatThaiOfficialDate(getBangkokDate())}</span>
+      {/* Upgraded Authentic Thai Timetable Sheet (Used for in-page fallback print) */}
+      <section className="schedule-print-sheet hidden bg-white p-2 text-slate-900">
+        <div className="w-full max-h-[196mm] flex flex-col justify-between">
+          <header className="grid grid-cols-[20mm_1fr_20mm] items-center border-b-2 border-slate-900 pb-1.5">
+            <div className="flex h-16 w-16 items-center justify-center">
+              {printLogoDataUrl ? (
+                <img alt="school logo" className="max-h-16 max-w-16 object-contain" src={printLogoDataUrl} />
+              ) : null}
+            </div>
+            <div className="text-center">
+              <h1 className="text-xl font-bold leading-tight text-slate-900">{identity.schoolName || 'โรงเรียน'}</h1>
+              <p className="mt-0.5 text-base font-bold text-sky-800">ตารางสอนครูรายบุคคล (Teacher's Timetable)</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">
+                ครูผู้สอน: {identity.teacherName || '...........................................'} &nbsp;|&nbsp; 
+                ตำแหน่ง: ครู &nbsp;|&nbsp; 
+                ประจำชั้น: {identity.classroomName || 'ชั้น ป.5'} &nbsp;|&nbsp; 
+                ภาคเรียนที่ 1 ปีการศึกษา {identity.academicYear || '2569'}
+              </p>
+            </div>
+            <div />
+          </header>
+
+          <div className="mt-1.5 flex justify-between rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs text-slate-700">
+            <span>รหัสเอกสาร: <strong>{buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName)}</strong></span>
+            <span>ตารางสอนประจำสัปดาห์: <strong>{settings.courseTitle || 'ตารางสอน'}</strong></span>
+            <span>ภาระงานสอน: <strong>{workloadSummary.totalPeriods} คาบ/สัปดาห์ ({workloadSummary.totalHours} ชม.)</strong></span>
+            <span>ข้อมูล ณ วันที่: <strong>{formatThaiOfficialDate(getBangkokDate())}</strong></span>
           </div>
 
-          <table className="schedule-print-table mt-7 w-full border-collapse text-center text-[12px]">
+          <table className="mt-2 w-full border-collapse border border-slate-900 text-center text-xs">
             <thead>
-              <tr>
-                <th className="schedule-print-day w-24 border border-black p-2">วัน / เวลา</th>
+              <tr className="bg-slate-200 text-slate-900">
+                <th className="w-20 border border-slate-400 bg-slate-300 p-1.5 text-sm font-bold">วัน / เวลา</th>
                 {scheduleColumns.map((column) =>
                   column.type === 'lunch' ? (
-                    <th className="border border-black p-2" key={column.key}>
-                      พักเที่ยง
-                      <br />
-                      <span className="font-normal">{column.start}-{column.end} น.</span>
+                    <th className="w-14 border border-slate-400 p-1 text-xs font-bold" key={column.key}>
+                      พักกลางวัน
+                      <span className="block text-[10px] font-normal text-slate-600">{column.start}-{column.end} น.</span>
                     </th>
                   ) : (
-                    <th className="border border-black p-2" key={column.period.index}>
-                      ชั่วโมงที่ {column.period.index}
-                      <br />
-                      <span className="font-normal">{column.period.start}-{column.period.end} น.</span>
+                    <th className="border border-slate-400 p-1 text-xs font-bold" key={column.period.index}>
+                      คาบที่ {column.period.index}
+                      <span className="block text-[10px] font-normal text-slate-600">{column.period.start}-{column.period.end} น.</span>
                     </th>
                   ),
                 )}
               </tr>
             </thead>
             <tbody>
-              {settings.activeDays.map((day, dayIndex) => (
-                <tr key={day}>
-                  <th className="schedule-print-day-label border border-black p-2 text-lg">{day}</th>
-                  {scheduleColumns.map((column) => {
-                    if (column.type === 'lunch') {
-                      return dayIndex === 0 ? (
-                        <td
-                          className="schedule-print-lunch border border-black bg-slate-50 p-2 align-middle text-base font-bold"
-                          key={column.key}
-                          rowSpan={settings.activeDays.length}
-                        >
-                          พักกลางวัน
-                        </td>
-                      ) : null;
-                    }
+              {settings.activeDays.map((day, dayIndex) => {
+                const dayBadge = dayColorBadgeClasses[day] || 'bg-slate-100 text-slate-900';
+                return (
+                  <tr key={day}>
+                    <th className={`w-20 border border-slate-400 p-1.5 text-sm font-bold ${dayBadge}`}>{day}</th>
+                    {scheduleColumns.map((column) => {
+                      if (column.type === 'lunch') {
+                        return dayIndex === 0 ? (
+                          <td
+                            className="border border-slate-400 bg-slate-50 p-1 align-middle text-xs font-bold text-slate-700"
+                            key={column.key}
+                            rowSpan={settings.activeDays.length}
+                            style={{ writingMode: 'vertical-rl', letterSpacing: '0.1em' }}
+                          >
+                            พักรับประทานอาหารกลางวัน
+                          </td>
+                        ) : null;
+                      }
 
-                    const { period } = column;
-                    const cell = settings.cells[makeScheduleCellKey(day, period.index)];
-                    return (
-                      <td className="schedule-print-cell h-20 border border-black p-2 align-middle" key={period.index}>
-                        {cell ? (
-                          <>
-                            <div className="schedule-print-cell-code">{cell.subjectCode || ''}</div>
-                            <div className="schedule-print-cell-subject mt-2">{cell.subject}</div>
-                            {formatScheduleClassroom(cell.classroom) ? (
-                              <div className="schedule-print-cell-classroom mt-1 text-sm">{formatScheduleClassroom(cell.classroom)}</div>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                      const { period } = column;
+                      const cell = settings.cells[makeScheduleCellKey(day, period.index)];
+                      return (
+                        <td className="h-12 border border-slate-400 p-1 align-middle text-xs leading-tight" key={period.index}>
+                          {cell && cell.subject.trim() ? (
+                            <>
+                              <div className="font-bold text-slate-900">{cell.subjectCode || ''}</div>
+                              <div className="mt-0.5 font-bold text-sky-700">{cell.subject}</div>
+                              {cell.classroom ? (
+                                <div className="mt-0.5 text-[10px] text-slate-500">[{cell.classroom}]</div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
-          <div className="schedule-print-certification">ขอรับรองว่าตารางสอนฉบับนี้ได้รับการตรวจสอบความถูกต้องของรายวิชา เวลาเรียน ห้องเรียน และผู้สอนแล้ว</div>
-
-          <div className="schedule-print-signatures mt-9 grid grid-cols-3 gap-8 text-center text-base">
-            <div>
-              <p>ลงชื่อ........................................ครูผู้สอน</p>
-              <p className="mt-3">({identity.teacherName || '........................................'})</p>
+          {/* Workload summary strip */}
+          <div className="flex items-center justify-between border-x border-b border-slate-400 bg-slate-50 px-3 py-1 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-800">
+              <strong>สรุปรายวิชาที่สอน:</strong>
+              {workloadSummary.items.map((it, idx) => {
+                const rooms = Array.from(it.classrooms).join(', ');
+                return (
+                  <span key={it.name}>
+                    {idx + 1}. <strong>{it.code ? `${it.code} ` : ''}{it.name}</strong> {rooms ? `(${rooms})` : ''} <u>{it.count} คาบ</u>
+                  </span>
+                );
+              })}
             </div>
-            <div>
-              <p>ลงชื่อ........................................หัวหน้าวิชาการ</p>
-              <p className="mt-3">({identity.academicHeadName || '........................................'})</p>
-            </div>
-            <div>
-              <p>ลงชื่อ........................................ผู้อำนวยการโรงเรียน</p>
-              <p className="mt-3">({identity.directorName || '........................................'})</p>
+            <div className="whitespace-nowrap border-l border-slate-300 pl-3 font-bold text-cyan-800">
+              รวมทั้งสิ้น {workloadSummary.totalPeriods} คาบ / สัปดาห์
             </div>
           </div>
-          <div className="schedule-print-footer"><span>เอกสารควบคุมภายในสถานศึกษา · พิมพ์จากระบบ ClassCare 360</span><span>{buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName)} · หน้า 1/1</span></div>
+
+          <div className="mt-2 rounded-md border border-teal-200 border-l-4 border-l-teal-600 bg-teal-50/80 px-2.5 py-1 text-center text-[11px] text-teal-900">
+            ขอรับรองว่าตารางสอนฉบับนี้ ได้รับการจัดสรรคาบเรียนและรายวิชาถูกต้องตามโครงสร้างหลักสูตรสถานศึกษา และตารางการจัดกิจกรรมการเรียนรู้
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-6 text-center text-sm leading-normal">
+            <div>
+              <p>ลงชื่อ......................................................ครูผู้สอน</p>
+              <p className="mt-1">({identity.teacherName || '......................................................'})</p>
+              <p className="text-xs text-slate-500">ครูผู้รับผิดชอบการสอน</p>
+            </div>
+            <div>
+              <p>ลงชื่อ......................................................หัวหน้าวิชาการ</p>
+              <p className="mt-1">({identity.academicHeadName || '......................................................'})</p>
+              <p className="text-xs text-slate-500">หัวหน้าฝ่ายบริหารงานวิชาการ</p>
+            </div>
+            <div>
+              <p>ลงชื่อ......................................................ผู้อำนวยการโรงเรียน</p>
+              <p className="mt-1">({identity.directorName || '......................................................'})</p>
+              <p className="text-xs text-slate-500">ผู้อำนวยการ{identity.schoolName || 'โรงเรียน'}</p>
+            </div>
+          </div>
+
+          <div className="mt-2 flex justify-between border-t border-slate-400 pt-1 text-[10px] text-slate-500">
+            <span>เอกสารควบคุมภายในสถานศึกษา · จัดทำและพิมพ์จากระบบ ClassCare 360</span>
+            <span>{buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName)} · หน้า 1/1</span>
+          </div>
         </div>
       </section>
 

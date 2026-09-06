@@ -55,7 +55,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
 
   return (
     <div className={`app-shell ${theme === 'nexus' ? 'theme-dark theme-nexus' : 'theme-light'}`}>
-      <div className="app-ambient-background" aria-hidden="true">
+      <div className="app-ambient-background no-print print:hidden" aria-hidden="true">
         <span className="app-ambient-orb app-ambient-orb-one" />
         <span className="app-ambient-orb app-ambient-orb-two" />
         <span className="app-ambient-orb app-ambient-orb-three" />
@@ -69,26 +69,30 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         session={session}
       />
       <div className="app-shell-main">
-        <GlobalBroadcastBanner />
-        <Topbar
-          activeLabel={activeLabel}
-          navItems={navItems}
-          onMenuToggle={() => setIsMenuOpen(true)}
-          onOpenGuide={() => setIsGuideOpen(true)}
-          onThemeToggle={() => setTheme((current) => (current === 'nexus' ? 'light' : 'nexus'))}
-          session={session}
-          theme={theme}
-        />
-        <ContextNav activeView={activeView} />
+        <div className="no-print print:hidden">
+          <GlobalBroadcastBanner />
+          <Topbar
+            activeLabel={activeLabel}
+            navItems={navItems}
+            onMenuToggle={() => setIsMenuOpen(true)}
+            onOpenGuide={() => setIsGuideOpen(true)}
+            onThemeToggle={() => setTheme((current) => (current === 'nexus' ? 'light' : 'nexus'))}
+            session={session}
+            theme={theme}
+          />
+          <ContextNav activeView={activeView} />
+        </div>
         {children}
       </div>
-      <MobileNav activeView={activeView} navItems={navItems} />
-      {session ? <SupportChat activeLabel={activeLabel} activeView={activeView} session={session} /> : null}
-      <SetupGuideModal
-        isOpen={isGuideOpen}
-        onClose={() => setIsGuideOpen(false)}
-        session={session}
-      />
+      <div className="no-print print:hidden">
+        <MobileNav activeView={activeView} navItems={navItems} />
+        {session ? <SupportChat activeLabel={activeLabel} activeView={activeView} session={session} /> : null}
+        <SetupGuideModal
+          isOpen={isGuideOpen}
+          onClose={() => setIsGuideOpen(false)}
+          session={session}
+        />
+      </div>
     </div>
   );
 }

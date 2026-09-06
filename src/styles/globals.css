@@ -1653,9 +1653,25 @@ body {
 }
 
 @media print {
-  body {
+  html, body {
     background: #fff !important;
     color: #111 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .no-print,
+  .print-hidden,
+  .app-context-nav,
+  .support-widget,
+  .app-topbar,
+  .app-sidebar,
+  .app-shell-sidebar,
+  .app-mobile-nav,
+  .app-ambient-background,
+  .app-shell-ambient,
+  .system-broadcast-banner,
+  .nexus-theme-badge {
+    display: none !important;
   }
   .schedule-print-sheet,
   .schedule-print-sheet * {

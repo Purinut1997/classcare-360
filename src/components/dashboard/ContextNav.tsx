@@ -56,7 +56,7 @@ export function ContextNav({ activeView }: ContextNavProps) {
   const activeValue = params.get(items[0].param) || defaults[activeView];
 
   return (
-    <nav className="app-context-nav" aria-label="เมนูย่อย">
+    <nav className="app-context-nav no-print print:hidden" aria-label="เมนูย่อย">
       {items.map((item) => (
         <Link
           className={activeValue === item.value ? 'is-active' : ''}
