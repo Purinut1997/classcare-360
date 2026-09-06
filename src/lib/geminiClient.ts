@@ -349,6 +349,7 @@ export interface GeminiPromptOptions {
   systemInstruction?: string;
   responseJson?: boolean;
   temperature?: number;
+  maxOutputTokens?: number;
 }
 
 /**
@@ -356,7 +357,7 @@ export interface GeminiPromptOptions {
  * Solves HTTP 404 / 400 / 429 errors seamlessly by falling back to stable models (e.g. gemini-1.5-flash).
  */
 export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<string> {
-  const { apiKey, prompt, systemInstruction, responseJson, temperature = 0.4 } = options;
+  const { apiKey, prompt, systemInstruction, responseJson, temperature = 0.4, maxOutputTokens } = options;
   if (!apiKey?.trim()) {
     throw new Error('กรุณาระบุ Gemini API Key ก่อนใช้งาน');
   }
@@ -383,7 +384,7 @@ export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<st
     ],
     generationConfig: {
       temperature,
-      maxOutputTokens: 4096,
+      maxOutputTokens: maxOutputTokens || 8192,
       ...(responseJson ? { responseMimeType: 'application/json' } : {}),
     },
   };

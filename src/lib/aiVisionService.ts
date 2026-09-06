@@ -711,3 +711,219 @@ export async function generateRemedialQuiz(
     return JSON.parse(cleaned) as RemedialQuizResult;
   }
 }
+
+// ==========================================
+// 5. Midterm & Final Examination Generator
+// ==========================================
+export type SemesterExamType = 'midterm' | 'final';
+
+export interface ExamMultipleChoiceQuestion {
+  questionNumber: number;
+  questionText: string;
+  choices: Array<{ key: string; text: string }>;
+  correctAnswer: string;
+  explanation: string;
+  indicator?: string;
+  bloomLevel?: string;
+}
+
+export interface ExamSubjectiveQuestion {
+  questionNumber: number;
+  questionText: string;
+  maxScore: number;
+  scoringCriteria: string;
+  sampleAnswer: string;
+  indicator?: string;
+}
+
+export interface ExamBlueprintItem {
+  unitName: string;
+  indicator: string;
+  multipleChoiceCount: number;
+  subjectiveCount: number;
+  totalScore: number;
+  bloomDistribution: string;
+}
+
+export interface SemesterExamResult {
+  schoolName: string;
+  examType: SemesterExamType;
+  examTitle: string;
+  subject: string;
+  subjectCode?: string;
+  gradeLevel: string;
+  academicYear: string;
+  term: string;
+  timeMinutes: number;
+  totalScore: number;
+  instructions: string;
+  part1: {
+    title: string;
+    itemCount: number;
+    scorePerItem: number;
+    totalScore: number;
+    questions: ExamMultipleChoiceQuestion[];
+  };
+  part2?: {
+    title: string;
+    itemCount: number;
+    totalScore: number;
+    questions: ExamSubjectiveQuestion[];
+  };
+  blueprint: ExamBlueprintItem[];
+}
+
+export interface GenerateSemesterExamParams {
+  apiKey: string;
+  model: GeminiModelId;
+  schoolName?: string;
+  examType: SemesterExamType;
+  subject: string;
+  subjectCode?: string;
+  gradeLevel: string;
+  academicYear?: string;
+  term?: string;
+  timeMinutes?: number;
+  totalScore?: number;
+  topicsCovered: string;
+  indicators: string;
+  multipleChoiceCount?: number;
+  choiceType?: QuizChoiceType;
+  includeSubjective?: boolean;
+  subjectiveCount?: number;
+  difficultyRatio?: string;
+}
+
+export async function generateSemesterExam(
+  params: GenerateSemesterExamParams
+): Promise<SemesterExamResult> {
+  const {
+    apiKey,
+    model,
+    schoolName = 'โรงเรียนสังกัด สพฐ.',
+    examType,
+    subject,
+    subjectCode = '',
+    gradeLevel,
+    academicYear = '2568',
+    term = '1',
+    timeMinutes = 60,
+    totalScore = 20,
+    topicsCovered,
+    indicators,
+    multipleChoiceCount = 20,
+    choiceType = '4-choices',
+    includeSubjective = true,
+    subjectiveCount = 2,
+    difficultyRatio = '30:50:20',
+  } = params;
+
+  const examTypeTitle = examType === 'midterm' ? 'กลางภาคเรียน' : 'ปลายภาคเรียน';
+  const choiceDesc = choiceType === '5-choices' ? '5 ตัวเลือก (ก, ข, ค, ง, จ)' : '4 ตัวเลือก (ก, ข, ค, ง)';
+
+  const prompt = `
+คุณคือศึกษานิเทศก์และผู้เชี่ยวชาญด้านการวัดและประเมินผลทางการศึกษา สพฐ. กระทรวงศึกษาธิการ
+จงออกแบบ "ชุดข้อสอบวัดผลสัมฤทธิ์ทางการเรียน ${examTypeTitle}" อย่างเป็นทางการและได้มาตรฐานระดับชาติ
+
+ข้อมูลแบบทดสอบ:
+- ประเภทการสอบ: ${examTypeTitle}ที่ ${term} ปีการศึกษา ${academicYear}
+- กลุ่มสาระการเรียนรู้/วิชา: ${subject} ${subjectCode ? `(${subjectCode})` : ''}
+- ระดับชั้น: ${gradeLevel}
+- โรงเรียน: ${schoolName}
+- เวลาที่ใช้สอบ: ${timeMinutes} นาที
+- คะแนนเต็มรวม: ${totalScore} คะแนน
+- ขอบข่ายเนื้อหา/หน่วยการเรียนรู้: ${topicsCovered}
+- ตัวชี้วัด สพฐ.: ${indicators}
+- สัดส่วนความยากง่าย (Bloom Taxonomy): ${difficultyRatio} (ความจำ : ความเข้าใจ : คิดวิเคราะห์/ประยุกต์)
+
+โครงสร้างข้อสอบที่ต้องสร้าง:
+1. ตอนที่ 1: แบบเลือกตอบ (${choiceDesc}) จำนวน ${multipleChoiceCount} ข้อ
+2. ตอนที่ 2: ${includeSubjective ? `แบบเขียนตอบ/แสดงวิธีทำ จำนวน ${subjectiveCount} ข้อ พร้อมเกณฑ์การตรวจอย่างละเอียด` : 'ไม่มีข้อสอบอัตนัย'}
+3. ผังวิเคราะห์ข้อสอบ (Test Blueprint): ระบุหน่วยการเรียนรู้, ตัวชี้วัด, จำนวนข้อ และระดับพฤติกรรม
+
+คำสั่งเคร่งครัด:
+- คำถามและตัวเลือกต้องถูกต้องตามหลักวิชาการ ไม่มีข้อกำกวม ตัวลวงมีหลักการ
+- ห้ามใส่ newline หรือ quote ซ้อนกันในสตริง JSON
+- ตอบกลับเฉพาะ JSON ที่ถูกต้องตามโครงสร้างด้านล่างเท่านั้น:
+
+{
+  "schoolName": "${schoolName}",
+  "examType": "${examType}",
+  "examTitle": "แบบทดสอบวัดผลสัมฤทธิ์ทางการเรียน ${examTypeTitle}ที่ ${term} ปีการศึกษา ${academicYear}",
+  "subject": "${subject}",
+  "subjectCode": "${subjectCode}",
+  "gradeLevel": "${gradeLevel}",
+  "academicYear": "${academicYear}",
+  "term": "${term}",
+  "timeMinutes": ${timeMinutes},
+  "totalScore": ${totalScore},
+  "instructions": "คำชี้แจง: 1. ข้อสอบฉบับนี้มี 2 ตอน...",
+  "part1": {
+    "title": "ตอนที่ 1 แบบเลือกตอบ ${choiceDesc} จำนวน ${multipleChoiceCount} ข้อ",
+    "itemCount": ${multipleChoiceCount},
+    "scorePerItem": 1,
+    "totalScore": ${includeSubjective ? totalScore - subjectiveCount * 5 : totalScore},
+    "questions": [
+      {
+        "questionNumber": 1,
+        "questionText": "ข้อความโจทย์คำถาม",
+        "choices": [
+          { "key": "ก", "text": "ตัวเลือก 1" },
+          { "key": "ข", "text": "ตัวเลือก 2" },
+          { "key": "ค", "text": "ตัวเลือก 3" },
+          { "key": "ง", "text": "ตัวเลือก 4" }
+        ],
+        "correctAnswer": "ก",
+        "explanation": "เหตุผลเฉลยละเอียดและวิเคราะห์ตัวเลือก",
+        "indicator": "${indicators.split(',')[0]?.trim() || 'ตัวชี้วัด'}",
+        "bloomLevel": "ความเข้าใจ"
+      }
+    ]
+  },
+  ${
+    includeSubjective
+      ? `"part2": {
+    "title": "ตอนที่ 2 แบบอัตนัย/แสดงวิธีทำ จำนวน ${subjectiveCount} ข้อ",
+    "itemCount": ${subjectiveCount},
+    "totalScore": ${subjectiveCount * 5},
+    "questions": [
+      {
+        "questionNumber": 1,
+        "questionText": "โจทย์ปัญหาที่ให้นักเรียนเขียนอธิบายหรือแสดงวิธีทำอย่างเป็นขั้นตอน",
+        "maxScore": 5,
+        "scoringCriteria": "เกณฑ์ตรวจ: แสดงวิธีทำถูกต้องได้ 3 คะแนน คำตอบสุดท้ายถูกต้องได้ 2 คะแนน",
+        "sampleAnswer": "แนวคำตอบและขั้นตอนที่ถูกต้อง",
+        "indicator": "${indicators.split(',')[0]?.trim() || 'ตัวชี้วัด'}"
+      }
+    ]
+  },`
+      : ''
+  }
+  "blueprint": [
+    {
+      "unitName": "ชื่อหน่วยการเรียนรู้",
+      "indicator": "ตัวชี้วัด",
+      "multipleChoiceCount": ${multipleChoiceCount},
+      "subjectiveCount": ${includeSubjective ? subjectiveCount : 0},
+      "totalScore": ${totalScore},
+      "bloomDistribution": "ความจำ 30%, ความเข้าใจ 50%, วิเคราะห์ 20%"
+    }
+  ]
+}
+`.trim();
+
+  const rawText = await callGeminiPrompt({
+    apiKey,
+    model,
+    prompt,
+    responseJson: true,
+    temperature: 0.4,
+    maxOutputTokens: 8192,
+  });
+
+  try {
+    return safeParseJson<SemesterExamResult>(rawText);
+  } catch (err) {
+    throw new Error(`ไม่สามารถสร้างชุดข้อสอบกลางภาค/ปลายภาคได้: ${(err as Error).message}`);
+  }
+}

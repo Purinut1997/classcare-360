@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Copy,
   FileCheck2,
+  FileText,
   GraduationCap,
   HelpCircle,
   Layers,
@@ -14,6 +15,7 @@ import {
   Loader2,
   Printer,
   Sparkles,
+  Table,
   X,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
@@ -21,9 +23,12 @@ import { getEffectiveAiConfig } from '../../lib/aiSettings';
 import {
   generateRemedialQuiz,
   generateRubricCriteria,
+  generateSemesterExam,
   type QuizChoiceType,
   type RemedialQuizResult,
   type RubricResult,
+  type SemesterExamResult,
+  type SemesterExamType,
 } from '../../lib/aiVisionService';
 import type { AppSessionContext } from '../../types/core';
 
@@ -35,7 +40,7 @@ interface RubricAndQuizModalProps {
   session: AppSessionContext;
 }
 
-type ActiveTab = 'rubric' | 'quiz';
+type ActiveTab = 'rubric' | 'quiz' | 'exam';
 
 export function RubricAndQuizModal({
   isOpen,
@@ -53,9 +58,24 @@ export function RubricAndQuizModal({
   const [questionCount, setQuestionCount] = useState(5);
   const [choiceType, setChoiceType] = useState<QuizChoiceType>('4-choices');
 
+  // Semester Exam states
+  const [examType, setExamType] = useState<SemesterExamType>('midterm');
+  const [academicYear, setAcademicYear] = useState('2568');
+  const [semester, setSemester] = useState('2');
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [totalScore, setTotalScore] = useState(20);
+  const [examTopics, setExamTopics] = useState('การบวก ลบ คูณ หารเศษส่วน และโจทย์ปัญหาระคน');
+  const [examPart1Count, setExamPart1Count] = useState(15);
+  const [examPart1ChoiceType, setExamPart1ChoiceType] = useState<'4-choices' | '5-choices'>('4-choices');
+  const [examIncludePart2, setExamIncludePart2] = useState(true);
+  const [examPart2Count, setExamPart2Count] = useState(2);
+  const [examDifficulty, setExamDifficulty] = useState<'balanced' | 'basic' | 'advanced'>('balanced');
+  const [examViewSubTab, setExamViewSubTab] = useState<'paper' | 'key' | 'blueprint'>('paper');
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [rubricResult, setRubricResult] = useState<RubricResult | null>(null);
   const [quizResult, setQuizResult] = useState<RemedialQuizResult | null>(null);
+  const [examResult, setExamResult] = useState<SemesterExamResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
@@ -124,14 +144,315 @@ export function RubricAndQuizModal({
     }
   };
 
+  const handleGenerateExam = async () => {
+    setIsGenerating(true);
+    setErrorMessage(null);
+    try {
+      const config = await getEffectiveAiConfig(session);
+      if (!config.apiKey) {
+        throw new Error('ไม่พบ Gemini API Key ในระบบ กรุณาตั้งค่าก่อนใช้งาน');
+      }
+      const res = await generateSemesterExam({
+        apiKey: config.apiKey,
+        model: config.model,
+        examType,
+        subject,
+        gradeLevel,
+        academicYear,
+        term: semester,
+        timeMinutes: durationMinutes,
+        totalScore,
+        topicsCovered: examTopics,
+        indicators: indicator,
+        multipleChoiceCount: examPart1Count,
+        choiceType: examPart1ChoiceType,
+        includeSubjective: examIncludePart2,
+        subjectiveCount: examPart2Count,
+        difficultyRatio:
+          examDifficulty === 'balanced'
+            ? '30:50:20'
+            : examDifficulty === 'basic'
+            ? '50:40:10'
+            : '30:40:30',
+      });
+      setExamResult(res);
+    } catch (err) {
+      setErrorMessage((err as Error).message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopyNotice(`คัดลอก ${label} ลงคลิปบอร์ดแล้ว`);
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const printExamDocument = (result: SemesterExamResult, mode: 'student' | 'teacher') => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('กรุณาอนุญาตป๊อปอัป (Pop-up) ของเบราว์เซอร์เพื่อพิมพ์ข้อสอบ');
+      return;
+    }
+
+    const title =
+      mode === 'student'
+        ? `${result.examTitle} - สำหรับแจกนักเรียน`
+        : `${result.examTitle} - ชุดเฉลยละเอียดและผังวิเคราะห์ (สำหรับครู)`;
+
+    const studentHtml = `
+      <!DOCTYPE html>
+      <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>${title}</title>
+        <style>
+          @page { size: A4 portrait; margin: 15mm 12mm 15mm 12mm; }
+          body {
+            font-family: 'Sarabun', 'TH Sarabun New', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13pt;
+            line-height: 1.45;
+            color: #000;
+            padding: 16px;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .exam-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+          .exam-title { font-size: 15pt; font-weight: bold; margin-bottom: 4px; }
+          .exam-sub { font-size: 12pt; margin-bottom: 4px; }
+          .exam-meta { font-size: 11pt; margin-top: 4px; }
+          .student-box {
+            border: 1.5px solid #000;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            font-size: 11pt;
+            display: flex;
+            justify-content: space-between;
+          }
+          .instructions-box {
+            background-color: #f8f9fa;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 10.5pt;
+            margin-bottom: 14px;
+          }
+          .part-title {
+            font-weight: bold;
+            font-size: 12pt;
+            background: #f1f3f5;
+            padding: 5px 10px;
+            border-left: 5px solid #222;
+            margin: 16px 0 10px 0;
+          }
+          .q-item { margin-bottom: 12px; page-break-inside: avoid; }
+          .q-text { font-weight: bold; font-size: 11.5pt; margin-bottom: 4px; }
+          .choices-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px 16px;
+            padding-left: 18px;
+            font-size: 11pt;
+          }
+          .subjective-item { margin-bottom: 16px; page-break-inside: avoid; }
+          .work-box {
+            border: 1px dashed #666;
+            border-radius: 6px;
+            min-height: 120px;
+            margin-top: 6px;
+            padding: 8px;
+            font-size: 10pt;
+            color: #888;
+          }
+          .page-footer { text-align: center; font-size: 10pt; color: #555; margin-top: 24px; border-top: 1px dashed #aaa; padding-top: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="exam-header">
+          <div class="exam-title">${result.examTitle}</div>
+          <div class="exam-sub">กลุ่มสาระการเรียนรู้${result.subject} ชั้น${result.gradeLevel} ภาคเรียนที่ ${result.term} ปีการศึกษา ${result.academicYear}</div>
+          <div class="exam-meta">เวลาสอบ ${result.timeMinutes} นาที • คะแนนเต็ม ${result.totalScore} คะแนน</div>
+        </div>
+
+        <div class="student-box">
+          <div>ชื่อ-นามสกุล: ............................................................................................</div>
+          <div>ชั้น: ............ เลขที่: ........ ห้อง: ........</div>
+        </div>
+
+        <div class="instructions-box">
+          <strong>คำชี้แจงทั่วไป:</strong> ${result.instructions}
+        </div>
+
+        <div class="part-title">${result.part1.title} (${result.part1.itemCount} ข้อ • ข้อละ ${result.part1.scorePerItem} คะแนน รวม ${result.part1.totalScore} คะแนน)</div>
+        <div class="questions-list">
+          ${result.part1.questions
+            .map(
+              (q) => `
+            <div class="q-item">
+              <div class="q-text">${q.questionNumber}. ${q.questionText}</div>
+              <div class="choices-grid">
+                ${q.choices.map((c) => `<div><strong>${c.key}.</strong> ${c.text}</div>`).join('')}
+              </div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+
+        ${
+          result.part2 && result.part2.questions && result.part2.questions.length > 0
+            ? `
+          <div class="part-title" style="margin-top: 20px;">${result.part2.title} (${result.part2.itemCount} ข้อ • รวม ${result.part2.totalScore} คะแนน)</div>
+          <div class="subjective-list">
+            ${result.part2.questions
+              .map(
+                (q) => `
+              <div class="subjective-item">
+                <div class="q-text">ข้อที่ ${q.questionNumber}. ${q.questionText} <span style="font-weight: normal; color: #555;">(${q.maxScore} คะแนน)</span></div>
+                <div class="work-box">วิธีทำ / คำตอบ:</div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        `
+            : ''
+        }
+
+        <div class="page-footer">
+          *** สิ้นสุดแบบทดสอบ กรุณาตรวจสอบความเรียบร้อยก่อนส่งข้อสอบ ***
+        </div>
+      </body>
+      </html>
+    `;
+
+    const teacherHtml = `
+      <!DOCTYPE html>
+      <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>${title}</title>
+        <style>
+          @page { size: A4 portrait; margin: 15mm 12mm 15mm 12mm; }
+          body {
+            font-family: 'Sarabun', 'TH Sarabun New', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 11pt;
+            line-height: 1.4;
+            color: #000;
+            padding: 16px;
+            max-width: 850px;
+            margin: 0 auto;
+          }
+          .exam-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+          .exam-title { font-size: 14pt; font-weight: bold; }
+          .badge-teacher { display: inline-block; background: #c92a2a; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 9.5pt; font-weight: bold; margin-top: 4px; }
+          .part-title { font-weight: bold; font-size: 11.5pt; background: #f1f3f5; padding: 5px 10px; border-left: 5px solid #2b8a3e; margin: 16px 0 8px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 9.5pt; }
+          th, td { border: 1px solid #444; padding: 5px 7px; text-align: left; vertical-align: top; }
+          th { background: #f8f9fa; font-weight: bold; }
+          .correct-key { font-size: 11pt; font-weight: bold; color: #2b8a3e; }
+          .subjective-card { border: 1px solid #ccc; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: #fafafa; }
+          .criteria-item { margin-top: 3px; padding-left: 8px; border-left: 2px solid #339af0; font-size: 9pt; }
+        </style>
+      </head>
+      <body>
+        <div class="exam-header">
+          <div class="exam-title">[เอกสารสำหรับครู] เฉลยละเอียด & ผังวิเคราะห์ข้อสอบ (Test Blueprint)</div>
+          <div>${result.examTitle} • วิชา${result.subject} ชั้น${result.gradeLevel}</div>
+          <div class="badge-teacher">เฉพาะครูผู้สอน / กรรมการวัดผลและประเมินผลการเรียนรู้</div>
+        </div>
+
+        <div class="part-title">1. ตารางเฉลยข้อสอบปรนัย (ตอนที่ 1)</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 45px; text-align: center;">ข้อที่</th>
+              <th style="width: 50px; text-align: center;">เฉลย</th>
+              <th style="width: 100px;">ตัวชี้วัด</th>
+              <th style="width: 110px;">ระดับพฤติกรรม (Bloom)</th>
+              <th>คำอธิบาย / เหตุผลเฉลย</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${result.part1.questions
+              .map(
+                (q) => `
+              <tr>
+                <td style="text-align: center; font-weight: bold;">${q.questionNumber}</td>
+                <td style="text-align: center;" class="correct-key">${q.correctAnswer}</td>
+                <td>${q.indicator || '-'}</td>
+                <td>${q.bloomLevel || '-'}</td>
+                <td>${q.explanation}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+
+        ${
+          result.part2 && result.part2.questions && result.part2.questions.length > 0
+            ? `
+          <div class="part-title">2. แนวคำตอบและเกณฑ์การให้คะแนนอัตนัย (ตอนที่ 2)</div>
+          ${result.part2.questions
+            .map(
+              (q) => `
+            <div class="subjective-card">
+              <div style="font-weight: bold;">ข้อที่ ${q.questionNumber}. ${q.questionText} (${q.maxScore} คะแนน)</div>
+              <div style="margin-top: 4px; color: #2b8a3e;"><strong>แนวคำตอบ / วิธีทำที่ถูกต้อง:</strong> ${q.sampleAnswer}</div>
+              <div style="margin-top: 6px; font-weight: bold; font-size: 9.5pt;">เกณฑ์การให้คะแนน:</div>
+              <div class="criteria-item">${q.scoringCriteria}</div>
+            </div>
+          `
+            )
+            .join('')}
+        `
+            : ''
+        }
+
+        <div class="part-title">3. ตารางผังวิเคราะห์ข้อสอบ (Test Blueprint) สำหรับส่งฝ่ายวิชาการ</div>
+        <table>
+          <thead>
+            <tr>
+              <th>สาระ / หน่วยการเรียนรู้</th>
+              <th>ตัวชี้วัด สพฐ.</th>
+              <th style="text-align: center; width: 60px;">ปรนัย</th>
+              <th style="text-align: center; width: 60px;">อัตนัย</th>
+              <th style="text-align: center; width: 60px;">รวมคะแนน</th>
+              <th>การกระจายระดับพฤติกรรม (Bloom)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${result.blueprint
+              .map(
+                (bp) => `
+              <tr>
+                <td style="font-weight: bold;">${bp.unitName}</td>
+                <td>${bp.indicator}</td>
+                <td style="text-align: center;">${bp.multipleChoiceCount} ข้อ</td>
+                <td style="text-align: center;">${bp.subjectiveCount} ข้อ</td>
+                <td style="text-align: center; font-weight: bold;">${bp.totalScore}</td>
+                <td>${bp.bloomDistribution}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const htmlToPrint = mode === 'student' ? studentHtml : teacherHtml;
+    printWindow.document.open();
+    printWindow.document.write(htmlToPrint);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 350);
   };
 
   return (
@@ -145,10 +466,10 @@ export function RubricAndQuizModal({
             </div>
             <div>
               <h3 className="text-lg font-black text-slate-900">
-                ✨ ตัวช่วยออกแบบการประเมิน & รูบริก (Rubric & Remedial Quiz Generator)
+                ✨ ศูนย์ออกแบบข้อสอบ & รูบริก สพฐ. (Assessment & Exam Paper Hub)
               </h3>
               <p className="text-xs font-bold text-slate-500">
-                ออกแบบเกณฑ์การให้คะแนน 4 ระดับ และสร้างข้อสอบซ่อมเสริมตามตัวชี้วัด สพฐ. ในคลิกเดียว
+                ออกแบบเกณฑ์รูบริก 4 ระดับ, ข้อสอบซ่อมเสริม และข้อสอบกลางภาค/ปลายภาคพร้อม Test Blueprint ในคลิกเดียว
               </p>
             </div>
           </div>
@@ -162,9 +483,9 @@ export function RubricAndQuizModal({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-100 bg-slate-50/70 px-6">
+        <div className="flex border-b border-slate-100 bg-slate-50/70 px-6 overflow-x-auto">
           <button
-            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-black transition ${
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-black transition shrink-0 ${
               activeTab === 'rubric'
                 ? 'border-violet-600 text-violet-800'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -176,10 +497,10 @@ export function RubricAndQuizModal({
             type="button"
           >
             <FileCheck2 size={16} />
-            <span>1. เกณฑ์รูบริก 4 ระดับ (Rubric Criteria)</span>
+            <span>1. เกณฑ์รูบริก 4 ระดับ (Rubric)</span>
           </button>
           <button
-            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-black transition ${
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-black transition shrink-0 ${
               activeTab === 'quiz'
                 ? 'border-violet-600 text-violet-800'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -191,7 +512,22 @@ export function RubricAndQuizModal({
             type="button"
           >
             <GraduationCap size={16} />
-            <span>2. ข้อสอบซ่อมเสริมเฉพาะจุด (Remedial Quiz)</span>
+            <span>2. ข้อสอบซ่อมเสริม (Remedial Quiz)</span>
+          </button>
+          <button
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-black transition shrink-0 ${
+              activeTab === 'exam'
+                ? 'border-violet-600 text-violet-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+            onClick={() => {
+              setActiveTab('exam');
+              setErrorMessage(null);
+            }}
+            type="button"
+          >
+            <BookOpen size={16} />
+            <span>3. ข้อสอบกลางภาค / ปลายภาค (Semester Exam)</span>
           </button>
         </div>
 
@@ -571,6 +907,579 @@ export function RubricAndQuizModal({
               )}
             </div>
           )}
+
+          {/* TAB 3: Semester Exam Generator (Midterm / Final) */}
+          {activeTab === 'exam' && (
+            <div className="space-y-4">
+              {/* Exam Configuration Grid */}
+              <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-4">
+                {/* Exam Type */}
+                <div className="grid gap-1.5 text-xs font-black text-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span>ประเภทการสอบ</span>
+                    <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">
+                      จำเป็น *
+                    </span>
+                  </div>
+                  <div className="flex rounded-xl bg-slate-200/80 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setExamType('midterm')}
+                      className={`flex-1 rounded-lg py-1.5 text-center text-xs font-black transition ${
+                        examType === 'midterm'
+                          ? 'bg-violet-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ข้อสอบกลางภาค
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExamType('final')}
+                      className={`flex-1 rounded-lg py-1.5 text-center text-xs font-black transition ${
+                        examType === 'final'
+                          ? 'bg-violet-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ข้อสอบปลายภาค
+                    </button>
+                  </div>
+                </div>
+
+                {/* Semester & Year */}
+                <div className="grid grid-cols-2 gap-2 text-xs font-black text-slate-800">
+                  <label className="grid gap-1.5">
+                    <span>ภาคเรียน</span>
+                    <select
+                      value={semester}
+                      onChange={(e) => setSemester(e.target.value)}
+                      className="h-10 rounded-xl border-2 border-slate-300 bg-white px-2.5 font-bold text-slate-900 focus:border-violet-500 focus:outline-none"
+                    >
+                      <option value="1">ภาคเรียนที่ 1</option>
+                      <option value="2">ภาคเรียนที่ 2</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span>ปีการศึกษา</span>
+                    <input
+                      type="text"
+                      value={academicYear}
+                      onChange={(e) => setAcademicYear(e.target.value)}
+                      placeholder="2568"
+                      className="h-10 rounded-xl border-2 border-slate-300 bg-white px-2.5 font-bold text-slate-900 focus:border-violet-500 focus:outline-none text-center"
+                    />
+                  </label>
+                </div>
+
+                {/* Duration & Score */}
+                <div className="grid grid-cols-2 gap-2 text-xs font-black text-slate-800">
+                  <label className="grid gap-1.5">
+                    <span>เวลาสอบ (นาที)</span>
+                    <input
+                      type="number"
+                      min={15}
+                      max={180}
+                      step={5}
+                      value={durationMinutes}
+                      onChange={(e) =>
+                        setDurationMinutes(Math.max(15, parseInt(e.target.value, 10) || 60))
+                      }
+                      className="h-10 rounded-xl border-2 border-slate-300 bg-white px-2.5 font-bold text-slate-900 focus:border-violet-500 focus:outline-none text-center"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span>คะแนนเต็ม</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={100}
+                      value={totalScore}
+                      onChange={(e) =>
+                        setTotalScore(Math.max(5, parseInt(e.target.value, 10) || 20))
+                      }
+                      className="h-10 rounded-xl border-2 border-slate-300 bg-white px-2.5 font-bold text-slate-900 focus:border-violet-500 focus:outline-none text-center"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Content / Topics */}
+              <label className="grid gap-1.5 text-xs font-black text-slate-800">
+                <div className="flex items-center justify-between">
+                  <span>ขอบเขตสาระ / หน่วยการเรียนรู้ที่ออกสอบ (ครอบคลุมตัวชี้วัดข้างต้น)</span>
+                  <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">
+                    จำเป็น *
+                  </span>
+                </div>
+                <input
+                  className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                    !examTopics.trim()
+                      ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                      : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                  }`}
+                  onChange={(e) => setExamTopics(e.target.value)}
+                  placeholder="เช่น การบวก ลบ คูณ หารเศษส่วน และโจทย์ปัญหาระคน"
+                  value={examTopics}
+                />
+              </label>
+
+              {/* Question Structure & Difficulty */}
+              <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-4">
+                {/* Part 1 Setup */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800">ตอนที่ 1 ปรนัย (กากบาท)</span>
+                    <span className="text-[10px] font-bold text-violet-700">ข้อสอบเลือกตอบ</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={5}
+                        max={50}
+                        value={examPart1Count}
+                        onChange={(e) =>
+                          setExamPart1Count(
+                            Math.min(50, Math.max(5, parseInt(e.target.value, 10) || 10))
+                          )
+                        }
+                        className="h-9 w-16 rounded-xl border-2 border-slate-300 bg-white text-center text-xs font-black text-slate-900 focus:border-violet-500 focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-slate-600">ข้อ</span>
+                    </div>
+                    <div className="flex gap-1 flex-wrap">
+                      {[10, 15, 20, 30].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setExamPart1Count(n)}
+                          className={`h-7 rounded-lg px-2 text-[11px] font-black ${
+                            examPart1Count === n
+                              ? 'bg-violet-600 text-white'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <select
+                    value={examPart1ChoiceType}
+                    onChange={(e) =>
+                      setExamPart1ChoiceType(e.target.value as '4-choices' | '5-choices')
+                    }
+                    className="h-8 w-full rounded-xl border-2 border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="4-choices">4 ตัวเลือก (ก, ข, ค, ง - มาตรฐาน สพฐ.)</option>
+                    <option value="5-choices">5 ตัวเลือก (ก, ข, ค, ง, จ - มัธยม/แข่งขัน)</option>
+                  </select>
+                </div>
+
+                {/* Part 2 Setup */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800">ตอนที่ 2 อัตนัย (เขียนตอบ)</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-violet-800">
+                      <input
+                        type="checkbox"
+                        checked={examIncludePart2}
+                        onChange={(e) => setExamIncludePart2(e.target.checked)}
+                        className="h-4 w-4 rounded text-violet-600 focus:ring-violet-400"
+                      />
+                      <span>มีตอนที่ 2</span>
+                    </label>
+                  </div>
+                  {examIncludePart2 ? (
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={examPart2Count}
+                        onChange={(e) =>
+                          setExamPart2Count(
+                            Math.min(5, Math.max(1, parseInt(e.target.value, 10) || 1))
+                          )
+                        }
+                        className="h-9 w-16 rounded-xl border-2 border-slate-300 bg-white text-center text-xs font-black text-slate-900 focus:border-violet-500 focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-slate-600">ข้อ</span>
+                      <div className="flex gap-1 ml-auto">
+                        {[1, 2, 3].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setExamPart2Count(n)}
+                            className={`h-7 rounded-lg px-2 text-[11px] font-black ${
+                              examPart2Count === n
+                                ? 'bg-violet-600 text-white'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {n} ข้อ
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 pt-2 italic">ไม่มีข้อสอบตอนที่ 2 (ปรนัยล้วน)</p>
+                  )}
+                </div>
+
+                {/* Bloom Distribution */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800">ระดับพฤติกรรม (Bloom)</span>
+                  </div>
+                  <select
+                    value={examDifficulty}
+                    onChange={(e) =>
+                      setExamDifficulty(
+                        e.target.value as 'balanced' | 'basic' | 'advanced'
+                      )
+                    }
+                    className="h-9 w-full rounded-xl border-2 border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="balanced">สมดุล สพฐ. (จำ 30% : เข้าใจ 50% : วิเคราะห์ 20%)</option>
+                    <option value="basic">เน้นมโนทัศน์พื้นฐาน (จำ 50% : เข้าใจ 40% : ประยุกต์ 10%)</option>
+                    <option value="advanced">คิดวิเคราะห์ขั้นสูง (เข้าใจ 30% : ประยุกต์ 40% : วิเคราะห์ 30%)</option>
+                  </select>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    💡 สอดคล้องตามมาตรฐานผังการสร้างข้อสอบของ สพฐ.
+                  </p>
+                </div>
+              </div>
+
+              {/* Result Container */}
+              {!examResult ? (
+                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-300 bg-violet-50/30 p-8 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+                    <BookOpen size={24} />
+                  </div>
+                  <p className="text-sm font-black text-slate-900">
+                    คลิกปุ่มด้านล่างเพื่อสร้างชุดข้อสอบ{examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'}พร้อมหัวกระดาษและผังวิเคราะห์
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 max-w-lg">
+                    ระบบจะสร้างหัวกระดาษข้อสอบ สพฐ. กล่องข้อมูลนักเรียน ตอนที่ 1 ({examPart1Count} ข้อ) {examIncludePart2 ? `ตอนที่ 2 (${examPart2Count} ข้อ)` : ''} พร้อมเฉลยละเอียดสำหรับครู และตาราง Test Blueprint ส่งฝ่ายวิชาการ
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Actions Bar & Sub-Tabs */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    {/* Sub Tabs */}
+                    <div className="flex rounded-xl bg-white p-1 ring-1 ring-slate-200 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => setExamViewSubTab('paper')}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition ${
+                          examViewSubTab === 'paper'
+                            ? 'bg-violet-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <FileText size={14} />
+                        <span>1. กระดาษข้อสอบ (นักเรียน)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExamViewSubTab('key')}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition ${
+                          examViewSubTab === 'key'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>2. เฉลยละเอียด (ครู)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExamViewSubTab('blueprint')}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition ${
+                          examViewSubTab === 'blueprint'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Table size={14} />
+                        <span>3. ผัง Test Blueprint</span>
+                      </button>
+                    </div>
+
+                    {/* Quick Print & Copy Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => printExamDocument(examResult, 'student')}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-800 shadow-xs hover:bg-violet-100 transition"
+                        title="พิมพ์ตัวกระดาษข้อสอบสำหรับแจกให้นักเรียนทำ (ไม่มีเฉลย)"
+                      >
+                        <Printer size={13} /> พิมพ์ชุดนักเรียน
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => printExamDocument(examResult, 'teacher')}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-800 shadow-xs hover:bg-slate-100 transition"
+                        title="พิมพ์เฉลยละเอียดและตาราง Test Blueprint สำหรับครูและฝ่ายวิชาการ"
+                      >
+                        <Printer size={13} /> พิมพ์ชุดครู/Blueprint
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let fullText = `${examResult.examTitle}\n`;
+                          fullText += `วิชา: ${examResult.subject} ชั้น: ${examResult.gradeLevel} ภาคเรียนที่ ${examResult.term} ปีการศึกษา ${examResult.academicYear}\n`;
+                          fullText += `เวลา: ${examResult.timeMinutes} นาที คะแนนเต็ม: ${examResult.totalScore} คะแนน\n\n`;
+                          fullText += `คำชี้แจง: ${examResult.instructions}\n\n`;
+                          fullText += `--- ${examResult.part1.title} ---\n`;
+                          examResult.part1.questions.forEach((q) => {
+                            fullText += `${q.questionNumber}. ${q.questionText}\n`;
+                            q.choices.forEach((c) => {
+                              fullText += `   ${c.key}. ${c.text}\n`;
+                            });
+                          });
+                          if (examResult.part2 && examResult.part2.questions && examResult.part2.questions.length > 0) {
+                            fullText += `\n--- ${examResult.part2.title} ---\n`;
+                            examResult.part2.questions.forEach((q) => {
+                              fullText += `ข้อที่ ${q.questionNumber}. ${q.questionText} (${q.maxScore} คะแนน)\n\n`;
+                            });
+                          }
+                          handleCopyText(fullText, 'เนื้อหาข้อสอบสำหรับ Word');
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+                      >
+                        <Copy size={13} /> คัดลอก
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* View 1: Student Paper */}
+                  {examViewSubTab === 'paper' && (
+                    <div className="rounded-3xl border-2 border-slate-200 bg-white p-6 shadow-sm space-y-5">
+                      {/* School Header */}
+                      <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
+                        <h4 className="text-base font-black text-slate-900">{examResult.examTitle}</h4>
+                        <p className="text-xs font-bold text-slate-700">
+                          กลุ่มสาระการเรียนรู้{examResult.subject} ชั้น{examResult.gradeLevel} ภาคเรียนที่ {examResult.term} ปีการศึกษา {examResult.academicYear}
+                        </p>
+                        <p className="text-xs font-semibold text-slate-600">
+                          เวลาสอบ {examResult.timeMinutes} นาที • คะแนนเต็ม {examResult.totalScore} คะแนน
+                        </p>
+                      </div>
+
+                      {/* Student Info Box */}
+                      <div className="rounded-xl border border-slate-400 p-3 bg-slate-50/50 flex flex-wrap justify-between gap-2 text-xs font-bold text-slate-800">
+                        <div>ชื่อ-นามสกุล: ............................................................................</div>
+                        <div>ชั้น: ............ เลขที่: ........ ห้อง: ........</div>
+                      </div>
+
+                      {/* General Instructions */}
+                      <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-xs text-amber-900">
+                        <span className="font-black">📌 คำชี้แจงทั่วไป: </span>
+                        <span>{examResult.instructions}</span>
+                      </div>
+
+                      {/* Part 1 */}
+                      <div className="space-y-3">
+                        <div className="rounded-lg bg-slate-100 p-2 text-xs font-black text-slate-800 border-l-4 border-violet-600">
+                          {examResult.part1.title} ({examResult.part1.itemCount} ข้อ • รวม {examResult.part1.totalScore} คะแนน)
+                        </div>
+                        <div className="space-y-3">
+                          {examResult.part1.questions.map((q) => (
+                            <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5">
+                              <p className="text-xs font-black text-slate-900">
+                                {q.questionNumber}. {q.questionText}
+                              </p>
+                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                {q.choices.map((c) => (
+                                  <div key={c.key} className="flex items-center gap-2 rounded-lg bg-white p-2 border border-slate-200">
+                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-black text-slate-700">
+                                      {c.key}
+                                    </span>
+                                    <span className="text-slate-800 font-medium">{c.text}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Part 2 Subjective */}
+                      {examResult.part2 && examResult.part2.questions && examResult.part2.questions.length > 0 && (
+                        <div className="space-y-3 pt-2">
+                          <div className="rounded-lg bg-slate-100 p-2 text-xs font-black text-slate-800 border-l-4 border-emerald-600">
+                            {examResult.part2.title} ({examResult.part2.itemCount} ข้อ • รวม {examResult.part2.totalScore} คะแนน)
+                          </div>
+                          <div className="space-y-4">
+                            {examResult.part2.questions.map((q) => (
+                              <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-black text-slate-900">
+                                    ข้อที่ {q.questionNumber}. {q.questionText}
+                                  </span>
+                                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                                    {q.maxScore} คะแนน
+                                  </span>
+                                </div>
+                                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-xs text-slate-400">
+                                  (พื้นที่แสดงวิธีทำ / คำตอบของนักเรียน)
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* View 2: Teacher Answer Key */}
+                  {examViewSubTab === 'key' && (
+                    <div className="rounded-3xl border-2 border-slate-200 bg-white p-6 shadow-sm space-y-5">
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <div>
+                          <h4 className="text-base font-black text-slate-900">🔑 เฉลยละเอียดและเกณฑ์ตรวจ (สำหรับครู)</h4>
+                          <p className="text-xs font-bold text-slate-500">วิชา{examResult.subject} ชั้น{examResult.gradeLevel} ภาคเรียนที่ {examResult.term}</p>
+                        </div>
+                        <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-black text-rose-800 border border-rose-200">
+                          เอกสารลับเฉพาะครูผู้สอน
+                        </span>
+                      </div>
+
+                      {/* Part 1 Answers Table */}
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-black text-slate-800">ตอนที่ 1 เฉลยข้อสอบปรนัย</h5>
+                        <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 text-slate-800 font-black">
+                              <tr>
+                                <th className="p-2.5 text-center w-12">ข้อ</th>
+                                <th className="p-2.5 text-center w-16">เฉลย</th>
+                                <th className="p-2.5 w-28">ตัวชี้วัด</th>
+                                <th className="p-2.5 w-28">ระดับ Bloom</th>
+                                <th className="p-2.5">คำอธิบายเหตุผลและวิเคราะห์ตัวลวง</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {examResult.part1.questions.map((q) => (
+                                <tr key={q.questionNumber} className="hover:bg-slate-50/60">
+                                  <td className="p-2.5 text-center font-black text-slate-700">{q.questionNumber}</td>
+                                  <td className="p-2.5 text-center">
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 font-black text-white text-xs">
+                                      {q.correctAnswer}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 font-bold text-slate-600">{q.indicator || '-'}</td>
+                                  <td className="p-2.5 text-slate-600">{q.bloomLevel || '-'}</td>
+                                  <td className="p-2.5 text-slate-700">{q.explanation}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Part 2 Rubrics */}
+                      {examResult.part2 && examResult.part2.questions && examResult.part2.questions.length > 0 && (
+                        <div className="space-y-3 pt-3 border-t">
+                          <h5 className="text-xs font-black text-slate-800">ตอนที่ 2 แนวคำตอบและเกณฑ์การให้คะแนนอัตนัย</h5>
+                          <div className="space-y-3">
+                            {examResult.part2.questions.map((q) => (
+                              <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-black text-slate-900">
+                                    ข้อที่ {q.questionNumber}. {q.questionText}
+                                  </span>
+                                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                                    คะแนนเต็ม {q.maxScore} คะแนน
+                                  </span>
+                                </div>
+                                <div className="rounded-xl bg-emerald-50/70 border border-emerald-200 p-3 text-xs text-emerald-950">
+                                  <span className="font-black">แนวคำตอบ / วิธีทำที่ถูกต้อง: </span>
+                                  <span>{q.sampleAnswer}</span>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
+                                  <span className="font-bold text-slate-800">เกณฑ์การให้คะแนน: </span>
+                                  <span className="text-slate-700">{q.scoringCriteria}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* View 3: Test Blueprint */}
+                  {examViewSubTab === 'blueprint' && (
+                    <div className="rounded-3xl border-2 border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <div>
+                          <h4 className="text-base font-black text-slate-900">📊 ตารางผังวิเคราะห์ข้อสอบ (Test Blueprint)</h4>
+                          <p className="text-xs font-bold text-slate-500">เอกสารแนบตามเกณฑ์งานวัดและประเมินผลการศึกษา สพฐ.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const headers = 'สาระ/เนื้อหา\tตัวชี้วัด\tจำนวนข้อปรนัย\tจำนวนข้ออัตนัย\tคะแนนรวม\tการกระจาย Bloom\n';
+                            const rows = examResult.blueprint
+                              .map(
+                                (b) =>
+                                  `${b.unitName}\t${b.indicator}\t${b.multipleChoiceCount}\t${b.subjectiveCount}\t${b.totalScore}\t${b.bloomDistribution}`
+                              )
+                              .join('\n');
+                            handleCopyText(headers + rows, 'ตาราง Test Blueprint สำหรับ Excel');
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-100"
+                        >
+                          <Copy size={13} /> คัดลอกตารางลง Excel
+                        </button>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100 text-slate-800 font-black">
+                            <tr>
+                              <th className="p-3">สาระ / หน่วยการเรียนรู้</th>
+                              <th className="p-3">ตัวชี้วัด สพฐ.</th>
+                              <th className="p-3 text-center w-24">ปรนัย</th>
+                              <th className="p-3 text-center w-24">อัตนัย</th>
+                              <th className="p-3 text-center w-24">คะแนนรวม</th>
+                              <th className="p-3">การกระจายพฤติกรรม (Bloom)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {examResult.blueprint.map((bp, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/60">
+                                <td className="p-3 font-bold text-slate-900">{bp.unitName}</td>
+                                <td className="p-3 font-semibold text-slate-700">{bp.indicator}</td>
+                                <td className="p-3 text-center font-black text-violet-700">{bp.multipleChoiceCount} ข้อ</td>
+                                <td className="p-3 text-center font-black text-indigo-700">{bp.subjectiveCount} ข้อ</td>
+                                <td className="p-3 text-center font-black text-emerald-700">{bp.totalScore}</td>
+                                <td className="p-3 text-slate-600 font-medium">
+                                  {bp.bloomDistribution}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-blue-900 flex items-start gap-2">
+                        <Lightbulb size={16} className="shrink-0 text-blue-600 mt-0.5" />
+                        <span>
+                          ตาราง Test Blueprint นี้สามารถคัดลอกลง Excel หรือพิมพ์แนบส่งให้แก่ฝ่ายวิชาการของสถานศึกษา เพื่อตรวจสอบความตรงเชิงโครงสร้าง (Construct Validity) และความสอดคล้องตามมาตรฐานหลักสูตรแกนกลางฯ ได้ทันที
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}
@@ -609,7 +1518,7 @@ export function RubricAndQuizModal({
                 </>
               )}
             </button>
-          ) : (
+          ) : activeTab === 'quiz' ? (
             <button
               className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
               disabled={
@@ -643,6 +1552,39 @@ export function RubricAndQuizModal({
                             : choiceType === '5-choices'
                             ? '5 ตัวเลือก'
                             : 'ถูก/ผิด'
+                        })`}
+                  </span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
+              disabled={
+                isGenerating ||
+                hasApiKey === false ||
+                !subject.trim() ||
+                !gradeLevel.trim() ||
+                !indicator.trim() ||
+                !examTopics.trim() ||
+                examPart1Count < 5
+              }
+              onClick={handleGenerateExam}
+              type="button"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  <span>กำลังออกข้อสอบ {examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} & Blueprint...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  <span>
+                    {examResult
+                      ? 'ออกข้อสอบชุดใหม่'
+                      : `ออกข้อสอบ${examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} (${examPart1Count} ข้อปรนัย${
+                          examIncludePart2 ? ` + ${examPart2Count} ข้ออัตนัย` : ''
                         })`}
                   </span>
                 </>
