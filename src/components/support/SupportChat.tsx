@@ -801,7 +801,7 @@ export function SupportChat({
   };
 
   return (
-    <div className="support-widget no-print print:hidden fixed bottom-[calc(5.2rem+env(safe-area-inset-bottom))] inset-x-3 mx-auto z-[70] flex flex-col items-center pointer-events-none sm:pointer-events-auto sm:inset-x-auto sm:right-6 sm:bottom-6 sm:mx-0 sm:items-end">
+    <div className="support-widget no-print print:hidden fixed bottom-[calc(5.2rem+env(safe-area-inset-bottom))] inset-x-3 mx-auto z-[70] flex flex-col items-center pointer-events-none lg:pointer-events-auto lg:inset-x-auto lg:right-6 lg:bottom-6 lg:mx-0 lg:items-end">
       {open ? (
         <section
           aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
@@ -1743,11 +1743,11 @@ export function SupportChat({
         </section>
       ) : null}
 
-      {/* Floating Toggle Button with Glowing Cute Mascot (Desktop only, mobile uses Center Dock Button) */}
+      {/* Floating Toggle Button with Glowing Cute Mascot (Desktop only, mobile/tablet uses Center Dock Button) */}
       <button
         aria-expanded={open}
         aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-        className="group relative ml-auto hidden sm:grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer pointer-events-auto"
+        className="group relative ml-auto hidden lg:grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer pointer-events-auto"
         onClick={() => setOpen((value) => !value)}
       >
         {/* Breathing animated aura ring */}
@@ -1780,7 +1780,7 @@ export function SupportChat({
 
         {/* Floating Tooltip Bubble with Pointer Arrow */}
         {!open && (
-          <div className="pointer-events-none absolute right-full mr-3 hidden sm:flex items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200 group-hover:flex">
+          <div className="pointer-events-none absolute right-full mr-3 hidden lg:flex items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200 group-hover:flex">
             <span className="text-sm">{currentMascot.emoji}</span>
             <span className="bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
               มีอะไรให้{currentMascot.name}ช่วยไหม{politeEnding === "male" ? "ครับ" : "คะ"}? ✨
