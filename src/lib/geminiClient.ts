@@ -235,6 +235,112 @@ export async function callGeminiApi(
   return rawText;
 }
 
+export interface GeminiVisionOptions {
+  apiKey: string;
+  model?: GeminiModelId;
+  prompt: string;
+  imageBase64: string;
+  mimeType?: string;
+  systemInstruction?: string;
+  responseJson?: boolean;
+}
+
+/**
+ * Call Google Gemini Multimodal Vision API directly with image data.
+ * Supports automatic model fallback (gemini-1.5-flash, gemini-3.6-flash, etc.)
+ */
+export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise<string> {
+  const { apiKey, prompt, systemInstruction, responseJson } = options;
+  if (!apiKey?.trim()) {
+    throw new Error('กรุณาระบุ Gemini API Key ก่อนใช้งาน AI Vision');
+  }
+
+  // Auto clean base64 data url if passed
+  let cleanBase64 = options.imageBase64.trim();
+  let mimeType = options.mimeType || 'image/jpeg';
+  const dataUrlMatch = cleanBase64.match(/^data:([^;]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    mimeType = dataUrlMatch[1];
+    cleanBase64 = dataUrlMatch[2];
+  }
+
+  const modelInput = options.model && options.model !== 'auto' ? options.model : 'gemini-1.5-flash';
+  const effectiveModel = modelInput === 'gemini-2.0-flash' ? 'gemini-3.6-flash' : modelInput;
+  const autoHierarchy = ['gemini-1.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
+  const initialModel = effectiveModel || autoHierarchy[0];
+
+  const payload: Record<string, unknown> = {
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: cleanBase64,
+            },
+          },
+          {
+            text: prompt,
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2, // Low temperature for high OCR fidelity
+      maxOutputTokens: 4096,
+      ...(responseJson ? { responseMimeType: 'application/json' } : {}),
+    },
+  };
+
+  if (systemInstruction) {
+    payload.systemInstruction = {
+      parts: [{ text: systemInstruction }],
+    };
+  }
+
+  let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${initialModel}:generateContent?key=${apiKey.trim()}`;
+  let response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  // Fallback hierarchy if primary model is unavailable or rate limited
+  if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
+    const fallbackCandidates = autoHierarchy.filter((m) => m !== initialModel);
+    for (const fallbackModel of fallbackCandidates) {
+      const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey.trim()}`;
+      const fallbackRes = await fetch(fallbackEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (fallbackRes.ok) {
+        response = fallbackRes;
+        break;
+      }
+    }
+  }
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    let errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+    if (response.status === 429) {
+      errMsg = 'โควตาการใช้งาน Gemini เต็มชั่วคราว (429 Quota Exceeded) กรุณารอสักครู่แล้วลองใหม่อีกครั้ง';
+    }
+    throw new Error(`Gemini Vision Error: ${errMsg}`);
+  }
+
+  const data = await response.json();
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    throw new Error('โมเดลไม่ได้ส่งข้อมูลผลลัพธ์กลับมา');
+  }
+
+  return rawText;
+}
+
 /**
  * Discovers models available for this API key via Google's models.list endpoint.
  */

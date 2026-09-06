@@ -6,6 +6,7 @@ import {
   Award,
   BarChart3,
   BookOpen,
+  Camera,
   Check,
   CheckCircle2,
   CheckSquare,
@@ -38,6 +39,8 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { ScoreOcrModal } from '../../components/scores/ScoreOcrModal';
+import { RubricAndQuizModal } from '../../components/scores/RubricAndQuizModal';
 
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
@@ -466,6 +469,22 @@ export function ScoresPage({ session }: ScoresPageProps) {
     title: '',
     weight: '10',
   });
+
+  const [isScoreOcrOpen, setIsScoreOcrOpen] = useState(false);
+  const [isRubricModalOpen, setIsRubricModalOpen] = useState(false);
+
+  function handleApplyScoreOcr(scs: Record<string, number | null>) {
+    setScores((prev) => {
+      const next = { ...prev };
+      Object.entries(scs).forEach(([stdId, val]) => {
+        if (val !== null && val !== undefined) {
+          next[stdId] = String(val);
+        }
+      });
+      return next;
+    });
+    setNotice(`นำเข้าคะแนนจากภาพถ่ายสำเร็จ (${Object.keys(scs).length} คน) กรุณาตรวจสอบและกด "บันทึกคะแนน"`);
+  }
 
   const scoreBandConfigs = useMemo<
     Array<{
@@ -2098,6 +2117,28 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 Export CSV
               </button>
             ) : null}
+
+            <button
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-900 transition hover:bg-violet-100 shadow-2xs"
+              onClick={() => setIsRubricModalOpen(true)}
+              title="ออกแบบเกณฑ์ Rubric 4 ระดับ และข้อสอบซ่อมเสริมตามตัวชี้วัด สพฐ."
+              type="button"
+            >
+              <Sparkles size={13} className="text-violet-600" aria-hidden="true" />
+              AI Rubric & ข้อสอบซ่อมเสริม
+            </button>
+
+            {selectedAssessment ? (
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-300 bg-indigo-50 px-3 text-xs font-black text-indigo-900 transition hover:bg-indigo-100 shadow-2xs"
+                onClick={() => setIsScoreOcrOpen(true)}
+                title="ถ่ายภาพใบคะแนนกระดาษเพื่อสแกนคะแนนลงระบบ"
+                type="button"
+              >
+                <Camera size={13} className="text-indigo-600" aria-hidden="true" />
+                สแกนใบคะแนน
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -2707,6 +2748,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     >
                       <CheckCircle2 size={14} aria-hidden="true" />
                       {selectedAssessment.status === 'published' ? 'กลับเป็นฉบับร่าง' : 'เผยแพร่คะแนน'}
+                    </button>
+                    <button
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-300 bg-indigo-50 px-3 text-xs font-black text-indigo-900 hover:bg-indigo-100 transition shadow-2xs"
+                      onClick={() => setIsScoreOcrOpen(true)}
+                      title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI"
+                      type="button"
+                    >
+                      <Camera size={14} className="text-indigo-600" aria-hidden="true" />
+                      สแกนใบคะแนนด้วย AI
                     </button>
                     <button
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition shadow-2xs"
@@ -4896,6 +4946,31 @@ export function ScoresPage({ session }: ScoresPageProps) {
           </div>
         </div>
       ) : null}
+
+      {selectedAssessment ? (
+        <ScoreOcrModal
+          assessmentTitle={selectedAssessment.title}
+          isOpen={isScoreOcrOpen}
+          maxScore={selectedAssessment.max_score}
+          onApplyScores={handleApplyScoreOcr}
+          onClose={() => setIsScoreOcrOpen(false)}
+          session={session}
+          students={classroomStudents.map((s, idx) => ({
+            id: s.id,
+            student_code: s.student_code,
+            name: `${s.first_name} ${s.last_name}`,
+            number: idx + 1,
+          }))}
+        />
+      ) : null}
+
+      <RubricAndQuizModal
+        defaultGradeLevel={activeClassroom?.name?.split('/')[0] || 'ป.5'}
+        defaultSubject={subjectFilter || 'คณิตศาสตร์'}
+        isOpen={isRubricModalOpen}
+        onClose={() => setIsRubricModalOpen(false)}
+        session={session}
+      />
 
       <footer className="mt-8 text-center text-xs font-bold text-slate-400">
         Created by MIKPURINUT • ClassCare 360

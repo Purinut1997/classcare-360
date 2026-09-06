@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BellRing,
   BookOpen,
+  Camera,
   Check,
   ClipboardCheck,
   Clock3,
@@ -18,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
+import { AttendanceOcrModal } from '../../components/attendance/AttendanceOcrModal';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
@@ -166,6 +168,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อบันทึกเวลาเรียนลง Supabase จริง',
   );
   const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
+  const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
 
   const classroomStudents = useMemo(
     () => students.filter((student) => student.classroom_id === classroomId),
@@ -767,6 +770,24 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setMarks(Object.fromEntries(classroomStudents.map((student) => [student.id, status])));
   }
 
+  function handleApplyAttendanceOcr(recordsToApply: Record<string, { status: AttendanceStatus; note?: string | null }>) {
+    setMarks((prev) => {
+      const next = { ...prev };
+      Object.entries(recordsToApply).forEach(([stdId, rec]) => {
+        next[stdId] = rec.status;
+      });
+      return next;
+    });
+    setNotes((prev) => {
+      const next = { ...prev };
+      Object.entries(recordsToApply).forEach(([stdId, rec]) => {
+        if (rec.note) next[stdId] = rec.note;
+      });
+      return next;
+    });
+    setNotice(`สแกนและนำเข้าผลการเช็คชื่อสำเร็จ (${Object.keys(recordsToApply).length} คน) ตรวจทานและกด "บันทึกเวลาเรียน"`);
+  }
+
   return (
     <main className="app-page">
       {/* Guided Pop-up: เริ่มเช็คชื่อวันนี้ทันที */}
@@ -1088,6 +1109,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 ⚡ มาทุกคน
               </button>
               <button
+                className="inline-flex h-11 items-center gap-1.5 rounded-2xl border border-amber-300 bg-amber-50 px-4 text-xs font-black text-amber-900 hover:bg-amber-100 transition active:scale-95 disabled:opacity-50 shadow-xs"
+                disabled={classroomStudents.length === 0}
+                onClick={() => setIsOcrModalOpen(true)}
+                type="button"
+              >
+                <Camera size={15} className="text-amber-600" />
+                📸 สแกนใบเช็คชื่อ
+              </button>
+              <button
                 className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-md disabled:cursor-not-allowed disabled:bg-slate-300"
                 disabled={isSubmitting || !attendanceSession || classroomStudents.length === 0}
                 onClick={handleSaveRecords}
@@ -1375,6 +1405,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
           )}
         </div>
       </section>
+
+      <AttendanceOcrModal
+        isOpen={isOcrModalOpen}
+        onApplyAttendance={handleApplyAttendanceOcr}
+        onClose={() => setIsOcrModalOpen(false)}
+        session={session}
+        students={classroomStudents.map((s, idx) => ({
+          id: s.id,
+          student_code: s.student_code,
+          name: `${s.first_name} ${s.last_name}`,
+          number: idx + 1,
+        }))}
+      />
     </main>
   );
 }

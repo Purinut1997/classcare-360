@@ -8,11 +8,14 @@ import {
   Printer,
   Save,
   Settings2,
+  Sparkles,
   Trash2,
   UserRound,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
+import { ScheduleOcrModal } from '../../components/schedule/ScheduleOcrModal';
+import type { ParsedScheduleResult } from '../../lib/aiVisionService';
 
 import { getBangkokDate } from '../../lib/date';
 import { buildOfficialDocumentCode, formatThaiOfficialDate } from '../../lib/officialReport';
@@ -24,6 +27,7 @@ import {
   loadSchoolReportIdentity,
   makeScheduleCellKey,
   saveScheduleSettings,
+  saveSchoolReportIdentity,
   type DayName,
   type ScheduleCell,
   type SchedulePeriod,
@@ -120,6 +124,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const [quickSubjectName, setQuickSubjectName] = useState('');
   const [workspaceClassrooms, setWorkspaceClassrooms] = useState<WorkspaceClassroomRow[]>([]);
   const [printLogoDataUrl, setPrintLogoDataUrl] = useState('');
+  const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -303,6 +308,57 @@ export function SchedulePage({ session }: SchedulePageProps) {
     saveScheduleSettings(normalizedSettings, workspaceId);
     persistSharedSchedule(normalizedSettings);
     setNotice('บันทึกตั้งค่าตารางสอนแล้ว หน้าเช็คเวลาเรียนจะเห็นคาบและรายวิชาจากตารางนี้');
+  }
+
+  function handleApplySchedule(result: ParsedScheduleResult, mode: 'replace' | 'merge') {
+    const baseCells = mode === 'replace' ? {} : { ...settings.cells };
+    const nextCells: Record<string, ScheduleCell> = { ...baseCells };
+
+    result.cells.forEach((c) => {
+      const key = makeScheduleCellKey(c.day, c.periodIndex);
+      nextCells[key] = {
+        classroom: c.classroom?.trim() || selectedClassroom || session.workspace?.classroomName || 'ป.5/1',
+        subject: c.subjectName.trim(),
+        subjectCode: c.subjectCode?.trim() || undefined,
+      };
+    });
+
+    const newSubjectsMap = new Map<string, ScheduleSubjectOption>();
+    settings.subjects.forEach((s) => newSubjectsMap.set(s.name, s));
+    result.subjects.forEach((s) => {
+      if (s.name) {
+        newSubjectsMap.set(s.name, {
+          code: s.code?.trim() || '',
+          name: s.name.trim(),
+          teacherName: s.teacherName?.trim() || '',
+        });
+      }
+    });
+
+    const subjects = Array.from(newSubjectsMap.values());
+    const subjectOptions = Array.from(new Set([...settings.subjectOptions, ...subjects.map((s) => s.name)]));
+
+    const nextSettings: typeof settings = {
+      ...settings,
+      cells: nextCells,
+      subjects,
+      subjectOptions,
+      courseTitle: result.courseTitle?.trim() || settings.courseTitle,
+      periodCount: result.periodCount || settings.periodCount,
+      periodMinutes: result.periodMinutes || settings.periodMinutes,
+      startTime: result.startTime?.trim() || settings.startTime,
+      lunchStart: result.lunchStart?.trim() || settings.lunchStart,
+      lunchEnd: result.lunchEnd?.trim() || settings.lunchEnd,
+    };
+
+    if (result.teacherName?.trim()) {
+      const nextIdentity = { ...identity, teacherName: result.teacherName.trim() };
+      setIdentity(nextIdentity);
+      saveSchoolReportIdentity(nextIdentity, workspaceId);
+    }
+
+    saveAll(nextSettings);
+    setNotice(`นำเข้าตารางสอนจากภาพถ่ายสำเร็จ! ตรวจพบ ${result.cells.length} คาบ (${result.subjects.length} รายวิชา)`);
   }
 
   function normalizeSubjects(subjects: ScheduleSubjectOption[]) {
@@ -853,6 +909,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่ แก้ไข หรือล้างวิชาในคาบนั้น</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-amber-900 bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 shadow-sm"
+                  onClick={() => setIsOcrModalOpen(true)}
+                  type="button"
+                >
+                  <Sparkles size={17} aria-hidden="true" className="text-amber-600" />
+                  สแกนตารางด้วย AI
+                </button>
                 <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
                   <Save size={17} aria-hidden="true" />
                   บันทึกตาราง
@@ -1059,6 +1123,15 @@ export function SchedulePage({ session }: SchedulePageProps) {
           </section>
         )}
       </div>
+
+      <ScheduleOcrModal
+        classroomOptions={settings.classroomOptions}
+        defaultClassroom={selectedClassroom || session.workspace?.classroomName || 'ป.5/1'}
+        isOpen={isOcrModalOpen}
+        onApplySchedule={handleApplySchedule}
+        onClose={() => setIsOcrModalOpen(false)}
+        session={session}
+      />
     </main>
   );
 }
