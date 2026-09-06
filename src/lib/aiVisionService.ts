@@ -973,6 +973,7 @@ export interface GenerateSemesterExamParams {
   includeSubjective?: boolean;
   subjectiveCount?: number;
   difficultyRatio?: string;
+  speedMode?: 'express' | 'ai';
 }
 
 /**
@@ -1546,7 +1547,13 @@ export async function generateSemesterExam(
     includeSubjective = true,
     subjectiveCount = 2,
     difficultyRatio = '30:50:20',
+    speedMode = 'ai',
   } = params;
+
+  // If Express mode is selected, return instant OBEC curriculum synthesis (< 1 second)
+  if (speedMode === 'express') {
+    return synthesizeFallbackSemesterExam(params);
+  }
 
   // If Gemini API Key is available, attempt AI generation with clean JSON schema
   if (apiKey?.trim()) {
@@ -1593,8 +1600,10 @@ ${indicatorQuotas
 2. ตอนที่ 2: ${includeSubjective ? `แบบเขียนตอบ/แสดงวิธีทำ จำนวน ${subjectiveCount} ข้อ พร้อมเกณฑ์การตรวจอย่างละเอียด` : 'ไม่มีข้อสอบอัตนัย'}
 3. ผังวิเคราะห์ข้อสอบ (Test Blueprint): ระบุหน่วยการเรียนรู้, ตัวชี้วัด, จำนวนข้อ และระดับพฤติกรรม
 
-คำสั่งเคร่งครัด:
-- คำถามและตัวเลือกต้องถูกต้องตามหลักวิชาการ ไม่มีข้อกำกวม ตัวลวงมีหลักการ
+คำสั่งเคร่งครัดเรื่องความเร็วและความกระชับ (FAST GENERATION MODE):
+- คำถามและตัวเลือกต้องถูกต้องตามหลักวิชาการ ชัดเจน
+- คำอธิบายเฉลย (explanation): เขียนสั้นกระชับ 1 ประโยคตรงประเด็นเพื่อความรวดเร็วในการประมวลผล
+- เกณฑ์การตรวจ (scoringCriteria): สรุปสั้นชัดเจน 1-2 บรรทัด
 - ตอบกลับเฉพาะ JSON ที่ถูกต้องตามโครงสร้างด้านล่างเท่านั้น:
 
 {
@@ -1625,7 +1634,7 @@ ${indicatorQuotas
           { "key": "ง", "text": "ตัวเลือก 4" }
         ],
         "correctAnswer": "ก",
-        "explanation": "เหตุผลเฉลยละเอียดและวิเคราะห์ตัวเลือก",
+        "explanation": "เหตุผลเฉลยสั้นกระชับ 1 ประโยค",
         "indicator": "รหัสตัวชี้วัด สพฐ.",
         "bloomLevel": "ความเข้าใจ"
       }
@@ -1668,8 +1677,8 @@ ${indicatorQuotas
         model,
         prompt,
         responseJson: true,
-        temperature: 0.4,
-        maxOutputTokens: 8192,
+        temperature: 0.25,
+        maxOutputTokens: 5120,
       });
 
       const parsed = safeParseJson<any>(rawText, null);

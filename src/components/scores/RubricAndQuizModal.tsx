@@ -5,6 +5,7 @@ import {
   BookOpen,
   Check,
   CheckCircle2,
+  Clock,
   Copy,
   FileCheck2,
   FileText,
@@ -21,6 +22,7 @@ import {
   Table,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 import { getEffectiveAiConfig } from '../../lib/aiSettings';
@@ -256,12 +258,45 @@ export function RubricAndQuizModal({
   };
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationElapsed, setGenerationElapsed] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState(10);
+  const [generationMode, setGenerationMode] = useState<'express' | 'ai'>('ai');
   const [rubricResult, setRubricResult] = useState<RubricResult | null>(null);
   const [quizResult, setQuizResult] = useState<RemedialQuizResult | null>(null);
   const [examResult, setExamResult] = useState<SemesterExamResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+
+  // Live timer & progress interpolation when AI is generating
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let progressTimer: ReturnType<typeof setInterval> | undefined;
+    if (isGenerating && activeTab === 'exam') {
+      const startTime = Date.now();
+      setGenerationElapsed(0);
+      setGenerationProgress(15);
+
+      timer = setInterval(() => {
+        setGenerationElapsed(Math.floor((Date.now() - startTime) / 100) / 10);
+      }, 100);
+
+      progressTimer = setInterval(() => {
+        setGenerationProgress((prev) => {
+          if (prev >= 95) return 95;
+          const remaining = 95 - prev;
+          return Math.min(95, prev + Math.max(1, Math.round(remaining * 0.1)));
+        });
+      }, 400);
+    } else {
+      setGenerationElapsed(0);
+      setGenerationProgress(0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+      if (progressTimer) clearInterval(progressTimer);
+    };
+  }, [isGenerating, activeTab]);
 
   const checkApiKey = async () => {
     try {
@@ -327,7 +362,8 @@ export function RubricAndQuizModal({
     }
   };
 
-  const handleGenerateExam = async () => {
+  const handleGenerateExam = async (mode: 'express' | 'ai' = 'ai') => {
+    setGenerationMode(mode);
     setIsGenerating(true);
     setErrorMessage(null);
     try {
@@ -365,32 +401,47 @@ export function RubricAndQuizModal({
 
       const unitNames = currentUnits.map((u) => u.name);
 
-      // 3. If no indicators analyzed yet, auto-analyze from units
+      // 3. If no indicators analyzed yet, synthesize or auto-analyze from units
       let currentIndicators = [...examIndicators];
       if (currentIndicators.length === 0) {
-        try {
-          const autoInds = await analyzeIndicatorsFromUnits({
-            apiKey: config.apiKey || '',
-            model: config.model,
-            subject,
-            gradeLevel,
-            units: unitNames,
-          });
-          if (autoInds && autoInds.length > 0) {
-            const targetTotal = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
-            const base = Math.floor(targetTotal / autoInds.length);
-            const remainder = targetTotal % autoInds.length;
-            currentIndicators = autoInds.map((item, idx) => ({
-              id: `ind-${Date.now()}-${idx}`,
-              code: item.code,
-              name: item.name,
-              unitName: findBestMatchingUnit(item.unitName, currentUnits),
-              count: Math.max(1, base + (idx < remainder ? 1 : 0)),
-            }));
-            setExamIndicators(currentIndicators);
+        if (mode === 'express') {
+          // Instant synthesis without waiting
+          const targetTotal = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
+          const base = Math.floor(targetTotal / unitNames.length);
+          const remainder = targetTotal % unitNames.length;
+          currentIndicators = unitNames.map((u, idx) => ({
+            id: `ind-${Date.now()}-${idx}`,
+            code: `ว 1.${idx + 1}`,
+            name: `ตัวชี้วัดสาระการเรียนรู้ ${u}`,
+            unitName: u,
+            count: Math.max(1, base + (idx < remainder ? 1 : 0)),
+          }));
+          setExamIndicators(currentIndicators);
+        } else {
+          try {
+            const autoInds = await analyzeIndicatorsFromUnits({
+              apiKey: config.apiKey || '',
+              model: config.model,
+              subject,
+              gradeLevel,
+              units: unitNames,
+            });
+            if (autoInds && autoInds.length > 0) {
+              const targetTotal = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
+              const base = Math.floor(targetTotal / autoInds.length);
+              const remainder = targetTotal % autoInds.length;
+              currentIndicators = autoInds.map((item, idx) => ({
+                id: `ind-${Date.now()}-${idx}`,
+                code: item.code,
+                name: item.name,
+                unitName: findBestMatchingUnit(item.unitName, currentUnits),
+                count: Math.max(1, base + (idx < remainder ? 1 : 0)),
+              }));
+              setExamIndicators(currentIndicators);
+            }
+          } catch (indErr) {
+            console.warn('[handleGenerateExam] Auto indicator resolution fallback:', indErr);
           }
-        } catch (indErr) {
-          console.warn('[handleGenerateExam] Auto indicator resolution fallback:', indErr);
         }
       }
 
@@ -402,6 +453,7 @@ export function RubricAndQuizModal({
       const res = await generateSemesterExam({
         apiKey: config.apiKey || '',
         model: config.model,
+        speedMode: mode,
         examType,
         subject,
         gradeLevel,
@@ -2086,7 +2138,144 @@ export function RubricAndQuizModal({
               </div>
 
               {/* Result Container */}
-              {!examResult ? (
+              {isGenerating ? (
+                <div className="relative overflow-hidden rounded-3xl border-2 border-violet-400/80 bg-gradient-to-br from-slate-950 via-indigo-950 to-violet-950 p-6 sm:p-8 text-white shadow-2xl shadow-violet-900/40 animate-in fade-in zoom-in-95 duration-200">
+                  {/* Glowing background blurs */}
+                  <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl pointer-events-none" />
+                  <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+
+                  <div className="relative z-10 space-y-6">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+                      <div className="flex items-center gap-3.5">
+                        <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 shadow-lg shadow-violet-500/40">
+                          <Loader2 className="animate-spin text-white" size={24} />
+                          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-slate-900">
+                            ⚡
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-base font-black tracking-tight text-white">
+                              {generationMode === 'express'
+                                ? '⚡ กำลังสร้างข้อสอบด่วนทันใจ (Curriculum Engine)'
+                                : '✨ Gemini AI Exam Studio กำลังประพันธ์ข้อสอบ'}
+                            </h4>
+                            <span className="rounded-full bg-violet-500/30 px-2 py-0.5 text-[10px] font-black text-violet-200 border border-violet-400/30 uppercase tracking-wider">
+                              Live
+                            </span>
+                          </div>
+                          <p className="text-xs text-violet-200/80 mt-0.5 font-medium">
+                            {examType === 'midterm' ? 'ข้อสอบกลางภาค' : 'ข้อสอบปลายภาค'} • กลุ่มสาระ{subject} {gradeLevel} • รวม {totalExamQuestions} ข้อ
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Live Counter Badge */}
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 backdrop-blur-md border border-white/15">
+                          <Clock size={16} className="text-amber-300 animate-pulse" />
+                          <span className="font-mono text-sm font-black text-amber-300">
+                            ⏱️ {generationElapsed.toFixed(1)} วิ
+                          </span>
+                        </div>
+                        {generationMode === 'ai' && (
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateExam('express')}
+                            className="inline-flex items-center gap-1.5 rounded-2xl bg-amber-500 hover:bg-amber-400 px-3.5 py-2 text-xs font-black text-slate-950 shadow-md transition hover:scale-105 active:scale-95 cursor-pointer"
+                            title="สลับไปโหมดด่วนทันใจ ออกข้อสอบเสร็จใน 1 วินาที"
+                          >
+                            <Zap size={14} className="fill-current" />
+                            <span>รอนาน? สร้างทันใจ ~1 วิ</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-violet-200">
+                        <span>ความคืบหน้าการวิเคราะห์และประพันธ์</span>
+                        <span className="font-mono text-amber-300">{generationProgress}%</span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/10 p-0.5 backdrop-blur-xs">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-amber-300 transition-all duration-300 ease-out shadow-sm"
+                          style={{ width: `${generationProgress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Active Pipeline Checklist */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div className={`flex items-center gap-3 rounded-2xl p-3 text-xs transition border ${
+                        generationProgress >= 25
+                          ? 'bg-violet-900/30 border-violet-500/40 text-violet-100'
+                          : 'bg-white/5 border-white/5 text-white/50'
+                      }`}>
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg font-black text-[11px] ${
+                          generationProgress >= 25 ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/40'
+                        }`}>
+                          ✓
+                        </div>
+                        <div>
+                          <p className="font-black">1. ตรวจสอบโครงสร้างและตัวชี้วัด</p>
+                          <p className="text-[10px] opacity-75">{examIndicators.length || examUnits.length} ตัวชี้วัด สพฐ.</p>
+                        </div>
+                      </div>
+
+                      <div className={`flex items-center gap-3 rounded-2xl p-3 text-xs transition border ${
+                        generationProgress >= 50
+                          ? 'bg-violet-900/30 border-violet-500/40 text-violet-100'
+                          : 'bg-white/5 border-white/5 text-white/50'
+                      }`}>
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg font-black text-[11px] ${
+                          generationProgress >= 50 ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/40'
+                        }`}>
+                          {generationProgress >= 50 ? '✓' : '2'}
+                        </div>
+                        <div>
+                          <p className="font-black">2. วางผัง Test Blueprint 2 มิติ</p>
+                          <p className="text-[10px] opacity-75">เกณฑ์ Bloom's Taxonomy ({examDifficulty})</p>
+                        </div>
+                      </div>
+
+                      <div className={`flex items-center gap-3 rounded-2xl p-3 text-xs transition border ${
+                        generationProgress >= 75
+                          ? 'bg-violet-900/30 border-violet-500/40 text-violet-100'
+                          : 'bg-white/5 border-white/5 text-white/50'
+                      }`}>
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg font-black text-[11px] ${
+                          generationProgress >= 75 ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/40'
+                        }`}>
+                          {generationProgress >= 75 ? '✓' : '3'}
+                        </div>
+                        <div>
+                          <p className="font-black">3. ประพันธ์ข้อสอบ {examPart1Count} ปรนัย {examIncludePart2 ? `+ ${examPart2Count} อัตนัย` : ''}</p>
+                          <p className="text-[10px] opacity-75">สร้างตัวเลือกและตัวลวงคุณภาพสูง</p>
+                        </div>
+                      </div>
+
+                      <div className={`flex items-center gap-3 rounded-2xl p-3 text-xs transition border ${
+                        generationProgress >= 90
+                          ? 'bg-violet-900/30 border-violet-500/40 text-violet-100'
+                          : 'bg-white/5 border-white/5 text-white/50'
+                      }`}>
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg font-black text-[11px] ${
+                          generationProgress >= 90 ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/40'
+                        }`}>
+                          {generationProgress >= 90 ? '✓' : '4'}
+                        </div>
+                        <div>
+                          <p className="font-black">4. ประกอบหัวกระดาษและเฉลยครู</p>
+                          <p className="text-[10px] opacity-75">พร้อมพิมพ์และส่งออกฝ่ายวิชาการ</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : !examResult ? (
                 <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-300 bg-violet-50/30 p-8 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
                     <BookOpen size={24} />
@@ -2507,36 +2696,54 @@ export function RubricAndQuizModal({
               )}
             </button>
           ) : (
-            <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-3 text-xs font-black text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
-              disabled={
-                isGenerating ||
-                !subject.trim() ||
-                !gradeLevel.trim() ||
-                examPart1Count < 5
-              }
-              onClick={handleGenerateExam}
-              type="button"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="animate-spin text-amber-300" size={16} />
-                  <span>กำลังออกข้อสอบ {examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} & Blueprint ด้วย AI...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
-                  <span>
-                    {examResult
-                      ? '✨ ให้ AI ออกข้อสอบชุดใหม่'
-                      : `✨ ออกข้อสอบ${examType === 'midterm' ? 'กลางภาค' : 'ปลายภาค'} (${examPart1Count} ข้อปรนัย${
-                          examIncludePart2 ? ` + ${examPart2Count} ข้ออัตนัย` : ''
-                        })`}
-                  </span>
-                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-4 py-3 text-xs font-black text-slate-950 shadow-md shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                disabled={
+                  isGenerating ||
+                  !subject.trim() ||
+                  !gradeLevel.trim() ||
+                  examPart1Count < 5
+                }
+                onClick={() => handleGenerateExam('express')}
+                type="button"
+                title="ออกข้อสอบทันทีตามผังหลักสูตร สพฐ. โดยไม่ต้องรอ AI เจน (เสร็จใน 1 วินาที)"
+              >
+                <Zap size={15} className="fill-current text-slate-950" />
+                <span>⚡ ออกข้อสอบทันที (~1 วิ)</span>
+              </button>
+
+              <button
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-5 py-3 text-xs font-black text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                disabled={
+                  isGenerating ||
+                  !subject.trim() ||
+                  !gradeLevel.trim() ||
+                  examPart1Count < 5
+                }
+                onClick={() => handleGenerateExam('ai')}
+                type="button"
+              >
+                {isGenerating && generationMode === 'ai' ? (
+                  <>
+                    <Loader2 className="animate-spin text-amber-300" size={16} />
+                    <span>กำลังออกข้อสอบด้วย AI ({generationElapsed.toFixed(1)}s)...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} className="text-amber-300 animate-pulse" />
+                    <span>
+                      {examResult
+                        ? '✨ ให้ AI ออกข้อสอบชุดใหม่'
+                        : `✨ ออกแบบด้วย Gemini AI (${examPart1Count} ข้อปรนัย${
+                            examIncludePart2 ? ` + ${examPart2Count} ข้ออัตนัย` : ''
+                          })`}
+                    </span>
+                    <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </div>

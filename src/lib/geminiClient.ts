@@ -374,13 +374,16 @@ export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<st
   }
 
   const modelInput = options.model && options.model !== 'auto' ? options.model : 'gemini-1.5-flash';
-  // Map any outdated or unavailable model names safely
-  const effectiveModel = modelInput === 'gemini-2.0-flash' ? 'gemini-1.5-flash' : modelInput;
+  // Map any outdated or unavailable model names safely to fast official models
+  const effectiveModel =
+    modelInput === 'gemini-2.0-flash' ||
+    modelInput === 'gemini-3.6-flash' ||
+    modelInput === 'gemini-3.5-flash'
+      ? 'gemini-1.5-flash'
+      : modelInput;
   const candidateModels = [
     effectiveModel,
     'gemini-1.5-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash',
     'gemini-1.5-pro',
   ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
