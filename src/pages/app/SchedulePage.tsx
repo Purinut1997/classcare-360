@@ -1127,6 +1127,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
       <ScheduleOcrModal
         classroomOptions={settings.classroomOptions}
         defaultClassroom={selectedClassroom || session.workspace?.classroomName || 'ป.5/1'}
+        defaultTeacherName={identity.teacherName || session.profile?.displayName || ''}
         isOpen={isOcrModalOpen}
         onApplySchedule={handleApplySchedule}
         onClose={() => setIsOcrModalOpen(false)}

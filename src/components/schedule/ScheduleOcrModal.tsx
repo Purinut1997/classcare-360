@@ -8,8 +8,10 @@ import {
   FileImage,
   Loader2,
   RefreshCw,
+  School,
   Sparkles,
   Upload,
+  UserRound,
   X,
   ZoomIn,
 } from 'lucide-react';
@@ -28,6 +30,7 @@ interface ScheduleOcrModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultClassroom: string;
+  defaultTeacherName?: string;
   classroomOptions: string[];
   session: AppSessionContext;
   onApplySchedule: (result: ParsedScheduleResult, mode: 'replace' | 'merge') => void;
@@ -37,6 +40,7 @@ export function ScheduleOcrModal({
   isOpen,
   onClose,
   defaultClassroom,
+  defaultTeacherName = '',
   classroomOptions,
   session,
   onApplySchedule,
@@ -44,7 +48,10 @@ export function ScheduleOcrModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [targetClassroom, setTargetClassroom] = useState(defaultClassroom || 'ป.5/1');
+  const [teacherName, setTeacherName] = useState(
+    defaultTeacherName || session.profile?.displayName || ''
+  );
+  const [fallbackClassroom, setFallbackClassroom] = useState(defaultClassroom || 'ป.5/1');
   const [importMode, setImportMode] = useState<'replace' | 'merge'>('replace');
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedResult, setParsedResult] = useState<ParsedScheduleResult | null>(null);
@@ -99,13 +106,17 @@ export function ScheduleOcrModal({
         config.model,
         compressed.base64,
         compressed.mimeType,
-        targetClassroom
+        fallbackClassroom,
+        teacherName
       );
 
       if (result.cells.length === 0) {
         throw new Error('ไม่พบช่องตารางสอนที่ชัดเจนในภาพ กรุณาถ่ายภาพให้สว่างและตรงขึ้น');
       }
 
+      if (result.teacherName?.trim()) {
+        setTeacherName(result.teacherName.trim());
+      }
       setParsedResult(result);
     } catch (err) {
       setErrorMessage((err as Error).message);
@@ -116,7 +127,11 @@ export function ScheduleOcrModal({
 
   const handleConfirm = () => {
     if (!parsedResult) return;
-    onApplySchedule(parsedResult, importMode);
+    const finalResult: ParsedScheduleResult = {
+      ...parsedResult,
+      teacherName: teacherName.trim() || parsedResult.teacherName,
+    };
+    onApplySchedule(finalResult, importMode);
     onClose();
   };
 
@@ -263,27 +278,51 @@ export function ScheduleOcrModal({
                 </div>
               )}
 
-              {/* Settings for parsing */}
-              <div className="grid gap-3 sm:grid-cols-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                <label className="grid gap-1.5 text-xs font-black text-slate-700">
-                  ห้องเรียนเป้าหมายสำหรับตารางนี้
-                  <select
-                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900"
-                    onChange={(e) => setTargetClassroom(e.target.value)}
-                    value={targetClassroom}
-                  >
-                    {classroomOptions.map((room) => (
-                      <option key={room} value={room}>
-                        {room}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {/* Settings for Teacher Schedule */}
+              <div className="grid gap-3.5 rounded-2xl border border-amber-200/80 bg-amber-50/40 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1 text-xs font-black text-slate-700">
+                    <span className="flex items-center gap-1 text-amber-900 font-black">
+                      <UserRound size={14} className="text-amber-700" />
+                      ครูผู้สอน (เจ้าของตารางสอน)
+                    </span>
+                    <input
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                      onChange={(e) => setTeacherName(e.target.value)}
+                      placeholder="เช่น ครูสมชาย ใจดี"
+                      value={teacherName}
+                    />
+                    <span className="text-[11px] font-medium text-slate-500">
+                      ตารางสอนฉบับนี้เป็นของครูผู้สอนท่านนี้
+                    </span>
+                  </label>
 
-                <div className="grid gap-1.5 text-xs font-black text-slate-700">
-                  <span>รูปแบบการนำเข้า</span>
-                  <div className="flex items-center gap-4 h-10">
-                    <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <label className="grid gap-1 text-xs font-black text-slate-700">
+                    <span className="flex items-center gap-1 text-slate-700 font-black">
+                      <School size={14} className="text-amber-700" />
+                      ห้องเรียนประจำชั้น / ห้องเริ่มต้น
+                    </span>
+                    <select
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-900 focus:border-amber-500"
+                      onChange={(e) => setFallbackClassroom(e.target.value)}
+                      value={fallbackClassroom}
+                    >
+                      {classroomOptions.map((room) => (
+                        <option key={room} value={room}>
+                          {room}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[11px] font-medium text-slate-500">
+                      AI จะตรวจจับห้องที่สอนในแต่ละคาบให้ (หากช่องใดในภาพไม่ระบุห้อง จะใช้ห้องนี้)
+                    </span>
+                  </label>
+                </div>
+
+                <div className="border-t border-amber-200/60 pt-3">
+                  <span className="text-xs font-black text-slate-700 block mb-1.5">รูปแบบการนำเข้า</span>
+                  <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-700">
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
                       <input
                         checked={importMode === 'replace'}
                         name="importMode"
@@ -292,7 +331,7 @@ export function ScheduleOcrModal({
                       />
                       <span>แทนที่ตารางเดิมทั้งหมด</span>
                     </label>
-                    <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
                       <input
                         checked={importMode === 'merge'}
                         name="importMode"
@@ -321,8 +360,7 @@ export function ScheduleOcrModal({
                       {parsedResult.subjects.length} รายวิชา)
                     </h4>
                     <p className="text-xs text-teal-700">
-                      {parsedResult.courseTitle || 'ตารางสอนประจำสัปดาห์'} • {parsedResult.periodCount} คาบ/วัน (
-                      {parsedResult.periodMinutes} นาที/คาบ)
+                      ครูผู้สอน: <span className="font-bold">{teacherName || 'ไม่ระบุ'}</span> • {parsedResult.courseTitle || 'ตารางสอนประจำสัปดาห์'} • {parsedResult.periodCount} คาบ/วัน
                     </p>
                   </div>
                 </div>
@@ -354,13 +392,18 @@ export function ScheduleOcrModal({
                           ) : (
                             dayCells.map((c) => (
                               <div
-                                className="rounded-xl border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-xs font-bold text-amber-950 shadow-xs"
+                                className="rounded-xl border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-xs font-bold text-amber-950 shadow-xs flex items-center gap-1.5"
                                 key={`${c.day}-${c.periodIndex}`}
                               >
-                                <span className="font-mono text-amber-700 mr-1">คาบ {c.periodIndex}:</span>
+                                <span className="font-mono text-amber-700">คาบ {c.periodIndex}:</span>
                                 <span className="font-black">{c.subjectName}</span>
                                 {c.subjectCode ? (
-                                  <span className="text-[10px] text-amber-600 ml-1">({c.subjectCode})</span>
+                                  <span className="text-[10px] text-amber-600 font-mono">({c.subjectCode})</span>
+                                ) : null}
+                                {c.classroom ? (
+                                  <span className="rounded-md bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-black text-amber-900">
+                                    ห้อง {c.classroom}
+                                  </span>
                                 ) : null}
                               </div>
                             ))
