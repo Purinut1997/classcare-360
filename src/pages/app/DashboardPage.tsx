@@ -14,6 +14,7 @@ import { StatsGrid } from '../../components/dashboard/StatsGrid';
 import { StudentWatchlist, type WatchlistStudentItem } from '../../components/dashboard/StudentWatchlist';
 import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
 import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
+import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -994,6 +995,11 @@ export function DashboardPage({ session }: DashboardPageProps) {
           hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
           hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
         />
+      </div>
+
+      {/* ✨ จุดขายเด่น: รวมฟังก์ชัน AI อัจฉริยะ ช่วยงานครูไทย (CLASSCARE 360 AI HUB) */}
+      <div className="mt-5">
+        <AiFeatureShowcase session={session} />
       </div>
 
       {/* ⚠️ Pending Join Requests — Admin action required, show right after hero */}
