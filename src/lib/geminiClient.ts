@@ -1,12 +1,11 @@
 export type GeminiModelId =
   | 'auto'
   | 'gemini-2.5-flash'
-  | 'gemini-2.0-flash'
-  | 'gemini-2.5-pro'
-  | 'gemini-3.6-flash'
+  | 'gemini-2.5-flash-lite'
   | 'gemini-3.5-flash'
-  | 'gemini-1.5-flash'
-  | 'gemini-1.5-pro';
+  | 'gemini-3.6-flash'
+  | 'gemini-2.0-flash'
+  | 'gemini-2.5-pro';
 
 export interface GeminiModelOption {
   id: GeminiModelId;
@@ -22,7 +21,7 @@ export const AUTO_MODEL_OPTION: GeminiModelOption = {
   id: 'auto',
   name: 'Auto Model (สลับรุ่นอัตโนมัติ)',
   tag: 'แนะนำสูงสุด ✨',
-  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 2.5 ➔ 2.0 ➔ 2.5 Pro) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่มีวันติดลิมิต',
+  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 2.5 ➔ 3.5 ➔ 2.0) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่มีวันติดลิมิต',
   speed: '⚡⚡⚡⚡ อัจฉริยะ',
   quota: 'ไม่มีวันหมด (สลับรุ่นอัตโนมัติ)',
   highlight: true,
@@ -33,10 +32,34 @@ export const MANUAL_GEMINI_MODELS: GeminiModelOption[] = [
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
     tag: 'รุ่นหลักล่าสุด แนะนำ 🌟',
-    description: 'โมเดลรุ่นใหม่ล่าสุดของ Google AI Studio ประมวลผลรวดเร็ว ฉลาด และแม่นยำสูง',
+    description: 'โมเดลรุ่นใหม่ล่าสุดของ Google AI Studio ประมวลผลรวดเร็ว ฉลาด แม่นยำ และโควตาว่าง',
     speed: '⚡⚡⚡⚡ เร็วมาก',
-    quota: 'รุ่นหลัก Google AI Studio',
+    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
     highlight: true,
+  },
+  {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite',
+    tag: 'เร็วและประหยัด ⚡',
+    description: 'โมเดลประมวลผลด่วนพิเศษ สำหรับงานตอบคำถามไวและสร้างข้อสอบ',
+    speed: '⚡⚡⚡⚡ เร็วที่สุด',
+    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
+  },
+  {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    tag: 'ฉลาด ละเอียด ✨',
+    description: 'โมเดลวิเคราะห์ข้อมูลลึก ตอบรายละเอียดได้ครบถ้วน',
+    speed: '⚡⚡⚡ เร็ว',
+    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
+  },
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    tag: 'รุ่นใหม่พรีวิว 🚀',
+    description: 'โมเดลความสามารถสูงรุ่นล่าสุดของ Google (หากติดลิมิต 20/20 ระบบจะสลับไปรุ่น 2.5 Flash ให้อัตโนมัติ)',
+    speed: '⚡⚡⚡ เร็ว',
+    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
   },
   {
     id: 'gemini-2.0-flash',
@@ -54,14 +77,6 @@ export const MANUAL_GEMINI_MODELS: GeminiModelOption[] = [
     speed: '⚡ ปานกลาง',
     quota: 'สำหรับงานวิเคราะห์เชิงลึก',
   },
-  {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash (Legacy)',
-    tag: 'รุ่นเดิม',
-    description: 'โมเดลรุ่นเดิม (หากบัญชีไม่รองรับ ระบบจะสลับไป 2.5 Flash ให้อัตโนมัติ)',
-    speed: '⚡⚡⚡ เร็ว',
-    quota: 'Legacy Model',
-  },
 ];
 
 export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
@@ -73,18 +88,22 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
  * Returns prioritized candidate models for API execution.
  */
 export function getCandidateModels(preferredModel?: string): string[] {
-  const clean = preferredModel && preferredModel !== 'auto' ? preferredModel : 'gemini-2.5-flash';
-  const normalized =
-    clean === 'gemini-3.6-flash' || clean === 'gemini-3.5-flash'
-      ? 'gemini-2.5-flash'
-      : clean;
+  const clean =
+    preferredModel &&
+    preferredModel !== 'auto' &&
+    (preferredModel as string) !== 'gemini-1.5-flash' &&
+    (preferredModel as string) !== 'gemini-1.5-pro'
+      ? preferredModel
+      : 'gemini-2.5-flash';
 
   return [
-    normalized,
+    clean,
     'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
     'gemini-2.0-flash',
     'gemini-2.5-pro',
-    'gemini-1.5-flash',
   ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
 }
 
@@ -563,7 +582,7 @@ async function attemptTestModel(
  */
 export async function testGeminiApiKey(
   apiKey: string,
-  model: GeminiModelId = 'gemini-1.5-flash'
+  model: GeminiModelId = 'auto'
 ): Promise<{ success: boolean; message: string; autoSwitchedModel?: GeminiModelId }> {
   if (!apiKey || apiKey.trim().length < 20) {
     return { success: false, message: 'กรุณากรอก API Key ที่ถูกต้อง' };
@@ -599,36 +618,63 @@ export async function testGeminiApiKey(
       };
     }
 
-    // 2. Test user's selected model first, followed by stable candidate models
-    const testQueue: string[] = getCandidateModels(model);
+    // 2. Build test queue strictly from models confirmed by Google
+    const requested = model && model !== 'auto' ? (model as string) : 'gemini-2.5-flash';
+    const priorityCandidates = [
+      requested,
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+      'gemini-2.0-flash',
+      'gemini-2.5-pro',
+      ...supportedList,
+    ];
+
+    const testQueue: string[] = [];
+    for (const cand of priorityCandidates) {
+      if (!cand || cand === 'gemini-1.5-flash' || cand === 'gemini-1.5-pro') continue;
+      const match =
+        supportedList.find((m) => m === cand) ||
+        supportedList.find((m) => m.startsWith(cand + '-')) ||
+        supportedList.find((m) => m.includes(cand));
+      if (match && !testQueue.includes(match)) {
+        testQueue.push(match);
+      }
+    }
+
+    if (testQueue.length === 0) {
+      testQueue.push(...supportedList.filter((m) => !m.includes('1.5')));
+    }
 
     let lastError = '';
-    for (const targetModel of testQueue) {
-      // Check if target model exists in supported list or test directly
-      const matchedModel =
-        supportedList.find((m) => m === targetModel) ||
-        supportedList.find((m) => m.startsWith(targetModel)) ||
-        targetModel;
+    let quotaHitModel = '';
 
-      const testRes = await attemptTestModel(cleanKey, matchedModel);
+    for (const targetModel of testQueue) {
+      const testRes = await attemptTestModel(cleanKey, targetModel);
       if (testRes.ok) {
         if (model === 'auto') {
           return {
             success: true,
-            message: `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบเปิดโหมด Auto Model พร้อมสลับโมเดลที่ดีที่สุดและมีโควตาให้อัตโนมัติ 🎉)`,
+            message: quotaHitModel
+              ? `เชื่อมต่อสำเร็จ! (ตรวจพบโมเดล ${quotaHitModel} โควตารายวันเต็ม ระบบจึงสลับมาใช้ ${targetModel} ที่มีโควตาว่างให้อัตโนมัติ 🎉)`
+              : `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบเปิดโหมด Auto Model พร้อมสลับโมเดลที่ดีที่สุดและมีโควตาให้อัตโนมัติ 🎉)`,
             autoSwitchedModel: 'auto',
           };
         }
-        const switched = matchedModel !== model;
+        const switched = targetModel !== model;
         return {
           success: true,
           message: switched
-            ? `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบปรับใช้โมเดล ${matchedModel} ที่มีโควตาพร้อมใช้งานให้อัตโนมัติ 🎉)`
-            : `เชื่อมต่อ Google Gemini API (${matchedModel}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
-          autoSwitchedModel: matchedModel as GeminiModelId,
+            ? `เชื่อมต่อ Google Gemini สำเร็จ! (ระบบปรับใช้โมเดล ${targetModel} ที่มีโควตาพร้อมใช้งานให้อัตโนมัติ 🎉)`
+            : `เชื่อมต่อ Google Gemini API (${targetModel}) สำเร็จ พร้อมใช้งานแล้ว 🎉`,
+          autoSwitchedModel: targetModel as GeminiModelId,
         };
       }
 
+      if (testRes.status === 429) {
+        quotaHitModel = targetModel;
+      }
       lastError = testRes.errorMsg || `ทดสอบสร้างเนื้อหาล้มเหลว (รหัส ${testRes.status})`;
       // If error is not a quota issue or 404, stop and report
       if (testRes.status !== 404 && testRes.status !== 400 && testRes.status !== 429) {

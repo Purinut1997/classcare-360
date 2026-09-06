@@ -18,7 +18,7 @@ export function isUserVip(session: AppSessionContext | null | undefined): boolea
 }
 
 function normalizeStoredModel(m?: string | null): GeminiModelId {
-  if (!m || m === 'gemini-1.5-flash' || m === 'gemini-3.6-flash' || m === 'gemini-3.5-flash') {
+  if (!m || (m as string) === 'gemini-1.5-flash' || (m as string) === 'gemini-1.5-pro') {
     return 'gemini-2.5-flash';
   }
   return m as GeminiModelId;

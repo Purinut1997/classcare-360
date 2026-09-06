@@ -157,7 +157,7 @@ export function SupportChat({
   // Settings Modal form state
   const [customKeyInput, setCustomKeyInput] = useState("");
   const [selectedModel, setSelectedModel] =
-    useState<GeminiModelId>("gemini-1.5-flash");
+    useState<GeminiModelId>("auto");
   const [keyScope, setKeyScope] = useState<"workspace" | "personal">(
     "workspace"
   );
@@ -836,10 +836,14 @@ export function SupportChat({
                               : selectedModel === 'gemini-3.6-flash'
                               ? '🌟 3.6 Flash'
                               : selectedModel === 'gemini-3.5-flash'
-                              ? '🌟 3.5 Flash'
-                              : selectedModel === 'gemini-1.5-pro'
-                              ? '🧠 1.5 Pro'
-                              : '⚡ 1.5 Flash'}
+                              ? '✨ 3.5 Flash'
+                              : selectedModel === 'gemini-2.5-flash-lite'
+                              ? '⚡ 2.5 Lite'
+                              : selectedModel === 'gemini-2.0-flash'
+                              ? '⭐ 2.0 Flash'
+                              : selectedModel === 'gemini-2.5-pro'
+                              ? '🧠 2.5 Pro'
+                              : '🌟 2.5 Flash'}
                           </span>
                           <ChevronDown size={10} className="text-emerald-400 ml-0.5" />
                         </button>
@@ -1555,18 +1559,18 @@ export function SupportChat({
                       </p>
                       <div className="space-y-1.5 text-[11px] bg-white/80 rounded-xl p-2.5 border border-indigo-100 shadow-2xs">
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">🌟 1. Gemini 3.6 Flash</span>
+                          <span className="flex items-center gap-1">🌟 1. Gemini 2.5 Flash / 3.6 Flash</span>
                           <span className="text-[9px] text-indigo-700 bg-indigo-100/90 px-1.5 py-0.2 rounded font-bold">Google แนะนำล่าสุด</span>
                         </div>
                         <div className="text-[10px] text-slate-400 pl-5">↓ สลับอัตโนมัติเมื่อจำเป็น</div>
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">✨ 2. Gemini 3.5 Flash</span>
-                          <span className="text-[9px] text-amber-700 bg-amber-100/90 px-1.5 py-0.2 rounded font-bold">ฉลาด ละเอียด</span>
+                          <span className="flex items-center gap-1">✨ 2. Gemini 2.5 Flash Lite / 3.5 Flash</span>
+                          <span className="text-[9px] text-amber-700 bg-amber-100/90 px-1.5 py-0.2 rounded font-bold">เร็ว ละเอียด</span>
                         </div>
                         <div className="text-[10px] text-slate-400 pl-5">↓ สลับสำรอง</div>
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">⚡ 3. Gemini 1.5 Flash</span>
-                          <span className="text-[9px] text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded font-bold">1,500 ครั้ง/วัน (เสถียรสุด)</span>
+                          <span className="flex items-center gap-1">⚡ 3. Gemini 2.0 Flash / 2.5 Pro</span>
+                          <span className="text-[9px] text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded font-bold">สำรองสากล ไม่สะดุด</span>
                         </div>
                       </div>
                     </div>
@@ -1644,9 +1648,9 @@ export function SupportChat({
                     }`}
                   >
                     <div>{testResult.message}</div>
-                    {!testResult.success && (testResult.message.includes('quota') || testResult.message.includes('Quota')) && (
+                    {!testResult.success && (testResult.message.includes('quota') || testResult.message.includes('Quota') || testResult.message.includes('429')) && (
                       <div className="mt-1.5 pt-1.5 border-t border-rose-200/80 text-[11px] font-normal text-rose-700 leading-relaxed">
-                        💡 <strong>คำแนะนำ:</strong> กรุณาเลือกโมเดล <strong>Gemini 1.5 Flash</strong> ด้านบน (โควตาฟรี 1,500 ครั้ง/วัน) หรือผูก Billing บน Google AI Studio เพื่อปลดล็อกเป็น Unlimited ไม่จำกัดครั้งต่อวันค่ะ
+                        💡 <strong>คำแนะนำ:</strong> โควตารายวันของโมเดลนี้เต็มแล้ว (เช่น 20 ครั้ง/วัน) คุณครูสามารถเลือกโหมด <strong>Auto Model (สลับอัตโนมัติ)</strong> หรือเลือกโมเดลอื่นที่มีโควตาว่าง เช่น <strong>Gemini 2.5 Flash / Lite</strong> ได้ทันทีค่ะ
                       </div>
                     )}
                   </div>

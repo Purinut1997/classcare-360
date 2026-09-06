@@ -39,7 +39,7 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
 
   const [aiConfig, setAiConfig] = useState<EffectiveAiConfig | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState<GeminiModelId>('gemini-1.5-flash');
+  const [selectedModel, setSelectedModel] = useState<GeminiModelId>('auto');
   const [showKey, setShowKey] = useState(false);
 
   const [isTesting, setIsTesting] = useState(false);
@@ -290,18 +290,18 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
                       <div className="text-[10px] font-bold text-indigo-700">1️⃣ แนะนำล่าสุด</div>
-                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 3.6 Flash</div>
-                      <div className="text-[10px] text-slate-500 mt-1">Google แนะนำแทน 2.0</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.5 Flash / 3.6</div>
+                      <div className="text-[10px] text-slate-500 mt-1">Google แนะนำรุ่นใหม่</div>
                     </div>
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-amber-700">2️⃣ ขั้นสำรองฉลาด</div>
-                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 3.5 Flash</div>
-                      <div className="text-[10px] text-slate-500 mt-1">ฉลาด ละเอียด ตรงประเด็น</div>
+                      <div className="text-[10px] font-bold text-amber-700">2️⃣ ขั้นสำรองด่วน</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.5 Flash Lite / 3.5</div>
+                      <div className="text-[10px] text-slate-500 mt-1">เร็ว ละเอียด ประหยัดโควตา</div>
                     </div>
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-emerald-700">3️⃣ ขั้นปลอดภัยสูงสุด</div>
-                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 1.5 Flash</div>
-                      <div className="text-[10px] text-slate-500 mt-1">ฟรี 1,500 ครั้ง/วัน ไม่ติดลิมิต</div>
+                      <div className="text-[10px] font-bold text-emerald-700">3️⃣ ขั้นสำรองสากล</div>
+                      <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.0 Flash / Pro</div>
+                      <div className="text-[10px] text-slate-500 mt-1">สลับอัตโนมัติ ไม่สะดุด</div>
                     </div>
                   </div>
                 </div>
