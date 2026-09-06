@@ -8,6 +8,7 @@ import {
   FileImage,
   Loader2,
   RefreshCw,
+  RotateCw,
   School,
   Sparkles,
   Upload,
@@ -83,6 +84,44 @@ export function ScheduleOcrModal({
     } catch (err) {
       setErrorMessage((err as Error).message);
     }
+  };
+
+  const handleRotateImage = () => {
+    if (!previewUrl) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalHeight;
+      canvas.height = img.naturalWidth;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      const mimeType = 'image/jpeg';
+      const rotatedDataUrl = canvas.toDataURL(mimeType, 0.9);
+      setPreviewUrl(rotatedDataUrl);
+
+      try {
+        const byteString = atob(rotatedDataUrl.split(',')[1]);
+        const mimeString = rotatedDataUrl.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mimeString });
+        const newFile = new File([blob], selectedFile?.name || 'schedule_rotated.jpg', {
+          type: mimeString,
+        });
+        setSelectedFile(newFile);
+      } catch {
+        // Keep previewUrl if atob fails
+      }
+    };
+    img.src = previewUrl;
   };
 
   const handleAnalyze = async () => {
@@ -257,16 +296,27 @@ export function ScheduleOcrModal({
                 <div className="relative rounded-3xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-black text-slate-600">ภาพตารางสอนต้นฉบับ</span>
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:underline"
-                      onClick={() => {
-                        setSelectedFile(null);
-                        setPreviewUrl(null);
-                      }}
-                      type="button"
-                    >
-                      <X size={14} /> ลบและเลือกภาพใหม่
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-800 shadow-xs hover:bg-amber-100 transition"
+                        onClick={handleRotateImage}
+                        title="หมุนภาพ 90 องศา (หากภาพถ่ายตะแคงข้าง)"
+                        type="button"
+                      >
+                        <RotateCw size={13} className="text-amber-700" />
+                        <span>หมุนภาพ 90°</span>
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:underline"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setPreviewUrl(null);
+                        }}
+                        type="button"
+                      >
+                        <X size={14} /> ลบและเลือกภาพใหม่
+                      </button>
+                    </div>
                   </div>
                   <div className="relative max-h-72 overflow-hidden rounded-2xl border border-slate-200 bg-white flex items-center justify-center">
                     <img

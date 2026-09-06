@@ -67,6 +67,132 @@ function extractJsonFromMarkdown(raw: string): string {
   return cleaned;
 }
 
+/**
+ * Robust JSON extraction & repair engine that can handle:
+ * 1. Markdown code blocks
+ * 2. Unescaped newlines/tabs inside strings
+ * 3. Line/block comments (slash-slash, slash-star)
+ * 4. Trailing commas (before } or ])
+ * 5. Truncated output (closing unterminated strings and brackets)
+ */
+export function safeParseJson<T>(raw: string, fallbackDefault?: T): T {
+  let cleaned = extractJsonFromMarkdown(raw).trim();
+
+  // 1. Direct parse attempt
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    // Continue
+  }
+
+  // 2. Strip comments & trailing commas
+  cleaned = cleaned
+    .replace(/\/\/[^\r\n]*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/,\s*([\]}])/g, '$1');
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    // Continue
+  }
+
+  // 3. Fix unescaped newlines/control characters inside JSON strings
+  let inStr = false;
+  let escaped = false;
+  let normalized = '';
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (ch === '"' && !escaped) {
+      inStr = !inStr;
+      normalized += ch;
+    } else if (escaped) {
+      escaped = false;
+      normalized += ch;
+    } else if (ch === '\\') {
+      escaped = true;
+      normalized += ch;
+    } else if (inStr && (ch === '\n' || ch === '\r')) {
+      normalized += '\\n';
+    } else if (inStr && ch === '\t') {
+      normalized += '\\t';
+    } else {
+      normalized += ch;
+    }
+  }
+  cleaned = normalized;
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    // Continue
+  }
+
+  // 4. Truncation Auto-Repair: close cut-off string literals & bracket stack
+  let repaired = cleaned;
+  let quoteCount = 0;
+  let isEsc = false;
+  for (let i = 0; i < repaired.length; i++) {
+    if (repaired[i] === '\\' && !isEsc) {
+      isEsc = true;
+    } else {
+      if (repaired[i] === '"' && !isEsc) quoteCount++;
+      isEsc = false;
+    }
+  }
+  if (quoteCount % 2 !== 0) {
+    repaired += '"';
+  }
+
+  repaired = repaired
+    .replace(/,\s*$/, '')
+    .replace(/:\s*$/, ': null')
+    .replace(/,\s*([\]}])/g, '$1');
+
+  const stack: string[] = [];
+  let insideStr = false;
+  let nextEsc = false;
+  for (let i = 0; i < repaired.length; i++) {
+    const char = repaired[i];
+    if (nextEsc) {
+      nextEsc = false;
+      continue;
+    }
+    if (char === '\\') {
+      nextEsc = true;
+      continue;
+    }
+    if (char === '"') {
+      insideStr = !insideStr;
+      continue;
+    }
+    if (!insideStr) {
+      if (char === '{') stack.push('}');
+      else if (char === '[') stack.push(']');
+      else if (char === '}' || char === ']') {
+        if (stack.length > 0 && stack[stack.length - 1] === char) {
+          stack.pop();
+        }
+      }
+    }
+  }
+
+  while (stack.length > 0) {
+    repaired += stack.pop();
+  }
+
+  repaired = repaired.replace(/,\s*([\]}])/g, '$1');
+
+  try {
+    return JSON.parse(repaired) as T;
+  } catch (err) {
+    if (fallbackDefault !== undefined) {
+      return fallbackDefault;
+    }
+    throw new Error(`ไม่สามารถแปลงข้อมูลเป็น JSON ได้: ${(err as Error).message}`);
+  }
+}
+
 // ==========================================
 // 1. Schedule OCR
 // ==========================================
@@ -92,6 +218,37 @@ export interface ParsedScheduleResult {
   notes?: string;
 }
 
+function salvageCellsFromRawText(
+  raw: string,
+  defaultClassroom: string,
+  defaultTeacherName: string
+): ParsedScheduleCell[] {
+  const validDays = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+  const cells: ParsedScheduleCell[] = [];
+  const objectRegex = /\{[^{}]*"day"\s*:\s*"([^"]+)"[^{}]*"periodIndex"\s*:\s*(\d+)[^{}]*\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = objectRegex.exec(raw)) !== null) {
+    try {
+      const parsedCell = JSON.parse(match[0]) as Record<string, unknown>;
+      const day = String(parsedCell.day || '').trim();
+      const periodIndex = Number(parsedCell.periodIndex);
+      if (validDays.includes(day) && !isNaN(periodIndex) && periodIndex > 0) {
+        cells.push({
+          day: day as DayName,
+          periodIndex,
+          subjectCode: parsedCell.subjectCode ? String(parsedCell.subjectCode).trim() : undefined,
+          subjectName: String(parsedCell.subjectName || 'วิชาเรียน').trim(),
+          classroom: String(parsedCell.classroom || defaultClassroom).trim(),
+          teacherName: parsedCell.teacherName ? String(parsedCell.teacherName).trim() : defaultTeacherName,
+        });
+      }
+    } catch {
+      // Continue next match
+    }
+  }
+  return cells;
+}
+
 export async function parseScheduleImage(
   apiKey: string,
   model: GeminiModelId,
@@ -104,7 +261,11 @@ export async function parseScheduleImage(
 คุณคือ AI ผู้เชี่ยวชาญการถอดรหัสเอกสาร "ตารางสอนประจำตัวของคุณครู" (Teacher's Teaching Timetable) ของโรงเรียนไทย (มาตรฐาน สพฐ.)
 เอกสารนี้เป็นตารางการปฏิบัติการสอนของคุณครูผู้สอน (ครู 1 ท่านอาจสอนหลายวิชาและหลายห้องเรียน เช่น คาบ 1 สอนห้อง ป.5/1, คาบ 2 สอนห้อง ป.5/2)
 
-จงอ่านและแปลงข้อมูลในภาพตารางสอนที่แนบมานี้ ให้เป็นรูปแบบ JSON ตามโครงสร้างด้านล่างอย่างเคร่งครัด:
+ข้อสำคัญเกี่ยวกับภาพถ่าย:
+1. หากภาพถ่ายตะแคงข้าง หมุน 90 องศา หรือถ่ายแนวตั้ง ให้หมุนอ่านในใจตามทิศทางหัวตารางจริงให้ถูกต้อง
+2. ให้สังเกตแถววันในสัปดาห์ (จันทร์, อังคาร, พุธ, พฤหัสบดี, ศุกร์) และคาบเรียน (1, 2, 3, 4, 5, 6, 7...)
+
+จงอ่านและแปลงข้อมูลในภาพตารางสอนที่แนบมานี้ ให้เป็นรูปแบบ JSON กระชับตามโครงสร้างด้านล่างอย่างเคร่งครัด:
 
 {
   "courseTitle": "ชื่อหัวตาราง เช่น ตารางสอนครู หรือ ตารางปฏิบัติการสอน (ถ้ามี)",
@@ -112,30 +273,29 @@ export async function parseScheduleImage(
   "periodCount": 7,
   "startTime": "08:30",
   "periodMinutes": 50,
-  "lunchStart": "11:30",
-  "lunchEnd": "12:30",
+  "lunchStart": "12:20",
+  "lunchEnd": "13:00",
   "subjects": [
-    { "code": "รหัสวิชา เช่น ค15101", "name": "ชื่อวิชา เช่น คณิตศาสตร์", "teacherName": "ชื่อครู" }
+    { "code": "รหัสวิชา เช่น ค15101", "name": "ชื่อวิชา เช่น คณิตศาสตร์" }
   ],
   "cells": [
     {
       "day": "จันทร์",
       "periodIndex": 1,
-      "subjectCode": "รหัสวิชา เช่น HR หรือ ค15101",
-      "subjectName": "ชื่อวิชา เช่น โฮมรูม หรือ คณิตศาสตร์",
-      "classroom": "ห้องเรียนที่ครูไปสอนในคาบนี้ (เช่น ป.5/1, ป.5/2, 5/1 หรือหากในช่องไม่ได้ระบุห้อง ให้ใช้ '${defaultClassroom}')",
-      "teacherName": "ชื่อครูผู้สอนในคาบนี้"
+      "subjectCode": "รหัสวิชา เช่น ค15101",
+      "subjectName": "ชื่อวิชา เช่น คณิตศาสตร์",
+      "classroom": "ห้องเรียน เช่น ป.5/1 (หากไม่ระบุ ให้ใช้ '${defaultClassroom}')"
     }
   ],
   "notes": "ข้อสังเกตเพิ่มเติม (ถ้ามี)"
 }
 
 กฎเหล็ก:
-1. วันในสัปดาห์ (day) ต้องเป็นภาษาไทยเท่านั้น: "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"
-2. คาบเรียน (periodIndex) ต้องเป็นตัวเลข 1, 2, 3, 4, 5, 6, 7, 8...
-3. ในแต่ละคาบ ให้พยายามตรวจจับว่าครูไปสอนที่ "ห้องเรียนไหน" (classroom) เช่น ป.5/1, 5/2, ม.1/3 หากช่องใดไม่มีระบุ ให้ใส่ '${defaultClassroom}'
-4. ช่องที่เป็น "พักเที่ยง" หรือ "พักกลางวัน" หรือช่องว่างที่ครูไม่มีสอน ไม่ต้องใส่ลงใน cells
-5. ตอบกลับเป็น JSON เท่านั้น
+1. วันในสัปดาห์ (day) ต้องเป็นภาษาไทยเท่านั้น: "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"
+2. คาบเรียน (periodIndex) ต้องเป็นตัวเลข 1, 2, 3, 4, 5, 6, 7...
+3. ช่องที่เป็น "พักเที่ยง" หรือ "พักกลางวัน" หรือช่องว่างที่ครูไม่มีสอน ไม่ต้องใส่ลงใน cells
+4. ห้ามใส่เครื่องหมาย " ซ้อนในสตริง และห้ามขึ้นบรรทัดใหม่ (newline) ภายในสตริง JSON
+5. ตอบกลับเป็น JSON ที่ถูกต้องตามมาตรฐานเท่านั้น
 `.trim();
 
   const responseText = await callGeminiVisionApi({
@@ -146,24 +306,49 @@ export async function parseScheduleImage(
     mimeType,
     systemInstruction: 'คุณคือระบบ OCR ตารางสอนโรงเรียนไทย แม่นยำ ละเอียด ตอบเฉพาะ JSON',
     responseJson: true,
+    maxOutputTokens: 8192,
   });
 
   try {
-    const jsonStr = extractJsonFromMarkdown(responseText);
-    const parsed = JSON.parse(jsonStr) as ParsedScheduleResult;
+    const parsed = safeParseJson<ParsedScheduleResult>(responseText, {
+      cells: [],
+      subjects: [],
+    });
+    let cells = Array.isArray(parsed.cells) ? parsed.cells : [];
+
+    // If cells is empty or truncated, salvage from raw text
+    if (cells.length === 0) {
+      cells = salvageCellsFromRawText(responseText, defaultClassroom, defaultTeacherName);
+    }
+
     return {
       courseTitle: parsed.courseTitle || 'ตารางสอนประจำสัปดาห์',
-      teacherName: parsed.teacherName || '',
+      teacherName: parsed.teacherName || defaultTeacherName || '',
       periodCount: Number(parsed.periodCount) || 7,
       startTime: parsed.startTime || '08:30',
       periodMinutes: Number(parsed.periodMinutes) || 50,
-      lunchStart: parsed.lunchStart || '11:40',
-      lunchEnd: parsed.lunchEnd || '12:30',
+      lunchStart: parsed.lunchStart || '12:20',
+      lunchEnd: parsed.lunchEnd || '13:00',
       subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
-      cells: Array.isArray(parsed.cells) ? parsed.cells : [],
+      cells,
       notes: parsed.notes || '',
     };
   } catch (err) {
+    const salvaged = salvageCellsFromRawText(responseText, defaultClassroom, defaultTeacherName);
+    if (salvaged.length > 0) {
+      return {
+        courseTitle: 'ตารางสอนประจำสัปดาห์',
+        teacherName: defaultTeacherName || '',
+        periodCount: 7,
+        startTime: '08:30',
+        periodMinutes: 50,
+        lunchStart: '12:20',
+        lunchEnd: '13:00',
+        subjects: [],
+        cells: salvaged,
+        notes: 'ตรวจพบช่องตารางสอนสมบูรณ์บางส่วน',
+      };
+    }
     throw new Error(`ไม่สามารถแปลงข้อมูลตารางสอนเป็น JSON ได้: ${(err as Error).message}`);
   }
 }
@@ -242,13 +427,12 @@ ${studentRosterText}
   });
 
   try {
-    const jsonStr = extractJsonFromMarkdown(responseText);
-    const parsed = JSON.parse(jsonStr) as {
+    const parsed = safeParseJson<{
       attendanceDate?: string;
       periodLabel?: string;
       students?: ParsedAttendanceStudent[];
       notes?: string;
-    };
+    }>(responseText, { students: [] });
     const mappedStudents = Array.isArray(parsed.students) ? parsed.students : [];
     return {
       attendanceDate: parsed.attendanceDate,
@@ -334,13 +518,12 @@ ${studentRosterText}
   });
 
   try {
-    const jsonStr = extractJsonFromMarkdown(responseText);
-    const parsed = JSON.parse(jsonStr) as {
+    const parsed = safeParseJson<{
       assessmentTitle?: string;
       maxScoreDetected?: number;
       students?: ParsedScoreStudent[];
       notes?: string;
-    };
+    }>(responseText, { students: [] });
     return {
       assessmentTitle: parsed.assessmentTitle,
       maxScoreDetected: parsed.maxScoreDetected || maxScore,

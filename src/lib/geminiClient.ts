@@ -243,6 +243,7 @@ export interface GeminiVisionOptions {
   mimeType?: string;
   systemInstruction?: string;
   responseJson?: boolean;
+  maxOutputTokens?: number;
 }
 
 /**
@@ -250,7 +251,7 @@ export interface GeminiVisionOptions {
  * Supports automatic model fallback (gemini-1.5-flash, gemini-3.6-flash, etc.)
  */
 export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise<string> {
-  const { apiKey, prompt, systemInstruction, responseJson } = options;
+  const { apiKey, prompt, systemInstruction, responseJson, maxOutputTokens } = options;
   if (!apiKey?.trim()) {
     throw new Error('กรุณาระบุ Gemini API Key ก่อนใช้งาน AI Vision');
   }
@@ -288,7 +289,7 @@ export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise
     ],
     generationConfig: {
       temperature: 0.2, // Low temperature for high OCR fidelity
-      maxOutputTokens: 4096,
+      maxOutputTokens: maxOutputTokens || 8192,
       ...(responseJson ? { responseMimeType: 'application/json' } : {}),
     },
   };
