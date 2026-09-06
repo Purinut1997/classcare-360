@@ -773,6 +773,69 @@ export interface SemesterExamResult {
   blueprint: ExamBlueprintItem[];
 }
 
+export interface AnalyzedIndicator {
+  code: string;
+  name: string;
+  unitName: string;
+}
+
+export async function analyzeIndicatorsFromUnits(params: {
+  apiKey: string;
+  model: GeminiModelId;
+  subject: string;
+  gradeLevel: string;
+  units: string[];
+}): Promise<AnalyzedIndicator[]> {
+  const { apiKey, model, subject, gradeLevel, units } = params;
+  if (!units || units.length === 0) return [];
+
+  const prompt = `
+คุณคือศึกษานิเทศก์และผู้เชี่ยวชาญด้านหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน สพฐ. กระทรวงศึกษาธิการ
+จงวิเคราะห์ "ตัวชี้วัด สพฐ." ที่สอดคล้องกับหน่วยการเรียนรู้ต่อไปนี้อย่างถูกต้องตามมาตรฐานหลักสูตรแกนกลาง 2551 (ฉบับปรับปรุง 2560):
+
+วิชา: ${subject}
+ระดับชั้น: ${gradeLevel}
+หน่วยการเรียนรู้ที่สอน:
+${units.map((u, i) => `${i + 1}. ${u}`).join('\n')}
+
+คำสั่ง:
+1. สำหรับแต่ละหน่วยการเรียนรู้ จงจับคู่และระบุรหัสตัวชี้วัด สพฐ. ที่ตรงเป๊ะและเกี่ยวข้อง (เช่น ค 1.1 ป.5/1, ว 1.2 ม.2/3) พร้อมคำอธิบายตัวชี้วัดสั้นกระชับเข้าใจง่าย
+2. แต่ละหน่วยสามารถมีได้ 1-3 ตัวชี้วัดที่เกี่ยวข้องโดยตรง
+3. ตอบกลับเฉพาะ JSON array ตามโครงสร้างนี้เท่านั้น:
+[
+  {
+    "unitName": "ชื่อหน่วยการเรียนรู้",
+    "code": "รหัสตัวชี้วัด เช่น ค 1.1 ป.5/1",
+    "name": "คำอธิบายตัวชี้วัดสั้นๆ"
+  }
+]
+`;
+
+  const rawText = await callGeminiPrompt({
+    apiKey,
+    model,
+    prompt,
+    responseJson: true,
+    temperature: 0.3,
+    maxOutputTokens: 2048,
+  });
+
+  try {
+    const parsed = safeParseJson<AnalyzedIndicator[]>(rawText);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('Failed to parse analyzed indicators:', err, rawText);
+    return [];
+  }
+}
+
+export interface ExamIndicatorQuota {
+  code: string;
+  name?: string;
+  count: number;
+  unitName?: string;
+}
+
 export interface GenerateSemesterExamParams {
   apiKey: string;
   model: GeminiModelId;
@@ -785,7 +848,9 @@ export interface GenerateSemesterExamParams {
   term?: string;
   timeMinutes?: number;
   totalScore?: number;
-  topicsCovered: string;
+  topicsCovered?: string;
+  units?: string[];
+  indicatorQuotas?: ExamIndicatorQuota[];
   indicators: string;
   multipleChoiceCount?: number;
   choiceType?: QuizChoiceType;
@@ -809,7 +874,9 @@ export async function generateSemesterExam(
     term = '1',
     timeMinutes = 60,
     totalScore = 20,
-    topicsCovered,
+    topicsCovered = '',
+    units = [],
+    indicatorQuotas = [],
     indicators,
     multipleChoiceCount = 20,
     choiceType = '4-choices',
@@ -820,6 +887,7 @@ export async function generateSemesterExam(
 
   const examTypeTitle = examType === 'midterm' ? 'กลางภาคเรียน' : 'ปลายภาคเรียน';
   const choiceDesc = choiceType === '5-choices' ? '5 ตัวเลือก (ก, ข, ค, ง, จ)' : '4 ตัวเลือก (ก, ข, ค, ง)';
+  const effectiveTopics = units.length > 0 ? units.join(', ') : topicsCovered;
 
   const prompt = `
 คุณคือศึกษานิเทศก์และผู้เชี่ยวชาญด้านการวัดและประเมินผลทางการศึกษา สพฐ. กระทรวงศึกษาธิการ
@@ -832,9 +900,27 @@ export async function generateSemesterExam(
 - โรงเรียน: ${schoolName}
 - เวลาที่ใช้สอบ: ${timeMinutes} นาที
 - คะแนนเต็มรวม: ${totalScore} คะแนน
-- ขอบข่ายเนื้อหา/หน่วยการเรียนรู้: ${topicsCovered}
+- ขอบข่ายเนื้อหา/หน่วยการเรียนรู้: ${effectiveTopics}
 - ตัวชี้วัด สพฐ.: ${indicators}
 - สัดส่วนความยากง่าย (Bloom Taxonomy): ${difficultyRatio} (ความจำ : ความเข้าใจ : คิดวิเคราะห์/ประยุกต์)
+${
+  indicatorQuotas && indicatorQuotas.length > 0
+    ? `
+- แผนผังและโควตาจำนวนข้อสอบตามตัวชี้วัด สพฐ. (MANDATORY INDICATOR ALLOCATION):
+${indicatorQuotas
+  .map(
+    (iq, idx) =>
+      `  ${idx + 1}. ตัวชี้วัด [${iq.code}] (${iq.name || ''}) จากหน่วย "${iq.unitName || ''}": ต้องออกข้อสอบปรนัย/อัตนัยรวมกัน ${iq.count} ข้อ`
+  )
+  .join('\n')}
+
+กฎเหล็กเรื่องตัวชี้วัด (STRICT INDICATOR RULES):
+1. ข้อสอบปรนัยและอัตนัยทุกข้อ ต้องระบุรหัสตัวชี้วัดในฟิลด์ "indicator" อย่างชัดเจน และต้องตรงกับรหัสตัวชี้วัดที่กำหนดไว้ข้างต้น
+2. จำนวนข้อสอบในแต่ละตัวชี้วัดต้องกระจายให้ครบถ้วนตามโควตาที่กำหนดไว้อย่างเคร่งครัด
+3. ในฟิลด์ questionText หรือตอนท้ายโจทย์ ต้องระบุรหัสตัวชี้วัดกำกับด้วย เช่น "(ตัวชี้วัด ค 1.1 ป.5/1)" หรือระบบจะนำฟิลด์ indicator ไปแสดงผลกำกับท้ายข้อ
+`
+    : ''
+}
 
 โครงสร้างข้อสอบที่ต้องสร้าง:
 1. ตอนที่ 1: แบบเลือกตอบ (${choiceDesc}) จำนวน ${multipleChoiceCount} ข้อ

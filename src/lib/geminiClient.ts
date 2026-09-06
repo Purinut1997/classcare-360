@@ -83,6 +83,12 @@ export interface ChatMessage {
   actions?: AssistantAction[];
 }
 
+import {
+  buildSchedulePeriods,
+  loadScheduleSettings,
+  makeScheduleCellKey,
+} from './scheduleSettings';
+
 const SYSTEM_INSTRUCTION = `
 คุณคือ "น้องแคร์ (Carey)" — AI ผู้ช่วยครูประจำระบบ "ClassCare 360" (ระบบบริหารจัดการโรงเรียนและงานครูครบวงจร มาตรฐาน สพฐ.)
 หน้าที่ของคุณคือ:
@@ -95,6 +101,7 @@ const SYSTEM_INSTRUCTION = `
    - [NAVIGATE:teacher-work:ไปที่หน้าเช็กชื่อมาเรียน]
    - [NAVIGATE:academic-year:ไปที่ระบบเลื่อนชั้น]
    - [NAVIGATE:school-calendar:เปิดปฏิทินโรงเรียน]
+   - [NAVIGATE:schedule:เปิดดูตารางสอน]
    - [NAVIGATE:period-locks:ไปที่ล็อกงวดข้อมูล]
    - [NAVIGATE:reports:เปิดศูนย์รายงาน ปพ.]
    - [NAVIGATE:parent-access:ไปที่ Portal ผู้ปกครอง]
@@ -113,6 +120,10 @@ const SYSTEM_INSTRUCTION = `
    - ให้สรุปปฏิทินวันหยุดราชการไทยตลอดทั้งปี 2569 (2026) เช่น วันขึ้นปีใหม่, วันครูแห่งชาติ, วันมาฆบูชา, วันสงกรานต์, วันเฉลิมพระชนมพรรษา, วันแม่, วันพ่อ ฯลฯ
    - และสร้างปุ่ม Action สำหรับบันทึกรวดเดียวทั้งปีในรูปแบบ:
      [CALENDAR_BATCH:2026:📅 บันทึกวันหยุดราชการทั้งปี 2569 (20 วัน) ลงปฏิทินทันที]
+10. เมื่อคุณครูถามเกี่ยวกับตารางสอน หรือคาบเรียน (เช่น "บอกตารางสอนวันจันทร์ให้หน่อย", "วันนี้มีสอนอะไรบ้าง", "มีสอนห้องไหนบ้าง"):
+    - ให้อ้างอิงข้อมูลจาก [มิติที่ 6: ตารางเวรทำความสะอาด และตารางสอนของครู] ในบริบทอย่างเคร่งครัด
+    - แจกแจงลำดับคาบเรียน, เวลาเริ่ม-สิ้นสุด, รายวิชา, รหัสวิชา และห้องเรียน/ชั้นเรียน (เช่น ป.5/1) ให้ชัดเจน สวยงาม อ่านง่าย
+    - หากไม่มีคาบสอนในวันนั้น หรือระบบยังไม่มีการบันทึก ให้แจ้งคุณครูตามตรงและแนะนำปุ่มทางลัด [NAVIGATE:schedule:เปิดดูตารางสอน]
 `.trim();
 
 /**
@@ -779,6 +790,88 @@ export function getSmartFallbackResponse(
         { type: 'navigate', target: '/app/dashboard?view=school-calendar', label: '📅 เปิดดูปฏิทินโรงเรียน' },
       ],
     };
+  }
+
+  // 7. Timetable / Schedule (ตารางสอน)
+  if (
+    lower.includes('ตารางสอน') ||
+    lower.includes('ตารางเรียน') ||
+    lower.includes('คาบสอน') ||
+    lower.includes('สอนวัน')
+  ) {
+    let dayTarget: string | null = null;
+    if (lower.includes('จันทร์')) dayTarget = 'จันทร์';
+    else if (lower.includes('อังคาร')) dayTarget = 'อังคาร';
+    else if (lower.includes('พุธ')) dayTarget = 'พุธ';
+    else if (lower.includes('พฤหัส')) dayTarget = 'พฤหัสบดี';
+    else if (lower.includes('ศุกร์')) dayTarget = 'ศุกร์';
+    else if (lower.includes('เสาร์')) dayTarget = 'เสาร์';
+    else if (lower.includes('อาทิตย์')) dayTarget = 'อาทิตย์';
+
+    try {
+      const settings = loadScheduleSettings();
+      const periods = buildSchedulePeriods(settings);
+
+      if (dayTarget) {
+        const dayClasses: string[] = [];
+        periods.forEach((p) => {
+          const cell = settings.cells[makeScheduleCellKey(dayTarget!, p.index)];
+          if (cell && cell.subject) {
+            const room = cell.classroom ? ` [ห้อง ${cell.classroom}]` : '';
+            const code = cell.subjectCode ? ` (${cell.subjectCode})` : '';
+            dayClasses.push(`• **คาบ ${p.index}** (${p.start} - ${p.end} น.): **${cell.subject}**${code}${room}`);
+          }
+        });
+
+        if (dayClasses.length > 0) {
+          return {
+            cleanText: `📅 **ตารางสอนวัน${dayTarget} ของคุณครู${ka}:**\n\n${dayClasses.join('\n')}\n\nคุณครูสามารถกดปุ่มด้านล่างเพื่อปรับเปลี่ยนหรือดูตารางเต็มสัปดาห์ได้เลย${naka}!`,
+            actions: [
+              { type: 'navigate', target: '/app/dashboard?view=schedule', label: '📅 เปิดดูตารางสอน' },
+            ],
+          };
+        } else {
+          return {
+            cleanText: `📅 **ตารางสอนวัน${dayTarget}:**\n\nในระบบยังไม่มีบันทึกคาบสอนสำหรับวัน${dayTarget}${ka} คุณครูสามารถเข้าไปจัดตารางสอนและกำหนดห้องเรียนได้ที่เมนูตารางสอนค่ะ`,
+            actions: [
+              { type: 'navigate', target: '/app/dashboard?view=schedule', label: '✏️ ไปจัดตารางสอน' },
+            ],
+          };
+        }
+      } else {
+        // Overview of whole week
+        const weekLines: string[] = [];
+        (settings.activeDays || ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์']).forEach((d) => {
+          const classes: string[] = [];
+          periods.forEach((p) => {
+            const cell = settings.cells[makeScheduleCellKey(d, p.index)];
+            if (cell && cell.subject) {
+              const room = cell.classroom ? ` (${cell.classroom})` : '';
+              classes.push(`คาบ ${p.index}: ${cell.subject}${room}`);
+            }
+          });
+          if (classes.length > 0) {
+            weekLines.push(`• **วัน${d}:** ${classes.join(', ')}`);
+          } else {
+            weekLines.push(`• **วัน${d}:** ไม่มีคาบสอน`);
+          }
+        });
+
+        return {
+          cleanText: `📅 **สรุปตารางสอนประจำสัปดาห์ของคุณครู${ka}:**\n\n${weekLines.join('\n')}\n\nคุณครูสามารถถามระบุวัน เช่น *"บอกตารางสอนวันจันทร์"* เพื่อดูเวลาและห้องเรียนละเอียดได้เลย${naka}!`,
+          actions: [
+            { type: 'navigate', target: '/app/dashboard?view=schedule', label: '📅 เปิดดูตารางสอนฉบับเต็ม' },
+          ],
+        };
+      }
+    } catch {
+      return {
+        cleanText: `📅 **ระบบตารางสอนของครู (Schedule):**\n\n- สามารถจัดตารางสอนรายคาบ พร้อมระบุรายวิชา รหัสวิชา และห้องเรียน/ชั้นเรียนได้\n- กำหนดเวลาคาบเรียนและเวลาพักกลางวันได้ยืดหยุ่น\n- พิมพ์ตารางสอนขนาดมาตรฐานเพื่อติดบอร์ดห้องเรียนได้ทันที${ka}`,
+        actions: [
+          { type: 'navigate', target: '/app/dashboard?view=schedule', label: '📅 เปิดดูตารางสอน' },
+        ],
+      };
+    }
   }
 
   // General default fallback

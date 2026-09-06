@@ -35,6 +35,7 @@ type DbRow = Record<string, unknown>;
 const thaiMonthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
 const weekDays = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+const weekDaysShort = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
 
 const typeLabels: Record<CalendarType, string> = {
   holiday: 'หยุดเรียน',
@@ -692,10 +693,11 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-7 gap-2">
-            {weekDays.map((day) => (
-              <div className="rounded-2xl bg-[#3a2817] px-2 py-3 text-center text-xs font-black text-white" key={day}>
-                {day}
+          <div className="mt-5 grid grid-cols-7 gap-1 sm:gap-2">
+            {weekDays.map((day, idx) => (
+              <div className="rounded-xl sm:rounded-2xl bg-[#3a2817] px-1 py-2 sm:px-2 sm:py-3 text-center text-xs font-black text-white" key={day}>
+                <span className="sm:hidden text-[11px]">{weekDaysShort[idx]}</span>
+                <span className="hidden sm:inline">{day}</span>
               </div>
             ))}
             {monthCells.map((date) => {
@@ -705,23 +707,81 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               const isToday = isSameDate(date, today);
 
               return (
-                <button aria-label={`เปิดรายละเอียดวันที่ ${toThaiDate(dateText)}${dayEvents.length ? ` มี ${dayEvents.length} รายการ` : ' ยังไม่มีรายการ'}`} className={`group min-h-[118px] rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-[0_14px_30px_rgba(8,145,178,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${isToday ? 'border-[#d89333] bg-[#fff1c9] shadow-[0_16px_34px_rgba(188,117,32,0.16)]' : isCurrentMonth ? 'border-[#ead8bd] bg-white/85' : 'border-slate-100 bg-white/45 text-slate-300'}`} key={dateText} onClick={() => openDayDialog(date)} type="button">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-sm font-black ${isCurrentMonth ? 'text-slate-950' : 'text-slate-300'}`}>{date.getDate()}</span>
-                    {isToday ? <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-[#8a5200]">วันนี้</span> : null}
+                <button
+                  aria-label={`เปิดรายละเอียดวันที่ ${toThaiDate(dateText)}${dayEvents.length ? ` มี ${dayEvents.length} รายการ` : ' ยังไม่มีรายการ'}`}
+                  className={`group min-h-[58px] sm:min-h-[118px] rounded-xl sm:rounded-2xl border p-1 sm:p-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-[0_14px_30px_rgba(8,145,178,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${
+                    isToday
+                      ? 'border-[#d89333] bg-[#fff1c9] shadow-[0_16px_34px_rgba(188,117,32,0.16)]'
+                      : isCurrentMonth
+                      ? 'border-[#ead8bd] bg-white/85'
+                      : 'border-slate-100 bg-white/45 text-slate-300'
+                  }`}
+                  key={dateText}
+                  onClick={() => openDayDialog(date)}
+                  type="button"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className={`text-xs sm:text-sm font-black ${isCurrentMonth ? 'text-slate-950' : 'text-slate-300'}`}>
+                      {date.getDate()}
+                    </span>
+                    {isToday ? (
+                      <span className="rounded-full bg-white px-1 sm:px-2 py-0.2 sm:py-0.5 text-[8.5px] sm:text-[10px] font-black text-[#8a5200] shadow-2xs">
+                        วันนี้
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="mt-2 space-y-1">
+
+                  {/* Mobile Indicator Dots */}
+                  <div className="mt-1 flex items-center justify-center gap-1 sm:hidden flex-wrap">
+                    {dayEvents.slice(0, 3).map((event) => {
+                      const dotColor =
+                        event.type === 'holiday'
+                          ? 'bg-rose-500'
+                          : event.type === 'exam'
+                          ? 'bg-sky-500'
+                          : event.type === 'activity'
+                          ? 'bg-amber-500'
+                          : event.type === 'makeup'
+                          ? 'bg-emerald-500'
+                          : 'bg-slate-400';
+                      return <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />;
+                    })}
+                    {dayEvents.length > 3 ? (
+                      <span className="text-[8.5px] font-black text-slate-500 leading-none">
+                        +{dayEvents.length - 3}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* Desktop Full Event Chips */}
+                  <div className="mt-2 hidden space-y-1 sm:block">
                     {dayEvents.slice(0, 3).map((event) => (
                       <div className={`truncate rounded-xl border px-2 py-1 text-[11px] font-black ${typeStyles[event.type]}`} key={event.id} title={event.title}>
                         {event.title}
                       </div>
                     ))}
-                    {dayEvents.length > 3 ? <div className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-500">+{dayEvents.length - 3} รายการ</div> : null}
-                    {!dayEvents.length && isCurrentMonth ? <span className="mt-4 hidden text-[11px] font-black text-cyan-700 opacity-0 transition group-hover:block group-hover:opacity-100 sm:block">+ เพิ่มรายการ</span> : null}
+                    {dayEvents.length > 3 ? (
+                      <div className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-500">
+                        +{dayEvents.length - 3} รายการ
+                      </div>
+                    ) : null}
+                    {!dayEvents.length && isCurrentMonth ? (
+                      <span className="mt-4 hidden text-[11px] font-black text-cyan-700 opacity-0 transition group-hover:block group-hover:opacity-100 sm:block">
+                        + เพิ่มรายการ
+                      </span>
+                    ) : null}
                   </div>
                 </button>
               );
             })}
+          </div>
+
+          {/* Mobile Color Legend */}
+          <div className="mt-3 flex items-center justify-center gap-3 text-[10.5px] font-bold text-slate-500 sm:hidden flex-wrap">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> หยุดเรียน</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-500" /> วันสอบ</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> กิจกรรม</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> เรียนชดเชย</span>
           </div>
         </div>
 

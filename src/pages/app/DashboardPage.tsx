@@ -228,6 +228,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id));
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [birthdayStudents, setBirthdayStudents] = useState<BirthdayStudent[]>([]);
+  const thaiDayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+  const currentThaiDay = thaiDayNames[new Date().getDay()] || 'จันทร์';
+  const initialMobileDay = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'].includes(currentThaiDay) ? currentThaiDay : 'จันทร์';
+  const [mobileScheduleDay, setMobileScheduleDay] = useState<string>(initialMobileDay);
 
   const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
 
@@ -1387,18 +1391,103 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </article>
 
         <article className="app-panel-pad rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <CalendarClock className="text-cyan-700" size={19} aria-hidden="true" />
-              <h2 className="text-lg font-black text-slate-950">ตารางสอนประจำสัปดาห์</h2>
+              <div>
+                <h2 className="text-lg font-black text-slate-950">ตารางสอนประจำสัปดาห์</h2>
+                <p className="text-[11px] font-bold text-slate-500">แสดงรายวิชาและห้องเรียนที่ต้องสอนตามคาบ</p>
+              </div>
             </div>
-            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=schedule">
+            <Link className="text-xs font-black text-sky-800 hover:underline inline-flex items-center gap-1 self-start sm:self-auto" to="/app/dashboard?view=schedule">
               จัดการตาราง <ArrowRight className="inline" size={14} />
             </Link>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-            <div className="min-w-[560px]">
-              <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-200 bg-slate-50 text-[11px] font-black text-slate-500">
+
+          {/* แถบเลือกวันสำหรับมือถือ (Mobile Day Tabs) */}
+          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar md:hidden">
+            {weeklySchedule.activeDays.slice(0, 5).map((day) => {
+              const isSelected = mobileScheduleDay === day;
+              const isToday = currentThaiDay === day;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => setMobileScheduleDay(day)}
+                  className={`flex-shrink-0 rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+                    isSelected
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {day} {isToday ? <span className="ml-1 rounded-full bg-amber-400 px-1 text-[9px] font-black text-slate-900">วันนี้</span> : null}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setMobileScheduleDay('all')}
+              className={`flex-shrink-0 rounded-xl px-3 py-1.5 text-xs font-black transition-all ${
+                mobileScheduleDay === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              ตารางรวม
+            </button>
+          </div>
+
+          {/* โหมดดูรายวันบนมือถือ (Mobile Daily Card View) */}
+          {mobileScheduleDay !== 'all' ? (
+            <div className="mt-3 space-y-2 md:hidden">
+              {weeklyPeriods.map((period) => {
+                const cell = weeklySchedule.cells[makeScheduleCellKey(mobileScheduleDay, period.index)];
+                const hasClass = Boolean(cell?.subject);
+                return (
+                  <div
+                    key={period.index}
+                    className={`flex items-center justify-between gap-3 rounded-2xl border p-3 transition-all ${
+                      hasClass
+                        ? 'border-sky-200 bg-sky-50/70 shadow-2xs'
+                        : 'border-slate-100 bg-slate-50/50 text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex flex-col items-center justify-center rounded-xl bg-white px-2.5 py-1.5 border border-slate-200/80 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-500">คาบ {period.index}</span>
+                        <span className="text-[11px] font-black text-slate-900 leading-tight">{period.start}</span>
+                        <span className="text-[9px] font-bold text-slate-400">ถึง {period.end}</span>
+                      </div>
+                      <div className="min-w-0">
+                        {hasClass ? (
+                          <>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-black text-slate-950 truncate">{cell.subject}</span>
+                              {cell.classroom ? (
+                                <span className="rounded-md bg-sky-600 px-2 py-0.5 text-[10px] font-black text-white shadow-xs">
+                                  ห้อง {cell.classroom}
+                                </span>
+                              ) : null}
+                            </div>
+                            {cell.subjectCode ? (
+                              <p className="text-[11px] font-bold text-sky-800/80 mt-0.5">รหัสวิชา: {cell.subjectCode}</p>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-xs font-bold text-slate-400">ไม่มีคาบสอน</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {/* ตารางเต็มสัปดาห์ (Full Grid: แสดงบน Desktop หรือเมื่อกด 'ตารางรวม' บนมือถือ) */}
+          <div className={`mt-4 overflow-x-auto rounded-xl border border-slate-200 ${mobileScheduleDay !== 'all' ? 'hidden md:block' : 'block'}`}>
+            <div className="min-w-[580px]">
+              <div className="grid grid-cols-[84px_repeat(5,minmax(0,1fr))] border-b border-slate-200 bg-slate-50 text-[11px] font-black text-slate-500">
                 <span className="p-2.5">เวลา</span>
                 {weeklySchedule.activeDays.slice(0, 5).map((day) => (
                   <span className="p-2.5 text-center" key={day}>
@@ -1407,15 +1496,32 @@ export function DashboardPage({ session }: DashboardPageProps) {
                 ))}
               </div>
               {weeklyPeriods.map((period) => (
-                <div className="grid grid-cols-[82px_repeat(5,minmax(0,1fr))] border-b border-slate-100 last:border-b-0" key={period.index}>
-                  <span className="p-2 text-[10px] font-black text-slate-500">
-                    {period.start}-{period.end}
+                <div className="grid grid-cols-[84px_repeat(5,minmax(0,1fr))] border-b border-slate-100 last:border-b-0" key={period.index}>
+                  <span className="p-2 text-[10px] font-black text-slate-500 flex flex-col justify-center">
+                    <span>คาบ {period.index}</span>
+                    <span className="text-[9px] text-slate-400">{period.start}-{period.end}</span>
                   </span>
                   {weeklySchedule.activeDays.slice(0, 5).map((day) => {
                     const cell = weeklySchedule.cells[makeScheduleCellKey(day, period.index)];
                     return (
                       <div className="border-l border-slate-100 p-1.5" key={`${day}-${period.index}`}>
-                        {cell?.subject ? <div className="min-h-9 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-1 text-center text-[10px] font-black leading-4 text-sky-900">{cell.subject}</div> : null}
+                        {cell?.subject ? (
+                          <div className="min-h-11 rounded-lg border border-sky-200 bg-sky-50/95 p-1 text-center shadow-2xs flex flex-col justify-center items-center">
+                            <span className="text-[10.5px] font-black text-sky-950 leading-tight line-clamp-1">{cell.subject}</span>
+                            <div className="mt-0.5 flex items-center justify-center gap-1 flex-wrap">
+                              {cell.classroom ? (
+                                <span className="rounded bg-sky-600 px-1 py-0.2 text-[9px] font-black text-white shadow-xs">
+                                  {cell.classroom}
+                                </span>
+                              ) : null}
+                              {cell.subjectCode ? (
+                                <span className="text-[8.5px] font-bold text-sky-700/80">
+                                  {cell.subjectCode}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}

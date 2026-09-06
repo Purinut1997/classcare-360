@@ -13,17 +13,23 @@ import {
   Layers,
   Lightbulb,
   Loader2,
+  Plus,
   Printer,
+  RefreshCw,
+  Sliders,
   Sparkles,
   Table,
+  Trash2,
   X,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 import { getEffectiveAiConfig } from '../../lib/aiSettings';
 import {
+  analyzeIndicatorsFromUnits,
   generateRemedialQuiz,
   generateRubricCriteria,
   generateSemesterExam,
+  type ExamIndicatorQuota,
   type QuizChoiceType,
   type RemedialQuizResult,
   type RubricResult,
@@ -31,6 +37,19 @@ import {
   type SemesterExamType,
 } from '../../lib/aiVisionService';
 import type { AppSessionContext } from '../../types/core';
+
+export interface ExamUnitItem {
+  id: string;
+  name: string;
+}
+
+export interface ExamIndicatorItem {
+  id: string;
+  code: string;
+  name: string;
+  unitName?: string;
+  count: number;
+}
 
 interface RubricAndQuizModalProps {
   isOpen: boolean;
@@ -71,6 +90,149 @@ export function RubricAndQuizModal({
   const [examPart2Count, setExamPart2Count] = useState(2);
   const [examDifficulty, setExamDifficulty] = useState<'balanced' | 'basic' | 'advanced'>('balanced');
   const [examViewSubTab, setExamViewSubTab] = useState<'paper' | 'key' | 'blueprint'>('paper');
+
+  // Semester Exam: Multi-Unit & Indicator Analysis States
+  const [examUnits, setExamUnits] = useState<ExamUnitItem[]>([
+    { id: 'u-1', name: 'หน่วยที่ 1 การบวก ลบ คูณ หารเศษส่วน และจำนวนคละ' },
+    { id: 'u-2', name: 'หน่วยที่ 2 ทศนิยม และการบวก ลบ คูณ หารทศนิยม' },
+  ]);
+  const [newUnitInput, setNewUnitInput] = useState('');
+
+  const [examIndicators, setExamIndicators] = useState<ExamIndicatorItem[]>([
+    {
+      id: 'ind-1',
+      code: 'ค 1.1 ป.5/3',
+      name: 'หาผลบวก ผลลบของเศษส่วนและจำนวนคละ',
+      unitName: 'หน่วยที่ 1 การบวก ลบ คูณ หารเศษส่วน และจำนวนคละ',
+      count: 6,
+    },
+    {
+      id: 'ind-2',
+      code: 'ค 1.1 ป.5/5',
+      name: 'แสดงวิธีหาคำตอบของโจทย์ปัญหาการบวก การลบ การคูณ การหารเศษส่วน 2 ขั้นตอน',
+      unitName: 'หน่วยที่ 1 การบวก ลบ คูณ หารเศษส่วน และจำนวนคละ',
+      count: 6,
+    },
+    {
+      id: 'ind-3',
+      code: 'ค 1.1 ป.5/1',
+      name: 'เขียนเศษส่วนที่มีตัวส่วนเป็นตัวประกอบของ 10 หรือ 100 หรือ 1,000 ในรูปทศนิยม',
+      unitName: 'หน่วยที่ 2 ทศนิยม และการบวก ลบ คูณ หารทศนิยม',
+      count: 5,
+    },
+  ]);
+  const [isAnalyzingIndicators, setIsAnalyzingIndicators] = useState(false);
+  const [indicatorMode, setIndicatorMode] = useState<'balanced' | 'custom'>('balanced');
+  const [showIndicatorInStudentPaper, setShowIndicatorInStudentPaper] = useState(true);
+  const [isAddingIndicatorManual, setIsAddingIndicatorManual] = useState(false);
+  const [manualIndCode, setManualIndCode] = useState('');
+  const [manualIndName, setManualIndName] = useState('');
+  const [manualIndUnit, setManualIndUnit] = useState('');
+
+  const totalExamQuestions = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
+  const totalAllocatedQuestions = examIndicators.reduce(
+    (acc, curr) => acc + (Number(curr.count) || 0),
+    0
+  );
+
+  const rebalanceIndicators = (indicators: ExamIndicatorItem[], total: number) => {
+    if (indicators.length === 0) return indicators;
+    const base = Math.floor(total / indicators.length);
+    const remainder = total % indicators.length;
+    return indicators.map((ind, i) => ({
+      ...ind,
+      count: Math.max(1, base + (i < remainder ? 1 : 0)),
+    }));
+  };
+
+  const handleAddUnit = () => {
+    const trimmed = newUnitInput.trim();
+    if (!trimmed) return;
+    setExamUnits((prev) => [...prev, { id: `u-${Date.now()}`, name: trimmed }]);
+    setNewUnitInput('');
+  };
+
+  const handleRemoveUnit = (id: string) => {
+    setExamUnits((prev) => prev.filter((u) => u.id !== id));
+  };
+
+  const handleAnalyzeIndicators = async () => {
+    if (examUnits.length === 0) {
+      setErrorMessage('กรุณาเพิ่มหน่วยการเรียนรู้อย่างน้อย 1 หน่วยก่อนให้ AI วิเคราะห์');
+      return;
+    }
+    setIsAnalyzingIndicators(true);
+    setErrorMessage(null);
+    try {
+      const config = await getEffectiveAiConfig(session);
+      if (!config.apiKey) {
+        throw new Error('ไม่พบ Gemini API Key ในระบบ กรุณาตั้งค่าก่อนใช้งาน');
+      }
+      const result = await analyzeIndicatorsFromUnits({
+        apiKey: config.apiKey,
+        model: config.model,
+        subject,
+        gradeLevel,
+        units: examUnits.map((u) => u.name),
+      });
+      if (!result || result.length === 0) {
+        throw new Error(
+          'ไม่พบตัวชี้วัดที่สอดคล้องกับหน่วยที่ระบุ กรุณาระบุชื่อหน่วยให้ชัดเจนยิ่งขึ้น หรือเพิ่มตัวชี้วัดด้วยตนเอง'
+        );
+      }
+      const targetTotal = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
+      const base = Math.floor(targetTotal / result.length);
+      const remainder = targetTotal % result.length;
+      const newItems: ExamIndicatorItem[] = result.map((item, idx) => ({
+        id: `ind-${Date.now()}-${idx}`,
+        code: item.code,
+        name: item.name,
+        unitName: item.unitName || examUnits[0]?.name || '',
+        count: Math.max(1, base + (idx < remainder ? 1 : 0)),
+      }));
+      setExamIndicators(newItems);
+    } catch (err) {
+      setErrorMessage((err as Error).message);
+    } finally {
+      setIsAnalyzingIndicators(false);
+    }
+  };
+
+  const handleAddManualIndicator = () => {
+    if (!manualIndCode.trim()) return;
+    const targetTotal = examPart1Count + (examIncludePart2 ? examPart2Count : 0);
+    const newItem: ExamIndicatorItem = {
+      id: `ind-${Date.now()}`,
+      code: manualIndCode.trim(),
+      name: manualIndName.trim() || 'ตัวชี้วัด สพฐ. ที่กำหนดเอง',
+      unitName: manualIndUnit || examUnits[0]?.name || 'หน่วยทั่วไป',
+      count: 2,
+    };
+    const updated = [...examIndicators, newItem];
+    if (indicatorMode === 'balanced') {
+      setExamIndicators(rebalanceIndicators(updated, targetTotal));
+    } else {
+      setExamIndicators(updated);
+    }
+    setManualIndCode('');
+    setManualIndName('');
+    setIsAddingIndicatorManual(false);
+  };
+
+  const handleUpdateIndicatorCount = (id: string, newCount: number) => {
+    setExamIndicators((prev) =>
+      prev.map((ind) => (ind.id === id ? { ...ind, count: Math.max(1, newCount) } : ind))
+    );
+  };
+
+  const handleRemoveIndicator = (id: string) => {
+    const updated = examIndicators.filter((ind) => ind.id !== id);
+    if (indicatorMode === 'balanced') {
+      setExamIndicators(rebalanceIndicators(updated, totalExamQuestions));
+    } else {
+      setExamIndicators(updated);
+    }
+  };
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [rubricResult, setRubricResult] = useState<RubricResult | null>(null);
@@ -152,6 +314,12 @@ export function RubricAndQuizModal({
       if (!config.apiKey) {
         throw new Error('ไม่พบ Gemini API Key ในระบบ กรุณาตั้งค่าก่อนใช้งาน');
       }
+      const unitNames = examUnits.map((u) => u.name);
+      const indicatorSummary =
+        examIndicators.length > 0
+          ? examIndicators.map((ind) => `${ind.code} (${ind.name}) [เป้าหมาย ${ind.count} ข้อ]`).join('; ')
+          : indicator;
+
       const res = await generateSemesterExam({
         apiKey: config.apiKey,
         model: config.model,
@@ -162,8 +330,15 @@ export function RubricAndQuizModal({
         term: semester,
         timeMinutes: durationMinutes,
         totalScore,
-        topicsCovered: examTopics,
-        indicators: indicator,
+        topicsCovered: unitNames.join(', ') || examTopics,
+        units: unitNames,
+        indicatorQuotas: examIndicators.map((ind) => ({
+          code: ind.code,
+          name: ind.name,
+          count: Number(ind.count) || 1,
+          unitName: ind.unitName,
+        })),
+        indicators: indicatorSummary,
         multipleChoiceCount: examPart1Count,
         choiceType: examPart1ChoiceType,
         includeSubjective: examIncludePart2,
@@ -291,7 +466,7 @@ export function RubricAndQuizModal({
             .map(
               (q) => `
             <div class="q-item">
-              <div class="q-text">${q.questionNumber}. ${q.questionText}</div>
+              <div class="q-text">${q.questionNumber}. ${q.questionText} ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${q.indicator}]</span>` : ''}</div>
               <div class="choices-grid">
                 ${q.choices.map((c) => `<div><strong>${c.key}.</strong> ${c.text}</div>`).join('')}
               </div>
@@ -310,7 +485,7 @@ export function RubricAndQuizModal({
               .map(
                 (q) => `
               <div class="subjective-item">
-                <div class="q-text">ข้อที่ ${q.questionNumber}. ${q.questionText} <span style="font-weight: normal; color: #555;">(${q.maxScore} คะแนน)</span></div>
+                <div class="q-text">ข้อที่ ${q.questionNumber}. ${q.questionText} <span style="font-weight: normal; color: #555;">(${q.maxScore} คะแนน)</span> ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${q.indicator}]</span>` : ''}</div>
                 <div class="work-box">วิธีทำ / คำตอบ:</div>
               </div>
             `
@@ -611,22 +786,34 @@ export function RubricAndQuizModal({
                 value={gradeLevel}
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-black text-slate-800">
-              <div className="flex items-center justify-between">
-                <span>ตัวชี้วัด สพฐ.</span>
-                <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+            {activeTab !== 'exam' ? (
+              <label className="grid gap-1.5 text-xs font-black text-slate-800">
+                <div className="flex items-center justify-between">
+                  <span>ตัวชี้วัด สพฐ.</span>
+                  <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">จำเป็น *</span>
+                </div>
+                <input
+                  className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
+                    !indicator.trim()
+                      ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                      : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
+                  }`}
+                  onChange={(e) => setIndicator(e.target.value)}
+                  placeholder="เช่น ค 1.1 ป.5/1 หรือ ว 1.2 ม.2/1"
+                  value={indicator}
+                />
+              </label>
+            ) : (
+              <div className="flex flex-col justify-center rounded-xl bg-violet-50/80 border border-violet-200 p-2.5 text-xs text-violet-900">
+                <div className="flex items-center gap-1 text-[11px] font-black text-violet-800">
+                  <Sparkles size={13} className="text-violet-600" />
+                  <span>หน่วย & ตัวชี้วัดหลายหน่วย</span>
+                </div>
+                <p className="text-[10.5px] text-violet-700 mt-0.5 font-medium leading-tight">
+                  สำหรับข้อสอบกลางภาค/ปลายภาค ให้ใส่หน่วยการเรียนรู้และให้ AI วิเคราะห์ตัวชี้วัดในหัวข้อด้านล่าง
+                </p>
               </div>
-              <input
-                className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
-                  !indicator.trim()
-                    ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
-                    : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
-                }`}
-                onChange={(e) => setIndicator(e.target.value)}
-                placeholder="เช่น ค 1.1 ป.5/1 หรือ ว 1.2 ม.2/1"
-                value={indicator}
-              />
-            </label>
+            )}
           </div>
 
           {/* TAB 1: Rubric Generator */}
@@ -1004,25 +1191,399 @@ export function RubricAndQuizModal({
                 </div>
               </div>
 
-              {/* Content / Topics */}
-              <label className="grid gap-1.5 text-xs font-black text-slate-800">
-                <div className="flex items-center justify-between">
-                  <span>ขอบเขตสาระ / หน่วยการเรียนรู้ที่ออกสอบ (ครอบคลุมตัวชี้วัดข้างต้น)</span>
-                  <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">
-                    จำเป็น *
+              {/* Section 1: Multi-Unit Management (หน่วยการเรียนรู้ที่ออกสอบ - ใส่ได้หลายหน่วย) */}
+              <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-[10px] font-black text-white">
+                      1
+                    </span>
+                    <span className="text-xs font-black text-slate-900">
+                      หน่วยการเรียนรู้ที่ออกสอบ (ตัวหลัก - ใส่ได้หลายหน่วย)
+                    </span>
+                    <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">
+                      จำเป็น *
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    ใส่หลายหน่วยเพื่อรวมเป็นข้อสอบชุดเดียว
                   </span>
                 </div>
-                <input
-                  className={`h-10 rounded-xl border-2 px-3 font-bold text-slate-900 shadow-xs transition focus:outline-none ${
-                    !examTopics.trim()
-                      ? 'border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
-                      : 'border-slate-300 bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
-                  }`}
-                  onChange={(e) => setExamTopics(e.target.value)}
-                  placeholder="เช่น การบวก ลบ คูณ หารเศษส่วน และโจทย์ปัญหาระคน"
-                  value={examTopics}
-                />
-              </label>
+
+                {/* List of current units */}
+                <div className="space-y-2">
+                  {examUnits.map((u, idx) => (
+                    <div
+                      key={u.id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs transition hover:border-violet-300"
+                    >
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <span className="shrink-0 rounded-lg bg-violet-100 px-2 py-1 text-[11px] font-black text-violet-800 border border-violet-200">
+                          หน่วยที่ {idx + 1}
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {u.name}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveUnit(u.id)}
+                        disabled={examUnits.length <= 1}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                        title={examUnits.length <= 1 ? 'ต้องมีอย่างน้อย 1 หน่วย' : 'ลบหน่วยนี้'}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Unit input row */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={newUnitInput}
+                    onChange={(e) => setNewUnitInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddUnit();
+                      }
+                    }}
+                    placeholder="พิมพ์ชื่อหน่วยการเรียนรู้เพิ่มเติม เช่น หน่วยที่ 3 สถิติและความน่าจะเป็น แล้วกดเพิ่ม"
+                    className="h-9 flex-1 rounded-xl border-2 border-slate-300 bg-white px-3 text-xs font-medium text-slate-900 shadow-xs focus:border-violet-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddUnit}
+                    disabled={!newUnitInput.trim()}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-violet-700 disabled:opacity-40 transition shrink-0"
+                  >
+                    <Plus size={14} /> เพิ่มหน่วย
+                  </button>
+                </div>
+              </div>
+
+              {/* Section 2: OBEC Indicators & Quota Allocation (วิเคราะห์จากหน่วย & ปรับสัดส่วนจำนวนข้อ) */}
+              <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-1 border-b border-slate-200/80">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-[10px] font-black text-white">
+                      2
+                    </span>
+                    <div>
+                      <span className="text-xs font-black text-slate-900">
+                        ตัวชี้วัด สพฐ. & การกระจายจำนวนข้อสอบ
+                      </span>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        ระบบวิเคราะห์ตัวชี้วัดจากหน่วยอัตโนมัติ คุณครูสามารถเพิ่มเติมหรือกำหนดจำนวนข้อได้
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleAnalyzeIndicators}
+                      disabled={isAnalyzingIndicators || examUnits.length === 0}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs hover:from-violet-700 hover:to-indigo-700 transition disabled:opacity-50"
+                    >
+                      {isAnalyzingIndicators ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>กำลังวิเคราะห์...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={13} />
+                          <span>✨ ให้ AI วิเคราะห์ตัวชี้วัดจากหน่วย</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingIndicatorManual(!isAddingIndicatorManual)}
+                      className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 transition"
+                    >
+                      <Plus size={13} /> เพิ่มตัวชี้วัดเอง
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline Manual Add Form */}
+                {isAddingIndicatorManual && (
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-violet-950">
+                        ➕ เพิ่มตัวชี้วัดด้วยตนเอง
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingIndicatorManual(false)}
+                        className="text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        value={manualIndCode}
+                        onChange={(e) => setManualIndCode(e.target.value)}
+                        placeholder="รหัสตัวชี้วัด เช่น ค 1.1 ป.5/4"
+                        className="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-violet-500"
+                      />
+                      <input
+                        type="text"
+                        value={manualIndName}
+                        onChange={(e) => setManualIndName(e.target.value)}
+                        placeholder="คำอธิบายตัวชี้วัด (ระบุสั้นๆ)"
+                        className="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500"
+                      />
+                      <select
+                        value={manualIndUnit}
+                        onChange={(e) => setManualIndUnit(e.target.value)}
+                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-violet-500"
+                      >
+                        <option value="">เลือกหน่วยที่สังกัด (ถ้ามี)</option>
+                        {examUnits.map((u) => (
+                          <option key={u.id} value={u.name}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingIndicatorManual(false)}
+                        className="rounded-lg px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddManualIndicator}
+                        disabled={!manualIndCode.trim()}
+                        className="rounded-lg bg-violet-600 px-3.5 py-1 text-xs font-black text-white hover:bg-violet-700 disabled:opacity-40"
+                      >
+                        บันทึกตัวชี้วัด
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Allocation Mode & Quota Status Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl bg-white p-3 border border-slate-200 shadow-xs">
+                  {/* Mode Selector */}
+                  <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIndicatorMode('balanced');
+                        setExamIndicators((prev) =>
+                          rebalanceIndicators(prev, totalExamQuestions)
+                        );
+                      }}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition ${
+                        indicatorMode === 'balanced'
+                          ? 'bg-violet-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Sliders size={13} />
+                      <span>สมดุลอัตโนมัติ (เฉลี่ยเท่าๆ กัน)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIndicatorMode('custom')}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition ${
+                        indicatorMode === 'custom'
+                          ? 'bg-violet-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>กำหนดจำนวนข้อเอง</span>
+                    </button>
+                  </div>
+
+                  {/* Status Indicator */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <div className="flex items-center gap-1.5 font-black text-slate-700">
+                      <span>จัดสรร:</span>
+                      <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-slate-900 font-mono">
+                        {totalAllocatedQuestions} / {totalExamQuestions} ข้อ
+                      </span>
+                    </div>
+
+                    {totalAllocatedQuestions === totalExamQuestions ? (
+                      <span className="flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-800 border border-emerald-200">
+                        <Check size={13} /> สมดุลครบถ้วน
+                      </span>
+                    ) : totalAllocatedQuestions < totalExamQuestions ? (
+                      <div className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 rounded-lg bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800 border border-amber-200">
+                          ขาดอีก {totalExamQuestions - totalAllocatedQuestions} ข้อ
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExamIndicators((prev) =>
+                              rebalanceIndicators(prev, totalExamQuestions)
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-black text-violet-700 underline hover:text-violet-900"
+                        >
+                          <RefreshCw size={11} /> ปรับเฉลี่ย
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-0.5 text-[11px] font-black text-rose-800 border border-rose-200">
+                          เกินมา {totalAllocatedQuestions - totalExamQuestions} ข้อ
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExamIndicators((prev) =>
+                              rebalanceIndicators(prev, totalExamQuestions)
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-black text-violet-700 underline hover:text-violet-900"
+                        >
+                          <RefreshCw size={11} /> ปรับเฉลี่ย
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Indicators List */}
+                {examIndicators.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
+                    <p className="text-xs font-bold text-slate-700">
+                      ยังไม่มีตัวชี้วัดในรายการ
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      คลิกปุ่ม "✨ ให้ AI วิเคราะห์ตัวชี้วัดจากหน่วย" หรือ "+ เพิ่มตัวชี้วัดเอง" เพื่อเริ่มต้น
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {examIndicators.map((ind) => (
+                      <div
+                        key={ind.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-xs hover:border-violet-300 transition"
+                      >
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="rounded-md bg-violet-100 px-2 py-0.5 text-xs font-black text-violet-800 border border-violet-200">
+                              {ind.code}
+                            </span>
+                            {ind.unitName && (
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 truncate max-w-[200px]">
+                                {ind.unitName}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-medium text-slate-800 line-clamp-1">
+                            {ind.name}
+                          </p>
+                        </div>
+
+                        {/* Count & Actions */}
+                        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                          {indicatorMode === 'custom' ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-bold text-slate-500">
+                                กำหนด:
+                              </span>
+                              <div className="flex items-center rounded-lg border border-slate-300 bg-white shadow-xs">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUpdateIndicatorCount(
+                                      ind.id,
+                                      Math.max(1, (ind.count || 1) - 1)
+                                    )
+                                  }
+                                  className="h-7 w-7 flex items-center justify-center text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-l-lg"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={30}
+                                  value={ind.count}
+                                  onChange={(e) =>
+                                    handleUpdateIndicatorCount(
+                                      ind.id,
+                                      parseInt(e.target.value, 10) || 1
+                                    )
+                                  }
+                                  className="h-7 w-12 text-center text-xs font-black text-slate-900 border-x border-slate-200 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUpdateIndicatorCount(
+                                      ind.id,
+                                      (ind.count || 1) + 1
+                                    )
+                                  }
+                                  className="h-7 w-7 flex items-center justify-center text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-r-lg"
+                                >
+                                  +
+                                </button>
+                              </div>
+                              <span className="text-xs font-bold text-slate-700">
+                                ข้อ
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded-lg bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs font-black text-violet-800 font-mono">
+                                {ind.count} ข้อ
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
+                                (เฉลี่ยอัตโนมัติ)
+                              </span>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIndicator(ind.id)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                            title="ลบตัวชี้วัดนี้"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Mandatory Indicator Tag Notice */}
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showIndicatorInStudentPaper}
+                      onChange={(e) => setShowIndicatorInStudentPaper(e.target.checked)}
+                      className="h-4 w-4 rounded text-violet-600 focus:ring-violet-400"
+                    />
+                    <span>
+                      แสดงรหัสตัวชี้วัดกำกับท้ายข้อคำถามในกระดาษข้อสอบนักเรียน (เช่น ... [ตัวชี้วัด {examIndicators[0]?.code || 'ค 1.1 ป.5/1'}])
+                    </span>
+                  </label>
+                  <span className="text-[11px] font-bold text-violet-700 hidden sm:inline">
+                    * ในผัง Blueprint & ฉบับครูจะแสดงกำกับทุกข้ออยู่แล้ว
+                  </span>
+                </div>
+              </div>
 
               {/* Question Structure & Difficulty */}
               <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border-2 border-slate-200 bg-slate-50/70 p-4">
@@ -1289,10 +1850,17 @@ export function RubricAndQuizModal({
                         </div>
                         <div className="space-y-3">
                           {examResult.part1.questions.map((q) => (
-                            <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5">
-                              <p className="text-xs font-black text-slate-900">
-                                {q.questionNumber}. {q.questionText}
-                              </p>
+                            <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-xs font-black text-slate-900">
+                                  {q.questionNumber}. {q.questionText}
+                                </p>
+                                {q.indicator && (
+                                  <span className="shrink-0 rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-800 border border-violet-200" title="ตัวชี้วัด สพฐ. ประจำข้อ">
+                                    ตัวชี้วัด {q.indicator}
+                                  </span>
+                                )}
+                              </div>
                               <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                                 {q.choices.map((c) => (
                                   <div key={c.key} className="flex items-center gap-2 rounded-lg bg-white p-2 border border-slate-200">
@@ -1317,13 +1885,20 @@ export function RubricAndQuizModal({
                           <div className="space-y-4">
                             {examResult.part2.questions.map((q) => (
                               <div key={q.questionNumber} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-2">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-start justify-between gap-2">
                                   <span className="text-xs font-black text-slate-900">
                                     ข้อที่ {q.questionNumber}. {q.questionText}
                                   </span>
-                                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
-                                    {q.maxScore} คะแนน
-                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {q.indicator && (
+                                      <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-800 border border-violet-200" title="ตัวชี้วัด สพฐ. ประจำข้อ">
+                                        ตัวชี้วัด {q.indicator}
+                                      </span>
+                                    )}
+                                    <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                                      {q.maxScore} คะแนน
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-xs text-slate-400">
                                   (พื้นที่แสดงวิธีทำ / คำตอบของนักเรียน)
@@ -1565,8 +2140,7 @@ export function RubricAndQuizModal({
                 hasApiKey === false ||
                 !subject.trim() ||
                 !gradeLevel.trim() ||
-                !indicator.trim() ||
-                !examTopics.trim() ||
+                examUnits.length === 0 ||
                 examPart1Count < 5
               }
               onClick={handleGenerateExam}

@@ -1,6 +1,11 @@
 import { supabase, isSupabaseReady } from './supabaseClient';
 import type { AppSessionContext } from '../types/core';
-import { loadScheduleSettings } from './scheduleSettings';
+import {
+  buildSchedulePeriods,
+  loadScheduleSettings,
+  makeScheduleCellKey,
+  type ScheduleSettings,
+} from './scheduleSettings';
 
 /**
  * Compiles comprehensive real-time 7-dimension school context directly from Supabase
@@ -261,7 +266,7 @@ export async function fetchLiveSchoolDataContext(
     ]);
 
     // Load timetable schedule settings from local/workspace configuration
-    const scheduleSettings = loadScheduleSettings(workspaceId);
+    const scheduleSettings = loadScheduleSettings(currentClassroomName, workspaceId);
 
     const studentList = students || [];
     const classroomList = classrooms || [];
@@ -674,6 +679,28 @@ export async function fetchLiveSchoolDataContext(
       const subjNames = scheduleSettings.subjects.map((s) => `${s.name} (${s.code})`).join(', ');
       context += `• รายวิชาตามตารางสอน: ${subjNames}\n`;
       context += `• เวลาเริ่มเรียน: ${scheduleSettings.startTime} น. คาบละ ${scheduleSettings.periodMinutes} นาที พักกลางวัน: ${scheduleSettings.lunchStart} - ${scheduleSettings.lunchEnd} น.\n`;
+    }
+
+    const schedulePeriods = buildSchedulePeriods(scheduleSettings);
+    if (scheduleSettings.activeDays && scheduleSettings.activeDays.length > 0) {
+      context += `• ตารางสอนรายสัปดาห์ (ข้อมูลคาบเรียนและห้องเรียนจริงจากระบบ):\n`;
+      scheduleSettings.activeDays.forEach((day) => {
+        const dayClasses: string[] = [];
+        schedulePeriods.forEach((period) => {
+          const cellKey = makeScheduleCellKey(day, period.index);
+          const cell = scheduleSettings.cells[cellKey];
+          if (cell && cell.subject) {
+            const roomStr = cell.classroom ? ` [ห้อง ${cell.classroom}]` : '';
+            const codeStr = cell.subjectCode ? ` (${cell.subjectCode})` : '';
+            dayClasses.push(`คาบ ${period.index} (${period.start}-${period.end} น.): ${cell.subject}${codeStr}${roomStr}`);
+          }
+        });
+        if (dayClasses.length > 0) {
+          context += `  - วัน${day}: ${dayClasses.join(' | ')}\n`;
+        } else {
+          context += `  - วัน${day}: ไม่มีคาบสอนในระบบ\n`;
+        }
+      });
     }
 
     // =========================================================================

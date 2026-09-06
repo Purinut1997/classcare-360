@@ -1449,11 +1449,15 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           >
                             {cell ? (
                               <>
-                                <p className="text-xs font-black opacity-80">{cell.subjectCode || '-'}</p>
-                                <p className="mt-1 text-sm font-black">{cell.subject}</p>
-                                {formatScheduleClassroom(cell.classroom) ? (
-                                  <p className="mt-1 text-xs font-bold opacity-80">{formatScheduleClassroom(cell.classroom)}</p>
-                                ) : null}
+                                <div className="flex items-center justify-between gap-1">
+                                  <p className="text-xs font-black opacity-80">{cell.subjectCode || '-'}</p>
+                                  {formatScheduleClassroom(cell.classroom) ? (
+                                    <span className="rounded bg-amber-200/90 text-amber-950 font-black px-1.5 py-0.5 text-[10px] shadow-2xs">
+                                      {formatScheduleClassroom(cell.classroom)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-1 text-sm font-black leading-tight">{cell.subject}</p>
                               </>
                             ) : (
                               <span className="grid h-full place-items-center text-center text-xs font-black">เพิ่ม</span>

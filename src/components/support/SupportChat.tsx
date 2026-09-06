@@ -216,6 +216,31 @@ export function SupportChat({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Listen for external trigger events (e.g. from Center button in MobileNav)
+  useEffect(() => {
+    const handleToggle = () => setOpen((prev) => !prev);
+    const handleOpen = () => setOpen(true);
+    const handleClose = () => setOpen(false);
+
+    window.addEventListener("classcare:toggle-ai-chat", handleToggle);
+    window.addEventListener("classcare:open-ai-chat", handleOpen);
+    window.addEventListener("classcare:close-ai-chat", handleClose);
+
+    return () => {
+      window.removeEventListener("classcare:toggle-ai-chat", handleToggle);
+      window.removeEventListener("classcare:open-ai-chat", handleOpen);
+      window.removeEventListener("classcare:close-ai-chat", handleClose);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("classcare:ai-chat-state-changed", {
+        detail: { isOpen: open },
+      })
+    );
+  }, [open]);
+
   // Context-aware prompt chips
   const dynamicChips = useMemo(
     () => getContextPrompts(activeView),
@@ -344,6 +369,14 @@ export function SupportChat({
       ).length,
     [tickets]
   );
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("classcare:ai-unread-changed", {
+        detail: { unreadCount },
+      })
+    );
+  }, [unreadCount]);
 
   const loadTickets = useCallback(async () => {
     if (!supabase) return;
@@ -768,11 +801,11 @@ export function SupportChat({
   };
 
   return (
-    <div className="support-widget no-print print:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[70] sm:bottom-6 sm:right-6">
+    <div className="support-widget no-print print:hidden fixed bottom-[calc(5.2rem+env(safe-area-inset-bottom))] inset-x-3 mx-auto z-[70] flex flex-col items-center pointer-events-none sm:pointer-events-auto sm:inset-x-auto sm:right-6 sm:bottom-6 sm:mx-0 sm:items-end">
       {open ? (
         <section
           aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-          className="relative mb-3 flex h-[min(700px,82dvh)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-400/40 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/60 transition-all backdrop-blur-xl"
+          className="relative mb-3 flex h-[min(700px,80dvh)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-400/40 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/60 transition-all backdrop-blur-xl pointer-events-auto"
         >
           {/* Header */}
           <header className="relative overflow-hidden border-b border-white/10 px-4 py-3 sm:px-5">
@@ -1710,11 +1743,11 @@ export function SupportChat({
         </section>
       ) : null}
 
-      {/* Floating Toggle Button with Glowing Cute Mascot */}
+      {/* Floating Toggle Button with Glowing Cute Mascot (Desktop only, mobile uses Center Dock Button) */}
       <button
         aria-expanded={open}
         aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-        className="group relative ml-auto grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer"
+        className="group relative ml-auto hidden sm:grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer pointer-events-auto"
         onClick={() => setOpen((value) => !value)}
       >
         {/* Breathing animated aura ring */}
