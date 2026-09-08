@@ -128,7 +128,18 @@ export const AcademicSubjectsModal: React.FC<AcademicSubjectsModalProps> = ({
       if (subsRes.data && subsRes.data.length > 0) {
         setSubjects(subsRes.data as SchoolSubject[]);
       } else {
-        setSubjects([]);
+        try {
+          const currentGrade = currentClassroomName?.split('/')[0] || 'ป.5';
+          const cached = window.localStorage.getItem(`classcare_academic_subjects_${workspaceId}_${currentGrade}`) ||
+                         window.localStorage.getItem(`classcare_academic_subjects_${workspaceId}_ป.5`);
+          if (cached) {
+            setSubjects(JSON.parse(cached));
+          } else {
+            setSubjects([]);
+          }
+        } catch {
+          setSubjects([]);
+        }
       }
 
       if (rulesRes.data && rulesRes.data.length > 0) {
@@ -184,6 +195,28 @@ export const AcademicSubjectsModal: React.FC<AcademicSubjectsModalProps> = ({
 
     try {
       if (!supabase) throw new Error('Supabase client not available');
+
+      // Safe check if table exists
+      const { error: testTableErr } = await supabase.from('school_subjects').select('id').limit(1);
+      if (testTableErr && testTableErr.message?.includes('Could not find the table')) {
+        const fallbackSubs = templateSubjects.map((s, i) => ({
+          ...s,
+          id: `local-sub-${i}-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })) as SchoolSubject[];
+        setSubjects(fallbackSubs);
+        try {
+          window.localStorage.setItem(`classcare_academic_subjects_${workspaceId}_${gradeLevel}`, JSON.stringify(fallbackSubs));
+        } catch {}
+        setFeedback({
+          type: 'success',
+          message: 'บันทึกแม่แบบ 9 วิชาพื้นฐาน สพฐ. เรียบร้อยแล้ว (รันไฟล์ SQL 0069 ใน Supabase เพื่อบันทึกลงฐานข้อมูลถาวร)',
+        });
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.from('school_subjects').upsert(templateSubjects, {
         onConflict: 'workspace_id,subject_code,grade_level',
       }).select();
@@ -245,6 +278,29 @@ export const AcademicSubjectsModal: React.FC<AcademicSubjectsModalProps> = ({
 
     try {
       if (!supabase) throw new Error('Supabase client not available');
+
+      // Safe check if table exists
+      const { error: testTableErr } = await supabase.from('school_subjects').select('id').limit(1);
+      if (testTableErr && testTableErr.message?.includes('Could not find the table')) {
+        if (editingSubject.id) {
+          setSubjects((prev) =>
+            prev.map((s) => (s.id === editingSubject.id ? ({ ...s, ...payload } as SchoolSubject) : s))
+          );
+        } else {
+          const newSub = {
+            ...payload,
+            id: `local-sub-${Date.now()}`,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as SchoolSubject;
+          setSubjects((prev) => [...prev, newSub]);
+        }
+        setEditingSubject(null);
+        setFeedback({ type: 'success', message: 'บันทึกรายวิชาเรียบร้อยแล้ว (จัดเก็บในเครื่อง - รัน SQL 0069 เพื่อลงฐานข้อมูล)' });
+        setLoading(false);
+        return;
+      }
+
       if (editingSubject.id) {
         const { error } = await supabase
           .from('school_subjects')

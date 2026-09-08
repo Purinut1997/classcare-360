@@ -92,7 +92,7 @@ export async function syncP5MasterDataToWorkspace(
   // 2. Insert into Supabase if connected
   if (isSupabaseReady && supabase && workspaceId && targetClassroomId) {
     try {
-      // Upsert subjects
+      // Upsert subjects if table exists
       const subjectPayloads = P5_MASTER_DATA.subjects.map((sub) => ({
         workspace_id: workspaceId,
         subject_code: sub.subject_code,
@@ -104,20 +104,35 @@ export async function syncP5MasterDataToWorkspace(
         is_basic: sub.is_basic,
       }));
 
-      await supabase.from('school_subjects').upsert(subjectPayloads, {
-        onConflict: 'workspace_id,subject_code,grade_level',
-      });
+      // Cache locally so it works immediately offline / before SQL migration
+      try {
+        window.localStorage.setItem(`classcare_academic_subjects_${workspaceId}_ป.5`, JSON.stringify(subjectPayloads));
+      } catch {}
 
-      // Upsert students
+      // Safe check if table school_subjects exists before issuing mutation
+      const { error: testTableErr } = await supabase.from('school_subjects').select('id').limit(1);
+      const isSubjectsTableReady = !testTableErr || !testTableErr.message?.includes('Could not find the table');
+
+      if (isSubjectsTableReady) {
+        await supabase.from('school_subjects').upsert(subjectPayloads, {
+          onConflict: 'workspace_id,subject_code,grade_level',
+        });
+      }
+
+      // Upsert students (store national_id in metadata per schema standard)
       const studentPayloads = P5_MASTER_DATA.students.map((st) => ({
         workspace_id: workspaceId,
         classroom_id: targetClassroomId,
         student_code: st.student_code,
-        national_id: st.national_id,
         first_name: st.first_name,
         last_name: st.last_name,
         gender: st.gender,
         birth_date: st.birth_date,
+        status: 'active' as const,
+        metadata: {
+          national_id: st.national_id,
+          citizen_id: st.national_id,
+        },
       }));
 
       await supabase.from('students').upsert(studentPayloads, {
