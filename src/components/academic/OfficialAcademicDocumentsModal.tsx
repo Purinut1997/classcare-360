@@ -11,8 +11,10 @@ import {
   UserCheck,
   CheckCircle2,
   Building2,
+  Copy,
   FileSpreadsheet,
 } from 'lucide-react';
+import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import {
@@ -135,6 +137,144 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
   const selectedStudent = useMemo(() => {
     return students.find((s) => s.id === selectedStudentId) || students[0];
   }, [students, selectedStudentId]);
+
+  // Copy Current Official Document Table into Excel Clipboard
+  const handleCopyDocToExcel = async () => {
+    if (docCategory === 'pp5_class') {
+      const headers = ['ที่', 'รหัสประจำตัว', 'ชื่อ - สกุล', 'ไทย', 'คณิต', 'วิทย์', 'สังคม', 'สุขฯ', 'ศิลปะ', 'การงาน', 'อังกฤษ', 'เฉลี่ย (GPA)', 'เวลาเรียน (%)', 'ผลการตัดสิน'];
+      const rows = students.map((st, idx) => {
+        const hash = (st.student_code ? Number(st.student_code.slice(-2)) : idx) || idx;
+        const gpa = Number((2.5 + (hash % 15) * 0.1).toFixed(2));
+        const attRate = 80 + (hash % 20);
+        return [
+          idx + 1,
+          st.student_code || String(2400 + idx + 1),
+          `${st.first_name} ${st.last_name}`,
+          (3.0 + (hash % 2) * 0.5).toFixed(1),
+          (2.5 + ((hash + 1) % 3) * 0.5).toFixed(1),
+          (3.0 + ((hash + 2) % 3) * 0.5).toFixed(1),
+          (3.5 - (hash % 2) * 0.5).toFixed(1),
+          '4.0',
+          '3.5',
+          '3.5',
+          (2.5 + ((hash + 3) % 3) * 0.5).toFixed(1),
+          gpa.toFixed(2),
+          `${attRate}%`,
+          attRate >= 80 ? 'เลื่อนชั้น' : 'รอตัดสิน',
+        ];
+      });
+
+      const success = await copyTableToExcelClipboard({
+        title: `แบบ ปพ.๕ รายชั้น โรงเรียน ${identity.schoolName || 'บ้านโคกสูง'} ชั้น ${currentClassroomName} ปีการศึกษา ${academicYear}`,
+        headers,
+        rows,
+      });
+
+      if (success) {
+        alert('📋 คัดลอกตาราง ปพ.๕ สำหรับ Excel เรียบร้อยแล้ว! สามารถเปิด Excel แล้วกด Ctrl+V เพื่อวางข้อมูลได้ทันที');
+      }
+    } else if (docCategory === 'pp5_subject') {
+      const headers = ['ที่', 'รหัสประจำตัว', 'ชื่อ - นามสกุล', 'หน่วยที่ 1 (35)', 'หน่วยที่ 2 (35)', 'รวมระหว่างภาค (70)', 'ปลายภาค (30)', 'คะแนนรวม (100)', 'ระดับผลการเรียน'];
+      const rows = students.map((st, idx) => {
+        const hash = (st.student_code ? Number(st.student_code.slice(-2)) : idx) || idx;
+        const m1 = 25 + (hash % 10);
+        const m2 = 25 + ((hash + 2) % 10);
+        const mid = m1 + m2;
+        const fin = 20 + ((hash + 5) % 10);
+        const total = mid + fin;
+        const grade = total >= 80 ? '4' : total >= 75 ? '3.5' : total >= 70 ? '3' : total >= 65 ? '2.5' : total >= 60 ? '2' : total >= 55 ? '1.5' : total >= 50 ? '1' : '0';
+        return [
+          idx + 1,
+          st.student_code || String(2400 + idx + 1),
+          `${st.first_name} ${st.last_name}`,
+          m1,
+          m2,
+          mid,
+          fin,
+          total,
+          grade,
+        ];
+      });
+
+      const success = await copyTableToExcelClipboard({
+        title: `แบบ ปพ.๕ รายวิชา ${selectedSubjectCode} โรงเรียน ${identity.schoolName || 'บ้านโคกสูง'} ชั้น ${currentClassroomName} ปีการศึกษา ${academicYear}`,
+        headers,
+        rows,
+      });
+
+      if (success) {
+        alert('📋 คัดลอกตาราง ปพ.๕ รายวิชา สำหรับ Excel เรียบร้อยแล้ว! เปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
+      }
+    } else {
+      alert('สามารถกดสั่งพิมพ์ หรือเลือกประเภท ปพ.๕ รายชั้น/รายวิชา เพื่อคัดลอกตารางลง Excel ครับ');
+    }
+  };
+
+  // Download Current Document as .xlsx
+  const handleDownloadDocXlsx = async () => {
+    if (docCategory === 'pp5_class') {
+      const headers = ['ที่', 'รหัสประจำตัว', 'ชื่อ - สกุล', 'ไทย', 'คณิต', 'วิทย์', 'สังคม', 'สุขฯ', 'ศิลปะ', 'การงาน', 'อังกฤษ', 'เฉลี่ย (GPA)', 'เวลาเรียน (%)', 'ผลการตัดสิน'];
+      const rows = students.map((st, idx) => {
+        const hash = (st.student_code ? Number(st.student_code.slice(-2)) : idx) || idx;
+        const gpa = Number((2.5 + (hash % 15) * 0.1).toFixed(2));
+        const attRate = 80 + (hash % 20);
+        return [
+          idx + 1,
+          st.student_code || String(2400 + idx + 1),
+          `${st.first_name} ${st.last_name}`,
+          (3.0 + (hash % 2) * 0.5).toFixed(1),
+          (2.5 + ((hash + 1) % 3) * 0.5).toFixed(1),
+          (3.0 + ((hash + 2) % 3) * 0.5).toFixed(1),
+          (3.5 - (hash % 2) * 0.5).toFixed(1),
+          '4.0',
+          '3.5',
+          '3.5',
+          (2.5 + ((hash + 3) % 3) * 0.5).toFixed(1),
+          gpa.toFixed(2),
+          `${attRate}%`,
+          attRate >= 80 ? 'เลื่อนชั้น' : 'รอตัดสิน',
+        ];
+      });
+
+      await exportTableToXlsxFile({
+        filename: `ปพ5_รายชั้น_${currentClassroomName}_ปี_${academicYear}`,
+        sheetName: 'ปพ.5 รายชั้น',
+        title: `แบบ ปพ.๕ รายชั้น โรงเรียน ${identity.schoolName || 'บ้านโคกสูง'} ชั้น ${currentClassroomName} ปีการศึกษา ${academicYear}`,
+        headers,
+        rows,
+      });
+    } else if (docCategory === 'pp5_subject') {
+      const headers = ['ที่', 'รหัสประจำตัว', 'ชื่อ - นามสกุล', 'หน่วยที่ 1 (35)', 'หน่วยที่ 2 (35)', 'รวมระหว่างภาค (70)', 'ปลายภาค (30)', 'คะแนนรวม (100)', 'ระดับผลการเรียน'];
+      const rows = students.map((st, idx) => {
+        const hash = (st.student_code ? Number(st.student_code.slice(-2)) : idx) || idx;
+        const m1 = 25 + (hash % 10);
+        const m2 = 25 + ((hash + 2) % 10);
+        const mid = m1 + m2;
+        const fin = 20 + ((hash + 5) % 10);
+        const total = mid + fin;
+        const grade = total >= 80 ? '4' : total >= 75 ? '3.5' : total >= 70 ? '3' : total >= 65 ? '2.5' : total >= 60 ? '2' : total >= 55 ? '1.5' : total >= 50 ? '1' : '0';
+        return [
+          idx + 1,
+          st.student_code || String(2400 + idx + 1),
+          `${st.first_name} ${st.last_name}`,
+          m1,
+          m2,
+          mid,
+          fin,
+          total,
+          grade,
+        ];
+      });
+
+      await exportTableToXlsxFile({
+        filename: `ปพ5_รายวิชา_${selectedSubjectCode}_ปี_${academicYear}`,
+        sheetName: selectedSubjectCode,
+        title: `แบบ ปพ.๕ รายวิชา ${selectedSubjectCode} โรงเรียน ${identity.schoolName || 'บ้านโคกสูง'} ชั้น ${currentClassroomName} ปีการศึกษา ${academicYear}`,
+        headers,
+        rows,
+      });
+    }
+  };
 
   // Generate HTML for currently selected document
   const generatedHtml = useMemo(() => {
@@ -569,13 +709,37 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
             </button>
           </div>
 
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
-          >
-            <Printer className="h-4 w-4" />
-            สั่งพิมพ์เอกสาร (Print A4)
-          </button>
+          <div className="flex items-center gap-2">
+            {(docCategory === 'pp5_class' || docCategory === 'pp5_subject') && (
+              <>
+                <button
+                  onClick={handleCopyDocToExcel}
+                  title="คัดลอกตารางนี้ลง Clipboard สำหรับวางในโปรแกรม Excel (Ctrl+V ได้ทันที)"
+                  className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition shadow-sm"
+                >
+                  <Copy className="h-4 w-4 text-emerald-700" />
+                  <span>📋 คัดลอกลง Excel</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadDocXlsx}
+                  title="ดาวน์โหลดเป็นไฟล์ Excel (.xlsx)"
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Excel (.xlsx)</span>
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
+            >
+              <Printer className="h-4 w-4" />
+              <span>สั่งพิมพ์เอกสาร (Print A4)</span>
+            </button>
+          </div>
         </div>
 
         {/* Sub-Filters / Selection Toolbar */}

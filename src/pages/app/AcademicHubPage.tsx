@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   CheckCircle2,
   ChevronRight,
+  Copy,
   Database,
   Download,
   ExternalLink,
@@ -29,6 +30,7 @@ import { AcademicSubjectsModal } from '../../components/academic/AcademicSubject
 import { OfficialAcademicDocumentsModal } from '../../components/academic/OfficialAcademicDocumentsModal';
 import { TermClosingWizardModal } from '../../components/academic/TermClosingWizardModal';
 import { P5_MASTER_DATA, syncP5MasterDataToWorkspace } from '../../data/p5MasterTemplate';
+import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
@@ -207,6 +209,138 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       setIsSyncing(false);
       setTimeout(() => setToastMessage(null), 5000);
     }
+  };
+
+  // Copy Roster to Excel Clipboard
+  const handleCopyRosterToExcel = async () => {
+    const headers = [
+      'ที่',
+      'เลขประจำตัว',
+      'ชื่อ',
+      'นามสกุล',
+      'เวลาเรียน (%)',
+      'เกรดเฉลี่ย (GPA)',
+      'คุณลักษณะอันพึงประสงค์',
+      'กิจกรรมพัฒนาผู้เรียน',
+      'สถานะการตัดสินเลื่อนชั้น',
+    ];
+    const rows = filteredStudents.map((st) => [
+      st.number,
+      st.student_code,
+      st.first_name,
+      st.last_name,
+      `${st.attendance_rate.toFixed(1)}%`,
+      st.gpa.toFixed(2),
+      st.traits_passed ? 'ผ่าน (ดีเยี่ยม)' : 'ไม่ผ่าน',
+      st.activities_passed ? 'ผ่าน' : 'ไม่ผ่าน',
+      st.promotion_status === 'ready'
+        ? 'พร้อมเลื่อนชั้น'
+        : st.promotion_status === 'warning'
+        ? 'เวลาเรียนไม่ถึง 80%'
+        : 'มีวิชาต้องซ่อมเสริม',
+    ]);
+
+    const success = await copyTableToExcelClipboard({
+      title: `สรุปผลการเรียนรู้และทะเบียนนักเรียน ชั้น ${selectedClassroom?.name || 'ป.5/1'} ภาคเรียนที่ ${selectedTerm} ปีการศึกษา ${selectedYear}`,
+      headers,
+      rows,
+    });
+
+    if (success) {
+      setToastMessage('📋 คัดลอกข้อมูลตารางสำหรับ Excel เรียบร้อยแล้ว! สามารถเปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
+      setTimeout(() => setToastMessage(null), 6000);
+    }
+  };
+
+  // Download Roster as .xlsx
+  const handleDownloadRosterXlsx = async () => {
+    const headers = [
+      'ที่',
+      'เลขประจำตัว',
+      'ชื่อ',
+      'นามสกุล',
+      'เวลาเรียน (%)',
+      'เกรดเฉลี่ย (GPA)',
+      'คุณลักษณะอันพึงประสงค์',
+      'กิจกรรมพัฒนาผู้เรียน',
+      'สถานะการตัดสินเลื่อนชั้น',
+    ];
+    const rows = filteredStudents.map((st) => [
+      st.number,
+      st.student_code,
+      st.first_name,
+      st.last_name,
+      `${st.attendance_rate.toFixed(1)}%`,
+      st.gpa.toFixed(2),
+      st.traits_passed ? 'ผ่าน (ดีเยี่ยม)' : 'ไม่ผ่าน',
+      st.activities_passed ? 'ผ่าน' : 'ไม่ผ่าน',
+      st.promotion_status === 'ready'
+        ? 'พร้อมเลื่อนชั้น'
+        : st.promotion_status === 'warning'
+        ? 'เวลาเรียนไม่ถึง 80%'
+        : 'มีวิชาต้องซ่อมเสริม',
+    ]);
+
+    await exportTableToXlsxFile({
+      filename: `ทะเบียนนักเรียนและผลการเรียน_${selectedClassroom?.name || 'ป.5'}_ปี_${selectedYear}`,
+      sheetName: 'ผลการเรียนรายชั้น',
+      title: `สรุปผลการเรียนรู้และทะเบียนนักเรียน ชั้น ${selectedClassroom?.name || 'ป.5/1'} ภาคเรียนที่ ${selectedTerm} ปีการศึกษา ${selectedYear}`,
+      headers,
+      rows,
+    });
+
+    setToastMessage('📥 ดาวน์โหลดไฟล์ Excel (.xlsx) สำเร็จ');
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  // Copy Subjects to Excel
+  const handleCopySubjectsToExcel = async () => {
+    const headers = ['ที่', 'รหัสวิชา', 'รายวิชา', 'เวลาเรียน (ชม./ปี)', 'หน่วยกิต', 'กลุ่มสาระการเรียนรู้', 'ประเภทวิชา'];
+    const rows = P5_MASTER_DATA.subjects.map((sub, idx) => [
+      idx + 1,
+      sub.subject_code,
+      sub.subject_name,
+      sub.total_hours,
+      sub.credit,
+      sub.learning_area,
+      sub.is_basic ? 'วิชาพื้นฐาน' : 'วิชาเพิ่มเติม',
+    ]);
+
+    const success = await copyTableToExcelClipboard({
+      title: `โครงสร้าง 10 รายวิชา ประถมศึกษาปีที่ 5 รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
+      headers,
+      rows,
+    });
+
+    if (success) {
+      setToastMessage('📋 คัดลอกโครงสร้างรายวิชาสำหรับ Excel เรียบร้อยแล้ว! เปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
+      setTimeout(() => setToastMessage(null), 6000);
+    }
+  };
+
+  // Download Subjects as .xlsx
+  const handleDownloadSubjectsXlsx = async () => {
+    const headers = ['ที่', 'รหัสวิชา', 'รายวิชา', 'เวลาเรียน (ชม./ปี)', 'หน่วยกิต', 'กลุ่มสาระการเรียนรู้', 'ประเภทวิชา'];
+    const rows = P5_MASTER_DATA.subjects.map((sub, idx) => [
+      idx + 1,
+      sub.subject_code,
+      sub.subject_name,
+      sub.total_hours,
+      sub.credit,
+      sub.learning_area,
+      sub.is_basic ? 'วิชาพื้นฐาน' : 'วิชาเพิ่มเติม',
+    ]);
+
+    await exportTableToXlsxFile({
+      filename: `โครงสร้างรายวิชา_ป.5_รร.บ้านโคกสูง`,
+      sheetName: 'รายวิชา ป.5',
+      title: `โครงสร้าง 10 รายวิชา ประถมศึกษาปีที่ 5 รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
+      headers,
+      rows,
+    });
+
+    setToastMessage('📥 ดาวน์โหลดไฟล์โครงสร้างรายวิชา (.xlsx) สำเร็จ');
+    setTimeout(() => setToastMessage(null), 5000);
   };
 
   const selectedClassroom = useMemo(() => {
@@ -534,9 +668,29 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                     placeholder="ค้นหาชื่อ หรือรหัส..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-9 w-48 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
+                    className="h-9 w-40 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
                   />
                 </div>
+
+                {/* Copy To Excel Button */}
+                <button
+                  onClick={handleCopyRosterToExcel}
+                  title="คัดลอกตารางนี้ลง Clipboard (เปิด Excel แล้วกด Ctrl+V ได้ทันที ทุกคอลัมน์จะแยกช่องสวยงาม)"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400 transition shadow-sm"
+                >
+                  <Copy size={13} className="text-emerald-700" />
+                  <span>📋 คัดลอกลง Excel</span>
+                </button>
+
+                {/* Download Excel Button */}
+                <button
+                  onClick={handleDownloadRosterXlsx}
+                  title="ดาวน์โหลดข้อมูลเป็นไฟล์ Excel (.xlsx) พร้อมจัดหน้า"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                >
+                  <Download size={13} />
+                  <span>Excel (.xlsx)</span>
+                </button>
 
                 <button
                   onClick={() => setIsOfficialDocsModalOpen(true)}
@@ -661,13 +815,33 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
               </p>
             </div>
 
-            <button
-              onClick={() => setIsSubjectsModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
-            >
-              <BookOpen size={14} />
-              <span>เปิดระบบจัดการรายวิชาเต็มรูปแบบ</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopySubjectsToExcel}
+                title="คัดลอกรายวิชาลง Clipboard สำหรับวางใน Excel (Ctrl+V)"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition"
+              >
+                <Copy size={13} className="text-emerald-700" />
+                <span>📋 คัดลอกลง Excel</span>
+              </button>
+
+              <button
+                onClick={handleDownloadSubjectsXlsx}
+                title="ดาวน์โหลดโครงสร้าง 10 รายวิชาเป็นไฟล์ .xlsx"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+              >
+                <Download size={13} />
+                <span>ดาวน์โหลด .xlsx</span>
+              </button>
+
+              <button
+                onClick={() => setIsSubjectsModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
+              >
+                <BookOpen size={14} />
+                <span>เปิดระบบจัดการรายวิชาเต็มรูปแบบ</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
