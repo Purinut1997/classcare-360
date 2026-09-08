@@ -55,7 +55,7 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'academic-hub',
-    label: 'งานวิชาการ & ทะเบียน (สพฐ.)',
+    label: 'วิชาการ & ทะเบียน (ปพ.)',
     icon: BookOpen,
     moduleKey: 'scores',
     path: '/app/dashboard?view=academic-hub',

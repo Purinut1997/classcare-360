@@ -17,11 +17,12 @@ const coreDirectItemKeys = [
   'overview',
   'students',
   'teacher-work',
+  'schedule',
   'scores',
+  'academic-hub',
+  'desirable-characteristics',
   'savings',
   'behavior',
-  'desirable-characteristics',
-  'schedule',
   'reports',
 ];
 
