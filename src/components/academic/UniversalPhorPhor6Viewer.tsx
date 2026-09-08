@@ -32,6 +32,7 @@ interface UniversalPhorPhor6ViewerProps {
     height?: number;
   }[];
   onClose?: () => void;
+  studentReports?: Record<string, OBECStudentFullReport>;
 }
 
 export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> = ({
@@ -40,6 +41,7 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
   roomName,
   academicYear,
   students,
+  studentReports,
 }) => {
   const [selectedStudentIndex, setSelectedStudentIndex] = useState<number>(0);
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -147,7 +149,9 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
   };
 
   const currentStudent = students[selectedStudentIndex] || students[0];
-  const fullReport = createStudentReport(currentStudent, selectedStudentIndex);
+  const fullReport = (currentStudent?.id && studentReports?.[currentStudent.id]) 
+    ? studentReports[currentStudent.id] 
+    : createStudentReport(currentStudent, selectedStudentIndex);
 
   // คัดลอกตารางลง Excel
   const handleCopyExcel = async () => {

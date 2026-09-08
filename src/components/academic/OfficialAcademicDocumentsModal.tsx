@@ -22,7 +22,7 @@ import { formatThaiOfficialDate } from '../../lib/officialReport';
 import type { AppSessionContext } from '../../types/core';
 import { UniversalPhorPhor6Viewer } from './UniversalPhorPhor6Viewer';
 import { UniversalPhorPhor5Viewer } from './UniversalPhorPhor5Viewer';
-import { OBECSchoolHeader } from '../../lib/obecAcademicEngine';
+import { OBECSchoolHeader, fetchRealAcademicDataForClassroom, RealClassroomAcademicPayload } from '../../lib/obecAcademicEngine';
 import { P5_MASTER_DATA } from '../../data/p5MasterTemplate';
 
 interface OfficialAcademicDocumentsModalProps {
@@ -49,6 +49,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
   const [docCategory, setDocCategory] = useState<DocCategory>('pp6_individual');
   const [identity, setIdentity] = useState<SchoolReportIdentity>(loadSchoolReportIdentity());
   const [loading, setLoading] = useState(false);
+  const [realPayload, setRealPayload] = useState<RealClassroomAcademicPayload | null>(null);
 
   // ห้องเรียนทั้งหมดที่เปิดสอนในโรงเรียน
   const [classrooms, setClassrooms] = useState<{ id: string; name: string }[]>([]);
@@ -142,32 +143,49 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
         const activeName = cData.find((c) => c.id === activeCId)?.name || cData[0].name;
         setSelectedClassroomName(activeName);
 
-        // ดึงนักเรียนของห้องที่เลือก
-        const { data: stData } = await supabase
-          .from('students')
-          .select('*')
-          .eq('classroom_id', activeCId)
-          .eq('workspace_id', workspaceId)
-          .order('student_code', { ascending: true });
+        // ดึงข้อมูลจริงจากระบบ: คะแนนสอบจริง, เวลาเรียนจริง, น้ำหนักส่วนสูงจริง
+        const realData = await fetchRealAcademicDataForClassroom(
+          supabase,
+          workspaceId,
+          activeCId,
+          activeName,
+          '1',
+          academicYear,
+          schoolHeader
+        );
 
-        if (stData && stData.length > 0) {
-          setStudents(stData);
-          setSelectedCertStudentId(stData[0].id);
+        if (realData && realData.students.length > 0) {
+          setRealPayload(realData);
+          setStudents(realData.students);
+          setSelectedCertStudentId(realData.students[0].id);
         } else {
-          // fallback ใช้ P5 Template ถ้ายังไม่มีนักเรียนในห้องนั้น
-          const mapped = P5_MASTER_DATA.students.map((st, idx) => ({
-            id: `st-${idx + 1}`,
-            student_code: st.student_code,
-            prefix: st.title,
-            first_name: st.first_name,
-            last_name: st.last_name,
-            gender: st.gender,
-            birthdate: st.birth_date,
-            weight: 34 + (idx % 6),
-            height: 138 + (idx % 10),
-          }));
-          setStudents(mapped);
-          setSelectedCertStudentId(mapped[0]?.id || '');
+          // ดึงนักเรียนของห้องที่เลือก (กรณีไม่มี assessment)
+          const { data: stData } = await supabase
+            .from('students')
+            .select('*')
+            .eq('classroom_id', activeCId)
+            .eq('workspace_id', workspaceId)
+            .order('student_code', { ascending: true });
+
+          if (stData && stData.length > 0) {
+            setStudents(stData);
+            setSelectedCertStudentId(stData[0].id);
+          } else {
+            // fallback ใช้ P5 Template ถ้ายังไม่มีนักเรียนในห้องนั้น
+            const mapped = P5_MASTER_DATA.students.map((st, idx) => ({
+              id: `st-${idx + 1}`,
+              student_code: st.student_code,
+              prefix: st.title,
+              first_name: st.first_name,
+              last_name: st.last_name,
+              gender: st.gender,
+              birthdate: st.birth_date,
+              weight: 34 + (idx % 6),
+              height: 138 + (idx % 10),
+            }));
+            setStudents(mapped);
+            setSelectedCertStudentId(mapped[0]?.id || '');
+          }
         }
       }
     } catch (err) {
@@ -304,6 +322,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                   roomName="1"
                   academicYear={academicYear}
                   students={students}
+                  studentReports={realPayload?.studentReports}
                 />
               )}
 
@@ -315,6 +334,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                   roomName="1"
                   academicYear={academicYear}
                   students={students}
+                  classSummaryScores={realPayload?.classSummaryScores}
                 />
               )}
 

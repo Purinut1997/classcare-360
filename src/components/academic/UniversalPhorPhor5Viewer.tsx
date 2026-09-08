@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Printer, Download, Copy, Check, Filter, BookOpen, Layers } from 'lucide-react';
-import { OBECSchoolHeader, getStandardSubjectsForGrade } from '../../lib/obecAcademicEngine';
+import { OBECSchoolHeader, getStandardSubjectsForGrade, RealClassroomAcademicPayload } from '../../lib/obecAcademicEngine';
 import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
 
 interface UniversalPhorPhor5ViewerProps {
@@ -15,6 +15,7 @@ interface UniversalPhorPhor5ViewerProps {
     first_name: string;
     last_name: string;
   }[];
+  classSummaryScores?: RealClassroomAcademicPayload['classSummaryScores'];
 }
 
 export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> = ({
@@ -23,6 +24,7 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
   roomName,
   academicYear,
   students,
+  classSummaryScores,
 }) => {
   const [docMode, setDocMode] = useState<'class_summary' | 'subject_details'>('class_summary');
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -310,8 +312,11 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                   </thead>
                   <tbody>
                     {students.map((st, idx) => {
-                      const sampleGpa = (3.2 + ((idx % 7) * 0.1)).toFixed(2);
-                      const sampleAtt = 94 + (idx % 6);
+                      const summary = classSummaryScores?.find((c) => c.studentId === st.id);
+                      const sampleGpa = summary ? summary.gpa.toFixed(2) : (3.2 + ((idx % 7) * 0.1)).toFixed(2);
+                      const sampleAtt = summary ? summary.attendancePercent : 94 + (idx % 6);
+                      const decisionText = summary ? (summary.isPassed ? 'เลื่อนชั้น' : 'รอตัดสิน') : 'เลื่อนชั้น';
+
                       return (
                         <tr key={st.id} className="hover:bg-slate-50 text-[11px]">
                           <td className="border border-slate-400 py-1 font-semibold">{idx + 1}</td>
@@ -320,8 +325,9 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                             {st.prefix || ''}{st.first_name} {st.last_name}
                           </td>
                           {standardSubjects.map((sub, sIdx) => {
+                            const realGrade = summary?.subjectScores?.[sub.code]?.grade;
                             const grades = [3.5, 3.0, 4.0, 3.5, 4.0, 4.0, 3.5, 4.0, 3.0, 3.5];
-                            const gradeVal = grades[(idx + sIdx) % grades.length];
+                            const gradeVal = realGrade !== undefined ? realGrade : grades[(idx + sIdx) % grades.length];
                             return (
                               <td key={sub.code} className="border border-slate-400 py-1 font-bold">
                                 {gradeVal}
@@ -335,7 +341,7 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                             {sampleAtt}%
                           </td>
                           <td className="border border-slate-400 py-1 font-bold text-emerald-800 bg-emerald-50/40">
-                            เลื่อนชั้น
+                            {decisionText}
                           </td>
                         </tr>
                       );
