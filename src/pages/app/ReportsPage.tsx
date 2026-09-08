@@ -19,6 +19,7 @@ import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
 import { generateExcelReportBuffer, downloadExcelBuffer, type ExcelSheetConfig } from '../../lib/excelReport';
+import { OfficialAcademicDocumentsModal } from '../../components/academic/OfficialAcademicDocumentsModal';
 
 interface ReportsPageProps {
   session: AppSessionContext;
@@ -1426,6 +1427,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   });
   const [reportIdentity, setReportIdentity] = useState<SchoolReportIdentity>(() => loadSchoolReportIdentity(session.workspace?.id));
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [isOfficialDocsOpen, setIsOfficialDocsOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState(getTodayDate());
   const [dateTo, setDateTo] = useState(getTodayDate());
   const [query, setQuery] = useState('');
@@ -2986,6 +2988,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
 
         <div className="flex flex-wrap gap-2">
           <button
+            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 px-4 text-sm font-black text-white shadow-md shadow-indigo-500/20 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30"
+            onClick={() => setIsOfficialDocsOpen(true)}
+            type="button"
+          >
+            <FileSpreadsheet size={17} aria-hidden="true" />
+            พิมพ์ ปพ.๕ / ปพ.๖ / ใบรับรอง
+          </button>
+          <button
             className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!printableReport}
             onClick={printReport}
@@ -4011,6 +4021,16 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           <p>{notice}</p>
         </div>
       ) : null}
+
+      <OfficialAcademicDocumentsModal
+        academicYear={selectedClassroom?.academic_year || '2569'}
+        currentClassroomId={classroomId}
+        currentClassroomName={selectedClassroom?.name}
+        isOpen={isOfficialDocsOpen}
+        onClose={() => setIsOfficialDocsOpen(false)}
+        session={session}
+        term={selectedTerm === 'term1' ? '1' : '2'}
+      />
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">
         ระบบสารสนเทศ ClassCare 360

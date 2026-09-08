@@ -23,6 +23,7 @@ import {
   Keyboard,
   Layers,
   Lightbulb,
+  Lock,
   Plus,
   RotateCcw,
   Save,
@@ -41,6 +42,9 @@ import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { ScoreOcrModal } from '../../components/scores/ScoreOcrModal';
 import { RubricAndQuizModal } from '../../components/scores/RubricAndQuizModal';
+import { AcademicSubjectsModal } from '../../components/academic/AcademicSubjectsModal';
+import { OfficialAcademicDocumentsModal } from '../../components/academic/OfficialAcademicDocumentsModal';
+import { TermClosingWizardModal } from '../../components/academic/TermClosingWizardModal';
 
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
@@ -472,6 +476,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
   const [isScoreOcrOpen, setIsScoreOcrOpen] = useState(false);
   const [isRubricModalOpen, setIsRubricModalOpen] = useState(false);
+  const [isAcademicSubjectsOpen, setIsAcademicSubjectsOpen] = useState(false);
+  const [isOfficialDocumentsOpen, setIsOfficialDocumentsOpen] = useState(false);
+  const [isTermClosingOpen, setIsTermClosingOpen] = useState(false);
 
   function handleApplyScoreOcr(scs: Record<string, number | null>) {
     setScores((prev) => {
@@ -2117,6 +2124,36 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 Export CSV
               </button>
             ) : null}
+
+            <button
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              onClick={() => setIsAcademicSubjectsOpen(true)}
+              title="จัดการ 8 กลุ่มสาระการเรียนรู้ ตัวชี้วัด เกณฑ์ตัดเกรด และตัดเกรดทางการ 8 ระดับ (0-4) อัตโนมัติ"
+              type="button"
+            >
+              <BookOpen size={13} aria-hidden="true" />
+              <span>📚 โครงสร้างวิชา & ตัดเกรด สพฐ.</span>
+            </button>
+
+            <button
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 text-xs font-black text-white shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              onClick={() => setIsOfficialDocumentsOpen(true)}
+              title="พิมพ์แบบ ปพ.5 รายชั้น, ปพ.5 รายวิชา, ปพ.6 และใบรับรองทางการ"
+              type="button"
+            >
+              <FileSpreadsheet size={13} aria-hidden="true" />
+              <span>🖨️ พิมพ์ ปพ.๕ / ปพ.๖</span>
+            </button>
+
+            <button
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-3.5 text-xs font-black text-white shadow-md shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              onClick={() => setIsTermClosingOpen(true)}
+              title="ตรวจสอบความพร้อม ล็อคผลการเรียน และเลื่อนชั้นปีอัตโนมัติตามเกณฑ์ สพฐ."
+              type="button"
+            >
+              <Lock size={13} aria-hidden="true" />
+              <span>🔒 ปิดเทอม & เลื่อนชั้น</span>
+            </button>
 
             <button
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
@@ -4973,6 +5010,36 @@ export function ScoresPage({ session }: ScoresPageProps) {
         isOpen={isRubricModalOpen}
         onClose={() => setIsRubricModalOpen(false)}
         session={session}
+      />
+
+      <AcademicSubjectsModal
+        academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
+        currentClassroomId={activeClassroom?.id}
+        currentClassroomName={activeClassroom?.name}
+        isOpen={isAcademicSubjectsOpen}
+        onClose={() => setIsAcademicSubjectsOpen(false)}
+        session={session}
+        term="1"
+      />
+
+      <OfficialAcademicDocumentsModal
+        academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
+        currentClassroomId={activeClassroom?.id}
+        currentClassroomName={activeClassroom?.name}
+        isOpen={isOfficialDocumentsOpen}
+        onClose={() => setIsOfficialDocumentsOpen(false)}
+        session={session}
+        term="1"
+      />
+
+      <TermClosingWizardModal
+        academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
+        currentClassroomId={activeClassroom?.id}
+        currentClassroomName={activeClassroom?.name}
+        isOpen={isTermClosingOpen}
+        onClose={() => setIsTermClosingOpen(false)}
+        session={session}
+        term="1"
       />
 
       <footer className="mt-8 text-center text-xs font-bold text-slate-400">

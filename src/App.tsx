@@ -125,6 +125,11 @@ const ScoresPage = lazy(() =>
     default: module.ScoresPage,
   })),
 );
+const AcademicHubPage = lazy(() =>
+  import('./pages/app/AcademicHubPage').then((module) => ({
+    default: module.AcademicHubPage,
+  })),
+);
 const SavingsPage = lazy(() =>
   import('./pages/app/SavingsPage').then((module) => ({
     default: module.SavingsPage,
@@ -202,9 +207,9 @@ function getAppShellNavItems(session: AppSessionContext | null, currentSearch = 
     parent: [],
     student: [],
     viewer: ['overview', 'reports', 'daily-brief', 'help-center'],
-    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'period-locks', 'workspace-switch'],
-    teacher_owner: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch'],
-    superadmin: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch', 'setup', 'audit'],
+    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'period-locks', 'workspace-switch'],
+    teacher_owner: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch'],
+    superadmin: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch', 'setup', 'audit'],
   };
 
   const allowedKeys = new Set(navKeysByRole[session.profile.role]);
@@ -234,6 +239,7 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'data-safety') return classroomUserRoles;
   if (key === 'school-calendar') return classroomUserRoles;
   if (key === 'desirable-characteristics') return classroomUserRoles;
+  if (key === 'academic-hub') return classroomUserRoles;
 
   return classroomUserRoles;
 }
@@ -354,6 +360,16 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ScoresPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'academic-hub') {
+    return (
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <AcademicHubPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

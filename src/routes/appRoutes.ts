@@ -1,4 +1,4 @@
-import { Archive, Award, Bell, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
+import { Archive, Award, Bell, BookOpen, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
 
 import type { ModuleKey } from '../types/core';
 
@@ -52,6 +52,13 @@ export const appNavItems: AppNavItem[] = [
     icon: GraduationCap,
     moduleKey: 'scores',
     path: '/app/dashboard?view=scores',
+  },
+  {
+    key: 'academic-hub',
+    label: 'งานวิชาการ & ทะเบียน (สพฐ.)',
+    icon: BookOpen,
+    moduleKey: 'scores',
+    path: '/app/dashboard?view=academic-hub',
   },
   {
     key: 'savings',
@@ -235,6 +242,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'Score Center',
     title: 'บันทึกคะแนนรายวิชาและเห็นสัญญาณติดตามได้ทันที',
     body: 'สร้างชุดคะแนน กรอกคะแนนรายนักเรียน ดูค่าเฉลี่ย ความครบถ้วน นักเรียนที่ควรติดตาม และ export CSV โดยยังคงผูก workspace_id และสิทธิ์ผู้ใช้ตาม RLS',
+  },
+  'academic-hub': {
+    eyebrow: 'OBEC Academic Registry Hub',
+    title: 'ศูนย์งานวิชาการและทะเบียนกลาง มาตรฐาน สพฐ.',
+    body: 'โครงสร้าง 8 กลุ่มสาระการเรียนรู้ เกณฑ์ตัดเกรด 8 ระดับ คำนวณผลการเรียนอัตโนมัติ พิมพ์แบบ ปพ.๕/ปพ.๖ และตัวช่วยปิดภาคเรียน',
   },
   savings: {
     eyebrow: 'Savings Center',
