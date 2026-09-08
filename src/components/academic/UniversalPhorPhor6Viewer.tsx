@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Printer, Download, Copy, Check, ChevronLeft, ChevronRight, User, BookOpen, Heart, Clock, Award } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { Printer, Download, Copy, Check, ChevronLeft, ChevronRight, User, BookOpen, Heart, Clock, Award, Users } from 'lucide-react';
 import { 
   OBECStudentFullReport, 
   OBECSchoolHeader, 
@@ -9,6 +9,7 @@ import {
   getStandardSubjectsForGrade 
 } from '../../lib/obecAcademicEngine';
 import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
+import { printElementAsDocument } from '../../lib/academicPrintService';
 
 interface UniversalPhorPhor6ViewerProps {
   schoolHeader: OBECSchoolHeader;
@@ -201,8 +202,20 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
     });
   };
 
-  const handlePrint = () => {
-    window.print();
+  const printSheetRef = useRef<HTMLDivElement>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    if (!printSheetRef.current) {
+      window.print();
+      return;
+    }
+    setIsPrinting(true);
+    await printElementAsDocument(printSheetRef.current, {
+      title: `ปพ6_รายงานประจำตัว_${fullReport.fullName}_ปี${academicYear}`,
+      orientation: 'portrait',
+    });
+    setIsPrinting(false);
   };
 
   return (
@@ -303,17 +316,18 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
 
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition"
+            disabled={isPrinting}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition disabled:opacity-50"
           >
             <Printer className="w-3.5 h-3.5" />
-            พิมพ์ A4
+            <span>{isPrinting ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์ A4'}</span>
           </button>
         </div>
       </div>
 
       {/* เนื้อหาเอกสาร ปพ.๖ ขนาดจำลอง A4 พร้อมกรอบทางการ สพฐ. */}
       <div className="bg-slate-100 p-4 md:p-8 rounded-3xl overflow-x-auto flex justify-center shadow-inner">
-        <div className="w-[210mm] min-w-[210mm] bg-white text-slate-900 p-8 shadow-2xl rounded-sm print:m-0 print:p-6 print:shadow-none print:w-full font-serif border border-slate-300">
+        <div ref={printSheetRef} className="w-[210mm] min-w-[210mm] bg-white text-slate-900 p-8 shadow-2xl rounded-sm print:m-0 print:p-6 print:shadow-none print:w-full font-serif border border-slate-300">
           
           {/* ======================================================== */}
           {/* หน้าที่ 1: ปกหน้า & คำแนะนำสำหรับผู้ปกครอง & เกณฑ์ตัดเกรด */}

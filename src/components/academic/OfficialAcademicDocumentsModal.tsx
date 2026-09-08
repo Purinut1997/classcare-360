@@ -24,6 +24,7 @@ import { UniversalPhorPhor6Viewer } from './UniversalPhorPhor6Viewer';
 import { UniversalPhorPhor5Viewer } from './UniversalPhorPhor5Viewer';
 import { OBECSchoolHeader, fetchRealAcademicDataForClassroom, RealClassroomAcademicPayload } from '../../lib/obecAcademicEngine';
 import { P5_MASTER_DATA } from '../../data/p5MasterTemplate';
+import { printElementAsDocument } from '../../lib/academicPrintService';
 
 interface OfficialAcademicDocumentsModalProps {
   isOpen: boolean;
@@ -33,6 +34,8 @@ interface OfficialAcademicDocumentsModalProps {
   currentClassroomName?: string;
   academicYear?: string;
   term?: string;
+  initialCategory?: DocCategory;
+  initialStudentId?: string;
 }
 
 type DocCategory = 'pp6_individual' | 'pp5_suite' | 'certificates' | 'settings';
@@ -45,11 +48,21 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
   currentClassroomName = 'ป.5/1',
   academicYear = '2568',
   term = '1',
+  initialCategory = 'pp6_individual',
+  initialStudentId,
 }) => {
-  const [docCategory, setDocCategory] = useState<DocCategory>('pp6_individual');
+  const [docCategory, setDocCategory] = useState<DocCategory>(initialCategory);
   const [identity, setIdentity] = useState<SchoolReportIdentity>(loadSchoolReportIdentity());
   const [loading, setLoading] = useState(false);
   const [realPayload, setRealPayload] = useState<RealClassroomAcademicPayload | null>(null);
+  const certSheetRef = React.useRef<HTMLDivElement>(null);
+  const [isPrintingCert, setIsPrintingCert] = useState(false);
+
+  useEffect(() => {
+    if (initialCategory && isOpen) {
+      setDocCategory(initialCategory);
+    }
+  }, [initialCategory, isOpen]);
 
   // ห้องเรียนทั้งหมดที่เปิดสอนในโรงเรียน
   const [classrooms, setClassrooms] = useState<{ id: string; name: string }[]>([]);
@@ -363,17 +376,29 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                       </select>
 
                       <button
-                        onClick={() => window.print()}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition"
+                        onClick={async () => {
+                          if (!certSheetRef.current) {
+                            window.print();
+                            return;
+                          }
+                          setIsPrintingCert(true);
+                          await printElementAsDocument(certSheetRef.current, {
+                            title: `หนังสือรับรอง_${selectedCertStudent?.first_name || 'นักเรียน'}_ปี${academicYear}`,
+                            orientation: 'portrait',
+                          });
+                          setIsPrintingCert(false);
+                        }}
+                        disabled={isPrintingCert}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition disabled:opacity-50"
                       >
                         <Printer className="w-4 h-4" />
-                        พิมพ์หนังสือรับรอง A4
+                        <span>{isPrintingCert ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์หนังสือรับรอง A4'}</span>
                       </button>
                     </div>
                   </div>
 
                   {/* พรีวิวหนังสือรับรอง A4 */}
-                  <div className="bg-white text-slate-900 p-12 shadow-2xl rounded-sm border border-slate-300 font-serif max-w-[210mm] mx-auto min-h-[297mm]">
+                  <div ref={certSheetRef} className="bg-white text-slate-900 p-12 shadow-2xl rounded-sm border border-slate-300 font-serif max-w-[210mm] mx-auto min-h-[297mm]">
                     <div className="text-center mb-8">
                       <div className="flex justify-center mb-3">
                         <svg

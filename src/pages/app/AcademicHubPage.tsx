@@ -78,7 +78,15 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
   // Modals state
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isOfficialDocsModalOpen, setIsOfficialDocsModalOpen] = useState(false);
+  const [docsModalCategory, setDocsModalCategory] = useState<'pp6_individual' | 'pp5_suite' | 'certificates' | 'settings'>('pp6_individual');
+  const [docsModalStudentId, setDocsModalStudentId] = useState<string | undefined>(undefined);
   const [isTermClosingModalOpen, setIsTermClosingModalOpen] = useState(false);
+
+  const openDocsModal = (category: 'pp6_individual' | 'pp5_suite' | 'certificates' | 'settings', studentId?: string) => {
+    setDocsModalCategory(category);
+    setDocsModalStudentId(studentId);
+    setIsOfficialDocsModalOpen(true);
+  };
 
   // Student summary state
   const [students, setStudents] = useState<StudentAcademicSummary[]>([]);
@@ -532,7 +540,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             </div>
 
             <div
-              onClick={() => setIsOfficialDocsModalOpen(true)}
+              onClick={() => openDocsModal('pp6_individual')}
               className="cursor-pointer rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-teal-50/60 p-6 shadow-sm hover:shadow-xl hover:border-emerald-300 hover:-translate-y-1 transition-all group"
             >
               <div className="flex items-center justify-between">
@@ -693,7 +701,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                 </button>
 
                 <button
-                  onClick={() => setIsOfficialDocsModalOpen(true)}
+                  onClick={() => openDocsModal('pp5_suite')}
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 text-xs font-bold text-white hover:bg-slate-800 transition shadow-sm"
                 >
                   <Printer size={13} />
@@ -780,7 +788,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <button
-                            onClick={() => setIsOfficialDocsModalOpen(true)}
+                            onClick={() => openDocsModal('pp6_individual', st.id)}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
                           >
                             <FileText size={12} className="text-slate-500" />
@@ -934,7 +942,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                 สมุดประเมินพัฒนาการและผลสัมฤทธิ์ประจำชั้น รวมผลทุกรายวิชา เวลาเรียน คุณลักษณะ และผลการตัดสินเลื่อนชั้น
               </p>
               <button
-                onClick={() => setIsOfficialDocsModalOpen(true)}
+                onClick={() => openDocsModal('pp5_suite')}
                 className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition"
               >
                 <Printer size={14} />
@@ -952,7 +960,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                 รายงานผลการพัฒนาคุณภาพผู้เรียนรายบุคคล สำหรับส่งมอบให้นักเรียนและผู้ปกครองลงนามรับทราบผล
               </p>
               <button
-                onClick={() => setIsOfficialDocsModalOpen(true)}
+                onClick={() => openDocsModal('pp6_individual')}
                 className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition"
               >
                 <Printer size={14} />
@@ -970,7 +978,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                 หนังสือรับรองการเป็นนักเรียน (ปพ.๗ จำลอง), ใบรับรองผลการเรียน (Transcript) และใบรับรองจบหลักสูตรพร้อมตราครุฑ
               </p>
               <button
-                onClick={() => setIsOfficialDocsModalOpen(true)}
+                onClick={() => openDocsModal('certificates')}
                 className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 py-2.5 text-xs font-bold text-white hover:bg-purple-700 transition"
               >
                 <Printer size={14} />
@@ -1052,6 +1060,8 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
         onClose={() => setIsOfficialDocsModalOpen(false)}
         session={session}
         term={selectedTerm === 'yearly' ? '1' : selectedTerm}
+        initialCategory={docsModalCategory}
+        initialStudentId={docsModalStudentId}
       />
 
       <TermClosingWizardModal

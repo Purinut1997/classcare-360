@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Printer, Download, Copy, Check, Filter, BookOpen, Layers } from 'lucide-react';
 import { OBECSchoolHeader, getStandardSubjectsForGrade, RealClassroomAcademicPayload } from '../../lib/obecAcademicEngine';
 import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
+import { printElementAsDocument } from '../../lib/academicPrintService';
 
 interface UniversalPhorPhor5ViewerProps {
   schoolHeader: OBECSchoolHeader;
@@ -148,6 +149,22 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
     });
   };
 
+  const printSheetRef = useRef<HTMLDivElement>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    if (!printSheetRef.current) {
+      window.print();
+      return;
+    }
+    setIsPrinting(true);
+    await printElementAsDocument(printSheetRef.current, {
+      title: `ปพ5_สมุดบันทึกผลการเรียน_${gradeLevel}_ห้อง${roomName}_ปี${academicYear}`,
+      orientation: 'landscape',
+    });
+    setIsPrinting(false);
+  };
+
   return (
     <div className="space-y-4">
       {/* Action Header (No Print) */}
@@ -223,18 +240,19 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
           </button>
 
           <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg transition"
+            onClick={handlePrint}
+            disabled={isPrinting}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg transition disabled:opacity-50"
           >
             <Printer className="w-3.5 h-3.5" />
-            พิมพ์ A4
+            <span>{isPrinting ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์ A4'}</span>
           </button>
         </div>
       </div>
 
       {/* กระดาษพรีวิว A4 แนวนอน (Landscape) สำหรับ ปพ.5 รายชั้น */}
       <div className="bg-slate-100 p-4 md:p-8 rounded-3xl overflow-x-auto flex justify-center shadow-inner">
-        <div className="w-[297mm] min-w-[297mm] bg-white text-slate-900 p-8 shadow-2xl rounded-sm print:m-0 print:p-4 print:shadow-none print:w-full font-serif border border-slate-300">
+        <div ref={printSheetRef} className="w-[297mm] min-w-[297mm] bg-white text-slate-900 p-8 shadow-2xl rounded-sm print:m-0 print:p-4 print:shadow-none print:w-full font-serif border border-slate-300">
           
           {/* Header มาตรฐาน สพฐ. */}
           <div className="text-center mb-6">
