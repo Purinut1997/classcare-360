@@ -16,6 +16,7 @@ import {
   Sparkles,
   User,
   UserPlus,
+  Users,
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -234,28 +235,52 @@ export function LoginPage({ session }: LoginPageProps) {
               </p>
             </div>
 
-            {/* Feature Highlights Grid */}
+            {/* Feature Highlights Grid (4 Key Highlights) */}
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md hover:bg-white/[0.07] transition">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300">
-                    <FileSpreadsheet size={18} />
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
+                    <FileSpreadsheet size={20} />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-white">เอกสาร ปพ.๕ / ปพ.๖</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">มาตรฐาน สพฐ. ออกเล่ม 1-Click</p>
+                    <p className="text-[11px] text-slate-300/80 mt-0.5">มาตรฐาน สพฐ. พิมพ์ & Excel 1-Click</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md hover:bg-white/[0.07] transition">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
-                    <GraduationCap size={18} />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+                    <GraduationCap size={20} />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-white">ระบบคะแนน & ตัดเกรด 8 ระดับ</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">8 กลุ่มสาระ ประเมินผลอัตโนมัติ</p>
+                    <h4 className="text-xs font-bold text-white">คะแนน & ตัดเกรด 8 ระดับ</h4>
+                    <p className="text-[11px] text-slate-300/80 mt-0.5">ตัดเกรดอัตโนมัติ 8 กลุ่มสาระ คำนวณ GPA</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">ดูแลช่วยเหลือนักเรียน 360°</h4>
+                    <p className="text-[11px] text-slate-300/80 mt-0.5">เช็คชื่อ, คุณลักษณะ 8 ประการ & สุขภาพ BMI</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">จัดการชั้นเรียนอัจฉริยะ</h4>
+                    <p className="text-[11px] text-slate-300/80 mt-0.5">สุ่มชื่อตอบ, ผังที่นั่ง, ตารางสอน & ออมทรัพย์</p>
                   </div>
                 </div>
               </div>
@@ -263,18 +288,22 @@ export function LoginPage({ session }: LoginPageProps) {
           </div>
 
           {/* Bottom Trust Indicators */}
-          <div className="mt-10 pt-6 border-t border-white/10 grid grid-cols-3 gap-3">
+          <div className="mt-8 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-bold text-slate-300">คุ้มครองข้อมูล PDPA</span>
+              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-300">คุ้มครองข้อมูล PDPA</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-bold text-slate-300">ระบบคลาวด์ 24 ชม.</span>
+              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-300">คลาวด์เรียลไทม์ 24 ชม.</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-bold text-slate-300">รองรับทุกอุปกรณ์</span>
+              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-300">พอร์ทัลดูผลการเรียน</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-300">รองรับทุกอุปกรณ์</span>
             </div>
           </div>
         </div>
