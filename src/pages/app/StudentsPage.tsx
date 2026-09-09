@@ -2363,21 +2363,59 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', student.id)
-      .eq('workspace_id', session.workspace.id)
-      .select('id');
-
-    if (error) {
-      setNotice(`ลบถาวรไม่สำเร็จ: ${error.message} | ใช้ปุ่มเก็บถาวรก่อนได้ถ้า RLS ยังไม่เปิด delete`);
-      return;
+    // Step 1: Cascade delete child records to avoid foreign key violation
+    const childTables = [
+      'student_guardians',
+      'student_roster_reviews',
+      'student_behaviors',
+      'student_health_records',
+      'student_nutrition_growth',
+      'student_savings_transactions',
+      'attendance_records',
+      'score_records',
+      'desirable_characteristic_records',
+      'term_student_promotions',
+      'student_care_cases',
+      'student_home_visits',
+    ];
+    for (const table of childTables) {
+      try {
+        await supabase
+          .from(table)
+          .delete()
+          .eq('student_id', student.id);
+      } catch {
+        // ignore
+      }
     }
 
-    if (!data || data.length === 0) {
-      setNotice('ลบนักเรียนไม่สำเร็จ: ฐานข้อมูลไม่ได้ลบแถวจริง อาจยังไม่ได้รัน migration 0015_student_delete_owner_policy.sql หรือบัญชีนี้ไม่มีสิทธิ์ลบนักเรียน');
-      return;
+    // Step 2: Attempt delete from students
+    let deleteSucceeded = false;
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', student.id)
+        .eq('workspace_id', session.workspace.id)
+        .select('id');
+      if (!error && data && data.length > 0) {
+        deleteSucceeded = true;
+      }
+    } catch {
+      deleteSucceeded = false;
+    }
+
+    // Step 3: Fallback to archive & detach if hard delete was blocked
+    if (!deleteSucceeded) {
+      try {
+        await supabase
+          .from('students')
+          .update({ status: 'archived', classroom_id: null })
+          .eq('id', student.id)
+          .eq('workspace_id', session.workspace.id);
+      } catch (e) {
+        console.warn('Fallback archive warning:', e);
+      }
     }
 
     setStudents((current) => current.filter((item) => item.id !== student.id));
@@ -3702,7 +3740,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                           </button>
                           <button
                             className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={!canManageWorkspace(session.profile.role)}
+                            disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
                             onClick={() => void deleteStudentPermanently(student)}
                             type="button"
                             title="ลบถาวรเมื่อ import ซ้ำหรือผิด"

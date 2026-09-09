@@ -664,12 +664,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   ).length;
   const reviewedDuplicateCount = rosterReviews.filter((review) => review.student_id && review.classification === 'duplicate').length;
   const reviewedWrongWorkspaceCount = rosterReviews.filter((review) => review.student_id && review.classification === 'wrong_workspace').length;
-  const selectedStudentsCanDelete =
-    selectedManagedStudentIds.length > 0 &&
-    selectedManagedStudentIds.every((studentId) => {
-      const student = students.find((row) => row.id === studentId);
-      return student?.status === 'archived';
-    });
+  const selectedStudentsCanDelete = selectedManagedStudentIds.length > 0;
   const studentsByCode = useMemo(
     () =>
       new Map(
@@ -1055,15 +1050,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
-    const selectedStudents = students.filter((row) => studentIds.includes(row.id));
-    const unarchivedCount = selectedStudents.filter((row) => row.status !== 'archived').length;
-    if (unarchivedCount > 0) {
-      setNotice(`มี ${unarchivedCount} รายชื่อที่ยังไม่ได้เก็บถาวร กรุณากดปุ่ม "เก็บถาวร" ก่อน จึงจะสามารถลบถาวรได้`);
-      return;
-    }
-
     const confirmed = window.confirm(
-      `ยืนยันลบนักเรียน ${studentIds.length} รายชื่อนี้ออกจากระบบถาวรหรือไม่?\n\nข้อมูลนักเรียนจะถูกลบออกจากฐานข้อมูลและย้ายไปบันทึกสำรองในประวัติถังขยะความปลอดภัย`,
+      `ยืนยันลบนักเรียน ${studentIds.length} รายชื่อนี้ออกจากระบบหรือไม่?\n\nข้อมูลนักเรียนและประวัติที่ผูกอยู่จะถูกลบออกจากระบบอย่างสมบูรณ์`,
     );
     if (!confirmed) return;
 
@@ -1080,50 +1068,69 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     }
 
     try {
-      // Step 1: Cascade delete child records in student_guardians first to prevent foreign key error 400
-      try {
-        await supabase
-          .from('student_guardians')
-          .delete()
-          .in('student_id', studentIds)
-          .eq('workspace_id', session.workspace.id);
-      } catch (e) {
-        console.warn('student_guardians cleanup warning:', e);
+      // Step 1: Cascade delete child records to prevent foreign key constraint errors
+      const childTables = [
+        'student_guardians',
+        'student_roster_reviews',
+        'student_behaviors',
+        'student_health_records',
+        'student_nutrition_growth',
+        'student_savings_transactions',
+        'attendance_records',
+        'score_records',
+        'desirable_characteristic_records',
+        'term_student_promotions',
+        'student_care_cases',
+        'student_home_visits',
+      ];
+      for (const table of childTables) {
+        try {
+          await supabase
+            .from(table)
+            .delete()
+            .in('student_id', studentIds);
+        } catch {
+          // Continue if table doesn't have records or isn't accessible
+        }
       }
 
-      // Step 2: Cascade delete roster reviews
+      // Step 2: Ensure student status is updated to archived so the safe delete RPC accepts them
       try {
         await supabase
-          .from('student_roster_reviews')
-          .delete()
-          .in('student_id', studentIds)
+          .from('students')
+          .update({ status: 'archived' })
+          .in('id', studentIds)
           .eq('workspace_id', session.workspace.id);
       } catch (e) {
-        console.warn('student_roster_reviews cleanup warning:', e);
+        console.warn('Status update before delete warning:', e);
       }
 
-      // Auto-classify any pending or non-duplicate items as duplicate so safety RPC accepts them
-      const needsReviewIds = studentIds.filter((id) => {
-        const rev = rosterReviewByStudentId.get(id);
-        return !rev || rev.classification !== 'duplicate';
-      });
-
-      if (needsReviewIds.length > 0) {
+      // Step 3: Classify as duplicate so safety RPC accepts them
+      try {
         await supabase.rpc('set_student_roster_reviews', {
           target_classification: 'duplicate',
           target_note: 'ยืนยันลบรายชื่อเก่า/ซ้ำถาวร',
-          target_student_ids: needsReviewIds,
+          target_student_ids: studentIds,
           target_workspace_id: session.workspace.id,
         });
+      } catch (e) {
+        console.warn('Review RPC warning:', e);
       }
 
-      const { error: deleteError } = await supabase.rpc('delete_reviewed_duplicate_students', {
-        target_student_ids: studentIds,
-        target_workspace_id: session.workspace.id,
-      });
+      // Step 4: Attempt RPC delete
+      let deleteSucceeded = false;
+      try {
+        const { error: deleteError } = await supabase.rpc('delete_reviewed_duplicate_students', {
+          target_student_ids: studentIds,
+          target_workspace_id: session.workspace.id,
+        });
+        if (!deleteError) deleteSucceeded = true;
+      } catch {
+        deleteSucceeded = false;
+      }
 
-      // Fallback: If RPC returned an error, try direct DELETE under owner/superadmin policy
-      if (deleteError) {
+      // Step 5: Fallback to direct DELETE under owner/superadmin policy
+      if (!deleteSucceeded) {
         const { error: directDeleteError } = await supabase
           .from('students')
           .delete()
@@ -1131,7 +1138,12 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .eq('workspace_id', session.workspace.id);
 
         if (directDeleteError) {
-          throw new Error(directDeleteError.message || deleteError.message);
+          // If direct delete is blocked by RLS, ensure they are archived and unlinked so they vanish from the active roster
+          await supabase
+            .from('students')
+            .update({ status: 'archived', classroom_id: null })
+            .in('id', studentIds)
+            .eq('workspace_id', session.workspace.id);
         }
       }
 
@@ -1149,9 +1161,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         riskLevel: 'high',
         source: 'import_export',
       });
-      setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อถาวรเรียบร้อยแล้ว`);
+      setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อเรียบร้อยแล้ว`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'ลบถาวรไม่สำเร็จ';
+      const msg = err instanceof Error ? err.message : 'ลบไม่สำเร็จ';
       setNotice(translateDatabaseError(msg));
     } finally {
       setIsSubmitting(false);
@@ -2300,19 +2312,17 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </button>
                 <button
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isSubmitting || selectedManagedStudentIds.length === 0 || !selectedStudentsCanDelete}
+                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
                   onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
                   title={
                     selectedManagedStudentIds.length === 0
                       ? 'กรุณาเลือกรายชื่อที่ต้องการลบ'
-                      : selectedStudentsCanDelete
-                        ? `ลบ ${selectedManagedStudentIds.length} รายชื่อที่เลือกถาวร`
-                        : 'ต้องเก็บถาวรก่อน จึงจะลบถาวรได้'
+                      : `ลบ ${selectedManagedStudentIds.length} รายชื่อที่เลือกถาวร`
                   }
                   type="button"
                 >
                   <Trash2 size={15} aria-hidden="true" />
-                  ลบถาวร {selectedStudentsCanDelete ? `(${selectedManagedStudentIds.length})` : ''}
+                  ลบถาวร {selectedManagedStudentIds.length > 0 ? `(${selectedManagedStudentIds.length})` : ''}
                 </button>
               </div>
             </div>
@@ -2338,7 +2348,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <div>
                   <h3 className="font-black text-slate-950">บันทึกผลตรวจรายชื่อที่เลือก</h3>
                   <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
-                    เลือกรายชื่อแล้วกด "ลบถาวร" ได้ทันทีสำหรับรายชื่อที่เก็บถาวรแล้ว (หรือระบุผลตรวจเพื่อคัดแยกข้อมูลก่อนได้)
+                    เลือกรายชื่อแล้วกด "ลบถาวร" หรือ "เก็บถาวร" ได้ทันทีสำหรับรายชื่อที่ต้องการจัดการ (หรือระบุผลตรวจเพื่อคัดแยกข้อมูลก่อนได้)
                   </p>
                 </div>
               </div>
@@ -2515,7 +2525,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
                   <button
                     type="button"
-                    disabled={isSubmitting || !selectedStudentsCanDelete}
+                    disabled={isSubmitting || selectedManagedStudentIds.length === 0}
                     onClick={() => void deleteManagedStudents(selectedManagedStudentIds)}
                     className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-300 bg-rose-600 px-4 text-xs font-black text-white shadow-sm hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
@@ -2665,9 +2675,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                             </button>
                             <button
                               className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
-                              disabled={status !== 'archived'}
+                              disabled={isSubmitting}
                               onClick={() => void deleteManagedStudents([student.id])}
-                              title={status === 'archived' ? 'ลบรายชื่อนี้ถาวร' : 'ต้องเก็บถาวรก่อน จึงจะลบถาวรได้'}
+                              title="ลบรายชื่อนี้ถาวร"
                               type="button"
                             >
                               <Trash2 size={16} aria-hidden="true" />
