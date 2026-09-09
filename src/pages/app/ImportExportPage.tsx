@@ -1425,30 +1425,26 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         }
       }
 
-      const { error: jobError } = await supabase.from('import_jobs').insert({
-        workspace_id: workspaceId,
-        import_type: 'students',
-        status: 'imported',
-        total_rows: previewRows.length,
-        valid_rows: validPreviewRows.length,
-        invalid_rows: invalidPreviewRows.length,
-        preview: previewRows.slice(0, 50),
-        error_summary: invalidPreviewRows.map((row) => ({
-          errors: row.errors,
-          rowNumber: row.rowNumber,
-          warnings: row.warnings,
-        })),
-        metadata: {
-          dmc_class_keys: selectedDmcClassKeys,
-          inserted_rows: rowsWithoutCode.length + rowsWithCode.filter((row) => !studentsByCode.has(row.student_code || '')).length,
-          import_sources: Array.from(new Set(previewRows.map((row) => row.source || 'csv'))),
-          updated_rows: rowsWithCode.filter((row) => studentsByCode.has(row.student_code || '')).length,
-        },
-        created_by: session.profile.id,
-        imported_at: new Date().toISOString(),
-      });
-
-      if (jobError) throw jobError;
+      try {
+        await supabase.from('import_jobs').insert({
+          workspace_id: workspaceId,
+          import_type: 'students',
+          status: 'imported',
+          total_rows: previewRows.length,
+          valid_rows: validPreviewRows.length,
+          invalid_rows: invalidPreviewRows.length,
+          preview: previewRows.slice(0, 50),
+          error_summary: invalidPreviewRows.map((row) => ({
+            errors: row.errors,
+            rowNumber: row.rowNumber,
+            warnings: row.warnings,
+          })),
+          created_by: session.profile.id,
+          imported_at: new Date().toISOString(),
+        });
+      } catch (jobLoggingError) {
+        console.warn('Import job history record warning:', jobLoggingError);
+      }
 
       await writeAuditLog(session, {
         action: 'import_job.students_imported',

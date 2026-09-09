@@ -250,4 +250,13 @@ revoke all on function public.delete_reviewed_duplicate_students(uuid, uuid[]) f
 grant execute on function public.delete_students_permanently(uuid, uuid[]) to authenticated;
 grant execute on function public.delete_reviewed_duplicate_students(uuid, uuid[]) to authenticated;
 
+-- 7. Ensure import_jobs has metadata column
+do $$
+begin
+  if to_regclass('public.import_jobs') is not null then
+    alter table public.import_jobs
+      add column if not exists metadata jsonb not null default '{}'::jsonb;
+  end if;
+end $$;
+
 notify pgrst, 'reload schema';
