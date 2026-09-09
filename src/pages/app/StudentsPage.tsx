@@ -762,25 +762,28 @@ function extractGoogleMapCoordinates(value: string) {
   return null;
 }
 
-function getGoogleMapsHref(form: HomeVisitFormState) {
-  if (form.googleMapUrl.trim()) return form.googleMapUrl.trim();
-  if (form.latitude.trim() && form.longitude.trim()) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(`${form.latitude},${form.longitude}`)}`;
-  }
-  if (form.address.trim()) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.address)}`;
-  }
-  return 'https://www.google.com/maps';
-}
+/**
+ * สร้าง Google Maps URL จากข้อมูลแบบเยี่ยมบ้าน
+ * mode 'navigate' (default) — เปิดหมุดหรือนำทาง
+ * mode 'pin'              — เปิด Maps เพื่อปักหมุดหรือเลือกตำแหน่งใหม่
+ */
+function getGoogleMapsHref(form: HomeVisitFormState, mode: 'navigate' | 'pin' = 'navigate') {
+  const hasCoords = form.latitude.trim() && form.longitude.trim();
+  const coordsQuery = hasCoords ? `${form.latitude},${form.longitude}` : null;
 
-function getGoogleMapsPinHref(form: HomeVisitFormState) {
-  const placeLabel = form.mapPlaceName.trim() || form.address.trim() || 'ตำแหน่งที่พักอาศัยนักเรียน';
-  if (form.latitude.trim() && form.longitude.trim()) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${form.latitude},${form.longitude}`)}`;
+  if (mode === 'pin') {
+    // ใช้ search เสมอ เพื่อให้ Maps เปิดแล้วให้ผู้ใช้ยืนยัน/เลื่อนหมุดได้
+    const pinLabel = form.mapPlaceName.trim() || form.address.trim() || 'ตำแหน่งที่พักอาศัยนักเรียน';
+    const query = coordsQuery ?? (form.address.trim() ? pinLabel : null);
+    return query
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+      : 'https://www.google.com/maps';
   }
-  if (form.address.trim()) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeLabel)}`;
-  }
+
+  // navigate mode — ลำดับความสำคัญ: googleMapUrl > พิกัด > ที่อยู่
+  if (form.googleMapUrl.trim()) return form.googleMapUrl.trim();
+  if (coordsQuery) return `https://www.google.com/maps?q=${encodeURIComponent(coordsQuery)}`;
+  if (form.address.trim()) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.address)}`;
   return 'https://www.google.com/maps';
 }
 
@@ -1339,6 +1342,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .sort((left, right) => right.group.length - left.group.length);
   }, [students]);
 
+  // ตรวจนักเรียนที่อยู่ผิดชั้นเรียน โดย cross-check รหัสนักเรียนกับ master template ของโรงเรียน
+  // (P4/P5/P6 เฉพาะ รร.บ้านโคกสูง) — ถ้าขยายโรงเรียนให้ย้าย logic นี้ไปเป็น config-driven
   const wrongRoomStudents = useMemo(() => {
     const p4Codes = new Set(P4_MASTER_DATA.students.map((s) => s.student_code));
     const p5Codes = new Set(P5_MASTER_DATA.students.map((s) => s.student_code));
@@ -4002,7 +4007,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   ? 'workspace นี้ยังไม่มีนักเรียนในฐานข้อมูล จึงยังทดลองเช็กชื่อ/คะแนน/เยี่ยมบ้านไม่ได้'
                   : 'ยังไม่พบนักเรียนตามตัวกรองนี้ ลองเปลี่ยนเป็น “ทุกห้องเรียน” และ “ทุกสถานะ” เพื่อตรวจว่ารายชื่อถูกนำเข้าไปอยู่ห้อง/สถานะอื่นหรือไม่'}
               </p>
-              {students.length === 0 ? (
+              {students.length === 0 && isDevelopmentDemo ? (
                 <button
                   className="blue-action mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
                   disabled={isSubmitting || classrooms.length === 0 || studentLimitReached}
@@ -4010,7 +4015,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   type="button"
                 >
                   <UserPlus size={17} aria-hidden="true" />
-                  เพิ่มนักเรียนทดลอง 10 คน
+                  เพิ่มนักเรียนทดลอง 10 คน (dev only)
                 </button>
               ) : (
                 <button
@@ -4650,7 +4655,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   </label>
                   <a
                     className="sky-action inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-                    href={getGoogleMapsPinHref(homeVisitForm)}
+                    href={getGoogleMapsHref(homeVisitForm, 'pin')}
                     rel="noreferrer"
                     target="_blank"
                   >
