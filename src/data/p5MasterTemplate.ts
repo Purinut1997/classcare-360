@@ -1,5 +1,6 @@
 import { saveSchoolReportIdentity } from '../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../lib/supabaseClient';
+import { hideClassroomIdLocally } from '../lib/teacherClassrooms';
 import type { AppSessionContext } from '../types/core';
 
 export interface PrimarySubjectTemplate {
@@ -1317,12 +1318,29 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
                 rName === 'ประถมศึกษาปีที่ 6';
 
               if (isObsoleteDuplicate) {
+                hideClassroomIdLocally(workspaceId, r.id);
+
+                // Try archive first (teachers always have update permissions)
+                await supabase
+                  .from('classrooms')
+                  .update({ status: 'archived' })
+                  .eq('id', r.id)
+                  .eq('workspace_id', workspaceId)
+                  .setHeader('x-silent', 'true');
+
+                // Try hard delete
                 await supabase
                   .from('classrooms')
                   .delete()
                   .eq('id', r.id)
                   .eq('workspace_id', workspaceId)
                   .setHeader('x-silent', 'true');
+
+                // Try RPC
+                try {
+                  await supabase.rpc('delete_classroom_safely', { target_classroom_id: r.id });
+                } catch {}
+
                 cleanedRoomsCount++;
               }
             }

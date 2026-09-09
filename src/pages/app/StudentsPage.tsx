@@ -43,6 +43,7 @@ import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { translateDatabaseError } from '../../lib/errorTranslator';
 import { purgeStudentsPermanently } from '../../lib/studentOperations';
+import { getHiddenClassroomIds } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 import {
   DEMO_PRIMARY_CLASSROOMS,
@@ -1383,7 +1384,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
             .order('name', { ascending: true }),
         ]);
         if (refreshedStudents) setStudents(refreshedStudents);
-        if (refreshedRooms) setClassrooms(refreshedRooms as ClassroomRow[]);
+        if (refreshedRooms) {
+          const hiddenIds = getHiddenClassroomIds(session.workspace?.id);
+          const activeRooms = (refreshedRooms as ClassroomRow[]).filter(
+            (c) => c.status === 'active' && !hiddenIds.has(c.id)
+          );
+          setClassrooms(activeRooms);
+        }
       } else {
         setStudents(demoStudents);
         setClassrooms(demoClassrooms);
@@ -1540,7 +1547,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
         return;
       }
 
-      const nextClassrooms = (classroomRows || []) as ClassroomRow[];
+      const hiddenIds = getHiddenClassroomIds(session.workspace?.id);
+      const nextClassrooms = ((classroomRows || []) as ClassroomRow[]).filter(
+        (c) => c.status === 'active' && !hiddenIds.has(c.id),
+      );
       const nextStudents = (studentRows || []) as StudentRow[];
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);

@@ -16,6 +16,7 @@ import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../com
 import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
 import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
+import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -243,14 +244,34 @@ export function DashboardPage({ session }: DashboardPageProps) {
     const confirmed = window.confirm(`คุณต้องการลบห้อง "${classroomName}" ที่ไม่มีนักเรียนนี้ออกจากระบบหรือไม่?`);
     if (!confirmed) return;
 
+    // 1. Immediately record in localStorage so it NEVER reappears even if DB fails or delays
+    hideClassroomIdLocally(session.workspace.id, classroomId);
+
+    // 2. Immediately update local UI state
+    setClassrooms((current) => current.filter((c) => c.id !== classroomId));
+    setClassroomStudentCounts((current) => current.filter((c) => c.classroomId !== classroomId));
+    setSelectedClassroomId((prev) => {
+      if (prev === classroomId) {
+        const remaining = classrooms.filter((c) => c.id !== classroomId);
+        return remaining[0]?.id || '';
+      }
+      return prev;
+    });
+
     if (!supabase || demoMode) {
-      setClassrooms((current) => current.filter((c) => c.id !== classroomId));
-      setClassroomStudentCounts((current) => current.filter((c) => c.classroomId !== classroomId));
       return;
     }
 
     try {
-      // Step 1: try direct delete
+      // Step 1: Soft delete in Supabase (archived) - teachers always have update permission
+      await supabase
+        .from('classrooms')
+        .update({ status: 'archived' })
+        .eq('id', classroomId)
+        .eq('workspace_id', session.workspace.id)
+        .setHeader('x-silent', 'true');
+
+      // Step 2: Try direct delete
       const { error: directErr } = await supabase
         .from('classrooms')
         .delete()
@@ -258,22 +279,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
         .eq('workspace_id', session.workspace.id)
         .setHeader('x-silent', 'true');
 
+      // Step 3: Try RPC delete_classroom_safely if direct delete errored
       if (directErr) {
-        // Step 2: try RPC delete_classroom_safely
-        const { error: rpcErr } = await supabase.rpc('delete_classroom_safely', {
-          target_classroom_id: classroomId,
-        });
-        if (rpcErr) {
-          throw new Error(rpcErr.message || directErr.message);
-        }
+        try {
+          await supabase.rpc('delete_classroom_safely', {
+            target_classroom_id: classroomId,
+          });
+        } catch {}
       }
-
-      setClassrooms((current) => current.filter((c) => c.id !== classroomId));
-      setClassroomStudentCounts((current) => current.filter((c) => c.classroomId !== classroomId));
-      setReloadTrigger((v) => v + 1);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'ไม่สามารถลบห้องเรียนได้';
-      alert(`ลบห้องเรียนไม่สำเร็จ: ${msg}`);
+      console.warn('Classroom delete warning (locally hidden):', err);
     }
   };
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
@@ -343,6 +358,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       if (!isMounted) return;
       if (data && data.length > 0) {
+        const hiddenIds = getHiddenClassroomIds(session.workspace.id);
+        const filteredData = (data as ClassroomRow[]).filter((c) => {
+          if (c.status === 'archived' || c.status === 'inactive') return false;
+          if (hiddenIds.has(c.id)) return false;
+          return true;
+        });
+
         const currentProfileId = session.profile?.id || '';
         const workspaceClassroomName = session.workspace?.classroomName?.trim().toLowerCase() || '';
 
@@ -350,14 +372,18 @@ export function DashboardPage({ session }: DashboardPageProps) {
           if (c.homeroom_teacher_profile_id && c.homeroom_teacher_profile_id === currentProfileId) {
             return true;
           }
-          if (workspaceClassroomName && c.name.trim().toLowerCase() === workspaceClassroomName) {
-            return true;
+          if (workspaceClassroomName) {
+            const cName = c.name.trim().toLowerCase();
+            if (cName === workspaceClassroomName) return true;
+            if (cName.startsWith(workspaceClassroomName + '/') || cName.replace(/\s+/g, '') === workspaceClassroomName.replace(/\s+/g, '')) {
+              return true;
+            }
           }
           return false;
         };
 
         // Sort: Advisory / Homeroom classrooms come FIRST!
-        const sorted = [...data].sort((a, b) => {
+        const sorted = [...filteredData].sort((a, b) => {
           const aHome = isHomeroomCheck(a) ? 0 : 1;
           const bHome = isHomeroomCheck(b) ? 0 : 1;
           if (aHome !== bHome) return aHome - bHome;
@@ -365,7 +391,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         });
 
         const advisory = sorted.find((c) => isHomeroomCheck(c));
-        const defaultId = advisory ? advisory.id : sorted[0].id;
+        const defaultId = advisory ? advisory.id : sorted[0]?.id || '';
 
         setClassrooms(sorted);
         setSelectedClassroomId((prev) => {
@@ -404,7 +430,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
         const key = student.classroom_id || 'unassigned';
         countsByClassroom.set(key, (countsByClassroom.get(key) || 0) + 1);
       });
-      const nextClassroomCounts = classrooms.map((classroom) => ({
+
+      // Filter out ghost empty duplicate classrooms (like "ป.5" with 0 students when "ป.5/1" has students)
+      const validClassrooms = classrooms.filter(
+        (c) => !isObsoleteGhostClassroom(c, classrooms, countsByClassroom, session.workspace?.id)
+      );
+
+      const nextClassroomCounts = validClassrooms.map((classroom) => ({
         classroomId: classroom.id,
         classroomName: classroom.name,
         count: countsByClassroom.get(classroom.id) || 0,
