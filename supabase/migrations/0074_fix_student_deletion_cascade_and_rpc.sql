@@ -259,4 +259,31 @@ begin
   end if;
 end $$;
 
+-- 8. Clean up redundant empty classrooms (e.g. 'ป.5' with 0 students when 'ป.5/1' exists)
+do $$
+declare
+  r record;
+begin
+  for r in (
+    select c.id, c.name
+    from public.classrooms c
+    where c.name in ('ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6', 'ประถมศึกษาปีที่ 1', 'ประถมศึกษาปีที่ 2', 'ประถมศึกษาปีที่ 3', 'ประถมศึกษาปีที่ 4', 'ประถมศึกษาปีที่ 5', 'ประถมศึกษาปีที่ 6')
+      and not exists (
+        select 1 from public.students s where s.classroom_id = c.id
+      )
+      and exists (
+        select 1 from public.classrooms other
+        where other.workspace_id = c.workspace_id
+          and other.id <> c.id
+          and other.name like c.name || '/%'
+      )
+  ) loop
+    begin
+      delete from public.classrooms where id = r.id;
+    exception when others then
+      update public.classrooms set status = 'archived' where id = r.id;
+    end;
+  end loop;
+end $$;
+
 notify pgrst, 'reload schema';

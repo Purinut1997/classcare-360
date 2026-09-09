@@ -379,25 +379,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
         });
       setClassroomStudentCounts(nextClassroomCounts);
 
-      // Auto-heal misplaced classroom distribution if detected on the dashboard (e.g. P.5 has > 20 students or P.6 has < 16)
-      const p5Item = nextClassroomCounts.find((c) => c.classroomName.includes('5'));
-      const p6Item = nextClassroomCounts.find((c) => c.classroomName.includes('6'));
-      const isMisallocated = Boolean(
-        (p5Item && p5Item.count > 20) ||
-        (p6Item && p6Item.count < 16 && (studentCount ?? 0) >= 40)
-      );
-
-      if (isMisallocated && !realigningRef.current && !demoMode && session.workspace) {
-        realigningRef.current = true;
-        console.warn('Dashboard detected misplaced classroom distribution! Auto-realigning now...');
-        void autoRealignAllStudentsToCorrectRooms(session).then((res) => {
-          realigningRef.current = false;
-          if (res.success && isMounted) {
-            setReloadTrigger((v) => v + 1);
-          }
-        });
-      }
-
       setStats([
         {
           ...dashboardStats[0],

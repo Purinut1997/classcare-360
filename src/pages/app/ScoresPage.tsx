@@ -1053,15 +1053,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
       setSelectedAssessmentId(nextSelectedAssessmentId);
       setIsLoading(false);
 
-      // Check if student distribution in classrooms is mismatched
-      const p5Count = nextStudents.filter((s) => {
-        const c = nextClassrooms.find((cls) => cls.id === s.classroom_id);
-        return c?.name?.includes('5');
-      }).length;
-      if (p5Count > 20 && !demoMode && session.workspace) {
-        console.warn('Misplaced students detected in ScoresPage. Auto-realigning...');
-        void autoRealignAllStudentsToCorrectRooms(session);
-      }
     }
 
     void loadBaseData();

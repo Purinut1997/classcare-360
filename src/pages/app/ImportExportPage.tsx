@@ -876,7 +876,39 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   }
 
   async function ensureClassroomByName(classroomName: string, gradeLevel?: string) {
-    const existing = classrooms.find((classroom) => classroom.name === classroomName);
+    const raw = classroomName.trim();
+
+    // 1. Direct exact match
+    let existing = classrooms.find((classroom) => classroom.name === raw);
+
+    // 2. Intelligent matching: if incoming is "ป.5" or "ประถมศึกษาปีที่ 5", match existing "ป.5/1"
+    if (!existing) {
+      const matchGrade = raw.match(/^(?:ชั้น)?(?:ประถมศึกษาปีที่|ป\.)?\s*([1-6])(?:\/(\d+))?$/);
+      if (matchGrade) {
+        const gradeNum = matchGrade[1];
+        const roomNum = matchGrade[2] || '1';
+        existing = classrooms.find((c) =>
+          c.status === 'active' && (
+            c.name === `ป.${gradeNum}/${roomNum}` ||
+            c.name === `ประถมศึกษาปีที่ ${gradeNum}/${roomNum}` ||
+            c.name.includes(`${gradeNum}/${roomNum}`) ||
+            c.name.includes(`ป.${gradeNum}`)
+          )
+        ) || classrooms.find((c) =>
+          c.name === `ป.${gradeNum}/${roomNum}` ||
+          c.name === `ประถมศึกษาปีที่ ${gradeNum}/${roomNum}` ||
+          c.name.includes(`ป.${gradeNum}`)
+        );
+      }
+    }
+
+    // 3. Match against current workspace classroom
+    if (!existing && session.workspace?.classroomName) {
+      if (session.workspace.classroomName === raw || session.workspace.classroomName.startsWith(raw)) {
+        existing = classrooms.find((c) => c.name === session.workspace?.classroomName);
+      }
+    }
+
     if (existing?.status === 'active') return existing.id;
 
     if (existing) {
@@ -2074,23 +2106,22 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 type="button"
               >
                 <Upload size={17} aria-hidden="true" />
-                Import แถวที่ผ่าน (โหมดฟื้นคืนชีพ)
+                นำเข้ารายชื่อนักเรียน ({validPreviewRows.length} คน)
               </button>
             </div>
 
-            {/* Target Classroom & Reactivate Mode Banner */}
+            {/* Target Classroom Selection Banner */}
             {previewRows.length > 0 && (
               <div className="mt-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-50/60 to-emerald-50/40 p-4 dark:border-cyan-500/20 dark:from-cyan-950/20 dark:to-emerald-950/20">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-black text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                        <Sparkles size={12} /> โหมดฟื้นคืนชีพและอัปเดต (Reactivate & Update)
+                      <span className="flex items-center gap-1 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-black text-cyan-800 dark:text-cyan-300 border border-cyan-500/30">
+                        <Sparkles size={12} /> ห้องเรียนเป้าหมายสำหรับนักเรียนที่นำเข้า
                       </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">กำหนดห้องเรียนเป้าหมาย</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-700 dark:text-slate-300 font-bold">
-                      หากมีรหัสตรงกับนักเรียนที่เคยถูกเก็บถาวร ระบบจะดึงกลับมาเป็น "กำลังเรียน (Active)" ให้ทันที
+                      เลือกห้องเรียนที่จะผูกกับรายชื่อนักเรียน หรือแยกตามข้อมูลห้องในไฟล์
                     </p>
                   </div>
 

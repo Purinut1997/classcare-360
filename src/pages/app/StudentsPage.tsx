@@ -1361,13 +1361,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [isRealigning, setIsRealigning] = useState(false);
   const autoRealignRef = useRef(false);
 
-  useEffect(() => {
-    if (wrongRoomStudents.length > 0 && !autoRealignRef.current && useRealBackend) {
-      autoRealignRef.current = true;
-      console.warn('StudentsPage detected misplaced students in rooms, auto-healing now...');
-      void handleAutoRealignStudents();
-    }
-  }, [wrongRoomStudents.length, useRealBackend]);
 
   async function handleAutoRealignStudents() {
     setIsRealigning(true);

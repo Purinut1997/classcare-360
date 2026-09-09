@@ -184,19 +184,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
       if (error) throw error;
 
-      // Detect if students in this room belong to another grade
-      const expectedCodes = new Set(master.students.map((s) => s.student_code));
-      const hasWrongRoomStudents = data && data.length > 0 && data.some((s) => !expectedCodes.has(s.student_code));
-      const cleanData = data ? data.filter((s) => expectedCodes.has(s.student_code)) : [];
-
-      if (hasWrongRoomStudents) {
-        console.warn(`Students in ${roomName} are in the wrong room. Auto-realigning...`);
-        autoRealignAllStudentsToCorrectRooms(session).then((res) => {
-          if (res.success) {
-            void loadClassroomStudents();
-          }
-        });
-      }
+      const cleanData = data || [];
 
       if (cleanData.length > 0) {
         const mapped: StudentAcademicSummary[] = cleanData.map((s, idx) => {

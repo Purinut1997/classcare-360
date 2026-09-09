@@ -1290,115 +1290,8 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
         }
       }
 
-      // Insert any missing students from master data
-      for (const [gradeData, targetId] of [
-        [P4_MASTER_DATA, p4TargetId],
-        [P5_MASTER_DATA, p5TargetId],
-        [P6_MASTER_DATA, p6TargetId],
-      ] as const) {
-        for (const st of gradeData.students) {
-          if (!seenOfficialCodes.has(st.student_code)) {
-            try {
-              await supabase.from('students').insert({
-                workspace_id: workspaceId,
-                classroom_id: targetId,
-                student_code: st.student_code,
-                first_name: st.first_name,
-                last_name: st.last_name,
-                gender: st.gender,
-                birth_date: st.birth_date,
-                status: 'active',
-                metadata: {
-                  national_id: st.national_id,
-                  citizen_id: st.national_id,
-                  address: st.address,
-                  father_name: st.father_name,
-                  mother_name: st.mother_name,
-                  parent_name: st.parent_name,
-                  parent_relation: st.parent_relation,
-                  birth_date_thai: st.birth_date_thai,
-                },
-              });
-              seenOfficialCodes.add(st.student_code);
-              realignedCount++;
-            } catch (insertErr) {
-              console.warn('Could not insert missing student:', st.student_code, insertErr);
-            }
-          }
-        }
-      }
-
-      // 4. Prepare complete payloads for all 52 students and upsert
-      const allPayloads = [
-        ...P4_MASTER_DATA.students.map((st) => ({
-          workspace_id: workspaceId,
-          classroom_id: p4TargetId,
-          student_code: st.student_code,
-          first_name: st.first_name,
-          last_name: st.last_name,
-          gender: st.gender,
-          birth_date: st.birth_date,
-          status: 'active' as const,
-          metadata: {
-            national_id: st.national_id,
-            citizen_id: st.national_id,
-            address: st.address,
-            father_name: st.father_name,
-            mother_name: st.mother_name,
-            parent_name: st.parent_name,
-            parent_relation: st.parent_relation,
-            birth_date_thai: st.birth_date_thai,
-          },
-        })),
-        ...P5_MASTER_DATA.students.map((st) => ({
-          workspace_id: workspaceId,
-          classroom_id: p5TargetId,
-          student_code: st.student_code,
-          first_name: st.first_name,
-          last_name: st.last_name,
-          gender: st.gender,
-          birth_date: st.birth_date,
-          status: 'active' as const,
-          metadata: {
-            national_id: st.national_id,
-            citizen_id: st.national_id,
-            address: st.address,
-            father_name: st.father_name,
-            mother_name: st.mother_name,
-            parent_name: st.parent_name,
-            parent_relation: st.parent_relation,
-            birth_date_thai: st.birth_date_thai,
-          },
-        })),
-        ...P6_MASTER_DATA.students.map((st) => ({
-          workspace_id: workspaceId,
-          classroom_id: p6TargetId,
-          student_code: st.student_code,
-          first_name: st.first_name,
-          last_name: st.last_name,
-          gender: st.gender,
-          birth_date: st.birth_date,
-          status: 'active' as const,
-          metadata: {
-            national_id: st.national_id,
-            citizen_id: st.national_id,
-            address: st.address,
-            father_name: st.father_name,
-            mother_name: st.mother_name,
-            parent_name: st.parent_name,
-            parent_relation: st.parent_relation,
-            birth_date_thai: st.birth_date_thai,
-          },
-        })),
-      ];
-
-      try {
-        await supabase.from('students').upsert(allPayloads, {
-          onConflict: 'workspace_id,student_code',
-        });
-      } catch (upsertErr) {
-        console.warn('Students upsert fallback:', upsertErr);
-      }
+      // Note: We do NOT insert missing students here. If a student was deleted by a teacher,
+      // they must remain deleted and NOT be resurrected automatically!
 
       // 5. Upsert 10 official subjects for each grade
       for (const [gradeLabel, dataObj] of [
@@ -1426,7 +1319,7 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
       return {
         success: true,
         message: `จัดระเบียบย้ายนักเรียนเข้าห้องที่ถูกต้องเรียบร้อยแล้ว: ป.4 (16 คน), ป.5 (20 คน), ป.6 (16 คน) รวมแก้ไข ${realignedCount} รายการ`,
-        realignedCount: realignedCount || allPayloads.length,
+        realignedCount: realignedCount,
         p4Count: P4_MASTER_DATA.students.length,
         p5Count: P5_MASTER_DATA.students.length,
         p6Count: P6_MASTER_DATA.students.length,
