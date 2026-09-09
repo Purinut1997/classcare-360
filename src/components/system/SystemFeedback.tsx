@@ -214,66 +214,241 @@ export function installSystemNetworkFeedback() {
 }
 
 
-const toneIcons = {
-  success: CheckCircle2,
-  error: CircleAlert,
-  warning: AlertTriangle,
-  info: Info,
+const toneConfig = {
+  success: {
+    icon: CheckCircle2,
+    badgeText: 'สำเร็จ',
+    badgeClass: 'badge-success',
+  },
+  error: {
+    icon: CircleAlert,
+    badgeText: 'ข้อผิดพลาด',
+    badgeClass: 'badge-error',
+  },
+  warning: {
+    icon: AlertTriangle,
+    badgeText: 'คำเตือน',
+    badgeClass: 'badge-warning',
+  },
+  info: {
+    icon: Info,
+    badgeText: 'ข้อมูลระบบ',
+    badgeClass: 'badge-info',
+  },
+};
+
+const ATTENDANCE_KEYS = new Set(['มา', 'ขาด', 'สาย', 'ลา', 'ป่วย', 'กิจกรรม']);
+const META_KEYS = new Set(['วันที่', 'ห้องเรียน', 'ช่วงเวลา', 'วัน/เวลา', 'เวลา', 'ภาคเรียน', 'ปีการศึกษา']);
+
+const ATTENDANCE_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; text: string }> = {
+  'มา': {
+    label: 'มาเรียน',
+    color: '#10b981',
+    bg: 'rgba(16, 185, 129, 0.12)',
+    border: 'rgba(16, 185, 129, 0.28)',
+    text: '#34d399',
+  },
+  'ขาด': {
+    label: 'ขาดเรียน',
+    color: '#f43f5e',
+    bg: 'rgba(244, 63, 94, 0.12)',
+    border: 'rgba(244, 63, 94, 0.28)',
+    text: '#fb7185',
+  },
+  'สาย': {
+    label: 'มาสาย',
+    color: '#f59e0b',
+    bg: 'rgba(245, 158, 11, 0.12)',
+    border: 'rgba(245, 158, 11, 0.28)',
+    text: '#fbbf24',
+  },
+  'ลา': {
+    label: 'ลากิจ',
+    color: '#38bdf8',
+    bg: 'rgba(56, 189, 248, 0.12)',
+    border: 'rgba(56, 189, 248, 0.28)',
+    text: '#7dd3fc',
+  },
+  'ป่วย': {
+    label: 'ลาป่วย',
+    color: '#a78bfa',
+    bg: 'rgba(167, 139, 250, 0.12)',
+    border: 'rgba(167, 139, 250, 0.28)',
+    text: '#c4b5fd',
+  },
+  'กิจกรรม': {
+    label: 'กิจกรรม',
+    color: '#2dd4bf',
+    bg: 'rgba(45, 212, 191, 0.12)',
+    border: 'rgba(45, 212, 191, 0.28)',
+    text: '#5eead4',
+  },
 };
 
 const Toast = memo(function Toast({
   item,
   onDismiss,
+  onPause,
+  onResume,
 }: {
   item: FeedbackItem;
   onDismiss: (id: number) => void;
+  onPause?: () => void;
+  onResume?: () => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(item.tone === 'error' || (item.details?.length || 0) >= 4);
-  const Icon = toneIcons[item.tone];
+  const config = toneConfig[item.tone] || toneConfig.info;
+  const Icon = config.icon;
+  const duration = item.duration ?? (item.tone === 'error' ? 9000 : 6500);
+
+  // Categorize details if available
+  const metaDetails: FeedbackDetail[] = [];
+  const attendanceDetails: FeedbackDetail[] = [];
+  const generalDetails: FeedbackDetail[] = [];
+
+  item.details?.forEach((detail) => {
+    if (ATTENDANCE_KEYS.has(detail.label)) {
+      attendanceDetails.push(detail);
+    } else if (META_KEYS.has(detail.label)) {
+      metaDetails.push(detail);
+    } else {
+      generalDetails.push(detail);
+    }
+  });
+
+  const hasAttendance = attendanceDetails.length > 0;
+  const totalDetailsCount = item.details?.length || 0;
 
   return (
-    <article className={`system-toast is-${item.tone}`} role={item.tone === 'error' ? 'alert' : 'status'}>
-      <div className="system-toast-icon">
-        <Icon size={20} aria-hidden="true" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="system-toast-title">{item.title}</p>
-            {item.message ? <p className="system-toast-message">{item.message}</p> : null}
+    <article
+      className={`system-toast is-${item.tone}`}
+      onMouseEnter={onPause}
+      onMouseLeave={onResume}
+      role={item.tone === 'error' ? 'alert' : 'status'}
+    >
+      <div className="system-toast-body">
+        <div className="flex items-start gap-3">
+          {/* Tone glowing icon */}
+          <div className="system-toast-icon-wrap" aria-hidden="true">
+            <Icon size={18} strokeWidth={2.2} />
           </div>
-          <button
-            aria-label="ปิดการแจ้งเตือน"
-            className="system-toast-close"
-            onClick={() => onDismiss(item.id)}
-            type="button"
-          >
-            <X size={16} aria-hidden="true" />
-          </button>
-        </div>
-        {item.details?.length ? (
-          <>
-            <button
-              className="system-toast-details-toggle"
-              onClick={() => setIsExpanded((current) => !current)}
-              type="button"
-            >
-              {isExpanded ? 'ซ่อนรายละเอียด' : `ดูรายละเอียด ${item.details.length} รายการ`}
-              <ChevronDown className={isExpanded ? 'rotate-180' : ''} size={14} aria-hidden="true" />
-            </button>
-            {isExpanded ? (
-              <dl className="system-toast-details">
-                {item.details.map((detail) => (
-                  <div key={`${detail.label}-${detail.value}`}>
-                    <dt>{detail.label}</dt>
-                    <dd>{detail.value}</dd>
+
+          {/* Main content */}
+          <div className="min-w-0 flex-1 pt-0.5">
+            {/* Header row: Tone badge + Time + Close */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className={`system-toast-badge ${config.badgeClass}`}>
+                  {config.badgeText}
+                </span>
+                <span className="text-[11px] text-slate-400/80 font-medium">เมื่อสักครู่</span>
+              </div>
+              <button
+                aria-label="ปิดการแจ้งเตือน"
+                className="system-toast-close"
+                onClick={() => onDismiss(item.id)}
+                type="button"
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Title & Message */}
+            <div className="mt-1.5">
+              <h4 className="system-toast-title">{item.title}</h4>
+              {item.message ? <p className="system-toast-message">{item.message}</p> : null}
+            </div>
+
+            {/* Expandable details button */}
+            {totalDetailsCount > 0 ? (
+              <div className="mt-2.5">
+                <button
+                  className="system-toast-details-toggle"
+                  onClick={() => setIsExpanded((current) => !current)}
+                  type="button"
+                  aria-expanded={isExpanded}
+                >
+                  <span>
+                    {isExpanded ? 'ซ่อนรายละเอียด' : `ดูรายละเอียด (${totalDetailsCount} รายการ)`}
+                  </span>
+                  <ChevronDown
+                    className={`system-toast-toggle-icon ${isExpanded ? 'is-open' : ''}`}
+                    size={13}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {/* Structured Details Container */}
+                {isExpanded ? (
+                  <div className="system-toast-details-box system-toast-details">
+                    {/* Meta badges row (Classroom, Date, Period) */}
+                    {metaDetails.length > 0 ? (
+                      <div className="system-toast-meta-chips">
+                        {metaDetails.map((meta) => (
+                          <span key={`${meta.label}-${meta.value}`} className="system-toast-meta-chip">
+                            <span className="system-toast-meta-chip-label">{meta.label}</span>
+                            <span className="system-toast-meta-chip-val">{meta.value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {/* Attendance Stat Grid if attendance details exist */}
+                    {hasAttendance ? (
+                      <div className="system-toast-stat-grid">
+                        {attendanceDetails.map((stat) => {
+                          const cfg = ATTENDANCE_CONFIG[stat.label];
+                          const isZero = stat.value === '0 คน' || stat.value === '0';
+                          return (
+                            <div
+                              key={stat.label}
+                              className={`system-toast-stat-card ${isZero ? 'is-zero' : 'is-highlight'}`}
+                              style={{
+                                '--stat-color': cfg?.color || '#94a3b8',
+                                '--stat-bg': cfg?.bg || 'rgba(255, 255, 255, 0.04)',
+                                '--stat-border': cfg?.border || 'rgba(255, 255, 255, 0.08)',
+                                '--stat-text': cfg?.text || '#e2e8f0',
+                              } as React.CSSProperties}
+                            >
+                              <div className="system-toast-stat-header">
+                                <span className="system-toast-stat-dot" />
+                                <span className="system-toast-stat-label">{cfg?.label || stat.label}</span>
+                              </div>
+                              <span className="system-toast-stat-val">{stat.value}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    {/* General details list (Network, Operation, etc.) */}
+                    {generalDetails.length > 0 ? (
+                      <div className="system-toast-general-list">
+                        {generalDetails.map((detail) => (
+                          <div key={`${detail.label}-${detail.value}`} className="system-toast-general-row">
+                            <span className="system-toast-general-label">{detail.label}</span>
+                            <span className="system-toast-general-val">{detail.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                ))}
-              </dl>
+                ) : null}
+              </div>
             ) : null}
-          </>
-        ) : null}
+          </div>
+        </div>
       </div>
+
+      {/* Auto-dismiss animated progress bar */}
+      {duration > 0 ? (
+        <div className="system-toast-progress-track">
+          <div
+            className="system-toast-progress-bar"
+            style={{ animationDuration: `${duration}ms` }}
+          />
+        </div>
+      ) : null}
     </article>
   );
 });
@@ -293,6 +468,19 @@ export function SystemFeedbackProvider({ children }: { children: ReactNode }) {
     timers.current.delete(id);
     setItems((current) => current.filter((item) => item.id !== id));
   }, []);
+
+  const pauseTimer = useCallback((id: number) => {
+    const timer = timers.current.get(id);
+    if (timer) {
+      window.clearTimeout(timer);
+      timers.current.delete(id);
+    }
+  }, []);
+
+  const resumeTimer = useCallback((id: number, delayMs = 3500) => {
+    if (timers.current.has(id)) return;
+    timers.current.set(id, window.setTimeout(() => dismiss(id), delayMs));
+  }, [dismiss]);
 
   const notify = useCallback((input: FeedbackInput) => {
     const signature = `${input.tone || 'info'}:${input.title}:${input.message || ''}`;
@@ -410,7 +598,15 @@ export function SystemFeedbackProvider({ children }: { children: ReactNode }) {
         </div>
       ) : null}
       <aside aria-label="สถานะการทำงานของระบบ" className="system-toast-stack">
-        {items.map((item) => <Toast item={item} key={item.id} onDismiss={dismiss} />)}
+        {items.map((item) => (
+          <Toast
+            item={item}
+            key={item.id}
+            onDismiss={dismiss}
+            onPause={() => pauseTimer(item.id)}
+            onResume={() => resumeTimer(item.id)}
+          />
+        ))}
       </aside>
     </SystemFeedbackContext.Provider>
   );
