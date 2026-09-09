@@ -1,10 +1,11 @@
-/* eslint-disable react-refresh/only-export-components */
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
   CircleAlert,
+  Clock,
   Info,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import {
@@ -306,7 +307,7 @@ const Toast = memo(function Toast({
   onPause?: () => void;
   onResume?: () => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(item.tone === 'error' || (item.details?.length || 0) >= 4);
+  const [isExpanded, setIsExpanded] = useState(false);
   const config = toneConfig[item.tone] || toneConfig.info;
   const Icon = config.icon;
   const duration = item.duration ?? (item.tone === 'error' ? 9000 : 6500);
@@ -316,42 +317,64 @@ const Toast = memo(function Toast({
   const attendanceDetails: FeedbackDetail[] = [];
   const generalDetails: FeedbackDetail[] = [];
 
+  let statusDetail: FeedbackDetail | null = null;
+  let durationDetail: FeedbackDetail | null = null;
+  let codeDetail: FeedbackDetail | null = null;
+
   item.details?.forEach((detail) => {
     if (ATTENDANCE_KEYS.has(detail.label)) {
       attendanceDetails.push(detail);
     } else if (META_KEYS.has(detail.label)) {
       metaDetails.push(detail);
+    } else if (detail.label === 'สถานะ') {
+      statusDetail = detail;
+    } else if (detail.label === 'ระยะเวลา') {
+      durationDetail = detail;
+    } else if (detail.label === 'รหัสตอบกลับ' || detail.label === 'HTTP Status') {
+      codeDetail = detail;
+    } else if (
+      detail.label === 'รายการ' &&
+      (detail.value === item.message || detail.value === item.title)
+    ) {
+      // Omit redundant duplicate action text that clutters the UI
     } else {
       generalDetails.push(detail);
     }
   });
 
   const hasAttendance = attendanceDetails.length > 0;
-  const totalDetailsCount = item.details?.length || 0;
+  const hasMeta = metaDetails.length > 0;
+  const hasStatusPills = Boolean(statusDetail || durationDetail || codeDetail);
+  const hasGeneral = generalDetails.length > 0;
+  const hasAnyDetails = hasAttendance || hasMeta || hasStatusPills || hasGeneral;
 
   return (
     <article
-      className={`system-toast is-${item.tone}`}
+      className={`system-toast is-${item.tone} group`}
       onMouseEnter={onPause}
       onMouseLeave={onResume}
       role={item.tone === 'error' ? 'alert' : 'status'}
     >
-      <div className="system-toast-body">
-        <div className="flex items-start gap-3">
-          {/* Tone glowing icon */}
+      {/* Specular light highlight */}
+      <div className="system-toast-specular" aria-hidden="true" />
+
+      <div className="system-toast-body relative z-10">
+        <div className="flex items-start gap-3.5">
+          {/* Tone glowing icon jewel */}
           <div className="system-toast-icon-wrap" aria-hidden="true">
-            <Icon size={18} strokeWidth={2.2} />
+            <Icon size={18} strokeWidth={2.4} />
           </div>
 
           {/* Main content */}
           <div className="min-w-0 flex-1 pt-0.5">
-            {/* Header row: Tone badge + Time + Close */}
+            {/* Header row: Tone badge with pulsing dot + Time + Close */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className={`system-toast-badge ${config.badgeClass}`}>
+                  <span className="system-toast-badge-dot" />
                   {config.badgeText}
                 </span>
-                <span className="text-[11px] text-slate-400/80 font-medium">เมื่อสักครู่</span>
+                <span className="text-[11px] font-medium text-slate-400/80">เมื่อสักครู่</span>
               </div>
               <button
                 aria-label="ปิดการแจ้งเตือน"
@@ -359,18 +382,22 @@ const Toast = memo(function Toast({
                 onClick={() => onDismiss(item.id)}
                 type="button"
               >
-                <X size={15} aria-hidden="true" />
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
 
             {/* Title & Message */}
-            <div className="mt-1.5">
+            <div className="mt-1.5 space-y-0.5">
               <h4 className="system-toast-title">{item.title}</h4>
-              {item.message ? <p className="system-toast-message">{item.message}</p> : null}
+              {item.message ? (
+                <p className="system-toast-message line-clamp-2" title={item.message}>
+                  {item.message}
+                </p>
+              ) : null}
             </div>
 
             {/* Expandable details button */}
-            {totalDetailsCount > 0 ? (
+            {hasAnyDetails ? (
               <div className="mt-2.5">
                 <button
                   className="system-toast-details-toggle"
@@ -378,12 +405,10 @@ const Toast = memo(function Toast({
                   type="button"
                   aria-expanded={isExpanded}
                 >
-                  <span>
-                    {isExpanded ? 'ซ่อนรายละเอียด' : `ดูรายละเอียด (${totalDetailsCount} รายการ)`}
-                  </span>
+                  <span>{isExpanded ? 'ย่อรายละเอียด' : 'ดูรายละเอียด'}</span>
                   <ChevronDown
                     className={`system-toast-toggle-icon ${isExpanded ? 'is-open' : ''}`}
-                    size={13}
+                    size={12}
                     aria-hidden="true"
                   />
                 </button>
@@ -391,8 +416,32 @@ const Toast = memo(function Toast({
                 {/* Structured Details Container */}
                 {isExpanded ? (
                   <div className="system-toast-details-box system-toast-details">
+                    {/* Executive Status Pills */}
+                    {hasStatusPills ? (
+                      <div className="system-toast-pill-row">
+                        {statusDetail ? (
+                          <span className="system-toast-pill is-status">
+                            <CheckCircle2 size={11} className="shrink-0" />
+                            <span>{(statusDetail as FeedbackDetail).value}</span>
+                          </span>
+                        ) : null}
+                        {durationDetail ? (
+                          <span className="system-toast-pill is-timing">
+                            <Clock size={11} className="shrink-0" />
+                            <span>{(durationDetail as FeedbackDetail).value}</span>
+                          </span>
+                        ) : null}
+                        {codeDetail ? (
+                          <span className="system-toast-pill is-code">
+                            <ShieldCheck size={11} className="shrink-0" />
+                            <span>HTTP {(codeDetail as FeedbackDetail).value}</span>
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     {/* Meta badges row (Classroom, Date, Period) */}
-                    {metaDetails.length > 0 ? (
+                    {hasMeta ? (
                       <div className="system-toast-meta-chips">
                         {metaDetails.map((meta) => (
                           <span key={`${meta.label}-${meta.value}`} className="system-toast-meta-chip">
@@ -432,7 +481,7 @@ const Toast = memo(function Toast({
                     ) : null}
 
                     {/* General details list (Network, Operation, etc.) */}
-                    {generalDetails.length > 0 ? (
+                    {hasGeneral ? (
                       <div className="system-toast-general-list">
                         {generalDetails.map((detail) => (
                           <div key={`${detail.label}-${detail.value}`} className="system-toast-general-row">

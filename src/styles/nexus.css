@@ -835,47 +835,59 @@
   bottom: auto;
 }
 :root[data-theme="nexus"] .system-toast {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: linear-gradient(
-    140deg,
-    rgba(22, 24, 28, 0.96) 0%,
-    rgba(14, 16, 20, 0.98) 100%
+    145deg,
+    rgba(17, 24, 39, 0.92) 0%,
+    rgba(11, 17, 28, 0.98) 100%
   );
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.65),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    0 24px 60px rgba(0, 0, 0, 0.75),
+    0 8px 20px -6px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 1px 0 rgba(255, 255, 255, 0.22) inset;
+  backdrop-filter: blur(28px) saturate(190%);
 }
 :root[data-theme="nexus"] .system-toast.is-success {
   --toast-accent: var(--nx-mint, #42e8b8);
+  --toast-accent-bright: #6ee7b7;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.65),
-    0 0 30px -6px rgba(66, 232, 184, 0.2),
-    0 0 0 1px rgba(66, 232, 184, 0.22) inset;
+    0 24px 60px rgba(0, 0, 0, 0.75),
+    0 0 32px -4px rgba(66, 232, 184, 0.24),
+    0 0 0 1px rgba(66, 232, 184, 0.25) inset,
+    0 1px 0 rgba(255, 255, 255, 0.25) inset;
 }
 :root[data-theme="nexus"] .system-toast.is-error {
   --toast-accent: var(--nx-coral, #ff6384);
+  --toast-accent-bright: #fda4af;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.65),
-    0 0 30px -6px rgba(255, 99, 132, 0.2),
-    0 0 0 1px rgba(255, 99, 132, 0.22) inset;
+    0 24px 60px rgba(0, 0, 0, 0.75),
+    0 0 32px -4px rgba(255, 99, 132, 0.24),
+    0 0 0 1px rgba(255, 99, 132, 0.25) inset,
+    0 1px 0 rgba(255, 255, 255, 0.25) inset;
 }
 :root[data-theme="nexus"] .system-toast.is-warning {
   --toast-accent: var(--nx-amber, #ffb84d);
+  --toast-accent-bright: #fde68a;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.65),
-    0 0 30px -6px rgba(255, 184, 77, 0.2),
-    0 0 0 1px rgba(255, 184, 77, 0.22) inset;
+    0 24px 60px rgba(0, 0, 0, 0.75),
+    0 0 32px -4px rgba(255, 184, 77, 0.24),
+    0 0 0 1px rgba(255, 184, 77, 0.25) inset,
+    0 1px 0 rgba(255, 255, 255, 0.25) inset;
 }
 :root[data-theme="nexus"] .system-toast.is-info {
   --toast-accent: var(--nx-cyan, #22d3ee);
+  --toast-accent-bright: #bae6fd;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.65),
-    0 0 30px -6px rgba(34, 211, 238, 0.2),
-    0 0 0 1px rgba(34, 211, 238, 0.22) inset;
+    0 24px 60px rgba(0, 0, 0, 0.75),
+    0 0 32px -4px rgba(34, 211, 238, 0.24),
+    0 0 0 1px rgba(34, 211, 238, 0.25) inset,
+    0 1px 0 rgba(255, 255, 255, 0.25) inset;
 }
 :root[data-theme="nexus"] .system-toast-details-box {
-  background: rgba(0, 0, 0, 0.5);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(3, 7, 18, 0.75) 0%, rgba(15, 23, 42, 0.65) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 :root[data-theme="nexus"] ::selection {
