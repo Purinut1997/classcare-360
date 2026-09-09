@@ -1431,6 +1431,17 @@ export function StudentsPage({ session }: StudentsPageProps) {
     [classrooms, students],
   );
 
+  // นักเรียนในห้องที่ปรึกษา — ใช้สำหรับ view ที่ต้องการแสดงเฉพาะห้อที่ปรึกษา (เยี่ยมบ้าน)
+  const homeroomScope = useMemo(() => getTeacherClassroomScope(session, classrooms), [classrooms, session]);
+  const homeroomStudents = useMemo(() => {
+    const homeroomIds = new Set(homeroomScope.homeroomClassrooms.map((c) => c.id));
+    // ถ้าไม่มีห้องที่ปรึกษาชัดเจน ให้ fallback เป็นนักเรียนทั้งหมด
+    if (homeroomIds.size === 0) return studentSwitcherOptions;
+    return studentSwitcherOptions.filter(
+      (s) => s.status === 'active' && s.classroom_id && homeroomIds.has(s.classroom_id),
+    );
+  }, [homeroomScope.homeroomClassrooms, studentSwitcherOptions]);
+
   useEffect(() => {
     if (requestedStudentId && students.some((student) => student.id === requestedStudentId)) {
       setSelectedStudentId(requestedStudentId);
@@ -3481,7 +3492,16 @@ export function StudentsPage({ session }: StudentsPageProps) {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800 ring-1 ring-amber-100">
                 <UserRound size={15} aria-hidden="true" />
-                เลือกนักเรียน
+                {activeStudentView === 'home-visit' ? (
+                  <>
+                    ห้อที่ปรึกษา
+                    {homeroomScope.homeroomClassrooms[0] && (
+                      <span className="rounded-full bg-amber-200/60 px-2 py-0.5 text-[10px] font-black text-amber-900">
+                        {homeroomScope.homeroomClassrooms.map((c) => c.name).join(', ')}
+                      </span>
+                    )}
+                  </>
+                ) : 'เลือกนักเรียน'}
               </div>
               <h2 className="mt-3 truncate text-2xl font-black text-slate-950">
                 {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}
@@ -3494,15 +3514,17 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
 
             <label className="grid gap-2 text-sm font-black text-slate-700">
-              เปลี่ยนนักเรียนในหน้านี้
+              {activeStudentView === 'home-visit'
+                ? `เลือกนักเรียนในห้องที่ปรึกษา (${homeroomStudents.length} คน)`
+                : 'เปลี่ยนนักเรียนในหน้านี้'}
               <select
                 className="nexus-field h-12 w-full px-3"
-                disabled={studentSwitcherOptions.length === 0}
+                disabled={(activeStudentView === 'home-visit' ? homeroomStudents : studentSwitcherOptions).length === 0}
                 onChange={(event) => setSelectedStudentId(event.target.value)}
                 value={selectedStudent?.id || ''}
               >
-                {studentSwitcherOptions.length === 0 ? <option value="">ยังไม่มีรายชื่อนักเรียน</option> : null}
-                {studentSwitcherOptions.map((student) => {
+                {(activeStudentView === 'home-visit' ? homeroomStudents : studentSwitcherOptions).length === 0 ? <option value="">ยังไม่มีรายชื่อนักเรียน</option> : null}
+                {(activeStudentView === 'home-visit' ? homeroomStudents : studentSwitcherOptions).map((student) => {
                   const classroom = classrooms.find((item) => item.id === student.classroom_id);
 
                   return (
