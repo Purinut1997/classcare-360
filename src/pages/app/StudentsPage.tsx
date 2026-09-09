@@ -41,6 +41,7 @@ import {
 import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { translateDatabaseError } from '../../lib/errorTranslator';
 import type { AppSessionContext } from '../../types/core';
 import {
   DEMO_PRIMARY_CLASSROOMS,
@@ -2363,77 +2364,117 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
-    // Step 1: Cascade delete child records to avoid foreign key violation
-    const childTables = [
-      'student_guardians',
-      'student_roster_reviews',
-      'student_behaviors',
-      'student_health_records',
-      'student_nutrition_growth',
-      'student_savings_transactions',
-      'attendance_records',
-      'score_records',
-      'desirable_characteristic_records',
-      'term_student_promotions',
-      'student_care_cases',
-      'student_home_visits',
-    ];
-    for (const table of childTables) {
-      try {
-        await supabase
-          .from(table)
-          .delete()
-          .eq('student_id', student.id);
-      } catch {
-        // ignore
-      }
-    }
-
-    // Step 2: Attempt delete from students
-    let deleteSucceeded = false;
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', student.id)
-        .eq('workspace_id', session.workspace.id)
-        .select('id');
-      if (!error && data && data.length > 0) {
-        deleteSucceeded = true;
-      }
-    } catch {
-      deleteSucceeded = false;
-    }
+      let deleteSucceeded = false;
+      let lastErrorMessage = '';
 
-    // Step 3: Fallback to archive & detach if hard delete was blocked
-    if (!deleteSucceeded) {
+      // Step 1: Call dedicated delete_students_permanently RPC
       try {
-        await supabase
-          .from('students')
-          .update({ status: 'archived', classroom_id: null })
-          .eq('id', student.id)
-          .eq('workspace_id', session.workspace.id);
+        const { error: rpcError } = await supabase.rpc('delete_students_permanently', {
+          target_workspace_id: session.workspace.id,
+          target_student_ids: [student.id],
+        });
+        if (!rpcError) {
+          deleteSucceeded = true;
+        } else {
+          lastErrorMessage = rpcError.message;
+        }
       } catch (e) {
-        console.warn('Fallback archive warning:', e);
+        lastErrorMessage = e instanceof Error ? e.message : 'RPC error';
       }
-    }
 
-    setStudents((current) => current.filter((item) => item.id !== student.id));
-    if (selectedStudentId === student.id) {
-      const nextStudent = students.find((item) => item.id !== student.id);
-      setSelectedStudentId(nextStudent?.id || '');
+      // Step 2: Fallback to delete_reviewed_duplicate_students RPC
+      if (!deleteSucceeded) {
+        try {
+          const { error: legacyRpcError } = await supabase.rpc('delete_reviewed_duplicate_students', {
+            target_workspace_id: session.workspace.id,
+            target_student_ids: [student.id],
+          });
+          if (!legacyRpcError) {
+            deleteSucceeded = true;
+          } else {
+            lastErrorMessage = legacyRpcError.message;
+          }
+        } catch (e) {
+          lastErrorMessage = e instanceof Error ? e.message : 'Legacy RPC error';
+        }
+      }
+
+      // Step 3: Direct cascading child cleanup and delete fallback
+      if (!deleteSucceeded) {
+        const childTables = [
+          'student_guardians',
+          'student_roster_reviews',
+          'student_behaviors',
+          'student_health_records',
+          'student_daily_health_logs',
+          'student_nutrition_growth',
+          'student_savings_transactions',
+          'attendance_records',
+          'score_records',
+          'desirable_characteristic_records',
+          'student_competency_records',
+          'student_activity_evaluations',
+          'term_student_promotions',
+          'student_year_transitions',
+          'student_care_cases',
+          'student_home_visits',
+          'official_academic_documents',
+          'student_profile_links',
+        ];
+        for (const table of childTables) {
+          try {
+            await supabase
+              .from(table)
+              .delete()
+              .eq('student_id', student.id);
+          } catch {
+            // ignore
+          }
+        }
+
+        const { data, error: directDeleteError } = await supabase
+          .from('students')
+          .delete()
+          .eq('id', student.id)
+          .eq('workspace_id', session.workspace.id)
+          .select('id');
+
+        if (!directDeleteError && data && data.length > 0) {
+          deleteSucceeded = true;
+        } else if (directDeleteError) {
+          lastErrorMessage = directDeleteError.message;
+        }
+      }
+
+      if (!deleteSucceeded) {
+        throw new Error(
+          lastErrorMessage
+            ? `ไม่สามารถลบออกจากฐานข้อมูลได้: ${lastErrorMessage}`
+            : 'ไม่สามารถลบข้อมูลนักเรียนออกจากระบบได้ กรุณาตรวจสอบสิทธิ์หรือรันสคริปต์ Migration 0074 ใน Supabase SQL Editor',
+        );
+      }
+
+      setStudents((current) => current.filter((item) => item.id !== student.id));
+      if (selectedStudentId === student.id) {
+        const nextStudent = students.find((item) => item.id !== student.id);
+        setSelectedStudentId(nextStudent?.id || '');
+      }
+      await writeAuditLog({
+        action: 'student.deleted',
+        entityId: student.id,
+        entityTable: 'students',
+        metadata: {
+          classroom_id: student.classroom_id,
+          student_code: student.student_code,
+        },
+        riskLevel: 'critical',
+      });
+      setNotice(`ลบนักเรียน ${studentName} ถาวรเรียบร้อยแล้ว`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'ลบไม่สำเร็จ';
+      setNotice(translateDatabaseError(msg));
     }
-    await writeAuditLog({
-      action: 'student.deleted',
-      entityId: student.id,
-      entityTable: 'students',
-      metadata: {
-        classroom_id: student.classroom_id,
-        student_code: student.student_code,
-      },
-      riskLevel: 'high',
-    });
-    setNotice(`ลบนักเรียน ${studentName} ถาวรแล้ว`);
   }
 
   async function handleCareSubmit(event: FormEvent<HTMLFormElement>) {

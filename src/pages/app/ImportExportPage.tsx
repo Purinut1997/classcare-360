@@ -1068,83 +1068,94 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     }
 
     try {
-      // Step 1: Cascade delete child records to prevent foreign key constraint errors
-      const childTables = [
-        'student_guardians',
-        'student_roster_reviews',
-        'student_behaviors',
-        'student_health_records',
-        'student_nutrition_growth',
-        'student_savings_transactions',
-        'attendance_records',
-        'score_records',
-        'desirable_characteristic_records',
-        'term_student_promotions',
-        'student_care_cases',
-        'student_home_visits',
-      ];
-      for (const table of childTables) {
+      let deleteSucceeded = false;
+      let lastErrorMessage = '';
+
+      // Step 1: Call dedicated delete_students_permanently RPC
+      try {
+        const { error: rpcError } = await supabase.rpc('delete_students_permanently', {
+          target_workspace_id: session.workspace.id,
+          target_student_ids: studentIds,
+        });
+        if (!rpcError) {
+          deleteSucceeded = true;
+        } else {
+          lastErrorMessage = rpcError.message;
+        }
+      } catch (e) {
+        lastErrorMessage = e instanceof Error ? e.message : 'RPC error';
+      }
+
+      // Step 2: Fallback to delete_reviewed_duplicate_students RPC
+      if (!deleteSucceeded) {
         try {
-          await supabase
-            .from(table)
-            .delete()
-            .in('student_id', studentIds);
-        } catch {
-          // Continue if table doesn't have records or isn't accessible
+          const { error: legacyRpcError } = await supabase.rpc('delete_reviewed_duplicate_students', {
+            target_workspace_id: session.workspace.id,
+            target_student_ids: studentIds,
+          });
+          if (!legacyRpcError) {
+            deleteSucceeded = true;
+          } else {
+            lastErrorMessage = legacyRpcError.message;
+          }
+        } catch (e) {
+          lastErrorMessage = e instanceof Error ? e.message : 'Legacy RPC error';
         }
       }
 
-      // Step 2: Ensure student status is updated to archived so the safe delete RPC accepts them
-      try {
-        await supabase
-          .from('students')
-          .update({ status: 'archived' })
-          .in('id', studentIds)
-          .eq('workspace_id', session.workspace.id);
-      } catch (e) {
-        console.warn('Status update before delete warning:', e);
-      }
-
-      // Step 3: Classify as duplicate so safety RPC accepts them
-      try {
-        await supabase.rpc('set_student_roster_reviews', {
-          target_classification: 'duplicate',
-          target_note: 'ยืนยันลบรายชื่อเก่า/ซ้ำถาวร',
-          target_student_ids: studentIds,
-          target_workspace_id: session.workspace.id,
-        });
-      } catch (e) {
-        console.warn('Review RPC warning:', e);
-      }
-
-      // Step 4: Attempt RPC delete
-      let deleteSucceeded = false;
-      try {
-        const { error: deleteError } = await supabase.rpc('delete_reviewed_duplicate_students', {
-          target_student_ids: studentIds,
-          target_workspace_id: session.workspace.id,
-        });
-        if (!deleteError) deleteSucceeded = true;
-      } catch {
-        deleteSucceeded = false;
-      }
-
-      // Step 5: Fallback to direct DELETE under owner/superadmin policy
+      // Step 3: Direct cascading cleanup and delete fallback
       if (!deleteSucceeded) {
-        const { error: directDeleteError } = await supabase
+        const childTables = [
+          'student_guardians',
+          'student_roster_reviews',
+          'student_behaviors',
+          'student_health_records',
+          'student_daily_health_logs',
+          'student_nutrition_growth',
+          'student_savings_transactions',
+          'attendance_records',
+          'score_records',
+          'desirable_characteristic_records',
+          'student_competency_records',
+          'student_activity_evaluations',
+          'term_student_promotions',
+          'student_year_transitions',
+          'student_care_cases',
+          'student_home_visits',
+          'official_academic_documents',
+          'student_profile_links',
+        ];
+        for (const table of childTables) {
+          try {
+            await supabase
+              .from(table)
+              .delete()
+              .in('student_id', studentIds);
+          } catch {
+            // Continue if table doesn't have records or isn't accessible
+          }
+        }
+
+        const { data, error: directDeleteError } = await supabase
           .from('students')
           .delete()
           .in('id', studentIds)
-          .eq('workspace_id', session.workspace.id);
+          .eq('workspace_id', session.workspace.id)
+          .select('id');
 
-        if (directDeleteError) {
-          // If direct delete is blocked by RLS, ensure they are archived and unlinked so they vanish from the active roster
-          await supabase
-            .from('students')
-            .update({ status: 'archived', classroom_id: null })
-            .in('id', studentIds)
-            .eq('workspace_id', session.workspace.id);
+        if (!directDeleteError && data && data.length > 0) {
+          deleteSucceeded = true;
+        } else if (directDeleteError) {
+          lastErrorMessage = directDeleteError.message;
         }
+      }
+
+      if (!deleteSucceeded) {
+        throw new Error(
+          lastErrorMessage
+            ? `ไม่สามารถลบออกจากฐานข้อมูลได้: ${lastErrorMessage}`
+            : 'ไม่สามารถลบข้อมูลนักเรียนออกจากระบบได้ กรุณาตรวจสอบสิทธิ์หรือรันสคริปต์ Migration 0074 ใน Supabase SQL Editor',
+        );
       }
 
       setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
@@ -1158,10 +1169,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           count: studentIds.length,
           student_ids: studentIds,
         },
-        riskLevel: 'high',
+        riskLevel: 'critical',
         source: 'import_export',
       });
-      setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อเรียบร้อยแล้ว`);
+      setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อออกจากระบบอย่างถาวรแล้ว`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'ลบไม่สำเร็จ';
       setNotice(translateDatabaseError(msg));
