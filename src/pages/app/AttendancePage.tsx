@@ -29,7 +29,7 @@ import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
-import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
+import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 
 interface AttendancePageProps {
   session: AppSessionContext;
@@ -165,10 +165,49 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
 
-  const classroomStudents = useMemo(
-    () => students.filter((student) => student.classroom_id === classroomId),
-    [classroomId, students],
-  );
+  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
+
+  const classroomStudents = useMemo(() => {
+    const rawClassroomStudents = students.filter((student) => student.classroom_id === classroomId);
+    if (!selectedClassroom) return rawClassroomStudents;
+
+    const master = getPrimaryMasterData(selectedClassroom.name);
+    const expectedCodes = new Set(master.students.map((s) => s.student_code));
+
+    // Filter students strictly belonging to this grade
+    const validStudents = rawClassroomStudents.filter((s) => s.student_code && expectedCodes.has(s.student_code));
+
+    // If some students belonging to this grade are currently assigned to another room (e.g. P.6 misplaced in P.5)
+    if (validStudents.length < master.students.length) {
+      const missingCodes = master.students
+        .map((s) => s.student_code)
+        .filter((code) => !validStudents.some((vs) => vs.student_code === code));
+
+      const foundElsewhere = students.filter((s) => s.student_code && missingCodes.includes(s.student_code));
+      if (foundElsewhere.length > 0) {
+        validStudents.push(...foundElsewhere);
+      }
+    }
+
+    if (validStudents.length > 0) {
+      const codeOrder = new Map(master.students.map((s, idx) => [s.student_code, idx]));
+      return validStudents.sort((a, b) => {
+        const orderA = a.student_code ? codeOrder.get(a.student_code) ?? 999 : 999;
+        const orderB = b.student_code ? codeOrder.get(b.student_code) ?? 999 : 999;
+        return orderA - orderB;
+      });
+    }
+
+    // Fallback if no students loaded yet
+    return master.students.map((st) => ({
+      id: `fallback-${st.student_code}`,
+      student_code: st.student_code,
+      first_name: st.first_name,
+      last_name: st.last_name,
+      nickname: st.first_name.slice(0, 3),
+      classroom_id: classroomId,
+    }));
+  }, [classroomId, selectedClassroom, students]);
 
   const summary = useMemo(
     () =>
@@ -192,7 +231,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'alert' | 'present'>('all');
   const rosterRef = useRef<HTMLDivElement>(null);
 
-  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
   const activeModeCopy = modeCopy[mode];
   const ModeIcon = activeModeCopy.icon;
   const sessionLabel = `${mode === 'homeroom' ? 'ประจำวัน' : 'รายวิชา'} | ${periodLabel}`;

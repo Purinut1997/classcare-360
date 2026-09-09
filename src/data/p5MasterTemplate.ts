@@ -1067,6 +1067,21 @@ export const ALL_GENUINE_STUDENTS = [
   ...P6_MASTER_DATA.students.map((s) => ({ ...s, grade_level: 'ป.6', classroom_name: 'ประถมศึกษาปีที่ 6' })),
 ];
 
+export function cleanThaiStudentName(name: string | null | undefined): string {
+  if (!name) return '';
+  return name
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-_.]+/g, '')
+    .replace(/^(เด็กชาย|เด็กหญิง|ด\.ช\.|ด\.ญ\.|นาย|นางสาว|น\.ส\.|ดช\.|ดญ\.)/g, '');
+}
+
+export function cleanStudentCode(code: string | number | null | undefined): string {
+  if (code === null || code === undefined) return '';
+  return String(code).trim().replace(/^0+/, '');
+}
+
 /**
  * Automatically detects and fixes students placed in the wrong classroom in Supabase or local state.
  * Ensures P.4 has its 16 students, P.5 has its 20 students, and P.6 has its 16 students.
@@ -1161,70 +1176,153 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
       const p5TargetId = p5Room?.id || 'demo-cls-p5';
       const p6TargetId = p6Room?.id || 'demo-cls-p6';
 
-      // 2. Build lookup maps for official students by code and full name
+      // 2. Build lookup maps for official students by code, national ID, and Thai name
       const officialMap = new Map<string, { targetRoomId: string; master: (typeof P5_MASTER_DATA.students)[0]; grade: string }>();
-      const normalizeName = (first: string, last: string) => `${first.trim().toLowerCase()}_${last.trim().toLowerCase()}`;
 
-      for (const st of P4_MASTER_DATA.students) {
-        officialMap.set(`code:${st.student_code}`, { targetRoomId: p4TargetId, master: st, grade: 'ป.4' });
-        officialMap.set(`name:${normalizeName(st.first_name, st.last_name)}`, { targetRoomId: p4TargetId, master: st, grade: 'ป.4' });
-      }
-      for (const st of P5_MASTER_DATA.students) {
-        officialMap.set(`code:${st.student_code}`, { targetRoomId: p5TargetId, master: st, grade: 'ป.5' });
-        officialMap.set(`name:${normalizeName(st.first_name, st.last_name)}`, { targetRoomId: p5TargetId, master: st, grade: 'ป.5' });
-      }
-      for (const st of P6_MASTER_DATA.students) {
-        officialMap.set(`code:${st.student_code}`, { targetRoomId: p6TargetId, master: st, grade: 'ป.6' });
-        officialMap.set(`name:${normalizeName(st.first_name, st.last_name)}`, { targetRoomId: p6TargetId, master: st, grade: 'ป.6' });
-      }
+      const registerMaster = (st: (typeof P5_MASTER_DATA.students)[0], targetRoomId: string, grade: string) => {
+        const item = { targetRoomId, master: st, grade };
+        const cCode = cleanStudentCode(st.student_code);
+        const cFirst = cleanThaiStudentName(st.first_name);
+        const cLast = cleanThaiStudentName(st.last_name);
+        if (cCode) officialMap.set(`code:${cCode}`, item);
+        if (cFirst && cLast) officialMap.set(`name:${cFirst}_${cLast}`, item);
+        if (st.national_id) officialMap.set(`nid:${st.national_id.trim()}`, item);
+        if (cLast) officialMap.set(`last:${cLast}`, item);
+        if (cFirst) officialMap.set(`first:${cFirst}`, item);
+      };
+
+      for (const st of P4_MASTER_DATA.students) registerMaster(st, p4TargetId, 'ป.4');
+      for (const st of P5_MASTER_DATA.students) registerMaster(st, p5TargetId, 'ป.5');
+      for (const st of P6_MASTER_DATA.students) registerMaster(st, p6TargetId, 'ป.6');
+
+      const findMatch = (st: { student_code?: string | null; first_name?: string | null; last_name?: string | null; metadata?: any }) => {
+        const nid = st.metadata?.national_id || st.metadata?.citizen_id;
+        if (nid) {
+          const m = officialMap.get(`nid:${String(nid).trim()}`);
+          if (m) return m;
+        }
+        const cCode = cleanStudentCode(st.student_code);
+        if (cCode) {
+          const m = officialMap.get(`code:${cCode}`);
+          if (m) return m;
+        }
+        const cFirst = cleanThaiStudentName(st.first_name);
+        const cLast = cleanThaiStudentName(st.last_name);
+        if (cFirst && cLast) {
+          const m = officialMap.get(`name:${cFirst}_${cLast}`);
+          if (m) return m;
+        }
+        if (cLast) {
+          const m = officialMap.get(`last:${cLast}`);
+          if (m) return m;
+        }
+        if (cFirst) {
+          const m = officialMap.get(`first:${cFirst}`);
+          if (m) return m;
+        }
+        return null;
+      };
 
       // 3. Query existing students from Supabase
       const { data: existingStudents } = await supabase
         .from('students')
-        .select('id, student_code, first_name, last_name, classroom_id')
+        .select('id, student_code, first_name, last_name, classroom_id, metadata, status')
         .eq('workspace_id', workspaceId);
 
       let realignedCount = 0;
       const seenOfficialCodes = new Set<string>();
 
       if (existingStudents && existingStudents.length > 0) {
-        // Sort so that students already in their correct room are kept first
+        // Sort so that students already in their correct room are processed first
         const sortedStudents = [...existingStudents].sort((a, b) => {
-          const matchA = (a.student_code ? officialMap.get(`code:${a.student_code}`) : null) || officialMap.get(`name:${normalizeName(a.first_name, a.last_name)}`);
-          const matchB = (b.student_code ? officialMap.get(`code:${b.student_code}`) : null) || officialMap.get(`name:${normalizeName(b.first_name, b.last_name)}`);
+          const matchA = findMatch(a);
+          const matchB = findMatch(b);
           const isCorrectA = matchA && a.classroom_id === matchA.targetRoomId ? 1 : 0;
           const isCorrectB = matchB && b.classroom_id === matchB.targetRoomId ? 1 : 0;
           return isCorrectB - isCorrectA;
         });
 
         for (const st of sortedStudents) {
-          const matched =
-            (st.student_code ? officialMap.get(`code:${st.student_code}`) : null) ||
-            officialMap.get(`name:${normalizeName(st.first_name, st.last_name)}`);
+          const matched = findMatch(st);
+          if (!matched) continue;
 
-          if (matched) {
-            const masterCode = matched.master.student_code;
+          const masterCode = matched.master.student_code;
 
-            // If we've already registered this official student, this extra record is a duplicate
-            if (seenOfficialCodes.has(masterCode)) {
+          // If we've already registered this official student, this extra record is a duplicate
+          if (seenOfficialCodes.has(masterCode)) {
+            try {
+              await supabase.from('students').update({ status: 'archived' }).eq('id', st.id);
+            } catch {}
+            try {
               await supabase.from('students').delete().eq('id', st.id);
-              realignedCount++;
-              continue;
-            }
+            } catch {}
+            realignedCount++;
+            continue;
+          }
 
-            seenOfficialCodes.add(masterCode);
+          seenOfficialCodes.add(masterCode);
 
-            // If student is currently in the wrong classroom, update immediately to the correct target room
-            if (st.classroom_id !== matched.targetRoomId || st.student_code !== masterCode) {
+          // If student is currently in the wrong classroom, update immediately to the correct target room
+          if (st.classroom_id !== matched.targetRoomId) {
+            try {
               await supabase
                 .from('students')
                 .update({
                   classroom_id: matched.targetRoomId,
-                  student_code: masterCode,
                   status: 'active',
                 })
                 .eq('id', st.id);
               realignedCount++;
+            } catch (err) {
+              console.warn('Could not move student to correct classroom:', st.id, err);
+            }
+          }
+
+          // Keep student code in sync
+          if (cleanStudentCode(st.student_code) !== masterCode) {
+            try {
+              await supabase
+                .from('students')
+                .update({ student_code: masterCode })
+                .eq('id', st.id);
+            } catch {}
+          }
+        }
+      }
+
+      // Insert any missing students from master data
+      for (const [gradeData, targetId] of [
+        [P4_MASTER_DATA, p4TargetId],
+        [P5_MASTER_DATA, p5TargetId],
+        [P6_MASTER_DATA, p6TargetId],
+      ] as const) {
+        for (const st of gradeData.students) {
+          if (!seenOfficialCodes.has(st.student_code)) {
+            try {
+              await supabase.from('students').insert({
+                workspace_id: workspaceId,
+                classroom_id: targetId,
+                student_code: st.student_code,
+                first_name: st.first_name,
+                last_name: st.last_name,
+                gender: st.gender,
+                birth_date: st.birth_date,
+                status: 'active',
+                metadata: {
+                  national_id: st.national_id,
+                  citizen_id: st.national_id,
+                  address: st.address,
+                  father_name: st.father_name,
+                  mother_name: st.mother_name,
+                  parent_name: st.parent_name,
+                  parent_relation: st.parent_relation,
+                  birth_date_thai: st.birth_date_thai,
+                },
+              });
+              seenOfficialCodes.add(st.student_code);
+              realignedCount++;
+            } catch (insertErr) {
+              console.warn('Could not insert missing student:', st.student_code, insertErr);
             }
           }
         }

@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
@@ -46,6 +46,7 @@ import {
   DEMO_PRIMARY_CLASSROOMS,
   DEMO_PRIMARY_STUDENTS,
   autoRealignAllStudentsToCorrectRooms,
+  getPrimaryMasterData,
   P4_MASTER_DATA,
   P5_MASTER_DATA,
   P6_MASTER_DATA,
@@ -1255,9 +1256,21 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
+    const activeFilterClassroom = rosterClassroomFilter !== 'all'
+      ? classrooms.find((c) => c.id === rosterClassroomFilter)
+      : null;
+    const master = activeFilterClassroom ? getPrimaryMasterData(activeFilterClassroom.name) : null;
+    const expectedCodes = master ? new Set(master.students.map((s) => s.student_code)) : null;
+
     return students.filter((student) => {
       if (rosterStatusFilter !== 'all' && student.status !== rosterStatusFilter) return false;
-      if (rosterClassroomFilter !== 'all' && student.classroom_id !== rosterClassroomFilter) return false;
+
+      if (expectedCodes && expectedCodes.size > 0) {
+        if (!student.student_code || !expectedCodes.has(student.student_code)) return false;
+      } else if (rosterClassroomFilter !== 'all' && student.classroom_id !== rosterClassroomFilter) {
+        return false;
+      }
+
       if (!normalizedQuery) return true;
 
       const classroom = classrooms.find((item) => item.id === student.classroom_id);
@@ -1345,6 +1358,15 @@ export function StudentsPage({ session }: StudentsPageProps) {
   }, [classrooms, students]);
 
   const [isRealigning, setIsRealigning] = useState(false);
+  const autoRealignRef = useRef(false);
+
+  useEffect(() => {
+    if (wrongRoomStudents.length > 0 && !autoRealignRef.current && useRealBackend) {
+      autoRealignRef.current = true;
+      console.warn('StudentsPage detected misplaced students in rooms, auto-healing now...');
+      void handleAutoRealignStudents();
+    }
+  }, [wrongRoomStudents.length, useRealBackend]);
 
   async function handleAutoRealignStudents() {
     setIsRealigning(true);
