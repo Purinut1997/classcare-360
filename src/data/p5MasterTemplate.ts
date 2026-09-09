@@ -1090,22 +1090,34 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
         .eq('workspace_id', workspaceId);
 
       const rooms = existingRooms || [];
-      let p4Room =
-        rooms.find((r) => r.status === 'active' && (r.name.includes('4') || r.grade_level?.includes('4'))) ||
-        rooms.find((r) => r.name.includes('4') || r.grade_level?.includes('4'));
-      let p5Room =
-        rooms.find((r) => r.status === 'active' && (r.name.includes('5') || r.grade_level?.includes('5'))) ||
-        rooms.find((r) => r.name.includes('5') || r.grade_level?.includes('5'));
-      let p6Room =
-        rooms.find((r) => r.status === 'active' && (r.name.includes('6') || r.grade_level?.includes('6'))) ||
-        rooms.find((r) => r.name.includes('6') || r.grade_level?.includes('6'));
+      // Helper to find the actual room used by the school (prioritizing "ป.4/1", "ป.5/1", "ป.6/1")
+      const findGradeRoom = (gradeNum: string) => {
+        const slashMatch =
+          rooms.find((r) => r.status === 'active' && (r.name.includes(`ป.${gradeNum}/1`) || r.name.includes(`${gradeNum}/1`))) ||
+          rooms.find((r) => r.name.includes(`ป.${gradeNum}/1`) || r.name.includes(`${gradeNum}/1`));
+        if (slashMatch) return slashMatch;
+
+        const shortMatch =
+          rooms.find((r) => r.status === 'active' && (r.name === `ป.${gradeNum}` || r.grade_level === `ป.${gradeNum}`)) ||
+          rooms.find((r) => r.name === `ป.${gradeNum}` || r.grade_level === `ป.${gradeNum}`);
+        if (shortMatch) return shortMatch;
+
+        return (
+          rooms.find((r) => r.status === 'active' && (r.name.includes(gradeNum) || r.grade_level?.includes(gradeNum))) ||
+          rooms.find((r) => r.name.includes(gradeNum) || r.grade_level?.includes(gradeNum))
+        );
+      };
+
+      let p4Room = findGradeRoom('4');
+      let p5Room = findGradeRoom('5');
+      let p6Room = findGradeRoom('6');
 
       if (!p4Room) {
         const { data: created } = await supabase
           .from('classrooms')
           .insert({
             workspace_id: workspaceId,
-            name: 'ประถมศึกษาปีที่ 4',
+            name: 'ป.4/1',
             grade_level: 'ป.4',
             academic_year: '2568',
             status: 'active',
@@ -1120,7 +1132,7 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
           .from('classrooms')
           .insert({
             workspace_id: workspaceId,
-            name: 'ประถมศึกษาปีที่ 5',
+            name: 'ป.5/1',
             grade_level: 'ป.5',
             academic_year: '2568',
             status: 'active',
@@ -1135,7 +1147,7 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
           .from('classrooms')
           .insert({
             workspace_id: workspaceId,
-            name: 'ประถมศึกษาปีที่ 6',
+            name: 'ป.6/1',
             grade_level: 'ป.6',
             academic_year: '2568',
             status: 'active',
@@ -1176,7 +1188,16 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
       const seenOfficialCodes = new Set<string>();
 
       if (existingStudents && existingStudents.length > 0) {
-        for (const st of existingStudents) {
+        // Sort so that students already in their correct room are kept first
+        const sortedStudents = [...existingStudents].sort((a, b) => {
+          const matchA = (a.student_code ? officialMap.get(`code:${a.student_code}`) : null) || officialMap.get(`name:${normalizeName(a.first_name, a.last_name)}`);
+          const matchB = (b.student_code ? officialMap.get(`code:${b.student_code}`) : null) || officialMap.get(`name:${normalizeName(b.first_name, b.last_name)}`);
+          const isCorrectA = matchA && a.classroom_id === matchA.targetRoomId ? 1 : 0;
+          const isCorrectB = matchB && b.classroom_id === matchB.targetRoomId ? 1 : 0;
+          return isCorrectB - isCorrectA;
+        });
+
+        for (const st of sortedStudents) {
           const matched =
             (st.student_code ? officialMap.get(`code:${st.student_code}`) : null) ||
             officialMap.get(`name:${normalizeName(st.first_name, st.last_name)}`);
@@ -1184,15 +1205,16 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
           if (matched) {
             const masterCode = matched.master.student_code;
 
-            // If we've already assigned this official student from another DB record, remove the duplicate
-            if (seenOfficialCodes.has(masterCode) && st.classroom_id !== matched.targetRoomId) {
+            // If we've already registered this official student, this extra record is a duplicate
+            if (seenOfficialCodes.has(masterCode)) {
               await supabase.from('students').delete().eq('id', st.id);
+              realignedCount++;
               continue;
             }
 
             seenOfficialCodes.add(masterCode);
 
-            // If student is currently in the wrong classroom, update immediately
+            // If student is currently in the wrong classroom, update immediately to the correct target room
             if (st.classroom_id !== matched.targetRoomId || st.student_code !== masterCode) {
               await supabase
                 .from('students')
@@ -1272,9 +1294,13 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
         })),
       ];
 
-      await supabase.from('students').upsert(allPayloads, {
-        onConflict: 'workspace_id,student_code',
-      });
+      try {
+        await supabase.from('students').upsert(allPayloads, {
+          onConflict: 'workspace_id,student_code',
+        });
+      } catch (upsertErr) {
+        console.warn('Students upsert fallback:', upsertErr);
+      }
 
       // 5. Upsert 10 official subjects for each grade
       for (const [gradeLabel, dataObj] of [

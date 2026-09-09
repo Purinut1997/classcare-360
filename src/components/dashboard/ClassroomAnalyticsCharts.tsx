@@ -8,6 +8,7 @@ import {
   Coins,
   DatabaseZap,
   HeartHandshake,
+  RefreshCw,
   Sparkles,
   TrendingUp,
   Users,
@@ -27,15 +28,20 @@ export interface AttendanceTrendPoint {
 export interface ClassroomAnalyticsData {
   attendance: {
     absent: number;
+    activity?: number;
     late: number;
     leave: number;
     present: number;
+    sick?: number;
+    total?: number;
     totalSessions: number;
   };
   attendanceTrend: AttendanceTrendPoint[];
   behavior: {
     negativePoints: number;
+    negativeRecords?: number;
     positivePoints: number;
+    positiveRecords?: number;
     totalRecords: number;
   };
   classroomName: string;
@@ -45,21 +51,34 @@ export interface ClassroomAnalyticsData {
     homeVisitsCount: number;
     scoresEnteredCount: number;
     studentsCount: number;
+    attendanceCount?: number;
+    behaviorCount?: number;
+    healthCount?: number;
+    savingsCount?: number;
+    scoresCount?: number;
   };
   savings: {
     accountCount: number;
     activeAccounts: number;
+    averageBalance?: number;
+    depositsThisMonth?: number;
     monthlyDeposits: number;
     totalBalance: number;
+    withdrawalsThisMonth?: number;
   };
   scores: {
     assessmentCount: number;
+    assessmentsCount?: number;
     averagePercent: number;
+    averageScore?: number;
+    failingCount?: number;
+    highestScore?: number;
     passedStudentsCount: number;
+    passingCount?: number;
   };
 }
 
-interface ClassroomDistributionItem {
+export interface ClassroomDistributionItem {
   classroomId: string;
   classroomName: string;
   count: number;
@@ -70,6 +89,8 @@ interface ClassroomAnalyticsChartsProps {
   data: ClassroomAnalyticsData;
   onSelectClassroom: (classroomId: string) => void;
   selectedClassroomId: string;
+  onRealignClassrooms?: () => void;
+  isRealigning?: boolean;
 }
 
 const shortDate = new Intl.DateTimeFormat('th-TH', {
@@ -88,6 +109,8 @@ export function ClassroomAnalyticsCharts({
   data,
   onSelectClassroom,
   selectedClassroomId,
+  onRealignClassrooms,
+  isRealigning,
 }: ClassroomAnalyticsChartsProps) {
   const { attendance, attendanceTrend, behavior, dataCompleteness, savings, scores } = data;
   const trendTotal = attendanceTrend.reduce((sum, item) => sum + item.total, 0);
@@ -184,11 +207,23 @@ export function ClassroomAnalyticsCharts({
 
         <div className="dashboard-insight-column">
           <article className="dashboard-chart-card dashboard-classroom-comparison">
-            <header className="dashboard-card-header">
+            <header className="dashboard-card-header flex items-center justify-between">
               <div>
                 <span className="dashboard-card-icon is-blue"><Users size={18} /></span>
                 <div><h3>นักเรียนแยกตามห้อง</h3><p>เลือกห้องเพื่อเจาะรายละเอียด</p></div>
               </div>
+              {onRealignClassrooms ? (
+                <button
+                  onClick={onRealignClassrooms}
+                  disabled={isRealigning}
+                  title="จัดระเบียบย้ายนักเรียน ป.4 (16 คน), ป.5 (20 คน), ป.6 (16 คน) เข้าห้องที่ถูกต้อง"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                  type="button"
+                >
+                  <RefreshCw size={13} className={isRealigning ? 'animate-spin' : ''} />
+                  <span>{isRealigning ? 'กำลังจัดห้อง...' : 'จัดห้องอัตโนมัติ'}</span>
+                </button>
+              ) : null}
             </header>
             <div className="dashboard-horizontal-bars">
               {classroomDistribution.map((item) => (

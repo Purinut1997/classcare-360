@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Cake, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, TrendingDown, TrendingUp, UserPlus, Utensils } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
@@ -15,6 +15,7 @@ import { StudentWatchlist, type WatchlistStudentItem } from '../../components/da
 import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
 import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
 import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
+import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -216,6 +217,26 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<ClassroomStudentCount[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [isRealigningClassrooms, setIsRealigningClassrooms] = useState(false);
+  const realigningRef = useRef(false);
+
+  const handleManualRealign = async () => {
+    if (realigningRef.current || demoMode || !session.workspace) return;
+    realigningRef.current = true;
+    setIsRealigningClassrooms(true);
+    try {
+      const res = await autoRealignAllStudentsToCorrectRooms(session);
+      if (res.success) {
+        setReloadTrigger((v) => v + 1);
+      }
+    } catch (err) {
+      console.error('Manual realign failed:', err);
+    } finally {
+      realigningRef.current = false;
+      setIsRealigningClassrooms(false);
+    }
+  };
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
   const [watchlistStudents, setWatchlistStudents] = useState<WatchlistStudentItem[]>([]);
   const [subjectAttendanceSummaries, setSubjectAttendanceSummaries] = useState<SubjectAttendanceSummary[]>([]);
@@ -321,7 +342,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [demoMode, session.workspace, session.profile?.id]);
+  }, [demoMode, session.workspace, session.profile?.id, reloadTrigger]);
 
   // Load General Workspace Dashboard Stats
   useEffect(() => {
@@ -358,6 +379,25 @@ export function DashboardPage({ session }: DashboardPageProps) {
         });
       setClassroomStudentCounts(nextClassroomCounts);
 
+      // Auto-heal misplaced classroom distribution if detected on the dashboard (e.g. P.5 has > 20 students or P.6 has < 16)
+      const p5Item = nextClassroomCounts.find((c) => c.classroomName.includes('5'));
+      const p6Item = nextClassroomCounts.find((c) => c.classroomName.includes('6'));
+      const isMisallocated = Boolean(
+        (p5Item && p5Item.count > 20) ||
+        (p6Item && p6Item.count < 16 && (studentCount ?? 0) >= 40)
+      );
+
+      if (isMisallocated && !realigningRef.current && !demoMode && session.workspace) {
+        realigningRef.current = true;
+        console.warn('Dashboard detected misplaced classroom distribution! Auto-realigning now...');
+        void autoRealignAllStudentsToCorrectRooms(session).then((res) => {
+          realigningRef.current = false;
+          if (res.success && isMounted) {
+            setReloadTrigger((v) => v + 1);
+          }
+        });
+      }
+
       setStats([
         {
           ...dashboardStats[0],
@@ -388,7 +428,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [classrooms, demoMode, session.workspace]);
+  }, [classrooms, demoMode, session.workspace, reloadTrigger]);
 
   // Load Classroom Specific Real Analytics Data & Watchlist Students
   useEffect(() => {
@@ -1533,7 +1573,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
       </section>
 
       {/* 🟢 PRIORITY 6: Analytics Charts + Stats Grid — Deep analysis, scroll down to explore */}
-      <ClassroomAnalyticsCharts classroomDistribution={classroomStudentCounts} data={analyticsData} onSelectClassroom={setSelectedClassroomId} selectedClassroomId={selectedClassroomId} />
+      <ClassroomAnalyticsCharts
+        classroomDistribution={classroomStudentCounts}
+        data={analyticsData}
+        onSelectClassroom={setSelectedClassroomId}
+        selectedClassroomId={selectedClassroomId}
+        onRealignClassrooms={handleManualRealign}
+        isRealigning={isRealigningClassrooms}
+      />
 
       {/* Main Workspace Metrics */}
       <StatsGrid stats={stats} />
