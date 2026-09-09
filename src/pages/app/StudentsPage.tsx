@@ -43,7 +43,7 @@ import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { translateDatabaseError } from '../../lib/errorTranslator';
 import { purgeStudentsPermanently } from '../../lib/studentOperations';
-import { getHiddenClassroomIds } from '../../lib/teacherClassrooms';
+import { getHiddenClassroomIds, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 import {
   DEMO_PRIMARY_CLASSROOMS,
@@ -1107,7 +1107,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [homeVisits, setHomeVisits] = useState<StudentHomeVisitRow[]>(demoHomeVisits);
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>(demoAuditLogs);
   const [query, setQuery] = useState('');
-  const [rosterClassroomFilter, setRosterClassroomFilter] = useState('all');
+  // เริ่มต้นที่ห้องที่ปรึกษาของครู (demo) — จะถูก override ด้วย homeroom จาก Supabase หลัง loadRoster
+  const [rosterClassroomFilter, setRosterClassroomFilter] = useState(() => {
+    const scope = getTeacherClassroomScope(session, demoClassrooms);
+    return scope.defaultClassroomId || 'all';
+  });
   const [rosterStatusFilter, setRosterStatusFilter] = useState<StudentStatus | 'all'>('active');
   const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -1565,7 +1569,14 @@ export function StudentsPage({ session }: StudentsPageProps) {
       setCareCases((careCaseRows || []) as StudentCareCaseRow[]);
       setHomeVisits(homeVisitError ? [] : ((homeVisitRows || []) as StudentHomeVisitRow[]));
       setAuditLogs(auditLogError ? [] : ((auditLogRows || []) as AuditLogRow[]));
-      setStudentForm(emptyStudentForm(nextClassrooms.find((classroom) => classroom.status === 'active')?.id || ''));
+      // ตั้งค่า default classroom filter เป็นห้องที่ปรึกษาของครู
+      const homeroomScope = getTeacherClassroomScope(session, nextClassrooms);
+      setRosterClassroomFilter((prev) => {
+        // ถ้ามีการ request classroom มาจาก URL ให้คงไว้
+        if (prev && prev !== 'all' && nextClassrooms.some((c) => c.id === prev)) return prev;
+        return homeroomScope.defaultClassroomId || 'all';
+      });
+      setStudentForm(emptyStudentForm(homeroomScope.defaultClassroomId || nextClassrooms.find((classroom) => classroom.status === 'active')?.id || ''));
       setSelectedStudentId(nextStudents[0]?.id || '');
       if (homeVisitError) {
         setNotice('ยังไม่ได้รัน migration student_home_visits จึงแสดงแบบเยี่ยมบ้านจาก care_flags ชั่วคราว');
