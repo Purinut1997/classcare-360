@@ -5,6 +5,7 @@ import { readSheet } from 'read-excel-file/browser';
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
 import { translateDatabaseError } from '../../lib/errorTranslator';
+import { purgeStudentsPermanently } from '../../lib/studentOperations';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -290,6 +291,65 @@ function getColumnIndex(headers: string[], label: string, fallback = -1) {
   return index >= 0 ? index : fallback;
 }
 
+function parseGeneralExcelRows(rows: unknown[][], existingCodes: Set<string>): PreviewRow[] {
+  const headerIndex = rows.findIndex((row) => {
+    const headers = row.map(normalizeHeader);
+    const hasFirst = headers.some((h) => h === 'ชื่อ' || h === 'ชื่อจริง' || h === 'first_name' || h === 'firstname' || h === 'ชื่อ-สกุล' || h === 'ชื่อ-นามสกุล');
+    const hasLast = headers.some((h) => h === 'นามสกุล' || h === 'last_name' || h === 'lastname');
+    return hasFirst && (hasLast || headers.some((h) => h.includes('สกุล')));
+  });
+
+  const effectiveHeaderIndex = headerIndex >= 0 ? headerIndex : 0;
+  if (rows.length <= effectiveHeaderIndex + 1) return [];
+
+  const headers = rows[effectiveHeaderIndex].map(normalizeHeader);
+  const firstNameIndex = headers.findIndex((h) => h === 'ชื่อ' || h === 'ชื่อจริง' || h === 'first_name' || h === 'firstname');
+  const lastNameIndex = headers.findIndex((h) => h === 'นามสกุล' || h === 'last_name' || h === 'lastname');
+  const fullNameIndex = headers.findIndex((h) => h === 'ชื่อ-สกุล' || h === 'ชื่อ-นามสกุล' || h === 'ชื่อสกุล' || h === 'fullname' || h === 'ชื่อและนามสกุล');
+  const studentCodeIndex = headers.findIndex((h) => h === 'เลขประจำตัวนักเรียน' || h === 'เลขประจำตัว' || h === 'รหัสนักเรียน' || h === 'รหัส' || h === 'student_code' || h === 'student_id');
+  const classroomIndex = headers.findIndex((h) => h === 'ห้องเรียน' || h === 'ชั้น' || h === 'ห้อง' || h === 'ชั้น/ห้อง' || h === 'classroom_name' || h === 'ระดับชั้น');
+  const nicknameIndex = headers.findIndex((h) => h === 'ชื่อเล่น' || h === 'nickname');
+  const genderIndex = headers.findIndex((h) => h === 'เพศ' || h === 'gender');
+
+  return rows.slice(effectiveHeaderIndex + 1).map((row, index) => {
+    let firstName = firstNameIndex >= 0 ? normalizeCell(row[firstNameIndex]) : '';
+    let lastName = lastNameIndex >= 0 ? normalizeCell(row[lastNameIndex]) : '';
+
+    if (!firstName && fullNameIndex >= 0) {
+      const full = normalizeCell(row[fullNameIndex]);
+      const parts = full.split(/\s+/);
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+    }
+
+    const studentCode = studentCodeIndex >= 0 ? normalizeCell(row[studentCodeIndex]) : '';
+    const classroomName = classroomIndex >= 0 ? normalizeCell(row[classroomIndex]) : '';
+    const nickname = nicknameIndex >= 0 ? normalizeCell(row[nicknameIndex]) : '';
+    const gender = genderIndex >= 0 ? normalizeGender(row[genderIndex]) : 'unspecified';
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!firstName) errors.push('ไม่มีชื่อ');
+    if (!lastName) errors.push('ไม่มีนามสกุล');
+    if (!classroomName) errors.push('ไม่มีชั้น/ห้อง');
+    if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
+
+    return {
+      classroomName,
+      errors,
+      firstName,
+      gender,
+      lastName,
+      nickname,
+      rowNumber: effectiveHeaderIndex + index + 2,
+      source: 'csv' as const,
+      studentCode,
+      warnings,
+    };
+  }).filter((r) => r.firstName || r.lastName || r.studentCode);
+}
+
 function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
   const headerIndex = findHeaderIndex(rows);
   if (headerIndex < 0) {
@@ -297,11 +357,26 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
   }
 
   const headers = rows[headerIndex].map(normalizeHeader);
-  const studentNumberIndexes = headers
-    .map((header, index) => (header === 'เลขประจำตัวนักเรียน' ? index : -1))
-    .filter((index) => index >= 0);
-  const idCardIndex = studentNumberIndexes.length > 1 ? studentNumberIndexes[0] : -1;
-  const studentCodeIndex = studentNumberIndexes.length > 1 ? studentNumberIndexes[1] : studentNumberIndexes[0] ?? -1;
+  let idCardIndex = headers.findIndex((h) =>
+    h === 'เลขประจำตัวประชาชน' || h === 'เลขประชาชน' || h === 'เลขบัตรประชาชน' || h === 'citizen_id' || h === 'id_card'
+  );
+  let studentCodeIndex = headers.findIndex((h) =>
+    h === 'เลขประจำตัวนักเรียน' || h === 'เลขประจำตัว' || h === 'รหัสนักเรียน' || h === 'student_code' || h === 'student_id' || h === 'รหัส'
+  );
+  const rollNoIndex = headers.findIndex((h) => h === 'เลขที่' || h === 'ลำดับที่' || h === 'ที่');
+
+  if (studentCodeIndex < 0 && idCardIndex < 0) {
+    const studentNumberIndexes = headers
+      .map((header, index) => (header.includes('เลขประจำตัว') || header.includes('รหัส') ? index : -1))
+      .filter((index) => index >= 0);
+    if (studentNumberIndexes.length > 1) {
+      idCardIndex = studentNumberIndexes[0];
+      studentCodeIndex = studentNumberIndexes[1];
+    } else if (studentNumberIndexes.length === 1) {
+      studentCodeIndex = studentNumberIndexes[0];
+    }
+  }
+
   const schoolCodeIndex = getColumnIndex(headers, 'รหัสโรงเรียน');
   const schoolNameIndex = getColumnIndex(headers, 'ชื่อโรงเรียน');
   const gradeIndex = getColumnIndex(headers, 'ชั้น', 3);
@@ -346,7 +421,10 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
     const room = normalizeCell(row[roomIndex]);
     const firstName = normalizeCell(row[firstNameIndex]);
     const lastName = normalizeCell(row[lastNameIndex]);
-    const studentCode = normalizeCell(row[studentCodeIndex]);
+    const rawCode = studentCodeIndex >= 0 ? normalizeCell(row[studentCodeIndex]) : '';
+    const rawIdCard = idCardIndex >= 0 ? normalizeCell(row[idCardIndex]) : '';
+    const rollNo = rollNoIndex >= 0 ? normalizeCell(row[rollNoIndex]) : '';
+    const studentCode = rawCode || rawIdCard || (rollNo ? `${grade || 'ห้อง'}-${rollNo}` : '');
     const prefix = normalizeCell(row[prefixIndex]);
     const birthDate = normalizeDmcBirthDate(row[birthDateIndex]);
     const classroomName = [grade, room].filter(Boolean).join('/') || grade || room;
@@ -396,7 +474,7 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
     if (!room) errors.push('ไม่มีห้อง');
     if (!firstName) errors.push('ไม่มีชื่อ');
     if (!lastName) errors.push('ไม่มีนามสกุล');
-    if (!studentCode) errors.push('ไม่มีเลขประจำตัวนักเรียน');
+    if (!studentCode) warnings.push('ไม่มีเลขประจำตัวนักเรียน (ระบบจะสร้างให้อัตโนมัติ)');
     if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
     if (studentCode && seenCodes.has(studentCode)) warnings.push('เลขประจำตัวซ้ำในไฟล์ DMC เดียวกัน');
     if (studentCode) seenCodes.add(studentCode);
@@ -677,22 +755,19 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const validGuardianRows = guardianPreviewRows.filter((row) => row.errors.length === 0);
   const invalidGuardianRows = guardianPreviewRows.filter((row) => row.errors.length > 0);
 
-  useEffect(() => {
-    let isMounted = true;
+  const [replaceTargetClassroomRoster, setReplaceTargetClassroomRoster] = useState(false);
 
-    async function loadData() {
-      if (!useRealBackend || !supabase || !session.workspace) {
-        setClassrooms(demoClassrooms);
-        setStudents(demoStudents);
-        setRosterReviews([]);
-        setBackups([]);
-        setIsLoading(false);
-        return;
-      }
+  async function reloadData(showNotice = false) {
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setClassrooms(demoClassrooms);
+      setStudents(demoStudents);
+      setRosterReviews([]);
+      setBackups([]);
+      setIsLoading(false);
+      return;
+    }
 
-      setIsLoading(true);
-      setNotice(null);
-
+    try {
       const [
         { data: classroomRows, error: classroomError },
         { data: studentRows, error: studentError },
@@ -723,11 +798,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .order('updated_at', { ascending: false }),
       ]);
 
-      if (!isMounted) return;
-
       if (classroomError || studentError || backupError || reviewError) {
-        setNotice(classroomError?.message || studentError?.message || backupError?.message || reviewError?.message || 'โหลดข้อมูล import/export ไม่สำเร็จ');
-        setIsLoading(false);
+        if (showNotice) {
+          setNotice(classroomError?.message || studentError?.message || backupError?.message || reviewError?.message || 'โหลดข้อมูล import/export ไม่สำเร็จ');
+        }
         return;
       }
 
@@ -735,14 +809,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       setStudents((studentRows || []) as StudentExportRow[]);
       setBackups((backupRows || []) as BackupRow[]);
       setRosterReviews((reviewRows || []) as StudentRosterReviewRow[]);
+    } catch {
+      // ignore
+    } finally {
       setIsLoading(false);
     }
+  }
 
-    void loadData();
-
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    void reloadData();
   }, [session.workspace, useRealBackend]);
 
   function exportTemplate() {
@@ -781,9 +856,37 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const text = await file.text();
-    setPreviewRows(parseStudentCsv(text, existingCodes));
-    setNotice(`อ่านไฟล์ ${file.name} แล้ว กรุณาตรวจ preview ก่อน import`);
+    try {
+      if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet') || file.type.includes('excel')) {
+        const rows = await readSheet(file);
+        const rowsArray = rows as unknown[][];
+        const dmcHeaderIdx = findHeaderIndex(rowsArray);
+        if (dmcHeaderIdx >= 0) {
+          const parsed = parseDmcWorkbookRows(rowsArray, existingCodes);
+          const firstClassKey = parsed.classOptions[0]?.key;
+          const initialKeys = firstClassKey ? [firstClassKey] : [];
+          setDmcRows(parsed.previewRows);
+          setDmcClassOptions(parsed.classOptions);
+          setSelectedDmcClassKeys(initialKeys);
+          setPreviewRows(
+            firstClassKey
+              ? parsed.previewRows.filter((row) => `${row.dmcGrade || ''}::${row.dmcRoom || ''}` === firstClassKey)
+              : parsed.previewRows,
+          );
+          setNotice(`อ่านไฟล์ Excel DMC "${file.name}" แล้ว พบ ${parsed.classOptions.length} ชั้น/ห้อง กรุณาเลือกชั้นที่ดูแลก่อน import`);
+        } else {
+          const generalRows = parseGeneralExcelRows(rowsArray, existingCodes);
+          setPreviewRows(generalRows);
+          setNotice(`อ่านไฟล์ Excel "${file.name}" แล้ว พบ ${generalRows.length} รายชื่อ กรุณาตรวจ preview ก่อน import`);
+        }
+      } else {
+        const text = await file.text();
+        setPreviewRows(parseStudentCsv(text, existingCodes));
+        setNotice(`อ่านไฟล์ CSV "${file.name}" แล้ว กรุณาตรวจ preview ก่อน import`);
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
+    }
   }
 
   function applyDmcClassSelection(classKeys: string[], rows = dmcRows) {
@@ -875,8 +978,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     setNotice(`อ่านไฟล์ ${file.name} แล้ว กรุณาตรวจ preview ผู้ปกครองก่อน import`);
   }
 
-  async function ensureClassroomByName(classroomName: string, gradeLevel?: string) {
+  async function ensureClassroomByName(classroomName: string, gradeLevel?: string, runtimeClassroomsMap?: Map<string, string>) {
     const raw = classroomName.trim();
+
+    // 0. Check in-memory map first (CRITICAL: prevents duplicate classrooms in import loop!)
+    if (runtimeClassroomsMap && runtimeClassroomsMap.has(raw)) {
+      return runtimeClassroomsMap.get(raw)!;
+    }
 
     // 1. Direct exact match
     let existing = classrooms.find((classroom) => classroom.name === raw);
@@ -909,11 +1017,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       }
     }
 
-    if (existing?.status === 'active') return existing.id;
+    if (existing?.status === 'active') {
+      runtimeClassroomsMap?.set(raw, existing.id);
+      runtimeClassroomsMap?.set(existing.name, existing.id);
+      return existing.id;
+    }
 
     if (existing) {
       if (!useRealBackend || !supabase || !session.workspace) {
         setClassrooms((current) => current.map((classroom) => classroom.id === existing.id ? { ...classroom, status: 'active' } : classroom));
+        runtimeClassroomsMap?.set(raw, existing.id);
         return existing.id;
       }
       const { data, error } = await supabase
@@ -925,12 +1038,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         .single();
       if (error) throw error;
       setClassrooms((current) => current.map((classroom) => classroom.id === existing.id ? (data as ClassroomRow) : classroom));
+      runtimeClassroomsMap?.set(raw, existing.id);
+      runtimeClassroomsMap?.set(existing.name, existing.id);
       return existing.id;
     }
 
     if (!useRealBackend || !supabase || !session.workspace) {
       const localClassroom: ClassroomRow = { id: `demo-classroom-${Date.now()}-${classroomName}`, name: classroomName, status: 'active' };
       setClassrooms((current) => [...current, localClassroom]);
+      runtimeClassroomsMap?.set(raw, localClassroom.id);
       return localClassroom.id;
     }
 
@@ -949,6 +1065,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     if (error) throw error;
     const nextClassroom = data as ClassroomRow;
     setClassrooms((current) => [...current, nextClassroom]);
+    runtimeClassroomsMap?.set(raw, nextClassroom.id);
+    runtimeClassroomsMap?.set(nextClassroom.name, nextClassroom.id);
     return nextClassroom.id;
   }
 
@@ -1083,136 +1201,46 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     }
 
     const confirmed = window.confirm(
-      `ยืนยันลบนักเรียน ${studentIds.length} รายชื่อนี้ออกจากระบบหรือไม่?\n\nข้อมูลนักเรียนและประวัติที่ผูกอยู่จะถูกลบออกจากระบบอย่างสมบูรณ์`,
+      `ยืนยันลบนักเรียน ${studentIds.length} รายชื่อนี้ออกจากระบบอย่างถาวรหรือไม่?\n\nข้อมูลนักเรียนและประวัติที่ผูกอยู่จะถูกลบออกจากฐานข้อมูลอย่างสมบูรณ์`,
     );
     if (!confirmed) return;
 
     setIsSubmitting(true);
     setNotice(null);
 
-    if (!useRealBackend || !supabase || !session.workspace) {
-      setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
-      setRosterReviews((current) => current.filter((review) => !review.student_id || !studentIds.includes(review.student_id)));
-      setSelectedManagedStudentIds([]);
-      setNotice(`ลบ ${studentIds.length} รายชื่อออกจากโหมดตัวอย่างแล้ว`);
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
-      let deleteSucceeded = false;
-      let lastErrorMessage = '';
+      const result = await purgeStudentsPermanently({
+        actorProfileId: session.profile.id,
+        isDemo: !useRealBackend || !supabase || !session.workspace,
+        studentIds,
+        supabase,
+        workspaceId: session.workspace?.id || '',
+      });
 
-      // Step 1: Call dedicated delete_students_permanently RPC
-      try {
-        const { error: rpcError } = await supabase.rpc('delete_students_permanently', {
-          target_workspace_id: session.workspace.id,
-          target_student_ids: studentIds,
-        });
-        if (!rpcError) {
-          deleteSucceeded = true;
-        } else {
-          lastErrorMessage = rpcError.message;
-        }
-      } catch (e) {
-        lastErrorMessage = e instanceof Error ? e.message : 'RPC error';
-      }
-
-      // Step 2: Fallback to delete_reviewed_duplicate_students RPC
-      // Note: Legacy 0060 RPC requires status='archived' and duplicate review, so we auto-prepare them in background
-      // so the user does NOT have to manually click "เก็บถาวร" first!
-      if (!deleteSucceeded) {
-        try {
-          await supabase
-            .from('students')
-            .update({ status: 'archived' })
-            .in('id', studentIds)
-            .eq('workspace_id', session.workspace.id);
-
-          await supabase.rpc('set_student_roster_reviews', {
-            target_classification: 'duplicate',
-            target_note: 'ลบรายชื่อถาวรโดยตรง',
-            target_student_ids: studentIds,
-            target_workspace_id: session.workspace.id,
-          });
-
-          const { error: legacyRpcError } = await supabase.rpc('delete_reviewed_duplicate_students', {
-            target_workspace_id: session.workspace.id,
-            target_student_ids: studentIds,
-          });
-          if (!legacyRpcError) {
-            deleteSucceeded = true;
-          } else {
-            lastErrorMessage = legacyRpcError.message;
-          }
-        } catch (e) {
-          lastErrorMessage = e instanceof Error ? e.message : 'Legacy RPC error';
-        }
-      }
-
-      // Step 3: Direct cascading cleanup and delete fallback (core tables only)
-      if (!deleteSucceeded) {
-        const childTables = [
-          'student_guardians',
-          'student_roster_reviews',
-          'student_behaviors',
-          'student_health_records',
-          'student_savings_transactions',
-          'attendance_records',
-          'score_records',
-          'student_care_cases',
-          'student_home_visits',
-          'student_profile_links',
-        ];
-        for (const table of childTables) {
-          try {
-            await supabase
-              .from(table)
-              .delete()
-              .in('student_id', studentIds)
-              .setHeader('x-silent', 'true');
-          } catch {
-            // Ignore non-blocking child deletion errors
-          }
-        }
-
-        const { data, error: directDeleteError } = await supabase
-          .from('students')
-          .delete()
-          .in('id', studentIds)
-          .eq('workspace_id', session.workspace.id)
-          .select('id');
-
-        if (!directDeleteError && data && data.length > 0) {
-          deleteSucceeded = true;
-        } else if (directDeleteError) {
-          lastErrorMessage = directDeleteError.message;
-        }
-      }
-
-      if (!deleteSucceeded) {
-        throw new Error(
-          lastErrorMessage
-            ? `ไม่สามารถลบออกจากฐานข้อมูลได้: ${lastErrorMessage}`
-            : 'ไม่สามารถลบข้อมูลนักเรียนออกจากระบบได้ กรุณาตรวจสอบสิทธิ์หรือรันสคริปต์ Migration 0074 ใน Supabase SQL Editor',
-        );
+      if (!result.success) {
+        throw new Error(result.error || 'ไม่สามารถลบข้อมูลนักเรียนออกจากระบบได้ กรุณารัน migration 0075 ใน Supabase SQL Editor');
       }
 
       setStudents((current) => current.filter((student) => !studentIds.includes(student.id)));
       setRosterReviews((current) => current.filter((review) => !review.student_id || !studentIds.includes(review.student_id)));
       setSelectedManagedStudentIds([]);
-      await writeAuditLog(session, {
-        action: 'import_job.students_deleted',
-        entityId: session.workspace.id,
-        entityTable: 'students',
-        metadata: {
-          count: studentIds.length,
-          student_ids: studentIds,
-        },
-        riskLevel: 'critical',
-        source: 'import_export',
-      });
-      setNotice(`ลบนักเรียน ${studentIds.length} รายชื่อออกจากระบบอย่างถาวรแล้ว`);
+
+      void reloadData();
+
+      if (session.workspace) {
+        await writeAuditLog(session, {
+          action: 'import_job.students_deleted',
+          entityId: session.workspace.id,
+          entityTable: 'students',
+          metadata: {
+            count: result.deletedCount,
+            student_ids: studentIds,
+          },
+          riskLevel: 'critical',
+          source: 'import_export',
+        });
+      }
+      setNotice(`ลบนักเรียน ${result.deletedCount} รายชื่อออกจากระบบอย่างถาวรเรียบร้อยแล้ว`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'ลบไม่สำเร็จ';
       setNotice(translateDatabaseError(msg));
@@ -1294,13 +1322,46 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     }
 
     try {
+      // In-memory cache to prevent duplicate classroom inserts in loop
+      const runtimeClassroomsMap = new Map<string, string>();
+      for (const c of classrooms) {
+        runtimeClassroomsMap.set(c.name.trim(), c.id);
+      }
+
+      // Handle replaceTargetClassroomRoster if selected
+      if (replaceTargetClassroomRoster && session.workspace) {
+        const targetRoomNames = targetClassroomMode === 'current_workspace'
+          ? new Set([targetClassroomName!])
+          : new Set(validPreviewRows.map((r) => r.classroomName.trim()).filter(Boolean));
+
+        const targetClassroomIds = new Set(
+          classrooms
+            .filter((c) => targetRoomNames.has(c.name))
+            .map((c) => c.id),
+        );
+
+        const studentsToPurge = students.filter(
+          (s) => s.classroom_id && targetClassroomIds.has(s.classroom_id),
+        );
+
+        if (studentsToPurge.length > 0) {
+          await purgeStudentsPermanently({
+            actorProfileId: session.profile.id,
+            isDemo: !useRealBackend || !supabase || !session.workspace,
+            studentIds: studentsToPurge.map((s) => s.id),
+            supabase,
+            workspaceId: session.workspace.id,
+          });
+        }
+      }
+
       const rowsToInsert: StudentInsertRow[] = [];
 
       for (const row of validPreviewRows) {
         const rowClassroomName = targetClassroomMode === 'current_workspace'
           ? (session.workspace?.classroomName || classrooms[0]?.name || row.classroomName)
           : row.classroomName;
-        const classroomId = await ensureClassroomByName(rowClassroomName, row.dmcGrade);
+        const classroomId = await ensureClassroomByName(rowClassroomName, row.dmcGrade, runtimeClassroomsMap);
         const existingStudent = row.studentCode ? studentsByCode.get(row.studentCode) : null;
 
         let firstName = row.firstName;
@@ -1505,6 +1566,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const updatedCount = rowsWithCode.filter((row) => studentsByCode.has(row.student_code || '')).length;
       const insertedCount = rowsToInsert.length - updatedCount;
       const reactivatedMsg = reactivatedCount > 0 ? ` (ในนี้มี ${reactivatedCount} คนที่ฟื้นคืนชีพกลับมาจากหมวดเก็บถาวร)` : '';
+      void reloadData();
       setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน${reactivatedMsg}`);
     } catch (error) {
       setNotice(translateDatabaseError(error instanceof Error ? error.message : 'import ไม่สำเร็จ'));
@@ -2038,7 +2100,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <FileUp size={16} aria-hidden="true" />
-              Student CSV
+              Student Excel / CSV
             </div>
             <div className="mt-4 grid gap-3">
               <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={exportTemplate} type="button">
@@ -2047,10 +2109,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </button>
               <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/70 p-4 text-center transition hover:bg-white">
                 <Upload className="text-cyan-700" size={26} aria-hidden="true" />
-                <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ CSV เพื่อ preview</span>
+                <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ Excel (.xlsx) หรือ CSV เพื่อ preview</span>
                 <span className="mt-1 text-xs font-bold text-slate-500">{templateHeaders.join(', ')}</span>
                 <input
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="sr-only"
                   onChange={(event) => void handleFileChange(event)}
                   ref={studentCsvInputRef}
@@ -2154,6 +2216,26 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                         className="text-cyan-600"
                       />
                       <span>แยกตามห้องในไฟล์ DMC</span>
+                    </label>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-cyan-100 dark:border-cyan-800/40">
+                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={replaceTargetClassroomRoster}
+                        onChange={(e) => setReplaceTargetClassroomRoster(e.target.checked)}
+                        className="mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                      />
+                      <div>
+                        <span className="text-xs font-black text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                          <Trash2 size={13} className="text-amber-600" />
+                          ล้างรายชื่อนักเรียนเดิมในห้องเป้าหมายก่อนนำเข้า (แทนที่รายชื่อเดิมทั้งหมด)
+                        </span>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          แนะนำหากต้องการอัปเดตบัญชีรายชื่อใหม่ทั้งหมด เพื่อป้องกันข้อมูลนักเรียนเก่าค้างหรือชื่อซ้ำซ้อน
+                        </p>
+                      </div>
                     </label>
                   </div>
                 </div>

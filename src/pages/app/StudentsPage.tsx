@@ -42,6 +42,7 @@ import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { translateDatabaseError } from '../../lib/errorTranslator';
+import { purgeStudentsPermanently } from '../../lib/studentOperations';
 import type { AppSessionContext } from '../../types/core';
 import {
   DEMO_PRIMARY_CLASSROOMS,
@@ -1105,6 +1106,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [rosterClassroomFilter, setRosterClassroomFilter] = useState('all');
   const [rosterStatusFilter, setRosterStatusFilter] = useState<StudentStatus | 'all'>('active');
   const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [studentForm, setStudentForm] = useState(() => emptyStudentForm(demoClassrooms[0].id));
@@ -2341,7 +2343,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   async function deleteStudentPermanently(student: StudentRow) {
     const studentName = `${student.first_name} ${student.last_name}`.trim();
     const confirmed = window.confirm(
-      `ลบนักเรียน "${studentName}" ถาวรหรือไม่?\n\nเหมาะสำหรับกรณีนำเข้าซ้ำหรือนำเข้าผิดเท่านั้น ข้อมูลที่ผูกกับนักเรียนคนนี้อาจถูกลบตาม policy ของฐานข้อมูล`,
+      `ลบนักเรียน "${studentName}" ถาวรหรือไม่?\n\nข้อมูลของนักเรียนและประวัติที่เกี่ยวข้องทั้งหมดจะถูกลบถาวรออกจากระบบ (มีบันทึก snapshot ในถังขยะกู้คืนได้)`,
     );
     if (!confirmed) return;
 
@@ -2349,6 +2351,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
     if (!useRealBackend || !supabase || !session.workspace) {
       setStudents((current) => current.filter((item) => item.id !== student.id));
+      setSelectedStudentIds((current) => {
+        const next = new Set(current);
+        next.delete(student.id);
+        return next;
+      });
       if (selectedStudentId === student.id) {
         const nextStudent = students.find((item) => item.id !== student.id);
         setSelectedStudentId(nextStudent?.id || '');
@@ -2357,124 +2364,186 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      let deleteSucceeded = false;
-      let lastErrorMessage = '';
+      const result = await purgeStudentsPermanently({
+        workspaceId: session.workspace.id,
+        studentIds: [student.id],
+        supabase,
+        actorProfileId: session.profile.id,
+        actorEmail: session.profile.email,
+        reason: 'ลบรายชื่อนักเรียนรายบุคคลโดยผู้ใช้',
+      });
 
-      // Step 1: Call dedicated delete_students_permanently RPC
-      try {
-        const { error: rpcError } = await supabase.rpc('delete_students_permanently', {
-          target_workspace_id: session.workspace.id,
-          target_student_ids: [student.id],
-        });
-        if (!rpcError) {
-          deleteSucceeded = true;
-        } else {
-          lastErrorMessage = rpcError.message;
-        }
-      } catch (e) {
-        lastErrorMessage = e instanceof Error ? e.message : 'RPC error';
-      }
-
-      // Step 2: Fallback to delete_reviewed_duplicate_students RPC
-      // Legacy 0060 RPC requires status='archived' and duplicate review, so we auto-prepare them in background
-      // so the user does NOT have to manually click "เก็บถาวร" first!
-      if (!deleteSucceeded) {
-        try {
-          await supabase
-            .from('students')
-            .update({ status: 'archived' })
-            .eq('id', student.id)
-            .eq('workspace_id', session.workspace.id);
-
-          await supabase.rpc('set_student_roster_reviews', {
-            target_classification: 'duplicate',
-            target_note: 'ลบรายชื่อถาวรโดยตรง',
-            target_student_ids: [student.id],
-            target_workspace_id: session.workspace.id,
-          });
-
-          const { error: legacyRpcError } = await supabase.rpc('delete_reviewed_duplicate_students', {
-            target_workspace_id: session.workspace.id,
-            target_student_ids: [student.id],
-          });
-          if (!legacyRpcError) {
-            deleteSucceeded = true;
-          } else {
-            lastErrorMessage = legacyRpcError.message;
-          }
-        } catch (e) {
-          lastErrorMessage = e instanceof Error ? e.message : 'Legacy RPC error';
-        }
-      }
-
-      // Step 3: Direct cascading child cleanup and delete fallback (core tables only)
-      if (!deleteSucceeded) {
-        const childTables = [
-          'student_guardians',
-          'student_roster_reviews',
-          'student_behaviors',
-          'student_health_records',
-          'student_savings_transactions',
-          'attendance_records',
-          'score_records',
-          'student_care_cases',
-          'student_home_visits',
-          'student_profile_links',
-        ];
-        for (const table of childTables) {
-          try {
-            await supabase
-              .from(table)
-              .delete()
-              .eq('student_id', student.id)
-              .setHeader('x-silent', 'true');
-          } catch {
-            // ignore
-          }
-        }
-
-        const { data, error: directDeleteError } = await supabase
-          .from('students')
-          .delete()
-          .eq('id', student.id)
-          .eq('workspace_id', session.workspace.id)
-          .select('id');
-
-        if (!directDeleteError && data && data.length > 0) {
-          deleteSucceeded = true;
-        } else if (directDeleteError) {
-          lastErrorMessage = directDeleteError.message;
-        }
-      }
-
-      if (!deleteSucceeded) {
-        throw new Error(
-          lastErrorMessage
-            ? `ไม่สามารถลบออกจากฐานข้อมูลได้: ${lastErrorMessage}`
-            : 'ไม่สามารถลบข้อมูลนักเรียนออกจากระบบได้ กรุณาตรวจสอบสิทธิ์หรือรันสคริปต์ Migration 0074 ใน Supabase SQL Editor',
-        );
+      if (!result.success) {
+        throw new Error(result.error || 'ไม่สามารถลบข้อมูลนักเรียนได้');
       }
 
       setStudents((current) => current.filter((item) => item.id !== student.id));
+      setSelectedStudentIds((current) => {
+        const next = new Set(current);
+        next.delete(student.id);
+        return next;
+      });
       if (selectedStudentId === student.id) {
         const nextStudent = students.find((item) => item.id !== student.id);
         setSelectedStudentId(nextStudent?.id || '');
       }
-      await writeAuditLog({
-        action: 'student.deleted',
-        entityId: student.id,
-        entityTable: 'students',
-        metadata: {
-          classroom_id: student.classroom_id,
-          student_code: student.student_code,
-        },
-        riskLevel: 'critical',
-      });
       setNotice(`ลบนักเรียน ${studentName} ถาวรเรียบร้อยแล้ว`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'ลบไม่สำเร็จ';
       setNotice(translateDatabaseError(msg));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function deleteSelectedStudentsPermanently() {
+    const selectedCount = selectedStudentIds.size;
+    if (selectedCount === 0) return;
+
+    const confirmed = window.confirm(
+      `ยืนยันลบนักเรียนที่เลือกจำนวน ${selectedCount} คน ถาวรหรือไม่?\n\nการกระทำนี้จะลบรายชื่อและประวัติที่เกี่ยวข้องทั้งหมด (สามารถตรวจสอบหรือกู้คืนได้ที่ศูนย์ความปลอดภัยข้อมูล)`,
+    );
+    if (!confirmed) return;
+
+    setNotice(null);
+    setIsSubmitting(true);
+
+    const idsToDelete = Array.from(selectedStudentIds);
+
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setStudents((current) => current.filter((item) => !selectedStudentIds.has(item.id)));
+      setSelectedStudentIds(new Set());
+      setNotice(`ลบนักเรียน ${selectedCount} คนออกจากโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const result = await purgeStudentsPermanently({
+        workspaceId: session.workspace.id,
+        studentIds: idsToDelete,
+        supabase,
+        actorProfileId: session.profile.id,
+        actorEmail: session.profile.email,
+        reason: `ลบนักเรียนแบบกลุ่ม ${selectedCount} คน`,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'ไม่สามารถลบข้อมูลนักเรียนกลุ่มนี้ได้');
+      }
+
+      setStudents((current) => current.filter((item) => !selectedStudentIds.has(item.id)));
+      setSelectedStudentIds(new Set());
+      setNotice(`ลบนักเรียนที่เลือก ${result.purgedCount} คน ถาวรเรียบร้อยแล้ว`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'ลบไม่สำเร็จ';
+      setNotice(translateDatabaseError(msg));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function clearCurrentClassroomStudents() {
+    if (rosterClassroomFilter === 'all') return;
+    const targetRoom = classrooms.find((c) => c.id === rosterClassroomFilter);
+    const roomName = targetRoom?.name || 'ห้องที่เลือก';
+    const studentsInRoom = students.filter((s) => s.classroom_id === rosterClassroomFilter);
+
+    if (studentsInRoom.length === 0) {
+      setNotice(`ไม่มีนักเรียนใน ${roomName} ให้ล้าง`);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `คำเตือน: คุณกำลังจะล้างรายชื่อนักเรียนทั้งหมดในห้อง "${roomName}" (${studentsInRoom.length} คน) ถาวร!\n\nเหมาะสำหรับเตรียมนำเข้าไฟล์บัญชีรายชื่อใหม่ให้ถูกต้องทั้งหมด\n\nต้องการดำเนินการต่อหรือไม่?`,
+    );
+    if (!confirmed) return;
+
+    setNotice(null);
+    setIsSubmitting(true);
+
+    const idsToDelete = studentsInRoom.map((s) => s.id);
+
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setStudents((current) => current.filter((s) => s.classroom_id !== rosterClassroomFilter));
+      setSelectedStudentIds((current) => {
+        const next = new Set(current);
+        idsToDelete.forEach((id) => next.delete(id));
+        return next;
+      });
+      setNotice(`ล้างรายชื่อนักเรียนใน ${roomName} (${studentsInRoom.length} คน) ในโหมดตัวอย่างแล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const result = await purgeStudentsPermanently({
+        workspaceId: session.workspace.id,
+        studentIds: idsToDelete,
+        supabase,
+        actorProfileId: session.profile.id,
+        actorEmail: session.profile.email,
+        reason: `ล้างรายชื่อนักเรียนทั้งห้อง ${roomName} (${idsToDelete.length} คน) เพื่อนำเข้าใหม่`,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'ไม่สามารถล้างรายชื่อนักเรียนในห้องได้');
+      }
+
+      setStudents((current) => current.filter((s) => s.classroom_id !== rosterClassroomFilter));
+      setSelectedStudentIds((current) => {
+        const next = new Set(current);
+        idsToDelete.forEach((id) => next.delete(id));
+        return next;
+      });
+      setNotice(`ล้างรายชื่อนักเรียนใน ${roomName} เรียบร้อยแล้ว (${result.purgedCount} คน) พร้อมนำเข้ารายชื่อใหม่`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด';
+      setNotice(translateDatabaseError(msg));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function updateSelectedStudentsStatus(newStatus: StudentStatus) {
+    const selectedCount = selectedStudentIds.size;
+    if (selectedCount === 0) return;
+
+    setNotice(null);
+    setIsSubmitting(true);
+
+    const ids = Array.from(selectedStudentIds);
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setStudents((current) =>
+        current.map((s) => (selectedStudentIds.has(s.id) ? { ...s, status: newStatus } : s)),
+      );
+      setSelectedStudentIds(new Set());
+      setNotice(`เปลี่ยนสถานะนักเรียน ${selectedCount} คน เป็น ${statusLabels[newStatus]} แล้ว`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: newStatus })
+        .in('id', ids)
+        .eq('workspace_id', session.workspace.id);
+
+      if (error) throw error;
+
+      setStudents((current) =>
+        current.map((s) => (selectedStudentIds.has(s.id) ? { ...s, status: newStatus } : s)),
+      );
+      setSelectedStudentIds(new Set());
+      setNotice(`เปลี่ยนสถานะนักเรียน ${selectedCount} คน เป็น ${statusLabels[newStatus]} เรียบร้อย`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด';
+      setNotice(`ไม่สามารถเปลี่ยนสถานะได้: ${msg}`);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -3653,6 +3722,26 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
           </div>
 
+          {rosterClassroomFilter && rosterClassroomFilter !== 'all' && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-850">
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                กรองเฉพาะห้อง: <strong className="text-slate-900 dark:text-slate-100">{classrooms.find((c) => c.id === rosterClassroomFilter)?.name || 'ห้องที่เลือก'}</strong> ({filteredStudents.length} คน)
+              </span>
+              {canManageWorkspace(session.profile.role) && filteredStudents.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => void clearCurrentClassroomStudents()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700 hover:bg-rose-100 transition disabled:opacity-50"
+                  title="ลบรายชื่อนักเรียนในห้องนี้ทั้งหมดเพื่อเตรียมนำเข้าใหม่"
+                >
+                  <Trash2 size={13} />
+                  ล้างรายชื่อในห้องนี้ทั้งหมดเพื่อนำเข้าใหม่
+                </button>
+              )}
+            </div>
+          )}
+
           {wrongRoomStudents.length > 0 ? (
             <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-rose-300 bg-rose-50/90 p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm">
               <div className="flex items-start gap-3">
@@ -3717,10 +3806,88 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
           ) : null}
 
+          {selectedStudentIds.size > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50/95 p-3.5 shadow-sm dark:border-sky-800 dark:bg-sky-950/60">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-600 text-xs font-black text-white shadow-sm">
+                  {selectedStudentIds.size}
+                </span>
+                <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                  เลือกแล้ว {selectedStudentIds.size} คน (จาก {filteredStudents.length} คนในรายการ)
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting || (!canManageWorkspace(session.profile.role) && !canWriteRoster)}
+                  onClick={() => void deleteSelectedStudentsPermanently()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-50"
+                  title="ลบรายชื่อนักเรียนที่เลือกทั้งหมดถาวร"
+                >
+                  <Trash2 size={14} />
+                  ลบถาวรที่เลือก ({selectedStudentIds.size})
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || !canWriteRoster}
+                  onClick={() => void updateSelectedStudentsStatus('archived')}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  title="เปลี่ยนสถานะนักเรียนที่เลือกเป็นเก็บถาวร"
+                >
+                  <Archive size={14} />
+                  เก็บถาวร
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || !canWriteRoster}
+                  onClick={() => void updateSelectedStudentsStatus('active')}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  title="เปลี่ยนสถานะนักเรียนที่เลือกเป็นกำลังเรียน"
+                >
+                  <CheckCircle2 size={14} />
+                  เปิดใช้งาน
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentIds(new Set())}
+                  className="rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                >
+                  ยกเลิกเลือก
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-left">
               <thead>
                 <tr className="text-xs font-black uppercase text-slate-500">
+                  <th className="px-3 py-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredStudents.length > 0 &&
+                        filteredStudents.every((s) => selectedStudentIds.has(s.id))
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedStudentIds((current) => {
+                            const next = new Set(current);
+                            filteredStudents.forEach((s) => next.add(s.id));
+                            return next;
+                          });
+                        } else {
+                          setSelectedStudentIds((current) => {
+                            const next = new Set(current);
+                            filteredStudents.forEach((s) => next.delete(s.id));
+                            return next;
+                          });
+                        }
+                      }}
+                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                      aria-label="เลือกทั้งหมดในหน้านี้"
+                    />
+                  </th>
                   <th className="px-3 py-3">รหัส</th>
                   <th className="px-3 py-3">ชื่อ-นามสกุล</th>
                   <th className="px-3 py-3">ห้องเรียน</th>
@@ -3736,6 +3903,26 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
                   return (
                     <tr className={isSelected ? 'bg-sky-50/80' : 'hover:bg-sky-50/50'} key={student.id}>
+                      <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentIds.has(student.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSelectedStudentIds((current) => {
+                              const next = new Set(current);
+                              if (checked) {
+                                next.add(student.id);
+                              } else {
+                                next.delete(student.id);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                          aria-label={`เลือก ${student.first_name} ${student.last_name}`}
+                        />
+                      </td>
                       <td className="whitespace-nowrap px-3 py-3 font-black text-slate-700">{student.student_code || '-'}</td>
                       <td className="px-3 py-3">
                         <button

@@ -40,6 +40,7 @@ interface TrashItem {
   deletedAt: string;
   restored?: boolean;
   permanentlyDeleted?: boolean;
+  payload?: Record<string, unknown>;
 }
 
 interface HealthIssue {
@@ -265,6 +266,7 @@ function mapTrashRow(row: DbRow): TrashItem {
     deletedAt: String(row.deleted_at || row.created_at || '').slice(0, 10),
     restored: row.restore_status === 'restored',
     permanentlyDeleted: row.restore_status === 'purged',
+    payload,
   };
 }
 
@@ -476,23 +478,49 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
 
   const restoreTrash = async (id: string) => {
     if (!canManageSafety) return;
+    const targetItem = state.trashItems.find((item) => item.id === id);
     setState((current) => ({
       ...current,
       trashItems: current.trashItems.map((item) => (item.id === id ? { ...item, restored: true } : item)),
     }));
 
     if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
-    const { error } = await supabase
-      .from('trash_items')
-      .update({
-        restore_status: 'restored',
-        restored_by: session.profile.id,
-        restored_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('workspace_id', session.workspace.id);
-    if (error) updateSyncFromError(error);
-    else setSync({ status: 'synced', message: 'กู้คืนรายการลง Supabase แล้ว' });
+
+    try {
+      if (targetItem?.kind === 'student' && targetItem.payload) {
+        const p = targetItem.payload;
+        if (p.first_name && p.last_name) {
+          await supabase.from('students').upsert({
+            id: p.id || id,
+            workspace_id: session.workspace.id,
+            classroom_id: (p.classroom_id as string) || null,
+            student_code: (p.student_code as string) || null,
+            first_name: String(p.first_name),
+            last_name: String(p.last_name),
+            nickname: (p.nickname as string) || null,
+            gender: (p.gender as string) || 'other',
+            status: 'active',
+            care_flags: (p.care_flags as Record<string, unknown>) || {},
+          });
+        }
+      }
+
+      const { error } = await supabase
+        .from('trash_items')
+        .update({
+          restore_status: 'restored',
+          restored_by: session.profile.id,
+          restored_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('workspace_id', session.workspace.id);
+
+      if (error) updateSyncFromError(error);
+      else setSync({ status: 'synced', message: 'กู้คืนรายการและบันทึกลง Supabase เรียบร้อยแล้ว' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'กู้คืนไม่สำเร็จ';
+      setSync({ status: 'error', message: `กู้คืนไม่สำเร็จ: ${msg}` });
+    }
   };
 
   const deleteTrashForever = async (id: string) => {
