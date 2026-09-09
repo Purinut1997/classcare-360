@@ -29,6 +29,7 @@ import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
+import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
 
 interface AttendancePageProps {
   session: AppSessionContext;
@@ -83,15 +84,9 @@ interface CalendarAttendancePolicy {
   title: string;
 }
 
-const demoClassrooms: ClassroomRow[] = [
-  { academic_year: '2569', id: 'demo-classroom', name: 'ป.5/1' },
-];
+const demoClassrooms: ClassroomRow[] = DEMO_PRIMARY_CLASSROOMS;
 
-const demoStudents: StudentRow[] = [
-  { classroom_id: 'demo-classroom', first_name: 'ก้องภพ', id: 'demo-student-1', last_name: 'ใจดี', nickname: 'ก้อง', student_code: 'TEST-01' },
-  { classroom_id: 'demo-classroom', first_name: 'ณัฐธิดา', id: 'demo-student-2', last_name: 'แสงทอง', nickname: 'นัท', student_code: 'TEST-02' },
-  { classroom_id: 'demo-classroom', first_name: 'ปกรณ์', id: 'demo-student-3', last_name: 'เรียนดี', nickname: 'ปอ', student_code: 'TEST-03' },
-];
+const demoStudents: StudentRow[] = DEMO_PRIMARY_STUDENTS;
 
 const statusOptions: Array<{ label: string; tone: string; value: AttendanceStatus }> = [
   { label: 'มา', tone: 'bg-teal-50 text-teal-700 ring-teal-100', value: 'present' },

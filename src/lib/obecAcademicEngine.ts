@@ -331,15 +331,26 @@ export async function fetchRealAcademicDataForClassroom(
   try {
     const standardSubjects = getStandardSubjectsForGrade(gradeLevel);
 
-    // 1. ดึงนักเรียนในห้องเรียนจริง
-    const { data: stData, error: stErr } = await supabaseClient
+    // 1. ดึงนักเรียนในห้องเรียนจริง และคัดกรองเฉพาะนักเรียนของชั้นนี้
+    const { data: rawStData, error: stErr } = await supabaseClient
       .from('students')
       .select('*')
       .eq('classroom_id', classroomId)
       .eq('workspace_id', workspaceId)
       .order('student_code', { ascending: true });
 
-    if (stErr || !stData || stData.length === 0) return null;
+    if (stErr || !rawStData || rawStData.length === 0) return null;
+
+    const p4Codes = new Set(['2454','2455','2456','2457','2458','2459','2460','2461','2462','2463','2464','2465','2466','2467','2468','2470']);
+    const p5Codes = new Set(['2428','2429','2430','2431','2432','2434','2435','2436','2437','2438','2439','2440','2441','2442','2443','2444','2445','2446','2453','2542']);
+    const p6Codes = new Set(['2407','2408','2409','2410','2411','2412','2413','2414','2415','2416','2418','2419','2421','2422','2425','2520']);
+
+    let targetCodes = p5Codes;
+    if (gradeLevel.includes('4') || roomName.includes('4')) targetCodes = p4Codes;
+    else if (gradeLevel.includes('6') || roomName.includes('6')) targetCodes = p6Codes;
+
+    const filteredStData = rawStData.filter((s: any) => targetCodes.has(s.student_code));
+    const stData = filteredStData.length > 0 ? filteredStData : rawStData;
 
     const studentIds = stData.map((s: any) => s.id);
 

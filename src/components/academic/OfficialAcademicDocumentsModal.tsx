@@ -23,7 +23,7 @@ import type { AppSessionContext } from '../../types/core';
 import { UniversalPhorPhor6Viewer } from './UniversalPhorPhor6Viewer';
 import { UniversalPhorPhor5Viewer } from './UniversalPhorPhor5Viewer';
 import { OBECSchoolHeader, fetchRealAcademicDataForClassroom, RealClassroomAcademicPayload } from '../../lib/obecAcademicEngine';
-import { P5_MASTER_DATA } from '../../data/p5MasterTemplate';
+import { P5_MASTER_DATA, getPrimaryMasterData } from '../../data/p5MasterTemplate';
 import { printElementAsDocument } from '../../lib/academicPrintService';
 
 interface OfficialAcademicDocumentsModalProps {
@@ -118,26 +118,34 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
           { id: 'c-m3', name: 'มัธยมศึกษาปีที่ 3' },
         ];
         setClassrooms(defaultClassrooms);
+        const activeRoomId = selectedClassroomId || 'c-p5';
+        const activeRoom = defaultClassrooms.find((c) => c.id === activeRoomId) || defaultClassrooms[4];
         if (!selectedClassroomId) {
-          setSelectedClassroomId('c-p5');
-          setSelectedClassroomName('ประถมศึกษาปีที่ 5');
+          setSelectedClassroomId(activeRoom.id);
+          setSelectedClassroomName(activeRoom.name);
         }
 
-        // นำข้อมูลจริง 16 คนจากแม่แบบ ป.5 มาใช้
-        const mappedP5 = P5_MASTER_DATA.students.map((st, idx) => ({
-          id: `st-p5-${idx + 1}`,
+        // นำข้อมูลจริงตามระดับชั้นที่เลือกจากแม่แบบ (ป.4: 16 คน, ป.5: 20 คน, ป.6: 16 คน)
+        const master = getPrimaryMasterData(activeRoom.name);
+        const mappedStudents = master.students.map((st, idx) => ({
+          id: `st-${st.student_code}`,
           student_code: st.student_code,
           prefix: st.title,
           first_name: st.first_name,
           last_name: st.last_name,
           gender: st.gender,
-          birthdate: st.birth_date,
-          weight: 34 + (idx % 8),
-          height: 138 + (idx % 12),
+          birthdate: st.birth_date_thai || st.birth_date,
+          address: st.address,
+          father_name: st.father_name,
+          mother_name: st.mother_name,
+          parent_name: st.parent_name,
+          parent_relation: st.parent_relation,
+          weight: 32 + (idx % 8),
+          height: 135 + (idx % 12),
         }));
 
-        setStudents(mappedP5);
-        setSelectedCertStudentId(mappedP5[0]?.id || '');
+        setStudents(mappedStudents);
+        setSelectedCertStudentId(mappedStudents[0]?.id || '');
         setLoading(false);
         return;
       }
@@ -180,21 +188,30 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
             .eq('workspace_id', workspaceId)
             .order('student_code', { ascending: true });
 
-          if (stData && stData.length > 0) {
-            setStudents(stData);
-            setSelectedCertStudentId(stData[0].id);
+          const master = getPrimaryMasterData(activeName);
+          const expectedCodes = new Set(master.students.map((s) => s.student_code));
+          const validStData = (stData || []).filter((s) => expectedCodes.has(s.student_code));
+
+          if (validStData.length > 0) {
+            setStudents(validStData);
+            setSelectedCertStudentId(validStData[0].id);
           } else {
-            // fallback ใช้ P5 Template ถ้ายังไม่มีนักเรียนในห้องนั้น
-            const mapped = P5_MASTER_DATA.students.map((st, idx) => ({
-              id: `st-${idx + 1}`,
+            // fallback ใช้ Master Template ของชั้นนั้นถ้ายังไม่มีนักเรียนในห้องนั้น
+            const mapped = master.students.map((st, idx) => ({
+              id: `st-${st.student_code}`,
               student_code: st.student_code,
               prefix: st.title,
               first_name: st.first_name,
               last_name: st.last_name,
               gender: st.gender,
-              birthdate: st.birth_date,
-              weight: 34 + (idx % 6),
-              height: 138 + (idx % 10),
+              birthdate: st.birth_date_thai || st.birth_date,
+              address: st.address,
+              father_name: st.father_name,
+              mother_name: st.mother_name,
+              parent_name: st.parent_name,
+              parent_relation: st.parent_relation,
+              weight: 32 + (idx % 8),
+              height: 135 + (idx % 12),
             }));
             setStudents(mapped);
             setSelectedCertStudentId(mapped[0]?.id || '');

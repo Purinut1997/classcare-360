@@ -64,6 +64,46 @@ export const NEXT_GRADE_LEVEL_MAP: Record<string, { nextLevel: string; isGraduat
 };
 
 /**
+ * Resolves the next grade level and graduation status safely for any grade format
+ */
+export function getNextGradeLevel(gradeStr: string): { nextLevel: string; isGraduation: boolean } {
+  if (!gradeStr) return { nextLevel: 'เลื่อนชั้นถัดไป', isGraduation: false };
+
+  // Direct match in map
+  if (NEXT_GRADE_LEVEL_MAP[gradeStr]) {
+    return NEXT_GRADE_LEVEL_MAP[gradeStr];
+  }
+
+  // Suffix trim e.g. "ป.4/1" -> "ป.4", "ประถมศึกษาปีที่ 5/1" -> "ประถมศึกษาปีที่ 5"
+  const cleanBase = gradeStr.split('/')[0].trim();
+  if (NEXT_GRADE_LEVEL_MAP[cleanBase]) {
+    return NEXT_GRADE_LEVEL_MAP[cleanBase];
+  }
+
+  // Fuzzy match by grade number
+  if (gradeStr.includes('6') || gradeStr.includes('ป.6')) {
+    return { nextLevel: 'จบการศึกษาระดับประถมศึกษา', isGraduation: true };
+  }
+  if (gradeStr.includes('5') || gradeStr.includes('ป.5')) {
+    return { nextLevel: 'ประถมศึกษาปีที่ 6', isGraduation: false };
+  }
+  if (gradeStr.includes('4') || gradeStr.includes('ป.4')) {
+    return { nextLevel: 'ประถมศึกษาปีที่ 5', isGraduation: false };
+  }
+  if (gradeStr.includes('3') || gradeStr.includes('ป.3')) {
+    return { nextLevel: 'ประถมศึกษาปีที่ 4', isGraduation: false };
+  }
+  if (gradeStr.includes('2') || gradeStr.includes('ป.2')) {
+    return { nextLevel: 'ประถมศึกษาปีที่ 3', isGraduation: false };
+  }
+  if (gradeStr.includes('1') || gradeStr.includes('ป.1')) {
+    return { nextLevel: 'ประถมศึกษาปีที่ 2', isGraduation: false };
+  }
+
+  return { nextLevel: 'เลื่อนชั้นถัดไป', isGraduation: false };
+}
+
+/**
  * Evaluates student promotion decision based on OBEC standard criteria.
  */
 export function evaluatePromotionDecision(params: {
@@ -74,11 +114,7 @@ export function evaluatePromotionDecision(params: {
   currentGradeLevel: string;
 }): { decision: 'promoted' | 'retained' | 'graduated' | 'pending'; targetGradeLevel?: string; reasons: string[] } {
   const reasons: string[] = [];
-
-  const gradeInfo = NEXT_GRADE_LEVEL_MAP[params.currentGradeLevel] || {
-    nextLevel: 'เลื่อนชั้นถัดไป',
-    isGraduation: false,
-  };
+  const gradeInfo = getNextGradeLevel(params.currentGradeLevel);
 
   if (params.attendancePercentage < 80) {
     reasons.push(`เวลาเรียนไม่ถึง 80% (ได้ ${params.attendancePercentage}%)`);

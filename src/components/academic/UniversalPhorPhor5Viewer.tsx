@@ -36,8 +36,12 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
   const selectedSubject = standardSubjects.find((s) => s.code === selectedSubjectCode) || standardSubjects[0];
 
   // สถิตินักเรียนต้นปี-สิ้นปี
-  const totalStudents = students.length || 16;
-  const maleStudents = 7;
+  const totalStudents = students.length;
+  const maleStudents = students.filter((s) => {
+    const p = s.prefix || '';
+    const g = (s as any).gender;
+    return g === 'male' || p.includes('เด็กชาย') || p.includes('ด.ช.') || p === 'นาย';
+  }).length;
   const femaleStudents = totalStudents - maleStudents;
 
   // คัดลอกตารางลง Excel

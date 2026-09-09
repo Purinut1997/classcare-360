@@ -52,6 +52,7 @@ import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
 import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
+import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
 
 interface ScoresPageProps {
   session: AppSessionContext;
@@ -133,61 +134,9 @@ interface SafeDeleteResult {
   reason?: string;
 }
 
-const demoClassrooms: ClassroomRow[] = [
-  { academic_year: '2569', id: 'demo-classroom-1', name: 'ป.5/1' },
-  { academic_year: '2569', id: 'demo-classroom-2', name: 'ป.5/2' },
-];
+const demoClassrooms: ClassroomRow[] = DEMO_PRIMARY_CLASSROOMS;
 
-const demoStudents: StudentRow[] = [
-  {
-    classroom_id: 'demo-classroom-1',
-    first_name: 'ณัฐวุฒิ',
-    id: 'demo-student-1',
-    last_name: 'ใจดี',
-    nickname: 'นัท',
-    student_code: '001',
-  },
-  {
-    classroom_id: 'demo-classroom-1',
-    first_name: 'พิมพ์ชนก',
-    id: 'demo-student-2',
-    last_name: 'แสงทอง',
-    nickname: 'พิม',
-    student_code: '002',
-  },
-  {
-    classroom_id: 'demo-classroom-1',
-    first_name: 'กิตติพงศ์',
-    id: 'demo-student-3',
-    last_name: 'สุขใจ',
-    nickname: 'ก้อง',
-    student_code: '003',
-  },
-  {
-    classroom_id: 'demo-classroom-2',
-    first_name: 'ธนกฤต',
-    id: 'demo-student-4',
-    last_name: 'มีทรัพย์',
-    nickname: 'กฤต',
-    student_code: '001',
-  },
-  {
-    classroom_id: 'demo-classroom-2',
-    first_name: 'ปภาวดี',
-    id: 'demo-student-5',
-    last_name: 'ทองแท้',
-    nickname: 'วาวา',
-    student_code: '002',
-  },
-  {
-    classroom_id: 'demo-classroom-2',
-    first_name: 'ชวกร',
-    id: 'demo-student-6',
-    last_name: 'สมบูรณ์',
-    nickname: 'กร',
-    student_code: '003',
-  },
-];
+const demoStudents: StudentRow[] = DEMO_PRIMARY_STUDENTS;
 
 const demoAssessments: ScoreAssessmentRow[] = [
   {

@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  RefreshCw,
   UserPlus,
   UserRound,
   Users,
@@ -41,6 +42,14 @@ import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
+import {
+  DEMO_PRIMARY_CLASSROOMS,
+  DEMO_PRIMARY_STUDENTS,
+  autoRealignAllStudentsToCorrectRooms,
+  P4_MASTER_DATA,
+  P5_MASTER_DATA,
+  P6_MASTER_DATA,
+} from '../../data/p5MasterTemplate';
 
 interface StudentsPageProps {
   session: AppSessionContext;
@@ -244,81 +253,28 @@ const defaultHomeVisitForm: HomeVisitFormState = {
   welfareSupport: 'ไม่ได้รับสวัสดิการแห่งรัฐ',
 };
 
-const demoClassrooms: ClassroomRow[] = [
-  {
-    academic_year: '2569',
-    grade_level: 'ป.5',
-    id: 'demo-classroom',
-    name: 'ป.5/2',
-    status: 'active',
-  },
-];
+const demoClassrooms: ClassroomRow[] = DEMO_PRIMARY_CLASSROOMS;
 
-const demoStudents: StudentRow[] = [
-  {
-    care_flags: {
-      urgent: true,
-      missingWorks: 2,
-      homeVisit: {
-        ...defaultHomeVisitForm,
-        address: 'บ้านเลขที่ 12 หมู่ 4 ต.ตัวอย่าง อ.เมือง จ.เชียงใหม่ 50000',
-        consentAccepted: true,
-        dailyAllowance: '30',
-        dependencyNotes: 'ผู้ปกครองรับจ้างรายวัน รายได้ไม่แน่นอน',
-        distanceKm: '3.5',
-        familyStatus: 'พ่อแม่อยู่ด้วยกัน',
-        googleMapUrl: 'https://www.google.com/maps?q=18.788343,98.985300',
-        guardianEducation: 'มัธยมศึกษาตอนต้น',
-        guardianName: 'คุณแม่ณัฐวุฒิ',
-        guardianOccupation: 'รับจ้างรายวัน',
-        guardianPhone: '08x-xxx-1122',
-        householdIncome: '9200',
-        householdMembers: '4',
-        housePhotoNote: 'ต้องแนบภาพภายนอกและภายในที่พักอาศัยก่อนส่งรับรอง',
-        indoorPhotoFileId: 'demo-home-visit-photo-indoor',
-        indoorPhotoLabel: 'inside-home-demo.jpg',
-        latitude: '18.788343',
-        livingWith: 'พ่อ/แม่',
-        longitude: '98.985300',
-        mapPlaceName: 'บ้านนักเรียนตัวอย่าง',
-        outdoorPhotoFileId: 'demo-home-visit-photo-outdoor',
-        outdoorPhotoLabel: 'outside-home-demo.jpg',
-        relationship: 'มารดา',
-        status: 'ready',
-        travelCost: '300',
-        travelMethod: 'จักรยานยนต์ส่วนตัว',
-        travelMinutes: '25',
-      },
+const demoStudents: StudentRow[] = DEMO_PRIMARY_STUDENTS.map((st, idx) => ({
+  ...st,
+  care_flags: idx === 0 ? {
+    urgent: true,
+    missingWorks: 2,
+    homeVisit: {
+      ...defaultHomeVisitForm,
+      address: st.metadata?.address ? String(st.metadata.address) : 'บ้านเลขที่ 12 หมู่ 4 ต.กันทรารมย์ อ.ขุขันธ์ จ.ศรีสะเกษ',
+      consentAccepted: true,
+      dailyAllowance: '40',
+      dependencyNotes: 'ผู้ปกครองรับจ้างรายวัน รายได้ไม่แน่นอน',
+      distanceKm: '2.5',
+      familyStatus: 'พ่อแม่อยู่ด้วยกัน',
+      guardianName: st.metadata?.parent_name ? String(st.metadata.parent_name) : 'ผู้ปกครอง',
+      relationship: st.metadata?.parent_relation ? String(st.metadata.parent_relation) : 'มารดา',
+      status: 'ready',
     },
-    classroom_id: 'demo-classroom',
-    first_name: 'ณัฐวุฒิ',
-    id: 'demo-student-1',
-    last_name: 'ใจดี',
-    nickname: 'นัท',
-    status: 'active',
-    student_code: '001',
-  },
-  {
-    care_flags: { improved: true },
-    classroom_id: 'demo-classroom',
-    first_name: 'พิมพ์ชนก',
-    id: 'demo-student-2',
-    last_name: 'แสงทอง',
-    nickname: 'พิม',
-    status: 'active',
-    student_code: '002',
-  },
-  {
-    care_flags: { parentAppointment: true },
-    classroom_id: 'demo-classroom',
-    first_name: 'กิตติพงศ์',
-    id: 'demo-student-3',
-    last_name: 'สุขใจ',
-    nickname: 'ก้อง',
-    status: 'active',
-    student_code: '003',
-  },
-];
+  } : idx === 1 ? { improved: true } : idx === 2 ? { parentAppointment: true } : {},
+  health_flags: {},
+}));
 
 const demoGuardians: GuardianRow[] = [
   {
@@ -1366,10 +1322,66 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .sort((left, right) => right.group.length - left.group.length);
   }, [students]);
 
+  const wrongRoomStudents = useMemo(() => {
+    const p4Codes = new Set(P4_MASTER_DATA.students.map((s) => s.student_code));
+    const p5Codes = new Set(P5_MASTER_DATA.students.map((s) => s.student_code));
+    const p6Codes = new Set(P6_MASTER_DATA.students.map((s) => s.student_code));
+
+    return students.filter((student) => {
+      if (student.status !== 'active' || !student.classroom_id || !student.student_code) return false;
+      const room = classrooms.find((c) => c.id === student.classroom_id);
+      if (!room) return false;
+      const rName = room.name || '';
+      const rGrade = room.grade_level || '';
+      const isRoomP4 = rName.includes('4') || rGrade.includes('4');
+      const isRoomP5 = rName.includes('5') || rGrade.includes('5');
+      const isRoomP6 = rName.includes('6') || rGrade.includes('6');
+
+      if (p4Codes.has(student.student_code) && !isRoomP4) return true;
+      if (p5Codes.has(student.student_code) && !isRoomP5) return true;
+      if (p6Codes.has(student.student_code) && !isRoomP6) return true;
+      return false;
+    });
+  }, [classrooms, students]);
+
+  const [isRealigning, setIsRealigning] = useState(false);
+
+  async function handleAutoRealignStudents() {
+    setIsRealigning(true);
+    try {
+      const res = await autoRealignAllStudentsToCorrectRooms(session);
+      setNotice(res.message);
+      if (useRealBackend && supabase && session.workspace) {
+        const [{ data: refreshedStudents }, { data: refreshedRooms }] = await Promise.all([
+          supabase
+            .from('students')
+            .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
+            .eq('workspace_id', session.workspace.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('classrooms')
+            .select('id,name,grade_level,academic_year,status')
+            .eq('workspace_id', session.workspace.id)
+            .order('name', { ascending: true }),
+        ]);
+        if (refreshedStudents) setStudents(refreshedStudents);
+        if (refreshedRooms) setClassrooms(refreshedRooms as ClassroomRow[]);
+      } else {
+        setStudents(demoStudents);
+        setClassrooms(demoClassrooms);
+      }
+    } catch (err: any) {
+      setNotice('เกิดข้อผิดพลาดในการจัดระเบียบห้องเรียน: ' + (err.message || ''));
+    } finally {
+      setIsRealigning(false);
+    }
+  }
+
   const qualityIssueCount =
     studentsWithoutClassroom.length +
     studentsWithBlankIdentity.length +
     archivedOrInactiveStudents.length +
+    wrongRoomStudents.length +
     duplicateStudentGroups.reduce((sum, item) => sum + item.group.length, 0);
 
   const studentSwitcherOptions = useMemo(
@@ -3334,19 +3346,47 @@ export function StudentsPage({ session }: StudentsPageProps) {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               {[
                 { label: 'ไม่มีห้อง', value: studentsWithoutClassroom.length, tone: 'amber' },
+                { label: 'อยู่ผิดห้อง', value: wrongRoomStudents.length, tone: 'rose' },
                 { label: 'ชื่อ/รหัสว่าง', value: studentsWithBlankIdentity.length, tone: 'rose' },
                 { label: 'ซ้ำ', value: duplicateStudentGroups.reduce((sum, item) => sum + item.group.length, 0), tone: 'cyan' },
                 { label: 'ถูกซ่อนด้วยสถานะ', value: archivedOrInactiveStudents.length, tone: 'slate' },
               ].map((item) => (
-                <div className="rounded-[24px] border border-slate-200 bg-white/88 p-4 shadow-sm" key={item.label}>
-                  <p className="text-3xl font-black text-slate-950">{item.value}</p>
+                <div className={`rounded-[24px] border p-4 shadow-sm ${item.label === 'อยู่ผิดห้อง' && item.value > 0 ? 'border-rose-300 bg-rose-50/80 ring-1 ring-rose-200' : 'border-slate-200 bg-white/88'}`} key={item.label}>
+                  <p className={`text-3xl font-black ${item.label === 'อยู่ผิดห้อง' && item.value > 0 ? 'text-rose-700' : 'text-slate-950'}`}>{item.value}</p>
                   <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
                 </div>
               ))}
             </div>
+
+            {wrongRoomStudents.length > 0 ? (
+              <div className="mt-5 rounded-[24px] border border-rose-300 bg-rose-50/90 p-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 shrink-0 text-rose-700" size={20} aria-hidden="true" />
+                    <div>
+                      <h3 className="text-base font-black text-rose-950">
+                        ตรวจพบนักเรียนอยู่ผิดห้องเรียน {wrongRoomStudents.length} คน
+                      </h3>
+                      <p className="mt-1 text-xs font-bold leading-5 text-rose-800">
+                        เกิดจากข้อมูลถูกนำเข้าห้องผิด (เช่น นำเข้า ป.6 ไปอยู่ห้อง ป.5) สามารถกดปุ่มด้านขวาเพื่อจัดระเบียบย้าย ป.4 (16 คน), ป.5 (20 คน), ป.6 (16 คน) เข้าห้องที่ถูกต้องตามระเบียน รร.บ้านโคกสูง ทันที
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-5 text-xs font-black text-white shadow-md shadow-rose-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                    disabled={isRealigning || isSubmitting}
+                    onClick={() => void handleAutoRealignStudents()}
+                    type="button"
+                  >
+                    <RefreshCw size={15} className={isRealigning ? 'animate-spin' : ''} />
+                    <span>{isRealigning ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้องทันที'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-4">
               <div className="rounded-[24px] border border-amber-200 bg-amber-50/70 p-4">
@@ -3510,6 +3550,31 @@ export function StudentsPage({ session }: StudentsPageProps) {
               แสดง {filteredStudents.length}/{students.length}
             </div>
           </div>
+
+          {wrongRoomStudents.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-rose-300 bg-rose-50/90 p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 shrink-0 text-rose-700" size={18} aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-black text-rose-950">
+                    ตรวจพบนักเรียนอยู่ผิดห้องเรียน {wrongRoomStudents.length} คน (เช่น รหัส ป.6 แต่อยู่ในห้อง ป.5)
+                  </p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-rose-800">
+                    สามารถกดปุ่มจัดระเบียบเพื่อย้ายนักเรียน ป.4 (16 คน), ป.5 (20 คน), ป.6 (16 คน) เข้าห้องที่ถูกต้องได้ทันที
+                  </p>
+                </div>
+              </div>
+              <button
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-4 text-xs font-black text-white shadow transition hover:bg-rose-700 disabled:opacity-50"
+                disabled={isRealigning || isSubmitting}
+                onClick={() => void handleAutoRealignStudents()}
+                type="button"
+              >
+                <RefreshCw size={14} className={isRealigning ? 'animate-spin' : ''} />
+                <span>{isRealigning ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
+              </button>
+            </div>
+          ) : null}
 
           {activeStudentsWithoutClassroom.length > 0 ? (
             <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:flex-row sm:items-center sm:justify-between">

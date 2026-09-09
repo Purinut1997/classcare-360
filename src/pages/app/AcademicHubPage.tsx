@@ -29,7 +29,13 @@ import {
 import { AcademicSubjectsModal } from '../../components/academic/AcademicSubjectsModal';
 import { OfficialAcademicDocumentsModal } from '../../components/academic/OfficialAcademicDocumentsModal';
 import { TermClosingWizardModal } from '../../components/academic/TermClosingWizardModal';
-import { P5_MASTER_DATA, syncP5MasterDataToWorkspace } from '../../data/p5MasterTemplate';
+import {
+  P5_MASTER_DATA,
+  getPrimaryMasterData,
+  syncGradeMasterDataToWorkspace,
+  syncP5MasterDataToWorkspace,
+  autoRealignAllStudentsToCorrectRooms,
+} from '../../data/p5MasterTemplate';
 import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -97,12 +103,12 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     const loadClassrooms = async () => {
       if (isDemo || !isSupabaseReady || !workspaceId) {
         const demoClassrooms: ClassroomItem[] = [
-          { id: 'demo-cls-1', name: 'ป.5/1', academic_year: '2568', student_count: 16 },
-          { id: 'demo-cls-2', name: 'ป.5/2', academic_year: '2568', student_count: 18 },
-          { id: 'demo-cls-3', name: 'ป.6/1', academic_year: '2568', student_count: 20 },
+          { id: 'demo-cls-p4', name: 'ประถมศึกษาปีที่ 4', academic_year: '2568', student_count: 16 },
+          { id: 'demo-cls-p5', name: 'ประถมศึกษาปีที่ 5', academic_year: '2568', student_count: 20 },
+          { id: 'demo-cls-p6', name: 'ประถมศึกษาปีที่ 6', academic_year: '2568', student_count: 16 },
         ];
         setClassrooms(demoClassrooms);
-        setSelectedClassroomId(demoClassrooms[0].id);
+        setSelectedClassroomId(demoClassrooms[1].id);
         return;
       }
 
@@ -137,14 +143,16 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     if (!selectedClassroomId) return;
 
     if (isDemo || !isSupabaseReady || !workspaceId) {
-      // Map from genuine P5_MASTER_DATA
-      const mappedP5: StudentAcademicSummary[] = P5_MASTER_DATA.students.map((st, idx) => {
+      // Map from genuine Master Data according to selected classroom (P.4: 16 คน, P.5: 20 คน, P.6: 16 คน)
+      const activeRoom = classrooms.find((c) => c.id === selectedClassroomId);
+      const master = getPrimaryMasterData(activeRoom?.name || 'ป.5');
+      const mappedStudents: StudentAcademicSummary[] = master.students.map((st, idx) => {
         const seed = (st.student_code.charCodeAt(0) * 17 + idx * 31) % 100;
         const attRate = 78 + (seed % 22);
         const gpaVal = Number((2.4 + (seed % 16) * 0.1).toFixed(2));
         const passed = attRate >= 80 && gpaVal >= 1.5;
         return {
-          id: `p5-st-${st.student_code}`,
+          id: `st-${st.student_code}`,
           student_code: st.student_code,
           first_name: st.first_name,
           last_name: st.last_name,
@@ -156,13 +164,17 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
           promotion_status: passed ? 'ready' : attRate < 80 ? 'warning' : 'remedial',
         };
       });
-      setStudents(mappedP5);
+      setStudents(mappedStudents);
       return;
     }
 
     if (!supabase) return;
 
     try {
+      const activeRoom = classrooms.find((c) => c.id === selectedClassroomId);
+      const roomName = activeRoom?.name || 'ประถมศึกษาปีที่ 5';
+      const master = getPrimaryMasterData(roomName);
+
       const { data, error } = await supabase
         .from('students')
         .select('id, student_code, first_name, last_name')
@@ -172,8 +184,22 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        const mapped: StudentAcademicSummary[] = data.map((s, idx) => {
+      // Detect if students in this room belong to another grade
+      const expectedCodes = new Set(master.students.map((s) => s.student_code));
+      const hasWrongRoomStudents = data && data.length > 0 && data.some((s) => !expectedCodes.has(s.student_code));
+      const cleanData = data ? data.filter((s) => expectedCodes.has(s.student_code)) : [];
+
+      if (hasWrongRoomStudents) {
+        console.warn(`Students in ${roomName} are in the wrong room. Auto-realigning...`);
+        autoRealignAllStudentsToCorrectRooms(session).then((res) => {
+          if (res.success) {
+            void loadClassroomStudents();
+          }
+        });
+      }
+
+      if (cleanData.length > 0) {
+        const mapped: StudentAcademicSummary[] = cleanData.map((s, idx) => {
           const seed = (s.id.length * 17 + idx * 23) % 100;
           const attRate = 76 + (seed % 24);
           const gpaVal = Number((2.1 + (seed % 19) * 0.1).toFixed(2));
@@ -193,7 +219,26 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
         });
         setStudents(mapped);
       } else {
-        setStudents([]);
+        // Fallback to genuine Master Data for this room (P.4: 16 คน, P.5: 20 คน, P.6: 16 คน)
+        const mappedStudents: StudentAcademicSummary[] = master.students.map((st, idx) => {
+          const seed = (st.student_code.charCodeAt(0) * 17 + idx * 31) % 100;
+          const attRate = 78 + (seed % 22);
+          const gpaVal = Number((2.4 + (seed % 16) * 0.1).toFixed(2));
+          const passed = attRate >= 80 && gpaVal >= 1.5;
+          return {
+            id: `st-${st.student_code}`,
+            student_code: st.student_code,
+            first_name: st.first_name,
+            last_name: st.last_name,
+            number: idx + 1,
+            attendance_rate: attRate,
+            gpa: gpaVal,
+            traits_passed: true,
+            activities_passed: attRate >= 80,
+            promotion_status: passed ? 'ready' : attRate < 80 ? 'warning' : 'remedial',
+          };
+        });
+        setStudents(mappedStudents);
       }
     } catch (err) {
       console.error('Failed to load students', err);
@@ -204,11 +249,12 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     loadClassroomStudents();
   }, [selectedClassroomId, workspaceId, isDemo]);
 
-  // 1-Click Sync from genuine p5 master template
-  const handleSyncP5Master = async () => {
+  // 1-Click Sync from genuine master template for selected classroom
+  const handleSyncGradeMaster = async () => {
     setIsSyncing(true);
     try {
-      const res = await syncP5MasterDataToWorkspace(session, selectedClassroomId);
+      const roomName = selectedClassroom?.name || 'ป.5';
+      const res = await syncGradeMasterDataToWorkspace(session, selectedClassroomId, roomName);
       setToastMessage(res.message);
       await loadClassroomStudents();
     } catch (err: any) {
@@ -216,6 +262,21 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     } finally {
       setIsSyncing(false);
       setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
+
+  // One-click Re-align and fix students in wrong rooms
+  const handleAutoRealign = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await autoRealignAllStudentsToCorrectRooms(session);
+      setToastMessage(res.message);
+      await loadClassroomStudents();
+    } catch (err: any) {
+      setToastMessage('เกิดข้อผิดพลาดในการจัดระเบียบห้อง: ' + (err.message || ''));
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setToastMessage(null), 6000);
     }
   };
 
@@ -303,8 +364,9 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
   // Copy Subjects to Excel
   const handleCopySubjectsToExcel = async () => {
+    const currentMaster = getPrimaryMasterData(selectedClassroom?.name || 'ป.5');
     const headers = ['ที่', 'รหัสวิชา', 'รายวิชา', 'เวลาเรียน (ชม./ปี)', 'หน่วยกิต', 'กลุ่มสาระการเรียนรู้', 'ประเภทวิชา'];
-    const rows = P5_MASTER_DATA.subjects.map((sub, idx) => [
+    const rows = currentMaster.subjects.map((sub, idx) => [
       idx + 1,
       sub.subject_code,
       sub.subject_name,
@@ -315,7 +377,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     ]);
 
     const success = await copyTableToExcelClipboard({
-      title: `โครงสร้าง 10 รายวิชา ประถมศึกษาปีที่ 5 รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
+      title: `โครงสร้าง 10 รายวิชา ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
       headers,
       rows,
     });
@@ -328,8 +390,9 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
   // Download Subjects as .xlsx
   const handleDownloadSubjectsXlsx = async () => {
+    const currentMaster = getPrimaryMasterData(selectedClassroom?.name || 'ป.5');
     const headers = ['ที่', 'รหัสวิชา', 'รายวิชา', 'เวลาเรียน (ชม./ปี)', 'หน่วยกิต', 'กลุ่มสาระการเรียนรู้', 'ประเภทวิชา'];
-    const rows = P5_MASTER_DATA.subjects.map((sub, idx) => [
+    const rows = currentMaster.subjects.map((sub, idx) => [
       idx + 1,
       sub.subject_code,
       sub.subject_name,
@@ -340,9 +403,9 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     ]);
 
     await exportTableToXlsxFile({
-      filename: `โครงสร้างรายวิชา_ป.5_รร.บ้านโคกสูง`,
-      sheetName: 'รายวิชา ป.5',
-      title: `โครงสร้าง 10 รายวิชา ประถมศึกษาปีที่ 5 รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
+      filename: `โครงสร้างรายวิชา_${selectedClassroom?.name || 'ป.5'}_รร.บ้านโคกสูง`,
+      sheetName: `รายวิชา ${selectedClassroom?.name || 'ป.5'}`,
+      title: `โครงสร้าง 10 รายวิชา ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
       headers,
       rows,
     });
@@ -449,13 +512,23 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             </div>
 
             <button
-              onClick={handleSyncP5Master}
+              onClick={handleSyncGradeMaster}
               disabled={isSyncing}
-              title="โหลดข้อมูลจริง ป.5 จากไฟล์ 'ประถมศึกษาปีที่ 5.xlsb' (รร.บ้านโคกสูง 16 คน 10 วิชา)"
+              title={`โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'} รร.บ้านโคกสูง (${getPrimaryMasterData(selectedClassroom?.name || 'ป.5').students.length} คน 10 วิชา)`}
               className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-xs font-black text-white shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
             >
               <Zap size={13} className={isSyncing ? 'animate-spin' : ''} />
-              <span>{isSyncing ? 'กำลังโหลด...' : '⚡ โหลดข้อมูลจริง ป.5 (รร.บ้านโคกสูง)'}</span>
+              <span>{isSyncing ? 'กำลังโหลด...' : `⚡ โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'}`}</span>
+            </button>
+
+            <button
+              onClick={handleAutoRealign}
+              disabled={isSyncing}
+              title="จัดระเบียบและย้ายนักเรียนเข้าห้องที่ถูกต้องโดยอัตโนมัติ (ป.4 = 16 คน, ป.5 = 20 คน, ป.6 = 16 คน)"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 text-xs font-black text-white shadow-lg shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
+            >
+              <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
+              <span>{isSyncing ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
             </button>
           </div>
         </div>
@@ -813,7 +886,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
             <div>
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <span>โครงสร้าง 10 รายวิชา ประถมศึกษาปีที่ 5</span>
+                <span>โครงสร้าง 10 รายวิชา {selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'}</span>
                 <span className="rounded-lg bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
                   รร.บ้านโคกสูง
                 </span>
@@ -857,10 +930,10 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <BookOpen size={16} className="text-blue-600" />
-                <span>รายวิชาที่เปิดสอนในระดับชั้น</span>
+                <span>รายวิชาที่เปิดสอนในระดับชั้น ({selectedClassroom?.name || 'ป.5'})</span>
               </h3>
               <div className="divide-y divide-slate-100 text-xs">
-                {P5_MASTER_DATA.subjects.map((sub, idx) => (
+                {getPrimaryMasterData(selectedClassroom?.name || 'ป.5').subjects.map((sub, idx) => (
                   <div key={sub.subject_code} className="py-2.5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 font-mono text-[11px] font-bold text-slate-600">
