@@ -147,12 +147,22 @@ export function installSystemNetworkFeedback() {
     ).toUpperCase();
     const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
     const isAiApi = url.includes('generativelanguage.googleapis.com') || url.includes('/v1beta/models');
+    const isSilent = Boolean(
+      init?.headers && (
+        (init.headers instanceof Headers && init.headers.get('x-silent') === 'true') ||
+        (typeof init.headers === 'object' && !Array.isArray(init.headers) && (
+          (init.headers as Record<string, string>)['x-silent'] === 'true' ||
+          (init.headers as Record<string, string>)['X-Silent'] === 'true'
+        ))
+      )
+    );
 
     // Supabase read-only RPC calls also use POST. Show global feedback only
     // when the request follows an explicit click or form submission, and exclude AI chat API.
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
       && lastActionIsMutationIntent
       && !isAiApi
+      && !isSilent
       && Date.now() - lastActionAt < 2500;
     const id = ++requestId;
     const action = Date.now() - lastActionAt < 2500 ? lastAction : 'บันทึกการเปลี่ยนแปลง';

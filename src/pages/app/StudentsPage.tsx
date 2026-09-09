@@ -2384,8 +2384,23 @@ export function StudentsPage({ session }: StudentsPageProps) {
       }
 
       // Step 2: Fallback to delete_reviewed_duplicate_students RPC
+      // Legacy 0060 RPC requires status='archived' and duplicate review, so we auto-prepare them in background
+      // so the user does NOT have to manually click "เก็บถาวร" first!
       if (!deleteSucceeded) {
         try {
+          await supabase
+            .from('students')
+            .update({ status: 'archived' })
+            .eq('id', student.id)
+            .eq('workspace_id', session.workspace.id);
+
+          await supabase.rpc('set_student_roster_reviews', {
+            target_classification: 'duplicate',
+            target_note: 'ลบรายชื่อถาวรโดยตรง',
+            target_student_ids: [student.id],
+            target_workspace_id: session.workspace.id,
+          });
+
           const { error: legacyRpcError } = await supabase.rpc('delete_reviewed_duplicate_students', {
             target_workspace_id: session.workspace.id,
             target_student_ids: [student.id],
@@ -2400,26 +2415,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
         }
       }
 
-      // Step 3: Direct cascading child cleanup and delete fallback
+      // Step 3: Direct cascading child cleanup and delete fallback (core tables only)
       if (!deleteSucceeded) {
         const childTables = [
           'student_guardians',
           'student_roster_reviews',
           'student_behaviors',
           'student_health_records',
-          'student_daily_health_logs',
-          'student_nutrition_growth',
           'student_savings_transactions',
           'attendance_records',
           'score_records',
-          'desirable_characteristic_records',
-          'student_competency_records',
-          'student_activity_evaluations',
-          'term_student_promotions',
-          'student_year_transitions',
           'student_care_cases',
           'student_home_visits',
-          'official_academic_documents',
           'student_profile_links',
         ];
         for (const table of childTables) {
@@ -2427,7 +2434,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
             await supabase
               .from(table)
               .delete()
-              .eq('student_id', student.id);
+              .eq('student_id', student.id)
+              .setHeader('x-silent', 'true');
           } catch {
             // ignore
           }
