@@ -1290,10 +1290,49 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
         }
       }
 
-      // Note: We do NOT insert missing students here. If a student was deleted by a teacher,
-      // they must remain deleted and NOT be resurrected automatically!
+      // 4. Clean up redundant empty rooms (e.g. "ป.5" when "ป.5/1" exists with students and "ป.5" has 0 students)
+      const activePrimaryIds = new Set([p4Room?.id, p5Room?.id, p6Room?.id].filter(Boolean));
+      let cleanedRoomsCount = 0;
 
-      // 5. Upsert 10 official subjects for each grade
+      for (const r of rooms) {
+        if (!activePrimaryIds.has(r.id)) {
+          try {
+            const { count: activeStudentsInRoom } = await supabase
+              .from('students')
+              .select('id', { count: 'exact', head: true })
+              .eq('classroom_id', r.id)
+              .eq('workspace_id', workspaceId)
+              .eq('status', 'active');
+
+            if (!activeStudentsInRoom || activeStudentsInRoom === 0) {
+              const rName = (r.name || '').trim();
+              const isObsoleteDuplicate =
+                rName === 'ป.5' ||
+                rName === 'ป.4' ||
+                rName === 'ป.6' ||
+                rName === 'ห้องเรียนตัวอย่าง' ||
+                rName === 'demo-classroom' ||
+                rName === 'ประถมศึกษาปีที่ 5' ||
+                rName === 'ประถมศึกษาปีที่ 4' ||
+                rName === 'ประถมศึกษาปีที่ 6';
+
+              if (isObsoleteDuplicate) {
+                await supabase
+                  .from('classrooms')
+                  .delete()
+                  .eq('id', r.id)
+                  .eq('workspace_id', workspaceId)
+                  .setHeader('x-silent', 'true');
+                cleanedRoomsCount++;
+              }
+            }
+          } catch {
+            // Ignore if deletion policy differs
+          }
+        }
+      }
+
+      // 5. Upsert 10 official subjects for each grade (silent so missing table doesn't trigger error toast)
       for (const [gradeLabel, dataObj] of [
         ['ป.4', P4_MASTER_DATA],
         ['ป.5', P5_MASTER_DATA],
@@ -1310,15 +1349,21 @@ export async function autoRealignAllStudentsToCorrectRooms(session: AppSessionCo
           is_basic: sub.is_basic,
         }));
         try {
-          await supabase.from('school_subjects').upsert(subPayloads, {
-            onConflict: 'workspace_id,subject_code,grade_level',
-          });
-        } catch {}
+          await supabase
+            .from('school_subjects')
+            .upsert(subPayloads, {
+              onConflict: 'workspace_id,subject_code,grade_level',
+            })
+            .setHeader('x-silent', 'true');
+        } catch {
+          // Table may not exist yet
+        }
       }
 
+      const cleanNote = cleanedRoomsCount > 0 ? ` และลบห้องเรียนว่าง (${cleanedRoomsCount} ห้อง)` : '';
       return {
         success: true,
-        message: `จัดระเบียบย้ายนักเรียนเข้าห้องที่ถูกต้องเรียบร้อยแล้ว: ป.4 (16 คน), ป.5 (20 คน), ป.6 (16 คน) รวมแก้ไข ${realignedCount} รายการ`,
+        message: `จัดระเบียบย้ายนักเรียนเข้าห้องที่ถูกต้องเรียบร้อยแล้ว: ป.4 (16 คน), ป.5 (20 คน), ป.6 (16 คน)${cleanNote}`,
         realignedCount: realignedCount,
         p4Count: P4_MASTER_DATA.students.length,
         p5Count: P5_MASTER_DATA.students.length,

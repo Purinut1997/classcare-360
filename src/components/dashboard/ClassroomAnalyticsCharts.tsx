@@ -10,6 +10,7 @@ import {
   HeartHandshake,
   RefreshCw,
   Sparkles,
+  Trash2,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -91,6 +92,7 @@ interface ClassroomAnalyticsChartsProps {
   selectedClassroomId: string;
   onRealignClassrooms?: () => void;
   isRealigning?: boolean;
+  onDeleteEmptyClassroom?: (classroomId: string, classroomName: string) => void;
 }
 
 const shortDate = new Intl.DateTimeFormat('th-TH', {
@@ -111,6 +113,7 @@ export function ClassroomAnalyticsCharts({
   selectedClassroomId,
   onRealignClassrooms,
   isRealigning,
+  onDeleteEmptyClassroom,
 }: ClassroomAnalyticsChartsProps) {
   const { attendance, attendanceTrend, behavior, dataCompleteness, savings, scores } = data;
   const trendTotal = attendanceTrend.reduce((sum, item) => sum + item.total, 0);
@@ -227,17 +230,32 @@ export function ClassroomAnalyticsCharts({
             </header>
             <div className="dashboard-horizontal-bars">
               {classroomDistribution.map((item) => (
-                <button
-                  className={item.classroomId === selectedClassroomId ? 'is-selected' : ''}
-                  disabled={item.classroomId === 'unassigned'}
-                  key={item.classroomId}
-                  onClick={() => onSelectClassroom(item.classroomId)}
-                  type="button"
-                >
-                  <span>{item.classroomName}</span>
-                  <i><b style={{ width: `${(item.count / maxClassroomSize) * 100}%` }} /></i>
-                  <strong>{item.count}</strong>
-                </button>
+                <div className="flex items-center gap-1 group/room" key={item.classroomId}>
+                  <button
+                    className={`flex-1 ${item.classroomId === selectedClassroomId ? 'is-selected' : ''}`}
+                    disabled={item.classroomId === 'unassigned'}
+                    onClick={() => onSelectClassroom(item.classroomId)}
+                    type="button"
+                  >
+                    <span>{item.classroomName}</span>
+                    <i><b style={{ width: `${(item.count / maxClassroomSize) * 100}%` }} /></i>
+                    <strong>{item.count}</strong>
+                  </button>
+                  {item.count === 0 && item.classroomId !== 'unassigned' && onDeleteEmptyClassroom && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteEmptyClassroom(item.classroomId, item.classroomName);
+                      }}
+                      title={`ลบห้อง "${item.classroomName}" ที่ไม่มีนักเรียน`}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition"
+                      type="button"
+                      aria-label={`ลบห้อง ${item.classroomName}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
               ))}
               {!classroomDistribution.length ? <p className="dashboard-mini-empty">ยังไม่มีข้อมูลห้องเรียน</p> : null}
             </div>

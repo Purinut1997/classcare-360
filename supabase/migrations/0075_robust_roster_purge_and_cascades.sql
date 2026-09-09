@@ -226,7 +226,73 @@ begin
 end;
 $$;
 
-revoke all on function public.delete_students_permanently(uuid, uuid[]) from public;
-grant execute on function public.delete_students_permanently(uuid, uuid[]) to authenticated;
+-- 6. Ensure teachers can delete obsolete classrooms in their workspace
+drop policy if exists "classrooms_delete_workspace_teachers" on public.classrooms;
+
+create policy "classrooms_delete_workspace_teachers"
+on public.classrooms
+for delete
+to authenticated
+using (
+  public.is_superadmin()
+  or public.has_workspace_role(workspace_id, array['teacher_owner', 'teacher_member'])
+);
+
+-- 7. Upgrade delete_classroom_safely to allow workspace teachers
+create or replace function public.delete_classroom_safely(target_classroom_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_workspace_id uuid;
+  target_name text;
+  detached_students integer := 0;
+  deleted_rows integer := 0;
+begin
+  select c.workspace_id, c.name
+    into target_workspace_id, target_name
+  from public.classrooms c
+  where c.id = target_classroom_id;
+
+  if target_workspace_id is null then
+    return jsonb_build_object(
+      'deleted', false,
+      'reason', 'not_found',
+      'classroom_id', target_classroom_id
+    );
+  end if;
+
+  if not (
+    public.is_superadmin()
+    or public.has_workspace_role(target_workspace_id, array['teacher_owner', 'teacher_member'])
+  ) then
+    raise exception 'not allowed to delete classroom'
+      using errcode = '42501';
+  end if;
+
+  update public.students
+  set classroom_id = null
+  where classroom_id = target_classroom_id;
+  get diagnostics detached_students = row_count;
+
+  delete from public.classrooms
+  where id = target_classroom_id;
+  get diagnostics deleted_rows = row_count;
+
+  return jsonb_build_object(
+    'deleted', deleted_rows > 0,
+    'reason', case when deleted_rows > 0 then 'deleted' else 'not_deleted' end,
+    'classroom_id', target_classroom_id,
+    'workspace_id', target_workspace_id,
+    'name', target_name,
+    'detached_students', detached_students
+  );
+end;
+$$;
+
+revoke all on function public.delete_classroom_safely(uuid) from public;
+grant execute on function public.delete_classroom_safely(uuid) to authenticated;
 
 notify pgrst, 'reload schema';

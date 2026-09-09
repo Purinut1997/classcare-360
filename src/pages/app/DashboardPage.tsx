@@ -237,6 +237,45 @@ export function DashboardPage({ session }: DashboardPageProps) {
       setIsRealigningClassrooms(false);
     }
   };
+
+  const handleDeleteEmptyClassroom = async (classroomId: string, classroomName: string) => {
+    if (!session.workspace) return;
+    const confirmed = window.confirm(`คุณต้องการลบห้อง "${classroomName}" ที่ไม่มีนักเรียนนี้ออกจากระบบหรือไม่?`);
+    if (!confirmed) return;
+
+    if (!supabase || demoMode) {
+      setClassrooms((current) => current.filter((c) => c.id !== classroomId));
+      setClassroomStudentCounts((current) => current.filter((c) => c.classroomId !== classroomId));
+      return;
+    }
+
+    try {
+      // Step 1: try direct delete
+      const { error: directErr } = await supabase
+        .from('classrooms')
+        .delete()
+        .eq('id', classroomId)
+        .eq('workspace_id', session.workspace.id)
+        .setHeader('x-silent', 'true');
+
+      if (directErr) {
+        // Step 2: try RPC delete_classroom_safely
+        const { error: rpcErr } = await supabase.rpc('delete_classroom_safely', {
+          target_classroom_id: classroomId,
+        });
+        if (rpcErr) {
+          throw new Error(rpcErr.message || directErr.message);
+        }
+      }
+
+      setClassrooms((current) => current.filter((c) => c.id !== classroomId));
+      setClassroomStudentCounts((current) => current.filter((c) => c.classroomId !== classroomId));
+      setReloadTrigger((v) => v + 1);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'ไม่สามารถลบห้องเรียนได้';
+      alert(`ลบห้องเรียนไม่สำเร็จ: ${msg}`);
+    }
+  };
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
   const [watchlistStudents, setWatchlistStudents] = useState<WatchlistStudentItem[]>([]);
   const [subjectAttendanceSummaries, setSubjectAttendanceSummaries] = useState<SubjectAttendanceSummary[]>([]);
@@ -1561,6 +1600,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         selectedClassroomId={selectedClassroomId}
         onRealignClassrooms={handleManualRealign}
         isRealigning={isRealigningClassrooms}
+        onDeleteEmptyClassroom={handleDeleteEmptyClassroom}
       />
 
       {/* Main Workspace Metrics */}
