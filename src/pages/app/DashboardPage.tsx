@@ -15,6 +15,7 @@ import { StudentWatchlist, type WatchlistStudentItem } from '../../components/da
 import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
 import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
 import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
+import { DailyStatsSummary } from '../../components/dashboard/DailyStatsSummary';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 
@@ -1082,21 +1083,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </div>
       </div>
 
-      {/* 🚀 Onboarding Roadmap: ก้าวแรกสู่ ClassCare 360 (5 ขั้นตอน) */}
-      <div className="mt-5">
-        <OnboardingRoadmapCard
-          session={session}
-          classroomsCount={classrooms.length}
-          studentsCount={Number(stats[0]?.value || 0)}
-          hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
-          hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
-        />
-      </div>
-
-      {/* ✨ จุดขายเด่น: รวมฟังก์ชัน AI อัจฉริยะ ช่วยงานครูไทย (CLASSCARE 360 AI HUB) */}
-      <div className="mt-5">
-        <AiFeatureShowcase session={session} />
-      </div>
 
       {/* ⚠️ Pending Join Requests — Admin action required, show right after hero */}
       {pendingJoinRequestCount > 0 ? (
@@ -1113,6 +1099,17 @@ export function DashboardPage({ session }: DashboardPageProps) {
           </Link>
         </section>
       ) : null}
+
+      {/* 📊 ภาพรวม Workspace — สถิติ 4 มิติ */}
+      <StatsGrid stats={stats} />
+
+      {/* 📈 DAILY STATS SUMMARY — สรุปสถิติรายวัน พร้อมกราฟ */}
+      <DailyStatsSummary
+        analyticsData={analyticsData}
+        classroomName={selectedClassroom?.name || session.workspace?.classroomName || 'ห้องเรียน'}
+        selectedDate={getBangkokDate()}
+        subjectAttendanceSummaries={subjectAttendanceSummaries}
+      />
 
       {/* 🔴 PRIORITY 1: งานที่ต้องทำวันนี้ + Student Watchlist — Most urgent, first thing every morning */}
       <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
@@ -1263,6 +1260,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           </div>
         </Link>
       </section>
+
 
       {/* 🟡 PRIORITY 3: Upcoming Events + Birthdays — Time-sensitive info */}
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -1635,8 +1633,21 @@ export function DashboardPage({ session }: DashboardPageProps) {
         onDeleteEmptyClassroom={handleDeleteEmptyClassroom}
       />
 
-      {/* Main Workspace Metrics */}
-      <StatsGrid stats={stats} />
+      {/* 🚀 Onboarding Roadmap — เริ่มต้นใช้งาน ClassCare 360 (อยู่ล่างสุดเพื่อไม่บังข้อมูลงานประจำวัน) */}
+      <div className="mt-5">
+        <OnboardingRoadmapCard
+          session={session}
+          classroomsCount={classrooms.length}
+          studentsCount={Number(stats[0]?.value || 0)}
+          hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
+          hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
+        />
+      </div>
+
+      {/* ✨ AI Feature Showcase — ค้นพบฟีเจอร์ AI ทั้งหมด */}
+      <div className="mt-5">
+        <AiFeatureShowcase session={session} />
+      </div>
     </main>
   );
 
