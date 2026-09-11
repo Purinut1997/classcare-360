@@ -1631,6 +1631,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         onRealignClassrooms={handleManualRealign}
         isRealigning={isRealigningClassrooms}
         onDeleteEmptyClassroom={handleDeleteEmptyClassroom}
+        healthMetrics={healthReportMetrics}
       />
 
       {/* 🚀 Onboarding Roadmap — เริ่มต้นใช้งาน ClassCare 360 (อยู่ล่างสุดเพื่อไม่บังข้อมูลงานประจำวัน) */}
