@@ -1154,109 +1154,109 @@ export function DashboardPage({ session }: DashboardPageProps) {
       <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Attendance */}
         <Link
-          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/60 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/10"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/70 p-5 shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-emerald-500/15 hover:border-emerald-300 active:scale-[0.98]"
           to="/app/dashboard?view=teacher-work"
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm transition group-hover:scale-105">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/30 transition-all duration-300 group-hover:scale-110 group-hover:-rotate-3">
                 <CalendarClock size={24} aria-hidden="true" />
               </span>
               <span
-                className={`rounded-full px-3 py-1 text-xs font-black ${
+                className={`rounded-full px-3 py-1 text-xs font-black shadow-2xs ${
                   analyticsData.dataCompleteness.attendanceCheckedToday
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-rose-100 text-rose-800 animate-bounce'
+                    ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border border-rose-200 animate-bounce'
                 }`}
               >
                 {analyticsData.dataCompleteness.attendanceCheckedToday ? '✓ เช็กแล้ว' : '🔔 รอเช็กเช้า'}
               </span>
             </div>
-            <h2 className="mt-4 text-lg font-black text-slate-900">เช็กเวลาเรียน</h2>
+            <h2 className="mt-4 text-lg font-black text-slate-900 group-hover:text-emerald-950 transition-colors">เช็กเวลาเรียน</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">
               {analyticsData.dataCompleteness.attendanceCheckedToday
                 ? `มาเรียน ${analyticsData.attendance.present} จาก ${analyticsData.dataCompleteness.studentsCount} คน`
                 : 'บันทึก มา สาย ลา ขาด ประจำวัน'}
             </p>
           </div>
-          <div className="mt-5 flex items-center justify-between border-t border-emerald-100/80 pt-3 text-xs font-black text-emerald-700 group-hover:text-emerald-800">
+          <div className="mt-5 flex items-center justify-between border-t border-emerald-100/80 pt-3 text-xs font-black text-emerald-700 group-hover:text-emerald-900">
             <span>{analyticsData.dataCompleteness.attendanceCheckedToday ? 'ดูรายงานวันนี้' : 'กดเช็กชื่อทันที'}</span>
-            <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
           </div>
         </Link>
 
         {/* Card 2: Scores */}
         <Link
-          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-white to-cyan-50/60 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-sky-500/10"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-sky-200/90 bg-gradient-to-br from-sky-50/90 via-white to-cyan-50/70 p-5 shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-sky-500/15 hover:border-sky-300 active:scale-[0.98]"
           to="/app/dashboard?view=scores&scoreView=excel"
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-600 text-white shadow-sm transition group-hover:scale-105">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-600/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
                 <ClipboardList size={24} aria-hidden="true" />
               </span>
-              <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-800">
+              <span className="rounded-full bg-sky-100/90 text-sky-800 border border-sky-200 px-3 py-1 text-xs font-black shadow-2xs">
                 {analyticsData.scores.assessmentCount} ชุดคะแนน
               </span>
             </div>
-            <h2 className="mt-4 text-lg font-black text-slate-900">บันทึกคะแนน</h2>
+            <h2 className="mt-4 text-lg font-black text-slate-900 group-hover:text-sky-950 transition-colors">บันทึกคะแนน</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">
               คะแนนเฉลี่ยห้อง {analyticsData.scores.averagePercent}% ({analyticsData.scores.passedStudentsCount} คนผ่านเกณฑ์)
             </p>
           </div>
-          <div className="mt-5 flex items-center justify-between border-t border-sky-100/80 pt-3 text-xs font-black text-sky-700 group-hover:text-sky-800">
+          <div className="mt-5 flex items-center justify-between border-t border-sky-100/80 pt-3 text-xs font-black text-sky-700 group-hover:text-sky-900">
             <span>เปิดสมุดคะแนน</span>
-            <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
           </div>
         </Link>
 
         {/* Card 3: Savings */}
         <Link
-          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/90 via-white to-orange-50/60 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-white to-orange-50/70 p-5 shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-amber-500/15 hover:border-amber-300 active:scale-[0.98]"
           to="/app/dashboard?view=savings"
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500 text-white shadow-sm transition group-hover:scale-105">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 transition-all duration-300 group-hover:scale-110 group-hover:-rotate-3">
                 <span className="text-xl font-black">฿</span>
               </span>
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
+              <span className="rounded-full bg-amber-100/90 text-amber-800 border border-amber-200 px-3 py-1 text-xs font-black shadow-2xs">
                 {analyticsData.savings.activeAccounts} บัญชี
               </span>
             </div>
-            <h2 className="mt-4 text-lg font-black text-slate-900">ระบบเงินออม</h2>
+            <h2 className="mt-4 text-lg font-black text-slate-900 group-hover:text-amber-950 transition-colors">ระบบเงินออม</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">
               ยอดสะสม ฿{analyticsData.savings.totalBalance.toLocaleString()} (ฝากเดือนนี้ ฿{analyticsData.savings.monthlyDeposits.toLocaleString()})
             </p>
           </div>
-          <div className="mt-5 flex items-center justify-between border-t border-amber-100/80 pt-3 text-xs font-black text-amber-700 group-hover:text-amber-800">
+          <div className="mt-5 flex items-center justify-between border-t border-amber-100/80 pt-3 text-xs font-black text-amber-700 group-hover:text-amber-900">
             <span>บันทึกฝาก-ถอน</span>
-            <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
           </div>
         </Link>
 
         {/* Card 4: Behavior / Merits */}
         <Link
-          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-purple-200/80 bg-gradient-to-br from-purple-50/90 via-white to-fuchsia-50/60 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10"
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-purple-200/90 bg-gradient-to-br from-purple-50/90 via-white to-fuchsia-50/70 p-5 shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-purple-500/15 hover:border-purple-300 active:scale-[0.98]"
           to="/app/dashboard?view=behavior"
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-purple-600 text-white shadow-sm transition group-hover:scale-105">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-purple-600 text-white shadow-md shadow-purple-600/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
                 <HeartHandshake size={24} aria-hidden="true" />
               </span>
-              <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-800">
+              <span className="rounded-full bg-purple-100/90 text-purple-800 border border-purple-200 px-3 py-1 text-xs font-black shadow-2xs">
                 +{analyticsData.behavior.positivePoints} ดาวความดี
               </span>
             </div>
-            <h2 className="mt-4 text-lg font-black text-slate-900">บันทึกความดี</h2>
+            <h2 className="mt-4 text-lg font-black text-slate-900 group-hover:text-purple-950 transition-colors">บันทึกความดี</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">
               บันทึกพฤติกรรมเชิงบวกและเคสช่วยเหลือ
             </p>
           </div>
-          <div className="mt-5 flex items-center justify-between border-t border-purple-100/80 pt-3 text-xs font-black text-purple-700 group-hover:text-purple-800">
+          <div className="mt-5 flex items-center justify-between border-t border-purple-100/80 pt-3 text-xs font-black text-purple-700 group-hover:text-purple-900">
             <span>+ ให้ดาวนักเรียน</span>
-            <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+            <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
           </div>
         </Link>
       </section>
