@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CalendarDays,
   ChevronLeft,
+  ChevronRight,
   Clock3,
   FileText,
   GraduationCap,
@@ -10,6 +11,8 @@ import {
   Eye,
   LockKeyhole,
   Search,
+  Shield,
+  Sparkles,
   UserRound,
   WalletCards,
 } from 'lucide-react';
@@ -111,33 +114,50 @@ function publicReportErrorCopy(message: string) {
   return 'ไม่สามารถโหลดข้อมูลรายงานได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
 }
 
-function metric(label: string, value: string | number, tone = 'slate') {
-  const toneClass =
-    tone === 'green'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-      : tone === 'amber'
-        ? 'border-amber-200 bg-amber-50 text-amber-950'
-        : tone === 'red'
-          ? 'border-rose-200 bg-rose-50 text-rose-950'
-          : 'border-slate-200 bg-white text-slate-950';
+function formatCitizenId(raw: string): string {
+  const parts = [raw.slice(0, 1), raw.slice(1, 5), raw.slice(5, 10), raw.slice(10, 12), raw.slice(12, 13)];
+  return parts.filter(Boolean).join('-');
+}
 
+function MetricCard({ label, value, tone = 'slate' }: { label: string; value: string | number; tone?: string }) {
+  const toneMap: Record<string, { bg: string; text: string }> = {
+    green: { bg: 'bg-emerald-50 shadow-emerald-100', text: 'text-emerald-700' },
+    amber: { bg: 'bg-amber-50 shadow-amber-100',     text: 'text-amber-700'  },
+    red:   { bg: 'bg-rose-50 shadow-rose-100',       text: 'text-rose-700'   },
+    slate: { bg: 'bg-slate-50 shadow-slate-100',     text: 'text-slate-700'  },
+  };
+  const t = toneMap[tone] ?? toneMap.slate;
   return (
-    <div className={`rounded-[24px] border p-4 shadow-sm ${toneClass}`}>
-      <p className="text-3xl font-black">{value}</p>
-      <p className="mt-1 text-xs font-black text-slate-500">{label}</p>
+    <div className={`flex flex-col gap-1 rounded-2xl p-4 shadow-md ${t.bg}`}>
+      <p className={`text-3xl font-black tracking-tight ${t.text}`}>{value}</p>
+      <p className="text-xs font-bold text-slate-500">{label}</p>
     </div>
   );
 }
 
-function sectionTitle(icon: ReactNode, label: string, title: string) {
+function SectionHeader({ icon, label, title }: { icon: ReactNode; label: string; title: string }) {
   return (
-    <div className="mb-4 flex items-start gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
+    <div className="mb-5 flex items-center gap-3">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
         {icon}
       </div>
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">{label}</p>
-        <h2 className="text-2xl font-black text-slate-950">{title}</h2>
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">{label}</p>
+        <h2 className="text-xl font-black text-slate-900">{title}</h2>
+      </div>
+    </div>
+  );
+}
+
+function TrustBadge({ icon: Icon, title, body }: { icon: React.ElementType; title: string; body: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-white ring-1 ring-white/20">
+        <Icon size={18} aria-hidden="true" />
+      </span>
+      <div>
+        <p className="text-sm font-bold text-white">{title}</p>
+        <p className="mt-0.5 text-xs font-medium leading-5 text-indigo-200">{body}</p>
       </div>
     </div>
   );
@@ -241,208 +261,337 @@ export function PublicReportLookupPage() {
     setResult(payload);
   }
 
+  const canSubmit = !isLoading && !!schools.length && citizenId.length === 13 && !!birthDate;
+
   return (
-    <main className="min-h-screen bg-[#f7f9fc] text-slate-950">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
-        <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-1 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <Link className="flex items-center gap-3" to="/">
-            <AppLogo className="h-12 w-12 rounded-2xl bg-white object-contain p-1 ring-1 ring-slate-200" />
-            <div>
-              <p className="text-lg font-black">ClassCare 360</p>
-              <p className="text-xs font-black text-slate-500">ตรวจรายงานนักเรียนแบบจำกัดสิทธิ์</p>
-            </div>
+    <main className="min-h-screen" style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 48%, #f8fafc 48%)' }}>
+
+      {/* ── Navbar ────────────────────────────────────────────────────────── */}
+      <nav className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
+        <Link className="flex items-center gap-3" to="/">
+          <AppLogo className="h-10 w-10 rounded-xl bg-white/10 object-contain p-1.5 ring-1 ring-white/20" />
+          <div>
+            <p className="text-sm font-black text-white">ClassCare 360</p>
+            <p className="text-[10px] font-semibold text-indigo-300">ระบบดูรายงานนักเรียน</p>
+          </div>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white/80 transition hover:bg-white/10 hover:text-white"
+            to="/"
+          >
+            <ChevronLeft size={15} aria-hidden="true" />
+            กลับหน้าแรก
           </Link>
-          <div className="flex flex-wrap gap-2">
-            <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm" to="/">
-              <ChevronLeft size={17} aria-hidden="true" />
-              กลับหน้าแรก
-            </Link>
-            <Link className="inline-flex h-11 items-center justify-center rounded-xl bg-[#06152d] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0c2953]" to="/login">
-              เข้าสู่ระบบครู
-            </Link>
-          </div>
-        </header>
+          <Link
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-4 text-xs font-black text-indigo-900 shadow-lg transition hover:bg-indigo-50"
+            to="/login"
+          >
+            เข้าสู่ระบบครู
+            <ChevronRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
+      </nav>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(290px,0.65fr)] lg:items-start">
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-9">
-            <h1 className="text-4xl font-black leading-[1.12] tracking-tight text-[#06152d] sm:text-5xl">ดูรายงานนักเรียนด้วยเลขบัตรและวันเกิด</h1>
-            <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600 sm:text-base">
-              เลือกโรงเรียน กรอกเลขบัตรประชาชน 13 หลัก และวันเกิดของนักเรียน ระบบจะแสดงเฉพาะข้อมูลที่โรงเรียนเปิดไว้เท่านั้น
-            </p>
+      {/* ── Hero + Form ───────────────────────────────────────────────────── */}
+      <div className="mx-auto w-full max-w-6xl px-5 pb-16 pt-4 sm:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1fr_300px] lg:items-start">
 
-            <form className="mt-6 grid gap-4" onSubmit={(event) => void submitLookup(event)}>
-              <label className="grid gap-2 text-sm font-bold text-slate-800">
-                โรงเรียน
-                <select
-                  className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setSelectedWorkspaceId(event.target.value)}
-                  value={selectedWorkspaceId}
-                >
-                  {schools.length ? (
-                    schools.map((school) => (
-                      <option key={school.workspace_id} value={school.workspace_id}>
-                        {school.school_name} {school.academic_year ? `ปี ${school.academic_year}` : ''}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">ยังไม่มีโรงเรียนที่เปิดรายงานหน้าแรก</option>
-                  )}
-                </select>
-              </label>
-
-              <label className="grid gap-2 text-sm font-bold text-slate-800">
-                เลขบัตรประชาชนนักเรียน
-                <input
-                  className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold tracking-[0.08em] outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
-                  inputMode="numeric"
-                  maxLength={13}
-                  onChange={(event) => setCitizenId(onlyDigits(event.target.value))}
-                  placeholder="กรอก 13 หลัก"
-                  value={citizenId}
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm font-bold text-slate-800">
-                วันเดือนปีเกิด
-                <ThaiDatePicker appearance="light" className="h-12 px-4 text-sm" onValueChange={setBirthDate} value={birthDate} />
-              </label>
-
-              <button
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-black text-[#06152d] shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
-                disabled={isLoading || !schools.length || citizenId.length !== 13 || !birthDate}
-                type="submit"
-              >
-                <Search size={18} aria-hidden="true" />
-                {isLoading ? <NexusAuroraInline label="กำลังค้นหา" /> : 'ดูรายงาน'}
-              </button>
-            </form>
-
-            {error ? (
-              <div className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold leading-6 text-rose-900" role="alert">
-                <AlertTriangle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
-                <span>{error}</span>
+          {/* Form card */}
+          <div>
+            <div className="mb-8">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-indigo-200 ring-1 ring-white/15">
+                <Sparkles size={12} aria-hidden="true" />
+                ระบบรายงานสำหรับผู้ปกครอง
               </div>
-            ) : null}
+              <h1 className="text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl xl:text-[2.6rem]">
+                ติดตามความก้าวหน้า<br />
+                <span className="text-amber-400">ของบุตรหลาน</span>
+              </h1>
+              <p className="mt-4 max-w-xl text-sm font-medium leading-7 text-indigo-200">
+                กรอกเลขบัตรประชาชน 13 หลัก และวันเกิดของนักเรียน เพื่อดูรายงานที่โรงเรียนอนุญาตให้เปิดเผย
+              </p>
+            </div>
+
+            <div className="rounded-3xl bg-white p-7 shadow-2xl shadow-indigo-900/25">
+              {/* Step indicators */}
+              <div className="mb-7 flex items-center gap-1.5">
+                {[
+                  { num: 1, label: 'โรงเรียน',    done: !!selectedWorkspaceId },
+                  { num: 2, label: 'เลขบัตร',     done: citizenId.length === 13 },
+                  { num: 3, label: 'วันเกิด',     done: !!birthDate },
+                ].map((step, i) => (
+                  <div key={step.num} className="flex items-center gap-1.5">
+                    {i > 0 && (
+                      <div className={`h-px w-6 transition-all duration-500 ${step.done ? 'bg-indigo-400' : 'bg-slate-200'}`} />
+                    )}
+                    <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all duration-300 ${step.done ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                      <span>{step.done ? '✓' : step.num}</span>
+                      <span className="hidden sm:inline">{step.label}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <form className="grid gap-5" onSubmit={(event) => void submitLookup(event)}>
+                {/* School */}
+                <div className="grid gap-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="school-select">
+                    โรงเรียน
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="h-12 w-full appearance-none rounded-xl border-2 border-slate-200 bg-slate-50 pl-4 pr-10 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                      id="school-select"
+                      onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+                      value={selectedWorkspaceId}
+                    >
+                      {schools.length ? (
+                        schools.map((school) => (
+                          <option key={school.workspace_id} value={school.workspace_id}>
+                            {school.school_name} {school.academic_year ? `ปี ${school.academic_year}` : ''}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">ยังไม่มีโรงเรียนที่เปิดรายงานหน้าแรก</option>
+                      )}
+                    </select>
+                    <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400" aria-hidden="true" />
+                  </div>
+                </div>
+
+                {/* Citizen ID */}
+                <div className="grid gap-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="citizen-id">
+                    เลขบัตรประชาชนนักเรียน
+                  </label>
+                  <div className="relative">
+                    <input
+                      autoComplete="off"
+                      className="h-12 w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 text-sm font-semibold tracking-[0.12em] text-slate-800 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                      id="citizen-id"
+                      inputMode="numeric"
+                      maxLength={13}
+                      onChange={(event) => setCitizenId(onlyDigits(event.target.value))}
+                      placeholder="กรอก 13 หลัก"
+                      value={citizenId}
+                    />
+                    {/* Progress bar */}
+                    <div className="absolute bottom-0 left-0 h-[2px] overflow-hidden rounded-b-xl">
+                      <div
+                        className="h-full bg-indigo-500 transition-all duration-300"
+                        style={{ width: `${(citizenId.length / 13) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  {citizenId.length > 0 && citizenId.length < 13 && (
+                    <p className="text-xs font-semibold text-amber-600">กรุณากรอกให้ครบ 13 หลัก (กรอกแล้ว {citizenId.length} หลัก)</p>
+                  )}
+                  {citizenId.length === 13 && (
+                    <p className="text-xs font-bold text-emerald-600">✓ {formatCitizenId(citizenId)}</p>
+                  )}
+                </div>
+
+                {/* Birthdate */}
+                <div className="grid gap-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="birth-date">
+                    วันเดือนปีเกิด
+                  </label>
+                  <ThaiDatePicker appearance="light" className="h-12 px-4 text-sm" onValueChange={setBirthDate} value={birthDate} />
+                </div>
+
+                {/* Submit */}
+                <button
+                  className={`mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-black shadow-lg transition-all duration-200 ${canSubmit ? 'cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-indigo-500/30 hover:brightness-110 active:scale-[0.98]' : 'cursor-not-allowed bg-slate-200 text-slate-400 shadow-none'}`}
+                  disabled={!canSubmit}
+                  type="submit"
+                >
+                  {isLoading ? (
+                    <NexusAuroraInline label="กำลังค้นหา..." />
+                  ) : (
+                    <>
+                      <Search size={18} aria-hidden="true" />
+                      ดูรายงานนักเรียน
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {error ? (
+                <div
+                  className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm font-semibold leading-6 text-rose-800"
+                  role="alert"
+                >
+                  <AlertTriangle className="mt-0.5 shrink-0 text-rose-500" size={18} aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+            </div>
           </div>
 
-          <aside className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm lg:p-7">
-            <h2 className="text-xl font-black text-[#06152d]">รายงานนี้ปลอดภัยและเป็นส่วนตัว</h2>
-            <p className="mt-3 text-sm font-medium leading-6 text-slate-600">ข้อมูลของนักเรียนแสดงตามสิทธิ์ที่โรงเรียนกำหนด และใช้เพื่อการติดตามผลเฉพาะผู้ที่มีข้อมูลตรงกันเท่านั้น</p>
-            <div className="mt-6 grid gap-5">
-              {[
-                { body: 'เข้ารหัสข้อมูลและปกป้องตามมาตรฐานสากล', icon: LockKeyhole, title: 'ปลอดภัย' },
-                { body: 'แสดงเฉพาะข้อมูลที่โรงเรียนเปิดให้ดู', icon: Eye, title: 'เฉพาะที่ได้รับอนุญาต' },
-                { body: 'ข้อมูลอิงจากการบันทึกล่าสุดของโรงเรียน', icon: Clock3, title: 'อัปเดตเป็นปัจจุบัน' },
-              ].map(({ body, icon: Icon, title }) => (
-                <div className="flex gap-3" key={title}>
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100"><Icon size={20} /></span>
-                  <div><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{body}</p></div>
-                </div>
-              ))}
+          {/* Trust panel (glassmorphism) */}
+          <aside
+            className="rounded-3xl p-6"
+            style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.13)' }}
+          >
+            <div className="mb-1 flex items-center gap-2">
+              <Shield size={18} className="text-indigo-300" aria-hidden="true" />
+              <h2 className="text-sm font-black text-white">ปลอดภัยและเป็นส่วนตัว</h2>
+            </div>
+            <p className="mb-6 text-xs font-medium leading-6 text-indigo-300">
+              ข้อมูลแสดงตามสิทธิ์ที่โรงเรียนกำหนด เข้าถึงได้เฉพาะผู้ที่มีข้อมูลตรงกันเท่านั้น
+            </p>
+            <div className="grid gap-5">
+              <TrustBadge icon={LockKeyhole} title="เข้ารหัสข้อมูล" body="ปกป้องด้วยมาตรฐานความปลอดภัยระดับสากล" />
+              <TrustBadge icon={Eye}         title="เฉพาะที่ได้รับอนุญาต" body="แสดงเฉพาะข้อมูลที่โรงเรียนเปิดให้ดู" />
+              <TrustBadge icon={CalendarDays} title="อัปเดตเป็นปัจจุบัน" body="ข้อมูลอิงจากการบันทึกล่าสุดของโรงเรียน" />
+            </div>
+            <div className="my-6 h-px bg-white/10" />
+            <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+              <p className="text-xs font-black text-indigo-200">💡 สำหรับผู้ปกครอง</p>
+              <p className="mt-2 text-xs font-medium leading-5 text-indigo-300">
+                หากไม่พบข้อมูล กรุณาติดต่อครูประจำชั้นเพื่อตรวจสอบว่าโรงเรียนเปิดระบบรายงานนี้แล้วหรือยัง
+              </p>
             </div>
           </aside>
-        </section>
+        </div>
+      </div>
 
-        {result?.ok && result.student ? (
-          <section className="grid gap-5">
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-sm font-black text-cyan-700">{result.workspace?.school_name}</p>
-                  <h2 className="mt-1 text-3xl font-black">
-                    {result.student.first_name} {result.student.last_name}
-                  </h2>
-                  <p className="mt-1 text-sm font-black text-slate-500">
-                    {result.student.student_code || '-'} | {result.student.classroom_name || '-'} | ปี {result.workspace?.academic_year || '-'}
-                  </p>
+      {/* ── Results ───────────────────────────────────────────────────────── */}
+      <div className="bg-slate-50 min-h-[160px]">
+        <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">
+
+          {result?.ok && result.student ? (
+            <div className="grid gap-6">
+              {/* Student identity card */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-700 p-7 shadow-xl shadow-indigo-500/20">
+                <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/5 blur-2xl" aria-hidden="true" />
+                <div className="pointer-events-none absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-violet-400/10 blur-2xl" aria-hidden="true" />
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-indigo-200">{result.workspace?.school_name}</p>
+                    <h2 className="text-2xl font-black text-white sm:text-3xl">
+                      {result.student.first_name} {result.student.last_name}
+                      {result.student.nickname ? <span className="ml-2 text-lg font-bold text-indigo-200">({result.student.nickname})</span> : null}
+                    </h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-indigo-200">
+                      {result.student.student_code && <span>รหัส: {result.student.student_code}</span>}
+                      {result.student.classroom_name && <><span className="text-indigo-400">·</span><span>ชั้น {result.student.classroom_name}</span></>}
+                      {result.workspace?.academic_year && <><span className="text-indigo-400">·</span><span>ปีการศึกษา {result.workspace.academic_year}</span></>}
+                    </div>
+                  </div>
+                  <span className="w-fit shrink-0 rounded-full bg-white/15 px-4 py-2 text-xs font-black text-white ring-1 ring-white/20">
+                    ✓ แสดงเฉพาะข้อมูลที่โรงเรียนเปิดไว้
+                  </span>
                 </div>
-                <span className="w-fit rounded-full bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700 ring-1 ring-emerald-100">
-                  แสดงเฉพาะข้อมูลที่โรงเรียนเปิดไว้
-                </span>
+              </div>
+
+              {/* Metric cards grid */}
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {result.attendance ? (
+                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <SectionHeader icon={<Clock3 size={18} />} label="Attendance" title="เวลาเรียน" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <MetricCard label="มาเรียน (วัน)"  value={result.attendance.present} tone="green" />
+                      <MetricCard label="ขาดเรียน (วัน)" value={result.attendance.absent}  tone="red"   />
+                      <MetricCard label="มาสาย (วัน)"   value={result.attendance.late}    tone="amber"  />
+                      <MetricCard label="ลา (วัน)"      value={result.attendance.leave}               />
+                    </div>
+                  </section>
+                ) : null}
+
+                {result.scores ? (
+                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <SectionHeader icon={<GraduationCap size={18} />} label="Scores" title="ผลการเรียน" />
+                    <div className="grid gap-3">
+                      <MetricCard label="รายการคะแนนที่บันทึก" value={result.scores.entries} />
+                      <MetricCard
+                        label="คะแนนเฉลี่ย"
+                        value={result.scores.average_percent === null ? '-' : `${result.scores.average_percent}%`}
+                        tone="amber"
+                      />
+                    </div>
+                  </section>
+                ) : null}
+
+                {result.savings ? (
+                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <SectionHeader icon={<WalletCards size={18} />} label="Savings" title="เงินออม" />
+                    <MetricCard
+                      label="ยอดเงินออมคงเหลือ"
+                      value={`฿${result.savings.balance.toLocaleString('th-TH')}`}
+                      tone="green"
+                    />
+                  </section>
+                ) : null}
+
+                {result.behavior ? (
+                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <SectionHeader icon={<HeartHandshake size={18} />} label="Care" title="พฤติกรรมและการดูแล" />
+                    <div className="grid grid-cols-3 gap-3">
+                      <MetricCard label="เชิงบวก"    value={result.behavior.positive}  tone="green" />
+                      <MetricCard label="ข้อห่วงใย"  value={result.behavior.concern}   tone="red"   />
+                      <MetricCard label="ต้องติดตาม" value={result.behavior.follow_up} tone="amber" />
+                    </div>
+                  </section>
+                ) : null}
+
+                {result.home_visit ? (
+                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <SectionHeader icon={<FileText size={18} />} label="Home Visit" title="แบบเยี่ยมบ้าน" />
+                    <div className="grid gap-3">
+                      <MetricCard label="สถานะ" value={result.home_visit.status || '-'} />
+                      <MetricCard label="ความครบถ้วน" value={`${result.home_visit.completion_percent || 0}%`} tone="amber" />
+                    </div>
+                  </section>
+                ) : null}
+
+                {result.guardians ? (
+                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <SectionHeader icon={<UserRound size={18} />} label="Guardian" title="ผู้ปกครอง" />
+                    <div className="grid gap-3">
+                      {result.guardians.length ? (
+                        result.guardians.map((guardian, index) => (
+                          <div
+                            className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100"
+                            key={`${guardian.display_name}-${index}`}
+                          >
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-600">
+                              <UserRound size={15} aria-hidden="true" />
+                            </span>
+                            <div>
+                              <p className="text-sm font-black text-slate-800">{guardian.display_name || 'ไม่ระบุชื่อ'}</p>
+                              <p className="text-xs font-bold text-slate-500">
+                                {guardian.relation || '-'}{guardian.is_primary ? ' · ผู้ปกครองหลัก' : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
+                          ยังไม่มีข้อมูลผู้ปกครองที่เปิดเผย
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </div>
-
-            <div className="grid gap-5 xl:grid-cols-2">
-              {result.attendance ? (
-                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                  {sectionTitle(<Clock3 size={20} />, 'Attendance', 'เวลาเรียน')}
-                  <div className="grid gap-3 sm:grid-cols-4">
-                    {metric('มา', result.attendance.present, 'green')}
-                    {metric('ขาด', result.attendance.absent, 'red')}
-                    {metric('สาย', result.attendance.late, 'amber')}
-                    {metric('ลา', result.attendance.leave)}
-                  </div>
-                </section>
-              ) : null}
-
-              {result.scores ? (
-                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                  {sectionTitle(<GraduationCap size={20} />, 'Scores', 'คะแนน')}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {metric('รายการคะแนน', result.scores.entries)}
-                    {metric('คะแนนเฉลี่ย', result.scores.average_percent === null ? '-' : `${result.scores.average_percent}%`, 'amber')}
-                  </div>
-                </section>
-              ) : null}
-
-              {result.savings ? (
-                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                  {sectionTitle(<WalletCards size={20} />, 'Savings', 'เงินออม')}
-                  {metric('ยอดเงินออมคงเหลือ', `฿${result.savings.balance.toLocaleString('th-TH')}`, 'green')}
-                </section>
-              ) : null}
-
-              {result.behavior ? (
-                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                  {sectionTitle(<HeartHandshake size={20} />, 'Care', 'พฤติกรรมและเคสดูแล')}
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {metric('เชิงบวก', result.behavior.positive, 'green')}
-                    {metric('ข้อห่วงใย', result.behavior.concern, 'red')}
-                    {metric('ต้องติดตาม', result.behavior.follow_up, 'amber')}
-                  </div>
-                </section>
-              ) : null}
-
-              {result.home_visit ? (
-                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                  {sectionTitle(<FileText size={20} />, 'Home Visit', 'แบบเยี่ยมบ้าน')}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {metric('สถานะ', result.home_visit.status || '-')}
-                    {metric('ความครบถ้วน', `${result.home_visit.completion_percent || 0}%`, 'amber')}
-                  </div>
-                </section>
-              ) : null}
-
-              {result.guardians ? (
-                <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                  {sectionTitle(<UserRound size={20} />, 'Guardian', 'ผู้ปกครอง')}
-                  <div className="grid gap-3">
-                    {result.guardians.length ? (
-                      result.guardians.map((guardian, index) => (
-                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3" key={`${guardian.display_name}-${index}`}>
-                          <p className="font-black">{guardian.display_name || 'ไม่ระบุชื่อ'}</p>
-                          <p className="text-sm font-bold text-slate-500">
-                            {guardian.relation || '-'} {guardian.is_primary ? '| ผู้ปกครองหลัก' : ''}
-                          </p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-500">ยังไม่มีข้อมูลผู้ปกครองที่เปิดเผย</div>
-                    )}
-                  </div>
-                </section>
-              ) : null}
+          ) : (
+            /* Empty state */
+            <div className="flex flex-col items-center gap-4 py-14 text-center">
+              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-indigo-100 text-indigo-500">
+                <Search size={28} aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-base font-black text-slate-700">รอการค้นหา</p>
+                <p className="mt-1 text-sm font-medium text-slate-500">กรอกข้อมูลด้านบนเพื่อดูรายงานที่โรงเรียนอนุญาต</p>
+              </div>
             </div>
-          </section>
-        ) : (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <CalendarDays className="text-cyan-700" size={22} aria-hidden="true" />
-              <p className="text-sm font-semibold text-slate-600">กรอกข้อมูลด้านบนเพื่อดูรายงานที่โรงเรียนอนุญาต</p>
-            </div>
-          </section>
-        )}
+          )}
+        </div>
       </div>
     </main>
   );
 }
+
