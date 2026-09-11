@@ -37,6 +37,8 @@ type ShowcaseTab = 'overview' | 'pp5' | 'grading';
 export function LandingPage({ session }: LandingPageProps) {
   const [activeTab, setActiveTab] = useState<ShowcaseTab>('overview');
 
+  const [mascotMessage, setMascotMessage] = useState(false);
+
   const dashboardHref = session?.workspace ? '/app/dashboard' : '/app/select-workspace';
   const startHref = session ? dashboardHref : '/login?mode=register';
 
@@ -92,19 +94,70 @@ export function LandingPage({ session }: LandingPageProps) {
       </header>
 
       {/* ======================================================== */}
-      {/* 2. HERO SECTION */}
+      {/* 2. HERO SECTION WITH WALL.PNG THEMATIC BACKGROUND */}
       {/* ======================================================== */}
-      <section className="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28">
-        {/* Subtle Ambient Glows */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] pointer-events-none -z-10 opacity-70">
-          <div className="absolute top-10 left-1/4 w-96 h-96 bg-blue-400/15 rounded-full blur-3xl" />
-          <div className="absolute top-20 right-1/4 w-96 h-96 bg-indigo-400/15 rounded-full blur-3xl" />
+      <section className="relative overflow-hidden pt-10 pb-20 sm:pt-16 sm:pb-28">
+        {/* Wall.png Animated Dynamic Backdrop */}
+        <div className="landing-hero-backdrop-container">
+          <div className="landing-hero-wall-img" />
+          <div className="landing-hero-overlay" />
+          {/* Luminous energy orbs matching Wall.png holographic elements */}
+          <div className="landing-hero-ambient-glow -top-24 left-1/4 w-[520px] h-[520px] bg-sky-400/20" />
+          <div className="landing-hero-ambient-glow top-32 right-1/4 w-[460px] h-[460px] bg-emerald-400/15" />
+          <div className="landing-hero-ambient-glow top-80 left-1/3 w-[600px] h-[400px] bg-indigo-500/10" />
         </div>
 
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div className="relative z-10 mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
           <div className="text-center max-w-3xl mx-auto">
+            {/* Top Interactive AI Mascot Carey Badge (matching white AI robot in Wall.png) */}
+            <div className="flex flex-col items-center justify-center mb-5">
+              <button
+                type="button"
+                onClick={() => setMascotMessage(!mascotMessage)}
+                className="landing-carey-pill landing-carey-glow inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur-md px-3.5 py-1.5 text-xs font-bold text-slate-800 border border-sky-300/80 shadow-md shadow-sky-500/15 hover:border-sky-500 hover:scale-105 active:scale-95 transition-all cursor-pointer group"
+                title="คลิกเพื่อสนทนากับน้องแคร์รี่ AI สพฐ."
+              >
+                <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white shadow-sm text-xs">
+                  🤖
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                </span>
+                <span className="font-extrabold bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  Carey AI Assistant
+                </span>
+                <span className="text-[11px] text-slate-500 hidden sm:inline">• ผู้ช่วยประจำโรงเรียน</span>
+                <span className="text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full font-bold ml-1">
+                  {mascotMessage ? 'ปิดข้อความ ✕' : 'แตะคุยกับฉัน ✨'}
+                </span>
+              </button>
+
+              {/* Popover speech bubble if clicked */}
+              {mascotMessage && (
+                <div className="mt-3 animate-in fade-in zoom-in-95 duration-200 max-w-md mx-auto rounded-2xl bg-white/95 backdrop-blur-md border border-sky-300 p-3.5 text-xs text-slate-700 shadow-xl shadow-sky-500/15 flex items-start gap-2.5 text-left ring-1 ring-sky-100">
+                  <span className="text-2xl">🎓</span>
+                  <div className="flex-1">
+                    <div className="font-extrabold text-sky-800 flex items-center gap-1.5">
+                      <span>น้องแคร์รี่ AI: ยินดีต้อนรับสู่ ClassCare 360 ค่ะ!</span>
+                    </div>
+                    <div className="text-[11.5px] text-slate-600 mt-1 leading-relaxed">
+                      ระบบเชื่อมโยงข้อมูลเวลาเรียน คัดกรองนักเรียน และตัดเกรดอัตโนมัติ 8 ระดับ พร้อมพิมพ์เล่ม ปพ.๕ และ ปพ.๖ ได้ถูกต้องตามระเบียบ สพฐ. 100% เลยค่ะ ✨
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMascotMessage(false)}
+                    className="text-slate-400 hover:text-slate-600 text-xs px-1 py-0.5 rounded hover:bg-slate-100"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Eyebrow Pill */}
-            <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-slate-700 shadow-sm border border-slate-200/80 mb-6 hover:border-blue-300 transition">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-sm px-4 py-1.5 text-xs font-bold text-slate-700 shadow-sm border border-slate-200/90 mb-5 hover:border-blue-300 transition">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-blue-600 font-extrabold">มาตรฐาน สพฐ. 100%</span>
               <span className="text-slate-300">•</span>
@@ -112,15 +165,15 @@ export function LandingPage({ session }: LandingPageProps) {
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-4xl sm:text-6xl lg:text-[4rem] font-black tracking-tight text-slate-900 leading-[1.12]">
+            <h1 className="text-4xl sm:text-6xl lg:text-[4.2rem] font-black tracking-tight text-slate-900 leading-[1.12]">
               จัดการงานโรงเรียนและเอกสาร ปพ.{' '}
-              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent drop-shadow-sm">
                 ให้ง่ายและเป็นมืออาชีพ
               </span>
             </h1>
 
             {/* Subtitle */}
-            <p className="mt-6 text-base sm:text-xl font-normal text-slate-600 leading-relaxed max-w-2xl mx-auto">
+            <p className="mt-6 text-base sm:text-xl font-normal text-slate-600 leading-relaxed max-w-2xl mx-auto drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
               ลดภาระงานครูกว่า 80% บันทึกเวลาเรียน ตัดเกรดอัตโนมัติ 8 ระดับ ออกเล่ม ปพ.๕/ปพ.๖ ใน 1 คลิก
               พร้อมระบบคัดกรอง ดูแลช่วยเหลือนักเรียนรอบด้านตามเกณฑ์กระทรวงศึกษาธิการ
             </p>
@@ -128,7 +181,7 @@ export function LandingPage({ session }: LandingPageProps) {
             {/* CTAs */}
             <div className="mt-8 sm:mt-10 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
               <Link
-                className="inline-flex h-12 sm:h-13 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-7 text-sm sm:text-base font-extrabold text-white shadow-xl shadow-blue-600/25 hover:shadow-2xl hover:shadow-blue-600/35 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                className="inline-flex h-12 sm:h-13 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-7 text-sm sm:text-base font-extrabold text-white shadow-xl shadow-blue-600/30 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 transition-all ring-2 ring-white/50"
                 to={startHref}
               >
                 <Sparkles size={18} className="text-amber-300" />
@@ -137,7 +190,7 @@ export function LandingPage({ session }: LandingPageProps) {
               </Link>
 
               <Link
-                className="inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-white px-6 text-sm sm:text-base font-bold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition"
+                className="inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-sm px-6 text-sm sm:text-base font-bold text-slate-700 shadow-sm hover:bg-white hover:border-slate-300 hover:shadow-md transition"
                 to="/public/report"
               >
                 <BarChart3 size={18} className="text-blue-600" />
@@ -146,16 +199,16 @@ export function LandingPage({ session }: LandingPageProps) {
             </div>
 
             {/* Quick Badges below Hero */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold text-slate-500">
-              <div className="flex items-center gap-1.5">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold text-slate-600">
+              <div className="flex items-center gap-1.5 bg-white/70 backdrop-blur-xs px-2.5 py-1 rounded-full border border-slate-200/50">
                 <CheckCircle2 size={15} className="text-emerald-500" />
                 <span>8 กลุ่มสาระการเรียนรู้</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 bg-white/70 backdrop-blur-xs px-2.5 py-1 rounded-full border border-slate-200/50">
                 <CheckCircle2 size={15} className="text-emerald-500" />
                 <span>ส่งออกไฟล์ Excel / PDF สมบูรณ์</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 bg-white/70 backdrop-blur-xs px-2.5 py-1 rounded-full border border-slate-200/50">
                 <CheckCircle2 size={15} className="text-emerald-500" />
                 <span>คุ้มครองข้อมูลตาม พ.ร.บ. PDPA</span>
               </div>
@@ -163,18 +216,48 @@ export function LandingPage({ session }: LandingPageProps) {
           </div>
 
           {/* ======================================================== */}
-          {/* 3. INTERACTIVE PRODUCT SHOWCASE WINDOW */}
+          {/* 3. INTERACTIVE PRODUCT SHOWCASE WINDOW WITH HOLO WIDGETS */}
           {/* ======================================================== */}
-          <div className="mt-14 sm:mt-18 max-w-5xl mx-auto">
-            <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-[0_25px_80px_-15px_rgba(15,23,42,0.15)] ring-1 ring-slate-900/5">
+          <div className="relative mt-14 sm:mt-18 max-w-5xl mx-auto">
+            {/* Holographic Floating Widget Left (Attendance & Sync) */}
+            <div className="hidden xl:flex landing-holo-card landing-holo-badge-left -left-12 top-14 items-center gap-3.5 px-4 py-3 max-w-[230px]">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
+                <ClipboardCheck size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600">Cloud Sync</span>
+                </div>
+                <div className="text-xs font-black text-slate-800 truncate">เช็คชื่อ & ปพ.๕ อัตโนมัติ</div>
+                <div className="text-[10px] font-semibold text-slate-500">บันทึกเวลาเรียน 360°</div>
+              </div>
+            </div>
+
+            {/* Holographic Floating Widget Right (GPA & Grading) */}
+            <div className="hidden xl:flex landing-holo-card landing-holo-badge-right -right-12 bottom-16 items-center gap-3.5 px-4 py-3 max-w-[230px]">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+                <GraduationCap size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <Sparkles size={10} className="text-amber-400" />
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">GPAX Engine</span>
+                </div>
+                <div className="text-xs font-black text-slate-800 truncate">ตัดเกรด 8 ระดับทันที</div>
+                <div className="text-[10px] font-semibold text-slate-500">ลดงานเอกสารกว่า 80%</div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-3xl border border-white/80 bg-white/95 backdrop-blur-md landing-showcase-glow ring-1 ring-slate-900/5 transition-all">
               
               {/* Window Header / Tab Controls */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-slate-50/90 px-5 py-3.5 backdrop-blur-sm">
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-rose-400 inline-block" />
-                    <span className="w-3 h-3 rounded-full bg-amber-400 inline-block" />
-                    <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" />
+                    <span className="w-3 h-3 rounded-full bg-rose-400 inline-block shadow-xs" />
+                    <span className="w-3 h-3 rounded-full bg-amber-400 inline-block shadow-xs" />
+                    <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block shadow-xs" />
                   </div>
                   <span className="ml-3 text-xs font-bold text-slate-600 hidden sm:inline">
                     ClassCare 360 Workspace • โรงเรียนสาธิตพัฒนาวิทยาการ
