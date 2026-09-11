@@ -1,8 +1,16 @@
-export const dashboardStats = [
+export interface DashboardStatItem {
+  label: string;
+  value: string;
+  detail: string;
+  subDetail?: string;
+  tone: string;
+}
+
+export const dashboardStats: DashboardStatItem[] = [
   {
     label: 'นักเรียนในความดูแล',
     value: '36',
-    detail: 'ห้อง ป.5/2',
+    detail: 'รวมทุกห้องเรียน',
     tone: 'bg-teal-50 text-teal-700 ring-teal-100',
   },
   {

@@ -203,10 +203,10 @@ const emptyAnalyticsData: ClassroomAnalyticsData = {
   },
 };
 
-function getWorkspaceDashboardStats(classroomName?: string) {
+function getWorkspaceDashboardStats() {
   return dashboardStats.map((stat, index) =>
-    index === 0 && classroomName
-      ? { ...stat, detail: classroomName }
+    index === 0
+      ? { ...stat, detail: 'รวมทุกห้องเรียน' }
       : stat,
   );
 }
@@ -214,7 +214,7 @@ function getWorkspaceDashboardStats(classroomName?: string) {
 export function DashboardPage({ session }: DashboardPageProps) {
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
   const demoMode = isDemoSession(session);
-  const [stats, setStats] = useState(() => getWorkspaceDashboardStats(session.workspace?.classroomName));
+  const [stats, setStats] = useState(() => getWorkspaceDashboardStats());
   const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<ClassroomStudentCount[]>([]);
@@ -416,7 +416,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
     async function loadDashboardStats() {
       if (!supabase || !session.workspace || demoMode) {
-        setStats(getWorkspaceDashboardStats(session.workspace?.classroomName));
+        setStats(getWorkspaceDashboardStats());
         if (demoMode) setClassroomStudentCounts([{ classroomId: 'demo-classroom', classroomName: session.workspace?.classroomName || 'ห้องเรียนตัวอย่าง', count: 3 }]);
         return;
       }
@@ -451,17 +451,36 @@ export function DashboardPage({ session }: DashboardPageProps) {
         });
       setClassroomStudentCounts(nextClassroomCounts);
 
+      const totalRoomsCount = validClassrooms.length;
+      const targetClassroom = classrooms.find((c) => c.id === selectedClassroomId);
+      const selectedRoomStudents = selectedClassroomId ? countsByClassroom.get(selectedClassroomId) || 0 : null;
+
+      let studentDetail = 'รวมทุกห้องเรียน';
+      let studentSubDetail: string | undefined = undefined;
+
+      if (totalRoomsCount > 1) {
+        studentDetail = `รวม ${totalRoomsCount} ห้องเรียน`;
+        if (targetClassroom) {
+          studentSubDetail = `${targetClassroom.name}: ${selectedRoomStudents ?? 0} คน`;
+        }
+      } else if (totalRoomsCount === 1) {
+        studentDetail = `ห้อง ${validClassrooms[0].name}`;
+      } else {
+        studentDetail = session.workspace.classroomName || 'ห้องเรียน';
+      }
+
       setStats([
         {
           ...dashboardStats[0],
-          detail: session.workspace.classroomName,
+          detail: studentDetail,
+          subDetail: studentSubDetail,
           value: String(studentCount ?? 0),
         },
         {
           ...dashboardStats[1],
           detail: 'ห้องที่กำลังใช้งาน',
           label: 'ห้องเรียน',
-          value: String(classroomCount ?? 0),
+          value: String(totalRoomsCount || classroomCount || 0),
         },
         {
           ...dashboardStats[2],
@@ -481,7 +500,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [classrooms, demoMode, session.workspace, reloadTrigger]);
+  }, [classrooms, demoMode, session.workspace, selectedClassroomId, reloadTrigger]);
 
   // Load Classroom Specific Real Analytics Data & Watchlist Students
   useEffect(() => {
