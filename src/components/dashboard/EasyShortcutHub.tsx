@@ -556,17 +556,17 @@ export function EasyShortcutHub({
   return (
     <div className="space-y-6">
       {/* 🚀 Welcome & Intent Search Box */}
-      <section className="relative overflow-hidden rounded-3xl border border-teal-200/90 bg-gradient-to-br from-teal-500/10 via-sky-500/5 to-amber-500/10 p-6 sm:p-8 shadow-sm">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-teal-200/90 bg-gradient-to-br from-teal-500/10 via-sky-500/5 to-amber-500/10 p-4 sm:p-8 shadow-sm">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-teal-300/80 bg-teal-100/80 px-3.5 py-1 text-xs font-black text-teal-800 shadow-2xs">
-              <Sparkles size={14} className="text-teal-600" />
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/80 bg-teal-100/80 px-3 py-1 text-[11px] sm:text-xs font-black text-teal-800 shadow-2xs">
+              <Sparkles size={13} className="text-teal-600" />
               <span>ศูนย์รวมทางลัดทุกเมนู (Easy Shortcut Hub)</span>
             </div>
-            <h2 className="mt-3 text-2xl font-black text-slate-900 tracking-tight sm:text-3xl">
+            <h2 className="mt-2.5 text-xl font-black text-slate-900 tracking-tight sm:text-3xl">
               ต้องการทำอะไรในวันนี้ครับ?
             </h2>
-            <p className="mt-1.5 text-sm font-bold text-slate-600 max-w-xl">
+            <p className="mt-1 text-xs sm:text-sm font-bold text-slate-600 max-w-xl leading-relaxed">
               เข้าถึงทุกเมนูง่ายๆ ในคลิกเดียว ไม่ต้องจำเมนูซับซ้อน ออกแบบเพื่อความสะดวก รวดเร็ว และเป็นมิตรกับคุณครูทุกคน
             </p>
           </div>
@@ -575,11 +575,11 @@ export function EasyShortcutHub({
             <button
               type="button"
               onClick={onSwitchToAnalytics}
-              className="inline-flex items-center gap-2 self-start md:self-auto rounded-2xl border border-slate-300/90 bg-white/95 px-4 py-2.5 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-teal-700 hover:border-teal-300"
+              className="inline-flex items-center gap-2 self-start md:self-auto rounded-xl sm:rounded-2xl border border-slate-300/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-teal-700 hover:border-teal-300"
               title="สลับไปดูแดชบอร์ดสถิติและการวิเคราะห์ห้องเรียน"
             >
               <span>📊 สลับไปดูสถิติภาพรวม</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={13} />
             </button>
           )}
         </div>
@@ -608,14 +608,14 @@ export function EasyShortcutHub({
           </div>
 
           {/* Quick Tag Recommendations */}
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-black text-slate-500 mr-1">แนะนำ:</span>
+          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="text-[11px] font-black text-slate-500 mr-1 shrink-0 whitespace-nowrap">แนะนำ:</span>
             {quickFilterTags.map((tag) => (
               <button
                 key={tag.label}
                 type="button"
                 onClick={() => setSearchQuery(tag.query)}
-                className={`rounded-xl border px-2.5 py-1 text-xs font-bold transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-xl border px-2.5 py-1 text-xs font-bold transition-all ${
                   searchQuery === tag.query
                     ? 'border-teal-600 bg-teal-600 text-white shadow-xs'
                     : 'border-slate-200 bg-white/90 text-slate-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-900'
@@ -760,13 +760,14 @@ export function EasyShortcutHub({
       )}
 
       {/* 🏷️ Category Filter Tabs */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+      <section className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-200 pb-3">
+          {/* Scrollable category bar on mobile with no scrollbar */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-0.5 w-full -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition-all ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
                 activeCategory === 'all'
                   ? 'bg-slate-900 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -778,56 +779,67 @@ export function EasyShortcutHub({
             <button
               type="button"
               onClick={() => setActiveCategory('daily')}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition-all ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
                 activeCategory === 'daily'
                   ? 'bg-emerald-700 text-white shadow-sm'
                   : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
               }`}
             >
-              <span>☀️ 1. กิจวัตรประจำวัน & สุขภาพ</span>
+              <span>☀️ 1. กิจวัตร & สุขภาพ</span>
               <span className="rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.daily}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('academic')}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition-all ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
                 activeCategory === 'academic'
                   ? 'bg-sky-700 text-white shadow-sm'
                   : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
               }`}
             >
-              <span>📚 2. คะแนน & งานการสอน</span>
+              <span>📚 2. คะแนน & การสอน</span>
               <span className="rounded-full bg-sky-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.academic}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('care')}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition-all ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
                 activeCategory === 'care'
                   ? 'bg-purple-700 text-white shadow-sm'
                   : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
               }`}
             >
-              <span>👨‍👩‍👧 3. ดูแลเด็ก & ผู้ปกครอง</span>
+              <span>👨‍👩‍👧 3. เด็ก & ผู้ปกครอง</span>
               <span className="rounded-full bg-purple-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.care}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('admin')}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition-all ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
                 activeCategory === 'admin'
                   ? 'bg-slate-700 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
               }`}
             >
-              <span>⚙️ 4. บริหาร & ตั้งค่าระบบ</span>
+              <span>⚙️ 4. บริหาร & ตั้งค่า</span>
               <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.admin}</span>
             </button>
           </div>
 
-          <p className="text-xs font-bold text-slate-500">
-            แสดง <span className="font-black text-slate-900">{filteredShortcuts.length}</span> เมนู
-          </p>
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500 shrink-0">
+            <span>
+              แสดง <strong className="font-black text-slate-900">{filteredShortcuts.length}</strong> เมนู
+            </span>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-xs font-black text-teal-700 hover:underline ml-2"
+              >
+                ล้างตัวกรอง
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 🗂️ Grid of All Shortcuts */}

@@ -1125,20 +1125,21 @@ export function DashboardPage({ session }: DashboardPageProps) {
       </div>
 
       {/* 🚀 MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
-      <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-3xl border border-slate-200/90 bg-white p-2.5 shadow-xs">
+      <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-3xl border border-slate-200/90 bg-white p-2 sm:p-2.5 shadow-xs">
         <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl w-full sm:w-auto">
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('shortcuts')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
               dashboardViewMode === 'shortcuts'
                 ? 'bg-white text-teal-900 shadow-sm ring-1 ring-slate-200/80 scale-[1.01]'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
-            <Sparkles size={16} className={dashboardViewMode === 'shortcuts' ? 'text-teal-600' : 'text-slate-400'} />
-            <span>ศูนย์รวมทางลัดทุกเมนู (โหมดง่าย)</span>
-            <span className="hidden sm:inline-block rounded-full bg-teal-100 text-teal-800 px-2 py-0.5 text-[10px] font-black">
+            <Sparkles size={15} className={dashboardViewMode === 'shortcuts' ? 'text-teal-600' : 'text-slate-400'} />
+            <span className="sm:hidden">ทางลัดทุกเมนู</span>
+            <span className="hidden sm:inline">ศูนย์รวมทางลัดทุกเมนู (โหมดง่าย)</span>
+            <span className="hidden md:inline-block rounded-full bg-teal-100 text-teal-800 px-2 py-0.5 text-[10px] font-black">
               เริ่มต้น
             </span>
           </button>
@@ -1146,14 +1147,15 @@ export function DashboardPage({ session }: DashboardPageProps) {
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('analytics')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
               dashboardViewMode === 'analytics'
                 ? 'bg-white text-sky-900 shadow-sm ring-1 ring-slate-200/80 scale-[1.01]'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
-            <FileSpreadsheet size={16} className={dashboardViewMode === 'analytics' ? 'text-sky-600' : 'text-slate-400'} />
-            <span>สถิติ & กราฟวิเคราะห์ห้องเรียน</span>
+            <FileSpreadsheet size={15} className={dashboardViewMode === 'analytics' ? 'text-sky-600' : 'text-slate-400'} />
+            <span className="sm:hidden">สถิติภาพรวม</span>
+            <span className="hidden sm:inline">สถิติ & กราฟวิเคราะห์ห้องเรียน</span>
           </button>
         </div>
 
