@@ -2039,12 +2039,12 @@ export function ScoresPage({ session }: ScoresPageProps) {
       {/* 2. Unified Context & Teaching Scope Control Bar (แถบกำหนดวิชาและห้องเรียน) */}
       <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="แถบกำหนดวิชาและห้องเรียน">
         {/* Row 1: Teaching Mode Toggle & Helper Tools */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <span className="text-xs font-black text-slate-500 shrink-0">โหมดการทำงาน:</span>
-            <div className="inline-flex p-1 bg-slate-100 rounded-2xl">
+            <div className="inline-flex p-1 bg-slate-100 rounded-2xl w-full sm:w-auto">
               <button
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-black transition whitespace-nowrap ${
                   perspective === 'subject'
                     ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200'
                     : 'text-slate-600 hover:text-slate-900'
@@ -2053,10 +2053,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 type="button"
               >
                 <BookOpen size={14} className={perspective === 'subject' ? 'text-indigo-600' : 'text-slate-400'} aria-hidden="true" />
-                วิชาสอนหลายห้อง (เลือกวิชาเป็นหลัก)
+                <span className="sm:hidden">สอนหลายห้อง (เลือกวิชา)</span>
+                <span className="hidden sm:inline">วิชาสอนหลายห้อง (เลือกวิชาเป็นหลัก)</span>
               </button>
               <button
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-black transition whitespace-nowrap ${
                   perspective === 'classroom'
                     ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
                     : 'text-slate-600 hover:text-slate-900'
@@ -2065,15 +2066,17 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 type="button"
               >
                 <Users size={14} className={perspective === 'classroom' ? 'text-cyan-600' : 'text-slate-400'} aria-hidden="true" />
-                วิชาสอนห้องเดียว / ครูประจำชั้น
+                <span className="sm:hidden">ห้องเดียว / ประจำชั้น</span>
+                <span className="hidden sm:inline">วิชาสอนห้องเดียว / ครูประจำชั้น</span>
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Action Tools: Scrollable horizontally with touch support on mobile, no text squishing */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 pt-0.5 max-w-full -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x">
             {perspective === 'subject' ? (
               <button
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 px-3 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100"
+                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 px-3 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100"
                 onClick={() => {
                   setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
                   const otherClassrooms = classrooms.filter((c) => c.id !== (classroomsWithSubject[0]?.id || classroomId));
@@ -2084,85 +2087,83 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 type="button"
               >
                 <Copy size={13} className="text-indigo-700" aria-hidden="true" />
-                คัดลอกเกณฑ์ไปห้องอื่น
+                <span>คัดลอกเกณฑ์</span>
               </button>
             ) : null}
 
             {scoreView === 'excel' && contextAssessments.length > 0 ? (
               <button
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
                 onClick={exportGridCsv}
                 title="ส่งออกตารางรวมคะแนนเป็นไฟล์ Excel / CSV"
                 type="button"
               >
                 <Download size={13} aria-hidden="true" />
-                Export Excel
+                <span>Export Excel</span>
               </button>
             ) : null}
 
             {scoreView === 'entry' && selectedAssessment ? (
               <button
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
                 onClick={exportAssessmentCsv}
                 title="ส่งออกเป็นไฟล์ Excel / CSV"
                 type="button"
               >
                 <Download size={13} aria-hidden="true" />
-                Export CSV
+                <span>Export CSV</span>
               </button>
             ) : null}
 
             <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
               onClick={() => setIsAcademicSubjectsOpen(true)}
               title="จัดการ 8 กลุ่มสาระการเรียนรู้ ตัวชี้วัด เกณฑ์ตัดเกรด และตัดเกรดทางการ 8 ระดับ (0-4) อัตโนมัติ"
               type="button"
             >
               <BookOpen size={13} aria-hidden="true" />
-              <span>📚 โครงสร้างวิชา & ตัดเกรด สพฐ.</span>
+              <span>โครงสร้างวิชา & ตัดเกรด</span>
             </button>
 
             <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 text-xs font-black text-white shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 text-xs font-black text-white shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
               onClick={() => setIsOfficialDocumentsOpen(true)}
               title="พิมพ์แบบ ปพ.5 รายชั้น, ปพ.5 รายวิชา, ปพ.6 และใบรับรองทางการ"
               type="button"
             >
               <FileSpreadsheet size={13} aria-hidden="true" />
-              <span>🖨️ พิมพ์ ปพ.๕ / ปพ.๖</span>
+              <span>พิมพ์ ปพ.๕ / ปพ.๖</span>
             </button>
 
             <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-3.5 text-xs font-black text-white shadow-md shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-3.5 text-xs font-black text-white shadow-md shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
               onClick={() => setIsTermClosingOpen(true)}
               title="ตรวจสอบความพร้อม ล็อคผลการเรียน และเลื่อนชั้นปีอัตโนมัติตามเกณฑ์ สพฐ."
               type="button"
             >
               <Lock size={13} aria-hidden="true" />
-              <span>🔒 ปิดเทอม & เลื่อนชั้น</span>
+              <span>ปิดเทอม & เลื่อนชั้น</span>
             </button>
 
             <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
               onClick={() => setIsRubricModalOpen(true)}
               title="ออกแบบข้อสอบกลางภาค/ปลายภาค เกณฑ์ Rubric 4 ระดับ และข้อสอบซ่อมเสริมตามตัวชี้วัด สพฐ. ด้วย AI"
               type="button"
             >
               <Sparkles size={13} className="text-amber-300 animate-pulse" aria-hidden="true" />
-              <span>✨ ออกแบบข้อสอบ & รูบริก สพฐ.</span>
-              <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+              <span>ข้อสอบ & รูบริก AI</span>
             </button>
 
             {selectedAssessment ? (
               <button
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3.5 text-xs font-black text-white shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3.5 text-xs font-black text-white shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
                 onClick={() => setIsScoreOcrOpen(true)}
                 title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI Vision"
                 type="button"
               >
                 <Camera size={13} className="text-cyan-200" aria-hidden="true" />
-                <span>📸 สแกนใบคะแนน AI Vision</span>
-                <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+                <span>สแกนใบคะแนน AI</span>
               </button>
             ) : null}
           </div>

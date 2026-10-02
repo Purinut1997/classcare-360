@@ -759,74 +759,74 @@ export function EasyShortcutHub({
         </section>
       )}
 
-      {/* 🏷️ Category Filter Tabs */}
+      {/* 🏷️ Category Filter Tabs — Wrap gracefully on mobile so all categories are directly visible and clickable without scrolling issues */}
       <section className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-200 pb-3">
-          {/* Scrollable category bar on mobile with no scrollbar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-0.5 w-full -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-3">
+          {/* Responsive Category Pills (Wraps on mobile, single line on desktop) */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
-              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+              className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
                 activeCategory === 'all'
-                  ? 'bg-slate-900 text-white shadow-sm'
+                  ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              <span>🌟 ทุกเมนูในระบบ</span>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px]">{categoryCounts.all}</span>
+              <span>🌟 ทุกเมนู</span>
+              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">{categoryCounts.all}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('daily')}
-              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+              className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
                 activeCategory === 'daily'
-                  ? 'bg-emerald-700 text-white shadow-sm'
+                  ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-700/20'
                   : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
               }`}
             >
               <span>☀️ 1. กิจวัตร & สุขภาพ</span>
-              <span className="rounded-full bg-emerald-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.daily}</span>
+              <span className="rounded-full bg-emerald-900/20 px-1.5 py-0.5 text-[10px]">{categoryCounts.daily}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('academic')}
-              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+              className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
                 activeCategory === 'academic'
-                  ? 'bg-sky-700 text-white shadow-sm'
+                  ? 'bg-sky-700 text-white shadow-sm ring-2 ring-sky-700/20'
                   : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
               }`}
             >
               <span>📚 2. คะแนน & การสอน</span>
-              <span className="rounded-full bg-sky-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.academic}</span>
+              <span className="rounded-full bg-sky-900/20 px-1.5 py-0.5 text-[10px]">{categoryCounts.academic}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('care')}
-              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+              className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
                 activeCategory === 'care'
-                  ? 'bg-purple-700 text-white shadow-sm'
+                  ? 'bg-purple-700 text-white shadow-sm ring-2 ring-purple-700/20'
                   : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
               }`}
             >
               <span>👨‍👩‍👧 3. เด็ก & ผู้ปกครอง</span>
-              <span className="rounded-full bg-purple-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.care}</span>
+              <span className="rounded-full bg-purple-900/20 px-1.5 py-0.5 text-[10px]">{categoryCounts.care}</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('admin')}
-              className={`shrink-0 whitespace-nowrap flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+              className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
                 activeCategory === 'admin'
-                  ? 'bg-slate-700 text-white shadow-sm'
+                  ? 'bg-slate-700 text-white shadow-sm ring-2 ring-slate-700/20'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
               }`}
             >
               <span>⚙️ 4. บริหาร & ตั้งค่า</span>
-              <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-[10px]">{categoryCounts.admin}</span>
+              <span className="rounded-full bg-slate-900/20 px-1.5 py-0.5 text-[10px]">{categoryCounts.admin}</span>
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 shrink-0">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500 shrink-0 w-full sm:w-auto pt-1 sm:pt-0">
             <span>
               แสดง <strong className="font-black text-slate-900">{filteredShortcuts.length}</strong> เมนู
             </span>
