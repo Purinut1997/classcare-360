@@ -16,6 +16,7 @@ import { ClassroomAnalyticsCharts, type ClassroomAnalyticsData } from '../../com
 import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
 import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
 import { DailyStatsSummary } from '../../components/dashboard/DailyStatsSummary';
+import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 
@@ -308,6 +309,27 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const currentThaiDay = thaiDayNames[new Date().getDay()] || 'จันทร์';
   const initialMobileDay = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'].includes(currentThaiDay) ? currentThaiDay : 'จันทร์';
   const [mobileScheduleDay, setMobileScheduleDay] = useState<string>(initialMobileDay);
+
+  // โหมดแสดงผล: 'shortcuts' (ศูนย์รวมทางลัดทุกเมนู - เข้ามาก็เจอเลย) หรือ 'analytics' (แดชบอร์ดสถิติ)
+  const [dashboardViewMode, setDashboardViewMode] = useState<'shortcuts' | 'analytics'>(() => {
+    if (typeof window === 'undefined') return 'shortcuts';
+    const params = new URLSearchParams(window.location.search);
+    const modeParam = params.get('mode') || params.get('tab');
+    if (modeParam === 'analytics') return 'analytics';
+    if (modeParam === 'shortcuts') return 'shortcuts';
+    try {
+      const saved = localStorage.getItem('classcare_dashboard_view_mode');
+      if (saved === 'analytics' || saved === 'shortcuts') return saved;
+    } catch {}
+    return 'shortcuts'; // ค่าเริ่มต้น: เข้ามาก็เจอทางลัดทุกเมนูทันที
+  });
+
+  const handleSetDashboardViewMode = (mode: 'shortcuts' | 'analytics') => {
+    setDashboardViewMode(mode);
+    try {
+      localStorage.setItem('classcare_dashboard_view_mode', mode);
+    } catch {}
+  };
 
   const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
 
@@ -1102,6 +1124,61 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </div>
       </div>
 
+      {/* 🚀 MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
+      <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-3xl border border-slate-200/90 bg-white p-2.5 shadow-xs">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => handleSetDashboardViewMode('shortcuts')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all ${
+              dashboardViewMode === 'shortcuts'
+                ? 'bg-white text-teal-900 shadow-sm ring-1 ring-slate-200/80 scale-[1.01]'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Sparkles size={16} className={dashboardViewMode === 'shortcuts' ? 'text-teal-600' : 'text-slate-400'} />
+            <span>ศูนย์รวมทางลัดทุกเมนู (โหมดง่าย)</span>
+            <span className="hidden sm:inline-block rounded-full bg-teal-100 text-teal-800 px-2 py-0.5 text-[10px] font-black">
+              เริ่มต้น
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSetDashboardViewMode('analytics')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all ${
+              dashboardViewMode === 'analytics'
+                ? 'bg-white text-sky-900 shadow-sm ring-1 ring-slate-200/80 scale-[1.01]'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <FileSpreadsheet size={16} className={dashboardViewMode === 'analytics' ? 'text-sky-600' : 'text-slate-400'} />
+            <span>สถิติ & กราฟวิเคราะห์ห้องเรียน</span>
+          </button>
+        </div>
+
+        <div className="px-3 text-[11px] font-bold text-slate-500 hidden md:block">
+          {dashboardViewMode === 'shortcuts' ? (
+            <span>💡 เข้าถึง 20+ เมนูในคลิกเดียว จัดหมวดตามสิ่งที่ครูทำจริง</span>
+          ) : (
+            <span>📊 สถิติเวลาเรียน คะแนน และรายงานเชิงลึก</span>
+          )}
+        </div>
+      </div>
+
+      {dashboardViewMode === 'shortcuts' ? (
+        <div className="mt-5">
+          <EasyShortcutHub
+            analyticsData={analyticsData}
+            classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
+            isHomeroom={isSelectedClassroomHomeroom}
+            onSwitchToAnalytics={() => handleSetDashboardViewMode('analytics')}
+            session={session}
+          />
+        </div>
+      ) : (
+        <>
+
 
       {/* ⚠️ Pending Join Requests — Admin action required, show right after hero */}
       {pendingJoinRequestCount > 0 ? (
@@ -1668,6 +1745,8 @@ export function DashboardPage({ session }: DashboardPageProps) {
       <div className="mt-5">
         <AiFeatureShowcase session={session} />
       </div>
+      </>
+      )}
     </main>
   );
 

@@ -139,7 +139,12 @@ export function Sidebar({
                 to={item.path}
               >
                 <Icon size={18} aria-hidden="true" />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
+                {item.key === 'overview' && (
+                  <span className="ml-auto rounded-full bg-cyan-400/20 px-2 py-0.5 text-[9px] font-black text-cyan-200">
+                    HUB
+                  </span>
+                )}
               </Link>
             );
           })}
