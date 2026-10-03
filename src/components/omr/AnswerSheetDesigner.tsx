@@ -25,6 +25,7 @@ import {
   User,
   Share2,
   Lock,
+  BookOpen,
 } from 'lucide-react';
 import type { AnswerSheetConfig, ChoiceLabelType, StudentIdFormat, ExamBankTemplate } from '../../types/omr';
 import { CHOICE_KEYS_ABCD, generateSyntheticFilledSheet, getChoiceLabel } from '../../lib/omrEngine';
@@ -64,6 +65,7 @@ export function AnswerSheetDesigner({
   const [bankTemplates, setBankTemplates] = useState<ExamBankTemplate[]>([]);
   const [bankSearch, setBankSearch] = useState('');
   const [bankYearFilter, setBankYearFilter] = useState<string>('all');
+  const [bankSubjectFilter, setBankSubjectFilter] = useState<string>('all');
   const [saveTitle, setSaveTitle] = useState(config.title || '');
   const [saveYear, setSaveYear] = useState(config.academicYear || '2568');
   const [saveTerm, setSaveTerm] = useState(config.term || '1');
@@ -387,11 +389,14 @@ export function AnswerSheetDesigner({
       (t.teacherName && t.teacherName.toLowerCase().includes(bankSearch.toLowerCase())) ||
       (t.schoolName && t.schoolName.toLowerCase().includes(bankSearch.toLowerCase()));
     const matchYear = bankYearFilter === 'all' || t.academicYear === bankYearFilter;
+    const matchSubject =
+      bankSubjectFilter === 'all' ||
+      t.subjectName.toLowerCase().includes(bankSubjectFilter.toLowerCase());
     const matchScope =
       bankScope === 'my_exams'
         ? t.teacherId === effectiveTeacherId || !t.teacherId
         : t.isSharedToSchool === true;
-    return matchSearch && matchYear && matchScope;
+    return matchSearch && matchYear && matchSubject && matchScope;
   });
 
   const uniqueYears = Array.from(new Set(bankTemplates.map((t) => t.academicYear || '2568'))).sort().reverse();
@@ -1352,23 +1357,47 @@ export function AnswerSheetDesigner({
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                    <Calendar size={13} />
-                    ปีการศึกษา:
-                  </span>
-                  <select
-                    value={bankYearFilter}
-                    onChange={(e) => setBankYearFilter(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none"
-                  >
-                    <option value="all">ทั้งหมด ทุกปีการศึกษา</option>
-                    {uniqueYears.map((yr) => (
-                      <option key={yr} value={yr}>
-                        ปีการศึกษา {yr}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                      <BookOpen size={13} />
+                      กลุ่มสาระ/วิชา:
+                    </span>
+                    <select
+                      value={bankSubjectFilter}
+                      onChange={(e) => setBankSubjectFilter(e.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                    >
+                      <option value="all">ทั้งหมด ทุกกลุ่มสาระ</option>
+                      <option value="วิทยาศาสตร์">วิทยาศาสตร์และเทคโนโลยี</option>
+                      <option value="คณิตศาสตร์">คณิตศาสตร์</option>
+                      <option value="ภาษาไทย">ภาษาไทย</option>
+                      <option value="ภาษา">ภาษาต่างประเทศ / ภาษาอังกฤษ</option>
+                      <option value="สังคม">สังคมศึกษา ศาสนา และวัฒนธรรม</option>
+                      <option value="สุขศึกษา">สุขศึกษาและพลศึกษา</option>
+                      <option value="ศิลปะ">ศิลปะ</option>
+                      <option value="การงาน">การงานอาชีพ</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                      <Calendar size={13} />
+                      ปีการศึกษา:
+                    </span>
+                    <select
+                      value={bankYearFilter}
+                      onChange={(e) => setBankYearFilter(e.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                    >
+                      <option value="all">ทั้งหมด ทุกปีการศึกษา</option>
+                      {uniqueYears.map((yr) => (
+                        <option key={yr} value={yr}>
+                          ปีการศึกษา {yr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
