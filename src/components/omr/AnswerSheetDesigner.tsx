@@ -27,7 +27,7 @@ import {
   Lock,
   BookOpen,
 } from 'lucide-react';
-import type { AnswerSheetConfig, ChoiceLabelType, StudentIdFormat, ExamBankTemplate } from '../../types/omr';
+import type { AnswerSheetConfig, AnswerSheetLayout, ChoiceLabelType, StudentIdFormat, ExamBankTemplate } from '../../types/omr';
 import { CHOICE_KEYS_ABCD, generateSyntheticFilledSheet, getChoiceLabel } from '../../lib/omrEngine';
 import {
   getExamBankTemplates,
@@ -401,6 +401,39 @@ export function AnswerSheetDesigner({
 
   const uniqueYears = Array.from(new Set(bankTemplates.map((t) => t.academicYear || '2568'))).sort().reverse();
 
+  const applyQuickPreset = (preset: {
+    totalQuestions: number;
+    layout: AnswerSheetLayout;
+    choicesCount: 3 | 4 | 5;
+    choiceLabelType: ChoiceLabelType;
+    label: string;
+  }) => {
+    const choices = CHOICE_KEYS_ABCD.slice(0, preset.choicesCount);
+    const newKeys: Record<number, string> = {};
+    const newPoints: Record<number, number> = {};
+    for (let q = 1; q <= preset.totalQuestions; q++) {
+      newKeys[q] = config.answerKeys[q] || choices[(q - 1) % choices.length];
+      newPoints[q] = config.pointsPerQuestion[q] || 1;
+    }
+
+    const currentSet = config.examSet || '01';
+    const nextExamSets = { ...(config.examSets || {}) };
+    nextExamSets[currentSet] = newKeys;
+
+    updateConfig({
+      totalQuestions: preset.totalQuestions,
+      layout: preset.layout,
+      choicesCount: preset.choicesCount,
+      choiceLabelType: preset.choiceLabelType,
+      answerKeys: newKeys,
+      pointsPerQuestion: newPoints,
+      examSets: nextExamSets,
+    });
+
+    setActiveSubTab('preview');
+    showToast(`⚡ ปรับเป็นแม่แบบ "${preset.label}" เรียบร้อย พร้อมสั่งพิมพ์ได้ทันที!`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -410,6 +443,86 @@ export function AnswerSheetDesigner({
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* ⚡ 1-Click Express Presets Bar for Non-Tech Teachers */}
+      <div className="rounded-2xl border border-cyan-200/80 bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-emerald-500/10 p-3 sm:p-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-xl bg-cyan-600 text-white shadow-xs">
+              <Sparkles size={14} />
+            </span>
+            <div>
+              <p className="text-xs font-black text-slate-900">แม่แบบกระดาษคำตอบสำเร็จรูป (1 คลิกพร้อมพิมพ์ทันที)</p>
+              <p className="text-[11px] font-bold text-slate-500">สำหรับคุณครูที่ไม่ต้องการตั้งค่าเยอะ — กดเลือกแล้วไประบบสั่งพิมพ์ได้เลย</p>
+            </div>
+          </div>
+          <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[10px] font-black text-cyan-800">
+            แนะนำสำหรับคุณครู
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button
+            type="button"
+            onClick={() => applyQuickPreset({
+              totalQuestions: 20,
+              layout: 'eco_half',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '20 ข้อ ก-ง (ครึ่ง A4 ยอดนิยม)',
+            })}
+            className="group flex flex-col items-start rounded-xl border border-white/80 bg-white/90 p-2.5 text-left transition hover:border-cyan-400 hover:bg-white hover:shadow-sm"
+          >
+            <span className="font-black text-xs text-slate-900 group-hover:text-cyan-700">🌱 20 ข้อ (ครึ่ง A4)</span>
+            <span className="text-[10px] font-bold text-slate-500 mt-0.5">ก ข ค ง · 1 หน้าได้ 2 ชุด ประหยัดกระดาษ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyQuickPreset({
+              totalQuestions: 30,
+              layout: 'single_full',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '30 ข้อ ก-ง (กลางภาคมาตรฐาน)',
+            })}
+            className="group flex flex-col items-start rounded-xl border border-white/80 bg-white/90 p-2.5 text-left transition hover:border-cyan-400 hover:bg-white hover:shadow-sm"
+          >
+            <span className="font-black text-xs text-slate-900 group-hover:text-cyan-700">📘 30 ข้อ (กลางภาค)</span>
+            <span className="text-[10px] font-bold text-slate-500 mt-0.5">ก ข ค ง · ตัวหนังสือใหญ่ อ่านง่าย</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyQuickPreset({
+              totalQuestions: 60,
+              layout: 'single_full',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '60 ข้อ ก-ง (ปลายภาค 2 คอลัมน์)',
+            })}
+            className="group flex flex-col items-start rounded-xl border border-white/80 bg-white/90 p-2.5 text-left transition hover:border-cyan-400 hover:bg-white hover:shadow-sm"
+          >
+            <span className="font-black text-xs text-slate-900 group-hover:text-cyan-700">🎯 60 ข้อ (ปลายภาค)</span>
+            <span className="text-[10px] font-bold text-slate-500 mt-0.5">ก ข ค ง · 2 คอลัมน์ ครบจบ 1 แผ่น</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyQuickPreset({
+              totalQuestions: 100,
+              layout: 'single_full',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '100 ข้อ ก-ง (สอบระดับชั้น 4 คอลัมน์)',
+            })}
+            className="group flex flex-col items-start rounded-xl border border-white/80 bg-white/90 p-2.5 text-left transition hover:border-cyan-400 hover:bg-white hover:shadow-sm"
+          >
+            <span className="font-black text-xs text-slate-900 group-hover:text-cyan-700">🏆 100 ข้อ (วัดผลใหญ่)</span>
+            <span className="text-[10px] font-bold text-slate-500 mt-0.5">ก ข ค ง · 4 คอลัมน์ มาตรฐานข้อสอบรวม</span>
+          </button>
+        </div>
+      </div>
 
       {/* Subtab Navigation & Quick Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">

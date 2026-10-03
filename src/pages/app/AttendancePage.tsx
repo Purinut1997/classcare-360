@@ -229,6 +229,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [showStartPrompt, setShowStartPrompt] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'alert' | 'present'>('all');
+  const [quickRollInput, setQuickRollInput] = useState('');
+  const [quickRollStatus, setQuickRollStatus] = useState<AttendanceStatus>('absent');
+  const [isQuickRollOpen, setIsQuickRollOpen] = useState(false);
   const rosterRef = useRef<HTMLDivElement>(null);
 
   const activeModeCopy = modeCopy[mode];
@@ -803,6 +806,39 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setMarks(Object.fromEntries(classroomStudents.map((student) => [student.id, status])));
   }
 
+  function handleApplyQuickRollNumbers() {
+    if (!quickRollInput.trim()) return;
+
+    const targetNumbers = quickRollInput
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter((n) => !isNaN(n) && n > 0);
+
+    if (targetNumbers.length === 0) {
+      setNotice('กรุณากรอกเลขที่ให้ถูกต้อง เช่น 3, 7, 12');
+      return;
+    }
+
+    const updatedMarks = { ...marks };
+    classroomStudents.forEach((student, index) => {
+      const roll = student.student_code ? parseInt(student.student_code.replace(/^[A-Za-z]+-?/, ''), 10) : index + 1;
+      const matched = targetNumbers.includes(roll) || targetNumbers.includes(index + 1);
+      if (matched) {
+        updatedMarks[student.id] = quickRollStatus;
+      } else if (!updatedMarks[student.id]) {
+        updatedMarks[student.id] = 'present';
+      }
+    });
+
+    setMarks(updatedMarks);
+    setQuickRollInput('');
+    setIsQuickRollOpen(false);
+    const statusLabel = statusLabels[quickRollStatus] || quickRollStatus;
+    setNotice(`⚡ บันทึกสถานะ [${statusLabel}] ให้นักเรียนเลขที่ ${targetNumbers.join(', ')} เรียบร้อยแล้ว (ที่เหลือเป็น [มา]) — กรุณาตรวจทานและกด "บันทึกเวลาเรียน"`);
+  }
+
   function handleApplyAttendanceOcr(recordsToApply: Record<string, { status: AttendanceStatus; note?: string | null }>) {
     setMarks((prev) => {
       const next = { ...prev };
@@ -1142,6 +1178,20 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 ⚡ มาทุกคน
               </button>
               <button
+                className={`inline-flex h-11 items-center gap-1.5 rounded-2xl border px-3.5 text-xs font-black transition active:scale-95 disabled:opacity-50 ${
+                  isQuickRollOpen
+                    ? 'border-amber-400 bg-amber-100 text-amber-950 ring-1 ring-amber-300'
+                    : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+                disabled={classroomStudents.length === 0}
+                onClick={() => setIsQuickRollOpen(!isQuickRollOpen)}
+                type="button"
+                title="ระบุเฉพาะเลขที่ของนักเรียนที่ขาด ลา หรือป่วย โดยไม่ต้องเลื่อนหาชื่อทีละคน"
+              >
+                <UserCheck size={15} className="text-amber-700" />
+                <span>📝 คีย์เฉพาะคนขาด (ตามเลขที่)</span>
+              </button>
+              <button
                 className="inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-4 text-xs font-black text-white shadow-md shadow-teal-500/25 hover:shadow-lg hover:shadow-teal-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
                 disabled={classroomStudents.length === 0}
                 onClick={() => setIsOcrModalOpen(true)}
@@ -1163,6 +1213,59 @@ export function AttendancePage({ session }: AttendancePageProps) {
               </button>
             </div>
           </div>
+
+          {/* ⚡ Quick Roll Number Drawer for Teachers */}
+          {isQuickRollOpen && (
+            <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50/50 to-white p-3.5 shadow-xs animate-in slide-in-from-top-1">
+              <div className="flex items-center gap-1.5 text-xs font-black text-amber-900 shrink-0">
+                <UserCheck size={16} className="text-amber-700" />
+                <span>ระบุเลขที่คนไม่มา:</span>
+              </div>
+              <input
+                type="text"
+                className="h-9 w-44 rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
+                placeholder="เช่น 3, 7, 12"
+                value={quickRollInput}
+                onChange={(e) => setQuickRollInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleApplyQuickRollNumbers();
+                  }
+                }}
+              />
+              <div className="flex items-center gap-1">
+                {(['absent', 'leave', 'sick', 'late'] as AttendanceStatus[]).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setQuickRollStatus(st)}
+                    className={`h-9 px-2.5 rounded-xl text-xs font-black transition ${
+                      quickRollStatus === st
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'border border-amber-200 bg-white text-slate-600 hover:bg-amber-100'
+                    }`}
+                  >
+                    {statusLabels[st]}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleApplyQuickRollNumbers}
+                className="h-9 rounded-xl bg-amber-600 px-4 text-xs font-black text-white hover:bg-amber-700 active:scale-95 shadow-xs transition"
+              >
+                ปรับสถานะทันที
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsQuickRollOpen(false)}
+                className="h-9 px-2 text-xs font-bold text-slate-400 hover:text-slate-600"
+              >
+                ปิด
+              </button>
+            </div>
+          )}
 
           {attendanceSession ? (
             <div className="mt-4 flex flex-wrap items-end gap-2 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">

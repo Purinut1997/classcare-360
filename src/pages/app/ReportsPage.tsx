@@ -3034,6 +3034,83 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         </div>
       </div>
 
+      {/* 🏛️ One-Click Official Academic Documents (ปพ.) Hub Banner */}
+      <div className="mt-5 rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-indigo-500/10 via-sky-500/5 to-cyan-500/10 p-3.5 sm:p-4.5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-indigo-600 text-white shadow-xs">
+              <FileSpreadsheet size={16} />
+            </span>
+            <div>
+              <p className="text-sm font-black text-slate-900">ศูนย์เอกสารราชการ ปพ. และแบบพิมพ์มาตรฐาน สพฐ. (ด่วน 1 คลิก)</p>
+              <p className="text-xs font-bold text-slate-500">สำหรับคุณครูที่ต้องการพิมพ์ ปพ.5, ปพ.6 หรือแบบรายงานส่งฝ่ายวิชาการ</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOfficialDocsOpen(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white hover:bg-indigo-700 active:scale-95 transition shadow-xs"
+          >
+            <span>เปิดคลังเอกสาร ปพ. ทั้งหมด</span>
+            <span className="text-indigo-200">→</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsOfficialDocsOpen(true)}
+            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
+          >
+            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
+              📘 ปพ.5 (สมุดประเมิน)
+            </span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">
+              ผลการพัฒนาคุณภาพผู้เรียน รวมคะแนนและเกรด
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsOfficialDocsOpen(true)}
+            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
+          >
+            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
+              📗 ปพ.6 (รายงานผล/สมุดพก)
+            </span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">
+              รายงานผลพัฒนาการรายบุคคล แจกผู้ปกครอง
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => updateReportSearch({ reportView: 'attendance' })}
+            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
+          >
+            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
+              📙 บัญชีเวลาเรียนประจำเดือน
+            </span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">
+              สรุป มา-ขาด-ลา ร้อยละเวลาเรียน ส่งประจำเดือน
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => updateReportSearch({ reportView: 'student-register' })}
+            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
+          >
+            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
+              📋 บัญชีรายชื่อนักเรียน A4
+            </span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">
+              ใบเซ็นชื่อ / ลงลายมือชื่อรับเงิน / เช็กชื่อหน้าห้อง
+            </span>
+          </button>
+        </div>
+      </div>
+
       <nav aria-label="ประเภทรายงาน" className="mt-5 flex gap-2 overflow-x-auto pb-2 snap-x scrollbar-hide">
         {reportViews.map((item) => {
           const icons: Record<string, string> = {

@@ -3786,6 +3786,83 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </label>
               </div>
 
+              {/* ⚡ 1-Click Quick Preset for Teachers */}
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+                <span className="text-[11px] font-black text-sky-950 flex items-center gap-1.5 mb-2">
+                  <Sparkles size={14} className="text-sky-600" />
+                  เลือกแม่แบบชุดคะแนนด่วน (คลิกเดียวกรอกครบ):
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((c) => ({
+                        ...c,
+                        title: 'แบบฝึกหัด/ใบงานย่อย',
+                        category: 'assignment',
+                        maxScore: '10',
+                        weight: '10',
+                      }));
+                    }}
+                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                  >
+                    <p className="font-black text-sky-900">📝 ใบงาน (10 คะแนน)</p>
+                    <p className="text-[10px] text-slate-500">เต็ม 10 · น้ำหนัก 10</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((c) => ({
+                        ...c,
+                        title: 'แบบทดสอบย่อยท้ายบท',
+                        category: 'quiz',
+                        maxScore: '20',
+                        weight: '10',
+                      }));
+                    }}
+                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                  >
+                    <p className="font-black text-sky-900">📊 สอบย่อย (20 ข้อ)</p>
+                    <p className="text-[10px] text-slate-500">เต็ม 20 · หารคิด 10</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((c) => ({
+                        ...c,
+                        title: 'สอบวัดผลกลางภาค',
+                        category: 'midterm',
+                        maxScore: '20',
+                        weight: '20',
+                      }));
+                    }}
+                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                  >
+                    <p className="font-black text-sky-900">🎯 กลางภาค (20 คะแนน)</p>
+                    <p className="text-[10px] text-slate-500">เต็ม 20 · น้ำหนัก 20</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((c) => ({
+                        ...c,
+                        title: 'สอบวัดผลปลายภาค',
+                        category: 'final',
+                        maxScore: '30',
+                        weight: '30',
+                      }));
+                    }}
+                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                  >
+                    <p className="font-black text-sky-900">🏆 ปลายภาค (30 คะแนน)</p>
+                    <p className="text-[10px] text-slate-500">เต็ม 30 · น้ำหนัก 30</p>
+                  </button>
+                </div>
+              </div>
+
               <label className="block">
                 <span className="text-xs font-black text-slate-600">ชื่อชุดคะแนน</span>
                 <input
@@ -3847,6 +3924,17 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     value={form.weight}
                   />
                 </label>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-2.5 text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                <span>💡 ทิป: ถ้าทำได้ 10 ข้อ คิด 10 คะแนน ให้ใส่ตัวเลขเท่ากัน</span>
+                <button
+                  type="button"
+                  onClick={() => setForm((c) => ({ ...c, weight: c.maxScore }))}
+                  className="rounded-lg bg-white px-2 py-0.5 text-[11px] font-black text-cyan-800 border border-slate-200 hover:bg-slate-100"
+                >
+                  กดให้เท่ากัน (1:1)
+                </button>
               </div>
 
               <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

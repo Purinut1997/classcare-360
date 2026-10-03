@@ -30,12 +30,12 @@ const coreDirectItemKeys = [
 const sidebarSections = [
   {
     key: 'daily-tools',
-    label: 'เครื่องมือประจำห้อง',
+    label: 'เครื่องมือประจำห้องเรียน',
     itemKeys: ['student-health', 'classroom-operations', 'randomizer', 'automation', 'daily-brief'],
   },
   {
     key: 'school-management',
-    label: 'บริหารโรงเรียน & ระบบ',
+    label: 'ตั้งค่าโรงเรียน & จัดการระบบ',
     itemKeys: ['school-calendar', 'workspace-settings', 'academic-year', 'import-export', 'data-safety'],
   },
 ];
