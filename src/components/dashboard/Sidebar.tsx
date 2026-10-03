@@ -19,6 +19,7 @@ const coreDirectItemKeys = [
   'teacher-work',
   'schedule',
   'scores',
+  'omr-scanner',
   'academic-hub',
   'desirable-characteristics',
   'savings',

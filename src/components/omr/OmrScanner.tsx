@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Zap,
   VideoOff,
+  FileText,
 } from 'lucide-react';
 import type {
   AnswerSheetConfig,
@@ -393,6 +394,45 @@ export function OmrScanner({
           </button>
         </div>
       )}
+
+      {/* Active Exam Header Bar: Shows which exam, category/subject, set, and question count are being graded */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-950 text-cyan-400 shadow-xs shrink-0 ring-1 ring-slate-800">
+            <FileText size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-md">
+                วิชา: {config.subjectName || 'ทั่วไป'}
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                ชุดที่ {config.examSet || '01'}
+              </span>
+              <span className="text-[10px] font-bold text-slate-500">
+                {config.totalQuestions} ข้อ • รวม {config.totalScore} คะแนน
+              </span>
+            </div>
+            <h2 className="text-sm font-black text-slate-900 leading-tight">
+              {config.title || 'กระดาษคำตอบมาตรฐาน'}
+            </h2>
+            <p className="text-[11px] font-medium text-slate-500">
+              สถานะ: พร้อมสแกนตรวจนับคะแนน • {config.teacherName ? `ครูผู้ตรวจ: ${config.teacherName}` : ''}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onEditConfig}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition"
+          >
+            <Sliders size={13} className="text-slate-500" />
+            ปรับแต่ง/สลับชุดข้อสอบ
+          </button>
+        </div>
+      </div>
 
       {/* Control Console: 1. Student Mode & 2. Recording Mode */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
