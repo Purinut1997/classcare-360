@@ -19,7 +19,7 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
     if (isEcoHalf) {
       questionsPerColumn = config.totalQuestions <= 15 ? 15 : config.totalQuestions <= 20 ? 10 : 15;
     } else {
-      questionsPerColumn = config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 45 ? 15 : 20;
+      questionsPerColumn = config.totalQuestions <= 20 ? 10 : config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 45 ? 15 : 20;
     }
     const columnsCount = Math.ceil(config.totalQuestions / questionsPerColumn);
     const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
@@ -57,6 +57,8 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
       bubbleBorder: 'border-slate-800',
       bubbleText: 'text-slate-800',
     };
+
+    const isDense = !isEcoHalf && (columnsCount >= 4 || (columnsCount >= 3 && config.choicesCount >= 5));
 
     const renderSheetInstance = (instanceKey: string) => (
       <div
@@ -206,13 +208,43 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
                 </div>
               </div>
             )}
+
+            {/* Student Code 5-Digit Bubble Grid */}
+            {config.studentIdFormat === 'student_code' && (
+              <div className={`rounded-lg border border-slate-300 bg-slate-50/70 text-center ${isEcoHalf ? 'p-1' : 'p-1.5'}`}>
+                <div className="text-[9px] font-bold text-slate-600 mb-0.5">รหัสประจำตัว (5 หลัก)</div>
+                <div className="flex justify-center gap-1.5">
+                  {['1', '2', '3', '4', '5'].map((colNum) => (
+                    <div key={colNum} className="flex flex-col items-center">
+                      <span className="text-[7.5px] text-slate-400 mb-0.5">{colNum}</span>
+                      <div className="h-3.5 w-3.5 mb-0.5 rounded border border-slate-300 bg-white text-center font-mono text-[9px] font-bold leading-3.5" />
+                      <div className="space-y-0.5">
+                        {Array.from({ length: 10 }).map((_, digit) => (
+                          <div
+                            key={digit}
+                            className={`flex items-center justify-center rounded-full border ${themeStyles.bubbleBorder} font-bold ${themeStyles.bubbleText} ${
+                              isEcoHalf ? 'h-2 w-2 text-[5.5px]' : 'h-2.5 w-2.5 text-[6.5px]'
+                            }`}
+                          >
+                            {digit}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* --- 2. SPACIOUS QUESTIONS ANSWER GRID --- */}
+        {/* --- 2. CLEAN & PROPORTIONATE QUESTIONS ANSWER GRID --- */}
         <div
-          className={`mx-2 flex-1 grid gap-3 ${isEcoHalf ? 'my-1.5' : 'my-2.5'}`}
-          style={{ gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))` }}
+          className={`mx-auto flex-1 grid gap-3 ${isEcoHalf ? 'my-1.5' : 'my-2.5'} w-full`}
+          style={{
+            gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))`,
+            maxWidth: columnsCount === 1 ? '260px' : columnsCount === 2 ? '540px' : '100%',
+          }}
         >
           {Array.from({ length: columnsCount }).map((_, colIdx) => {
             const startQ = colIdx * questionsPerColumn + 1;
@@ -224,20 +256,28 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
               <div
                 key={colIdx}
                 className={`flex flex-col rounded-lg border border-slate-300 bg-white ${
-                  isEcoHalf ? 'p-1.5' : 'p-2'
+                  isEcoHalf || isDense ? 'p-1.5' : 'p-2'
                 }`}
               >
-                {/* Column Header */}
-                <div className={`flex items-center justify-between border-b border-slate-200 font-bold text-slate-700 ${
-                  isEcoHalf ? 'mb-1 pb-1 text-[10px]' : 'mb-1.5 pb-1 text-xs'
+                {/* Column Header - Compact natural spacing aligned with choices */}
+                <div className={`flex items-center justify-center border-b border-slate-200 font-bold text-slate-700 ${
+                  isEcoHalf
+                    ? 'mb-1 pb-1 text-[10px] gap-2'
+                    : isDense
+                    ? 'mb-1 pb-1 text-[11px] gap-2'
+                    : 'mb-1.5 pb-1 text-xs gap-2.5'
                 }`}>
-                  <span className="w-6 text-center font-mono">ข้อ</span>
-                  <div className={`flex ${isEcoHalf ? 'gap-1.5' : 'gap-2.5'}`}>
+                  <span className={`text-center font-bold text-slate-700 ${
+                    isEcoHalf || isDense ? 'w-6 text-[10px]' : 'w-7 text-xs'
+                  }`}>
+                    ข้อ
+                  </span>
+                  <div className={`flex ${isEcoHalf || isDense ? 'gap-1.5' : 'gap-2'}`}>
                     {choiceKeys.map((_, i) => (
                       <span
                         key={i}
                         className={`text-center font-bold text-slate-600 ${
-                          isEcoHalf ? 'w-4 text-[10px]' : 'w-5 text-xs'
+                          isEcoHalf || isDense ? 'w-4 text-[10px]' : 'w-5 text-xs'
                         }`}
                       >
                         {getChoiceLabel(i, config.choiceLabelType)}
@@ -253,19 +293,21 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
 
                     return (
                       <div key={q} className={isFifthBreak ? (isEcoHalf ? 'mb-1.5' : 'mb-2') : ''}>
-                        <div className="flex items-center justify-between py-0.2">
-                          <span className={`w-6 text-right font-mono font-bold text-slate-700 ${
-                            isEcoHalf ? 'text-[10px]' : 'text-[11px]'
+                        <div className={`flex items-center justify-center ${
+                          isEcoHalf || isDense ? 'gap-2' : 'gap-2.5'
+                        } py-0.2`}>
+                          <span className={`text-right font-mono font-bold text-slate-700 pr-0.5 ${
+                            isEcoHalf || isDense ? 'w-6 text-[10px]' : 'w-7 text-[11px]'
                           }`}>
                             {q}.
                           </span>
 
-                          <div className={`flex ${isEcoHalf ? 'gap-1.5' : 'gap-2.5'}`}>
+                          <div className={`flex ${isEcoHalf || isDense ? 'gap-1.5' : 'gap-2'}`}>
                             {choiceKeys.map((_, cIdx) => (
                               <div
                                 key={cIdx}
                                 className={`flex items-center justify-center rounded-full border-[1.5px] ${themeStyles.bubbleBorder} font-black ${themeStyles.bubbleText} bg-white ${
-                                  isEcoHalf
+                                  isEcoHalf || isDense
                                     ? 'h-4 w-4 text-[8.5px]'
                                     : 'h-5 w-5 text-[9.5px]'
                                 }`}
