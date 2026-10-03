@@ -27,6 +27,39 @@ export interface AnswerSheetConfig {
   academicYear?: string;
   term?: string;
   roomName?: string;
+  schoolName?: string;
+  isUniversalRoom?: boolean; // If true, answer sheet is universal across all classrooms
+  showQrCode?: boolean; // If true, render machine-readable QR Code at top-right of sheet
+  examSets?: Record<string, Record<number, string>>; // Answer keys mapped by exam set, e.g. { '01': {...}, '02': {...} }
+  teacherId?: string; // ID of the teacher who authored the exam
+  teacherName?: string; // Display name of teacher
+}
+
+export interface ExamBankTemplate {
+  id: string;
+  title: string;
+  subjectName: string;
+  schoolName?: string;
+  teacherId?: string;
+  teacherName?: string;
+  workspaceId?: string;
+  isSharedToSchool?: boolean; // True if shared with other teachers in the school/workspace
+  academicYear?: string;
+  term?: string;
+  roomName?: string;
+  isUniversalRoom?: boolean;
+  totalQuestions: number;
+  choicesCount: 3 | 4 | 5;
+  choiceLabelType: ChoiceLabelType;
+  layout: AnswerSheetLayout;
+  studentIdFormat: StudentIdFormat;
+  totalScore: number;
+  themeColor?: AnswerSheetThemeColor;
+  examSet: string;
+  examSets?: Record<string, Record<number, string>>;
+  answerKeys: Record<number, string>;
+  pointsPerQuestion: Record<number, number>;
+  savedAt: string;
 }
 
 export interface ScannedAnswerDetail {

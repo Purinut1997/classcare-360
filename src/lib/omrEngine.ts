@@ -291,7 +291,10 @@ export async function analyzeAnswerSheetImage(
       }
     });
 
-    const correctChoice = config.answerKeys[q] || 'A';
+    const currentSetKeys = (config.examSets && config.examSet && config.examSets[config.examSet])
+      ? config.examSets[config.examSet]
+      : config.answerKeys;
+    const correctChoice = currentSetKeys[q] || 'A';
     const pointWeight = config.pointsPerQuestion[q] || 1;
     totalPossibleScore += pointWeight;
 

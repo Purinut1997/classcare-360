@@ -24,6 +24,7 @@ import {
   X,
   AlertTriangle,
   Zap,
+  VideoOff,
 } from 'lucide-react';
 import type {
   AnswerSheetConfig,
@@ -82,6 +83,7 @@ export function OmrScanner({
 
   // Scanner UI States
   const [scanMethod, setScanMethod] = useState<'camera' | 'upload'>('camera');
+  const [isCameraStarted, setIsCameraStarted] = useState(false); // User must explicitly click to turn on camera
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -150,7 +152,7 @@ export function OmrScanner({
   };
 
   useEffect(() => {
-    if (scanMethod === 'camera') {
+    if (scanMethod === 'camera' && isCameraStarted) {
       startCamera();
     } else {
       stopCamera();
@@ -158,7 +160,7 @@ export function OmrScanner({
     return () => {
       stopCamera();
     };
-  }, [scanMethod, startCamera, stopCamera]);
+  }, [scanMethod, isCameraStarted, startCamera, stopCamera]);
 
   // 2. Score Processing Logic
   const handleScanResultObtained = useCallback(
@@ -606,19 +608,68 @@ export function OmrScanner({
 
             {/* Camera Viewfinder */}
             {scanMethod === 'camera' ? (
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-slate-950 flex items-center justify-center">
-                {cameraError ? (
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 flex items-center justify-center border border-slate-800">
+                {!isCameraStarted ? (
+                  /* Privacy-first Standby Card before turning on Camera */
+                  <div className="flex flex-col items-center justify-center text-center p-8 max-w-md space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="relative">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-inner">
+                        <Camera size={36} />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 border-2 border-slate-950 text-amber-400">
+                        <VideoOff size={14} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <h4 className="text-base font-black text-white">กล้องยังไม่ได้เปิดใช้งาน (Camera Standby)</h4>
+                      <p className="text-xs text-slate-400 leading-relaxed font-normal">
+                        เพื่อความเป็นส่วนตัวของคุณครู ระบบจะไม่เปิดกล้องอัตโนมัติ
+                        กรุณากดปุ่มด้านล่างเมื่อพร้อมนำกระดาษคำตอบมาวางสแกน
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setIsCameraStarted(true)}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-xs font-black text-white shadow-lg hover:from-emerald-400 hover:to-teal-400 active:scale-95 transition"
+                      >
+                        <Camera size={16} />
+                        เปิดกล้องเพื่อเริ่มสแกน (Start Camera)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setScanMethod('upload')}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+                      >
+                        <Upload size={14} />
+                        อัปโหลดภาพแทน
+                      </button>
+                    </div>
+                  </div>
+                ) : cameraError ? (
                   <div className="p-6 text-center text-rose-300 max-w-sm">
                     <AlertTriangle className="mx-auto mb-2 text-rose-400" size={36} />
                     <p className="text-xs font-bold">{cameraError}</p>
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-black text-slate-900"
-                    >
-                      <RefreshCw size={13} />
-                      ลองใหม่อีกครั้ง
-                    </button>
+                    <div className="mt-3 flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-black text-slate-900"
+                      >
+                        <RefreshCw size={13} />
+                        ลองใหม่อีกครั้ง
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCameraStarted(false)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-black text-slate-300 hover:bg-slate-700"
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -629,6 +680,27 @@ export function OmrScanner({
                       autoPlay
                       className="h-full w-full object-cover"
                     />
+
+                    {/* Top Status Bar with Turn Off Camera Button */}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/80 px-3 py-1 backdrop-blur-xs text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        กล้องกำลังทำงาน
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCameraStarted(false);
+                          stopCamera();
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/90 px-3 py-1 text-[11px] font-bold text-rose-300 backdrop-blur-xs hover:bg-rose-950 hover:text-rose-200 border border-rose-500/30 transition shadow-xs"
+                        title="ปิดการใช้งานกล้อง"
+                      >
+                        <VideoOff size={13} />
+                        ปิดกล้อง (Stop Camera)
+                      </button>
+                    </div>
 
                     {/* Aim Guide Overlay with corner brackets */}
                     <div className="pointer-events-none absolute inset-6 flex flex-col justify-between border-2 border-emerald-400/40 rounded-2xl">
@@ -680,7 +752,17 @@ export function OmrScanner({
                         )}
                       </button>
 
-                      <div className="w-9" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCameraStarted(false);
+                          stopCamera();
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/80 text-rose-300 backdrop-blur-xs hover:bg-rose-950 hover:text-rose-200 transition"
+                        title="ปิดกล้อง"
+                      >
+                        <VideoOff size={15} />
+                      </button>
                     </div>
                   </>
                 )}

@@ -51,10 +51,13 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
 
     return {
       id: `omr-exam-${Date.now()}`,
-      title: 'กระดาษคำตอบ (Answer Sheet)',
+      title: 'กระดาษคำตอบมาตรฐาน (Standard Answer Sheet)',
       subjectName: 'วิทยาศาสตร์และเทคโนโลยี',
+      schoolName: 'โรงเรียน ClassCare 360',
+      isUniversalRoom: true,
+      roomName: '',
       examDate: new Date().toISOString().slice(0, 10),
-      instructions: 'ให้นักเรียนใช้ดินสอ 2B ฝนในวงกลมตัวเลือกที่ถูกต้องที่สุดเพียงข้อเดียว',
+      instructions: 'ใช้ดินสอดำ 2B ฝนในวงกลมตัวเลือกที่ถูกต้องที่สุดเพียงข้อเดียว',
       totalQuestions: totalQ,
       choicesCount: 4,
       choiceLabelType: 'THAI',
@@ -66,6 +69,8 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       classroomId: null,
       assessmentId: null,
       totalScore: totalQ,
+      teacherId: session?.profile?.id || 'teacher_demo_01',
+      teacherName: session?.profile?.displayName || 'ครูผู้สอน',
     };
   });
 
@@ -286,7 +291,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           studentsInActiveRoom={activeStudents}
           onCommitScoreEntry={handleCommitScoreEntry}
           onEditConfig={() => setOmrTab('designer')}
-          workspaceName={session?.workspace?.name || 'โรงเรียนต้นแบบ ClassCare 360'}
+          workspaceName={config.schoolName || (session?.workspace?.name && session.workspace.name !== 'ป.5' ? session.workspace.name : 'โรงเรียน ClassCare 360')}
         />
       )}
 
@@ -296,7 +301,10 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           config={config}
           onChangeConfig={(newCfg) => setConfig(newCfg)}
           onStartScanning={() => setOmrTab('scanner')}
-          workspaceName={session?.workspace?.name || 'โรงเรียนต้นแบบ ClassCare 360'}
+          workspaceName={config.schoolName || (session?.workspace?.name && session.workspace.name !== 'ป.5' ? session.workspace.name : 'โรงเรียน ClassCare 360')}
+          teacherId={session?.profile?.id}
+          teacherName={session?.profile?.displayName}
+          workspaceId={session?.workspace?.id}
         />
       )}
 
