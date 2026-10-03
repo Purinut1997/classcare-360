@@ -2358,23 +2358,34 @@ export function ScoresPage({ session }: ScoresPageProps) {
           })}
         </div>
 
-        {/* Quick Assessment Selector for Single Entry Mode */}
-        {scoreView === 'entry' && contextAssessments.length > 0 ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
-            <select
-              className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
-              onChange={(event) => setSelectedAssessmentId(event.target.value)}
-              value={selectedAssessment?.id || ''}
-            >
-              {contextAssessments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} (เต็ม {item.max_score} | {item.weight}%)
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
+        {/* Quick Actions & Assessment Selector */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {scoreView === 'entry' && contextAssessments.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
+              <select
+                className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
+                onChange={(event) => setSelectedAssessmentId(event.target.value)}
+                value={selectedAssessment?.id || ''}
+              >
+                {contextAssessments.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title} (เต็ม {item.max_score} | {item.weight}%)
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          <Link
+            to="/app/dashboard?view=omr-scanner"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-cyan-300 bg-gradient-to-r from-cyan-500/10 via-cyan-500/5 to-transparent px-3.5 text-xs font-black text-cyan-900 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50 transition shrink-0"
+            title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง"
+          >
+            <Camera size={15} className="text-cyan-600" />
+            ตรวจด้วยกระดาษ OMR
+          </Link>
+        </div>
       </div>
 
       {/* Notice Banner */}

@@ -165,6 +165,11 @@ const SystemSetupPage = lazy(() =>
     default: module.SystemSetupPage,
   })),
 );
+const OmrAssessmentPage = lazy(() =>
+  import('./pages/app/OmrAssessmentPage').then((module) => ({
+    default: module.OmrAssessmentPage,
+  })),
+);
 const WorkspaceSettingsPage = lazy(() =>
   import('./pages/app/WorkspaceSettingsPage').then((module) => ({
     default: module.WorkspaceSettingsPage,
@@ -207,9 +212,9 @@ function getAppShellNavItems(session: AppSessionContext | null, currentSearch = 
     parent: [],
     student: [],
     viewer: ['overview', 'reports', 'daily-brief', 'help-center'],
-    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'period-locks', 'workspace-switch'],
-    teacher_owner: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch'],
-    superadmin: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch', 'setup', 'audit'],
+    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'period-locks', 'workspace-switch'],
+    teacher_owner: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch'],
+    superadmin: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch', 'setup', 'audit'],
   };
 
   const allowedKeys = new Set(navKeysByRole[session.profile.role]);
@@ -240,6 +245,7 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'school-calendar') return classroomUserRoles;
   if (key === 'desirable-characteristics') return classroomUserRoles;
   if (key === 'academic-hub') return classroomUserRoles;
+  if (key === 'omr-scanner') return classroomUserRoles;
 
   return classroomUserRoles;
 }
@@ -360,6 +366,16 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
       <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
         <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
           <ScoresPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
+
+  if (activeNavItem.key === 'omr-scanner') {
+    return (
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <OmrAssessmentPage session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

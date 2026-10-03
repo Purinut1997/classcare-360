@@ -1,4 +1,4 @@
-import { Archive, Award, Bell, BookOpen, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
+import { Archive, Award, Bell, BookOpen, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ScanLine, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
 
 import type { ModuleKey } from '../types/core';
 
@@ -52,6 +52,13 @@ export const appNavItems: AppNavItem[] = [
     icon: GraduationCap,
     moduleKey: 'scores',
     path: '/app/dashboard?view=scores',
+  },
+  {
+    key: 'omr-scanner',
+    label: 'สร้าง/ตรวจกระดาษคำตอบ (OMR)',
+    icon: ScanLine,
+    moduleKey: 'scores',
+    path: '/app/dashboard?view=omr-scanner',
   },
   {
     key: 'academic-hub',
