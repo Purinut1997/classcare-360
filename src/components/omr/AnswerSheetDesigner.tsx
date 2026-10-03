@@ -500,7 +500,7 @@ export function AnswerSheetDesigner({
               {/* Scaled Mini Preview */}
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-2 shadow-inner">
                 <div className="origin-top scale-[0.45] w-[210mm] pointer-events-none mb-[-140%]">
-                  <PrintableAnswerSheet config={config} schoolName={workspaceName} />
+                  <PrintableAnswerSheet config={config} schoolName={workspaceName} isMiniPreview={true} />
                 </div>
               </div>
 
@@ -627,12 +627,11 @@ export function AnswerSheetDesigner({
       )}
 
       {/* Subtab 3: Printable High Resolution Preview */}
-      {activeSubTab === 'preview' && (
+      {activeSubTab === 'preview' ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl bg-cyan-50 border border-cyan-200 p-3 text-xs text-cyan-900">
             <div>
-              <span className="font-black">พร้อมพิมพ์:</span> กระดาษคำตอบขนาด A4
-              มีจุดมาร์กเกอร์สีดำที่ 4 มุมสำหรับการจัดตำแหน่งกล้องอย่างแม่นยำ
+              <span className="font-black">พร้อมพิมพ์:</span> กระดาษคำตอบขนาด A4 พอดีหน้า 100% (1 แผ่นต่อชุด หรือ 2 ชุดต่อแผ่นในโหมดประหยัด)
             </div>
             <button
               type="button"
@@ -647,6 +646,11 @@ export function AnswerSheetDesigner({
           <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-slate-200 p-6 flex justify-center">
             <PrintableAnswerSheet config={config} schoolName={workspaceName} />
           </div>
+        </div>
+      ) : (
+        /* Hidden from screen, but available when user triggers print from top action bar */
+        <div className="hidden print:block">
+          <PrintableAnswerSheet config={config} schoolName={workspaceName} />
         </div>
       )}
     </div>

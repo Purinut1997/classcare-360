@@ -7,89 +7,97 @@ interface PrintableAnswerSheetProps {
   schoolName?: string;
   studentName?: string;
   rollNumber?: number;
+  isMiniPreview?: boolean;
 }
 
 export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSheetProps>(
-  ({ config, schoolName = 'โรงเรียน ClassCare 360', studentName, rollNumber }, ref) => {
-    const questionsPerColumn = config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 60 ? 25 : 30;
+  ({ config, schoolName = 'โรงเรียน ClassCare 360', studentName, rollNumber, isMiniPreview = false }, ref) => {
+    const isEcoHalf = config.layout === 'eco_half';
+
+    // Calculate columns layout based on total questions and layout mode
+    let questionsPerColumn = 15;
+    if (isEcoHalf) {
+      questionsPerColumn = config.totalQuestions <= 15 ? 15 : config.totalQuestions <= 20 ? 10 : 15;
+    } else {
+      questionsPerColumn = config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 45 ? 15 : 20;
+    }
     const columnsCount = Math.ceil(config.totalQuestions / questionsPerColumn);
     const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
 
     const theme: AnswerSheetThemeColor = config.themeColor || 'slate';
 
-    // Minimal and clean theme accents
     const themeStyles = {
       slate: {
         border: 'border-slate-800',
         textPrimary: 'text-slate-900',
-        bubbleBorder: 'border-slate-700',
+        bubbleBorder: 'border-slate-800',
         bubbleText: 'text-slate-800',
-        headerLine: 'border-slate-800',
-        badgeBg: 'bg-slate-100 text-slate-800',
       },
       navy: {
         border: 'border-blue-900',
         textPrimary: 'text-blue-900',
         bubbleBorder: 'border-blue-900',
         bubbleText: 'text-blue-900',
-        headerLine: 'border-blue-900',
-        badgeBg: 'bg-blue-50 text-blue-900',
       },
       burgundy: {
         border: 'border-[#701a2b]',
         textPrimary: 'text-[#701a2b]',
         bubbleBorder: 'border-[#701a2b]',
         bubbleText: 'text-[#701a2b]',
-        headerLine: 'border-[#701a2b]',
-        badgeBg: 'bg-rose-50 text-[#701a2b]',
       },
       emerald: {
         border: 'border-emerald-900',
         textPrimary: 'text-emerald-900',
         bubbleBorder: 'border-emerald-900',
         bubbleText: 'text-emerald-900',
-        headerLine: 'border-emerald-900',
-        badgeBg: 'bg-emerald-50 text-emerald-900',
       },
     }[theme] || {
       border: 'border-slate-800',
       textPrimary: 'text-slate-900',
-      bubbleBorder: 'border-slate-700',
+      bubbleBorder: 'border-slate-800',
       bubbleText: 'text-slate-800',
-      headerLine: 'border-slate-800',
-      badgeBg: 'bg-slate-100 text-slate-800',
     };
 
     const renderSheetInstance = (instanceKey: string) => (
       <div
         key={instanceKey}
-        className="relative mx-auto flex flex-col justify-between bg-white p-7 text-slate-900 print:m-0 print:p-6"
+        className={`relative flex flex-col justify-between bg-white text-slate-900 ${
+          isEcoHalf ? 'p-4' : 'p-6'
+        }`}
         style={{
           width: '210mm',
-          minHeight: config.layout === 'eco_half' ? '142mm' : '290mm',
-          maxHeight: config.layout === 'eco_half' ? '146mm' : '296mm',
+          height: isEcoHalf ? '144mm' : '297mm',
+          maxHeight: isEcoHalf ? '144mm' : '297mm',
           boxSizing: 'border-box',
-          pageBreakInside: 'avoid',
+          overflow: 'hidden',
           fontFamily: "'Anuphan', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
-        {/* 4 Precision Fiducial Corner Registration Squares for OMR Vision */}
-        <div className="absolute left-4 top-4 h-5 w-5 bg-black" />
-        <div className="absolute right-4 top-4 h-5 w-5 bg-black" />
-        <div className="absolute bottom-4 left-4 h-5 w-5 bg-black" />
-        <div className="absolute bottom-4 right-4 h-5 w-5 bg-black" />
+        {/* 4 Precision Fiducial Corner Registration Targets for OMR AI Vision */}
+        <div
+          className={`absolute left-3 top-3 bg-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-4 w-4'}`}
+        />
+        <div
+          className={`absolute right-3 top-3 bg-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-4 w-4'}`}
+        />
+        <div
+          className={`absolute bottom-3 left-3 bg-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-4 w-4'}`}
+        />
+        <div
+          className={`absolute bottom-3 right-3 bg-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-4 w-4'}`}
+        />
 
-        {/* --- 1. CLEAN & UNCLUTTERED HEADER --- */}
+        {/* --- 1. CLEAN HEADER & METADATA --- */}
         <div className="mx-2">
-          <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
+          <div className={`flex items-start justify-between border-b-2 border-slate-900 ${isEcoHalf ? 'pb-1.5' : 'pb-2.5'}`}>
             <div>
-              <p className="text-[11px] font-semibold tracking-wide text-slate-500">
+              <p className="text-[10px] font-semibold tracking-wide text-slate-500">
                 {schoolName}
               </p>
-              <h1 className={`text-xl font-black tracking-tight ${themeStyles.textPrimary}`}>
+              <h1 className={`font-black tracking-tight ${themeStyles.textPrimary} ${isEcoHalf ? 'text-base leading-tight' : 'text-xl'}`}>
                 {config.title || 'กระดาษคำตอบ (Answer Sheet)'}
               </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+              <div className={`mt-0.5 flex flex-wrap items-center gap-2.5 text-slate-600 ${isEcoHalf ? 'text-[10px]' : 'text-xs'}`}>
                 <span>
                   วิชา: <strong className="text-slate-900">{config.subjectName || '-'}</strong>
                 </span>
@@ -106,64 +114,63 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
               </div>
             </div>
 
-            {/* Quick Metadata Badges */}
-            <div className="flex items-center gap-2 text-right">
+            {/* Quick Metadata Box */}
+            <div className="flex items-center gap-1.5 text-right">
               {config.examSet && (
-                <div className="rounded-lg border border-slate-300 px-2.5 py-1 text-center">
-                  <div className="text-[9px] text-slate-400 font-bold uppercase">ชุดที่</div>
-                  <div className="font-mono text-sm font-black text-slate-900">{config.examSet}</div>
+                <div className="rounded border border-slate-300 px-2 py-0.5 text-center">
+                  <div className="text-[8px] text-slate-400 font-bold uppercase">ชุด</div>
+                  <div className="font-mono text-xs font-black text-slate-900">{config.examSet}</div>
                 </div>
               )}
-              <div className="rounded-lg border border-slate-300 px-2.5 py-1 text-center">
-                <div className="text-[9px] text-slate-400 font-bold uppercase">จำนวน</div>
-                <div className="font-mono text-sm font-black text-slate-900">{config.totalQuestions} ข้อ</div>
+              <div className="rounded border border-slate-300 px-2 py-0.5 text-center">
+                <div className="text-[8px] text-slate-400 font-bold uppercase">จำนวน</div>
+                <div className="font-mono text-xs font-black text-slate-900">{config.totalQuestions} ข้อ</div>
               </div>
-              <div className="rounded-lg border border-slate-300 px-2.5 py-1 text-center">
-                <div className="text-[9px] text-slate-400 font-bold uppercase">เต็ม</div>
-                <div className="font-mono text-sm font-black text-slate-900">{config.totalScore} คะแนน</div>
+              <div className="rounded border border-slate-300 px-2 py-0.5 text-center">
+                <div className="text-[8px] text-slate-400 font-bold uppercase">เต็ม</div>
+                <div className="font-mono text-xs font-black text-slate-900">{config.totalScore} คะแนน</div>
               </div>
             </div>
           </div>
 
-          {/* Student Info & Compact Roll Number Bar */}
-          <div className="mt-3 flex items-center justify-between gap-6 text-xs">
-            {/* Left: Personal Fields with Clear Dotted Underlines */}
-            <div className="flex-1 space-y-2.5">
+          {/* Student Info Bar & Roll Number Box */}
+          <div className={`flex items-center justify-between gap-4 text-xs ${isEcoHalf ? 'mt-1.5' : 'mt-2.5'}`}>
+            <div className={`flex-1 ${isEcoHalf ? 'space-y-1' : 'space-y-2'}`}>
               <div className="flex items-baseline gap-2">
-                <span className="font-bold text-slate-700 whitespace-nowrap">ชื่อ - สกุล:</span>
-                <span className="flex-1 border-b border-dotted border-slate-400 pb-0.5 font-bold text-slate-900 text-sm">
+                <span className="font-bold text-slate-700 whitespace-nowrap text-[11px]">ชื่อ - สกุล:</span>
+                <span className="flex-1 border-b border-dotted border-slate-400 pb-0.5 font-bold text-slate-900 text-xs">
                   {studentName || ''}
                 </span>
               </div>
 
-              <div className="flex items-baseline gap-6">
+              <div className="flex items-baseline gap-4">
                 <div className="flex items-baseline gap-2 flex-1">
-                  <span className="font-bold text-slate-700 whitespace-nowrap">ชั้น / ห้อง:</span>
-                  <span className="flex-1 border-b border-dotted border-slate-400 pb-0.5 font-semibold text-slate-800">
+                  <span className="font-bold text-slate-700 whitespace-nowrap text-[11px]">ชั้น / ห้อง:</span>
+                  <span className="flex-1 border-b border-dotted border-slate-400 pb-0.5 font-semibold text-slate-800 text-xs">
                     {config.roomName || ''}
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-bold text-slate-700 whitespace-nowrap">เลขที่:</span>
-                  <span className="w-16 border-b border-dotted border-slate-400 pb-0.5 text-center font-mono font-bold text-slate-900 text-sm">
+                  <span className="font-bold text-slate-700 whitespace-nowrap text-[11px]">เลขที่:</span>
+                  <span className="w-14 border-b border-dotted border-slate-400 pb-0.5 text-center font-mono font-bold text-slate-900 text-xs">
                     {rollNumber ? String(rollNumber).padStart(2, '0') : ''}
                   </span>
                 </div>
               </div>
 
-              {/* Simple & Clear Instruction */}
-              <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-0.5">
+              {/* Instructions */}
+              <div className="flex items-center gap-2 text-[10px] text-slate-500">
                 <span>
-                  คำชี้แจง: ใช้ดินสอดำ <strong>2B</strong> ฝนในวงกลมให้ดำเต็มวง
+                  คำชี้แจง: ใช้ดินสอดำ <strong>2B</strong> ฝนให้ดำเต็มวง
                 </span>
-                <span className="inline-flex items-center gap-1 font-bold text-slate-700">
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-slate-900 text-[8px] text-white text-center leading-3.5">
+                <span className="inline-flex items-center gap-0.5 font-bold text-slate-700">
+                  <span className="inline-block h-3 w-3 rounded-full bg-slate-900 text-[7px] text-white text-center leading-3">
                     ●
                   </span>
                   ถูก
                 </span>
-                <span className="inline-flex items-center gap-1 text-slate-400">
-                  <span className="inline-block h-3.5 w-3.5 rounded-full border border-slate-400 text-[8px] text-center leading-3">
+                <span className="inline-flex items-center gap-0.5 text-slate-400">
+                  <span className="inline-block h-3 w-3 rounded-full border border-slate-400 text-[7px] text-center leading-2.5">
                     ✕
                   </span>
                   ผิด
@@ -171,45 +178,24 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
               </div>
             </div>
 
-            {/* Right: Roll Number Bubble Box (Compact & Clean) */}
+            {/* Roll Number Bubble Grid */}
             {config.studentIdFormat === 'roll_number' && (
-              <div className="rounded-xl border border-slate-300 bg-slate-50/60 p-2 text-center">
-                <div className="text-[10px] font-bold text-slate-600 mb-1">เลขที่ (00-99)</div>
-                <div className="flex justify-center gap-3">
+              <div className={`rounded-lg border border-slate-300 bg-slate-50/70 text-center ${isEcoHalf ? 'p-1' : 'p-1.5'}`}>
+                <div className="text-[9px] font-bold text-slate-600 mb-0.5">เลขที่ (00-99)</div>
+                <div className="flex justify-center gap-2.5">
                   {['สิบ', 'หน่วย'].map((lbl, cIdx) => (
                     <div key={lbl} className="flex flex-col items-center">
-                      <span className="text-[8px] text-slate-400 mb-0.5">{lbl}</span>
-                      <div className="h-4 w-5 mb-1 rounded border border-slate-300 bg-white text-center font-mono text-[10px] font-bold leading-4">
+                      <span className="text-[7.5px] text-slate-400 mb-0.5">{lbl}</span>
+                      <div className="h-3.5 w-4 mb-0.5 rounded border border-slate-300 bg-white text-center font-mono text-[9px] font-bold leading-3.5">
                         {rollNumber ? (cIdx === 0 ? Math.floor(rollNumber / 10) : rollNumber % 10) : ''}
                       </div>
                       <div className="space-y-0.5">
                         {Array.from({ length: 10 }).map((_, digit) => (
                           <div
                             key={digit}
-                            className={`flex h-3 w-3 items-center justify-center rounded-full border ${themeStyles.bubbleBorder} text-[7px] font-bold ${themeStyles.bubbleText}`}
-                          >
-                            {digit}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {config.studentIdFormat === 'student_code' && (
-              <div className="rounded-xl border border-slate-300 bg-slate-50/60 p-2 text-center">
-                <div className="text-[10px] font-bold text-slate-600 mb-1">รหัสประจำตัว (5 หลัก)</div>
-                <div className="flex justify-center gap-1.5">
-                  {Array.from({ length: 5 }).map((_, colIndex) => (
-                    <div key={colIndex} className="flex flex-col items-center">
-                      <div className="h-4 w-4 mb-1 rounded border border-slate-300 bg-white text-center font-mono text-[9px] font-bold leading-4" />
-                      <div className="space-y-0.5">
-                        {Array.from({ length: 10 }).map((_, digit) => (
-                          <div
-                            key={digit}
-                            className={`flex h-2.5 w-2.5 items-center justify-center rounded-full border ${themeStyles.bubbleBorder} text-[6.5px] font-bold ${themeStyles.bubbleText}`}
+                            className={`flex items-center justify-center rounded-full border ${themeStyles.bubbleBorder} font-bold ${themeStyles.bubbleText} ${
+                              isEcoHalf ? 'h-2.5 w-2.5 text-[6px]' : 'h-3 w-3 text-[7px]'
+                            }`}
                           >
                             {digit}
                           </div>
@@ -223,9 +209,9 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
           </div>
         </div>
 
-        {/* --- 2. CLEAN & SPACIOUS ANSWER GRID --- */}
+        {/* --- 2. SPACIOUS QUESTIONS ANSWER GRID --- */}
         <div
-          className="my-4 mx-2 flex-1 grid gap-4"
+          className={`mx-2 flex-1 grid gap-3 ${isEcoHalf ? 'my-1.5' : 'my-2.5'}`}
           style={{ gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))` }}
         >
           {Array.from({ length: columnsCount }).map((_, colIdx) => {
@@ -237,37 +223,52 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
             return (
               <div
                 key={colIdx}
-                className="flex flex-col rounded-xl border border-slate-300 bg-white p-2.5 text-xs shadow-2xs"
+                className={`flex flex-col rounded-lg border border-slate-300 bg-white ${
+                  isEcoHalf ? 'p-1.5' : 'p-2'
+                }`}
               >
-                {/* Column Column Header */}
-                <div className="mb-2 flex items-center justify-between border-b border-slate-200 pb-1.5 font-bold text-slate-700">
-                  <span className="w-7 text-center font-mono text-xs">ข้อ</span>
-                  <div className="flex gap-2.5">
+                {/* Column Header */}
+                <div className={`flex items-center justify-between border-b border-slate-200 font-bold text-slate-700 ${
+                  isEcoHalf ? 'mb-1 pb-1 text-[10px]' : 'mb-1.5 pb-1 text-xs'
+                }`}>
+                  <span className="w-6 text-center font-mono">ข้อ</span>
+                  <div className={`flex ${isEcoHalf ? 'gap-1.5' : 'gap-2.5'}`}>
                     {choiceKeys.map((_, i) => (
-                      <span key={i} className="w-5 text-center font-bold text-xs text-slate-600">
+                      <span
+                        key={i}
+                        className={`text-center font-bold text-slate-600 ${
+                          isEcoHalf ? 'w-4 text-[10px]' : 'w-5 text-xs'
+                        }`}
+                      >
                         {getChoiceLabel(i, config.choiceLabelType)}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                {/* Questions List with whitespace group every 5 questions (no loud colors) */}
-                <div className="flex-1 space-y-1">
+                {/* Question rows with whitespace every 5 questions */}
+                <div className="flex-1 space-y-0.5">
                   {questions.map((q) => {
                     const isFifthBreak = q % 5 === 0 && q !== endQ;
 
                     return (
-                      <div key={q} className={isFifthBreak ? 'mb-2.5' : ''}>
-                        <div className="flex items-center justify-between py-0.5">
-                          <span className="w-7 text-right font-mono text-xs font-bold text-slate-700">
+                      <div key={q} className={isFifthBreak ? (isEcoHalf ? 'mb-1.5' : 'mb-2') : ''}>
+                        <div className="flex items-center justify-between py-0.2">
+                          <span className={`w-6 text-right font-mono font-bold text-slate-700 ${
+                            isEcoHalf ? 'text-[10px]' : 'text-[11px]'
+                          }`}>
                             {q}.
                           </span>
 
-                          <div className="flex gap-2.5">
+                          <div className={`flex ${isEcoHalf ? 'gap-1.5' : 'gap-2.5'}`}>
                             {choiceKeys.map((_, cIdx) => (
                               <div
                                 key={cIdx}
-                                className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] ${themeStyles.bubbleBorder} text-[10px] font-black ${themeStyles.bubbleText} bg-white transition hover:bg-slate-100`}
+                                className={`flex items-center justify-center rounded-full border-[1.5px] ${themeStyles.bubbleBorder} font-black ${themeStyles.bubbleText} bg-white ${
+                                  isEcoHalf
+                                    ? 'h-4 w-4 text-[8.5px]'
+                                    : 'h-5 w-5 text-[9.5px]'
+                                }`}
                               >
                                 {getChoiceLabel(cIdx, config.choiceLabelType)}
                               </div>
@@ -275,9 +276,9 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
                           </div>
                         </div>
 
-                        {/* Subtle hairline after every 5th question */}
+                        {/* Subtle divider after each 5 questions */}
                         {isFifthBreak && (
-                          <div className="my-1 border-b border-slate-100" />
+                          <div className="my-0.5 border-b border-slate-100" />
                         )}
                       </div>
                     );
@@ -288,18 +289,19 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
           })}
         </div>
 
-        {/* --- 3. CLEAN & MINIMAL FOOTER --- */}
-        <div className="mx-2 flex items-center justify-between border-t border-slate-300 pt-3 text-xs text-slate-600">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-500">
-              ClassCare 360 AI OMR System
-            </span>
-          </div>
+        {/* --- 3. CLEAN COMPACT FOOTER --- */}
+        <div className={`mx-2 flex items-center justify-between border-t border-slate-300 ${
+          isEcoHalf ? 'pt-1.5 text-[10px]' : 'pt-2 text-xs'
+        } text-slate-600`}>
+          <span className="font-semibold text-slate-500">
+            ClassCare 360 AI OMR System
+          </span>
 
-          {/* Teacher Score Box */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="font-bold text-slate-700">คะแนนที่ได้ (Score):</span>
-            <div className="h-7 w-20 rounded-md border border-slate-400 bg-white" />
+            <div className={`rounded border border-slate-400 bg-white ${
+              isEcoHalf ? 'h-5 w-14' : 'h-6 w-16'
+            }`} />
             <span className="font-mono font-bold text-slate-800">
               / {config.totalScore}
             </span>
@@ -308,25 +310,76 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
       </div>
     );
 
+    if (isMiniPreview) {
+      return (
+        <div
+          ref={ref}
+          className="omr-mini-preview select-none pointer-events-none bg-white"
+          style={{
+            width: '210mm',
+            height: '297mm',
+            maxHeight: '297mm',
+            boxSizing: 'border-box',
+            overflow: 'hidden',
+          }}
+        >
+          {renderSheetInstance('instance-1')}
+          {isEcoHalf && (
+            <>
+              <div
+                className="flex items-center justify-center border-t border-dashed border-slate-400 text-slate-400"
+                style={{ height: '9mm', boxSizing: 'border-box' }}
+              >
+                <span className="bg-white px-3 text-[9px] font-mono tracking-wider">
+                  ✂ - - - - - - - - - - รอยตัดครึ่งแผ่น A4 (Cut here) - - - - - - - - - -
+                </span>
+              </div>
+              {renderSheetInstance('instance-2')}
+            </>
+          )}
+        </div>
+      );
+    }
+
     return (
-      <div ref={ref} className="omr-printable-container print:p-0">
+      <div
+        ref={ref}
+        className="omr-printable-container mx-auto bg-white shadow-md print:m-0 print:p-0 print:shadow-none"
+        style={{
+          width: '210mm',
+          height: '297mm',
+          maxHeight: '297mm',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+        }}
+      >
         <style>
           {`
             @media print {
-              body {
-                background: white !important;
-                color: black !important;
+              @page {
+                size: A4 portrait !important;
+                margin: 0mm !important;
               }
-              header, nav, aside, footer, .no-print {
-                display: none !important;
+              body * {
+                visibility: hidden !important;
+              }
+              .omr-printable-container,
+              .omr-printable-container * {
+                visibility: visible !important;
               }
               .omr-printable-container {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                max-height: 297mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
-              }
-              @page {
-                size: A4 portrait;
-                margin: 5mm;
+                background: white !important;
+                z-index: 9999999 !important;
+                overflow: hidden !important;
+                box-shadow: none !important;
               }
             }
           `}
@@ -334,10 +387,19 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
 
         {renderSheetInstance('instance-1')}
 
-        {config.layout === 'eco_half' && (
-          <div className="mt-4 print:mt-4 print:pt-4 print:border-t-2 print:border-dashed print:border-slate-300">
+        {isEcoHalf && (
+          <>
+            {/* Cut line between the two half sheets (9mm exact height) */}
+            <div
+              className="flex items-center justify-center border-t border-dashed border-slate-400 text-slate-400"
+              style={{ height: '9mm', boxSizing: 'border-box' }}
+            >
+              <span className="bg-white px-3 text-[9px] font-mono tracking-wider">
+                ✂ - - - - - - - - - - รอยตัดครึ่งแผ่น A4 (Cut here) - - - - - - - - - -
+              </span>
+            </div>
             {renderSheetInstance('instance-2')}
-          </div>
+          </>
         )}
       </div>
     );
