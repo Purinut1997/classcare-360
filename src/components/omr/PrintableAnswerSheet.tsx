@@ -127,7 +127,7 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
       <div
         key={instanceKey}
         className={`relative flex flex-col justify-between bg-white text-slate-900 select-none ${
-          isEcoHalf ? 'px-6 py-2.5' : 'px-8 py-5'
+          isEcoHalf ? 'px-8 pt-2.5 pb-7' : 'px-10 pt-5 pb-9'
         }`}
         style={{
           width: '210mm',
@@ -138,15 +138,15 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
           fontFamily: "'Anuphan', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
-        {/* 4 Precision Fiducial Corner Registration Marks for OMR AI Vision (Sitting safely outside inner content) */}
-        <div className={`absolute left-2.5 top-2.5 border-l-[3.5px] border-t-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-        <div className={`absolute right-2.5 top-2.5 border-r-[3.5px] border-t-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-        <div className={`absolute bottom-2.5 left-2.5 border-l-[3.5px] border-b-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-        <div className={`absolute bottom-2.5 right-2.5 border-r-[3.5px] border-b-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
+        {/* 4 Precision Fiducial Corner Registration Marks for OMR AI Vision (Positioned strictly outside content zone) */}
+        <div className={`absolute left-2.5 top-2 border-l-[3.5px] border-t-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
+        <div className={`absolute right-2.5 top-2 border-r-[3.5px] border-t-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
+        <div className={`absolute bottom-2 left-2.5 border-l-[3.5px] border-b-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
+        <div className={`absolute bottom-2 right-2.5 border-r-[3.5px] border-b-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
 
         {/* Vertical OMR Optical Timing Track on left edge margin */}
-        <div className="absolute left-1 top-8 bottom-8 flex flex-col justify-between pointer-events-none opacity-80">
-          {Array.from({ length: isEcoHalf ? 18 : 32 }).map((_, i) => (
+        <div className="absolute left-1.5 top-8 bottom-8 flex flex-col justify-between pointer-events-none opacity-80">
+          {Array.from({ length: isEcoHalf ? 16 : 30 }).map((_, i) => (
             <div key={i} className="w-1.5 h-1 bg-black" />
           ))}
         </div>
@@ -376,30 +376,28 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
             </div>
           </div>
 
-          {/* Right: Roll Number / Student ID Matrix (Proportionally scaled to never exceed height) */}
+          {/* Right: Roll Number / Student ID Matrix (Proportionally scaled, completely contained, zero overflow) */}
           {config.studentIdFormat === 'roll_number' && (
-            <div className={`col-span-4 sm:col-span-3 rounded border border-slate-300 bg-white p-1 text-center flex flex-col justify-between ${
-              isEcoHalf ? 'max-h-[105px]' : ''
-            }`}>
+            <div className="col-span-4 sm:col-span-3 rounded border border-slate-300 bg-white p-1 text-center flex flex-col justify-between overflow-hidden shadow-2xs">
               <div className="text-[7.5px] font-black text-slate-700 bg-slate-100 py-0.2 rounded border-b border-slate-200 leading-tight">
                 เลขที่ (00-99)
               </div>
 
-              <div className="flex justify-center gap-2 my-0.2">
+              <div className="flex justify-center gap-2 my-0.5">
                 {['สิบ', 'หน่วย'].map((lbl, cIdx) => (
                   <div key={lbl} className="flex flex-col items-center">
-                    <span className="text-[6.5px] text-slate-500 font-bold leading-none mb-0.2">{lbl}</span>
+                    <span className="text-[6.5px] text-slate-500 font-bold leading-none mb-0.5">{lbl}</span>
                     <div className={`mb-0.5 rounded border border-slate-400 bg-slate-50 text-center font-mono font-black ${
                       isEcoHalf ? 'h-3.5 w-3.5 text-[8px] leading-3.5' : 'h-4 w-4 text-[10px] leading-4'
                     }`}>
                       {rollNumber ? (cIdx === 0 ? Math.floor(rollNumber / 10) : rollNumber % 10) : ''}
                     </div>
-                    <div className={isEcoHalf ? 'space-y-0.2' : 'space-y-0.5'}>
+                    <div className="flex flex-col gap-[1px]">
                       {Array.from({ length: 10 }).map((_, digit) => (
                         <div
                           key={digit}
-                          className={`flex items-center justify-center rounded-full border-[1.2px] ${themeStyles.bubbleBorder} font-black ${themeStyles.bubbleText} ${
-                            isEcoHalf ? 'h-2 w-2 text-[5.5px]' : 'h-3 w-3 text-[7.5px]'
+                          className={`flex items-center justify-center rounded-full border border-slate-800 font-black text-slate-900 leading-none shrink-0 ${
+                            isEcoHalf ? 'h-[9px] w-[9px] text-[5.5px]' : 'h-3 w-3 text-[7.5px]'
                           }`}
                         >
                           {digit}
@@ -413,26 +411,24 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
           )}
 
           {config.studentIdFormat === 'student_code' && (
-            <div className={`col-span-4 sm:col-span-3 rounded border border-slate-300 bg-white p-1 text-center flex flex-col justify-between ${
-              isEcoHalf ? 'max-h-[105px]' : ''
-            }`}>
+            <div className="col-span-4 sm:col-span-3 rounded border border-slate-300 bg-white p-1 text-center flex flex-col justify-between overflow-hidden shadow-2xs">
               <div className="text-[7.5px] font-black text-slate-700 bg-slate-100 py-0.2 rounded border-b border-slate-200 leading-tight">
                 รหัสประจำตัว (5 หลัก)
               </div>
 
-              <div className="flex justify-center gap-1 my-0.2">
+              <div className="flex justify-center gap-1 my-0.5">
                 {['1', '2', '3', '4', '5'].map((colNum) => (
                   <div key={colNum} className="flex flex-col items-center">
-                    <span className="text-[6px] text-slate-400 leading-none mb-0.2">{colNum}</span>
+                    <span className="text-[6px] text-slate-400 leading-none mb-0.5">{colNum}</span>
                     <div className={`mb-0.5 rounded border border-slate-400 bg-slate-50 text-center font-mono font-bold ${
                       isEcoHalf ? 'h-3 w-3 text-[7.5px] leading-3' : 'h-3.5 w-3.5 text-[9px] leading-3.5'
                     }`} />
-                    <div className={isEcoHalf ? 'space-y-0.2' : 'space-y-0.5'}>
+                    <div className="flex flex-col gap-[1px]">
                       {Array.from({ length: 10 }).map((_, digit) => (
                         <div
                           key={digit}
-                          className={`flex items-center justify-center rounded-full border ${themeStyles.bubbleBorder} font-bold ${themeStyles.bubbleText} ${
-                            isEcoHalf ? 'h-1.8 w-1.8 text-[5px]' : 'h-2.5 w-2.5 text-[6.5px]'
+                          className={`flex items-center justify-center rounded-full border border-slate-800 font-bold text-slate-900 leading-none shrink-0 ${
+                            isEcoHalf ? 'h-[8px] w-[8px] text-[5px]' : 'h-2.5 w-2.5 text-[6.5px]'
                           }`}
                         >
                           {digit}
@@ -540,7 +536,7 @@ export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSh
           })}
         </div>
 
-        {/* --- 4. OFFICIAL EXAMINER & SCORE CERTIFICATION FOOTER (Safely inside borders, never sliced) --- */}
+        {/* --- 4. OFFICIAL EXAMINER & SCORE CERTIFICATION FOOTER (Safely inside safe bounds, never sliced) --- */}
         <div className={`w-full flex items-center justify-between border-t-2 border-slate-900 ${
           isEcoHalf ? 'pt-1 pb-0.5 text-[8.5px]' : 'pt-2 pb-1 text-xs'
         } text-slate-600`}>
