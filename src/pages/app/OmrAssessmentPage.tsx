@@ -51,7 +51,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
 
     return {
       id: `omr-exam-${Date.now()}`,
-      title: 'แบบทดสอบวัดผลสัมฤทธิ์ทางการเรียน',
+      title: 'กระดาษคำตอบ (Answer Sheet)',
       subjectName: 'วิทยาศาสตร์และเทคโนโลยี',
       examDate: new Date().toISOString().slice(0, 10),
       instructions: 'ให้นักเรียนใช้ดินสอ 2B ฝนในวงกลมตัวเลือกที่ถูกต้องที่สุดเพียงข้อเดียว',
@@ -60,6 +60,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       choiceLabelType: 'THAI',
       layout: 'eco_half',
       studentIdFormat: 'roll_number',
+      themeColor: 'slate',
       answerKeys: defaultKeys,
       pointsPerQuestion: defaultPoints,
       classroomId: null,

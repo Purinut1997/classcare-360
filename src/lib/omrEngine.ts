@@ -439,158 +439,80 @@ export function generateSyntheticFilledSheet(
   const roll = options?.rollNumber ?? Math.floor(1 + Math.random() * 25);
   const accuracy = options?.accuracyRate ?? 0.85;
 
-  // Determine theme color palette
-  const theme = config.themeColor || 'burgundy';
-  const themeColors = {
-    burgundy: { primary: '#701a2b', headerBg: '#fff1f2', zebraBg: '#fff5f5', border: '#701a2b' },
-    navy: { primary: '#1e3a8a', headerBg: '#eff6ff', zebraBg: '#f0f7ff', border: '#1e3a8a' },
-    slate: { primary: '#0f172a', headerBg: '#f1f5f9', zebraBg: '#f8fafc', border: '#0f172a' },
-    emerald: { primary: '#064e3b', headerBg: '#ecfdf5', zebraBg: '#f0fdf4', border: '#064e3b' },
-  }[theme];
-
-  // 1. Paper background
+  // 1. Clean Paper background
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-  // Outer border
-  ctx.strokeStyle = themeColors.border;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(30, 30, targetWidth - 60, targetHeight - 60);
-
-  // 2. Corner Alignment Markers (32x32 black squares with inner white center)
-  const markerSize = 34;
-  const cornerPositions = [
-    [15, 15],
-    [targetWidth - 15 - markerSize, 15],
-    [15, targetHeight - 15 - markerSize],
-    [targetWidth - 15 - markerSize, targetHeight - 15 - markerSize],
-  ];
-
-  cornerPositions.forEach(([x, y]) => {
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(x, y, markerSize, markerSize);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x + markerSize / 3, y + markerSize / 3, markerSize / 3, markerSize / 3);
-  });
-
-  // Vertical Timing Tracks (OMR Optical Timing Marks) along left & right margins
-  const timingCount = 36;
-  const timingStartY = 80;
-  const timingEndY = targetHeight - 80;
-  const timingStep = (timingEndY - timingStartY) / timingCount;
+  // 2. Corner Alignment Markers (Solid 28x28 black squares at 4 corners for accurate OpenCV warp)
+  const markerSize = 28;
   ctx.fillStyle = '#000000';
-  for (let i = 0; i < timingCount; i++) {
-    const y = timingStartY + i * timingStep;
-    ctx.fillRect(10, y, 10, 6);
-    ctx.fillRect(targetWidth - 20, y, 10, 6);
-  }
+  ctx.fillRect(20, 20, markerSize, markerSize); // Top-Left
+  ctx.fillRect(targetWidth - 20 - markerSize, 20, markerSize, markerSize); // Top-Right
+  ctx.fillRect(20, targetHeight - 20 - markerSize, markerSize, markerSize); // Bottom-Left
+  ctx.fillRect(targetWidth - 20 - markerSize, targetHeight - 20 - markerSize, markerSize, markerSize); // Bottom-Right
 
-  // 3. Top Header Bar
-  ctx.fillStyle = themeColors.headerBg;
-  ctx.fillRect(32, 32, targetWidth - 64, 80);
-  ctx.strokeStyle = themeColors.primary;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(32, 32, targetWidth - 64, 80);
-
-  // CC360 Logo Box
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(45, 42, 60, 60);
-  ctx.strokeRect(45, 42, 60, 60);
-  ctx.fillStyle = themeColors.primary;
-  ctx.font = '900 14px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('CC360', 75, 68);
-  ctx.font = 'bold 9px sans-serif';
-  ctx.fillStyle = '#64748b';
-  ctx.fillText('EXAM', 75, 84);
+  // 3. Clean Header Bar
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(50, 110);
+  ctx.lineTo(targetWidth - 50, 110);
+  ctx.stroke();
 
   // Title Texts
-  ctx.fillStyle = themeColors.primary;
-  ctx.font = 'bold 22px Anuphan, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(config.title || 'แบบทดสอบวัดผลสัมฤทธิ์ทางการเรียน', 120, 64);
-
-  ctx.font = '13px Anuphan, sans-serif';
-  ctx.fillStyle = '#334155';
-  ctx.fillText(
-    `วิชา: ${config.subjectName || '-'} | ห้อง: ${config.roomName || '-'} | วันที่: ${config.examDate || '-'} | ชุดที่: ${config.examSet || '01'}`,
-    120,
-    92
-  );
-
-  // Right Side: Barcode & Info Boxes
-  const barcodeX = targetWidth - 220;
-  ctx.font = 'bold 10px monospace';
   ctx.fillStyle = '#0f172a';
-  ctx.textAlign = 'right';
-  ctx.fillText(`ข้อสอบ: ${config.totalQuestions} ข้อ • คะแนนเต็ม: ${config.totalScore}`, targetWidth - 45, 58);
-
-  // Simulated Barcode
-  const barPattern = [3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 1, 4, 1, 2, 3, 1, 3, 2, 1, 4];
-  let curBarX = barcodeX;
-  ctx.fillStyle = '#000000';
-  barPattern.forEach((w, idx) => {
-    if (idx % 2 === 0) {
-      ctx.fillRect(curBarX, 68, w * 1.5, 24);
-    }
-    curBarX += w * 1.5;
-  });
-
-  // 4. Middle Student Info & Roll Number Section
-  const infoTop = 120;
-  const infoHeight = 110;
-  ctx.fillStyle = '#fafaf9';
-  ctx.fillRect(45, infoTop, targetWidth - 90, infoHeight);
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.strokeRect(45, infoTop, targetWidth - 90, infoHeight);
-
-  // Personal details
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 12px Anuphan, sans-serif';
+  ctx.font = 'bold 26px Anuphan, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('ชื่อ - สกุล: ........................................................................', 60, infoTop + 28);
-  ctx.fillText('เลขที่ / ที่นั่งสอบ: ............', 420, infoTop + 28);
-  ctx.fillText('ห้องสอบ: ............', 560, infoTop + 28);
+  ctx.fillText(config.title || 'กระดาษคำตอบ (Answer Sheet)', 50, 70);
 
-  // Instructions
+  ctx.font = '14px Anuphan, sans-serif';
   ctx.fillStyle = '#475569';
-  ctx.font = '11px Anuphan, sans-serif';
   ctx.fillText(
-    'คำชี้แจง: ใช้ดินสอดำ 2B ขึ้นไป ฝนทับวงกลมให้ดำสนิทเต็มวง [ ● ถูก ]  [ ✕ ผิด ]  [ ✓ ผิด ]',
-    60,
-    infoTop + 58
+    `วิชา: ${config.subjectName || '-'} | ห้อง: ${config.roomName || '-'} | วันที่: ${config.examDate || '-'}`,
+    50,
+    98
   );
+
+  // Right Header: Question count & Total score
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 14px Anuphan, sans-serif';
+  ctx.fillStyle = '#0f172a';
+  ctx.fillText(`ข้อสอบ: ${config.totalQuestions} ข้อ • คะแนนเต็ม: ${config.totalScore} คะแนน`, targetWidth - 50, 75);
+
+  // 4. Student Information Bar
+  const infoY = 135;
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 14px Anuphan, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('ชื่อ - สกุล: ............................................................................', 50, infoY + 20);
+  ctx.fillText('ชั้น / ห้อง: ..........................', 50, infoY + 50);
+  ctx.fillText('เลขที่: .................', 320, infoY + 50);
+
+  // Simple instruction
+  ctx.font = '12px Anuphan, sans-serif';
   ctx.fillStyle = '#64748b';
-  ctx.font = '10px Anuphan, sans-serif';
-  ctx.fillText(
-    '*ห้ามพับกระดาษคำตอบ หากต้องการเปลี่ยนคำตอบให้ลบด้วยยางลบให้สะอาดหมดจดก่อนฝนข้อใหม่',
-    60,
-    infoTop + 76
-  );
-  ctx.fillText('ลงชื่อผู้เข้าสอบ: ........................................', 60, infoTop + 98);
-  ctx.fillText('ลงชื่อกรรมการคุมสอบ: ........................................', 360, infoTop + 98);
+  ctx.fillText('คำชี้แจง: ใช้ดินสอดำ 2B ฝนในวงกลมให้ดำเต็มวง ( ● ถูก  ✕ ผิด )', 50, infoY + 80);
 
   // Roll Number Bubbles on right
   if (config.studentIdFormat === 'roll_number') {
-    const rollBoxX = targetWidth - 270;
-    ctx.fillStyle = themeColors.headerBg;
-    ctx.fillRect(rollBoxX, infoTop, 225, infoHeight);
-    ctx.strokeStyle = themeColors.border;
-    ctx.strokeRect(rollBoxX, infoTop, 225, infoHeight);
+    const rollBoxX = targetWidth - 210;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(rollBoxX, 125, 160, 120);
 
-    ctx.fillStyle = themeColors.primary;
+    ctx.fillStyle = '#334155';
     ctx.font = 'bold 11px Anuphan, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('เลขที่สอบ (00 - 99)', rollBoxX + 112, infoTop + 16);
+    ctx.fillText('เลขที่ (00-99)', rollBoxX + 80, 142);
 
     const tens = Math.floor(roll / 10);
     const ones = roll % 10;
-    const colSpacing = 40;
-    const startBubbleY = infoTop + 28;
-    const rowStep = 7.5;
+    const colSpacing = 36;
+    const startBubbleY = 158;
+    const rowStep = 8.5;
 
     ['สิบ', 'หน่วย'].forEach((lbl, cIdx) => {
-      const bx = rollBoxX + 60 + cIdx * colSpacing;
+      const bx = rollBoxX + 62 + cIdx * colSpacing;
       ctx.fillStyle = '#64748b';
       ctx.font = '9px sans-serif';
       ctx.fillText(lbl, bx, startBubbleY);
@@ -599,7 +521,7 @@ export function generateSyntheticFilledSheet(
         const by = startBubbleY + 8 + digit * rowStep;
         const isTarget = (cIdx === 0 && digit === tens) || (cIdx === 1 && digit === ones);
 
-        ctx.strokeStyle = themeColors.primary;
+        ctx.strokeStyle = '#334155';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(bx, by, 3.2, 0, Math.PI * 2);
@@ -615,50 +537,42 @@ export function generateSyntheticFilledSheet(
     });
   }
 
-  // 5. Questions Grid with 5-Question Zebra Striping
-  const questionsPerColumn = config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 60 ? 25 : 35;
+  // 5. Clean & Spacious Questions Grid
+  const questionsPerColumn = config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 60 ? 25 : 30;
   const columnsCount = Math.ceil(config.totalQuestions / questionsPerColumn);
-  const startY = 245;
-  const availableWidth = targetWidth - 90;
+  const startY = 270;
+  const availableWidth = targetWidth - 100;
   const colWidth = availableWidth / columnsCount;
-  const rowHeight = Math.min(28, (targetHeight - startY - 100) / questionsPerColumn);
+  const rowHeight = Math.min(28, (targetHeight - startY - 90) / questionsPerColumn);
   const bubbleSpacingX = 30;
   const bubbleRadius = 8;
   const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
 
-  // Draw each column box
   for (let c = 0; c < columnsCount; c++) {
-    const colLeft = 45 + c * colWidth;
-    const colInnerWidth = colWidth - 10;
+    const colLeft = 50 + c * colWidth;
+    const colInnerWidth = colWidth - 14;
     const startQ = c * questionsPerColumn + 1;
     const endQ = Math.min(config.totalQuestions, (c + 1) * questionsPerColumn);
 
     // Column Header
-    ctx.fillStyle = themeColors.headerBg;
-    ctx.fillRect(colLeft, startY, colInnerWidth, 24);
-    ctx.strokeStyle = themeColors.border;
-    ctx.strokeRect(colLeft, startY, colInnerWidth, 24);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(colLeft, startY, colInnerWidth, 26 + (endQ - startQ + 1) * rowHeight + 10);
 
-    ctx.fillStyle = themeColors.primary;
-    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('ข้อ', colLeft + 24, startY + 16);
+    ctx.fillText('ข้อ', colLeft + 25, startY + 18);
 
     choiceKeys.forEach((_, cIdx) => {
       const hbx = colLeft + 54 + cIdx * bubbleSpacingX;
-      ctx.fillText(getChoiceLabel(cIdx, config.choiceLabelType), hbx, startY + 16);
+      ctx.fillText(getChoiceLabel(cIdx, config.choiceLabelType), hbx, startY + 18);
     });
 
     // Column Questions
     for (let q = startQ; q <= endQ; q++) {
       const rowIndex = q - startQ;
-      const qY = startY + 28 + rowIndex * rowHeight;
-      const isZebra = Math.floor((q - 1) / 5) % 2 === 1;
-
-      if (isZebra) {
-        ctx.fillStyle = themeColors.zebraBg;
-        ctx.fillRect(colLeft, qY - 10, colInnerWidth, rowHeight);
-      }
+      const qY = startY + 32 + rowIndex * rowHeight;
 
       // Question Number
       ctx.fillStyle = '#0f172a';
@@ -680,7 +594,7 @@ export function generateSyntheticFilledSheet(
         const bubbleX = colLeft + 54 + cIdx * bubbleSpacingX;
         const bubbleY = qY;
 
-        ctx.strokeStyle = themeColors.border;
+        ctx.strokeStyle = '#334155';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.arc(bubbleX, bubbleY, bubbleRadius, 0, Math.PI * 2);
@@ -689,63 +603,44 @@ export function generateSyntheticFilledSheet(
         const label = getChoiceLabel(cIdx, config.choiceLabelType);
 
         if (choiceKey === chosenChoice) {
-          // Filled mark
           ctx.fillStyle = '#0f172a';
           ctx.beginPath();
-          ctx.arc(bubbleX + (Math.random() - 0.5) * 0.6, bubbleY + (Math.random() - 0.5) * 0.6, bubbleRadius - 0.5, 0, Math.PI * 2);
+          ctx.arc(bubbleX + (Math.random() - 0.5) * 0.5, bubbleY + (Math.random() - 0.5) * 0.5, bubbleRadius - 0.5, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          ctx.fillStyle = themeColors.primary;
+          ctx.fillStyle = '#475569';
           ctx.font = 'bold 9px Anuphan, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(label, bubbleX, bubbleY + 3.2);
         }
       });
     }
-
-    // Outer column border
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(colLeft, startY, colInnerWidth, 28 + (endQ - startQ + 1) * rowHeight + 8);
   }
 
-  // 6. Bottom Official Seal & Examiner Score Block
-  const footerY = targetHeight - 75;
-  ctx.strokeStyle = themeColors.border;
-  ctx.lineWidth = 1.5;
+  // 6. Simple Bottom Footer
+  const footerY = targetHeight - 60;
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(45, footerY);
-  ctx.lineTo(targetWidth - 45, footerY);
+  ctx.moveTo(50, footerY);
+  ctx.lineTo(targetWidth - 50, footerY);
   ctx.stroke();
 
-  // Official Seal
-  ctx.fillStyle = '#334155';
-  ctx.font = 'bold 11px Anuphan, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('ระบบตรวจข้อสอบอัตโนมัติ ClassCare 360 AI Computer Vision • ฉบับทางการ', 50, footerY + 22);
-  ctx.font = '10px Anuphan, sans-serif';
   ctx.fillStyle = '#64748b';
-  ctx.fillText('ใบกระดาษคำตอบมาตรฐาน มีผลผูกพันตามเกณฑ์วัดและประเมินผลสถานศึกษา', 50, footerY + 38);
+  ctx.font = '12px Anuphan, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('ClassCare 360 AI OMR System', 50, footerY + 24);
 
   // Score Box
-  const scoreBoxX = targetWidth - 230;
-  ctx.strokeStyle = themeColors.border;
-  ctx.lineWidth = 1.5;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(scoreBoxX, footerY + 8, 185, 45);
-  ctx.strokeRect(scoreBoxX, footerY + 8, 185, 45);
-
-  ctx.fillStyle = '#475569';
-  ctx.font = 'bold 10px Anuphan, sans-serif';
+  const scoreBoxX = targetWidth - 220;
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 12px Anuphan, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('คะแนนที่ได้ (OMR Score):', scoreBoxX + 10, footerY + 26);
+  ctx.fillText('คะแนนที่ได้ (Score):', scoreBoxX, footerY + 24);
 
   ctx.strokeStyle = '#94a3b8';
-  ctx.strokeRect(scoreBoxX + 120, footerY + 14, 45, 26);
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 12px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText(`/ ${config.totalScore}`, scoreBoxX + 170, footerY + 32);
+  ctx.strokeRect(scoreBoxX + 115, footerY + 8, 45, 24);
+  ctx.fillText(`/ ${config.totalScore}`, scoreBoxX + 168, footerY + 25);
 
   return canvas;
 }

@@ -268,35 +268,35 @@ export function AnswerSheetDesigner({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       {
-                        key: 'burgundy' as const,
-                        name: 'สไตล์ สทศ. (Burgundy)',
-                        desc: 'สีเลือดหมู สไตล์ข้อสอบระดับชาติ',
-                        color: 'bg-[#701a2b]',
-                        border: 'border-[#701a2b]',
-                      },
-                      {
-                        key: 'navy' as const,
-                        name: 'สไตล์ สพฐ. (Navy Blue)',
-                        desc: 'สีน้ำเงินกรมท่า ทางการ สุภาพ',
-                        color: 'bg-[#1e3a8a]',
-                        border: 'border-[#1e3a8a]',
-                      },
-                      {
                         key: 'slate' as const,
-                        name: 'สไตล์ ขาว-ดำ (Monochrome)',
-                        desc: 'สีเทาดำ คมชัด ประหยัดหมึกพิมพ์',
+                        name: 'มินิมอล ขาว-ดำ (แนะนำ)',
+                        desc: 'เรียบง่าย สะอาดตา ประหยัดหมึก',
                         color: 'bg-slate-900',
                         border: 'border-slate-900',
                       },
                       {
+                        key: 'navy' as const,
+                        name: 'น้ำเงินสุภาพ (Navy)',
+                        desc: 'โทนสีน้ำเงิน เรียบร้อย สบายตา',
+                        color: 'bg-blue-900',
+                        border: 'border-blue-900',
+                      },
+                      {
+                        key: 'burgundy' as const,
+                        name: 'แดงเลือดหมู (Burgundy)',
+                        desc: 'สีคลาสสิก สไตล์ข้อสอบวัดผล',
+                        color: 'bg-[#701a2b]',
+                        border: 'border-[#701a2b]',
+                      },
+                      {
                         key: 'emerald' as const,
-                        name: 'สไตล์ สีเขียว (Emerald)',
-                        desc: 'สีเขียวเข้ม สบายตา ทางการ',
-                        color: 'bg-[#064e3b]',
-                        border: 'border-[#064e3b]',
+                        name: 'เขียวธรรมชาติ (Emerald)',
+                        desc: 'โทนเขียว สบายตา ไม่ฉูดฉาด',
+                        color: 'bg-emerald-800',
+                        border: 'border-emerald-800',
                       },
                     ].map((t) => {
-                      const isSelected = (config.themeColor || 'burgundy') === t.key;
+                      const isSelected = (config.themeColor || 'slate') === t.key;
                       return (
                         <button
                           key={t.key}
