@@ -439,145 +439,313 @@ export function generateSyntheticFilledSheet(
   const roll = options?.rollNumber ?? Math.floor(1 + Math.random() * 25);
   const accuracy = options?.accuracyRate ?? 0.85;
 
-  // 1. Paper background with slight warm tone
-  ctx.fillStyle = '#fdfdfb';
+  // Determine theme color palette
+  const theme = config.themeColor || 'burgundy';
+  const themeColors = {
+    burgundy: { primary: '#701a2b', headerBg: '#fff1f2', zebraBg: '#fff5f5', border: '#701a2b' },
+    navy: { primary: '#1e3a8a', headerBg: '#eff6ff', zebraBg: '#f0f7ff', border: '#1e3a8a' },
+    slate: { primary: '#0f172a', headerBg: '#f1f5f9', zebraBg: '#f8fafc', border: '#0f172a' },
+    emerald: { primary: '#064e3b', headerBg: '#ecfdf5', zebraBg: '#f0fdf4', border: '#064e3b' },
+  }[theme];
+
+  // 1. Paper background
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-  // 2. Corner Alignment Markers (Solid 32x32 black squares at 4 corners)
-  const markerSize = 36;
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(36, 36, markerSize, markerSize); // Top-Left
-  ctx.fillRect(targetWidth - 36 - markerSize, 36, markerSize, markerSize); // Top-Right
-  ctx.fillRect(36, targetHeight - 36 - markerSize, markerSize, markerSize); // Bottom-Left
-  ctx.fillRect(targetWidth - 36 - markerSize, targetHeight - 36 - markerSize, markerSize, markerSize); // Bottom-Right
+  // Outer border
+  ctx.strokeStyle = themeColors.border;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(30, 30, targetWidth - 60, targetHeight - 60);
 
-  // Decorative header box
-  ctx.strokeStyle = '#0f172a';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(36, 36, targetWidth - 72, targetHeight - 72);
+  // 2. Corner Alignment Markers (32x32 black squares with inner white center)
+  const markerSize = 34;
+  const cornerPositions = [
+    [15, 15],
+    [targetWidth - 15 - markerSize, 15],
+    [15, targetHeight - 15 - markerSize],
+    [targetWidth - 15 - markerSize, targetHeight - 15 - markerSize],
+  ];
 
-  // Header texts
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 26px Anuphan, sans-serif';
+  cornerPositions.forEach(([x, y]) => {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x, y, markerSize, markerSize);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x + markerSize / 3, y + markerSize / 3, markerSize / 3, markerSize / 3);
+  });
+
+  // Vertical Timing Tracks (OMR Optical Timing Marks) along left & right margins
+  const timingCount = 36;
+  const timingStartY = 80;
+  const timingEndY = targetHeight - 80;
+  const timingStep = (timingEndY - timingStartY) / timingCount;
+  ctx.fillStyle = '#000000';
+  for (let i = 0; i < timingCount; i++) {
+    const y = timingStartY + i * timingStep;
+    ctx.fillRect(10, y, 10, 6);
+    ctx.fillRect(targetWidth - 20, y, 10, 6);
+  }
+
+  // 3. Top Header Bar
+  ctx.fillStyle = themeColors.headerBg;
+  ctx.fillRect(32, 32, targetWidth - 64, 80);
+  ctx.strokeStyle = themeColors.primary;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(32, 32, targetWidth - 64, 80);
+
+  // CC360 Logo Box
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(45, 42, 60, 60);
+  ctx.strokeRect(45, 42, 60, 60);
+  ctx.fillStyle = themeColors.primary;
+  ctx.font = '900 14px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(config.title || 'กระดาษคำตอบมาตรฐาน OMR', targetWidth / 2, 85);
-
-  ctx.font = '16px Anuphan, sans-serif';
-  ctx.fillStyle = '#475569';
-  ctx.fillText(`วิชา: ${config.subjectName || '-'} | วันที่: ${config.examDate || '-'} | จำนวน: ${config.totalQuestions} ข้อ`, targetWidth / 2, 115);
-
-  // Draw instruction & pencil notice
+  ctx.fillText('CC360', 75, 68);
+  ctx.font = 'bold 9px sans-serif';
   ctx.fillStyle = '#64748b';
-  ctx.font = '13px Anuphan, sans-serif';
+  ctx.fillText('EXAM', 75, 84);
+
+  // Title Texts
+  ctx.fillStyle = themeColors.primary;
+  ctx.font = 'bold 22px Anuphan, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('คำชี้แจง: ใช้ดินสอ 2B ฝนในวงกลมให้ดำเต็มวง หากต้องการแก้ไขให้ลบให้สะอาด', 80, 150);
+  ctx.fillText(config.title || 'แบบทดสอบวัดผลสัมฤทธิ์ทางการเรียน', 120, 64);
 
-  // 3. Roll Number Bubble Grid (if enabled)
+  ctx.font = '13px Anuphan, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText(
+    `วิชา: ${config.subjectName || '-'} | ห้อง: ${config.roomName || '-'} | วันที่: ${config.examDate || '-'} | ชุดที่: ${config.examSet || '01'}`,
+    120,
+    92
+  );
+
+  // Right Side: Barcode & Info Boxes
+  const barcodeX = targetWidth - 220;
+  ctx.font = 'bold 10px monospace';
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'right';
+  ctx.fillText(`ข้อสอบ: ${config.totalQuestions} ข้อ • คะแนนเต็ม: ${config.totalScore}`, targetWidth - 45, 58);
+
+  // Simulated Barcode
+  const barPattern = [3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 1, 4, 1, 2, 3, 1, 3, 2, 1, 4];
+  let curBarX = barcodeX;
+  ctx.fillStyle = '#000000';
+  barPattern.forEach((w, idx) => {
+    if (idx % 2 === 0) {
+      ctx.fillRect(curBarX, 68, w * 1.5, 24);
+    }
+    curBarX += w * 1.5;
+  });
+
+  // 4. Middle Student Info & Roll Number Section
+  const infoTop = 120;
+  const infoHeight = 110;
+  ctx.fillStyle = '#fafaf9';
+  ctx.fillRect(45, infoTop, targetWidth - 90, infoHeight);
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeRect(45, infoTop, targetWidth - 90, infoHeight);
+
+  // Personal details
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 12px Anuphan, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('ชื่อ - สกุล: ........................................................................', 60, infoTop + 28);
+  ctx.fillText('เลขที่ / ที่นั่งสอบ: ............', 420, infoTop + 28);
+  ctx.fillText('ห้องสอบ: ............', 560, infoTop + 28);
+
+  // Instructions
+  ctx.fillStyle = '#475569';
+  ctx.font = '11px Anuphan, sans-serif';
+  ctx.fillText(
+    'คำชี้แจง: ใช้ดินสอดำ 2B ขึ้นไป ฝนทับวงกลมให้ดำสนิทเต็มวง [ ● ถูก ]  [ ✕ ผิด ]  [ ✓ ผิด ]',
+    60,
+    infoTop + 58
+  );
+  ctx.fillStyle = '#64748b';
+  ctx.font = '10px Anuphan, sans-serif';
+  ctx.fillText(
+    '*ห้ามพับกระดาษคำตอบ หากต้องการเปลี่ยนคำตอบให้ลบด้วยยางลบให้สะอาดหมดจดก่อนฝนข้อใหม่',
+    60,
+    infoTop + 76
+  );
+  ctx.fillText('ลงชื่อผู้เข้าสอบ: ........................................', 60, infoTop + 98);
+  ctx.fillText('ลงชื่อกรรมการคุมสอบ: ........................................', 360, infoTop + 98);
+
+  // Roll Number Bubbles on right
   if (config.studentIdFormat === 'roll_number') {
-    const rollStartX = 720;
-    const rollStartY = 130;
-    const colSpacing = 48;
-    const rowSpacing = 20;
+    const rollBoxX = targetWidth - 270;
+    ctx.fillStyle = themeColors.headerBg;
+    ctx.fillRect(rollBoxX, infoTop, 225, infoHeight);
+    ctx.strokeStyle = themeColors.border;
+    ctx.strokeRect(rollBoxX, infoTop, 225, infoHeight);
 
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 14px Anuphan, sans-serif';
+    ctx.fillStyle = themeColors.primary;
+    ctx.font = 'bold 11px Anuphan, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('เลขที่ (Roll No.)', rollStartX + colSpacing / 2, rollStartY - 14);
+    ctx.fillText('เลขที่สอบ (00 - 99)', rollBoxX + 112, infoTop + 16);
 
     const tens = Math.floor(roll / 10);
     const ones = roll % 10;
+    const colSpacing = 40;
+    const startBubbleY = infoTop + 28;
+    const rowStep = 7.5;
 
-    ['หลักสิบ', 'หลักหน่วย'].forEach((lbl, cIdx) => {
-      const bx = rollStartX + cIdx * colSpacing;
+    ['สิบ', 'หน่วย'].forEach((lbl, cIdx) => {
+      const bx = rollBoxX + 60 + cIdx * colSpacing;
       ctx.fillStyle = '#64748b';
-      ctx.font = '11px sans-serif';
-      ctx.fillText(lbl, bx, rollStartY + 4);
+      ctx.font = '9px sans-serif';
+      ctx.fillText(lbl, bx, startBubbleY);
 
       for (let digit = 0; digit <= 9; digit++) {
-        const by = rollStartY + 16 + digit * rowSpacing;
+        const by = startBubbleY + 8 + digit * rowStep;
         const isTarget = (cIdx === 0 && digit === tens) || (cIdx === 1 && digit === ones);
 
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = themeColors.primary;
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(bx, by, 7.5, 0, Math.PI * 2);
+        ctx.arc(bx, by, 3.2, 0, Math.PI * 2);
         ctx.stroke();
 
         if (isTarget) {
-          // Fill pencil bubble
-          ctx.fillStyle = '#1e293b';
+          ctx.fillStyle = '#0f172a';
           ctx.beginPath();
-          ctx.arc(bx + (Math.random() - 0.5), by + (Math.random() - 0.5), 7.2, 0, Math.PI * 2);
+          ctx.arc(bx, by, 3.2, 0, Math.PI * 2);
           ctx.fill();
-        } else {
-          ctx.fillStyle = '#64748b';
-          ctx.font = '10px sans-serif';
-          ctx.fillText(String(digit), bx, by + 3.5);
         }
       }
     });
   }
 
-  // 4. Questions Grid
+  // 5. Questions Grid with 5-Question Zebra Striping
   const questionsPerColumn = config.totalQuestions <= 30 ? 15 : config.totalQuestions <= 60 ? 25 : 35;
   const columnsCount = Math.ceil(config.totalQuestions / questionsPerColumn);
-  const colWidth = (targetWidth - 140) / columnsCount;
-  const startY = config.studentIdFormat === 'none' ? 220 : 360;
-  const rowHeight = Math.min(32, (targetHeight - startY - 100) / questionsPerColumn);
-  const bubbleSpacingX = 36;
+  const startY = 245;
+  const availableWidth = targetWidth - 90;
+  const colWidth = availableWidth / columnsCount;
+  const rowHeight = Math.min(28, (targetHeight - startY - 100) / questionsPerColumn);
+  const bubbleSpacingX = 30;
   const bubbleRadius = 8;
   const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
 
-  for (let q = 1; q <= config.totalQuestions; q++) {
-    const colIndex = Math.floor((q - 1) / questionsPerColumn);
-    const rowIndex = (q - 1) % questionsPerColumn;
+  // Draw each column box
+  for (let c = 0; c < columnsCount; c++) {
+    const colLeft = 45 + c * colWidth;
+    const colInnerWidth = colWidth - 10;
+    const startQ = c * questionsPerColumn + 1;
+    const endQ = Math.min(config.totalQuestions, (c + 1) * questionsPerColumn);
 
-    const qBaseX = 80 + colIndex * colWidth + 60;
-    const qBaseY = startY + rowIndex * rowHeight;
+    // Column Header
+    ctx.fillStyle = themeColors.headerBg;
+    ctx.fillRect(colLeft, startY, colInnerWidth, 24);
+    ctx.strokeStyle = themeColors.border;
+    ctx.strokeRect(colLeft, startY, colInnerWidth, 24);
 
-    // Draw Question Number
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 13px Anuphan, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${q}.`, qBaseX - 16, qBaseY + 4);
+    ctx.fillStyle = themeColors.primary;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ข้อ', colLeft + 24, startY + 16);
 
-    // Pick simulated answer
-    const correctChoice = config.answerKeys[q] || 'A';
-    const isAnswerCorrect = Math.random() <= accuracy;
-    let chosenChoice = correctChoice;
-    if (!isAnswerCorrect) {
-      const otherChoices = choiceKeys.filter((c) => c !== correctChoice);
-      chosenChoice = otherChoices[Math.floor(Math.random() * otherChoices.length)] || 'B';
+    choiceKeys.forEach((_, cIdx) => {
+      const hbx = colLeft + 54 + cIdx * bubbleSpacingX;
+      ctx.fillText(getChoiceLabel(cIdx, config.choiceLabelType), hbx, startY + 16);
+    });
+
+    // Column Questions
+    for (let q = startQ; q <= endQ; q++) {
+      const rowIndex = q - startQ;
+      const qY = startY + 28 + rowIndex * rowHeight;
+      const isZebra = Math.floor((q - 1) / 5) % 2 === 1;
+
+      if (isZebra) {
+        ctx.fillStyle = themeColors.zebraBg;
+        ctx.fillRect(colLeft, qY - 10, colInnerWidth, rowHeight);
+      }
+
+      // Question Number
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${q}.`, colLeft + 36, qY + 4);
+
+      // Determine answer
+      const correctChoice = config.answerKeys[q] || 'A';
+      const isAnswerCorrect = Math.random() <= accuracy;
+      let chosenChoice = correctChoice;
+      if (!isAnswerCorrect) {
+        const otherChoices = choiceKeys.filter((ck) => ck !== correctChoice);
+        chosenChoice = otherChoices[Math.floor(Math.random() * otherChoices.length)] || 'B';
+      }
+
+      // Draw bubbles
+      choiceKeys.forEach((choiceKey, cIdx) => {
+        const bubbleX = colLeft + 54 + cIdx * bubbleSpacingX;
+        const bubbleY = qY;
+
+        ctx.strokeStyle = themeColors.border;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(bubbleX, bubbleY, bubbleRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const label = getChoiceLabel(cIdx, config.choiceLabelType);
+
+        if (choiceKey === chosenChoice) {
+          // Filled mark
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.arc(bubbleX + (Math.random() - 0.5) * 0.6, bubbleY + (Math.random() - 0.5) * 0.6, bubbleRadius - 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = themeColors.primary;
+          ctx.font = 'bold 9px Anuphan, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(label, bubbleX, bubbleY + 3.2);
+        }
+      });
     }
 
-    choiceKeys.forEach((choiceKey, cIdx) => {
-      const bubbleX = qBaseX + cIdx * bubbleSpacingX;
-      const bubbleY = qBaseY;
-
-      // Circle border
-      ctx.strokeStyle = '#64748b';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(bubbleX, bubbleY, bubbleRadius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      const label = getChoiceLabel(cIdx, config.choiceLabelType);
-
-      if (choiceKey === chosenChoice) {
-        // Draw pencil shading
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.arc(bubbleX + (Math.random() - 0.5) * 0.8, bubbleY + (Math.random() - 0.5) * 0.8, bubbleRadius - 0.5, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        // Choice letter inside bubble
-        ctx.fillStyle = '#64748b';
-        ctx.font = 'bold 10px Anuphan, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(label, bubbleX, bubbleY + 3.5);
-      }
-    });
+    // Outer column border
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(colLeft, startY, colInnerWidth, 28 + (endQ - startQ + 1) * rowHeight + 8);
   }
+
+  // 6. Bottom Official Seal & Examiner Score Block
+  const footerY = targetHeight - 75;
+  ctx.strokeStyle = themeColors.border;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(45, footerY);
+  ctx.lineTo(targetWidth - 45, footerY);
+  ctx.stroke();
+
+  // Official Seal
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 11px Anuphan, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('ระบบตรวจข้อสอบอัตโนมัติ ClassCare 360 AI Computer Vision • ฉบับทางการ', 50, footerY + 22);
+  ctx.font = '10px Anuphan, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('ใบกระดาษคำตอบมาตรฐาน มีผลผูกพันตามเกณฑ์วัดและประเมินผลสถานศึกษา', 50, footerY + 38);
+
+  // Score Box
+  const scoreBoxX = targetWidth - 230;
+  ctx.strokeStyle = themeColors.border;
+  ctx.lineWidth = 1.5;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(scoreBoxX, footerY + 8, 185, 45);
+  ctx.strokeRect(scoreBoxX, footerY + 8, 185, 45);
+
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 10px Anuphan, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('คะแนนที่ได้ (OMR Score):', scoreBoxX + 10, footerY + 26);
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.strokeRect(scoreBoxX + 120, footerY + 14, 45, 26);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`/ ${config.totalScore}`, scoreBoxX + 170, footerY + 32);
 
   return canvas;
 }

@@ -4,6 +4,8 @@ export type ChoiceLabelType = 'ABCD' | 'THAI' | 'NUMERIC';
 export type AnswerSheetLayout = 'single_full' | 'eco_half';
 export type StudentIdFormat = 'roll_number' | 'student_code' | 'none';
 
+export type AnswerSheetThemeColor = 'burgundy' | 'navy' | 'slate' | 'emerald';
+
 export interface AnswerSheetConfig {
   id: string;
   title: string;
@@ -20,6 +22,11 @@ export interface AnswerSheetConfig {
   classroomId?: string | null;
   assessmentId?: string | null;
   totalScore: number;
+  themeColor?: AnswerSheetThemeColor;
+  examSet?: string;
+  academicYear?: string;
+  term?: string;
+  roomName?: string;
 }
 
 export interface ScannedAnswerDetail {

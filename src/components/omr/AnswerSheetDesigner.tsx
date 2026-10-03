@@ -237,6 +237,87 @@ export function AnswerSheetDesigner({
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ระดับชั้น / ห้องเรียน</label>
+                  <input
+                    type="text"
+                    value={config.roomName || ''}
+                    onChange={(e) => updateConfig({ roomName: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
+                    placeholder="เช่น ประถมศึกษาปีที่ 5/1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">รหัสชุดข้อสอบ (Set No.)</label>
+                  <input
+                    type="text"
+                    value={config.examSet || '01'}
+                    onChange={(e) => updateConfig({ examSet: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
+                    placeholder="เช่น 01, 02 หรือ A, B"
+                  />
+                </div>
+
+                {/* Official Theme Color Selector */}
+                <div className="sm:col-span-2 pt-1 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-700 mb-2">
+                    ธีมสีกระดาษคำตอบแบบมาตรฐานทางการ
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      {
+                        key: 'burgundy' as const,
+                        name: 'สไตล์ สทศ. (Burgundy)',
+                        desc: 'สีเลือดหมู สไตล์ข้อสอบระดับชาติ',
+                        color: 'bg-[#701a2b]',
+                        border: 'border-[#701a2b]',
+                      },
+                      {
+                        key: 'navy' as const,
+                        name: 'สไตล์ สพฐ. (Navy Blue)',
+                        desc: 'สีน้ำเงินกรมท่า ทางการ สุภาพ',
+                        color: 'bg-[#1e3a8a]',
+                        border: 'border-[#1e3a8a]',
+                      },
+                      {
+                        key: 'slate' as const,
+                        name: 'สไตล์ ขาว-ดำ (Monochrome)',
+                        desc: 'สีเทาดำ คมชัด ประหยัดหมึกพิมพ์',
+                        color: 'bg-slate-900',
+                        border: 'border-slate-900',
+                      },
+                      {
+                        key: 'emerald' as const,
+                        name: 'สไตล์ สีเขียว (Emerald)',
+                        desc: 'สีเขียวเข้ม สบายตา ทางการ',
+                        color: 'bg-[#064e3b]',
+                        border: 'border-[#064e3b]',
+                      },
+                    ].map((t) => {
+                      const isSelected = (config.themeColor || 'burgundy') === t.key;
+                      return (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => updateConfig({ themeColor: t.key })}
+                          className={`flex flex-col text-left rounded-xl p-2.5 border transition ${
+                            isSelected
+                              ? `border-2 ${t.border} bg-slate-50 shadow-2xs font-black`
+                              : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className={`inline-block h-3.5 w-3.5 rounded-full ${t.color}`} />
+                            <span className="text-xs text-slate-900 font-bold">{t.name}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">{t.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -329,7 +410,7 @@ export function AnswerSheetDesigner({
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   การระบุตัวตนบนกระดาษคำตอบ
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
                     {
                       format: 'roll_number' as StudentIdFormat,
@@ -337,8 +418,13 @@ export function AnswerSheetDesigner({
                       desc: 'แนะนำสำหรับนักเรียนในห้อง ตรวจจับและจับคู่รายชื่ออัตโนมัติ',
                     },
                     {
+                      format: 'student_code' as StudentIdFormat,
+                      title: 'รหัสประจำตัว 5 หลัก',
+                      desc: 'ช่องฝนเลข 5 หลัก สำหรับระบบทะเบียนโรงเรียนทางการ',
+                    },
+                    {
                       format: 'none' as StudentIdFormat,
-                      title: 'ไม่มีช่องฝนรหัส (บุคคลทั่วไป / มีแต่เส้นเขียนชื่อ)',
+                      title: 'ไม่มีช่องฝนรหัส',
                       desc: 'เหมาะสำหรับแบบทดสอบนิรนาม สอบควิซ หรือกรอกชื่อด้วยลายมือ',
                     },
                   ].map((item) => (
