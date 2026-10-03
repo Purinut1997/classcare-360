@@ -25,6 +25,7 @@ import {
   LockKeyhole,
   PiggyBank,
   School,
+  ScanLine,
   Search,
   ShieldCheck,
   Sparkles,
@@ -222,6 +223,42 @@ export function EasyShortcutHub({
           hoverBorder: 'hover:border-sky-400',
           ring: 'focus:ring-sky-400',
           iconBg: 'bg-sky-600 text-white shadow-sky-500/30',
+        },
+      },
+      {
+        id: 'omr-scanner',
+        title: 'สร้าง & ตรวจข้อสอบ (AI OMR)',
+        subtitle: 'ตรวจกระดาษคำตอบผ่านกล้อง ออกแบบข้อสอบ & ตัดเกรด',
+        description: 'สแกนตรวจกระดาษคำตอบด้วยกล้องมือถือ/เว็บแคม นับคะแนนอัตโนมัติ ออกแบบชุดข้อสอบพร้อม QR Code และบันทึกคะแนนเข้าสมุดทันที',
+        keywords: [
+          'omr',
+          'ข้อสอบ',
+          'ตรวจข้อสอบ',
+          'กระดาษคำตอบ',
+          'สแกน',
+          'กล้อง',
+          'ตรวจการบ้าน',
+          'คะแนนสอบ',
+          'ปรนัย',
+          'กาข้อสอบ',
+          'เฉลย',
+          'คลังข้อสอบ',
+          'exam',
+          'scanner',
+          'คำตอบ',
+        ],
+        icon: ScanLine,
+        path: '/app/dashboard?view=omr-scanner',
+        badge: 'AI Vision ตรวจไว',
+        badgeTone: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+        category: 'academic',
+        accentColor: {
+          bg: 'from-cyan-500/10 via-white to-blue-500/5',
+          text: 'text-cyan-700',
+          border: 'border-cyan-200/80',
+          hoverBorder: 'hover:border-cyan-400',
+          ring: 'focus:ring-cyan-400',
+          iconBg: 'bg-cyan-600 text-white shadow-cyan-500/30',
         },
       },
       {
@@ -544,6 +581,7 @@ export function EasyShortcutHub({
 
   const quickFilterTags = [
     { label: '🟢 เช็กชื่อเช้า', query: 'เช็กชื่อ' },
+    { label: '📷 ตรวจข้อสอบ OMR', query: 'ข้อสอบ' },
     { label: '🔵 กรอกคะแนน', query: 'คะแนน' },
     { label: '🪥 แปรงฟัน/อาหาร', query: 'แปรงฟัน' },
     { label: '🪙 บันทึกเงินออม', query: 'เงินออม' },
@@ -628,18 +666,18 @@ export function EasyShortcutHub({
         </div>
       </section>
 
-      {/* ⭐ 4 ปุ่มยักษ์เด่นสุดสำหรับงานที่ใช้ทุกวัน (Primary Action Cards) */}
+      {/* ⭐ 5 เมนูยอดนิยมที่ต้องใช้บ่อยที่สุด (Primary Action Cards) */}
       {!searchQuery && activeCategory === 'all' && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
               <span className="text-lg">⭐</span>
-              <span>4 เมนูยอดนิยมที่ต้องใช้บ่อยที่สุด</span>
+              <span>5 เมนูยอดนิยมที่ต้องใช้บ่อยที่สุด</span>
             </h3>
             <span className="text-xs font-bold text-slate-500">คลิกเดียวเข้าถึงทันที</span>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {/* Card 1: เช็กเวลาเรียน */}
             <Link
               to="/app/dashboard?view=teacher-work"
@@ -698,6 +736,33 @@ export function EasyShortcutHub({
               </div>
               <div className="mt-5 flex items-center justify-between border-t border-sky-100/90 pt-3 text-xs font-black text-sky-700 group-hover:text-sky-900">
                 <span>เปิดสมุดคะแนน</span>
+                <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
+              </div>
+            </Link>
+
+            {/* Card 3: ตรวจข้อสอบ OMR (AI Scanner) */}
+            <Link
+              to="/app/dashboard?view=omr-scanner"
+              className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-cyan-300/90 bg-gradient-to-br from-cyan-50/95 via-white to-teal-50/70 p-5 shadow-xs transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-cyan-500/20 hover:border-cyan-500 active:scale-[0.98]"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-950 text-cyan-400 shadow-md shadow-slate-950/20 transition-all duration-300 group-hover:scale-110 group-hover:-rotate-3 ring-1 ring-slate-800">
+                    <ScanLine size={24} aria-hidden="true" />
+                  </span>
+                  <span className="rounded-full bg-cyan-100 text-cyan-800 border border-cyan-300 px-2.5 py-0.5 text-xs font-black shadow-2xs">
+                    AI Vision
+                  </span>
+                </div>
+                <h4 className="mt-4 text-lg font-black text-slate-950 group-hover:text-cyan-950 transition-colors">
+                  ตรวจข้อสอบ OMR
+                </h4>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  สแกนกระดาษคำตอบผ่านกล้อง ออกแบบข้อสอบ & ตัดเกรด
+                </p>
+              </div>
+              <div className="mt-5 flex items-center justify-between border-t border-cyan-100/90 pt-3 text-xs font-black text-cyan-700 group-hover:text-cyan-900">
+                <span>เปิดระบบตรวจข้อสอบ</span>
                 <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
               </div>
             </Link>
