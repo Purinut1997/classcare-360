@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
   Camera,
+  Check,
   CheckCircle2,
   ChevronRight,
   FileText,
@@ -24,6 +25,8 @@ import { AnswerSheetDesigner } from '../../components/omr/AnswerSheetDesigner';
 import { OmrScanner } from '../../components/omr/OmrScanner';
 import { OmrItemAnalysis } from '../../components/omr/OmrItemAnalysis';
 
+const STORAGE_DRAFT_KEY = 'classcare_omr_active_draft';
+
 interface OmrAssessmentPageProps {
   session: AppSessionContext | null;
 }
@@ -40,8 +43,20 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     Array<{ id: string; student_code: string; first_name: string; last_name: string; classroom_id?: string | null }>
   >([]);
 
-  // Default Initial Exam Configuration
+  // Default Initial Exam Configuration with LocalStorage Persistence
   const [config, setConfig] = useState<AnswerSheetConfig>(() => {
+    try {
+      const savedDraft = localStorage.getItem(STORAGE_DRAFT_KEY);
+      if (savedDraft) {
+        const parsed = JSON.parse(savedDraft);
+        if (parsed && typeof parsed.totalQuestions === 'number' && parsed.answerKeys) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached omr draft:', e);
+    }
+
     const totalQ = 20;
     const defaultKeys: Record<number, string> = {
       1: 'A', 2: 'B', 3: 'C', 4: 'A', 5: 'D',
@@ -76,6 +91,17 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       teacherName: session?.profile?.displayName || 'ครูผู้สอน',
     };
   });
+
+  // Automatically save any answer key or config updates to localStorage
+  useEffect(() => {
+    try {
+      if (config) {
+        localStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(config));
+      }
+    } catch (e) {
+      console.warn('Failed to save omr draft to localStorage:', e);
+    }
+  }, [config]);
 
   // Session Results & History
   const [sessionResults, setSessionResults] = useState<ScannedExamResult[]>([]);
@@ -269,6 +295,18 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
             <button
               type="button"
               onClick={() => {
+                setDesignerSubTab('answer_key');
+                setOmrTab('designer');
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2.5 text-xs font-black text-white shadow-md hover:from-emerald-400 hover:to-teal-400 transition"
+              title="เปิดหน้ากำหนดเฉลยคำตอบ ก ข ค ง และปรับคะแนนรายข้อ"
+            >
+              <Check size={15} />
+              ✏️ กำหนดเฉลย ({config.totalQuestions} ข้อ)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 setDesignerSubTab('settings');
                 setOmrTab('designer');
               }}
@@ -415,7 +453,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
             }`}
           >
             <FileText size={15} className={currentTab === 'designer' ? 'text-cyan-400' : 'text-slate-400'} />
-            2. ออกแบบ & สั่งพิมพ์กระดาษคำตอบ
+            2. ออกแบบกระดาษ & กำหนดเฉลย (Answer Keys)
           </button>
 
           <button
@@ -448,7 +486,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           studentsInActiveRoom={activeStudents}
           onCommitScoreEntry={handleCommitScoreEntry}
           onEditConfig={() => {
-            setDesignerSubTab('settings');
+            setDesignerSubTab('answer_key');
             setOmrTab('designer');
           }}
           workspaceName={config.schoolName || (session?.workspace?.name && session.workspace.name !== 'ป.5' ? session.workspace.name : 'โรงเรียน ClassCare 360')}

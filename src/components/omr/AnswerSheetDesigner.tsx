@@ -26,6 +26,7 @@ import {
   Share2,
   Lock,
   BookOpen,
+  ClipboardList,
 } from 'lucide-react';
 import type { AnswerSheetConfig, AnswerSheetLayout, ChoiceLabelType, StudentIdFormat, ExamBankTemplate } from '../../types/omr';
 import { CHOICE_KEYS_ABCD, generateSyntheticFilledSheet, getChoiceLabel } from '../../lib/omrEngine';
@@ -38,6 +39,60 @@ import {
   importExamBankFromJson,
 } from '../../lib/omrExamBankStorage';
 import { PrintableAnswerSheet } from './PrintableAnswerSheet';
+
+/** Helper to parse raw text/pasted strings into answer keys dictionary */
+function parseQuickPasteKeys(input: string, totalQuestions: number): Record<number, string> {
+  const result: Record<number, string> = {};
+  if (!input || !input.trim()) return result;
+
+  const thaiMap: Record<string, string> = {
+    'ก': 'A', 'ข': 'B', 'ค': 'C', 'ง': 'D', 'จ': 'E',
+    'ไ': 'A',
+  };
+  const engMap: Record<string, string> = {
+    'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E',
+  };
+  const numMap: Record<string, string> = {
+    '1': 'A', '2': 'B', '3': 'C', '4': 'D', '5': 'E',
+  };
+
+  // Try matching numbered patterns like "1.ก", "1) ข", "1: C", "1-A", "1=ก"
+  const indexedMatches = Array.from(input.matchAll(/(?:^|[^\d])(\d{1,3})\s*[:\.\)\-\=]\s*([ก-จa-eA-E1-5])/gi));
+  if (indexedMatches.length > 0) {
+    for (const match of indexedMatches) {
+      const qNum = parseInt(match[1], 10);
+      const rawChoice = match[2];
+      const upperChoice = rawChoice.toUpperCase();
+      const mapped = thaiMap[rawChoice] || engMap[upperChoice] || numMap[rawChoice];
+      if (qNum >= 1 && qNum <= totalQuestions && mapped) {
+        result[qNum] = mapped;
+      }
+    }
+    if (Object.keys(result).length > 0) {
+      return result;
+    }
+  }
+
+  // Fallback: sequential choices
+  const tokens: string[] = [];
+  for (const ch of input) {
+    const upper = ch.toUpperCase();
+    if (thaiMap[ch]) {
+      tokens.push(thaiMap[ch]);
+    } else if (engMap[upper]) {
+      tokens.push(engMap[upper]);
+    }
+  }
+
+  let q = 1;
+  for (const t of tokens) {
+    if (q > totalQuestions) break;
+    result[q] = t;
+    q++;
+  }
+
+  return result;
+}
 
 interface AnswerSheetDesignerProps {
   config: AnswerSheetConfig;
@@ -81,6 +136,13 @@ export function AnswerSheetDesigner({
   const [saveSharedToSchool, setSaveSharedToSchool] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Quick Paste & Auto-save state
+  const [showQuickPasteModal, setShowQuickPasteModal] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [lastSavedTime, setLastSavedTime] = useState<string>(() =>
+    new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+  );
+
   const effectiveTeacherId = teacherId || config.teacherId || 'teacher_demo_01';
   const effectiveTeacherName = teacherName || config.teacherName || 'ครูผู้สอน';
 
@@ -99,6 +161,7 @@ export function AnswerSheetDesigner({
   };
 
   const updateConfig = (updates: Partial<AnswerSheetConfig>) => {
+    setLastSavedTime(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }));
     const updated = { ...config, ...updates };
 
     // Ensure examSets contains current set's keys
@@ -1077,6 +1140,54 @@ export function AnswerSheetDesigner({
       {activeSubTab === 'answer_key' && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+            {/* Auto-save Status Banner & Quick Help */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200/80 p-3.5 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-600 text-white shadow-2xs">
+                  <CheckCircle2 size={18} />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs sm:text-sm font-black text-emerald-950">
+                      ✅ บันทึกเฉลยอัตโนมัติแล้ว (Auto-Saved)
+                    </h4>
+                    <span className="rounded-full bg-emerald-200/70 px-2 py-0.5 text-[10px] font-black text-emerald-900 border border-emerald-300">
+                      จำค่าล่าสุด {lastSavedTime} น.
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-bold text-emerald-800 mt-0.5">
+                    ทุกครั้งที่คุณครูกดเลือกวงกลม ก ข ค ง หรือปรับคะแนน ระบบจะบันทึกทันที ปิดหน้าต่างก็ไม่หาย
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickPasteModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-white px-3 py-1.5 text-xs font-black text-cyan-900 shadow-2xs hover:bg-cyan-50 transition active:scale-95"
+                  title="ก๊อปปี้เฉลยมาวางรวดเดียว เช่น ก ข ค ง หรือ ABCD"
+                >
+                  <ClipboardList size={14} className="text-cyan-600" />
+                  📋 วางเฉลยรวดเดียว (เช่น กขคง...)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveExamBankTemplate(config);
+                    setBankTemplates(getExamBankTemplates());
+                    showToast(`💾 บันทึกชุดข้อสอบและเฉลย "${config.title}" ลงคลังข้อสอบเรียบร้อยแล้ว`);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-2xs hover:bg-indigo-700 transition active:scale-95"
+                  title="บันทึกเก็บไว้ในคลังเพื่อนำกลับมาใช้ซ้ำในเทอมถัดไป หรือแชร์ให้ครูท่านอื่น"
+                >
+                  <FolderArchive size={14} />
+                  💾 บันทึกลงคลังข้อสอบ
+                </button>
+              </div>
+            </div>
+
             {/* Multi-Set Tab Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -1123,6 +1234,16 @@ export function AnswerSheetDesigner({
 
               {/* Quick Actions for Current Set */}
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickPasteModal(true)}
+                  className="inline-flex items-center gap-1 rounded-xl border border-cyan-200 bg-cyan-50/70 px-2.5 py-1 text-xs font-bold text-cyan-800 shadow-2xs hover:bg-cyan-100 transition"
+                  title="วางเฉลยรวดเดียว เช่น ก ข ค ง หรือ ABCD"
+                >
+                  <ClipboardList size={12} className="text-cyan-600" />
+                  วางเฉลยรวดเดียว
+                </button>
+
                 {currentSet !== '01' && availableSets.includes('01') && (
                   <button
                     type="button"
@@ -1643,6 +1764,128 @@ export function AnswerSheetDesigner({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- QUICK PASTE ANSWER KEYS MODAL --- */}
+      {showQuickPasteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 p-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                  <ClipboardList size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight">วางเฉลยรวดเดียว (Quick Paste)</h3>
+                  <p className="text-xs text-cyan-200">
+                    สำหรับชุด {currentSet} • รองรับทั้ง ก ข ค ง, A B C D หรือพิมพ์ข้อความรวดเดียว
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuickPasteModal(false);
+                  setPasteText('');
+                }}
+                className="rounded-xl p-1.5 text-slate-300 hover:bg-white/10 hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 text-xs text-slate-600 space-y-1">
+                <span className="font-bold text-slate-900 block">💡 รูปแบบข้อความที่รองรับ (คัดลอกมาวางได้เลย):</span>
+                <p>• ตัวเลือกเรียงต่อกัน: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">กขคงกขคง...</code> หรือ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">ABCDABCD...</code></p>
+                <p>• เว้นวรรค: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">ก ข ค ง ก ก ข ค...</code></p>
+                <p>• มีเลขข้อกำกับ: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">1.ก 2.ข 3.ค 4.ง...</code> หรือ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">1:A, 2:B, 3:C...</code></p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  กล่องวางข้อความเฉลย (Paste Answer Keys)
+                </label>
+                <textarea
+                  rows={5}
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder="วางข้อความเฉลยที่นี่ เช่น ก ข ค ง ก ข ค ง..."
+                  className="w-full rounded-2xl border border-slate-200 p-3 text-sm font-mono focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
+                />
+              </div>
+
+              {/* Parsed Preview */}
+              {pasteText.trim().length > 0 && (() => {
+                const parsed = parseQuickPasteKeys(pasteText, config.totalQuestions);
+                const parsedCount = Object.keys(parsed).length;
+                return (
+                  <div
+                    className={`p-3 rounded-xl border text-xs ${
+                      parsedCount > 0
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : 'bg-amber-50 border-amber-200 text-amber-900'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-bold mb-1">
+                      <span>{parsedCount > 0 ? `✅ ตรวจพบ ${parsedCount} ข้อ (จากทั้งหมด ${config.totalQuestions} ข้อ)` : '⚠️ ยังตรวจไม่พบตัวเลือกเฉลยที่ถูกต้อง'}</span>
+                      {parsedCount > 0 && <span className="text-[10px] text-emerald-700 font-normal">พร้อมนำเข้าทันที</span>}
+                    </div>
+                    {parsedCount > 0 && (
+                      <div className="font-mono text-[11px] text-emerald-800 line-clamp-2 mt-1">
+                        {Object.entries(parsed)
+                          .slice(0, 20)
+                          .map(([q, k]) => `${q}:${config.choiceLabelType === 'THAI' ? (k === 'A' ? 'ก' : k === 'B' ? 'ข' : k === 'C' ? 'ค' : k === 'D' ? 'ง' : 'จ') : k}`)
+                          .join(' ')}
+                        {parsedCount > 20 && ` ...และอีก ${parsedCount - 20} ข้อ`}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuickPasteModal(false);
+                  setPasteText('');
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={Object.keys(parseQuickPasteKeys(pasteText, config.totalQuestions)).length === 0}
+                onClick={() => {
+                  const parsed = parseQuickPasteKeys(pasteText, config.totalQuestions);
+                  const count = Object.keys(parsed).length;
+                  if (count === 0) return;
+                  const nextKeys = { ...config.answerKeys, ...parsed };
+                  const nextExamSets = { ...(config.examSets || {}) };
+                  nextExamSets[currentSet] = nextKeys;
+                  updateConfig({
+                    answerKeys: nextKeys,
+                    examSets: nextExamSets,
+                  });
+                  setShowQuickPasteModal(false);
+                  setPasteText('');
+                  showToast(`✅ นำเข้าและบันทึกเฉลย ${count} ข้อ สำหรับชุด ${currentSet} สำเร็จแล้ว`);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-5 py-2 text-xs font-black text-white hover:bg-cyan-500 disabled:opacity-50 disabled:pointer-events-none transition shadow-xs"
+              >
+                <Check size={14} />
+                นำเข้าและบันทึกเฉลยทันที
+              </button>
             </div>
           </div>
         </div>
