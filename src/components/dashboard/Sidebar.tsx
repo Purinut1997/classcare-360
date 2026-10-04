@@ -1,4 +1,16 @@
-import { Building2, ChevronDown, PanelLeftClose, ServerCog, X } from 'lucide-react';
+import {
+  BookOpen,
+  Building2,
+  ChevronDown,
+  ClipboardList,
+  Heart,
+  PanelLeftClose,
+  School,
+  ServerCog,
+  Sparkles,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 
 import type { AppNavItem } from '../../routes/appRoutes';
@@ -13,30 +25,78 @@ interface SidebarProps {
   session?: AppSessionContext;
 }
 
+interface SidebarSectionConfig {
+  key: string;
+  label: string;
+  icon?: LucideIcon;
+  defaultOpen?: boolean;
+  itemKeys: string[];
+}
+
 const coreDirectItemKeys = [
   'overview',
-  'students',
-  'teacher-work',
-  'schedule',
-  'scores',
-  'omr-scanner',
-  'academic-hub',
-  'desirable-characteristics',
-  'savings',
-  'behavior',
-  'reports',
 ];
 
-const sidebarSections = [
+const sidebarSections: SidebarSectionConfig[] = [
   {
-    key: 'daily-tools',
-    label: 'เครื่องมือประจำห้องเรียน',
-    itemKeys: ['student-health', 'classroom-operations', 'randomizer', 'automation', 'daily-brief'],
+    key: 'classroom-admin',
+    label: 'ธุรการชั้นเรียน',
+    icon: ClipboardList,
+    defaultOpen: true,
+    itemKeys: [
+      'students',              // 1. ทะเบียนและประวัตินักเรียน
+      'teacher-work',          // 2. เช็กชื่อและสถิติเวลาเรียน
+      'student-health',        // 3. สุขภาพและกิจวัตรประจำวัน
+      'classroom-operations',  // 4. ตารางเวรและกิจกรรมห้องเรียน
+      'savings',               // 5. สมุดเงินออมนักเรียน
+      'daily-brief',           // 6. สรุปบันทึกประจำวันครู
+    ],
+  },
+  {
+    key: 'academic-assessment',
+    label: 'งานวิชาการ & วัดผล',
+    icon: BookOpen,
+    defaultOpen: true,
+    itemKeys: [
+      'schedule',              // ตารางสอน/ตารางเรียน
+      'scores',                // สมุดคะแนน & ตัดเกรด
+      'omr-scanner',           // ตรวจข้อสอบ (กระดาษ OMR)
+      'academic-hub',          // ศูนย์วิชาการ & เอกสาร ปพ.
+      'reports',               // พิมพ์รายงาน & สมุด ปพ.
+    ],
+  },
+  {
+    key: 'student-care',
+    label: 'ดูแลช่วยเหลือนักเรียน',
+    icon: Heart,
+    defaultOpen: false,
+    itemKeys: [
+      'behavior',              // พฤติกรรม & ดูแลช่วยเหลือนักเรียน
+      'desirable-characteristics', // ประเมินคุณลักษณะ 8 ประการ
+      'automation',            // แจ้งเตือนเด็กเสี่ยง (ขาด/ตก)
+    ],
+  },
+  {
+    key: 'tools-calendar',
+    label: 'เครื่องมือช่วยสอน',
+    icon: Sparkles,
+    defaultOpen: false,
+    itemKeys: [
+      'randomizer',            // วงล้อสุ่มนักเรียน/จัดกลุ่ม
+      'school-calendar',       // ปฏิทินโรงเรียน
+    ],
   },
   {
     key: 'school-management',
-    label: 'ตั้งค่าโรงเรียน & จัดการระบบ',
-    itemKeys: ['school-calendar', 'workspace-settings', 'academic-year', 'import-export', 'data-safety'],
+    label: 'ตั้งค่าโรงเรียน & ระบบ',
+    icon: School,
+    defaultOpen: false,
+    itemKeys: [
+      'workspace-settings',    // ศูนย์จัดการโรงเรียน
+      'academic-year',         // ปิดชั้นและคลังปีการศึกษา
+      'import-export',         // นำเข้า & ส่งออกข้อมูล
+      'data-safety',           // สำรองข้อมูล & กู้คืน
+    ],
   },
 ];
 
@@ -154,10 +214,15 @@ export function Sidebar({
         {/* Secondary Collapsible Groups */}
         {secondarySections.map((section) => {
           const hasActiveItem = section.items.some((item) => item.key === activeView);
+          const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
+          const SectionIcon = section.icon;
           return (
-            <details className="app-sidebar-section mt-2" key={section.key} open={hasActiveItem}>
+            <details className="app-sidebar-section mt-2" key={section.key} open={isSectionOpen}>
               <summary>
-                <span>{section.label}</span>
+                <span className="flex items-center gap-2">
+                  {SectionIcon && <SectionIcon size={14} className="text-cyan-400 shrink-0" aria-hidden="true" />}
+                  <span className={section.key === 'classroom-admin' ? 'text-cyan-100 font-black' : ''}>{section.label}</span>
+                </span>
                 <ChevronDown size={15} aria-hidden="true" />
               </summary>
               <div className="grid gap-1 py-1">

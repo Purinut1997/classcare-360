@@ -126,9 +126,12 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
 
   // Filtered items for Quick Launcher Sheet
   const filteredNavItems = useMemo(() => {
-    if (!searchQuery.trim()) return navItems;
+    const visibleItems = navItems.filter(
+      (item) => item.key !== 'parent-access' && item.key !== 'workspace-switch' && item.key !== 'period-locks'
+    );
+    if (!searchQuery.trim()) return visibleItems;
     const q = searchQuery.toLowerCase().trim();
-    return navItems.filter(
+    return visibleItems.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.key.toLowerCase().includes(q)
