@@ -38,36 +38,86 @@ export const SHORTCUT_CATEGORIES = [
     key: 'classroom-admin' as const,
     label: 'ธุรการชั้นเรียน',
     icon: '📁',
-    badge: '⭐ 6 ภารกิจหลัก',
+    badge: '⭐ 6 ภารกิจหลักครูประจำชั้น',
     desc: 'รวม 6 ภารกิจหลักของครูประจำชั้นไว้ในที่เดียว: ทะเบียน เช็กชื่อ สุขภาพ เวร เงินออม และสรุปรายวัน',
+    theme: {
+      frameBg: 'bg-gradient-to-br from-emerald-50/80 via-teal-50/30 to-emerald-50/15',
+      frameBorder: 'border-2 border-emerald-300/90 shadow-sm shadow-emerald-500/5',
+      headerIconBg: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30',
+      headerTitle: 'text-emerald-950',
+      headerBadge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+      headerDesc: 'text-emerald-800/80',
+      divider: 'border-emerald-200/90',
+      tabActive: 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/25',
+    },
   },
   {
     key: 'academic' as const,
     label: 'งานวิชาการ & วัดผล',
     icon: '📚',
-    badge: '5 เมนู',
+    badge: '5 เมนูหลัก',
     desc: 'ตารางสอน สมุดคะแนน ตรวจข้อสอบ OMR ศูนย์วิชาการ และพิมพ์รายงาน ปพ.',
+    theme: {
+      frameBg: 'bg-gradient-to-br from-sky-50/80 via-blue-50/30 to-sky-50/15',
+      frameBorder: 'border-2 border-sky-300/90 shadow-sm shadow-sky-500/5',
+      headerIconBg: 'bg-sky-600 text-white shadow-md shadow-sky-600/30',
+      headerTitle: 'text-sky-950',
+      headerBadge: 'bg-sky-100 text-sky-800 border-sky-300',
+      headerDesc: 'text-sky-800/80',
+      divider: 'border-sky-200/90',
+      tabActive: 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-600/25',
+    },
   },
   {
     key: 'care' as const,
     label: 'ดูแลช่วยเหลือนักเรียน',
     icon: '💖',
-    badge: '3 เมนู',
+    badge: '3 เมนูหลัก',
     desc: 'บันทึกพฤติกรรม ประเมินคุณลักษณะ 8 ประการ และแจ้งเตือนเด็กเสี่ยงขาด/ตก',
+    theme: {
+      frameBg: 'bg-gradient-to-br from-rose-50/80 via-pink-50/30 to-rose-50/15',
+      frameBorder: 'border-2 border-rose-300/90 shadow-sm shadow-rose-500/5',
+      headerIconBg: 'bg-rose-500 text-white shadow-md shadow-rose-500/30',
+      headerTitle: 'text-rose-950',
+      headerBadge: 'bg-rose-100 text-rose-800 border-rose-300',
+      headerDesc: 'text-rose-800/80',
+      divider: 'border-rose-200/90',
+      tabActive: 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-600/25',
+    },
   },
   {
     key: 'tools' as const,
     label: 'เครื่องมือช่วยสอน',
     icon: '🛠️',
-    badge: '2 เมนู',
+    badge: '2 เมนูหลัก',
     desc: 'วงล้อสุ่มนักเรียน & จัดกลุ่ม และปฏิทินโรงเรียน',
+    theme: {
+      frameBg: 'bg-gradient-to-br from-amber-50/80 via-yellow-50/30 to-amber-50/15',
+      frameBorder: 'border-2 border-amber-300/90 shadow-sm shadow-amber-500/5',
+      headerIconBg: 'bg-amber-500 text-white shadow-md shadow-amber-500/30',
+      headerTitle: 'text-amber-950',
+      headerBadge: 'bg-amber-100 text-amber-800 border-amber-300',
+      headerDesc: 'text-amber-800/80',
+      divider: 'border-amber-200/90',
+      tabActive: 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600/25',
+    },
   },
   {
     key: 'admin' as const,
     label: 'ตั้งค่าโรงเรียน & ระบบ',
     icon: '⚙️',
-    badge: '4 เมนู',
+    badge: '4 เมนูหลัก',
     desc: 'ศูนย์จัดการโรงเรียน ปิดชั้นและคลังปีการศึกษา นำเข้า & ส่งออกข้อมูล DMC และสำรองข้อมูล & กู้คืน',
+    theme: {
+      frameBg: 'bg-gradient-to-br from-slate-100/90 via-slate-50/50 to-slate-100/25',
+      frameBorder: 'border-2 border-slate-300/90 shadow-sm shadow-slate-500/5',
+      headerIconBg: 'bg-slate-700 text-white shadow-md shadow-slate-700/30',
+      headerTitle: 'text-slate-900',
+      headerBadge: 'bg-slate-200 text-slate-800 border-slate-300',
+      headerDesc: 'text-slate-700/80',
+      divider: 'border-slate-200/90',
+      tabActive: 'bg-slate-800 text-white shadow-sm ring-2 ring-slate-800/25',
+    },
   },
 ] as const;
 
@@ -546,6 +596,18 @@ export function EasyShortcutHub({
     };
   }, [allShortcuts]);
 
+  // จัดกลุ่มเมนูตามหมวดหมู่เพื่อแสดงในกรอบสี
+  const groupedSections = useMemo(() => {
+    return SHORTCUT_CATEGORIES.map((cat) => {
+      if (activeCategory !== 'all' && cat.key !== activeCategory) {
+        return null;
+      }
+      const items = filteredShortcuts.filter((item) => item.category === cat.key);
+      if (items.length === 0) return null;
+      return { category: cat, items };
+    }).filter((section): section is { category: (typeof SHORTCUT_CATEGORIES)[number]; items: ShortcutItem[] } => Boolean(section));
+  }, [filteredShortcuts, activeCategory]);
+
   const quickFilterTags = [
     { label: '🟢 เช็กชื่อเช้า', query: 'เช็กชื่อ' },
     { label: '📷 ตรวจข้อสอบ OMR', query: 'ข้อสอบ' },
@@ -564,7 +626,7 @@ export function EasyShortcutHub({
       <Link
         key={item.id}
         to={item.path}
-        className={`group relative flex flex-col justify-between rounded-3xl border bg-gradient-to-br ${item.accentColor.bg} ${item.accentColor.border} ${item.accentColor.hoverBorder} p-4 sm:p-5 shadow-2xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]`}
+        className={`group relative flex flex-col justify-between rounded-2xl sm:rounded-3xl border ${item.accentColor.border} ${item.accentColor.hoverBorder} bg-white/95 hover:bg-white p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]`}
       >
         <div>
           <div className="flex items-start justify-between gap-3">
@@ -589,7 +651,7 @@ export function EasyShortcutHub({
           </p>
         </div>
 
-        <div className={`mt-4 flex items-center justify-between border-t border-slate-200/60 pt-3 text-xs font-black ${item.accentColor.text}`}>
+        <div className={`mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-black ${item.accentColor.text}`}>
           <span>เข้าใช้งาน</span>
           <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
         </div>
@@ -859,7 +921,7 @@ export function EasyShortcutHub({
                   onClick={() => setActiveCategory(cat.key)}
                   className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
                     isActive
-                      ? 'bg-teal-700 text-white shadow-sm ring-2 ring-teal-700/20'
+                      ? cat.theme.tabActive
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -889,39 +951,46 @@ export function EasyShortcutHub({
           </div>
         </div>
 
-        {/* 🗂️ Grid of Shortcuts */}
-        {activeCategory === 'all' && !searchQuery ? (
-          /* Grouped by Section when viewing All */
-          <div className="space-y-8">
-            {SHORTCUT_CATEGORIES.map((cat) => {
-              const itemsInCat = allShortcuts.filter((item) => item.category === cat.key);
-              if (itemsInCat.length === 0) return null;
-              return (
-                <div key={cat.key} className="space-y-3.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 border-b border-slate-200/90 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{cat.icon}</span>
-                      <h3 className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
-                        {cat.label}
-                      </h3>
-                      <span className="rounded-full bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-0.5 text-xs font-black">
-                        {itemsInCat.length} เมนู
-                      </span>
+        {/* 🗂️ Grid of Shortcuts Grouped by Distinct Colored Category Frames */}
+        {groupedSections.length > 0 ? (
+          <div className="space-y-6 sm:space-y-8">
+            {groupedSections.map(({ category: cat, items }) => (
+              <div
+                key={cat.key}
+                id={`cat-frame-${cat.key}`}
+                className={`relative overflow-hidden rounded-3xl border-2 ${cat.theme.frameBorder} ${cat.theme.frameBg} p-4 sm:p-6 transition-all duration-300`}
+              >
+                {/* 🏷️ Distinct Category Header inside Frame */}
+                <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 mb-4 border-b ${cat.theme.divider}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${cat.theme.headerIconBg} text-xl`}>
+                      {cat.icon}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className={`text-base sm:text-lg font-black tracking-tight ${cat.theme.headerTitle}`}>
+                          {cat.label}
+                        </h3>
+                        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-2xs ${cat.theme.headerBadge}`}>
+                          {cat.badge}
+                        </span>
+                        <span className="rounded-full bg-white/90 border border-slate-200/80 text-slate-700 px-2.5 py-0.5 text-[11px] font-black">
+                          {items.length} เมนู
+                        </span>
+                      </div>
+                      <p className={`mt-0.5 text-xs font-semibold ${cat.theme.headerDesc}`}>
+                        {cat.desc}
+                      </p>
                     </div>
-                    <span className="text-xs font-bold text-slate-500 hidden sm:inline">{cat.desc}</span>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {itemsInCat.map(renderCard)}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : filteredShortcuts.length > 0 ? (
-          /* Flat Grid when Filtering by Category or Searching */
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredShortcuts.map(renderCard)}
+
+                {/* 🎴 Cards Grid inside Frame */}
+                <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {items.map(renderCard)}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center">
