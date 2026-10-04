@@ -188,15 +188,14 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
             .eq('workspace_id', workspaceId)
             .order('student_code', { ascending: true });
 
-          const master = getPrimaryMasterData(activeName);
-          const expectedCodes = new Set(master.students.map((s) => s.student_code));
-          const validStData = (stData || []).filter((s) => expectedCodes.has(s.student_code));
+          const realStudents = (stData || []) as any[];
 
-          if (validStData.length > 0) {
-            setStudents(validStData);
-            setSelectedCertStudentId(validStData[0].id);
-          } else {
-            // fallback ใช้ Master Template ของชั้นนั้นถ้ายังไม่มีนักเรียนในห้องนั้น
+          if (realStudents.length > 0) {
+            setStudents(realStudents);
+            setSelectedCertStudentId(realStudents[0].id);
+          } else if (isDemoSession(session)) {
+            // fallback ใช้ Master Template เฉพาะในโหมด demo
+            const master = getPrimaryMasterData(activeName);
             const mapped = master.students.map((st, idx) => ({
               id: `st-${st.student_code}`,
               student_code: st.student_code,
@@ -215,6 +214,10 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
             }));
             setStudents(mapped);
             setSelectedCertStudentId(mapped[0]?.id || '');
+          } else {
+            // Real workspace with 0 students
+            setStudents([]);
+            setSelectedCertStudentId('');
           }
         }
       }

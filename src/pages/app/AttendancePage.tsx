@@ -144,17 +144,17 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const demoMode = isDemoSession(session);
   const feedback = useSystemFeedback();
   const [mode, setMode] = useState<AttendanceMode>('homeroom');
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
+  const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
   const [attendanceSession, setAttendanceSession] = useState<AttendanceSessionRow | null>(null);
   const [records, setRecords] = useState<AttendanceRecordRow[]>([]);
-  const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
+  const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
   const [attendanceDate, setAttendanceDate] = useState(getTodayDate());
   const [editSessionDate, setEditSessionDate] = useState('');
   const [periodLabel, setPeriodLabel] = useState('เช้า');
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
   const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule(session.workspace?.id));
-  const [marks, setMarks] = useState<Record<string, AttendanceStatus>>(() => createDefaultMarks(demoStudents));
+  const [marks, setMarks] = useState<Record<string, AttendanceStatus>>(() => createDefaultMarks(demoMode ? demoStudents : []));
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -169,6 +169,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
   const classroomStudents = useMemo(() => {
     const rawClassroomStudents = students.filter((student) => student.classroom_id === classroomId);
+    // In real workspaces (non-demo), strictly show only the workspace's real students
+    if (!demoMode && session.workspace) {
+      return rawClassroomStudents;
+    }
+
     if (!selectedClassroom) return rawClassroomStudents;
 
     const master = getPrimaryMasterData(selectedClassroom.name);
@@ -198,16 +203,20 @@ export function AttendancePage({ session }: AttendancePageProps) {
       });
     }
 
-    // Fallback if no students loaded yet
-    return master.students.map((st) => ({
-      id: `fallback-${st.student_code}`,
-      student_code: st.student_code,
-      first_name: st.first_name,
-      last_name: st.last_name,
-      nickname: st.first_name.slice(0, 3),
-      classroom_id: classroomId,
-    }));
-  }, [classroomId, selectedClassroom, students]);
+    // Fallback if no students loaded yet (ONLY in standalone demo mode)
+    if (demoMode) {
+      return master.students.map((st) => ({
+        id: `fallback-${st.student_code}`,
+        student_code: st.student_code,
+        first_name: st.first_name,
+        last_name: st.last_name,
+        nickname: st.first_name.slice(0, 3),
+        classroom_id: classroomId,
+      }));
+    }
+
+    return [];
+  }, [classroomId, demoMode, selectedClassroom, session.workspace, students]);
 
   const summary = useMemo(
     () =>

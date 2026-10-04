@@ -1098,14 +1098,14 @@ function nullableValue(value: string) {
 export function StudentsPage({ session }: StudentsPageProps) {
   const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const [searchParams] = useSearchParams();
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
-  const [guardians, setGuardians] = useState<GuardianRow[]>(demoGuardians);
-  const [studentLinks, setStudentLinks] = useState<StudentProfileLinkRow[]>(demoStudentLinks);
-  const [portalInvitations, setPortalInvitations] = useState<PortalInvitationRow[]>(demoPortalInvitations);
-  const [careCases, setCareCases] = useState<StudentCareCaseRow[]>(demoCareCases);
-  const [homeVisits, setHomeVisits] = useState<StudentHomeVisitRow[]>(demoHomeVisits);
-  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>(demoAuditLogs);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(useRealBackend ? [] : demoClassrooms);
+  const [students, setStudents] = useState<StudentRow[]>(useRealBackend ? [] : demoStudents);
+  const [guardians, setGuardians] = useState<GuardianRow[]>(useRealBackend ? [] : demoGuardians);
+  const [studentLinks, setStudentLinks] = useState<StudentProfileLinkRow[]>(useRealBackend ? [] : demoStudentLinks);
+  const [portalInvitations, setPortalInvitations] = useState<PortalInvitationRow[]>(useRealBackend ? [] : demoPortalInvitations);
+  const [careCases, setCareCases] = useState<StudentCareCaseRow[]>(useRealBackend ? [] : demoCareCases);
+  const [homeVisits, setHomeVisits] = useState<StudentHomeVisitRow[]>(useRealBackend ? [] : demoHomeVisits);
+  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>(useRealBackend ? [] : demoAuditLogs);
   const [query, setQuery] = useState('');
   // เริ่มต้นที่ห้องที่ปรึกษาของครู (demo) — จะถูก override ด้วย homeroom จาก Supabase หลัง loadRoster
   const [rosterClassroomFilter, setRosterClassroomFilter] = useState(() => {
@@ -1113,11 +1113,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
     return scope.defaultClassroomId || 'all';
   });
   const [rosterStatusFilter, setRosterStatusFilter] = useState<StudentStatus | 'all'>('active');
-  const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
+  const [selectedStudentId, setSelectedStudentId] = useState(useRealBackend ? '' : demoStudents[0].id);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [studentForm, setStudentForm] = useState(() => emptyStudentForm(demoClassrooms[0].id));
+  const [studentForm, setStudentForm] = useState(() => emptyStudentForm(useRealBackend ? '' : demoClassrooms[0].id));
   const [classroomName, setClassroomName] = useState(session.workspace?.classroomName || 'ป.5/2');
   const [gradeLevel, setGradeLevel] = useState('ป.5');
   const [academicYear, setAcademicYear] = useState(session.workspace?.academicYear || '2569');
@@ -1270,13 +1270,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
     const activeFilterClassroom = rosterClassroomFilter !== 'all'
       ? classrooms.find((c) => c.id === rosterClassroomFilter)
       : null;
-    const master = activeFilterClassroom ? getPrimaryMasterData(activeFilterClassroom.name) : null;
+    const master = (!useRealBackend && activeFilterClassroom) ? getPrimaryMasterData(activeFilterClassroom.name) : null;
     const expectedCodes = master ? new Set(master.students.map((s) => s.student_code)) : null;
 
     return students.filter((student) => {
       if (rosterStatusFilter !== 'all' && student.status !== rosterStatusFilter) return false;
 
-      if (expectedCodes && expectedCodes.size > 0) {
+      if (!useRealBackend && expectedCodes && expectedCodes.size > 0) {
         if (!student.student_code || !expectedCodes.has(student.student_code)) return false;
       } else if (rosterClassroomFilter !== 'all' && student.classroom_id !== rosterClassroomFilter) {
         return false;
@@ -1347,8 +1347,9 @@ export function StudentsPage({ session }: StudentsPageProps) {
   }, [students]);
 
   // ตรวจนักเรียนที่อยู่ผิดชั้นเรียน โดย cross-check รหัสนักเรียนกับ master template ของโรงเรียน
-  // (P4/P5/P6 เฉพาะ รร.บ้านโคกสูง) — ถ้าขยายโรงเรียนให้ย้าย logic นี้ไปเป็น config-driven
+  // (P4/P5/P6 เฉพาะ รร.บ้านโคกสูง ในโหมด demo เท่านั้น)
   const wrongRoomStudents = useMemo(() => {
+    if (useRealBackend) return [];
     const p4Codes = new Set(P4_MASTER_DATA.students.map((s) => s.student_code));
     const p5Codes = new Set(P5_MASTER_DATA.students.map((s) => s.student_code));
     const p6Codes = new Set(P6_MASTER_DATA.students.map((s) => s.student_code));
@@ -1368,7 +1369,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       if (p6Codes.has(student.student_code) && !isRoomP6) return true;
       return false;
     });
-  }, [classrooms, students]);
+  }, [classrooms, students, useRealBackend]);
 
   const [isRealigning, setIsRealigning] = useState(false);
   const autoRealignRef = useRef(false);

@@ -367,13 +367,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [cloneSourceClassroomId, setCloneSourceClassroomId] = useState('');
   const [cloneTargetClassroomIds, setCloneTargetClassroomIds] = useState<string[]>([]);
 
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
-  const [assessments, setAssessments] = useState<ScoreAssessmentRow[]>(demoAssessments);
-  const [entries, setEntries] = useState<ScoreEntryRow[]>(demoEntries);
-  const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
-  const [selectedAssessmentId, setSelectedAssessmentId] = useState(demoAssessments[0].id);
-  const [subjectFilter, setSubjectFilter] = useState(demoAssessments[0].subject_name);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
+  const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
+  const [assessments, setAssessments] = useState<ScoreAssessmentRow[]>(demoMode ? demoAssessments : []);
+  const [entries, setEntries] = useState<ScoreEntryRow[]>(demoMode ? demoEntries : []);
+  const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState(demoMode ? demoAssessments[0]?.id || '' : '');
+  const [subjectFilter, setSubjectFilter] = useState(demoMode ? demoAssessments[0]?.subject_name || '' : '');
   const [scoreView, setScoreView] = useState<ScoreView>(initialScoreView);
   const [searchTerm, setSearchTerm] = useState('');
   const [scores, setScores] = useState<Record<string, string>>({});
@@ -510,6 +510,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
   const classroomStudents = useMemo(() => {
     const rawClassroomStudents = students.filter((student) => student.classroom_id === classroomId);
+    // In real workspaces (non-demo), strictly show only the workspace's real students
+    if (!demoMode && session.workspace) {
+      return rawClassroomStudents;
+    }
+
     if (!activeClassroom) return rawClassroomStudents;
 
     const master = getPrimaryMasterData(activeClassroom.name);
@@ -539,16 +544,20 @@ export function ScoresPage({ session }: ScoresPageProps) {
       });
     }
 
-    // Fallback if no students loaded yet
-    return master.students.map((st) => ({
-      id: `fallback-${st.student_code}`,
-      student_code: st.student_code,
-      first_name: st.first_name,
-      last_name: st.last_name,
-      nickname: st.first_name.slice(0, 3),
-      classroom_id: classroomId,
-    }));
-  }, [activeClassroom, classroomId, students]);
+    // Fallback if no students loaded yet (ONLY in standalone demo mode)
+    if (demoMode) {
+      return master.students.map((st) => ({
+        id: `fallback-${st.student_code}`,
+        student_code: st.student_code,
+        first_name: st.first_name,
+        last_name: st.last_name,
+        nickname: st.first_name.slice(0, 3),
+        classroom_id: classroomId,
+      }));
+    }
+
+    return [];
+  }, [activeClassroom, classroomId, demoMode, session.workspace, students]);
 
   const classroomAssessments = useMemo(
     () =>

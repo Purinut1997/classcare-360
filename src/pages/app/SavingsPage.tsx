@@ -178,12 +178,12 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 
 export function SavingsPage({ session }: SavingsPageProps) {
   const demoMode = isDemoSession(session);
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
-  const [accounts, setAccounts] = useState<SavingsAccountRow[]>(demoAccounts);
-  const [transactions, setTransactions] = useState<SavingsTransactionRow[]>(demoTransactions);
-  const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
-  const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
+  const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
+  const [accounts, setAccounts] = useState<SavingsAccountRow[]>(demoMode ? demoAccounts : []);
+  const [transactions, setTransactions] = useState<SavingsTransactionRow[]>(demoMode ? demoTransactions : []);
+  const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
+  const [selectedStudentId, setSelectedStudentId] = useState(demoMode ? demoStudents[0]?.id || '' : '');
   const [searchTerm, setSearchTerm] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'homeroom' | 'all'>('homeroom');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));

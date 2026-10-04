@@ -149,45 +149,52 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
         .eq('workspace_id', workspaceId)
         .order('student_code', { ascending: true });
 
-      const master = getPrimaryMasterData(currentClassroomName);
-      const expectedCodes = new Set(master.students.map((s) => s.student_code));
-      const validRealStudents = (stData || []).filter((s) => expectedCodes.has(s.student_code));
+      const realStudents = (stData || []) as any[];
 
-      if (validRealStudents.length === 0) {
-        // Fallback to Master Template of current classroom if students table is not yet seeded or has wrong-room data
-        const calculated: StudentPromotionStatus[] = master.students.map((st, idx) => {
-          const attPct = 88 + ((idx * 7) % 12);
-          const evalRes = evaluatePromotionDecision({
-            attendancePercentage: attPct,
-            failedBasicSubjectCount: 0,
-            hasPassedCharacteristics: true,
-            hasPassedActivities: true,
-            currentGradeLevel: gradeLevel,
+      if (realStudents.length === 0) {
+        if (isDemoSession(session)) {
+          // Fallback to Master Template of current classroom if demo session
+          const master = getPrimaryMasterData(currentClassroomName);
+          const calculated: StudentPromotionStatus[] = master.students.map((st, idx) => {
+            const attPct = 88 + ((idx * 7) % 12);
+            const evalRes = evaluatePromotionDecision({
+              attendancePercentage: attPct,
+              failedBasicSubjectCount: 0,
+              hasPassedCharacteristics: true,
+              hasPassedActivities: true,
+              currentGradeLevel: gradeLevel,
+            });
+
+            return {
+              studentId: `st-${st.student_code}`,
+              studentCode: st.student_code,
+              studentName: `${st.title}${st.first_name} ${st.last_name}`,
+              currentClassroom: currentClassroomName,
+              currentGradeLevel: gradeLevel,
+              attendancePercentage: attPct,
+              hasPassedAllBasicSubjects: true,
+              hasPassedCharacteristics: true,
+              hasPassedActivities: true,
+              decision: evalRes.decision,
+              targetGradeLevel: evalRes.targetGradeLevel,
+              notes: evalRes.reasons.join(', '),
+            };
           });
 
-          return {
-            studentId: `st-${st.student_code}`,
-            studentCode: st.student_code,
-            studentName: `${st.title}${st.first_name} ${st.last_name}`,
-            currentClassroom: currentClassroomName,
-            currentGradeLevel: gradeLevel,
-            attendancePercentage: attPct,
-            hasPassedAllBasicSubjects: true,
-            hasPassedCharacteristics: true,
-            hasPassedActivities: true,
-            decision: evalRes.decision,
-            targetGradeLevel: evalRes.targetGradeLevel,
-            notes: evalRes.reasons.join(', '),
-          };
-        });
+          setStudentsStatus(calculated);
+          setAuditIssues([]);
+          setLoading(false);
+          return;
+        }
 
-        setStudentsStatus(calculated);
+        // Real workspace with 0 students in classroom
+        setStudentsStatus([]);
         setAuditIssues([]);
         setLoading(false);
         return;
       }
 
-      const calculated: StudentPromotionStatus[] = validRealStudents.map((st, idx) => {
+      const calculated: StudentPromotionStatus[] = realStudents.map((st, idx) => {
         const attPct = 90;
         const evalRes = evaluatePromotionDecision({
           attendancePercentage: attPct,

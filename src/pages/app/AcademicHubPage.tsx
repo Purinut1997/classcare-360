@@ -206,8 +206,8 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
           };
         });
         setStudents(mapped);
-      } else {
-        // Fallback to genuine Master Data for this room (P.4: 16 คน, P.5: 20 คน, P.6: 16 คน)
+      } else if (isDemo || !workspaceId) {
+        // Fallback to genuine Master Data for this room (P.4: 16 คน, P.5: 20 คน, P.6: 16 คน) - ONLY in demo mode
         const mappedStudents: StudentAcademicSummary[] = master.students.map((st, idx) => {
           const seed = (st.student_code.charCodeAt(0) * 17 + idx * 31) % 100;
           const attRate = 78 + (seed % 22);
@@ -227,6 +227,9 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
           };
         });
         setStudents(mappedStudents);
+      } else {
+        // Real school workspace has 0 students in this room
+        setStudents([]);
       }
     } catch (err) {
       console.error('Failed to load students', err);
@@ -364,8 +367,9 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       sub.is_basic ? 'วิชาพื้นฐาน' : 'วิชาเพิ่มเติม',
     ]);
 
+    const schoolLabel = session.workspace?.name || 'โรงเรียน';
     const success = await copyTableToExcelClipboard({
-      title: `โครงสร้าง 10 รายวิชา ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
+      title: `โครงสร้าง 10 รายวิชา ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} ${schoolLabel} ปีการศึกษา ${selectedYear}`,
       headers,
       rows,
     });
@@ -390,10 +394,11 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       sub.is_basic ? 'วิชาพื้นฐาน' : 'วิชาเพิ่มเติม',
     ]);
 
+    const schoolLabel = session.workspace?.name || 'โรงเรียน';
     await exportTableToXlsxFile({
-      filename: `โครงสร้างรายวิชา_${selectedClassroom?.name || 'ป.5'}_รร.บ้านโคกสูง`,
+      filename: `โครงสร้างรายวิชา_${selectedClassroom?.name || 'ป.5'}_${schoolLabel}`,
       sheetName: `รายวิชา ${selectedClassroom?.name || 'ป.5'}`,
-      title: `โครงสร้าง 10 รายวิชา ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} รร.บ้านโคกสูง ปีการศึกษา ${selectedYear}`,
+      title: `โครงสร้าง 10 รายวิชา ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} ${schoolLabel} ปีการศึกษา ${selectedYear}`,
       headers,
       rows,
     });
@@ -499,25 +504,29 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
               </select>
             </div>
 
-            <button
-              onClick={handleSyncGradeMaster}
-              disabled={isSyncing}
-              title={`โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'} รร.บ้านโคกสูง (${getPrimaryMasterData(selectedClassroom?.name || 'ป.5').students.length} คน 10 วิชา)`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-xs font-black text-white shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
-            >
-              <Zap size={13} className={isSyncing ? 'animate-spin' : ''} />
-              <span>{isSyncing ? 'กำลังโหลด...' : `⚡ โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'}`}</span>
-            </button>
+            {isDemo && (
+              <>
+                <button
+                  onClick={handleSyncGradeMaster}
+                  disabled={isSyncing}
+                  title={`โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'} รร.บ้านโคกสูง (${getPrimaryMasterData(selectedClassroom?.name || 'ป.5').students.length} คน 10 วิชา)`}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-xs font-black text-white shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
+                >
+                  <Zap size={13} className={isSyncing ? 'animate-spin' : ''} />
+                  <span>{isSyncing ? 'กำลังโหลด...' : `⚡ โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'}`}</span>
+                </button>
 
-            <button
-              onClick={handleAutoRealign}
-              disabled={isSyncing}
-              title="จัดระเบียบและย้ายนักเรียนเข้าห้องที่ถูกต้องโดยอัตโนมัติ (ป.4 = 16 คน, ป.5 = 20 คน, ป.6 = 16 คน)"
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 text-xs font-black text-white shadow-lg shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
-            >
-              <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
-              <span>{isSyncing ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
-            </button>
+                <button
+                  onClick={handleAutoRealign}
+                  disabled={isSyncing}
+                  title="จัดระเบียบและย้ายนักเรียนเข้าห้องที่ถูกต้องโดยอัตโนมัติ (ป.4 = 16 คน, ป.5 = 20 คน, ป.6 = 16 คน)"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 text-xs font-black text-white shadow-lg shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
+                >
+                  <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
+                  <span>{isSyncing ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

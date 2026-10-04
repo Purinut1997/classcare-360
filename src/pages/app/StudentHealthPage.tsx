@@ -124,17 +124,17 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
   const requestedClassroomId = searchParams.get('classroomId');
   const initialMode = modeOptions.some((option) => option.value === requestedMode) ? requestedMode as HealthMode : 'toothbrushing';
   const [mode, setMode] = useState<HealthMode>(initialMode);
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
-  const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
+  const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
+  const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
   const [recordDate, setRecordDate] = useState(getBangkokDate());
   const [routineMarks, setRoutineMarks] = useState<Record<RoutineMode, Record<string, RoutineStatus>>>(() => ({
-    toothbrushing: createRoutineState(demoStudents),
-    milk: createRoutineState(demoStudents),
-    lunch: createRoutineState(demoStudents),
+    toothbrushing: createRoutineState(demoMode ? demoStudents : []),
+    milk: createRoutineState(demoMode ? demoStudents : []),
+    lunch: createRoutineState(demoMode ? demoStudents : []),
   }));
   const [growthValues, setGrowthValues] = useState<Record<string, { height: string; weight: string }>>({});
-  const [inspectionValues, setInspectionValues] = useState<Record<string, Record<InspectionKey, InspectionStatus>>>(() => createInspectionState(demoStudents));
+  const [inspectionValues, setInspectionValues] = useState<Record<string, Record<InspectionKey, InspectionStatus>>>(() => createInspectionState(demoMode ? demoStudents : []));
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า Supabase เพื่อบันทึกข้อมูลจริง');

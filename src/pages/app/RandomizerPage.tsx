@@ -160,15 +160,15 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 
 export function RandomizerPage({ session }: RandomizerPageProps) {
   const demoMode = isDemoSession(session);
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
-  const [history, setHistory] = useState<RandomizerSessionRow[]>(demoHistory);
-  const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
+  const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
+  const [history, setHistory] = useState<RandomizerSessionRow[]>(demoMode ? demoHistory : []);
+  const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
   const [mode, setMode] = useState<RandomizerMode>('single');
   const [pickCount, setPickCount] = useState('1');
   const [groupSize, setGroupSize] = useState('3');
   const [title, setTitle] = useState('สุ่มกิจกรรมในห้องเรียน');
-  const [currentResult, setCurrentResult] = useState<RandomizerResult | null>(demoHistory[0].result);
+  const [currentResult, setCurrentResult] = useState<RandomizerResult | null>(demoMode ? demoHistory[0]?.result || null : null);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(

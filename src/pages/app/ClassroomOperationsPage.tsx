@@ -39,6 +39,7 @@ import {
   buildOfficialSignaturesHtml,
 } from "../../lib/officialReport";
 import { loadSchoolReportIdentity } from "../../lib/scheduleSettings";
+import { isDemoSession } from "../../lib/auth";
 import { hasWorkspaceCapability } from "../../lib/roles";
 import { isSupabaseReady, supabase } from "../../lib/supabaseClient";
 import { getTeacherClassroomScope } from "../../lib/teacherClassrooms";
@@ -238,10 +239,11 @@ export function ClassroomOperationsPage({
     return mode === "locks" ? "locks" : mode === "year" ? "rollover" : mode === "parent" ? "parent-qr" : "duty";
   });
   const canManageDuty = hasWorkspaceCapability(session, "duty.manage");
-  const [classrooms, setClassrooms] = useState<Classroom[]>(demoClassrooms);
-  const [students, setStudents] = useState<Student[]>(demoStudents);
+  const isDemo = isDemoSession(session);
+  const [classrooms, setClassrooms] = useState<Classroom[]>(isDemo ? demoClassrooms : []);
+  const [students, setStudents] = useState<Student[]>(isDemo ? demoStudents : []);
   const [classroomId, setClassroomId] = useState(
-    session.workspace?.id ? "" : "demo-room",
+    isDemo ? "demo-room" : "",
   );
   const [scopeFilter, setScopeFilter] = useState<"homeroom" | "all">("homeroom");
 

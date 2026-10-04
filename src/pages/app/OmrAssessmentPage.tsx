@@ -19,7 +19,7 @@ import type { AnswerSheetConfig, AnswerSheetLayout, ChoiceLabelType, ScannedExam
 import { CHOICE_KEYS_ABCD } from '../../lib/omrEngine';
 import { writeAuditLog } from '../../lib/auditLog';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
-import { withDemoContext } from '../../lib/auth';
+import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
 import { AnswerSheetDesigner } from '../../components/omr/AnswerSheetDesigner';
 import { OmrScanner } from '../../components/omr/OmrScanner';
@@ -148,8 +148,8 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
         }
       }
 
-      // Demo fallback
-      if (isMounted) {
+      // Demo fallback only in demo session or when no workspace is selected
+      if (isMounted && (!session?.workspace?.id || isDemoSession(session))) {
         setClassrooms(DEMO_PRIMARY_CLASSROOMS);
         setSelectedClassroomId(DEMO_PRIMARY_CLASSROOMS[1].id); // ป.5
         setStudents(DEMO_PRIMARY_STUDENTS);

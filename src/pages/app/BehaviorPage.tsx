@@ -153,11 +153,11 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 
 export function BehaviorPage({ session }: BehaviorPageProps) {
   const demoMode = isDemoSession(session);
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
-  const [students, setStudents] = useState<StudentRow[]>(demoStudents);
-  const [records, setRecords] = useState<BehaviorRecordRow[]>(demoBehaviorRecords);
-  const [classroomId, setClassroomId] = useState(demoClassrooms[0].id);
-  const [selectedStudentId, setSelectedStudentId] = useState(demoStudents[0].id);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
+  const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
+  const [records, setRecords] = useState<BehaviorRecordRow[]>(demoMode ? demoBehaviorRecords : []);
+  const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
+  const [selectedStudentId, setSelectedStudentId] = useState(demoMode ? demoStudents[0]?.id || '' : '');
   const [searchTerm, setSearchTerm] = useState('');
   const [toneFilter, setToneFilter] = useState<'all' | BehaviorTone>('all');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
