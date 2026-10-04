@@ -1,7 +1,32 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Archive, Building2, CheckCircle2, ClipboardCheck, Download, FileUp, Filter, Info, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, Users, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Archive,
+  BookOpen,
+  Building2,
+  Check,
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  Download,
+  FileSpreadsheet,
+  FileUp,
+  Filter,
+  HelpCircle,
+  Info,
+  RotateCcw,
+  Save,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Upload,
+  Users,
+  X,
+} from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
 
+import { exportTableToXlsxFile } from '../../lib/excelClipboard';
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
 import { translateDatabaseError } from '../../lib/errorTranslator';
@@ -207,38 +232,22 @@ function parseCsvLine(line: string) {
   return values;
 }
 
-function parseStudentCsv(text: string, existingCodes: Set<string>) {
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim());
-  const [headerLine, ...rows] = lines;
-  const headers = parseCsvLine(headerLine || '').map((header) => header.trim());
-
-  return rows.map((line, index) => {
-    const values = parseCsvLine(line);
-    const record = Object.fromEntries(headers.map((header, valueIndex) => [header, values[valueIndex] || '']));
-    const studentCode = String(record.student_code || '').trim();
-    const firstName = String(record.first_name || '').trim();
-    const lastName = String(record.last_name || '').trim();
-    const classroomName = String(record.classroom_name || '').trim();
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    if (!firstName) errors.push('ไม่มี first_name');
-    if (!lastName) errors.push('ไม่มี last_name');
-    if (!classroomName) errors.push('ไม่มี classroom_name');
-    if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
-
-    return {
-      classroomName,
-      errors,
-      firstName,
-      lastName,
-      nickname: String(record.nickname || '').trim(),
-      rowNumber: index + 2,
-      source: 'csv' as const,
-      studentCode,
-      warnings,
-    };
+function parseStudentCsv(text: string, existingCodes: Set<string>, defaultClassroomName = 'ป.5/1') {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return [];
+  const rows = lines.map((line) => {
+    if (line.includes('\t')) return line.split('\t').map((c) => c.trim());
+    return parseCsvLine(line);
   });
+  return parseGeneralExcelRows(rows, existingCodes, defaultClassroomName);
+}
+
+function parsePastedRosterText(
+  pastedText: string,
+  existingCodes: Set<string>,
+  defaultClassroomName = 'ป.5/1'
+): PreviewRow[] {
+  return parseStudentCsv(pastedText, existingCodes, defaultClassroomName);
 }
 
 function normalizeCell(value: unknown) {
@@ -251,8 +260,8 @@ function normalizeHeader(value: unknown) {
 
 function normalizeGender(value: unknown): PreviewRow['gender'] {
   const text = normalizeCell(value);
-  if (['ช', 'ชาย', 'เด็กชาย', 'นาย', 'male'].includes(text.toLowerCase())) return 'male';
-  if (['ญ', 'หญิง', 'เด็กหญิง', 'นางสาว', 'female'].includes(text.toLowerCase())) return 'female';
+  if (['ช', 'ชาย', 'เด็กชาย', 'นาย', 'male', 'm'].includes(text.toLowerCase())) return 'male';
+  if (['ญ', 'หญิง', 'เด็กหญิง', 'นางสาว', 'นาง', 'female', 'f'].includes(text.toLowerCase())) return 'female';
   if (!text || text === '-') return 'unspecified';
   return 'other';
 }
@@ -291,49 +300,144 @@ function getColumnIndex(headers: string[], label: string, fallback = -1) {
   return index >= 0 ? index : fallback;
 }
 
-function parseGeneralExcelRows(rows: unknown[][], existingCodes: Set<string>): PreviewRow[] {
+function parseGeneralExcelRows(
+  rows: unknown[][],
+  existingCodes: Set<string>,
+  defaultClassroomName = 'ป.5/1'
+): PreviewRow[] {
+  // Find header row or use row 0
   const headerIndex = rows.findIndex((row) => {
     const headers = row.map(normalizeHeader);
-    const hasFirst = headers.some((h) => h === 'ชื่อ' || h === 'ชื่อจริง' || h === 'first_name' || h === 'firstname' || h === 'ชื่อ-สกุล' || h === 'ชื่อ-นามสกุล');
-    const hasLast = headers.some((h) => h === 'นามสกุล' || h === 'last_name' || h === 'lastname');
-    return hasFirst && (hasLast || headers.some((h) => h.includes('สกุล')));
+    const hasFirst = headers.some((h) =>
+      h === 'ชื่อ' || h === 'ชื่อจริง' || h === 'first_name' || h === 'firstname' || h === 'ชื่อ-สกุล' || h === 'ชื่อ-นามสกุล' || h === 'ชื่อสกุล' || h === 'รายชื่อ'
+    );
+    const hasLast = headers.some((h) => h === 'นามสกุล' || h === 'last_name' || h === 'lastname' || h.includes('สกุล'));
+    return hasFirst || hasLast;
   });
 
   const effectiveHeaderIndex = headerIndex >= 0 ? headerIndex : 0;
-  if (rows.length <= effectiveHeaderIndex + 1) return [];
+  if (rows.length <= effectiveHeaderIndex) return [];
 
   const headers = rows[effectiveHeaderIndex].map(normalizeHeader);
+  const rollNoIndex = headers.findIndex((h) => h === 'เลขที่' || h === 'ลำดับที่' || h === 'ที่' || h === 'no' || h === 'roll_no');
+  const studentCodeIndex = headers.findIndex((h) =>
+    h === 'เลขประจำตัวนักเรียน' || h === 'เลขประจำตัว' || h === 'รหัสนักเรียน' || h === 'รหัส' || h === 'student_code' || h === 'student_id' || h === 'รหัสประจำตัว'
+  );
+  const prefixIndex = headers.findIndex((h) => h === 'คำนำหน้า' || h === 'คำนำหน้าชื่อ' || h === 'คำนำ' || h === 'title' || h === 'prefix');
   const firstNameIndex = headers.findIndex((h) => h === 'ชื่อ' || h === 'ชื่อจริง' || h === 'first_name' || h === 'firstname');
   const lastNameIndex = headers.findIndex((h) => h === 'นามสกุล' || h === 'last_name' || h === 'lastname');
-  const fullNameIndex = headers.findIndex((h) => h === 'ชื่อ-สกุล' || h === 'ชื่อ-นามสกุล' || h === 'ชื่อสกุล' || h === 'fullname' || h === 'ชื่อและนามสกุล');
-  const studentCodeIndex = headers.findIndex((h) => h === 'เลขประจำตัวนักเรียน' || h === 'เลขประจำตัว' || h === 'รหัสนักเรียน' || h === 'รหัส' || h === 'student_code' || h === 'student_id');
-  const classroomIndex = headers.findIndex((h) => h === 'ห้องเรียน' || h === 'ชั้น' || h === 'ห้อง' || h === 'ชั้น/ห้อง' || h === 'classroom_name' || h === 'ระดับชั้น');
+  const fullNameIndex = headers.findIndex((h) => h === 'ชื่อ-สกุล' || h === 'ชื่อ-นามสกุล' || h === 'ชื่อสกุล' || h === 'fullname' || h === 'ชื่อและนามสกุล' || h === 'รายชื่อ');
+  const classroomIndex = headers.findIndex((h) => h === 'ห้องเรียน' || h === 'ชั้น' || h === 'ห้อง' || h === 'ชั้น/ห้อง' || h === 'classroom_name' || h === 'ระดับชั้น' || h === 'ชั้นเรียน');
   const nicknameIndex = headers.findIndex((h) => h === 'ชื่อเล่น' || h === 'nickname');
   const genderIndex = headers.findIndex((h) => h === 'เพศ' || h === 'gender');
+  const birthDateIndex = headers.findIndex((h) => h === 'วันเกิด' || h === 'วัน/เดือน/ปีเกิด' || h === 'birth_date' || h === 'dob');
+  const guardianPhoneIndex = headers.findIndex((h) => h === 'เบอร์โทร' || h === 'เบอร์โทรศัพท์' || h === 'เบอร์โทรผู้ปกครอง' || h === 'phone' || h === 'guardian_phone' || h === 'ติดต่อ');
 
-  return rows.slice(effectiveHeaderIndex + 1).map((row, index) => {
-    let firstName = firstNameIndex >= 0 ? normalizeCell(row[firstNameIndex]) : '';
-    let lastName = lastNameIndex >= 0 ? normalizeCell(row[lastNameIndex]) : '';
+  // If no header row was detected (raw data), detect columns by position
+  const isPositional = headerIndex < 0;
+  const dataRows = isPositional ? rows : rows.slice(effectiveHeaderIndex + 1);
 
-    if (!firstName && fullNameIndex >= 0) {
-      const full = normalizeCell(row[fullNameIndex]);
-      const parts = full.split(/\s+/);
-      firstName = parts[0] || '';
-      lastName = parts.slice(1).join(' ') || '';
+  return dataRows.map((row, index) => {
+    let rollNo = '';
+    let studentCode = '';
+    let rawPrefix = '';
+    let firstName = '';
+    let lastName = '';
+    let classroomName = '';
+    let nickname = '';
+    let gender: PreviewRow['gender'] = 'unspecified';
+    let birthDate: string | null = null;
+    let guardianPhone: string | null = null;
+
+    if (isPositional) {
+      const cells = row.map(normalizeCell).filter(Boolean);
+      if (cells.length === 2) {
+        firstName = cells[0];
+        lastName = cells[1];
+      } else if (cells.length === 3) {
+        if (/^\d+$/.test(cells[0])) {
+          rollNo = cells[0];
+          firstName = cells[1];
+          lastName = cells[2];
+        } else {
+          firstName = cells[0];
+          lastName = cells[1];
+          classroomName = cells[2];
+        }
+      } else if (cells.length === 4) {
+        if (/^\d+$/.test(cells[0]) && /^\d+$/.test(cells[1])) {
+          rollNo = cells[0];
+          studentCode = cells[1];
+          firstName = cells[2];
+          lastName = cells[3];
+        } else if (/^\d+$/.test(cells[0])) {
+          rollNo = cells[0];
+          firstName = cells[1];
+          lastName = cells[2];
+          classroomName = cells[3];
+        } else {
+          firstName = cells[0];
+          lastName = cells[1];
+          nickname = cells[2];
+          classroomName = cells[3];
+        }
+      } else if (cells.length >= 5) {
+        rollNo = cells[0];
+        studentCode = cells[1];
+        firstName = cells[2];
+        lastName = cells[3];
+        classroomName = cells[4];
+      }
+    } else {
+      rollNo = rollNoIndex >= 0 ? normalizeCell(row[rollNoIndex]) : '';
+      studentCode = studentCodeIndex >= 0 ? normalizeCell(row[studentCodeIndex]) : '';
+      rawPrefix = prefixIndex >= 0 ? normalizeCell(row[prefixIndex]) : '';
+      firstName = firstNameIndex >= 0 ? normalizeCell(row[firstNameIndex]) : '';
+      lastName = lastNameIndex >= 0 ? normalizeCell(row[lastNameIndex]) : '';
+      classroomName = classroomIndex >= 0 ? normalizeCell(row[classroomIndex]) : '';
+      nickname = nicknameIndex >= 0 ? normalizeCell(row[nicknameIndex]) : '';
+      gender = genderIndex >= 0 ? normalizeGender(row[genderIndex]) : 'unspecified';
+      birthDate = birthDateIndex >= 0 ? normalizeDmcBirthDate(row[birthDateIndex]) : null;
+      guardianPhone = guardianPhoneIndex >= 0 ? normalizeCell(row[guardianPhoneIndex]) : null;
+
+      if (!firstName && fullNameIndex >= 0) {
+        const full = normalizeCell(row[fullNameIndex]);
+        const parts = full.split(/\s+/);
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+      }
     }
 
-    const studentCode = studentCodeIndex >= 0 ? normalizeCell(row[studentCodeIndex]) : '';
-    const classroomName = classroomIndex >= 0 ? normalizeCell(row[classroomIndex]) : '';
-    const nickname = nicknameIndex >= 0 ? normalizeCell(row[nicknameIndex]) : '';
-    const gender = genderIndex >= 0 ? normalizeGender(row[genderIndex]) : 'unspecified';
+    // Auto-detect prefix & gender from firstName if not provided
+    if (!rawPrefix && firstName) {
+      const prefixMatch = firstName.match(/^(เด็กชาย|เด็กหญิง|ด\.ช\.|ด\.ญ\.|ด\.ช|ด\.ญ|นาย|นางสาว|น\.ส\.|น\.ส|นาง)(.+)$/);
+      if (prefixMatch) {
+        rawPrefix = prefixMatch[1];
+        firstName = prefixMatch[2].trim();
+      }
+    }
+    if (gender === 'unspecified' && rawPrefix) {
+      gender = normalizeGender(rawPrefix);
+    }
+
+    // Classroom fallback
+    if (!classroomName) {
+      classroomName = defaultClassroomName;
+    }
 
     const errors: string[] = [];
     const warnings: string[] = [];
 
     if (!firstName) errors.push('ไม่มีชื่อ');
     if (!lastName) errors.push('ไม่มีนามสกุล');
-    if (!classroomName) errors.push('ไม่มีชั้น/ห้อง');
-    if (studentCode && existingCodes.has(studentCode)) warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
+
+    if (!studentCode) {
+      const fallbackRoll = rollNo ? rollNo.padStart(2, '0') : (index + 1).toString().padStart(2, '0');
+      studentCode = `${classroomName.replace(/[^\wก-๙]/g, '') || 'std'}-${fallbackRoll}`;
+      warnings.push(`ไม่มีเลขประจำตัว (กำหนดรหัสชั่วคราว: ${studentCode})`);
+    } else if (existingCodes.has(studentCode)) {
+      warnings.push('พบข้อมูลเดิม ระบบจะเติมและอัปเดตข้อมูลนักเรียนคนนี้');
+    }
 
     return {
       classroomName,
@@ -342,6 +446,12 @@ function parseGeneralExcelRows(rows: unknown[][], existingCodes: Set<string>): P
       gender,
       lastName,
       nickname,
+      birthDate,
+      metadata: {
+        roll_no: rollNo || undefined,
+        prefix: rawPrefix || undefined,
+        guardian_phone: guardianPhone || undefined,
+      },
       rowNumber: effectiveHeaderIndex + index + 2,
       source: 'csv' as const,
       studentCode,
@@ -634,6 +744,14 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     nickname: '',
     studentCode: '',
   });
+
+  // Manual & Copy-Paste Modes
+  const [manualEntryMode, setManualEntryMode] = useState<'paste' | 'single'>('paste');
+  const [pastedRosterText, setPastedRosterText] = useState('');
+  const [pastedTargetClassroom, setPastedTargetClassroom] = useState(
+    () => session.workspace?.classroomName || demoClassrooms[0]?.name || 'ป.5/1'
+  );
+  const [showSchemaGuideModal, setShowSchemaGuideModal] = useState(false);
   const [guardianPreviewRows, setGuardianPreviewRows] = useState<GuardianPreviewRow[]>([]);
   const [backups, setBackups] = useState<BackupRow[]>([]);
   const [backupPackagePreview, setBackupPackagePreview] = useState<WorkspaceBackupPackage | null>(null);
@@ -820,9 +938,69 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     void reloadData();
   }, [session.workspace, useRealBackend]);
 
+  function exportExcelTemplate() {
+    const headers = [
+      'เลขที่',
+      'เลขประจำตัว',
+      'คำนำหน้า',
+      'ชื่อ',
+      'นามสกุล',
+      'ชื่อเล่น',
+      'ชั้น/ห้อง',
+      'เพศ',
+      'วันเกิด (วว/ดด/ปปปป)',
+      'เบอร์โทรผู้ปกครอง',
+    ];
+
+    const currentClass = session.workspace?.classroomName || 'ป.5/1';
+    const sampleRows = [
+      [1, '10001', 'เด็กชาย', 'กิตติศักดิ์', 'รักการเรียน', 'กิต', currentClass, 'ชาย', '15/05/2557', '0812345678'],
+      [2, '10002', 'เด็กหญิง', 'กัลยาณี', 'มุ่งมั่นศึกษา', 'กิ๊ฟ', currentClass, 'หญิง', '20/08/2557', '0898765432'],
+      [3, '10003', 'เด็กชาย', 'ชลวิทย์', 'เจริญพร', 'บอส', currentClass, 'ชาย', '02/11/2557', '0861112233'],
+    ];
+
+    void exportTableToXlsxFile({
+      filename: 'แบบฟอร์มรายชื่อนักเรียน_ClassCare360.xlsx',
+      sheetName: 'รายชื่อนักเรียน',
+      title: `แบบฟอร์มนำเข้ารายชื่อนักเรียน (${session.workspace?.name || 'ClassCare 360'}) - กรอกแล้วอัปโหลดเข้าระบบได้ทันที`,
+      headers,
+      rows: sampleRows,
+    });
+  }
+
+  function exportCsvTemplate() {
+    const headers = ['เลขที่', 'เลขประจำตัว', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'ชื่อเล่น', 'ชั้น/ห้อง', 'เพศ', 'เบอร์โทรผู้ปกครอง'];
+    const currentClass = session.workspace?.classroomName || 'ป.5/1';
+    const sampleRows = [
+      `1,10001,เด็กชาย,กิตติศักดิ์,รักการเรียน,กิต,${currentClass},ชาย,0812345678`,
+      `2,10002,เด็กหญิง,กัลยาณี,มุ่งมั่นศึกษา,กิ๊ฟ,${currentClass},หญิง,0898765432`,
+      `3,10003,เด็กชาย,ชลวิทย์,เจริญพร,บอส,${currentClass},ชาย,0861112233`,
+    ];
+    const csvContent = '\uFEFF' + [headers.join(','), ...sampleRows].join('\r\n');
+    downloadText('แบบฟอร์มรายชื่อนักเรียน_ClassCare360.csv', csvContent, 'text/csv;charset=utf-8');
+  }
+
   function exportTemplate() {
-    const sample = ['001', 'สมชาย', 'รักเรียน', 'ชาย', session.workspace?.classroomName || 'ป.5/2'];
-    downloadText('classcare-students-template.csv', [templateHeaders.join(','), sample.map(escapeCsv).join(',')].join('\n'), 'text/csv;charset=utf-8');
+    exportExcelTemplate();
+  }
+
+  function handleImportPastedText() {
+    if (!pastedRosterText.trim()) {
+      setNotice('กรุณาวางข้อความรายชื่อนักเรียนจาก Excel ก่อน');
+      return;
+    }
+
+    const targetClass = pastedTargetClassroom.trim() || session.workspace?.classroomName || 'ป.5/1';
+    const parsed = parsePastedRosterText(pastedRosterText, existingCodes, targetClass);
+
+    if (parsed.length === 0) {
+      setNotice('ไม่พบข้อมูลรายชื่อนักเรียนในข้อความที่วาง กรุณาตรวจสอบรูปแบบข้อความ');
+      return;
+    }
+
+    setPreviewRows((current) => [...parsed, ...current]);
+    setPastedRosterText('');
+    setNotice(`แปลงและเพิ่มรายชื่อจากข้อความที่วางจำนวน ${parsed.length} คน เข้าสู่ Preview เรียบร้อยแล้ว`);
   }
 
   function exportGuardianTemplate() {
@@ -856,6 +1034,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const fallbackClass = session.workspace?.classroomName || manualStudent.classroomName || 'ป.5/1';
     try {
       if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet') || file.type.includes('excel')) {
         const rows = await readSheet(file);
@@ -875,14 +1054,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           );
           setNotice(`อ่านไฟล์ Excel DMC "${file.name}" แล้ว พบ ${parsed.classOptions.length} ชั้น/ห้อง กรุณาเลือกชั้นที่ดูแลก่อน import`);
         } else {
-          const generalRows = parseGeneralExcelRows(rowsArray, existingCodes);
+          const generalRows = parseGeneralExcelRows(rowsArray, existingCodes, fallbackClass);
           setPreviewRows(generalRows);
           setNotice(`อ่านไฟล์ Excel "${file.name}" แล้ว พบ ${generalRows.length} รายชื่อ กรุณาตรวจ preview ก่อน import`);
         }
       } else {
         const text = await file.text();
-        setPreviewRows(parseStudentCsv(text, existingCodes));
-        setNotice(`อ่านไฟล์ CSV "${file.name}" แล้ว กรุณาตรวจ preview ก่อน import`);
+        const csvRows = parseStudentCsv(text, existingCodes, fallbackClass);
+        setPreviewRows(csvRows);
+        setNotice(`อ่านไฟล์ CSV "${file.name}" แล้ว พบ ${csvRows.length} รายชื่อ กรุณาตรวจ preview ก่อน import`);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
@@ -907,22 +1087,31 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const fallbackClass = session.workspace?.classroomName || manualStudent.classroomName || 'ป.5/1';
     try {
       const rows = await readSheet(file);
-      const parsed = parseDmcWorkbookRows(rows as unknown[][], existingCodes);
-      const firstClassKey = parsed.classOptions[0]?.key;
-      const initialKeys = firstClassKey ? [firstClassKey] : [];
-      setDmcRows(parsed.previewRows);
-      setDmcClassOptions(parsed.classOptions);
-      setSelectedDmcClassKeys(initialKeys);
-      setPreviewRows(
-        firstClassKey
-          ? parsed.previewRows.filter((row) => `${row.dmcGrade || ''}::${row.dmcRoom || ''}` === firstClassKey)
-          : parsed.previewRows,
-      );
-      setNotice(`อ่านไฟล์ DMC ${file.name} แล้ว พบ ${parsed.classOptions.length} ชั้น/ห้อง กรุณาเลือกชั้นที่ดูแลก่อน import`);
+      const rowsArray = rows as unknown[][];
+      const dmcHeaderIdx = findHeaderIndex(rowsArray);
+      if (dmcHeaderIdx >= 0) {
+        const parsed = parseDmcWorkbookRows(rowsArray, existingCodes);
+        const firstClassKey = parsed.classOptions[0]?.key;
+        const initialKeys = firstClassKey ? [firstClassKey] : [];
+        setDmcRows(parsed.previewRows);
+        setDmcClassOptions(parsed.classOptions);
+        setSelectedDmcClassKeys(initialKeys);
+        setPreviewRows(
+          firstClassKey
+            ? parsed.previewRows.filter((row) => `${row.dmcGrade || ''}::${row.dmcRoom || ''}` === firstClassKey)
+            : parsed.previewRows,
+        );
+        setNotice(`อ่านไฟล์ DMC "${file.name}" แล้ว พบ ${parsed.classOptions.length} ชั้น/ห้อง กรุณาเลือกชั้นที่ดูแลก่อน import`);
+      } else {
+        const generalRows = parseGeneralExcelRows(rowsArray, existingCodes, fallbackClass);
+        setPreviewRows(generalRows);
+        setNotice(`อ่านไฟล์ Excel ทั่วไป "${file.name}" แล้ว พบ ${generalRows.length} รายชื่อ (แปลงเข้าสู่ระบบเรียบร้อย)`);
+      }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ DMC ไม่สำเร็จ');
+      setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
     }
   }
 
@@ -1921,15 +2110,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   type="button"
                 >
                   <FileUp size={17} aria-hidden="true" />
-                  เลือกไฟล์ DMC
+                  เลือกไฟล์ Excel / DMC
                 </button>
                 <button
                   className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
-                  onClick={() => studentCsvInputRef.current?.click()}
+                  onClick={() => setShowSchemaGuideModal(true)}
                   type="button"
                 >
-                  <Upload size={17} aria-hidden="true" />
-                  เลือก CSV
+                  <BookOpen size={17} aria-hidden="true" />
+                  โครงร่างหัวตาราง
                 </button>
                 <button
                   className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
@@ -1951,28 +2140,74 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             </div>
 
+            {/* Quick Helper Ribbon for Teachers without DMC */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-200/80 bg-gradient-to-r from-cyan-50/90 via-sky-50/70 to-indigo-50/90 p-3.5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-600 text-white shadow-sm">
+                  <Sparkles size={18} />
+                </span>
+                <div>
+                  <p className="text-xs font-black text-slate-900">
+                    ครูไม่มีสิทธิ์เข้าถึงระบบ DMC หรือต้องการนำเข้าด่วนจาก Excel?
+                  </p>
+                  <p className="text-[11px] font-bold text-slate-600">
+                    สามารถดาวน์โหลดแม่แบบสำเร็จรูป, คัดลอกตารางมาวาง (Copy & Paste) หรืออัปโหลดไฟล์ Excel ของคุณครูได้ทันที!
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={exportExcelTemplate}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Download size={14} />
+                  ดาวน์โหลดฟอร์ม Excel (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSchemaGuideModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-white px-3.5 py-1.5 text-xs font-black text-cyan-800 shadow-sm transition hover:bg-cyan-50"
+                >
+                  <BookOpen size={14} />
+                  ดูโครงร่างหัวตารางที่รองรับ
+                </button>
+              </div>
+            </div>
+
             <div className="mt-4 grid gap-2 text-sm font-bold text-slate-600 lg:grid-cols-3">
-              <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">1. เลือกไฟล์ DMC/CSV</div>
-              <div className="rounded-2xl bg-cyan-50 px-4 py-3 ring-1 ring-cyan-100">2. เลือกห้องและตรวจ preview</div>
-              <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">3. กดนำเข้ารายชื่อที่ผ่านตรวจ</div>
+              <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">1. อัปโหลดไฟล์ หรือวางจาก Excel</div>
+              <div className="rounded-2xl bg-cyan-50 px-4 py-3 ring-1 ring-cyan-100">2. ตรวจและแก้ไขในตาราง Preview</div>
+              <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">3. กดนำเข้ารายชื่อเข้าห้องเรียนทันที</div>
             </div>
           </section>
 
           <section className="grid gap-5 lg:grid-cols-2">
+          {/* Card 1: Excel / CSV / DMC Upload */}
           <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <FileUp size={16} aria-hidden="true" />
-              DMC Excel
+            <div className="flex items-center justify-between">
+              <div className="nexus-kicker">
+                <FileSpreadsheet size={16} aria-hidden="true" />
+                อัปโหลดไฟล์ Excel / CSV หรือ DMC
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSchemaGuideModal(true)}
+                className="inline-flex items-center gap-1 text-xs font-black text-cyan-700 hover:text-cyan-800 hover:underline"
+              >
+                <HelpCircle size={14} />
+                ดูโครงร่าง
+              </button>
             </div>
-            <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
-              อัปโหลดไฟล์รายชื่อนักเรียนจาก DMC แล้วเลือกชั้น/ห้องที่ครูดูแล ระบบจะ preview เฉพาะนักเรียนห้องนั้นก่อนนำเข้า
+            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+              อัปโหลดไฟล์รายชื่อจาก Excel (.xlsx), CSV ทั่วไป หรือไฟล์ DMC ระบบจะตรวจจับหัวตารางและแยกคำนำหน้า/เพศให้อัตโนมัติ
             </p>
             <label className="mt-4 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-cyan-300 bg-cyan-50/60 p-4 text-center transition hover:bg-white">
               <Upload className="text-cyan-700" size={26} aria-hidden="true" />
-              <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ DMC .xlsx</span>
-              <span className="mt-1 text-xs font-bold text-slate-500">รองรับหัวตาราง: ชั้น, ห้อง, ชื่อ, นามสกุล</span>
+              <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ Excel (.xlsx) / CSV หรือ DMC</span>
+              <span className="mt-1 text-xs font-bold text-slate-500">รองรับหัวตาราง: เลขที่, เลขประจำตัว, คำนำหน้า, ชื่อ, นามสกุล, ชื่อเล่น, ชั้น/ห้อง</span>
               <input
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,text/csv"
                 className="sr-only"
                 onChange={(event) => void handleDmcFileChange(event)}
                 ref={dmcFileInputRef}
@@ -1980,154 +2215,283 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               />
             </label>
 
-            <div className="mt-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-black uppercase text-slate-500">เลือกชั้น/ห้องที่ดูแลได้หลายรายการ</span>
-                <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-cyan-700 ring-1 ring-cyan-100">
-                  {selectedDmcClassKeys.length} ห้อง
-                </span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              <span className="text-xs font-bold text-slate-500">ไม่มีไฟล์เริ่มต้น?</span>
+              <div className="flex items-center gap-2">
                 <button
-                  className="h-9 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={dmcClassOptions.length === 0}
-                  onClick={() => applyDmcClassSelection(dmcClassOptions.map((option) => option.key))}
                   type="button"
+                  onClick={exportExcelTemplate}
+                  className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
                 >
-                  เลือกทั้งหมด
+                  <Download size={13} />
+                  แบบฟอร์ม Excel
                 </button>
                 <button
-                  className="h-9 rounded-2xl bg-white px-3 text-xs font-black text-slate-600 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  disabled={dmcClassOptions.length === 0}
-                  onClick={() => applyDmcClassSelection([])}
                   type="button"
+                  onClick={exportCsvTemplate}
+                  className="inline-flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
                 >
-                  ล้างทั้งหมด
+                  <Download size={13} />
+                  CSV
                 </button>
-              </div>
-              <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1">
-                {dmcClassOptions.length === 0 ? (
-                  <div className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีไฟล์ DMC</div>
-                ) : null}
-                {dmcClassOptions.map((option) => {
-                  const checked = selectedDmcClassKeys.includes(option.key);
-
-                  return (
-                    <label
-                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-3 text-sm font-bold transition ${
-                        checked
-                          ? 'bg-cyan-50 text-cyan-800 ring-1 ring-cyan-100'
-                          : 'bg-white/80 text-slate-600 ring-1 ring-slate-200 hover:bg-white'
-                      }`}
-                      key={option.key}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <input
-                          checked={checked}
-                          className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                          onChange={() => toggleDmcClassSelection(option.key)}
-                          type="checkbox"
-                        />
-                        <span className="truncate">{option.classroomName}</span>
-                      </span>
-                      <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-black text-slate-500 ring-1 ring-slate-200">
-                        {option.count} คน
-                      </span>
-                    </label>
-                  );
-                })}
               </div>
             </div>
+
+            {dmcClassOptions.length > 0 && (
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase text-slate-500">เลือกชั้น/ห้องที่ดูแลได้หลายรายการ (จาก DMC)</span>
+                  <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-cyan-700 ring-1 ring-cyan-100">
+                    {selectedDmcClassKeys.length} ห้อง
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    className="h-9 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                    disabled={dmcClassOptions.length === 0}
+                    onClick={() => applyDmcClassSelection(dmcClassOptions.map((option) => option.key))}
+                    type="button"
+                  >
+                    เลือกทั้งหมด
+                  </button>
+                  <button
+                    className="h-9 rounded-2xl bg-white px-3 text-xs font-black text-slate-600 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    disabled={dmcClassOptions.length === 0}
+                    onClick={() => applyDmcClassSelection([])}
+                    type="button"
+                  >
+                    ล้างทั้งหมด
+                  </button>
+                </div>
+                <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1">
+                  {dmcClassOptions.map((option) => {
+                    const checked = selectedDmcClassKeys.includes(option.key);
+
+                    return (
+                      <label
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-3 text-sm font-bold transition ${
+                          checked
+                            ? 'bg-cyan-50 text-cyan-800 ring-1 ring-cyan-100'
+                            : 'bg-white/80 text-slate-600 ring-1 ring-slate-200 hover:bg-white'
+                        }`}
+                        key={option.key}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <input
+                            checked={checked}
+                            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                            onChange={() => toggleDmcClassSelection(option.key)}
+                            type="checkbox"
+                          />
+                          <span className="truncate">{option.classroomName}</span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-black text-slate-500 ring-1 ring-slate-200">
+                          {option.count} คน
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Card 2: Copy-Paste Text OR Manual Entry */}
+          <div className="nexus-card p-4 sm:p-5">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setManualEntryMode('paste')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+                    manualEntryMode === 'paste'
+                      ? 'bg-cyan-700 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <ClipboardList size={14} />
+                  📋 วางตารางจาก Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualEntryMode('single')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+                    manualEntryMode === 'single'
+                      ? 'bg-cyan-700 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <Users size={14} />
+                  👤 พิมพ์ทีละคน
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSchemaGuideModal(true)}
+                className="text-xs font-black text-cyan-700 hover:underline"
+              >
+                ดูตัวอย่างคอลัมน์
+              </button>
+            </div>
+
+            {manualEntryMode === 'paste' ? (
+              <div className="mt-3.5 space-y-3">
+                <p className="text-xs font-bold leading-5 text-slate-600">
+                  ครูสามารถคลุมดำตารางรายชื่อใน <span className="font-black text-slate-800">Excel</span> หรือ <span className="font-black text-slate-800">Google Sheets</span> แล้วกด <kbd className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-bold text-slate-700">Ctrl+C</kbd> และนำมา <kbd className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-bold text-slate-700">Ctrl+V</kbd> วางในกล่องข้อความได้เลย:
+                </p>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs font-black uppercase text-slate-500">นำเข้ารายชื่อเข้าชั้น/ห้อง</span>
+                    <input
+                      className="mt-1 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                      onChange={(e) => setPastedTargetClassroom(e.target.value)}
+                      placeholder="เช่น ป.5/1"
+                      value={pastedTargetClassroom}
+                    />
+                  </label>
+                  <div className="flex items-center pt-5">
+                    <span className="text-[11px] font-bold leading-tight text-slate-500">
+                      💡 หากข้อมูลที่วางมีคอลัมน์ "ชั้น/ห้อง" อยู่แล้ว ระบบจะแยกตามตารางให้อัตโนมัติ
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <textarea
+                    className="h-32 w-full rounded-2xl border border-slate-200 bg-white p-3 font-mono text-xs font-bold text-slate-700 placeholder:font-sans placeholder:font-normal placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                    onChange={(e) => setPastedRosterText(e.target.value)}
+                    placeholder={"ตัวอย่างการวางจาก Excel:\n10001\tเด็กชายกิตติศักดิ์\tรักการเรียน\tกิต\n10002\tเด็กหญิงกัลยาณี\tมุ่งมั่นศึกษา\tกิ๊ฟ\n10003\tเด็กชายชลวิทย์\tเจริญพร\tบอส"}
+                    value={pastedRosterText}
+                  />
+                  {pastedRosterText && (
+                    <button
+                      type="button"
+                      onClick={() => setPastedRosterText('')}
+                      className="absolute right-3 top-3 rounded-lg bg-slate-100 p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                      title="ล้างข้อความ"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-500">
+                    {pastedRosterText.trim() ? `${pastedRosterText.trim().split(/\r?\n/).length} แถวที่วาง` : 'ยังไม่มีข้อความที่วาง'}
+                  </span>
+                  <button
+                    className="dark-action inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white"
+                    disabled={!pastedRosterText.trim()}
+                    onClick={handleImportPastedText}
+                    type="button"
+                  >
+                    <Sparkles size={16} aria-hidden="true" />
+                    แปลงเป็นรายชื่อเข้า Preview
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="col-span-2 block">
+                    <span className="text-xs font-black uppercase text-slate-500">ชั้น/ห้อง</span>
+                    <input
+                      className="mt-1 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                      onChange={(event) => setManualStudent((current) => ({ ...current, classroomName: event.target.value }))}
+                      value={manualStudent.classroomName}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-black uppercase text-slate-500">เลขประจำตัว</span>
+                    <input
+                      className="mt-1 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                      onChange={(event) => setManualStudent((current) => ({ ...current, studentCode: event.target.value }))}
+                      value={manualStudent.studentCode}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-black uppercase text-slate-500">ชื่อเล่น</span>
+                    <input
+                      className="mt-1 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                      onChange={(event) => setManualStudent((current) => ({ ...current, nickname: event.target.value }))}
+                      value={manualStudent.nickname}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-black uppercase text-slate-500">ชื่อ</span>
+                    <input
+                      className="mt-1 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                      onChange={(event) => setManualStudent((current) => ({ ...current, firstName: event.target.value }))}
+                      value={manualStudent.firstName}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-black uppercase text-slate-500">นามสกุล</span>
+                    <input
+                      className="mt-1 h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                      onChange={(event) => setManualStudent((current) => ({ ...current, lastName: event.target.value }))}
+                      value={manualStudent.lastName}
+                    />
+                  </label>
+                </div>
+                <button
+                  className="dark-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                  onClick={addManualStudentToPreview}
+                  type="button"
+                >
+                  <Upload size={17} aria-hidden="true" />
+                  เพิ่มเข้า Preview
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: Download Template & Schema Info */}
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
-              <Upload size={16} aria-hidden="true" />
-              เพิ่มนักเรียนเอง
+              <Download size={16} aria-hidden="true" />
+              ดาวน์โหลดแบบฟอร์มนำเข้า (Template)
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="col-span-2 block">
-                <span className="text-xs font-black uppercase text-slate-500">ชั้น/ห้อง</span>
-                <input
-                  className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setManualStudent((current) => ({ ...current, classroomName: event.target.value }))}
-                  value={manualStudent.classroomName}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">เลขประจำตัว</span>
-                <input
-                  className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setManualStudent((current) => ({ ...current, studentCode: event.target.value }))}
-                  value={manualStudent.studentCode}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">ชื่อเล่น</span>
-                <input
-                  className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setManualStudent((current) => ({ ...current, nickname: event.target.value }))}
-                  value={manualStudent.nickname}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">ชื่อ</span>
-                <input
-                  className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setManualStudent((current) => ({ ...current, firstName: event.target.value }))}
-                  value={manualStudent.firstName}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">นามสกุล</span>
-                <input
-                  className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-                  onChange={(event) => setManualStudent((current) => ({ ...current, lastName: event.target.value }))}
-                  value={manualStudent.lastName}
-                />
-              </label>
+            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+              ดาวน์โหลดไฟล์ Excel หรือ CSV ที่ใส่หัวตารางและข้อมูลตัวอย่างไว้เรียบร้อยแล้ว นำไปกรอกแล้วอัปโหลดกลับเข้าสู่ระบบได้ทันที
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <button
+                className="emerald-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white hover:bg-emerald-700 shadow-sm"
+                onClick={exportExcelTemplate}
+                type="button"
+              >
+                <FileSpreadsheet size={18} aria-hidden="true" />
+                แบบฟอร์ม Excel (.xlsx)
+              </button>
+              <button
+                className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
+                onClick={exportCsvTemplate}
+                type="button"
+              >
+                <Download size={18} aria-hidden="true" />
+                แบบฟอร์ม CSV (.csv)
+              </button>
             </div>
             <button
-              className="dark-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-              onClick={addManualStudentToPreview}
               type="button"
+              onClick={() => setShowSchemaGuideModal(true)}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/70 py-2.5 text-xs font-black text-cyan-800 transition hover:bg-cyan-100"
             >
-              <Upload size={17} aria-hidden="true" />
-              เพิ่มเข้า Preview
+              <BookOpen size={15} />
+              📘 คลิกเพื่อดูโครงร่างคอลัมน์ที่รองรับ (Schema Guide)
             </button>
           </div>
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <FileUp size={16} aria-hidden="true" />
-              Student Excel / CSV
-            </div>
-            <div className="mt-4 grid gap-3">
-              <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={exportTemplate} type="button">
-                <Download size={17} aria-hidden="true" />
-                ดาวน์โหลด Template
-              </button>
-              <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/70 p-4 text-center transition hover:bg-white">
-                <Upload className="text-cyan-700" size={26} aria-hidden="true" />
-                <span className="mt-2 text-sm font-black text-slate-700">เลือกไฟล์ Excel (.xlsx) หรือ CSV เพื่อ preview</span>
-                <span className="mt-1 text-xs font-bold text-slate-500">{templateHeaders.join(', ')}</span>
-                <input
-                  accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  className="sr-only"
-                  onChange={(event) => void handleFileChange(event)}
-                  ref={studentCsvInputRef}
-                  type="file"
-                />
-              </label>
-            </div>
-          </div>
-
+          {/* Card 4: Guardian CSV */}
           <div className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <FileUp size={16} aria-hidden="true" />
               Guardian CSV
             </div>
-            <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
+            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
               นำเข้าผู้ปกครองและสร้างคำเชิญ Parent Portal ด้วย email โดยจับคู่จาก student_code
             </p>
             <div className="mt-4 grid gap-3">
@@ -3057,6 +3421,301 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-black text-white shadow-lg shadow-amber-500/25 hover:from-amber-400 hover:to-orange-400"
               >
                 ✅ ยืนยันอัปเดตเป็นชื่อใหม่ทั้งหมด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schema Guide Modal for Teachers without DMC */}
+      {showSchemaGuideModal && (
+        <div
+          aria-labelledby="schema-guide-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-sm"
+          role="dialog"
+        >
+          <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-cyan-500/30 bg-slate-900 text-slate-100 shadow-2xl shadow-cyan-950/40 ring-1 ring-white/10">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                  <BookOpen size={20} />
+                </span>
+                <div>
+                  <h3 id="schema-guide-title" className="text-base font-black text-white sm:text-lg">
+                    คู่มือโครงร่างไฟล์ Excel สำหรับนำเข้าระบบ ClassCare 360
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    สำหรับคุณครูที่ไม่มีสิทธิ์เข้า DMC หรือต้องการเตรียมไฟล์รายชื่อใน Excel / Google Sheets เอง
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSchemaGuideModal(false)}
+                className="rounded-xl border border-slate-700 bg-slate-800 p-2 text-slate-400 hover:bg-slate-700 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="scrollbar-thin flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Highlight cards */}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+                  <div className="flex items-center gap-2 text-emerald-400 font-black text-xs">
+                    <CheckCircle2 size={16} />
+                    แยกคำนำหน้า & เพศ อัตโนมัติ
+                  </div>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
+                    แม้ในช่องชื่อจะมี "ด.ช.สมชาย" หรือ "เด็กหญิงวิภา" ระบบจะตัดคำนำหน้าและระบุเพศเป็น ชาย/หญิง ให้ทันที
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3.5">
+                  <div className="flex items-center gap-2 text-sky-400 font-black text-xs">
+                    <Sparkles size={16} />
+                    ไม่บังคับต้องมีรหัสนักเรียน
+                  </div>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
+                    หากไม่มีเลขประจำตัว ระบบจะสร้างรหัสชั่วคราวให้ (เช่น ป.5/1-01) เพื่อให้ครูเริ่มเช็คชื่อและบันทึกคะแนนได้ทันที
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5">
+                  <div className="flex items-center gap-2 text-amber-400 font-black text-xs">
+                    <ClipboardCheck size={16} />
+                    คัดลอกตารางมาวางได้ทันที
+                  </div>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
+                    แค่คลุมดำใน Excel แล้วกด Ctrl+C มาวางในช่อง "วางตารางจาก Excel" ได้เลย ไม่ต้องเซฟไฟล์ก่อน
+                  </p>
+                </div>
+              </div>
+
+              {/* Schema Table */}
+              <div>
+                <h4 className="text-sm font-black text-slate-200 mb-2.5 flex items-center gap-2">
+                  <span>📋</span> รายการคอลัมน์และชื่อหัวตารางที่รองรับ
+                </h4>
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+                  <table className="min-w-full divide-y divide-slate-800 text-left text-xs">
+                    <thead className="bg-slate-900/90 text-slate-400 font-bold uppercase">
+                      <tr>
+                        <th className="px-3.5 py-2.5">คอลัมน์</th>
+                        <th className="px-3.5 py-2.5">ชื่อหัวตารางที่รองรับ (ไทย / อังกฤษ)</th>
+                        <th className="px-3.5 py-2.5">ความจำเป็น</th>
+                        <th className="px-3.5 py-2.5">คำอธิบายและตัวอย่าง</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-300">
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">1. ชื่อ</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">ชื่อ, first_name, name, ชื่อจริง (หรือ ชื่อ-สกุล)</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-black text-rose-300 border border-rose-500/30">
+                            จำเป็น
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">
+                          ชื่อนักเรียน (หากมี ด.ช./ด.ญ./นาย/น.ส. ติดมา ระบบจะแยกคำนำหน้าให้อัตโนมัติ)
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">2. นามสกุล</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">นามสกุล, last_name, surname</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-300 border border-amber-500/30">
+                            แนะนำ
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">
+                          นามสกุล (ถ้าใช้คอลัมน์ "ชื่อ-สกุล" รวมกัน ระบบจะแยกชื่อกับนามสกุลให้เอง)
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">3. เลขประจำตัว</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">เลขประจำตัว, รหัส, student_code, code</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-300 border border-amber-500/30">
+                            แนะนำ
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">
+                          รหัสประจำตัวนักเรียน เช่น 10001 (หากไม่มี ระบบจะสร้างรหัสชั่วคราวให้)
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">4. เลขที่</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">เลขที่, no, number, ลำดับ</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">เลขที่ในห้องเรียน เช่น 1, 2, 3</td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">5. ชั้น/ห้อง</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">ชั้น/ห้อง, classroom, class, ห้อง</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">
+                          เช่น ป.5/1 (หากไม่มี ระบบจะใส่ห้องเรียนปัจจุบันของครูให้อัตโนมัติ)
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">6. คำนำหน้า</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">คำนำหน้า, prefix, title</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">เช่น เด็กชาย, เด็กหญิง, ด.ช., ด.ญ., นาย, นางสาว</td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">7. ชื่อเล่น</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">ชื่อเล่น, nickname</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">เช่น กิต, กิ๊ฟ, บอส</td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">8. เพศ</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">เพศ, gender, sex</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">ชาย / หญิง หรือ male / female</td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">9. วันเกิด</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">วันเกิด, birth_date, dob</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">รูปแบบ วว/ดด/ปปปป เช่น 15/05/2557</td>
+                      </tr>
+
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="px-3.5 py-2.5 font-bold text-white">10. เบอร์โทร</td>
+                        <td className="px-3.5 py-2.5 font-mono text-cyan-400">เบอร์โทร, เบอร์โทรผู้ปกครอง, phone</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-black text-slate-300 border border-slate-500/30">
+                            ทางเลือก
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-slate-400">เช่น 0812345678</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Sample Excel Preview Table */}
+              <div>
+                <h4 className="text-sm font-black text-slate-200 mb-2.5 flex items-center gap-2">
+                  <span>📊</span> ตัวอย่างหน้าตาใน Excel หรือ Google Sheets ที่ใช้งานได้ทันที
+                </h4>
+                <div className="overflow-x-auto rounded-2xl border border-emerald-500/30 bg-slate-950 p-3">
+                  <table className="min-w-full text-left font-mono text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-emerald-400 font-bold">
+                        <th className="px-2 py-1.5">เลขที่</th>
+                        <th className="px-2 py-1.5">เลขประจำตัว</th>
+                        <th className="px-2 py-1.5">คำนำหน้า</th>
+                        <th className="px-2 py-1.5">ชื่อ</th>
+                        <th className="px-2 py-1.5">นามสกุล</th>
+                        <th className="px-2 py-1.5">ชื่อเล่น</th>
+                        <th className="px-2 py-1.5">ชั้น/ห้อง</th>
+                        <th className="px-2 py-1.5">เพศ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                      <tr>
+                        <td className="px-2 py-1.5 text-slate-500">1</td>
+                        <td className="px-2 py-1.5 text-cyan-400">10001</td>
+                        <td className="px-2 py-1.5 text-slate-400">เด็กชาย</td>
+                        <td className="px-2 py-1.5 font-sans font-bold text-white">กิตติศักดิ์</td>
+                        <td className="px-2 py-1.5 font-sans">รักการเรียน</td>
+                        <td className="px-2 py-1.5 font-sans text-amber-300">กิต</td>
+                        <td className="px-2 py-1.5">ป.5/1</td>
+                        <td className="px-2 py-1.5 text-sky-400">ชาย</td>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-1.5 text-slate-500">2</td>
+                        <td className="px-2 py-1.5 text-cyan-400">10002</td>
+                        <td className="px-2 py-1.5 text-slate-400">เด็กหญิง</td>
+                        <td className="px-2 py-1.5 font-sans font-bold text-white">กัลยาณี</td>
+                        <td className="px-2 py-1.5 font-sans">มุ่งมั่นศึกษา</td>
+                        <td className="px-2 py-1.5 font-sans text-amber-300">กิ๊ฟ</td>
+                        <td className="px-2 py-1.5">ป.5/1</td>
+                        <td className="px-2 py-1.5 text-pink-400">หญิง</td>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-1.5 text-slate-500">3</td>
+                        <td className="px-2 py-1.5 text-cyan-400">10003</td>
+                        <td className="px-2 py-1.5 text-slate-400">เด็กชาย</td>
+                        <td className="px-2 py-1.5 font-sans font-bold text-white">ชลวิทย์</td>
+                        <td className="px-2 py-1.5 font-sans">เจริญพร</td>
+                        <td className="px-2 py-1.5 font-sans text-amber-300">บอส</td>
+                        <td className="px-2 py-1.5">ป.5/1</td>
+                        <td className="px-2 py-1.5 text-sky-400">ชาย</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/80 px-6 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={exportExcelTemplate}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-500"
+                >
+                  <FileSpreadsheet size={16} />
+                  📥 ดาวน์โหลดแม่แบบ Excel (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  onClick={exportCsvTemplate}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-black text-slate-200 hover:bg-slate-700"
+                >
+                  <Download size={16} />
+                  📥 ดาวน์โหลดแม่แบบ CSV (.csv)
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSchemaGuideModal(false)}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-2 text-xs font-black text-slate-300 hover:bg-slate-700 hover:text-white"
+              >
+                ปิดหน้าต่าง
               </button>
             </div>
           </div>
