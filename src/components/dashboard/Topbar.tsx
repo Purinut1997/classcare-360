@@ -1,4 +1,4 @@
-import { Bell, Building2, Compass, Menu, Moon, Sun } from 'lucide-react';
+import { Bell, Building2, Compass, Menu } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { withDemoContext } from '../../lib/auth';
@@ -13,9 +13,7 @@ interface TopbarProps {
   navItems: AppNavItem[];
   onMenuToggle: () => void;
   onOpenGuide?: () => void;
-  onThemeToggle: () => void;
   session?: AppSessionContext;
-  theme: 'light' | 'nexus';
 }
 
 function getInitials(displayName?: string) {
@@ -23,7 +21,7 @@ function getInitials(displayName?: string) {
   return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 }
 
-export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, onThemeToggle, session, theme }: TopbarProps) {
+export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, session }: TopbarProps) {
   const location = useLocation();
   const workspace = session?.workspace;
   const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
@@ -93,16 +91,6 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, onThe
           <span className="hidden sm:inline">ตัวนำทางการใช้งาน</span>
         </button>
       )}
-
-      <button
-        aria-label={theme === 'nexus' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
-        className="app-icon-button"
-        onClick={onThemeToggle}
-        title={theme === 'nexus' ? 'โหมดสว่าง' : 'โหมดมืด Obsidian Lime'}
-        type="button"
-      >
-        {theme === 'nexus' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-      </button>
 
       <Link className="app-icon-button relative" aria-label="เปิดการแจ้งเตือน" to={withDemoContext('/app/dashboard?view=notifications', location.search)}>
         <Bell size={19} aria-hidden="true" />

@@ -30,9 +30,6 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
     }
     return false;
   });
-  const [theme, setTheme] = useState<'light' | 'nexus'>(() => {
-    return window.localStorage.getItem('classcare-theme') === 'light' ? 'light' : 'nexus';
-  });
   const activeLabel = navItems.find((item) => item.key === activeView)?.label || 'ClassCare 360';
 
   // Listen for global open guide trigger events
@@ -47,14 +44,15 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
     setIsMenuOpen(false);
   }, [activeView]);
 
+  // Enforce Light Mode across the entire application
   useEffect(() => {
-    window.localStorage.setItem('classcare-theme', theme);
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.classList.toggle('dark', theme === 'nexus');
-  }, [theme]);
+    window.localStorage.setItem('classcare-theme', 'light');
+    document.documentElement.dataset.theme = 'light';
+    document.documentElement.classList.remove('dark');
+  }, []);
 
   return (
-    <div className={`app-shell ${theme === 'nexus' ? 'theme-dark theme-nexus' : 'theme-light'}`}>
+    <div className="app-shell theme-light">
       <div className="app-ambient-background no-print print:hidden" aria-hidden="true">
         <span className="app-ambient-orb app-ambient-orb-one" />
         <span className="app-ambient-orb app-ambient-orb-two" />
@@ -76,9 +74,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
             navItems={navItems}
             onMenuToggle={() => setIsMenuOpen(true)}
             onOpenGuide={() => setIsGuideOpen(true)}
-            onThemeToggle={() => setTheme((current) => (current === 'nexus' ? 'light' : 'nexus'))}
             session={session}
-            theme={theme}
           />
           <ContextNav activeView={activeView} />
         </div>
