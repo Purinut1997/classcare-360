@@ -47,6 +47,7 @@ interface AnswerSheetDesignerProps {
   teacherId?: string;
   teacherName?: string;
   workspaceId?: string;
+  initialSubTab?: 'settings' | 'answer_key' | 'preview';
 }
 
 export function AnswerSheetDesigner({
@@ -57,8 +58,15 @@ export function AnswerSheetDesigner({
   teacherId,
   teacherName,
   workspaceId,
+  initialSubTab = 'settings',
 }: AnswerSheetDesignerProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'settings' | 'answer_key' | 'preview'>('settings');
+  const [activeSubTab, setActiveSubTab] = useState<'settings' | 'answer_key' | 'preview'>(initialSubTab);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // Exam Bank & Modal State
   const [showExamBankModal, setShowExamBankModal] = useState(false);

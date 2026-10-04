@@ -760,9 +760,17 @@ export function EasyShortcutHub({
                 <p className="mt-1 text-xs font-bold text-slate-500">
                   สแกนกระดาษคำตอบผ่านกล้อง ออกแบบข้อสอบ & ตัดเกรด
                 </p>
+                <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                  <span className="rounded-lg bg-cyan-100 text-cyan-900 px-2 py-0.5 text-[10px] font-black border border-cyan-300">
+                    🖨️ พิมพ์ด่วน 1 คลิก
+                  </span>
+                  <span className="rounded-lg bg-slate-100 text-slate-600 px-1.5 py-0.5 text-[10px] font-bold">
+                    20 / 30 / 60 / 100 ข้อ
+                  </span>
+                </div>
               </div>
-              <div className="mt-5 flex items-center justify-between border-t border-cyan-100/90 pt-3 text-xs font-black text-cyan-700 group-hover:text-cyan-900">
-                <span>เปิดระบบตรวจข้อสอบ</span>
+              <div className="mt-4 flex items-center justify-between border-t border-cyan-100/90 pt-3 text-xs font-black text-cyan-700 group-hover:text-cyan-900">
+                <span>เปิดระบบตรวจ & พิมพ์กระดาษ</span>
                 <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
               </div>
             </Link>

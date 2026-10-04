@@ -11,9 +11,11 @@ import {
   Sparkles,
   Sliders,
   Users,
+  Printer,
 } from 'lucide-react';
 import type { AppSessionContext } from '../../types/core';
-import type { AnswerSheetConfig, ScannedExamResult } from '../../types/omr';
+import type { AnswerSheetConfig, AnswerSheetLayout, ChoiceLabelType, ScannedExamResult } from '../../types/omr';
+import { CHOICE_KEYS_ABCD } from '../../lib/omrEngine';
 import { writeAuditLog } from '../../lib/auditLog';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { withDemoContext } from '../../lib/auth';
@@ -29,6 +31,7 @@ interface OmrAssessmentPageProps {
 export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = (searchParams.get('omrTab') as 'scanner' | 'designer' | 'analysis') || 'scanner';
+  const [designerSubTab, setDesignerSubTab] = useState<'settings' | 'answer_key' | 'preview'>('settings');
 
   // Classroom & Students Data
   const [classrooms, setClassrooms] = useState<Array<{ id: string; name: string; grade_level?: string }>>([]);
@@ -178,6 +181,44 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // ⚡ Handle 1-Click Express Print Preset
+  const handleSelectQuickPreset = (preset: {
+    totalQuestions: number;
+    layout: AnswerSheetLayout;
+    choicesCount: 3 | 4 | 5;
+    choiceLabelType: ChoiceLabelType;
+    label: string;
+  }) => {
+    const choices = CHOICE_KEYS_ABCD.slice(0, preset.choicesCount);
+    const newKeys: Record<number, string> = {};
+    const newPoints: Record<number, number> = {};
+    for (let q = 1; q <= preset.totalQuestions; q++) {
+      newKeys[q] = config.answerKeys[q] || choices[(q - 1) % choices.length];
+      newPoints[q] = config.pointsPerQuestion[q] || 1;
+    }
+
+    const currentSet = config.examSet || '01';
+    const nextExamSets = { ...(config.examSets || {}) };
+    nextExamSets[currentSet] = newKeys;
+
+    setConfig((prev) => ({
+      ...prev,
+      totalQuestions: preset.totalQuestions,
+      layout: preset.layout,
+      choicesCount: preset.choicesCount,
+      choiceLabelType: preset.choiceLabelType,
+      answerKeys: newKeys,
+      pointsPerQuestion: newPoints,
+      examSets: nextExamSets,
+      totalScore: preset.totalQuestions,
+    }));
+
+    setDesignerSubTab('preview');
+    setOmrTab('designer');
+    setToastMessage(`⚡ ปรับเป็นแม่แบบ "${preset.label}" เรียบร้อย พร้อมสั่งพิมพ์ได้ทันที!`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Alert */}
@@ -205,21 +246,36 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             <a
               href={withDemoContext('/app/dashboard?view=scores', window.location.search)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-xs border border-white/20 hover:bg-white/20 transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 text-xs font-bold text-white backdrop-blur-xs border border-white/20 hover:bg-white/20 transition"
             >
               <GraduationCap size={15} />
               กลับไปที่ระบบคะแนน
             </a>
             <button
               type="button"
-              onClick={() => setOmrTab('designer')}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-2.5 text-xs font-black text-slate-950 shadow-md hover:bg-cyan-400 transition"
+              onClick={() => {
+                setDesignerSubTab('preview');
+                setOmrTab('designer');
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-400 px-4 py-2.5 text-xs font-black text-slate-950 shadow-md hover:from-amber-300 hover:to-orange-300 transition"
+              title="ไปที่หน้าดูตัวอย่างกระดาษคำตอบและสั่งพิมพ์ A4 ทันที"
+            >
+              <Printer size={15} />
+              🖨️ พิมพ์กระดาษคำตอบด่วน
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDesignerSubTab('settings');
+                setOmrTab('designer');
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-black text-slate-950 shadow-md hover:bg-cyan-400 transition"
             >
               <FileText size={15} />
-              ออกแบบกระดาษใหม่
+              ออกแบบ/ตั้งค่ากระดาษ
               <ChevronRight size={13} />
             </button>
           </div>
@@ -230,6 +286,107 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"
           aria-hidden="true"
         />
+      </div>
+
+      {/* ⚡ กระดาษคำตอบพิมพ์ด่วน 1 คลิก (Express Print) - เด่นชัดอยู่ด้านบนสุดสำหรับคุณครู */}
+      <div className="rounded-3xl border-2 border-cyan-400/80 bg-gradient-to-r from-cyan-500/15 via-sky-500/10 to-emerald-500/15 p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-cyan-600 text-white shadow-xs">
+              <Printer size={18} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-black text-slate-950">
+                  ⚡ กระดาษคำตอบพิมพ์ด่วน 1 คลิก (พร้อมสั่งพิมพ์ A4 ทันที)
+                </h2>
+                <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[10px] font-black text-cyan-800 border border-cyan-200">
+                  ไม่ต้องตั้งค่าเอง
+                </span>
+              </div>
+              <p className="text-xs font-bold text-slate-600 mt-0.5">
+                เลือกจำนวนข้อที่ต้องการ ระบบจะสร้างกระดาษคำตอบพร้อมรหัส QR และพาไปหน้าสั่งพิมพ์ให้ทันที
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDesignerSubTab('preview');
+              setOmrTab('designer');
+            }}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 text-xs font-black text-white hover:bg-slate-800 transition active:scale-95 shadow-xs"
+          >
+            <Printer size={14} className="text-cyan-400" />
+            <span>ไปหน้าสั่งพิมพ์กระดาษปัจจุบัน</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <button
+            type="button"
+            onClick={() => handleSelectQuickPreset({
+              totalQuestions: 20,
+              layout: 'eco_half',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '20 ข้อ ก-ง (ครึ่ง A4 ยอดนิยม)',
+            })}
+            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">🌱 20 ข้อ (ครึ่ง A4)</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · 1 หน้าได้ 2 แผ่น ประหยัดกระดาษ</span>
+            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectQuickPreset({
+              totalQuestions: 30,
+              layout: 'single_full',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '30 ข้อ ก-ง (กลางภาคมาตรฐาน)',
+            })}
+            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">📘 30 ข้อ (กลางภาค)</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · ตัวหนังสือใหญ่ ฝนง่าย ชัดเจน</span>
+            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectQuickPreset({
+              totalQuestions: 60,
+              layout: 'single_full',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '60 ข้อ ก-ง (ปลายภาค 2 คอลัมน์)',
+            })}
+            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">🎯 60 ข้อ (ปลายภาค)</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · 2 คอลัมน์ ครบจบใน 1 แผ่น</span>
+            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectQuickPreset({
+              totalQuestions: 100,
+              layout: 'single_full',
+              choicesCount: 4,
+              choiceLabelType: 'THAI',
+              label: '100 ข้อ ก-ง (สอบระดับชั้น 4 คอลัมน์)',
+            })}
+            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">🏆 100 ข้อ (วัดผลใหญ่)</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · 4 คอลัมน์ มาตรฐานข้อสอบรวม</span>
+            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Tabs Navigation */}
@@ -258,7 +415,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
             }`}
           >
             <FileText size={15} className={currentTab === 'designer' ? 'text-cyan-400' : 'text-slate-400'} />
-            2. ออกแบบกระดาษคำตอบ & เฉลย
+            2. ออกแบบ & สั่งพิมพ์กระดาษคำตอบ
           </button>
 
           <button
@@ -290,7 +447,10 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           onSelectClassroom={(id) => setSelectedClassroomId(id)}
           studentsInActiveRoom={activeStudents}
           onCommitScoreEntry={handleCommitScoreEntry}
-          onEditConfig={() => setOmrTab('designer')}
+          onEditConfig={() => {
+            setDesignerSubTab('settings');
+            setOmrTab('designer');
+          }}
           workspaceName={config.schoolName || (session?.workspace?.name && session.workspace.name !== 'ป.5' ? session.workspace.name : 'โรงเรียน ClassCare 360')}
         />
       )}
@@ -305,6 +465,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           teacherId={session?.profile?.id}
           teacherName={session?.profile?.displayName}
           workspaceId={session?.workspace?.id}
+          initialSubTab={designerSubTab}
         />
       )}
 
