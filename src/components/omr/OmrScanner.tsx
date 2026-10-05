@@ -26,10 +26,17 @@ import {
   Zap,
   VideoOff,
   FileText,
+  FolderArchive,
+  Search,
+  QrCode,
+  Compass,
+  RotateCw,
 } from 'lucide-react';
 import type {
   AnswerSheetConfig,
+  ExamBankTemplate,
   OmrRecordingMode,
+  OmrScanOrientation,
   OmrStudentMode,
   ScannedAnswerDetail,
   ScannedExamResult,
@@ -65,6 +72,12 @@ interface OmrScannerProps {
   onCommitScoreEntry?: (studentId: string, score: number, assessmentId?: string) => Promise<void> | void;
   onEditConfig?: () => void;
   workspaceName?: string;
+  savedTemplates?: ExamBankTemplate[];
+  onSelectExamTemplate?: (template: ExamBankTemplate) => void;
+  isCloudSynced?: boolean;
+  isSyncingCloud?: boolean;
+  onRefreshCloud?: () => Promise<void> | void;
+  onOpenMobileHandoffQr?: () => void;
 }
 
 export function OmrScanner({
@@ -76,11 +89,21 @@ export function OmrScanner({
   onCommitScoreEntry,
   onEditConfig,
   workspaceName = 'ClassCare 360',
+  savedTemplates = [],
+  onSelectExamTemplate,
+  isCloudSynced = false,
+  isSyncingCloud = false,
+  onRefreshCloud,
+  onOpenMobileHandoffQr,
 }: OmrScannerProps) {
   // Mode States
   const [studentMode, setStudentMode] = useState<OmrStudentMode>('classroom');
   const [recordingMode, setRecordingMode] = useState<OmrRecordingMode>('verify_first');
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Exam Picker State (for mobile & cross-device quick switching)
+  const [showExamPickerModal, setShowExamPickerModal] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
 
   // Scanner UI States
   const [scanMethod, setScanMethod] = useState<'camera' | 'upload'>('camera');
@@ -89,6 +112,7 @@ export function OmrScanner({
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [scanOrientation, setScanOrientation] = useState<OmrScanOrientation>('auto');
 
   // Results & Review States
   const [sessionResults, setSessionResults] = useState<ScannedExamResult[]>([]);
@@ -223,6 +247,7 @@ export function OmrScanner({
         studentMode,
         recordingMode,
         targetStudentList: studentsInActiveRoom,
+        orientation: scanOrientation,
       });
 
       await handleScanResultObtained(result);
@@ -252,6 +277,7 @@ export function OmrScanner({
                 studentMode,
                 recordingMode,
                 targetStudentList: studentsInActiveRoom,
+                orientation: scanOrientation,
               });
               await handleScanResultObtained(res);
               URL.revokeObjectURL(objectUrl);
@@ -275,21 +301,27 @@ export function OmrScanner({
     }
   };
 
-  // 4. Quick Simulation for Instant Testing
-  const handleSimulateTestSheet = async () => {
+  // 4. Quick Simulation for Instant Testing (Supports Omnidirectional Rotation Simulation)
+  const handleSimulateTestSheet = async (forcedRotation?: 0 | 90 | 180 | 270) => {
     setIsProcessing(true);
     try {
       // Pick random student from roster or random roll
       const randomRoll = Math.floor(1 + Math.random() * (studentsInActiveRoom.length || 25));
+      const rotationToApply = forcedRotation !== undefined
+        ? forcedRotation
+        : (scanOrientation === 'auto' ? ([0, 90, 180, 270][Math.floor(Math.random() * 4)] as 0 | 90 | 180 | 270) : (scanOrientation as 0 | 90 | 180 | 270));
+
       const simulatedCanvas = generateSyntheticFilledSheet(config, {
         rollNumber: randomRoll,
-        accuracyRate: 0.8 + Math.random() * 0.15,
+        accuracyRate: 0.85 + Math.random() * 0.12,
+        rotation: rotationToApply,
       });
 
       const result = await analyzeAnswerSheetImage(simulatedCanvas, config, {
         studentMode,
         recordingMode,
         targetStudentList: studentsInActiveRoom,
+        orientation: scanOrientation,
       });
 
       await handleScanResultObtained(result);
@@ -412,6 +444,11 @@ export function OmrScanner({
               <span className="text-[10px] font-bold text-slate-500">
                 {config.totalQuestions} ข้อ • รวม {config.totalScore} คะแนน
               </span>
+              {isCloudSynced && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md" title="ข้อมูลชุดข้อสอบซิงค์กับระบบคลาวด์แล้ว ใช้งานได้ทั้งบนคอมและมือถือ">
+                  ☁️ ซิงค์คลาวด์แล้ว
+                </span>
+              )}
             </div>
             <h2 className="text-sm font-black text-slate-900 leading-tight">
               {config.title || 'กระดาษคำตอบมาตรฐาน'}
@@ -422,14 +459,51 @@ export function OmrScanner({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {savedTemplates.length > 0 && onSelectExamTemplate && (
+            <button
+              type="button"
+              onClick={() => setShowExamPickerModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3.5 py-2 text-xs font-black text-cyan-900 hover:bg-cyan-100 transition shadow-2xs active:scale-95"
+              title="เลือกชุดข้อสอบอื่นที่บันทึกไว้จากคอมพิวเตอร์เพื่อนำมาตรวจบนมือถือ"
+            >
+              <FolderArchive size={14} className="text-cyan-700" />
+              📑 สลับชุดข้อสอบ ({savedTemplates.length})
+            </button>
+          )}
+
+          {onRefreshCloud && (
+            <button
+              type="button"
+              onClick={onRefreshCloud}
+              disabled={isSyncingCloud}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs disabled:opacity-60"
+              title="ดึงข้อมูลชุดข้อสอบและเฉลยล่าสุดจากคอมพิวเตอร์ผ่านระบบคลาวด์"
+            >
+              <RefreshCw size={13} className={`text-slate-500 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              {isSyncingCloud ? 'กำลังซิงค์...' : 'ดึงจากคลาวด์'}
+            </button>
+          )}
+
+          {onOpenMobileHandoffQr && (
+            <button
+              type="button"
+              onClick={onOpenMobileHandoffQr}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-900 hover:bg-indigo-100 transition shadow-2xs active:scale-95"
+              title="สร้าง QR Code เพื่อส่องด้วยกล้องมือถือแล้วเปิดหน้านี้บนมือถือได้ทันที"
+            >
+              <QrCode size={13} className="text-indigo-600" />
+              ส่งต่อมือถือ
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onEditConfig}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition"
           >
             <Sliders size={13} className="text-slate-500" />
-            ปรับแต่ง/สลับชุดข้อสอบ
+            ปรับแต่ง/เฉลย
           </button>
         </div>
       </div>
@@ -622,13 +696,13 @@ export function OmrScanner({
               </div>
 
               {/* Quick Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleSimulateTestSheet}
+                  onClick={() => handleSimulateTestSheet()}
                   disabled={isProcessing}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900 hover:bg-amber-100 transition shadow-2xs"
-                  title="จำลองกระดาษคำตอบที่ฝนแล้วเพื่อทดสอบตรวจทันทีโดยไม่ต้องใช้กระดาษจริง"
+                  title="จำลองกระดาษคำตอบที่ฝนแล้วเพื่อทดสอบตรวจทันที (สุ่มมุม 360°)"
                 >
                   <Sparkles size={13} className="text-amber-600" />
                   ทดสอบด้วยตัวอย่างจำลอง
@@ -643,6 +717,36 @@ export function OmrScanner({
                     แก้ไขเฉลย
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Omnidirectional Scan Orientation Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200/80 px-3 py-2 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                <Compass size={14} className="text-emerald-600" />
+                <span>มุมสแกนกล้อง (Omnidirectional 360°):</span>
+              </div>
+              <div className="inline-flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                {[
+                  { value: 'auto', label: '🔄 อัตโนมัติ 360° (ทุกแนว)' },
+                  { value: 0, label: '0° แนวตั้ง' },
+                  { value: 90, label: '90° แนวนอน' },
+                  { value: 180, label: '180° กลับหัว' },
+                  { value: 270, label: '270° ตะแคงซ้าย' },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setScanOrientation(opt.value as OmrScanOrientation)}
+                    className={`rounded-md px-2 py-1 text-[11px] font-bold transition ${
+                      scanOrientation === opt.value
+                        ? 'bg-slate-950 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -665,7 +769,7 @@ export function OmrScanner({
                       <h4 className="text-base font-black text-white">กล้องยังไม่ได้เปิดใช้งาน (Camera Standby)</h4>
                       <p className="text-xs text-slate-400 leading-relaxed font-normal">
                         เพื่อความเป็นส่วนตัวของคุณครู ระบบจะไม่เปิดกล้องอัตโนมัติ
-                        กรุณากดปุ่มด้านล่างเมื่อพร้อมนำกระดาษคำตอบมาวางสแกน
+                        กรุณากดปุ่มด้านล่างเมื่อพร้อมนำกระดาษคำตอบมาวางสแกน (สแกนได้ทุกแนว 0°, 90°, 180°, 270°)
                       </p>
                     </div>
 
@@ -725,7 +829,7 @@ export function OmrScanner({
                     <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
                       <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/80 px-3 py-1 backdrop-blur-xs text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
                         <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        กล้องกำลังทำงาน
+                        กล้องทำงาน • {scanOrientation === 'auto' ? 'ออโต้ 360°' : `ล็อค ${scanOrientation}°`}
                       </div>
 
                       <button
@@ -752,7 +856,7 @@ export function OmrScanner({
 
                       {/* Center alignment guide text */}
                       <div className="self-center rounded-full bg-slate-950/70 backdrop-blur-xs px-4 py-1 text-center text-[11px] font-bold text-emerald-300 border border-emerald-500/30">
-                        เล็งกระดาษคำตอบให้มาร์กเกอร์ 4 มุมเข้ากรอบ
+                        เล็งกระดาษคำตอบให้เข้ากรอบ (สแกนได้ทุกแนว 0°, 90°, 180°, 270°)
                       </div>
 
                       {/* Bottom Corner Brackets */}
@@ -890,6 +994,14 @@ export function OmrScanner({
                         <span>ผิด {item.incorrectCount}</span>
                         <span>•</span>
                         <span className="font-mono font-bold text-emerald-600">{item.percentage}%</span>
+                        {item.detectedOrientation !== undefined && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded bg-slate-200/80 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 font-mono"
+                            title={`สแกนมุม ${item.detectedOrientation}° และหมุนตรงอัตโนมัติ`}
+                          >
+                            📐 {item.detectedOrientation === 0 ? '0° ตั้ง' : `${item.detectedOrientation}°`}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -979,6 +1091,11 @@ export function OmrScanner({
                   {activeReviewResult.studentRollNumber !== null && (
                     <span className="text-[10px] text-slate-500 mt-1 block">
                       ตรวจจับเลขที่จากกระดาษได้: เลขที่ {activeReviewResult.studentRollNumber}
+                    </span>
+                  )}
+                  {activeReviewResult.detectedOrientation !== undefined && (
+                    <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
+                      📐 มุมสแกน: {activeReviewResult.detectedOrientation === 0 ? '0° (แนวตั้งปกติ)' : activeReviewResult.detectedOrientation === 90 ? '90° (แนวนอน)' : activeReviewResult.detectedOrientation === 180 ? '180° (กลับหัว)' : '270° (ตะแคงซ้าย)'} • หมุนตรงอัตโนมัติ
                     </span>
                   )}
                 </div>
@@ -1151,6 +1268,166 @@ export function OmrScanner({
               >
                 รับทราบ / ตรวจใบถัดไป
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Quick Exam Picker for Mobile & Cross-Device Grading */}
+      {showExamPickerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-3xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-2xs">
+                  <FolderArchive size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    เลือกชุดข้อสอบที่จะตรวจ
+                  </h3>
+                  <p className="text-xs font-medium text-slate-500">
+                    ดึงจากคลังข้อสอบของโรงเรียน • เลือกปุ๊บ สแกนตรวจบนมือถือได้ทันที
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExamPickerModal(false)}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="border-b border-slate-100 bg-white px-6 py-3">
+              <div className="relative">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  placeholder="ค้นหาชื่อชุดข้อสอบ หรือชื่อวิชา..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-4 py-2 text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            {/* Exam List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-2.5 max-h-[60vh]">
+              {savedTemplates
+                .filter((t) => {
+                  if (!pickerSearch.trim()) return true;
+                  const query = pickerSearch.toLowerCase();
+                  return (
+                    t.title.toLowerCase().includes(query) ||
+                    t.subjectName.toLowerCase().includes(query)
+                  );
+                })
+                .map((template) => {
+                  const isCurrent =
+                    template.title === config.title &&
+                    template.totalQuestions === config.totalQuestions &&
+                    template.subjectName === config.subjectName;
+
+                  return (
+                    <div
+                      key={template.id}
+                      onClick={() => {
+                        if (onSelectExamTemplate) {
+                          onSelectExamTemplate(template);
+                        }
+                        setShowExamPickerModal(false);
+                      }}
+                      className={`group flex items-center justify-between rounded-2xl border p-4 text-left transition cursor-pointer ${
+                        isCurrent
+                          ? 'border-cyan-500 bg-cyan-50/60 shadow-xs ring-2 ring-cyan-400/30'
+                          : 'border-slate-200 bg-white hover:border-cyan-300 hover:bg-slate-50/80 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black shadow-2xs ${
+                            isCurrent
+                              ? 'bg-cyan-600 text-white'
+                              : 'bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800'
+                          }`}
+                        >
+                          {isCurrent ? <Check size={18} /> : <FileText size={16} />}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="text-[10px] font-black uppercase text-cyan-800 bg-cyan-100/70 px-2 py-0.5 rounded-md">
+                              {template.subjectName}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                              ชุด {template.examSet || '01'}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-500">
+                              {template.totalQuestions} ข้อ • รวม {template.totalScore} คะแนน
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm font-black text-slate-900 group-hover:text-cyan-900">
+                            {template.title}
+                          </h4>
+
+                          <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                            {template.teacherName ? `ครูผู้สร้าง: ${template.teacherName}` : 'ครูประจำวิชา'} • บันทึกล่าสุด:{' '}
+                            {new Date(template.savedAt).toLocaleDateString('th-TH', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 ml-3">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+                            isCurrent
+                              ? 'bg-cyan-600 text-white shadow-2xs'
+                              : 'bg-slate-100 text-slate-700 group-hover:bg-cyan-600 group-hover:text-white'
+                          }`}
+                        >
+                          {isCurrent ? 'กำลังใช้งาน' : 'เลือกตรวจชุดนี้ ➔'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {savedTemplates.length === 0 && (
+                <div className="py-12 text-center text-slate-400">
+                  <FolderArchive size={36} className="mx-auto mb-2 text-slate-300" />
+                  <p className="text-xs font-bold text-slate-600">ยังไม่มีชุดข้อสอบที่บันทึกไว้ในคลัง</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    ออกแบบและกด "บันทึกลงคลังข้อสอบ" บนเครื่องคอมพิวเตอร์ เพื่อให้ชุดข้อสอบมาปรากฏบนมือถือนี้
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Cloud Refresh */}
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-6 py-3">
+              <span className="text-[11px] font-bold text-slate-500">
+                ☁️ ซิงค์ข้อมูลกับคลาวด์ ClassCare 360
+              </span>
+              {onRefreshCloud && (
+                <button
+                  type="button"
+                  onClick={onRefreshCloud}
+                  disabled={isSyncingCloud}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-100 transition shadow-2xs disabled:opacity-60"
+                >
+                  <RefreshCw size={12} className={isSyncingCloud ? 'animate-spin' : ''} />
+                  {isSyncingCloud ? 'กำลังซิงค์...' : 'รีเฟรชดึงชุดข้อสอบใหม่'}
+                </button>
+              )}
             </div>
           </div>
         </div>

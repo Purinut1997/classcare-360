@@ -3,6 +3,7 @@ export type OmrStudentMode = 'classroom' | 'anonymous';
 export type ChoiceLabelType = 'ABCD' | 'THAI' | 'NUMERIC';
 export type AnswerSheetLayout = 'single_full' | 'eco_half';
 export type StudentIdFormat = 'roll_number' | 'student_code' | 'none';
+export type OmrScanOrientation = 'auto' | 0 | 90 | 180 | 270;
 
 export type AnswerSheetThemeColor = 'burgundy' | 'navy' | 'slate' | 'emerald';
 
@@ -96,6 +97,7 @@ export interface ScannedExamResult {
   recordingMode: OmrRecordingMode;
   isSavedToGradebook: boolean;
   previewImageUrl?: string;
+  detectedOrientation?: 0 | 90 | 180 | 270;
 }
 
 export interface ItemAnalysisStat {

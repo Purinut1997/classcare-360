@@ -37,6 +37,9 @@ import {
   toggleShareExamBankTemplate,
   exportExamBankToJson,
   importExamBankFromJson,
+  fetchCloudExamTemplates,
+  saveCloudExamTemplate,
+  deleteCloudExamTemplate,
 } from '../../lib/omrExamBankStorage';
 import { PrintableAnswerSheet } from './PrintableAnswerSheet';
 
@@ -125,7 +128,20 @@ export function AnswerSheetDesigner({
 
   // Exam Bank & Modal State
   const [showExamBankModal, setShowExamBankModal] = useState(false);
-  const [bankTemplates, setBankTemplates] = useState<ExamBankTemplate[]>([]);
+  const [bankTemplates, setBankTemplates] = useState<ExamBankTemplate[]>(() => getExamBankTemplates());
+
+  const effectiveTeacherId = teacherId || config.teacherId || 'teacher_demo_01';
+  const effectiveTeacherName = teacherName || config.teacherName || 'ครูผู้สอน';
+
+  useEffect(() => {
+    fetchCloudExamTemplates(workspaceId, effectiveTeacherId)
+      .then((templates) => {
+        if (templates && templates.length > 0) {
+          setBankTemplates(templates);
+        }
+      })
+      .catch(() => {});
+  }, [workspaceId, effectiveTeacherId]);
   const [bankSearch, setBankSearch] = useState('');
   const [bankYearFilter, setBankYearFilter] = useState<string>('all');
   const [bankSubjectFilter, setBankSubjectFilter] = useState<string>('all');
@@ -142,9 +158,6 @@ export function AnswerSheetDesigner({
   const [lastSavedTime, setLastSavedTime] = useState<string>(() =>
     new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
   );
-
-  const effectiveTeacherId = teacherId || config.teacherId || 'teacher_demo_01';
-  const effectiveTeacherName = teacherName || config.teacherName || 'ครูผู้สอน';
 
   // Multi-Set Preview in Tab 3
   const [previewAllSets, setPreviewAllSets] = useState(false);
@@ -354,8 +367,8 @@ export function AnswerSheetDesigner({
   };
 
   // Exam Bank Modal Handlers
-  const handleSaveCurrentToBank = () => {
-    const saved = saveExamBankTemplate(config, {
+  const handleSaveCurrentToBank = async () => {
+    const saved = await saveCloudExamTemplate(config, {
       title: saveTitle.trim() || config.title,
       academicYear: saveYear,
       term: saveTerm,
@@ -364,8 +377,9 @@ export function AnswerSheetDesigner({
       workspaceId: workspaceId,
       isSharedToSchool: saveSharedToSchool,
     });
-    setBankTemplates(getExamBankTemplates());
-    showToast(`บันทึกชุดข้อสอบ "${saved.title}" เข้าคลังชุดข้อสอบเรียบร้อยแล้ว`);
+    const updated = await fetchCloudExamTemplates(workspaceId, effectiveTeacherId);
+    setBankTemplates(updated);
+    showToast(`บันทึกชุดข้อสอบ "${saved.title}" เข้าคลังและซิงค์คลาวด์เรียบร้อยแล้ว`);
   };
 
   const handleToggleShare = (templateId: string) => {
@@ -404,9 +418,9 @@ export function AnswerSheetDesigner({
     showToast(`โหลดชุดข้อสอบ "${template.title}" มาใช้งานเรียบร้อยแล้ว`);
   };
 
-  const handleDeleteFromBank = (templateId: string, title: string) => {
+  const handleDeleteFromBank = async (templateId: string, title: string) => {
     if (!confirm(`คุณต้องการลบชุดข้อสอบ "${title}" ออกจากคลังใช่หรือไม่?`)) return;
-    const remaining = deleteExamBankTemplate(templateId);
+    const remaining = await deleteCloudExamTemplate(templateId);
     setBankTemplates(remaining);
     showToast(`ลบชุดข้อสอบออกจากคลังแล้ว`);
   };
@@ -1174,10 +1188,11 @@ export function AnswerSheetDesigner({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    saveExamBankTemplate(config);
-                    setBankTemplates(getExamBankTemplates());
-                    showToast(`💾 บันทึกชุดข้อสอบและเฉลย "${config.title}" ลงคลังข้อสอบเรียบร้อยแล้ว`);
+                  onClick={async () => {
+                    await saveCloudExamTemplate(config, undefined);
+                    const updated = await fetchCloudExamTemplates(workspaceId, effectiveTeacherId);
+                    setBankTemplates(updated);
+                    showToast(`💾 บันทึกชุดข้อสอบและเฉลย "${config.title}" ลงคลังข้อสอบและคลาวด์เรียบร้อยแล้ว`);
                   }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-2xs hover:bg-indigo-700 transition active:scale-95"
                   title="บันทึกเก็บไว้ในคลังเพื่อนำกลับมาใช้ซ้ำในเทอมถัดไป หรือแชร์ให้ครูท่านอื่น"

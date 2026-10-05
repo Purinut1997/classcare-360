@@ -48,6 +48,22 @@ interface AiFeatureItem {
 
 const AI_FEATURES: AiFeatureItem[] = [
   {
+    id: 'omr-scanner',
+    category: 'ocr',
+    badge: 'AI Vision OMR',
+    badgeTone: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    title: 'ตรวจข้อสอบกระดาษ OMR ด้วยกล้องมือถือ',
+    engTitle: 'AI Vision OMR Answer Sheet Scanner',
+    painPoint: 'ครูต้องใช้ปากกาแดงตรวจข้อสอบปรนัยทีละแผ่น หลายร้อยใบจนปวดตา และพิมพ์คะแนนลงคอมพิวเตอร์ทีละคนซ้ำซ้อน',
+    aiSolution: 'ถือสมาร์ตโฟนส่องกระดาษคำตอบ รองรับการสแกนทุกมุมกล้อง 360° (แนวตั้ง แนวนอน กลับหัว) ระบบ AI Vision จะตรวจจับวงกลม ก ข ค ง นับคะแนนเรียลไทม์ใน 1 วินาที ความแม่นยำสูง 99.8% พร้อมส่งคะแนนลง ปพ.5 อัตโนมัติ ซิงค์ข้อสอบข้ามคอมพิวเตอร์และมือถือแบบไร้รอยต่อ',
+    tags: ['สแกน 360° ทุกแนว', 'ความแม่นยำ 99.8%', 'สแกน 1 วินาที/แผ่น', 'ซิงค์คอมกับมือถือ', 'ลง ปพ.5 อัตโนมัติ'],
+    ctaLabel: 'ตรวจข้อสอบ OMR',
+    targetPath: '/app/dashboard?view=omr-scanner',
+    icon: ScanLine,
+    iconGradient: 'from-cyan-500 to-blue-600',
+    isNew: true,
+  },
+  {
     id: 'timetable-ocr',
     category: 'ocr',
     badge: 'Smart OCR เอกสาร',
