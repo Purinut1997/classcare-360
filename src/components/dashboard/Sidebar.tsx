@@ -2,6 +2,7 @@ import {
   BookOpen,
   Building2,
   ChevronDown,
+  ChevronRight,
   ClipboardList,
   Heart,
   PanelLeftClose,
@@ -189,22 +190,28 @@ export function Sidebar({
 
       <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
         {/* Core Direct 1-Click Teacher Items */}
-        <div className="grid gap-1">
+        <div className="grid gap-1.5">
           {directItems.map((item) => {
             const Icon = item.icon;
+            const isActive = item.key === activeView;
             return (
               <Link
-                className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                 key={item.key}
                 onClick={onClose}
                 to={item.path}
               >
-                <Icon size={18} aria-hidden="true" />
+                <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
+                  <Icon size={16} aria-hidden="true" />
+                </div>
                 <span className="truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
                 {item.key === 'overview' && (
                   <span className="ml-auto rounded-full bg-cyan-400/20 px-2 py-0.5 text-[9px] font-black text-cyan-200">
                     HUB
                   </span>
+                )}
+                {!isActive && (
+                  <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                 )}
               </Link>
             );
@@ -217,26 +224,38 @@ export function Sidebar({
           const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
           const SectionIcon = section.icon;
           return (
-            <details className="app-sidebar-section mt-2" key={section.key} open={isSectionOpen}>
-              <summary>
+            <details className="app-sidebar-section mt-2.5" key={section.key} open={isSectionOpen}>
+              <summary className="app-sidebar-section-summary">
                 <span className="flex items-center gap-2">
-                  {SectionIcon && <SectionIcon size={14} className="text-cyan-400 shrink-0" aria-hidden="true" />}
-                  <span className={section.key === 'classroom-admin' ? 'text-cyan-100 font-black' : ''}>{section.label}</span>
+                  {SectionIcon && (
+                    <span className="app-sidebar-section-icon-badge">
+                      <SectionIcon size={12} aria-hidden="true" />
+                    </span>
+                  )}
+                  <span className={`font-black ${section.key === 'classroom-admin' ? 'text-cyan-200' : ''}`}>
+                    {section.label}
+                  </span>
                 </span>
-                <ChevronDown size={15} aria-hidden="true" />
+                <ChevronDown size={14} className="app-sidebar-chevron text-slate-400" aria-hidden="true" />
               </summary>
-              <div className="grid gap-1 py-1">
+              <div className="grid gap-1 py-1 pl-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
+                  const isActive = item.key === activeView;
                   return (
                     <Link
-                      className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                      className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                       key={item.key}
                       onClick={onClose}
                       to={item.path}
                     >
-                      <Icon size={17} aria-hidden="true" />
+                      <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
+                        <Icon size={15} aria-hidden="true" />
+                      </div>
                       <span className="truncate">{item.label}</span>
+                      {!isActive && (
+                        <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                      )}
                     </Link>
                   );
                 })}
@@ -246,23 +265,29 @@ export function Sidebar({
         })}
 
         {otherItems.length > 0 ? (
-          <details className="app-sidebar-section mt-2" open={otherItems.some((item) => item.key === activeView)}>
-            <summary>
-              <span>อื่น ๆ</span>
-              <ChevronDown size={15} aria-hidden="true" />
+          <details className="app-sidebar-section mt-2.5" open={otherItems.some((item) => item.key === activeView)}>
+            <summary className="app-sidebar-section-summary">
+              <span className="font-black">อื่น ๆ</span>
+              <ChevronDown size={14} className="app-sidebar-chevron text-slate-400" aria-hidden="true" />
             </summary>
-            <div className="grid gap-1 py-1">
+            <div className="grid gap-1 py-1 pl-1">
               {otherItems.map((item) => {
                 const Icon = item.icon;
+                const isActive = item.key === activeView;
                 return (
                   <Link
-                    className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                    className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                     key={item.key}
                     onClick={onClose}
                     to={item.path}
                   >
-                    <Icon size={17} aria-hidden="true" />
+                    <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
+                      <Icon size={15} aria-hidden="true" />
+                    </div>
                     <span className="truncate">{item.label}</span>
+                    {!isActive && (
+                      <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                    )}
                   </Link>
                 );
               })}
@@ -272,20 +297,26 @@ export function Sidebar({
 
         {/* 🔻 Footer Utilities (แจ้งเตือน / คู่มือใช้งาน / แพ็กเกจ) */}
         {utilityItems.length > 0 ? (
-          <div className="mt-3 grid gap-1 border-t border-white/10 pt-2">
+          <div className="mt-3 grid gap-1.5 border-t border-white/10 pt-2.5">
             {utilityItems.map((item) => {
               const Icon = item.icon;
+              const isActive = item.key === activeView;
               return (
                 <Link
-                  className={`app-sidebar-link ${item.key === activeView ? 'is-active' : ''}`}
+                  className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                   key={item.key}
                   onClick={onClose}
                   to={item.path}
                 >
-                  <Icon size={17} aria-hidden="true" />
+                  <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
+                    <Icon size={15} aria-hidden="true" />
+                  </div>
                   <span className="truncate">{item.label}</span>
                   {item.key === 'notifications' && (
-                    <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-rose-500" aria-label="แจ้งเตือนใหม่" />
+                    <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" aria-label="แจ้งเตือนใหม่" />
+                  )}
+                  {!isActive && (
+                    <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                   )}
                 </Link>
               );

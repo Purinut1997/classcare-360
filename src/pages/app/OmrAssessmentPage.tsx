@@ -399,58 +399,36 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
             <button
               type="button"
               onClick={handleOpenMobileHandoff}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500/20 px-3.5 py-2.5 text-xs font-black text-indigo-200 backdrop-blur-xs border border-indigo-400/40 hover:bg-indigo-500/30 transition shadow-xs"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500/20 px-3.5 py-2.5 text-xs font-black text-indigo-100 border-2 border-indigo-400/50 hover:bg-indigo-500/35 transition shadow-sm active:scale-95"
               title="สร้าง QR Code เพื่อส่องด้วยกล้องมือถือแล้วเปิดหน้านี้บนมือถือได้ทันที"
             >
-              <QrCode size={15} className="text-indigo-400" />
-              📱 ตรวจบนมือถือ (QR Handoff)
+              <QrCode size={16} className="text-indigo-300" />
+              <span>📱 ตรวจบนมือถือ (QR Handoff)</span>
             </button>
+
             <a
               href={withDemoContext('/app/dashboard?view=scores', window.location.search)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 text-xs font-bold text-white backdrop-blur-xs border border-white/20 hover:bg-white/20 transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800/80 px-3.5 py-2.5 text-xs font-black text-slate-200 border-2 border-slate-700 hover:bg-slate-800 hover:border-slate-500 hover:text-white transition shadow-sm active:scale-95"
             >
-              <GraduationCap size={15} />
-              กลับไปที่ระบบคะแนน
+              <GraduationCap size={16} className="text-slate-400" />
+              <span>กลับสู่ระบบคะแนน</span>
             </a>
+
             <button
               type="button"
               onClick={() => {
                 setDesignerSubTab('preview');
                 setOmrTab('designer');
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-400 px-4 py-2.5 text-xs font-black text-slate-950 shadow-md hover:from-amber-300 hover:to-orange-300 transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-xs font-black text-slate-950 border-2 border-amber-300 shadow-md hover:from-amber-300 hover:to-amber-400 transition active:scale-95"
               title="ไปที่หน้าดูตัวอย่างกระดาษคำตอบและสั่งพิมพ์ A4 ทันที"
             >
-              <Printer size={15} />
-              🖨️ พิมพ์กระดาษคำตอบด่วน
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDesignerSubTab('answer_key');
-                setOmrTab('designer');
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2.5 text-xs font-black text-white shadow-md hover:from-emerald-400 hover:to-teal-400 transition"
-              title="เปิดหน้ากำหนดเฉลยคำตอบ ก ข ค ง และปรับคะแนนรายข้อ"
-            >
-              <Check size={15} />
-              ✏️ กำหนดเฉลย ({config.totalQuestions} ข้อ)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDesignerSubTab('settings');
-                setOmrTab('designer');
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-black text-slate-950 shadow-md hover:bg-cyan-400 transition"
-            >
-              <FileText size={15} />
-              ออกแบบ/ตั้งค่ากระดาษ
-              <ChevronRight size={13} />
+              <Printer size={16} />
+              <span>🖨️ สั่งพิมพ์ A4 ด่วน</span>
             </button>
           </div>
         </div>
@@ -462,152 +440,160 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
         />
       </div>
 
-      {/* ⚡ กระดาษคำตอบพิมพ์ด่วน 1 คลิก (Express Print) - เด่นชัดอยู่ด้านบนสุดสำหรับคุณครู */}
-      <div className="rounded-3xl border-2 border-cyan-400/80 bg-gradient-to-r from-cyan-500/15 via-sky-500/10 to-emerald-500/15 p-4 sm:p-5 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-cyan-600 text-white shadow-xs">
-              <Printer size={18} />
+      {/* Main Tabs Navigation (3-Step Hero Stepper Bar) */}
+      <div className="rounded-3xl border-2 border-slate-200/90 bg-white p-3 sm:p-4 shadow-sm">
+        <div className="mb-2.5 flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+              ขั้นตอนการทำงาน OMR (กดเลือกสลับเมนูได้ทันที):
             </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-black text-slate-950">
-                  ⚡ กระดาษคำตอบพิมพ์ด่วน 1 คลิก (พร้อมสั่งพิมพ์ A4 ทันที)
-                </h2>
-                <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[10px] font-black text-cyan-800 border border-cyan-200">
-                  ไม่ต้องตั้งค่าเอง
-                </span>
-              </div>
-              <p className="text-xs font-bold text-slate-600 mt-0.5">
-                เลือกจำนวนข้อที่ต้องการ ระบบจะสร้างกระดาษคำตอบพร้อมรหัส QR และพาไปหน้าสั่งพิมพ์ให้ทันที
-              </p>
-            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setDesignerSubTab('preview');
-              setOmrTab('designer');
-            }}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 text-xs font-black text-white hover:bg-slate-800 transition active:scale-95 shadow-xs"
-          >
-            <Printer size={14} className="text-cyan-400" />
-            <span>ไปหน้าสั่งพิมพ์กระดาษปัจจุบัน</span>
-          </button>
+          <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-400">
+            ระบบบันทึกและซิงค์ข้อมูลอัตโนมัติ
+          </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <button
-            type="button"
-            onClick={() => handleSelectQuickPreset({
-              totalQuestions: 20,
-              layout: 'eco_half',
-              choicesCount: 4,
-              choiceLabelType: 'THAI',
-              label: '20 ข้อ ก-ง (ครึ่ง A4 ยอดนิยม)',
-            })}
-            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">🌱 20 ข้อ (ครึ่ง A4)</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · 1 หน้าได้ 2 แผ่น ประหยัดกระดาษ</span>
-            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectQuickPreset({
-              totalQuestions: 30,
-              layout: 'single_full',
-              choicesCount: 4,
-              choiceLabelType: 'THAI',
-              label: '30 ข้อ ก-ง (กลางภาคมาตรฐาน)',
-            })}
-            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">📘 30 ข้อ (กลางภาค)</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · ตัวหนังสือใหญ่ ฝนง่าย ชัดเจน</span>
-            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectQuickPreset({
-              totalQuestions: 60,
-              layout: 'single_full',
-              choicesCount: 4,
-              choiceLabelType: 'THAI',
-              label: '60 ข้อ ก-ง (ปลายภาค 2 คอลัมน์)',
-            })}
-            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">🎯 60 ข้อ (ปลายภาค)</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · 2 คอลัมน์ ครบจบใน 1 แผ่น</span>
-            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectQuickPreset({
-              totalQuestions: 100,
-              layout: 'single_full',
-              choicesCount: 4,
-              choiceLabelType: 'THAI',
-              label: '100 ข้อ ก-ง (สอบระดับชั้น 4 คอลัมน์)',
-            })}
-            className="group flex flex-col items-start rounded-2xl border border-white/90 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <span className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-cyan-700">🏆 100 ข้อ (วัดผลใหญ่)</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">ก ข ค ง · 4 คอลัมน์ มาตรฐานข้อสอบรวม</span>
-            <span className="mt-2 text-[10px] font-black text-cyan-600 group-hover:underline">คลิกพิมพ์ด่วน ➔</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
-        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100 p-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+          {/* Tab 1: Scanner */}
           <button
             type="button"
             onClick={() => setOmrTab('scanner')}
-            className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+            className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 text-left transition-all duration-150 ${
               currentTab === 'scanner'
-                ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                ? 'border-2 border-cyan-500 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white shadow-md ring-2 ring-cyan-500/20'
+                : 'border-2 border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/30 hover:shadow-sm active:scale-[0.99]'
             }`}
           >
-            <Camera size={15} className={currentTab === 'scanner' ? 'text-cyan-400' : 'text-slate-400'} />
-            1. สแกนและตรวจข้อสอบ (OMR Scanner)
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm transition ${
+                currentTab === 'scanner'
+                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
+                  : 'border border-slate-200 bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800 group-hover:border-cyan-300'
+              }`}
+            >
+              <Camera size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[10px] font-black uppercase tracking-wider rounded-md px-1.5 py-0.5 ${
+                  currentTab === 'scanner' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  ขั้นตอนที่ 1
+                </span>
+                {currentTab === 'scanner' && (
+                  <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1">
+                    ● เปิดใช้งาน
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-xs sm:text-sm font-black mt-0.5">
+                สแกน & ตรวจข้อสอบ (OMR)
+              </p>
+              <p className={`text-[11px] font-medium truncate ${currentTab === 'scanner' ? 'text-slate-300' : 'text-slate-500'}`}>
+                ใช้กล้องมือถือ/เว็บแคม ตรวจคะแนนทันที
+              </p>
+            </div>
+            <ChevronRight
+              size={18}
+              className={`shrink-0 transition-transform ${
+                currentTab === 'scanner' ? 'text-cyan-400 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5'
+              }`}
+            />
           </button>
 
+          {/* Tab 2: Designer & Answer Keys */}
           <button
             type="button"
             onClick={() => setOmrTab('designer')}
-            className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+            className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 text-left transition-all duration-150 ${
               currentTab === 'designer'
-                ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                ? 'border-2 border-cyan-500 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white shadow-md ring-2 ring-cyan-500/20'
+                : 'border-2 border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/30 hover:shadow-sm active:scale-[0.99]'
             }`}
           >
-            <FileText size={15} className={currentTab === 'designer' ? 'text-cyan-400' : 'text-slate-400'} />
-            2. ออกแบบกระดาษ & กำหนดเฉลย (Answer Keys)
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm transition ${
+                currentTab === 'designer'
+                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
+                  : 'border border-slate-200 bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800 group-hover:border-cyan-300'
+              }`}
+            >
+              <FileText size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[10px] font-black uppercase tracking-wider rounded-md px-1.5 py-0.5 ${
+                  currentTab === 'designer' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  ขั้นตอนที่ 2
+                </span>
+                {currentTab === 'designer' && (
+                  <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1">
+                    ● เปิดใช้งาน
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-xs sm:text-sm font-black mt-0.5">
+                ออกแบบกระดาษ & กำหนดเฉลย
+              </p>
+              <p className={`text-[11px] font-medium truncate ${currentTab === 'designer' ? 'text-slate-300' : 'text-slate-500'}`}>
+                สร้างกระดาษ A4, เฉลย ก ข ค ง, พิมพ์ข้อสอบ
+              </p>
+            </div>
+            <ChevronRight
+              size={18}
+              className={`shrink-0 transition-transform ${
+                currentTab === 'designer' ? 'text-cyan-400 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5'
+              }`}
+            />
           </button>
 
+          {/* Tab 3: Analysis */}
           <button
             type="button"
             onClick={() => setOmrTab('analysis')}
-            className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+            className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 text-left transition-all duration-150 ${
               currentTab === 'analysis'
-                ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                ? 'border-2 border-cyan-500 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white shadow-md ring-2 ring-cyan-500/20'
+                : 'border-2 border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/30 hover:shadow-sm active:scale-[0.99]'
             }`}
           >
-            <BarChart3 size={15} className={currentTab === 'analysis' ? 'text-cyan-400' : 'text-slate-400'} />
-            3. ผลคะแนน & วิเคราะห์รายข้อ (Item Analysis)
-            {sessionResults.length > 0 && (
-              <span className="rounded-md bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
-                {sessionResults.length}
-              </span>
-            )}
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm transition ${
+                currentTab === 'analysis'
+                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
+                  : 'border border-slate-200 bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800 group-hover:border-cyan-300'
+              }`}
+            >
+              <BarChart3 size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[10px] font-black uppercase tracking-wider rounded-md px-1.5 py-0.5 ${
+                  currentTab === 'analysis' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  ขั้นตอนที่ 3
+                </span>
+                {sessionResults.length > 0 && (
+                  <span className="rounded-md bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
+                    {sessionResults.length} แผ่น
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-xs sm:text-sm font-black mt-0.5">
+                ผลคะแนน & วิเคราะห์รายข้อ
+              </p>
+              <p className={`text-[11px] font-medium truncate ${currentTab === 'analysis' ? 'text-slate-300' : 'text-slate-500'}`}>
+                สถิติความยากง่าย อำนาจจำแนก ตัดเกรด
+              </p>
+            </div>
+            <ChevronRight
+              size={18}
+              className={`shrink-0 transition-transform ${
+                currentTab === 'analysis' ? 'text-cyan-400 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5'
+              }`}
+            />
           </button>
         </div>
       </div>
