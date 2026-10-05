@@ -28,6 +28,12 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
+import { StudentAssignModal } from "../../components/duty/StudentAssignModal";
+import { DailyInspectionModal } from "../../components/duty/DailyInspectionModal";
+import { DutyPosterModal } from "../../components/duty/DutyPosterModal";
+import { DutyScheduleView } from "../../components/duty/DutyScheduleView";
+import { buildClassroomPosterHtml } from "../../lib/dutyPosterReport";
+import { DUTY_STATUS_CONFIG } from "../../types/duty";
 
 import { writeAuditLog } from "../../lib/auditLog";
 import { getBangkokDate } from "../../lib/date";
@@ -45,7 +51,7 @@ import { isSupabaseReady, supabase } from "../../lib/supabaseClient";
 import { getTeacherClassroomScope } from "../../lib/teacherClassrooms";
 import type { AppSessionContext } from "../../types/core";
 
-type TabKey = "duty" | "locks" | "rollover" | "archive" | "parent-qr";
+type TabKey = "duty" | "inspection" | "tasks" | "locks" | "rollover" | "archive" | "parent-qr";
 type DutyStatus =
   "assigned" | "completed" | "missed" | "excused" | "substituted";
 type DutyGenerationScope = "day" | "month" | "term";
@@ -141,6 +147,8 @@ interface BehaviorPoint {
 const tabs: Array<{ icon: typeof CalendarCheck; key: TabKey; label: string }> =
   [
     { icon: CalendarCheck, key: "duty", label: "ตารางเวร" },
+    { icon: CheckCircle2, key: "inspection", label: "ตรวจผลรายวัน" },
+    { icon: Users, key: "tasks", label: "หน้าที่เวร" },
     { icon: LockKeyhole, key: "locks", label: "ล็อกข้อมูล" },
     { icon: GraduationCap, key: "rollover", label: "ปิดชั้น/เลื่อนชั้น" },
     { icon: Archive, key: "archive", label: "คลังย้อนหลัง" },
@@ -306,6 +314,19 @@ export function ClassroomOperationsPage({
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printWeekStart, setPrintWeekStart] = useState(weekStart);
   const [dutyGeneratorOpen, setDutyGeneratorOpen] = useState(false);
+  const [assignModalState, setAssignModalState] = useState<{
+    currentAssignment?: DutyAssignment | null;
+    dutyDate: string;
+    isOpen: boolean;
+    task: DutyTask | null;
+  }>({
+    currentAssignment: null,
+    dutyDate: "",
+    isOpen: false,
+    task: null,
+  });
+  const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
+  const [posterModalOpen, setPosterModalOpen] = useState(false);
   const [dutyGenerationScope, setDutyGenerationScope] = useState<DutyGenerationScope>("day");
   const [dutyGenerationDates, setDutyGenerationDates] = useState(() => {
     const today = getBangkokDate();
@@ -396,116 +417,112 @@ export function ClassroomOperationsPage({
     return totals;
   }, [behaviorPoints]);
 
+  async function loadOperationsData() {
+    if (!supabase || !session.workspace || !isUuid(session.workspace.id)) return;
+    setBusy(true);
+    const workspaceId = session.workspace.id;
+    const results = await Promise.all([
+      supabase
+        .from("classrooms")
+        .select("id,name,academic_year,status,homeroom_teacher_profile_id")
+        .eq("workspace_id", workspaceId)
+        .order("name"),
+      supabase
+        .from("students")
+        .select("id,classroom_id,student_code,first_name,last_name")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "active")
+        .order("student_code"),
+      supabase
+        .from("duty_tasks")
+        .select("id,classroom_id,name,location,instructions,checklist,active_weekdays,slots_per_day,positive_points,missed_points,rotation_strategy,allow_substitute,evidence_required,is_active,sort_order")
+        .eq("workspace_id", workspaceId)
+        .order("sort_order"),
+      supabase
+        .from("duty_assignments")
+        .select(
+          "id,duty_task_id,duty_date,student_id,substitute_student_id,status",
+        )
+        .eq("workspace_id", workspaceId)
+        .gte("duty_date", addDays(weekStart, -35))
+        .lte("duty_date", addDays(weekStart, 41))
+        .order("duty_date"),
+      supabase
+        .from("data_period_locks")
+        .select("id,classroom_id,period_month,module_key,status,reason")
+        .eq("workspace_id", workspaceId)
+        .order("period_month", { ascending: false }),
+      supabase
+        .from("data_unlock_requests")
+        .select("id,lock_id,reason,status")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("academic_year_closures")
+        .select(
+          "id,source_classroom_id,target_classroom_id,source_academic_year,target_academic_year,status,summary,undo_deadline",
+        )
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("academic_year_snapshots")
+        .select("id,academic_year,classroom_name,record_counts,created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("student_year_transitions")
+        .select("id,closure_id,student_id,transition_type")
+        .eq("workspace_id", workspaceId),
+      supabase
+        .from("portal_invitations")
+        .select("id,student_id,invite_email,status,expires_at")
+        .eq("workspace_id", workspaceId)
+        .eq("portal_role", "parent")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("behavior_records")
+        .select("student_id,points")
+        .eq("workspace_id", workspaceId)
+        .eq("category", "งานเวรประจำชั้น"),
+    ]);
+    const firstError = results.find((result) => result.error)?.error;
+    if (firstError && !firstError.message.includes("duty_tasks"))
+      setNotice(firstError.message);
+    const roomRows = (results[0].data || []) as Classroom[];
+    setClassrooms(roomRows);
+    setStudents((results[1].data || []) as Student[]);
+    setTasks((results[2].data || []) as DutyTask[]);
+    setAssignments((results[3].data || []) as DutyAssignment[]);
+    setLocks((results[4].data || []) as PeriodLock[]);
+    setUnlockRequests((results[5].data || []) as UnlockRequest[]);
+    setClosures((results[6].data || []) as YearClosure[]);
+    setSnapshots((results[7].data || []) as YearSnapshot[]);
+    setTransitions((results[8].data || []) as YearTransition[]);
+    setInvitations((results[9].data || []) as PortalInvite[]);
+    setBehaviorPoints((results[10].data || []) as BehaviorPoint[]);
+    const nextScope = getTeacherClassroomScope(session, roomRows);
+    const initialRoom =
+      classroomId && roomRows.some((room) => room.id === classroomId)
+        ? classroomId
+        : nextScope.defaultClassroomId ||
+          roomRows.find((room) => room.status === "active")?.id ||
+          roomRows[0]?.id ||
+          "";
+    setClassroomId(initialRoom);
+    setRolloverForm((current) => ({
+      ...current,
+      targetClassroomId:
+        current.targetClassroomId ||
+        roomRows.find(
+          (room) => room.id !== initialRoom && room.status === "active",
+        )?.id ||
+        "",
+    }));
+    setBusy(false);
+  }
+
   useEffect(() => {
-    let active = true;
-    async function load() {
-      if (!supabase || !session.workspace || !isUuid(session.workspace.id)) return;
-      setBusy(true);
-      const workspaceId = session.workspace.id;
-      const results = await Promise.all([
-        supabase
-          .from("classrooms")
-          .select("id,name,academic_year,status,homeroom_teacher_profile_id")
-          .eq("workspace_id", workspaceId)
-          .order("name"),
-        supabase
-          .from("students")
-          .select("id,classroom_id,student_code,first_name,last_name")
-          .eq("workspace_id", workspaceId)
-          .eq("status", "active")
-          .order("student_code"),
-        supabase
-          .from("duty_tasks")
-          .select("id,classroom_id,name,location,instructions,checklist,active_weekdays,slots_per_day,positive_points,missed_points,rotation_strategy,allow_substitute,evidence_required,is_active,sort_order")
-          .eq("workspace_id", workspaceId)
-          .order("sort_order"),
-        supabase
-          .from("duty_assignments")
-          .select(
-            "id,duty_task_id,duty_date,student_id,substitute_student_id,status",
-          )
-          .eq("workspace_id", workspaceId)
-          .gte("duty_date", addDays(weekStart, -35))
-          .lte("duty_date", addDays(weekStart, 41))
-          .order("duty_date"),
-        supabase
-          .from("data_period_locks")
-          .select("id,classroom_id,period_month,module_key,status,reason")
-          .eq("workspace_id", workspaceId)
-          .order("period_month", { ascending: false }),
-        supabase
-          .from("data_unlock_requests")
-          .select("id,lock_id,reason,status")
-          .eq("workspace_id", workspaceId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("academic_year_closures")
-          .select(
-            "id,source_classroom_id,target_classroom_id,source_academic_year,target_academic_year,status,summary,undo_deadline",
-          )
-          .eq("workspace_id", workspaceId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("academic_year_snapshots")
-          .select("id,academic_year,classroom_name,record_counts,created_at")
-          .eq("workspace_id", workspaceId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("student_year_transitions")
-          .select("id,closure_id,student_id,transition_type")
-          .eq("workspace_id", workspaceId),
-        supabase
-          .from("portal_invitations")
-          .select("id,student_id,invite_email,status,expires_at")
-          .eq("workspace_id", workspaceId)
-          .eq("portal_role", "parent")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("behavior_records")
-          .select("student_id,points")
-          .eq("workspace_id", workspaceId)
-          .eq("category", "งานเวรประจำชั้น"),
-      ]);
-      if (!active) return;
-      const firstError = results.find((result) => result.error)?.error;
-      if (firstError && !firstError.message.includes("duty_tasks"))
-        setNotice(firstError.message);
-      const roomRows = (results[0].data || []) as Classroom[];
-      setClassrooms(roomRows);
-      setStudents((results[1].data || []) as Student[]);
-      setTasks((results[2].data || []) as DutyTask[]);
-      setAssignments((results[3].data || []) as DutyAssignment[]);
-      setLocks((results[4].data || []) as PeriodLock[]);
-      setUnlockRequests((results[5].data || []) as UnlockRequest[]);
-      setClosures((results[6].data || []) as YearClosure[]);
-      setSnapshots((results[7].data || []) as YearSnapshot[]);
-      setTransitions((results[8].data || []) as YearTransition[]);
-      setInvitations((results[9].data || []) as PortalInvite[]);
-      setBehaviorPoints((results[10].data || []) as BehaviorPoint[]);
-      const nextScope = getTeacherClassroomScope(session, roomRows);
-      const initialRoom =
-        classroomId && roomRows.some((room) => room.id === classroomId)
-          ? classroomId
-          : nextScope.defaultClassroomId ||
-            roomRows.find((room) => room.status === "active")?.id ||
-            roomRows[0]?.id ||
-            "";
-      setClassroomId(initialRoom);
-      setRolloverForm((current) => ({
-        ...current,
-        targetClassroomId:
-          current.targetClassroomId ||
-          roomRows.find(
-            (room) => room.id !== initialRoom && room.status === "active",
-          )?.id ||
-          "",
-      }));
-      setBusy(false);
-    }
-    void load();
-    return () => {
-      active = false;
-    };
+    void loadOperationsData();
   }, [classroomId, session.workspace, weekStart]);
 
   useEffect(() => {
@@ -523,8 +540,10 @@ export function ClassroomOperationsPage({
   useEffect(() => setSelectedDutyDate(weekStart), [weekStart]);
 
   async function refreshOperations() {
-    setWeekStart((current) => `${current}`);
-    window.location.reload();
+    setBusy(true);
+    await loadOperationsData();
+    setNotice("รีเฟรชข้อมูลเวรและกิจกรรมประจำห้องเรียบร้อยแล้ว");
+    setBusy(false);
   }
 
   function openPrintDialog() {
@@ -745,28 +764,283 @@ export function ClassroomOperationsPage({
     setBusy(false);
   }
 
-  async function assignDutyManually(task: DutyTask, dutyDate: string) {
-    if (!canManageDuty) return;
-    if (!supabase || !session.workspace || !classroomId) return;
-    const query = window.prompt("กรอกรหัสนักเรียนหรือชื่อที่ต้องการมอบหมาย")?.trim();
-    if (!query) return;
-    const student = roomStudents.find(
-      (item) => item.id === query || item.student_code === query || fullName(item).includes(query),
-    );
-    if (!student) {
-      setNotice("ไม่พบนักเรียนในห้องนี้");
+  function openAssignModal(task: DutyTask, dutyDate: string, assignment?: DutyAssignment) {
+    setAssignModalState({
+      currentAssignment: assignment || null,
+      dutyDate,
+      isOpen: true,
+      task,
+    });
+  }
+
+  async function handleAssignStudent(studentId: string) {
+    if (!canManageDuty || !assignModalState.task) return;
+    const targetTask = assignModalState.task;
+    const targetDate = assignModalState.dutyDate;
+    const student = roomStudents.find((s) => s.id === studentId);
+    if (!student) return;
+
+    setBusy(true);
+    if (!isSupabaseReady || !supabase || !session.workspace || isDemo) {
+      const newAssignment: DutyAssignment = {
+        duty_date: targetDate,
+        duty_task_id: targetTask.id,
+        id: `demo-${Date.now()}`,
+        status: "assigned",
+        student_id: studentId,
+        substitute_student_id: null,
+      };
+      setAssignments((curr) => {
+        if (assignModalState.currentAssignment) {
+          return curr.map((item) =>
+            item.id === assignModalState.currentAssignment?.id ? newAssignment : item
+          );
+        }
+        return [...curr, newAssignment];
+      });
+      setNotice(`มอบหมาย ${fullName(student)} ทำหน้าที่ ${targetTask.name} เรียบร้อยแล้ว`);
+      setAssignModalState({ currentAssignment: null, dutyDate: "", isOpen: false, task: null });
+      setBusy(false);
       return;
     }
-    setBusy(true);
+
     const { error } = await supabase.rpc("set_manual_duty_assignment", {
       target_classroom_id: classroomId,
-      target_date: dutyDate,
+      target_date: targetDate,
       target_student_id: student.id,
-      target_task_id: task.id,
+      target_task_id: targetTask.id,
       target_workspace_id: session.workspace.id,
     });
-    setNotice(error ? error.message : `มอบหมาย ${fullName(student)} ทำหน้าที่ ${task.name} แล้ว`);
-    if (!error) setTimeout(() => window.location.reload(), 350);
+
+    if (error) {
+      setNotice(error.message);
+    } else {
+      const refreshed = await supabase
+        .from("duty_assignments")
+        .select("id,duty_task_id,duty_date,student_id,substitute_student_id,status")
+        .eq("workspace_id", session.workspace.id)
+        .gte("duty_date", addDays(weekStart, -7))
+        .lte("duty_date", addDays(weekStart, 14))
+        .order("duty_date");
+
+      if (refreshed.data) {
+        setAssignments((current) => [
+          ...current.filter(
+            (item) => item.duty_date < addDays(weekStart, -7) || item.duty_date > addDays(weekStart, 14)
+          ),
+          ...(refreshed.data as DutyAssignment[]),
+        ]);
+      }
+      setNotice(`มอบหมาย ${fullName(student)} ทำหน้าที่ ${targetTask.name} เรียบร้อยแล้ว`);
+      setAssignModalState({ currentAssignment: null, dutyDate: "", isOpen: false, task: null });
+    }
+    setBusy(false);
+  }
+
+  async function handleUnassignStudent(assignmentId: string) {
+    if (!canManageDuty) return;
+    setBusy(true);
+    if (!isSupabaseReady || !supabase || !session.workspace || isDemo) {
+      setAssignments((curr) => curr.filter((item) => item.id !== assignmentId));
+      setNotice("นำนักเรียนออกจากหน้าที่เวรเรียบร้อยแล้ว");
+      setAssignModalState({ currentAssignment: null, dutyDate: "", isOpen: false, task: null });
+      setBusy(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("duty_assignments")
+      .delete()
+      .eq("id", assignmentId)
+      .eq("workspace_id", session.workspace.id);
+
+    if (error) {
+      setNotice(`เกิดข้อผิดพลาดในการนำออก: ${error.message}`);
+    } else {
+      setAssignments((curr) => curr.filter((item) => item.id !== assignmentId));
+      setNotice("นำนักเรียนออกจากหน้าที่เวรเรียบร้อยแล้ว");
+      setAssignModalState({ currentAssignment: null, dutyDate: "", isOpen: false, task: null });
+    }
+    setBusy(false);
+  }
+
+  async function quickAssignDailyGroups() {
+    if (!canManageDuty || !classroomId) return;
+    if (roomStudents.length === 0) {
+      setNotice("ไม่มีรายชื่อนักเรียนในห้องนี้");
+      return;
+    }
+    const activeTasks = uniqueTasks.filter((t) => t.is_active);
+    if (activeTasks.length === 0) {
+      setNotice("กรุณาเปิดใช้งานหน้าที่เวรอย่างน้อย 1 หน้าที่");
+      return;
+    }
+
+    setBusy(true);
+    const dayDates = [
+      weekStart,
+      addDays(weekStart, 1),
+      addDays(weekStart, 2),
+      addDays(weekStart, 3),
+      addDays(weekStart, 4),
+    ];
+
+    const groups: Student[][] = [[], [], [], [], []];
+    roomStudents.forEach((student, index) => {
+      groups[index % 5].push(student);
+    });
+
+    const newAssignments: DutyAssignment[] = [];
+    for (let dayIndex = 0; dayIndex < 5; dayIndex++) {
+      const targetDate = dayDates[dayIndex];
+      const dayGroup = groups[dayIndex];
+      let studentIdx = 0;
+
+      for (const task of activeTasks) {
+        if (!task.active_weekdays.includes(dayIndex + 1)) continue;
+        const slots = task.slots_per_day || 1;
+
+        for (let s = 0; s < slots; s++) {
+          if (studentIdx < dayGroup.length) {
+            const student = dayGroup[studentIdx];
+            studentIdx++;
+
+            if (!isSupabaseReady || !supabase || !session.workspace || isDemo) {
+              newAssignments.push({
+                duty_date: targetDate,
+                duty_task_id: task.id,
+                id: `demo-${Date.now()}-${dayIndex}-${s}`,
+                status: "assigned",
+                student_id: student.id,
+                substitute_student_id: null,
+              });
+            } else {
+              await supabase.rpc("set_manual_duty_assignment", {
+                target_classroom_id: classroomId,
+                target_date: targetDate,
+                target_student_id: student.id,
+                target_task_id: task.id,
+                target_workspace_id: session.workspace.id,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (!isSupabaseReady || !supabase || !session.workspace || isDemo) {
+      setAssignments((curr) => [
+        ...curr.filter((item) => !dayDates.includes(item.duty_date)),
+        ...newAssignments,
+      ]);
+    } else {
+      const refreshed = await supabase
+        .from("duty_assignments")
+        .select("id,duty_task_id,duty_date,student_id,substitute_student_id,status")
+        .eq("workspace_id", session.workspace.id)
+        .gte("duty_date", weekStart)
+        .lte("duty_date", addDays(weekStart, 6))
+        .order("duty_date");
+
+      if (refreshed.data) {
+        setAssignments((current) => [
+          ...current.filter((item) => item.duty_date < weekStart || item.duty_date > addDays(weekStart, 6)),
+          ...(refreshed.data as DutyAssignment[]),
+        ]);
+      }
+    }
+
+    setNotice("แบ่งกลุ่มเวรวันจันทร์-ศุกร์ (5 กลุ่ม) เข้าตารางเรียบร้อยแล้ว ✨");
+    setBusy(false);
+  }
+
+  function handlePrintPoster(style: "poster" | "official", targetWeek: string) {
+    setPosterModalOpen(false);
+    if (style === "official") {
+      setPrintWeekStart(targetWeek);
+      void printDutyReport();
+    } else {
+      const reportWindow = window.open("", "classcare-duty-poster", "width=1280,height=900");
+      if (!reportWindow) {
+        setNotice("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต Pop-up แล้วลองใหม่อีกครั้ง");
+        return;
+      }
+      const identity = loadSchoolReportIdentity(session.workspace?.id);
+      const classroom = classrooms.find((item) => item.id === classroomId);
+      const roomName = classroom?.name || session.workspace?.classroomName || "ประจำห้อง";
+      const schoolName = identity.schoolName && identity.schoolName !== "โรงเรียนตัวอย่าง ClassCare"
+        ? identity.schoolName
+        : session.workspace?.schoolName || "โรงเรียน";
+      const teacherName = identity.teacherName || session.profile.displayName || "";
+      const weekEnd = addDays(targetWeek, 4);
+
+      const html = buildClassroomPosterHtml({
+        assignments,
+        roomName,
+        schoolName,
+        studentMap,
+        tasks: uniqueTasks,
+        teacherName,
+        weekEnd,
+        weekStart: targetWeek,
+      });
+
+      reportWindow.opener = null;
+      reportWindow.document.open();
+      reportWindow.document.write(html);
+      reportWindow.document.close();
+    }
+  }
+
+  async function markAllDoneForDate(date: string) {
+    if (!canManageDuty) return;
+    const pending = assignments.filter((a) => a.duty_date === date && a.status === "assigned");
+    if (pending.length === 0) {
+      setNotice("ไม่มีรายการเวรที่รอตรวจในวันนี้");
+      return;
+    }
+
+    setBusy(true);
+    if (!isSupabaseReady || !supabase || !session.workspace || isDemo) {
+      setAssignments((curr) =>
+        curr.map((item) =>
+          item.duty_date === date && item.status === "assigned"
+            ? { ...item, status: "completed" }
+            : item
+        )
+      );
+      pending.forEach((item) => {
+        setBehaviorPoints((curr) => [...curr, { points: 1, student_id: item.student_id }]);
+      });
+      setNotice(`🎉 บันทึกผลสำเร็จ: มาทำเวรครบทุกคน (${pending.length} คน) +1 คะแนนจิตพิสัย`);
+      setBusy(false);
+      return;
+    }
+
+    let successCount = 0;
+    for (const item of pending) {
+      const { error } = await supabase.rpc("record_duty_result_v2", {
+        next_status: "completed",
+        result_note: "ตรวจเรียบร้อยครบทุกคน",
+        target_assignment_id: item.id,
+        target_checklist_result: [],
+        target_evidence_paths: [],
+        target_substitute_student_id: null,
+      });
+      if (!error) {
+        successCount++;
+        setBehaviorPoints((curr) => [...curr, { points: 1, student_id: item.student_id }]);
+      }
+    }
+
+    setAssignments((curr) =>
+      curr.map((item) =>
+        item.duty_date === date && item.status === "assigned"
+          ? { ...item, status: "completed" }
+          : item
+      )
+    );
+    setNotice(`🎉 บันทึกผลสำเร็จ: มาทำเวรครบทุกคน (${successCount} คน) +1 คะแนนจิตพิสัย`);
     setBusy(false);
   }
 
@@ -862,8 +1136,17 @@ export function ClassroomOperationsPage({
     return true;
   }
 
-  async function recordDuty(assignment: DutyAssignment, status: DutyStatus) {
-    if (!canManageDuty || !supabase) return;
+  async function recordDuty(
+    assignment: DutyAssignment,
+    status: DutyStatus,
+    options?: {
+      checklistResult?: Array<{ checked: boolean; label: string }>;
+      evidencePaths?: string[];
+      note?: string | null;
+      substituteId?: string | null;
+    },
+  ) {
+    if (!canManageDuty) return;
     setBusy(true);
     const task = tasks.find((item) => item.id === assignment.duty_task_id);
     if (status === "substituted" && task && !task.allow_substitute) {
@@ -871,58 +1154,69 @@ export function ClassroomOperationsPage({
       setBusy(false);
       return;
     }
-    const substituteQuery =
-      status === "substituted"
-        ? window.prompt("กรอกรหัสนักเรียนหรือชื่อผู้ทำเวรแทน")?.trim()
-        : null;
-    const substitute = substituteQuery
-      ? roomStudents.find(
-          (student) =>
-            student.id === substituteQuery ||
-            student.student_code === substituteQuery ||
-            fullName(student).includes(substituteQuery),
-        )
-      : null;
-    if (status === "substituted" && !substitute) {
-      setNotice("ไม่พบนักเรียนผู้ทำเวรแทนในห้องนี้");
+
+    if (!isSupabaseReady || !supabase || !session.workspace || isDemo) {
+      setAssignments((current) =>
+        current.map((item) =>
+          item.id === assignment.id
+            ? {
+                ...item,
+                status,
+                substitute_student_id: options?.substituteId || null,
+              }
+            : item,
+        ),
+      );
+      const delta = status === "completed" ? 1 : status === "missed" ? -1 : 0;
+      if (delta !== 0) {
+        setBehaviorPoints((curr) => [
+          ...curr,
+          { points: delta, student_id: options?.substituteId || assignment.student_id },
+        ]);
+      }
+      setNotice(`บันทึกผลเวรเป็น "${DUTY_STATUS_CONFIG[status]?.label || status}" เรียบร้อยแล้ว`);
       setBusy(false);
       return;
     }
-    const checklistResult = status === "completed" && task?.checklist.length
-      ? task.checklist.map((label) => ({ checked: window.confirm(`ยืนยัน: ${label}`), label }))
-      : [];
-    if (checklistResult.some((item) => !item.checked)) {
-      setNotice("เช็กลิสต์ยังไม่ครบ จึงยังไม่บันทึกว่าทำเวรเสร็จ");
-      setBusy(false);
-      return;
-    }
-    const evidence = status === "completed" && task?.evidence_required
-      ? window.prompt("หน้าที่นี้ต้องมีหลักฐาน กรุณาวางลิงก์รูปภาพหรือไฟล์")?.trim()
-      : null;
-    if (status === "completed" && task?.evidence_required && !evidence) {
-      setNotice("ยังไม่มีหลักฐาน จึงยังไม่บันทึกว่าทำเวรเสร็จ");
-      setBusy(false);
-      return;
-    }
+
     const { data, error } = await supabase.rpc("record_duty_result_v2", {
       next_status: status,
-      result_note: null,
-      target_checklist_result: checklistResult,
-      target_evidence_paths: evidence ? [evidence] : [],
+      result_note: options?.note || null,
       target_assignment_id: assignment.id,
-      target_substitute_student_id: substitute?.id || null,
+      target_checklist_result: options?.checklistResult || [],
+      target_evidence_paths: options?.evidencePaths || [],
+      target_substitute_student_id: options?.substituteId || null,
     });
-    if (error) setNotice(error.message);
-    else {
+
+    if (error) {
+      setNotice(error.message);
+    } else {
       const points =
         (data as { behavior_points?: number } | null)?.behavior_points || 0;
       setAssignments((current) =>
         current.map((item) =>
-          item.id === assignment.id ? { ...item, status } : item,
+          item.id === assignment.id
+            ? {
+                ...item,
+                status,
+                substitute_student_id: options?.substituteId || null,
+              }
+            : item,
         ),
       );
+      if (points !== 0) {
+        setBehaviorPoints((curr) => [
+          ...curr,
+          {
+            points,
+            student_id: options?.substituteId || assignment.student_id,
+          },
+        ]);
+      }
       setNotice(
-        `บันทึกผลเวรแล้ว และส่ง ${points >= 0 ? "+" : ""}${points} คะแนนไปยังพฤติกรรม/จิตพิสัย`,
+        `บันทึกผลเวรแล้ว (${DUTY_STATUS_CONFIG[status]?.label || status})${
+          points !== 0 ? ` พร้อมปรับ ${points > 0 ? "+" : ""}${points} คะแนนจิตพิสัย` : ""
+        }`,
       );
     }
     setBusy(false);
@@ -1304,13 +1598,19 @@ export function ClassroomOperationsPage({
   const isYearOrLock = mode === "year" || mode === "locks";
   const visibleTabs = isYearOrLock
     ? tabs.filter((item) => item.key === "locks" || item.key === "rollover" || item.key === "archive")
-    : tabs.filter((item) => item.key === "duty" || item.key === "parent-qr");
+    : mode === "parent"
+      ? tabs.filter((item) => item.key === "parent-qr")
+      : tabs.filter((item) => item.key === "duty" || item.key === "inspection" || item.key === "tasks" || item.key === "parent-qr");
   const pageTitle = isYearOrLock
     ? "ปีการศึกษาและควบคุมข้อมูล"
-    : "กิจกรรมประจำห้อง & ผู้ปกครอง";
+    : mode === "parent"
+      ? "QR เชื่อมต่อผู้ปกครอง"
+      : "ตารางเวรทำความสะอาด & กิจวัตรประจำห้อง";
   const pageDescription = isYearOrLock
     ? "ล็อกงวดข้อมูล (เวลาเรียน/คะแนน/เงินออม), เลื่อนชั้นเรียนข้ามปีการศึกษา และเรียกดูคลังข้อมูลย้อนหลัง"
-    : "จัดเวรประจำวัน, มอบหมายงาน, บันทึกผลจิตพิสัย และสร้าง Portal QR ให้ผู้ปกครอง";
+    : mode === "parent"
+      ? "สร้างรหัส QR และจัดการคำเชิญเชื่อมต่อระบบสำหรับผู้ปกครอง"
+      : "จัดเวรประจำวัน เกลี่ยภาระงานเท่าเทียม ตรวจเวรด่วน และบันทึกคะแนนจิตพิสัยอัตโนมัติ";
 
   return (
     <main className="app-page">
@@ -1441,138 +1741,30 @@ export function ClassroomOperationsPage({
 
       {tab === "duty" ? (
         <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  <div className="flex items-center justify-between">
-                    <span>ห้องเรียนที่จัดเวร</span>
-                    {teacherScope.homeroomClassrooms.some((c) => c.id === classroomId) ? (
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-200">
-                        ⭐ เฉพาะนักเรียนในที่ปรึกษา
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
-                        ห้องเรียนทั่วไป
-                      </span>
-                    )}
-                  </div>
-                  <select className="nexus-field h-11 px-3" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
-                    {displayClassrooms.map((room) => {
-                      const count = students.filter((student) => student.classroom_id === room.id).length;
-                      const isHome = teacherScope.homeroomClassrooms.some((c) => c.id === room.id);
-                      return (
-                        <option key={room.id} value={room.id}>
-                          {isHome ? "⭐ " : ""}{room.name} ({room.academic_year || "-"}) · {count} คน{isHome ? " [ห้องที่ปรึกษา]" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  สัปดาห์
-                  <ThaiDatePicker className="h-11 px-3" onValueChange={setWeekStart} value={weekStart} />
-                </label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-black text-cyan-800 hover:bg-cyan-100"
-                  disabled={!canManageDuty}
-                  onClick={() => editTask()}
-                  type="button"
-                >
-                  <Plus size={17} />
-                  เพิ่มหน้าที่เวร
-                </button>
-                <button
-                  className="dark-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black"
-                  onClick={openPrintDialog}
-                  type="button"
-                >
-                  <Printer size={17} />
-                  พิมพ์รายงาน
-                </button>
-                <button
-                  className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black disabled:opacity-50"
-                  disabled={busy || !canManageDuty || !classroomId}
-                  onClick={() => setDutyGeneratorOpen(true)}
-                  type="button"
-                >
-                  <Scale size={17} />
-                  สุ่มจัดเวร
-                </button>
-              </div>
-            </div>
-            <DutySummary
-              assignments={roomAssignments}
-              studentCount={roomStudents.length}
-            />
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full min-w-[980px] text-left text-sm">
-                <thead className="bg-slate-950 text-white">
-                  <tr>
-                    <th className="p-3">งาน / วัน</th>
-                    {displayedDutyDays.map((day) => {
-                      const date = addDays(weekStart, day.value - 1);
-                      return <th className={`p-1.5 ${selectedDutyDate === date ? "bg-cyan-950" : ""}`} key={day.value}>
-                        <button className="w-full rounded-xl px-2 py-2 text-left transition hover:bg-white/10" onClick={() => setSelectedDutyDate(date)} type="button">
-                        {new Intl.DateTimeFormat("th-TH", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                        }).format(
-                          new Date(`${date}T12:00:00`),
-                        )}
-                        </button>
-                      </th>;
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {uniqueTasks.filter((task) => task.is_active).map((task) => (
-                    <tr className="border-t border-slate-200" key={task.id}>
-                      <th className="bg-slate-50 p-3 font-black text-slate-900">
-                        <span className="block">{task.name}</span>
-                        {task.location ? <span className="mt-1 block text-xs font-bold text-slate-400">{task.location}</span> : null}
-                      </th>
-                      {displayedDutyDays.map((day) => {
-                        const date = addDays(weekStart, day.value - 1);
-                        const list = roomAssignments.filter(
-                          (item) =>
-                            (taskAliasIds.get(task.id) || [task.id]).includes(item.duty_task_id) &&
-                            item.duty_date === date,
-                        );
-                        return (
-                          <td className={`p-2 align-top ${selectedDutyDate === date ? "bg-cyan-50/50" : ""}`} key={date}>
-                            {list.length ? (
-                              <>{list.map((assignment) => (
-                                <div
-                                  className={`mb-1.5 flex items-center gap-2 rounded-xl border px-2.5 py-2 ${dutyStatusStyle(assignment.status)}`}
-                                  key={assignment.id}
-                                >
-                                  <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-70" />
-                                  <p className="min-w-0 truncate text-xs font-black">
-                                    {fullName(
-                                      studentMap.get(assignment.student_id),
-                                    )}
-                                  </p>
-                                </div>
-                              ))}
-                              {list.length < task.slots_per_day ? <button className="w-full rounded-lg border border-dashed border-cyan-300 px-2 py-1.5 text-xs font-black text-cyan-700" disabled={busy || !canManageDuty} onClick={() => void assignDutyManually(task, date)} type="button">+ เพิ่มคน</button> : null}</>
-                            ) : task.active_weekdays.includes(day.value) ? (
-                              <button className="w-full rounded-lg border border-dashed border-slate-300 px-2 py-2 text-xs font-black text-slate-500 hover:border-cyan-300 hover:text-cyan-700" disabled={busy || !canManageDuty} onClick={() => void assignDutyManually(task, date)} type="button">+ มอบหมายเอง</button>
-                            ) : (
-                              <span className="text-slate-300">ไม่มีเวรวันนี้</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DutyScheduleView
+            assignments={roomAssignments}
+            busy={busy}
+            canManage={canManageDuty}
+            onDeleteAssignment={handleUnassignStudent}
+            onOpenAssignModal={openAssignModal}
+            onOpenGenerator={() => setDutyGeneratorOpen(true)}
+            onOpenInspection={(date) => {
+              setSelectedDutyDate(date);
+              setInspectionModalOpen(true);
+            }}
+            onOpenPosterModal={() => setPosterModalOpen(true)}
+            onOpenTaskDesigner={() => setDesignerOpen(true)}
+            onQuickAssignPresets={() => void quickAssignDailyGroups()}
+            onSelectDutyDate={setSelectedDutyDate}
+            onWeekChange={setWeekStart}
+            selectedDutyDate={selectedDutyDate}
+            studentMap={studentMap}
+            students={roomStudents}
+            taskAliasIds={taskAliasIds}
+            tasks={classroomTasks}
+            uniqueTasks={uniqueTasks}
+            weekStart={weekStart}
+          />
           {dutyGeneratorOpen ? (
             <DutyGenerationDialog
               busy={busy}
@@ -1664,50 +1856,108 @@ export function ClassroomOperationsPage({
           ) : null}
           <aside className="grid content-start gap-4">
             <div className="nexus-card p-5">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">ตรวจผลรายวัน</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">
-                {new Intl.DateTimeFormat("th-TH", { dateStyle: "long" }).format(new Date(`${selectedDutyDate}T12:00:00`))}
-              </h2>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">ตรวจผลรายวัน</p>
+                  <h2 className="mt-0.5 text-lg font-black text-slate-950">
+                    {new Intl.DateTimeFormat("th-TH", { dateStyle: "long" }).format(new Date(`${selectedDutyDate}T12:00:00`))}
+                  </h2>
+                </div>
+                <button
+                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-black text-cyan-800 hover:bg-cyan-100"
+                  onClick={() => setInspectionModalOpen(true)}
+                  type="button"
+                >
+                  โหมดตรวจเต็มจอ
+                </button>
+              </div>
+
               <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-center">
                 <Metric label="ทั้งหมด" value={`${selectedDayAssignments.length}`} />
                 <Metric label="ตรวจแล้ว" value={`${selectedDayAssignments.filter((item) => item.status !== "assigned").length}`} />
                 <Metric label="รอตรวจ" value={`${selectedDayAssignments.filter((item) => item.status === "assigned").length}`} />
               </div>
-              <div className="mt-4 grid max-h-[560px] gap-2 overflow-y-auto pr-1">
+
+              {selectedDayAssignments.length > 0 && selectedDayAssignments.some((a) => a.status === "assigned") ? (
+                <button
+                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+                  disabled={busy || !canManageDuty}
+                  onClick={() => void markAllDoneForDate(selectedDutyDate)}
+                  type="button"
+                >
+                  <CheckCircle2 size={14} />
+                  มาทำเวรครบทุกคน (1-Click)
+                </button>
+              ) : null}
+
+              <div className="mt-3 grid max-h-[500px] gap-2 overflow-y-auto pr-1">
                 {selectedDayAssignments.length ? selectedDayAssignments.map((assignment) => {
                   const task = tasks.find((item) => item.id === assignment.duty_task_id);
-                  return <div className="rounded-2xl border border-slate-200 bg-white p-3" key={assignment.id}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-950">{task?.name || "หน้าที่เวร"}</p>
-                        <p className="mt-1 truncate text-xs font-bold text-slate-500">{fullName(studentMap.get(assignment.student_id))}</p>
+                  const statusConf = DUTY_STATUS_CONFIG[assignment.status];
+                  return (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs" key={assignment.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-slate-950">{task?.name || "หน้าที่เวร"}</p>
+                          <p className="mt-0.5 truncate text-xs font-bold text-slate-600">{fullName(studentMap.get(assignment.student_id))}</p>
+                        </div>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusConf?.badgeClass || ""}`}>
+                          {statusConf?.label || assignment.status}
+                        </span>
                       </div>
-                      <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${dutyStatusStyle(assignment.status)}`}>{dutyStatusLabel(assignment.status)}</span>
+                      <div className="mt-2.5 flex items-center gap-1">
+                        <button
+                          className="flex-1 rounded-lg bg-emerald-50 py-1 text-xs font-black text-emerald-800 hover:bg-emerald-100"
+                          disabled={busy || !canManageDuty}
+                          onClick={() => void recordDuty(assignment, "completed")}
+                          type="button"
+                        >
+                          🟢 ทำแล้ว
+                        </button>
+                        <button
+                          className="flex-1 rounded-lg bg-rose-50 py-1 text-xs font-black text-rose-800 hover:bg-rose-100"
+                          disabled={busy || !canManageDuty}
+                          onClick={() => void recordDuty(assignment, "missed")}
+                          type="button"
+                        >
+                          🔴 ไม่ทำ
+                        </button>
+                        <button
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                          disabled={busy || !canManageDuty}
+                          onClick={() => setInspectionModalOpen(true)}
+                          title="ตัวเลือกเพิ่มเติม"
+                          type="button"
+                        >
+                          ...
+                        </button>
+                      </div>
                     </div>
-                    <select className="nexus-field mt-3 h-9 w-full px-2 text-xs font-black" disabled={busy || !canManageDuty} onChange={(event) => void recordDuty(assignment, event.target.value as DutyStatus)} value={assignment.status}>
-                      <option value="assigned">รอตรวจ</option>
-                      <option value="completed">ทำแล้ว</option>
-                      <option value="missed">ไม่ทำเวร</option>
-                      <option value="excused">ลาเวร</option>
-                      <option value="substituted">มีคนแทน</option>
-                    </select>
-                  </div>;
-                }) : <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">วันนี้ยังไม่มีการมอบหมายเวร</div>}
+                  );
+                }) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">
+                    วันนี้ยังไม่มีการมอบหมายเวร
+                  </div>
+                )}
               </div>
             </div>
+
             <details className="nexus-card group p-5">
-              <summary className="cursor-pointer list-none text-lg font-black text-slate-950">สรุปคะแนนจิตพิสัยรายคน <span className="ml-2 text-xs text-cyan-700">เปิดดู</span></summary>
-              <p className="mt-2 text-xs font-bold text-slate-500">คะแนนฐาน 80 + ผลพฤติกรรมและผลเวรที่บันทึกแล้ว</p>
-              <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto">
-                {roomStudents.slice(0, 8).map((student) => {
+              <summary className="cursor-pointer list-none text-base font-black text-slate-950">
+                สรุปคะแนนจิตพิสัยรายคน <span className="ml-2 text-xs text-cyan-700">เปิดดู ({roomStudents.length} คน)</span>
+              </summary>
+              <p className="mt-1 text-xs font-bold text-slate-500">คะแนนฐาน 80 + ผลพฤติกรรมและผลเวรที่บันทึกแล้ว</p>
+              <div className="mt-3 grid max-h-72 gap-1.5 overflow-y-auto">
+                {roomStudents.map((student) => {
                   const point = pointsByStudent.get(student.id) || 0;
                   const score = Math.max(0, Math.min(100, 80 + point));
                   return (
                     <div
-                      className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
+                      className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-1.5 text-xs"
                       key={student.id}
                     >
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="font-bold text-slate-700">
+                        {student.student_code ? `${student.student_code}. ` : ""}
                         {fullName(student)}
                       </span>
                       <span className="font-black text-cyan-700">
@@ -1733,6 +1983,209 @@ export function ClassroomOperationsPage({
             onToggle={toggleDutyTask}
             tasks={uniqueTasks}
           /> : null}
+        </section>
+      ) : null}
+
+      {tab === "inspection" ? (
+        <section className="mt-5">
+          <div className="nexus-card p-6">
+            <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800 ring-1 ring-emerald-200">
+                  <CheckCircle2 size={13} />
+                  โหมดตรวจผลเวรประจำวัน
+                </span>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">
+                  {new Intl.DateTimeFormat("th-TH", { dateStyle: "full" }).format(new Date(`${selectedDutyDate}T12:00:00`))}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <ThaiDatePicker
+                  className="h-10 px-3"
+                  onValueChange={setSelectedDutyDate}
+                  value={selectedDutyDate}
+                />
+                {selectedDayAssignments.some((a) => a.status === "assigned") ? (
+                  <button
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+                    disabled={busy || !canManageDuty}
+                    onClick={() => void markAllDoneForDate(selectedDutyDate)}
+                    type="button"
+                  >
+                    <CheckCircle2 size={15} />
+                    ทำครบทุกคน ({selectedDayAssignments.filter((a) => a.status === "assigned").length} คน)
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {selectedDayAssignments.length ? selectedDayAssignments.map((assignment) => {
+                const task = tasks.find((t) => t.id === assignment.duty_task_id);
+                const student = studentMap.get(assignment.student_id);
+                const substitute = assignment.substitute_student_id ? studentMap.get(assignment.substitute_student_id) : null;
+                const statusConf = DUTY_STATUS_CONFIG[assignment.status];
+
+                return (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs" key={assignment.id}>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-black text-slate-900">{task?.name || "หน้าที่เวร"}</h4>
+                        <p className="mt-0.5 text-xs text-slate-400">{task?.location || "ประจำห้อง"}</p>
+                      </div>
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black ${statusConf?.badgeClass || ""}`}>
+                        {statusConf?.label || assignment.status}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-sm font-black text-slate-800">
+                      {student?.student_code ? `[${student.student_code}] ` : ""}
+                      {fullName(student)}
+                      {substitute ? (
+                        <span className="mt-0.5 block text-xs font-bold text-amber-700">
+                          (แทนโดย: {fullName(substitute)})
+                        </span>
+                      ) : null}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-1.5">
+                      <button
+                        className={`flex-1 rounded-xl py-1.5 text-xs font-black transition ${
+                          assignment.status === "completed"
+                            ? "bg-emerald-600 text-white"
+                            : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
+                        }`}
+                        disabled={busy || !canManageDuty}
+                        onClick={() => void recordDuty(assignment, "completed")}
+                        type="button"
+                      >
+                        🟢 ทำแล้ว (+1)
+                      </button>
+                      <button
+                        className={`flex-1 rounded-xl py-1.5 text-xs font-black transition ${
+                          assignment.status === "missed"
+                            ? "bg-rose-600 text-white"
+                            : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-rose-50 hover:text-rose-800"
+                        }`}
+                        disabled={busy || !canManageDuty}
+                        onClick={() => void recordDuty(assignment, "missed")}
+                        type="button"
+                      >
+                        🔴 ไม่ทำ (-1)
+                      </button>
+                      <button
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                        disabled={busy || !canManageDuty}
+                        onClick={() => setInspectionModalOpen(true)}
+                        type="button"
+                      >
+                        เพิ่มเติม...
+                      </button>
+                    </div>
+                  </article>
+                );
+              }) : (
+                <div className="col-span-full rounded-2xl border border-dashed border-slate-300 p-12 text-center text-sm font-bold text-slate-400">
+                  ไม่มีเวรในวันที่ {selectedDutyDate}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "tasks" ? (
+        <section className="mt-5">
+          <div className="nexus-card p-6">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-cyan-200">
+                  <CalendarCheck size={13} />
+                  จัดการหน้าที่เวร & เช็กลิสต์
+                </span>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">
+                  หน้าที่เวรทำความสะอาด ({uniqueTasks.length} หน้าที่)
+                </h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  กำหนดวัน จำนวนคน จุดปฏิบัติงาน เช็กลิสต์ และเกณฑ์คะแนนจิตพิสัย
+                </p>
+              </div>
+              <button
+                className="blue-action inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black"
+                disabled={!canManageDuty}
+                onClick={() => editTask()}
+                type="button"
+              >
+                <Plus size={15} />
+                เพิ่มหน้าที่ใหม่
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {uniqueTasks.map((task) => (
+                <article
+                  className={`rounded-2xl border p-4 shadow-xs transition ${
+                    task.is_active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 opacity-60"
+                  }`}
+                  key={task.id}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-black text-slate-900">{task.name}</h4>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {task.location || "ประจำห้อง"} · {task.slots_per_day} คน/วัน
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                        task.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {task.is_active ? "เปิดใช้" : "ปิด"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {dutyWeekdays.map((day) => (
+                      <span
+                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-black ${
+                          task.active_weekdays.includes(day.value)
+                            ? "bg-cyan-50 text-cyan-800"
+                            : "bg-slate-100 text-slate-300"
+                        }`}
+                        key={day.value}
+                      >
+                        {day.short}
+                      </span>
+                    ))}
+                  </div>
+
+                  {task.checklist && task.checklist.length > 0 ? (
+                    <p className="mt-2 text-[11px] font-bold text-slate-500">
+                      เช็กลิสต์: {task.checklist.length} รายการ
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                    <button
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                      onClick={() => editTask(task)}
+                      type="button"
+                    >
+                      แก้ไข
+                    </button>
+                    <button
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-600 hover:bg-slate-50"
+                      onClick={() => void toggleDutyTask(task)}
+                      type="button"
+                    >
+                      {task.is_active ? "พักงาน" : "เปิดใช้"}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
         </section>
       ) : null}
 
@@ -1795,6 +2248,62 @@ export function ClassroomOperationsPage({
           onRevoke={revokeInvite}
           qrDataUrl={qrDataUrl}
           students={roomStudents}
+        />
+      ) : null}
+
+      {assignModalState.isOpen ? (
+        <StudentAssignModal
+          assignments={assignments}
+          busy={busy}
+          currentAssignment={assignModalState.currentAssignment}
+          dutyDate={assignModalState.dutyDate}
+          isOpen={assignModalState.isOpen}
+          onAssign={handleAssignStudent}
+          onClose={() =>
+            setAssignModalState({ currentAssignment: null, dutyDate: "", isOpen: false, task: null })
+          }
+          onUnassign={handleUnassignStudent}
+          students={roomStudents}
+          task={assignModalState.task}
+          tasks={uniqueTasks}
+        />
+      ) : null}
+
+      {inspectionModalOpen ? (
+        <DailyInspectionModal
+          assignments={assignments}
+          busy={busy}
+          canManage={canManageDuty}
+          isOpen={inspectionModalOpen}
+          onClose={() => setInspectionModalOpen(false)}
+          onDateChange={setSelectedDutyDate}
+          onMarkAllDone={markAllDoneForDate}
+          onRecord={recordDuty}
+          selectedDate={selectedDutyDate}
+          studentMap={studentMap}
+          students={roomStudents}
+          tasks={uniqueTasks}
+        />
+      ) : null}
+
+      {posterModalOpen ? (
+        <DutyPosterModal
+          assignments={assignments}
+          busy={busy}
+          isOpen={posterModalOpen}
+          onClose={() => setPosterModalOpen(false)}
+          onPrint={handlePrintPoster}
+          roomName={
+            classrooms.find((r) => r.id === classroomId)?.name ||
+            session.workspace?.classroomName ||
+            "ประจำห้อง"
+          }
+          schoolName={session.workspace?.schoolName || "โรงเรียน"}
+          studentMap={studentMap}
+          students={roomStudents}
+          tasks={uniqueTasks}
+          teacherName={session.profile.displayName || ""}
+          weekStart={weekStart}
         />
       ) : null}
     </main>
