@@ -35,6 +35,20 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
 
   const selectedSubject = standardSubjects.find((s) => s.code === selectedSubjectCode) || standardSubjects[0];
 
+  if (!students || students.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
+          <Layers className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-bold text-white mb-2">ไม่พบรายชื่อนักเรียนในห้องเรียนนี้</h3>
+        <p className="text-xs text-slate-400 max-w-md">
+          กรุณาเพิ่มหรือนำเข้ารายชื่อนักเรียนในเมนู &ldquo;นักเรียน (Students)&rdquo; ให้เรียบร้อยก่อนเปิดสมุด ปพ.๕
+        </p>
+      </div>
+    );
+  }
+
   // สถิตินักเรียนต้นปี-สิ้นปี
   const totalStudents = students.length;
   const maleStudents = students.filter((s) => {
@@ -53,38 +67,38 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
     if (docMode === 'class_summary') {
       title = `สมุดบันทึกผลการพัฒนาคุณภาพผู้เรียน (ปพ.๕) สรุปผลรายชั้น ${gradeLevel} ห้อง ${roomName} ปีการศึกษา ${academicYear}`;
       headers = ['เลขที่', 'เลขประจำตัว', 'ชื่อ - สกุล', ...standardSubjects.map((s) => `${s.code} ${s.name}`), 'เกรดเฉลี่ย (GPA)', 'เวลาเรียน (%)', 'ผลการตัดสิน'];
-      rows = students.map((st, idx) => [
-        idx + 1,
-        st.student_code,
-        `${st.prefix || ''}${st.first_name} ${st.last_name}`,
-        ...standardSubjects.map((_sub, sIdx) => [3.5, 3.0, 4.0, 3.5, 4.0, 4.0, 3.5, 4.0, 3.0, 3.5][(idx + sIdx) % 10]),
-        (3.2 + ((idx % 7) * 0.1)).toFixed(2),
-        `${94 + (idx % 6)}%`,
-        'เลื่อนชั้น',
-      ]);
-    } else {
-      title = `สมุด ปพ.๕ รายวิชา ${selectedSubject.code} ${selectedSubject.name} (${selectedSubject.hoursPerYear} ชม./ปี) ชั้น ${gradeLevel} ปีการศึกษา ${academicYear}`;
-      headers = ['เลขที่', 'เลขประจำตัว', 'ชื่อ - นามสกุล', 'เก็บก่อนสอบ (35)', 'กลางภาค (15)', 'เก็บหลังสอบ (20)', 'รวมระหว่างภาค (70)', 'สอบปลายภาค (30)', 'รวม 100 คะแนน', 'ระดับผลการเรียน', 'ผลการตัดสิน'];
       rows = students.map((st, idx) => {
-        const preScore = 28 + (idx % 7);
-        const midScore = 12 + (idx % 3);
-        const postScore = 16 + (idx % 4);
-        const termTotal = preScore + midScore + postScore;
-        const finalExam = 22 + (idx % 8);
-        const totalScore = termTotal + finalExam;
-        const grade = totalScore >= 80 ? '4' : totalScore >= 75 ? '3.5' : totalScore >= 70 ? '3' : '2.5';
+        const summary = classSummaryScores?.find((c) => c.studentId === st.id);
+        const gpaStr = summary ? (summary.gpa > 0 ? summary.gpa.toFixed(2) : '-') : '-';
+        const attStr = summary ? `${summary.attendancePercent}%` : '-';
+        const decision = summary ? (summary.isPassed ? 'เลื่อนชั้น' : 'รอตัดสิน') : 'รอตัดสิน';
         return [
           idx + 1,
           st.student_code,
           `${st.prefix || ''}${st.first_name} ${st.last_name}`,
-          preScore,
-          midScore,
-          postScore,
-          termTotal,
-          finalExam,
-          totalScore,
-          grade,
-          'ผ่าน',
+          ...standardSubjects.map((sub) => {
+            const g = summary?.subjectScores?.[sub.code]?.grade;
+            return g !== undefined ? g : '-';
+          }),
+          gpaStr,
+          attStr,
+          decision,
+        ];
+      });
+    } else {
+      title = `สมุด ปพ.๕ รายวิชา ${selectedSubject.code} ${selectedSubject.name} (${selectedSubject.hoursPerYear} ชม./ปี) ชั้น ${gradeLevel} ปีการศึกษา ${academicYear}`;
+      headers = ['เลขที่', 'เลขประจำตัว', 'ชื่อ - นามสกุล', 'ร้อยละคะแนนรวม', 'ระดับผลการเรียน', 'ผลการตัดสิน'];
+      rows = students.map((st, idx) => {
+        const summary = classSummaryScores?.find((c) => c.studentId === st.id);
+        const scoreVal = summary?.subjectScores?.[selectedSubject.code]?.score100;
+        const gradeVal = summary?.subjectScores?.[selectedSubject.code]?.grade;
+        return [
+          idx + 1,
+          st.student_code,
+          `${st.prefix || ''}${st.first_name} ${st.last_name}`,
+          scoreVal !== undefined ? scoreVal : '-',
+          gradeVal !== undefined ? gradeVal : '-',
+          gradeVal !== undefined && Number(gradeVal) >= 1 ? 'ผ่าน' : 'รอตัดสิน',
         ];
       });
     }
@@ -107,39 +121,39 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
       fileName = `ปพ5_สรุปผลสัมฤทธิ์รายชั้น_${gradeLevel}_ปี${academicYear}`;
       title = `สมุดบันทึกผลการพัฒนาคุณภาพผู้เรียน (ปพ.๕) สรุปผลรายชั้น ${gradeLevel} ห้อง ${roomName} ปีการศึกษา ${academicYear}`;
       headers = ['เลขที่', 'เลขประจำตัว', 'ชื่อ - สกุล', ...standardSubjects.map((s) => `${s.code} ${s.name}`), 'เกรดเฉลี่ย (GPA)', 'เวลาเรียน (%)', 'ผลการตัดสิน'];
-      rows = students.map((st, idx) => [
-        idx + 1,
-        st.student_code,
-        `${st.prefix || ''}${st.first_name} ${st.last_name}`,
-        ...standardSubjects.map((_sub, sIdx) => [3.5, 3.0, 4.0, 3.5, 4.0, 4.0, 3.5, 4.0, 3.0, 3.5][(idx + sIdx) % 10]),
-        (3.2 + ((idx % 7) * 0.1)).toFixed(2),
-        `${94 + (idx % 6)}%`,
-        'เลื่อนชั้น',
-      ]);
-    } else {
-      fileName = `ปพ5_รายวิชา_${selectedSubject.code}_${selectedSubject.name}_ปี${academicYear}`;
-      title = `สมุด ปพ.๕ รายวิชา ${selectedSubject.code} ${selectedSubject.name} (${selectedSubject.hoursPerYear} ชม./ปี) ชั้น ${gradeLevel} ปีการศึกษา ${academicYear}`;
-      headers = ['เลขที่', 'เลขประจำตัว', 'ชื่อ - นามสกุล', 'เก็บก่อนสอบ (35)', 'กลางภาค (15)', 'เก็บหลังสอบ (20)', 'รวมระหว่างภาค (70)', 'สอบปลายภาค (30)', 'รวม 100 คะแนน', 'ระดับผลการเรียน', 'ผลการตัดสิน'];
       rows = students.map((st, idx) => {
-        const preScore = 28 + (idx % 7);
-        const midScore = 12 + (idx % 3);
-        const postScore = 16 + (idx % 4);
-        const termTotal = preScore + midScore + postScore;
-        const finalExam = 22 + (idx % 8);
-        const totalScore = termTotal + finalExam;
-        const grade = totalScore >= 80 ? '4' : totalScore >= 75 ? '3.5' : totalScore >= 70 ? '3' : '2.5';
+        const summary = classSummaryScores?.find((c) => c.studentId === st.id);
+        const gpaStr = summary ? (summary.gpa > 0 ? summary.gpa.toFixed(2) : '-') : '-';
+        const attStr = summary ? `${summary.attendancePercent}%` : '-';
+        const decision = summary ? (summary.isPassed ? 'เลื่อนชั้น' : 'รอตัดสิน') : 'รอตัดสิน';
         return [
           idx + 1,
           st.student_code,
           `${st.prefix || ''}${st.first_name} ${st.last_name}`,
-          preScore,
-          midScore,
-          postScore,
-          termTotal,
-          finalExam,
-          totalScore,
-          grade,
-          'ผ่าน',
+          ...standardSubjects.map((sub) => {
+            const g = summary?.subjectScores?.[sub.code]?.grade;
+            return g !== undefined ? g : '-';
+          }),
+          gpaStr,
+          attStr,
+          decision,
+        ];
+      });
+    } else {
+      fileName = `ปพ5_รายวิชา_${selectedSubject.code}_${selectedSubject.name}_ปี${academicYear}`;
+      title = `สมุด ปพ.๕ รายวิชา ${selectedSubject.code} ${selectedSubject.name} (${selectedSubject.hoursPerYear} ชม./ปี) ชั้น ${gradeLevel} ปีการศึกษา ${academicYear}`;
+      headers = ['เลขที่', 'เลขประจำตัว', 'ชื่อ - นามสกุล', 'ร้อยละคะแนนรวม', 'ระดับผลการเรียน', 'ผลการตัดสิน'];
+      rows = students.map((st, idx) => {
+        const summary = classSummaryScores?.find((c) => c.studentId === st.id);
+        const scoreVal = summary?.subjectScores?.[selectedSubject.code]?.score100;
+        const gradeVal = summary?.subjectScores?.[selectedSubject.code]?.grade;
+        return [
+          idx + 1,
+          st.student_code,
+          `${st.prefix || ''}${st.first_name} ${st.last_name}`,
+          scoreVal !== undefined ? scoreVal : '-',
+          gradeVal !== undefined ? gradeVal : '-',
+          gradeVal !== undefined && Number(gradeVal) >= 1 ? 'ผ่าน' : 'รอตัดสิน',
         ];
       });
     }
@@ -335,9 +349,9 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                   <tbody>
                     {students.map((st, idx) => {
                       const summary = classSummaryScores?.find((c) => c.studentId === st.id);
-                      const sampleGpa = summary ? summary.gpa.toFixed(2) : (3.2 + ((idx % 7) * 0.1)).toFixed(2);
-                      const sampleAtt = summary ? summary.attendancePercent : 94 + (idx % 6);
-                      const decisionText = summary ? (summary.isPassed ? 'เลื่อนชั้น' : 'รอตัดสิน') : 'เลื่อนชั้น';
+                      const gpaDisplay = summary && summary.gpa > 0 ? summary.gpa.toFixed(2) : '-';
+                      const attDisplay = summary && summary.attendancePercent > 0 ? `${summary.attendancePercent}%` : '-';
+                      const decisionText = summary ? (summary.isPassed ? 'เลื่อนชั้น' : 'รอตัดสิน') : 'รอตัดสิน';
 
                       return (
                         <tr key={st.id} className="hover:bg-slate-50 text-[11px]">
@@ -346,10 +360,9 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                           <td className="border border-slate-400 py-1 text-left px-2 font-medium truncate">
                             {st.prefix || ''}{st.first_name} {st.last_name}
                           </td>
-                          {standardSubjects.map((sub, sIdx) => {
+                          {standardSubjects.map((sub) => {
                             const realGrade = summary?.subjectScores?.[sub.code]?.grade;
-                            const grades = [3.5, 3.0, 4.0, 3.5, 4.0, 4.0, 3.5, 4.0, 3.0, 3.5];
-                            const gradeVal = realGrade !== undefined ? realGrade : grades[(idx + sIdx) % grades.length];
+                            const gradeVal = realGrade !== undefined ? realGrade : '-';
                             return (
                               <td key={sub.code} className="border border-slate-400 py-1 font-bold">
                                 {gradeVal}
@@ -357,10 +370,10 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                             );
                           })}
                           <td className="border border-slate-400 py-1 font-bold text-blue-900 bg-blue-50/50">
-                            {sampleGpa}
+                            {gpaDisplay}
                           </td>
                           <td className="border border-slate-400 py-1 text-slate-800">
-                            {sampleAtt}%
+                            {attDisplay}
                           </td>
                           <td className="border border-slate-400 py-1 font-bold text-emerald-800 bg-emerald-50/40">
                             {decisionText}
@@ -442,12 +455,16 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                 </thead>
                 <tbody>
                   {students.map((st, idx) => {
-                    const preScore = 28 + (idx % 7);
-                    const midScore = 12 + (idx % 3);
-                    const postScore = 16 + (idx % 4);
-                    const finalExam = 22 + (idx % 8);
-                    const totalScore = preScore + midScore + postScore + finalExam;
-                    const grade = totalScore >= 80 ? '4' : totalScore >= 75 ? '3.5' : totalScore >= 70 ? '3' : '2.5';
+                    const summary = classSummaryScores?.find((c) => c.studentId === st.id);
+                    const subjInfo = summary?.subjectScores?.[selectedSubject.code];
+                    const hasScore = subjInfo?.score100 !== undefined && typeof subjInfo.grade === 'number';
+                    const scoreDisplay = hasScore ? subjInfo.score100 : '-';
+                    const grade = hasScore ? subjInfo.grade : '-';
+                    const preScore = hasScore ? Math.round(Number(scoreDisplay) * 0.35) : '-';
+                    const midScore = hasScore ? Math.round(Number(scoreDisplay) * 0.15) : '-';
+                    const postScore = hasScore ? Math.round(Number(scoreDisplay) * 0.20) : '-';
+                    const finalExam = hasScore ? Math.round(Number(scoreDisplay) * 0.30) : '-';
+                    const totalScore = scoreDisplay;
 
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 text-[11px]">
@@ -465,7 +482,7 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
                           {grade}
                         </td>
                         <td className="border border-slate-400 py-1 font-bold text-emerald-800 bg-emerald-50/40">
-                          ผ่าน
+                          {hasScore ? (Number(grade) >= 1 ? 'ผ่าน' : 'ไม่ผ่าน') : 'รอผล'}
                         </td>
                       </tr>
                     );

@@ -51,39 +51,78 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
 
   const standardSubjects = getStandardSubjectsForGrade(gradeLevel);
 
-  // ฟังก์ชันสร้างรายงานของนักเรียนแต่ละคน
+  // ฟังก์ชันสร้างรายงานโครงสร้างของนักเรียนแต่ละคน (เมื่อยังไม่มีผลคะแนนที่สรุปแล้ว)
   const createStudentReport = (student: typeof students[0], index: number): OBECStudentFullReport => {
-    const hash = (student.student_code ? Number(student.student_code.slice(-2)) : index) || index;
-    const gpaBonus = (hash % 10) * 0.05;
-    const attRate = 92 + (hash % 8);
-
-    const studentSubjects = standardSubjects.map((s, sIdx) => {
-      const baseScore = 70 + ((hash + sIdx * 3) % 25);
-      const gradeInfo = calculateOBECGrade(baseScore);
+    if (!student) {
       return {
-        ...s,
-        score100: baseScore,
-        grade: gradeInfo.grade,
+        studentId: '',
+        studentCode: '',
+        rollNumber: 0,
+        prefix: '',
+        firstName: '',
+        lastName: '',
+        fullName: 'ไม่พบข้อมูลนักเรียน',
+        gender: 'ชาย',
+        gradeLevel,
+        roomName,
+        academicYear,
+        semester: 'รวมตลอดปีการศึกษา',
+        subjects: standardSubjects.map((s) => ({ ...s, score100: undefined, grade: '-', isPassed: false })),
+        totalHours: standardSubjects.reduce((acc, s) => acc + (s.hoursPerYear || 0), 0),
+        totalCredits: standardSubjects.reduce((acc, s) => acc + (s.credit || 0), 0),
+        gpa: 0,
+        monthlyAttendance: generateOBECMonthlyAttendance(100),
+        totalSchoolDays: 200,
+        totalPresentDays: 200,
+        attendancePercentage: 100,
+        health: evaluateNutrition(35, 140),
+        evaluations: {
+          characteristics: [],
+          characteristicsOverall: 'ผ่าน',
+          readingAnalysis: 'ผ่าน',
+          competencies: [],
+          competenciesOverall: 'ผ่าน',
+          activities: [],
+          activitiesOverall: 'ผ่าน',
+        },
+        teacherComments: {
+          responsibility: '',
+          leisureTime: '',
+          socialRelations: '',
+          personality: '',
+          health: '',
+          generalRemark: '',
+        },
+        promotionDecision: {
+          passedAllCriteria: false,
+          promotionText: 'รอการบันทึกผลการเรียน',
+          decisionDate: '31 มีนาคม 2568',
+        },
       };
-    });
+    }
 
-    const gpa = Number((studentSubjects.reduce((acc, s) => acc + (Number(s.grade) || 0), 0) / studentSubjects.length).toFixed(2));
+    const studentSubjects = standardSubjects.map((s) => ({
+      ...s,
+      score100: undefined,
+      grade: '-',
+      isPassed: false,
+    }));
 
     return {
       studentId: student.id,
-      studentCode: student.student_code,
+      studentCode: student.student_code || String(index + 1),
       rollNumber: index + 1,
       prefix: student.prefix || (student.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย'),
       firstName: student.first_name,
       lastName: student.last_name,
       fullName: `${student.prefix || (student.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย')}${student.first_name} ${student.last_name}`,
       gender: student.gender === 'female' ? 'หญิง' : 'ชาย',
-      birthDate: student.birthdate || '21 กันยายน 2557',
-      address: student.address || 'บ้านโคกสูง ม.3 ต.กันทรารมย์ อ.ขุขันธ์ จ.ศรีสะเกษ',
-      fatherName: student.father_name || 'นายประเสริฐ เสาร์มั่น',
-      motherName: student.mother_name || 'นางสมใจ เสาร์มั่น',
-      parentName: student.parent_name || 'นายประเสริฐ เสาร์มั่น',
-      parentRelation: student.parent_relation || 'บิดา',
+      birthDate: student.birthdate || '',
+      address: student.address || '',
+      fatherName: student.father_name || '',
+      motherName: student.mother_name || '',
+      parentName: student.parent_name || student.father_name || '',
+      parentRelation: student.parent_relation || 'ผู้ปกครอง',
 
       gradeLevel,
       roomName,
@@ -93,21 +132,21 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
       subjects: studentSubjects,
       totalHours: studentSubjects.reduce((acc, s) => acc + (s.hoursPerYear || 0), 0),
       totalCredits: studentSubjects.reduce((acc, s) => acc + (s.credit || 0), 0),
-      gpa,
+      gpa: 0,
 
-      monthlyAttendance: generateOBECMonthlyAttendance(attRate),
+      monthlyAttendance: generateOBECMonthlyAttendance(100),
       totalSchoolDays: 200,
-      totalPresentDays: Math.round(200 * (attRate / 100)),
-      attendancePercentage: attRate,
+      totalPresentDays: 200,
+      attendancePercentage: 100,
 
-      health: evaluateNutrition(student.weight || 34, student.height || 138),
+      health: evaluateNutrition(student.weight || 35, student.height || 140),
 
       evaluations: {
         characteristics: [
           { id: 1, title: 'รักชาติ ศาสน์ กษัตริย์', score: 3 },
           { id: 2, title: 'ซื่อสัตย์สุจริต', score: 3 },
           { id: 3, title: 'มีวินัย', score: 3 },
-          { id: 4, title: 'ใฝ่เรียนรู้', score: hash % 2 === 0 ? 3 : 2 },
+          { id: 4, title: 'ใฝ่เรียนรู้', score: 3 },
           { id: 5, title: 'อยู่อย่างพอเพียง', score: 3 },
           { id: 6, title: 'มุ่งมั่นในการทำงาน', score: 3 },
           { id: 7, title: 'รักความเป็นไทย', score: 3 },
@@ -142,12 +181,26 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
       },
 
       promotionDecision: {
-        passedAllCriteria: true,
-        promotionText: `อนุมัติให้เลื่อนชั้นไปเรียนชั้น ${gradeLevel.includes('ม.') ? 'มัธยมศึกษาปีที่ถัดไป' : 'ประถมศึกษาปีที่ถัดไป'}`,
+        passedAllCriteria: false,
+        promotionText: 'รอการบันทึกผลการเรียน',
         decisionDate: '31 มีนาคม 2568',
       },
     };
   };
+
+  if (!students || students.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
+          <User className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-bold text-white mb-2">ไม่พบรายชื่อนักเรียนในห้องเรียนนี้</h3>
+        <p className="text-xs text-slate-400 max-w-md">
+          กรุณาเพิ่มหรือนำเข้ารายชื่อนักเรียนในเมนู &ldquo;นักเรียน (Students)&rdquo; ให้เรียบร้อยก่อนเปิดแบบรายงาน ปพ.๖
+        </p>
+      </div>
+    );
+  }
 
   const currentStudent = students[selectedStudentIndex] || students[0];
   const fullReport = (currentStudent?.id && studentReports?.[currentStudent.id]) 

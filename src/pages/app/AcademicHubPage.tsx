@@ -38,6 +38,10 @@ import {
 } from '../../data/p5MasterTemplate';
 import { copyTableToExcelClipboard, exportTableToXlsxFile } from '../../lib/excelClipboard';
 import { isDemoSession } from '../../lib/auth';
+import {
+  OBECSchoolHeader,
+  fetchRealAcademicDataForClassroom,
+} from '../../lib/obecAcademicEngine';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
@@ -175,23 +179,38 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       const roomName = activeRoom?.name || 'ประถมศึกษาปีที่ 5';
       const master = getPrimaryMasterData(roomName);
 
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, student_code, first_name, last_name')
-        .eq('classroom_id', selectedClassroomId)
-        .eq('workspace_id', workspaceId)
-        .order('student_code', { ascending: true });
+      const schoolHeader: OBECSchoolHeader = {
+        schoolName: session.workspace?.name || 'โรงเรียนวัดบ้านโคกสูง',
+        district: 'ขุนหาญ',
+        province: 'ศรีสะเกษ',
+        jurisdiction: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+        directorName: 'นายประสิทธิ์ มั่นคง',
+        directorPosition: 'ผู้อำนวยการสถานศึกษา',
+        academicHeadName: 'นางสาวสมใจ นึกดี',
+        registrarName: 'นางกาญจนา ศรีสุข',
+        homeroomTeacherName: session.profile?.displayName || 'ครูประจำชั้น',
+      };
 
-      if (error) throw error;
+      const realData = await fetchRealAcademicDataForClassroom(
+        supabase,
+        workspaceId,
+        selectedClassroomId,
+        roomName,
+        roomName,
+        selectedYear,
+        schoolHeader
+      );
 
-      const cleanData = data || [];
+      if (realData && realData.students.length > 0) {
+        const mapped: StudentAcademicSummary[] = realData.students.map((s, idx) => {
+          const summary = realData.classSummaryScores.find((cs) => cs.studentId === s.id);
+          const report = realData.studentReports[s.id];
+          const attRate = summary ? summary.attendancePercent : 100;
+          const gpaVal = summary ? summary.gpa : 0;
+          const traitsPassed = report ? report.evaluations.characteristicsOverall !== 'ไม่ผ่าน' : true;
+          const activitiesPassed = report ? report.evaluations.activitiesOverall !== 'ไม่ผ่าน' : true;
+          const isPassed = summary?.isPassed ?? (attRate >= 80 && (gpaVal === 0 || gpaVal >= 1.0));
 
-      if (cleanData.length > 0) {
-        const mapped: StudentAcademicSummary[] = cleanData.map((s, idx) => {
-          const seed = (s.id.length * 17 + idx * 23) % 100;
-          const attRate = 76 + (seed % 24);
-          const gpaVal = Number((2.1 + (seed % 19) * 0.1).toFixed(2));
-          const passed = attRate >= 80 && gpaVal >= 1.5;
           return {
             id: s.id,
             student_code: s.student_code || String(2400 + idx + 1),
@@ -200,36 +219,62 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             number: idx + 1,
             attendance_rate: attRate,
             gpa: gpaVal,
-            traits_passed: true,
-            activities_passed: attRate >= 80,
-            promotion_status: passed ? 'ready' : attRate < 80 ? 'warning' : 'remedial',
+            traits_passed: traitsPassed,
+            activities_passed: activitiesPassed,
+            promotion_status: isPassed ? 'ready' : attRate < 80 ? 'warning' : 'remedial',
           };
         });
         setStudents(mapped);
-      } else if (isDemo || !workspaceId) {
-        // Fallback to genuine Master Data for this room (P.4: 16 คน, P.5: 20 คน, P.6: 16 คน) - ONLY in demo mode
-        const mappedStudents: StudentAcademicSummary[] = master.students.map((st, idx) => {
-          const seed = (st.student_code.charCodeAt(0) * 17 + idx * 31) % 100;
-          const attRate = 78 + (seed % 22);
-          const gpaVal = Number((2.4 + (seed % 16) * 0.1).toFixed(2));
-          const passed = attRate >= 80 && gpaVal >= 1.5;
-          return {
-            id: `st-${st.student_code}`,
-            student_code: st.student_code,
-            first_name: st.first_name,
-            last_name: st.last_name,
-            number: idx + 1,
-            attendance_rate: attRate,
-            gpa: gpaVal,
-            traits_passed: true,
-            activities_passed: attRate >= 80,
-            promotion_status: passed ? 'ready' : attRate < 80 ? 'warning' : 'remedial',
-          };
-        });
-        setStudents(mappedStudents);
       } else {
-        // Real school workspace has 0 students in this room
-        setStudents([]);
+        const { data: rawData, error } = await supabase
+          .from('students')
+          .select('id, student_code, first_name, last_name')
+          .eq('classroom_id', selectedClassroomId)
+          .eq('workspace_id', workspaceId)
+          .order('student_code', { ascending: true });
+
+        if (error) throw error;
+
+        const cleanData = rawData || [];
+        if (cleanData.length > 0) {
+          const mapped: StudentAcademicSummary[] = cleanData.map((s, idx) => ({
+            id: s.id,
+            student_code: s.student_code || String(2400 + idx + 1),
+            first_name: s.first_name,
+            last_name: s.last_name,
+            number: idx + 1,
+            attendance_rate: 100,
+            gpa: 0,
+            traits_passed: true,
+            activities_passed: true,
+            promotion_status: 'ready',
+          }));
+          setStudents(mapped);
+        } else if (isDemo || !workspaceId) {
+          // Fallback to genuine Master Data for this room ONLY in demo mode
+          const mappedStudents: StudentAcademicSummary[] = master.students.map((st, idx) => {
+            const seed = (st.student_code.charCodeAt(0) * 17 + idx * 31) % 100;
+            const attRate = 78 + (seed % 22);
+            const gpaVal = Number((2.4 + (seed % 16) * 0.1).toFixed(2));
+            const passed = attRate >= 80 && gpaVal >= 1.5;
+            return {
+              id: `st-${st.student_code}`,
+              student_code: st.student_code,
+              first_name: st.first_name,
+              last_name: st.last_name,
+              number: idx + 1,
+              attendance_rate: attRate,
+              gpa: gpaVal,
+              traits_passed: true,
+              activities_passed: attRate >= 80,
+              promotion_status: passed ? 'ready' : attRate < 80 ? 'warning' : 'remedial',
+            };
+          });
+          setStudents(mappedStudents);
+        } else {
+          // Real school workspace has 0 students in this room
+          setStudents([]);
+        }
       }
     } catch (err) {
       console.error('Failed to load students', err);
@@ -290,7 +335,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       st.first_name,
       st.last_name,
       `${st.attendance_rate.toFixed(1)}%`,
-      st.gpa.toFixed(2),
+      st.gpa > 0 ? st.gpa.toFixed(2) : '-',
       st.traits_passed ? 'ผ่าน (ดีเยี่ยม)' : 'ไม่ผ่าน',
       st.activities_passed ? 'ผ่าน' : 'ไม่ผ่าน',
       st.promotion_status === 'ready'
@@ -331,7 +376,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       st.first_name,
       st.last_name,
       `${st.attendance_rate.toFixed(1)}%`,
-      st.gpa.toFixed(2),
+      st.gpa > 0 ? st.gpa.toFixed(2) : '-',
       st.traits_passed ? 'ผ่าน (ดีเยี่ยม)' : 'ไม่ผ่าน',
       st.activities_passed ? 'ผ่าน' : 'ไม่ผ่าน',
       st.promotion_status === 'ready'
@@ -437,7 +482,10 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     const ready = students.filter((s) => s.promotion_status === 'ready').length;
     const warning = students.filter((s) => s.promotion_status === 'warning').length;
     const remedial = students.filter((s) => s.promotion_status === 'remedial').length;
-    const avgGpa = Number((students.reduce((acc, s) => acc + s.gpa, 0) / total).toFixed(2));
+    const studentsWithGpa = students.filter((s) => s.gpa > 0);
+    const avgGpa = studentsWithGpa.length > 0
+      ? Number((studentsWithGpa.reduce((acc, s) => acc + s.gpa, 0) / studentsWithGpa.length).toFixed(2))
+      : 0;
     const avgAttendance = Number((students.reduce((acc, s) => acc + s.attendance_rate, 0) / total).toFixed(1));
     return { ready, warning, remedial, avgGpa, avgAttendance };
   }, [students]);
@@ -678,7 +726,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <span className="text-xs font-semibold text-slate-500">เกรดเฉลี่ยห้อง (GPA)</span>
-              <p className="mt-1 text-2xl font-black text-blue-600">{stats.avgGpa}</p>
+              <p className="mt-1 text-2xl font-black text-blue-600">{stats.avgGpa > 0 ? stats.avgGpa.toFixed(2) : '-'}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <span className="text-xs font-semibold text-slate-500">เวลาเรียนเฉลี่ย</span>
@@ -822,7 +870,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center font-bold text-slate-800">
-                          {st.gpa.toFixed(2)}
+                          {st.gpa > 0 ? st.gpa.toFixed(2) : '-'}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">

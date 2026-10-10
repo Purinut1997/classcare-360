@@ -317,6 +317,46 @@ export interface RealClassroomAcademicPayload {
 /**
  * ดึงข้อมูลผลการเรียน คะแนนสอบ เวลาเรียน สุขภาพ และคุณลักษณะ "ของจริง" จากฐานข้อมูล Supabase
  */
+function normalizeSubjectKey(nameOrCode: string): string {
+  return (nameOrCode || '').toLowerCase().replace(/[\s\-_/.]/g, '');
+}
+
+function isSubjectMatch(assessmentSubject: string, obecSubjectName: string, obecSubjectCode: string): boolean {
+  if (!assessmentSubject) return false;
+  const aNorm = normalizeSubjectKey(assessmentSubject);
+  const nameNorm = normalizeSubjectKey(obecSubjectName);
+  const codeNorm = normalizeSubjectKey(obecSubjectCode);
+
+  if (aNorm === nameNorm || aNorm === codeNorm) return true;
+  if (aNorm.includes(nameNorm) || nameNorm.includes(aNorm)) return true;
+  if (codeNorm && (aNorm.includes(codeNorm) || codeNorm.includes(aNorm))) return true;
+
+  const synonymMap: Record<string, string[]> = {
+    'ภาษาไทย': ['ไทย', 'ภาษาไทย', 'ท'],
+    'คณิตศาสตร์': ['คณิต', 'คณิตศาสตร์', 'math', 'ค'],
+    'วิทยาศาสตร์และเทคโนโลยี': ['วิทย์', 'วิทยาศาสตร์', 'เทคโนโลยี', 'sci', 'science', 'ว'],
+    'สังคมศึกษา ศาสนาและวัฒนธรรม': ['สังคม', 'สังคมศึกษา', 'พระพุทธ', 'ศาสนา', 'soc', 'social', 'ส'],
+    'ประวัติศาสตร์': ['ประวัติ', 'ประวัติศาสตร์', 'history'],
+    'สุขศึกษาและพลศึกษา': ['สุขศึกษา', 'พลศึกษา', 'พละ', 'สุข', 'pe', 'health', 'พ'],
+    'ศิลปะ': ['ศิลปะ', 'ศิลป์', 'ดนตรี', 'นาฏศิลป์', 'art', 'ศ'],
+    'การงานอาชีพ': ['การงาน', 'การงานอาชีพ', 'กพอ', 'work', 'ง'],
+    'ภาษาอังกฤษ': ['อังกฤษ', 'ภาษาอังกฤษ', 'eng', 'english', 'อ'],
+    'ภาษาอังกฤษเพื่อการสื่อสาร': ['อังกฤษสื่อสาร', 'engextra', 'conver', 'conversation'],
+  };
+
+  const synonyms = synonymMap[obecSubjectName];
+  if (synonyms) {
+    for (const syn of synonyms) {
+      const synNorm = normalizeSubjectKey(syn);
+      if (aNorm === synNorm || aNorm.includes(synNorm) || synNorm.includes(aNorm)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export async function fetchRealAcademicDataForClassroom(
   supabaseClient: any,
   workspaceId: string,
@@ -331,7 +371,7 @@ export async function fetchRealAcademicDataForClassroom(
   try {
     const standardSubjects = getStandardSubjectsForGrade(gradeLevel);
 
-    // 1. ดึงนักเรียนในห้องเรียนจริง และคัดกรองเฉพาะนักเรียนของชั้นนี้
+    // 1. ดึงนักเรียนในห้องเรียนจริงจากฐานข้อมูล
     const { data: rawStData, error: stErr } = await supabaseClient
       .from('students')
       .select('*')
@@ -341,29 +381,24 @@ export async function fetchRealAcademicDataForClassroom(
 
     if (stErr || !rawStData || rawStData.length === 0) return null;
 
-    const p4Codes = new Set(['2454','2455','2456','2457','2458','2459','2460','2461','2462','2463','2464','2465','2466','2467','2468','2470']);
-    const p5Codes = new Set(['2428','2429','2430','2431','2432','2434','2435','2436','2437','2438','2439','2440','2441','2442','2443','2444','2445','2446','2453','2542']);
-    const p6Codes = new Set(['2407','2408','2409','2410','2411','2412','2413','2414','2415','2416','2418','2419','2421','2422','2425','2520']);
-
-    let targetCodes = p5Codes;
-    if (gradeLevel.includes('4') || roomName.includes('4')) targetCodes = p4Codes;
-    else if (gradeLevel.includes('6') || roomName.includes('6')) targetCodes = p6Codes;
-
-    const filteredStData = rawStData.filter((s: any) => targetCodes.has(s.student_code));
-    const stData = filteredStData.length > 0 ? filteredStData : rawStData;
-
+    const stData = rawStData;
     const studentIds = stData.map((s: any) => s.id);
 
-    // 2. ดึง Assessments & Score Entries จริง
-    const [{ data: assessmentsData }, { data: attendanceData }, { data: healthData }, { data: traitsData }] = await Promise.all([
+    // 2. ดึง Assessments, Attendance Sessions & Records, Health และ Desirable records จริง
+    const [
+      { data: assessmentsData },
+      { data: sessionsData },
+      { data: healthData },
+      { data: traitsData },
+    ] = await Promise.all([
       supabaseClient
         .from('score_assessments')
         .select('id, subject_name, category, max_score, weight')
         .eq('classroom_id', classroomId)
         .eq('workspace_id', workspaceId),
       supabaseClient
-        .from('attendance_records')
-        .select('student_id, date, status')
+        .from('attendance_sessions')
+        .select('id, attendance_date, period_label')
         .eq('classroom_id', classroomId)
         .eq('workspace_id', workspaceId),
       supabaseClient
@@ -373,11 +408,23 @@ export async function fetchRealAcademicDataForClassroom(
         .eq('workspace_id', workspaceId)
         .order('record_date', { ascending: false }),
       supabaseClient
-        .from('desirable_characteristic_records')
-        .select('student_id, item_index, score')
+        .from('student_desirable_records')
+        .select('student_id, trait_1, trait_2, trait_3, trait_4, trait_5, trait_6, trait_7, trait_8, trait_summary, reading_summary')
         .in('student_id', studentIds)
         .eq('workspace_id', workspaceId),
     ]);
+
+    // ดึง attendance_records โดยอ้างอิงผ่าน session_id
+    const sessionIds = (sessionsData || []).map((s: any) => s.id);
+    let attendanceData: any[] = [];
+    if (sessionIds.length > 0) {
+      const { data: recordsData } = await supabaseClient
+        .from('attendance_records')
+        .select('student_id, status, session_id')
+        .eq('workspace_id', workspaceId)
+        .in('session_id', sessionIds);
+      if (recordsData) attendanceData = recordsData;
+    }
 
     // ดึงคะแนน entries ถ้ามี assessments
     let scoreEntries: any[] = [];
@@ -400,32 +447,31 @@ export async function fetchRealAcademicDataForClassroom(
 
       // ก. ข้อมูลสุขภาพจริง
       const studentHealth = healthData?.find((h: any) => h.student_id === sid);
-      const weight = studentHealth?.weight_kg || 34 + (idx % 6);
-      const height = studentHealth?.height_cm || 138 + (idx % 8);
-      const nutrition = evaluateNutrition(weight, height);
+      const weight = studentHealth?.weight_kg ?? student.weight ?? 35;
+      const height = studentHealth?.height_cm ?? student.height ?? 140;
+      const nutrition = evaluateNutrition(Number(weight), Number(height));
 
       // ข. ข้อมูลเวลาเรียนจริงจาก attendance_records
       const studentAtts = attendanceData?.filter((a: any) => a.student_id === sid) || [];
       const totalRecorded = studentAtts.length;
       const presentCount = studentAtts.filter((a: any) => a.status === 'present' || a.status === 'late').length;
-      const sickCount = studentAtts.filter((a: any) => a.status === 'leave').length;
+      const sickCount = studentAtts.filter((a: any) => a.status === 'leave' || a.status === 'sick').length;
       const absentCount = studentAtts.filter((a: any) => a.status === 'absent').length;
 
-      const baseAttRate = totalRecorded > 0 ? (presentCount / totalRecorded) * 100 : 94 + (idx % 5);
+      const baseAttRate = totalRecorded > 0 ? (presentCount / totalRecorded) * 100 : 100;
       const monthlyAttendance = generateOBECMonthlyAttendance(Math.round(baseAttRate));
 
       // ค. คะแนนและเกรดจริงแต่ละรายวิชา
       const studentSubjectScores: Record<string, { score100: number; grade: number | string }> = {};
 
-      const computedSubjects = standardSubjects.map((sub, sIdx) => {
-        // ค้นหา assessments ของวิชานี้
-        const matchedAssessments = assessmentsData?.filter(
-          (a: any) =>
-            a.subject_name?.trim().toLowerCase().includes(sub.name.trim().toLowerCase()) ||
-            sub.name.trim().toLowerCase().includes(a.subject_name?.trim().toLowerCase())
+      const computedSubjects = standardSubjects.map((sub) => {
+        // ค้นหา assessments ของวิชานี้ด้วย Smart Matching
+        const matchedAssessments = assessmentsData?.filter((a: any) =>
+          isSubjectMatch(a.subject_name, sub.name, sub.code)
         ) || [];
 
         let actualScore100: number | null = null;
+        let hasRealScore = false;
 
         if (matchedAssessments.length > 0) {
           let totalEarned = 0;
@@ -435,50 +481,50 @@ export async function fetchRealAcademicDataForClassroom(
             if (entry && typeof entry.score === 'number') {
               totalEarned += entry.score;
               totalMax += asm.max_score || 100;
+              hasRealScore = true;
             }
           });
-          if (totalMax > 0) {
+          if (hasRealScore && totalMax > 0) {
             actualScore100 = Math.min(100, Math.round((totalEarned / totalMax) * 100));
           }
         }
 
-        // หากยังไม่ได้สอบวิชานี้ในระบบ ให้คำนวณคะแนนที่สอดคล้องตามประวัติ
-        const hash = (student.student_code ? Number(student.student_code.slice(-2)) : idx) || idx;
-        const finalScore = actualScore100 !== null ? actualScore100 : 72 + ((hash + sIdx * 3) % 24);
-        const gradeInfo = calculateOBECGrade(finalScore);
+        // ตัดเกรดจริงตามคะแนนที่กรอกจริง (ถ้ายังไม่มีคะแนนจริง ให้เป็น '-')
+        const gradeInfo = actualScore100 !== null ? calculateOBECGrade(actualScore100) : null;
+        const finalGrade: number | string = gradeInfo ? gradeInfo.grade : '-';
+        const finalScoreVal: number = actualScore100 !== null ? actualScore100 : 0;
 
         studentSubjectScores[sub.code] = {
-          score100: finalScore,
-          grade: gradeInfo.grade,
+          score100: finalScoreVal,
+          grade: finalGrade,
         };
 
         return {
           ...sub,
-          score100: finalScore,
-          grade: gradeInfo.grade,
+          score100: actualScore100 !== null ? actualScore100 : undefined,
+          grade: finalGrade,
+          isPassed: gradeInfo ? gradeInfo.grade >= 1.0 : false,
         };
       });
 
-      const gpa = Number((computedSubjects.reduce((acc, s) => acc + (Number(s.grade) || 0), 0) / computedSubjects.length).toFixed(2));
+      // GPA คำนวณจากวิชาที่ได้ประเมินและมีเกรดจริงเท่านั้น
+      const gradedSubjects = computedSubjects.filter((s) => typeof s.grade === 'number');
+      const gpa = gradedSubjects.length > 0
+        ? Number((gradedSubjects.reduce((acc, s) => acc + (Number(s.grade) || 0), 0) / gradedSubjects.length).toFixed(2))
+        : 0;
 
       // ง. คุณลักษณะอันพึงประสงค์จริง
-      const studentTraits = traitsData?.filter((t: any) => t.student_id === sid) || [];
+      const studentTrait = traitsData?.find((t: any) => t.student_id === sid);
       const traitItems = [
-        { id: 1, title: 'รักชาติ ศาสน์ กษัตริย์', score: 3 },
-        { id: 2, title: 'ซื่อสัตย์สุจริต', score: 3 },
-        { id: 3, title: 'มีวินัย', score: 3 },
-        { id: 4, title: 'ใฝ่เรียนรู้', score: 2 },
-        { id: 5, title: 'อยู่อย่างพอเพียง', score: 3 },
-        { id: 6, title: 'มุ่งมั่นในการทำงาน', score: 3 },
-        { id: 7, title: 'รักความเป็นไทย', score: 3 },
-        { id: 8, title: 'มีจิตสาธารณะ', score: 3 },
-      ].map((item) => {
-        const found = studentTraits.find((t: any) => t.item_index === item.id);
-        return {
-          ...item,
-          score: found ? found.score : item.score,
-        };
-      });
+        { id: 1, title: 'รักชาติ ศาสน์ กษัตริย์', score: studentTrait?.trait_1 ?? 3 },
+        { id: 2, title: 'ซื่อสัตย์สุจริต', score: studentTrait?.trait_2 ?? 3 },
+        { id: 3, title: 'มีวินัย', score: studentTrait?.trait_3 ?? 3 },
+        { id: 4, title: 'ใฝ่เรียนรู้', score: studentTrait?.trait_4 ?? 3 },
+        { id: 5, title: 'อยู่อย่างพอเพียง', score: studentTrait?.trait_5 ?? 3 },
+        { id: 6, title: 'มุ่งมั่นในการทำงาน', score: studentTrait?.trait_6 ?? 3 },
+        { id: 7, title: 'รักความเป็นไทย', score: studentTrait?.trait_7 ?? 3 },
+        { id: 8, title: 'มีจิตสาธารณะ', score: studentTrait?.trait_8 ?? 3 },
+      ];
 
       // จัดทำ Full Report สำหรับ ปพ.๖
       const fullReport: OBECStudentFullReport = {
@@ -490,12 +536,12 @@ export async function fetchRealAcademicDataForClassroom(
         lastName: student.last_name,
         fullName: `${student.prefix || (student.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย')}${student.first_name} ${student.last_name}`,
         gender: student.gender === 'female' ? 'หญิง' : 'ชาย',
-        birthDate: student.birth_date || '21 กันยายน 2557',
-        address: student.address || 'บ้านโคกสูง ม.3 ต.กันทรารมย์ อ.ขุขันธ์ จ.ศรีสะเกษ',
-        fatherName: student.father_name || 'นายประเสริฐ เสาร์มั่น',
-        motherName: student.mother_name || 'นางสมใจ เสาร์มั่น',
-        parentName: student.parent_name || student.father_name || 'นายประเสริฐ เสาร์มั่น',
-        parentRelation: student.parent_relation || 'บิดา',
+        birthDate: student.birth_date || '',
+        address: student.address || '',
+        fatherName: student.father_name || '',
+        motherName: student.mother_name || '',
+        parentName: student.parent_name || student.father_name || '',
+        parentRelation: student.parent_relation || 'ผู้ปกครอง',
 
         gradeLevel,
         roomName,
@@ -508,8 +554,8 @@ export async function fetchRealAcademicDataForClassroom(
         gpa,
 
         monthlyAttendance,
-        totalSchoolDays: 200,
-        totalPresentDays: Math.round(200 * (baseAttRate / 100)),
+        totalSchoolDays: Math.max(200, totalRecorded),
+        totalPresentDays: totalRecorded > 0 ? presentCount : 0,
         attendancePercentage: Number(baseAttRate.toFixed(1)),
 
         health: nutrition,
@@ -545,8 +591,12 @@ export async function fetchRealAcademicDataForClassroom(
         },
 
         promotionDecision: {
-          passedAllCriteria: gpa >= 1.0 && baseAttRate >= 80,
-          promotionText: `อนุมัติให้เลื่อนชั้นไปเรียนชั้น ${gradeLevel.includes('ม.') ? 'มัธยมศึกษาปีที่ถัดไป' : 'ประถมศึกษาปีที่ถัดไป'}`,
+          passedAllCriteria: gradedSubjects.length > 0 && gpa >= 1.0 && baseAttRate >= 80,
+          promotionText: gradedSubjects.length > 0
+            ? (gpa >= 1.0 && baseAttRate >= 80
+                ? `อนุมัติให้เลื่อนชั้นไปเรียนชั้น ${gradeLevel.includes('ม.') ? 'มัธยมศึกษาปีที่ถัดไป' : 'ประถมศึกษาปีที่ถัดไป'}`
+                : 'รอตัดสินผลการเรียน / ซ่อมเสริม')
+            : 'รอการบันทึกคะแนนประเมิน',
           decisionDate: '31 มีนาคม 2568',
         },
       };
@@ -560,7 +610,7 @@ export async function fetchRealAcademicDataForClassroom(
         subjectScores: studentSubjectScores,
         gpa,
         attendancePercent: Number(baseAttRate.toFixed(1)),
-        isPassed: gpa >= 1.0 && baseAttRate >= 80,
+        isPassed: gradedSubjects.length > 0 && gpa >= 1.0 && baseAttRate >= 80,
       });
     }
 
