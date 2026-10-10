@@ -906,10 +906,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 const assessmentEntries = (entriesByAssessment.get(assessment.id) || []).filter(
                   (entry) => entry.score !== null,
                 );
-                if (assessmentEntries.length === 0) return sum;
+                const safeMax = assessment.max_score > 0 ? assessment.max_score : 100;
                 return (
                   sum +
-                  assessmentEntries.reduce((entrySum, entry) => entrySum + ((entry.score || 0) / assessment.max_score) * 100, 0) /
+                  assessmentEntries.reduce((entrySum, entry) => entrySum + ((entry.score || 0) / safeMax) * 100, 0) /
                     assessmentEntries.length
                 );
               }, 0) / bandAssessments.length

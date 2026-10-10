@@ -131,6 +131,15 @@ function loadLocalCalendar(session: AppSessionContext): CalendarEvent[] {
   }
 }
 
+function getLocalSafetyState(storageKey: string): { calendarRules?: CalendarEvent[] } {
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? (JSON.parse(raw) as { calendarRules?: CalendarEvent[] }) : {};
+  } catch {
+    return {};
+  }
+}
+
 function createDemoEvents(session: AppSessionContext): CalendarEvent[] {
   const today = new Date();
   const examDate = new Date(today.getFullYear(), today.getMonth(), Math.min(20, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
@@ -375,7 +384,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
     if (!supabase || !session.workspace?.id || isDemoSession(session)) {
       const storageKey = getDataSafetyStorageKey(session);
-      const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      const state = getLocalSafetyState(storageKey);
       state.calendarRules = [...loadLocalCalendar(session), nextEvent];
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       setSync({
@@ -423,7 +432,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       const localEvents = loadLocalCalendar(session);
       const updatedLocal = localEvents.filter((event) => event.id !== eventId);
       const storageKey = getDataSafetyStorageKey(session);
-      const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      const state = getLocalSafetyState(storageKey);
       state.calendarRules = updatedLocal;
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       setEvents((current) => current.filter((event) => event.id !== eventId));
@@ -468,7 +477,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
           : event,
       );
       const storageKey = getDataSafetyStorageKey(session);
-      const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      const state = getLocalSafetyState(storageKey);
       state.calendarRules = updatedLocal;
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       setEvents(updatedLocal);
@@ -600,7 +609,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
     // Merge into local storage safety backup
     const storageKey = getDataSafetyStorageKey(session);
-    const state = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    const state = getLocalSafetyState(storageKey);
     const existingRules = state.calendarRules || [];
     state.calendarRules = [...existingRules, ...createdEvents];
     window.localStorage.setItem(storageKey, JSON.stringify(state));
