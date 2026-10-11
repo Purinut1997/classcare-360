@@ -5,7 +5,7 @@ import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, planLabels, planLimits } from '../../lib/entitlements';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
-import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity } from '../../lib/scheduleSettings';
+import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
 import { MemberAccessControl } from '../../components/workspace/MemberAccessControl';
@@ -390,12 +390,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       schoolName: workspaceForm.schoolName.trim(),
       teacherName: workspaceForm.teacherName.trim(),
     };
-    const reportIdentity = {
+    const existingIdentity = loadSchoolReportIdentity(session.workspace?.id);
+    const reportIdentity: SchoolReportIdentity = {
+      ...existingIdentity,
       academicHeadName: nextWorkspace.academicHeadName,
       academicYear: nextWorkspace.academicYear,
       classroomName: nextWorkspace.classroomName,
       coAdvisorName: nextWorkspace.coAdvisorName || '',
       directorName: nextWorkspace.directorName,
+      directorPosition: existingIdentity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
       registrarName: nextWorkspace.registrarName,
       schoolLogoDataUrl: nextWorkspace.schoolLogoDataUrl,
       schoolName: nextWorkspace.schoolName,

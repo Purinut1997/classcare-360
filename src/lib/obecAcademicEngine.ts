@@ -138,6 +138,8 @@ export interface OBECSchoolHeader {
   academicHeadName: string;
   registrarName: string;
   homeroomTeacherName: string;
+  schoolLogoDataUrl?: string;
+  useGarudaInsteadOfLogo?: boolean;
 }
 
 /**

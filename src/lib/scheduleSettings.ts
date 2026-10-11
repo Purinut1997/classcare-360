@@ -39,10 +39,15 @@ export interface SchoolReportIdentity {
   classroomName: string;
   coAdvisorName: string;
   directorName: string;
+  directorPosition?: string;
   registrarName: string;
   schoolLogoDataUrl: string;
   schoolName: string;
   teacherName: string;
+  district?: string;
+  province?: string;
+  jurisdiction?: string;
+  useGarudaInsteadOfLogo?: boolean;
 }
 
 const scheduleStorageKey = 'classcare.schedule.settings.v1';
@@ -109,10 +114,15 @@ export function getDefaultSchoolReportIdentity(): SchoolReportIdentity {
     classroomName: 'ป.5/1',
     coAdvisorName: '',
     directorName: '',
+    directorPosition: 'ผู้อำนวยการสถานศึกษา',
     registrarName: '',
     schoolLogoDataUrl: '',
     schoolName: 'โรงเรียนตัวอย่าง ClassCare',
     teacherName: '',
+    district: 'อ.ขุขันธ์',
+    province: 'จ.ศรีสะเกษ',
+    jurisdiction: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+    useGarudaInsteadOfLogo: false,
   };
 }
 

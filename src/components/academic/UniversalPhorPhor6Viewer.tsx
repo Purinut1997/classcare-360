@@ -387,17 +387,25 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
           {/* ======================================================== */}
           {(activeSubTab === 'all_pages' || activeSubTab === 'p1_cover') && (
             <div className="mb-12 pb-8 border-b-2 border-dashed border-slate-400 print:mb-0 print:pb-0 print:border-none print:page-break-after-always">
-              {/* ตราครุฑทางการ (Royal Thai Garuda Emblem) สพฐ. */}
+              {/* ตราโรงเรียน หรือ ตราครุฑทางการ (Royal Thai Garuda Emblem) สพฐ. */}
               <div className="text-center mb-6">
                 <div className="flex justify-center mb-2">
-                  <svg
-                    viewBox="0 0 200 220"
-                    className="w-20 h-20 text-slate-900 fill-current drop-shadow-sm"
-                    aria-label="ตราครุฑพ่าห์"
-                  >
-                    {/* Official Garuda Vector Contour */}
-                    <path d="M100 15 C95 10 90 20 85 28 C80 35 70 38 65 35 C55 30 45 42 50 52 C55 60 48 70 40 75 C30 82 25 95 35 105 C42 112 40 120 32 128 C22 138 28 152 42 155 C52 157 58 168 55 178 C52 188 65 198 75 192 C82 188 90 195 92 205 C94 215 106 215 108 205 C110 195 118 188 125 192 C135 198 148 188 145 178 C142 168 148 157 158 155 C172 152 178 138 168 128 C160 120 158 112 165 105 C175 95 170 82 160 75 C152 70 145 60 150 52 C155 42 145 30 135 35 C130 38 120 35 115 28 C110 20 105 10 100 15 Z M95 45 C98 40 102 40 105 45 C108 55 92 55 95 45 Z M85 70 C85 62 115 62 115 70 C115 78 85 78 85 70 Z M75 95 C75 85 125 85 125 95 C125 105 75 105 75 95 Z M80 125 C80 115 120 115 120 125 C120 135 80 135 80 125 Z M90 155 C90 148 110 148 110 155 C110 162 90 162 90 155 Z" />
-                  </svg>
+                  {!schoolHeader.useGarudaInsteadOfLogo && schoolHeader.schoolLogoDataUrl ? (
+                    <img
+                      src={schoolHeader.schoolLogoDataUrl}
+                      alt="ตราประจำโรงเรียน"
+                      className="w-20 h-20 max-h-20 max-w-[120px] object-contain drop-shadow-sm"
+                    />
+                  ) : (
+                    <svg
+                      viewBox="0 0 200 220"
+                      className="w-20 h-20 text-slate-900 fill-current drop-shadow-sm"
+                      aria-label="ตราครุฑพ่าห์"
+                    >
+                      {/* Official Garuda Vector Contour */}
+                      <path d="M100 15 C95 10 90 20 85 28 C80 35 70 38 65 35 C55 30 45 42 50 52 C55 60 48 70 40 75 C30 82 25 95 35 105 C42 112 40 120 32 128 C22 138 28 152 42 155 C52 157 58 168 55 178 C52 188 65 198 75 192 C82 188 90 195 92 205 C94 215 106 215 108 205 C110 195 118 188 125 192 C135 198 148 188 145 178 C142 168 148 157 158 155 C172 152 178 138 168 128 C160 120 158 112 165 105 C175 95 170 82 160 75 C152 70 145 60 150 52 C155 42 145 30 135 35 C130 38 120 35 115 28 C110 20 105 10 100 15 Z M95 45 C98 40 102 40 105 45 C108 55 92 55 95 45 Z M85 70 C85 62 115 62 115 70 C115 78 85 78 85 70 Z M75 95 C75 85 125 85 125 95 C125 105 75 105 75 95 Z M80 125 C80 115 120 115 120 125 C120 135 80 135 80 125 Z M90 155 C90 148 110 148 110 155 C110 162 90 162 90 155 Z" />
+                    </svg>
+                  )}
                 </div>
                 <h1 className="text-2xl font-bold tracking-wide text-slate-900 font-sans">แบบรายงานประจำตัวนักเรียน</h1>
                 <h2 className="text-lg font-bold text-slate-800 mt-1">ผลการพัฒนาคุณภาพผู้เรียนรายบุคคล (ปพ.๖)</h2>

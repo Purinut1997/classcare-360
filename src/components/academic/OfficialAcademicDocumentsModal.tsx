@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   FileText,
   Printer,
@@ -14,10 +15,25 @@ import {
   Copy,
   Layers,
   GraduationCap,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  RefreshCw,
+  ExternalLink,
+  AlertCircle,
+  Save,
+  Check,
+  Settings2,
 } from 'lucide-react';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
-import { loadSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
+import {
+  loadSchoolReportIdentity,
+  saveSchoolReportIdentity,
+  compressImageFile,
+  type SchoolReportIdentity,
+} from '../../lib/scheduleSettings';
+import { writeAuditLog } from '../../lib/auditLog';
 import { formatThaiOfficialDate } from '../../lib/officialReport';
 import type { AppSessionContext } from '../../types/core';
 import { UniversalPhorPhor6Viewer } from './UniversalPhorPhor6Viewer';
@@ -51,9 +67,21 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
   initialCategory = 'pp6_individual',
   initialStudentId,
 }) => {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [docCategory, setDocCategory] = useState<DocCategory>(initialCategory);
-  const [identity, setIdentity] = useState<SchoolReportIdentity>(loadSchoolReportIdentity());
+  const [identity, setIdentity] = useState<SchoolReportIdentity>(() => {
+    const stored = loadSchoolReportIdentity(session.workspace?.id);
+    return {
+      ...stored,
+      schoolName: session.workspace?.schoolName || stored.schoolName || 'โรงเรียนบ้านหนองไฮ่ย',
+    };
+  });
   const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [realPayload, setRealPayload] = useState<RealClassroomAcademicPayload | null>(null);
   const certSheetRef = React.useRef<HTMLDivElement>(null);
   const [isPrintingCert, setIsPrintingCert] = useState(false);
@@ -83,23 +111,69 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
 
   // ข้อมูลหัวจดหมายโรงเรียนมาตรฐาน สพฐ.
   const schoolHeader: OBECSchoolHeader = useMemo(() => ({
-    schoolName: identity.schoolName || 'โรงเรียนบ้านโคกสูง',
-    district: 'อ.ขุขันธ์',
-    province: 'จ.ศรีสะเกษ',
-    jurisdiction: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+    schoolName: identity.schoolName || session.workspace?.schoolName || 'โรงเรียนบ้านหนองไฮ่ย',
+    district: identity.district || 'อ.ขุขันธ์',
+    province: identity.province || 'จ.ศรีสะเกษ',
+    jurisdiction: identity.jurisdiction || 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
     directorName: identity.directorName || 'นางสาวนิตยาภรณ์ ตรีแก้ว',
-    directorPosition: 'ผู้อำนวยการสถานศึกษา',
+    directorPosition: identity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
     academicHeadName: identity.academicHeadName || 'นางมุณี ทองแท้',
     registrarName: identity.registrarName || 'นายภูริณัฐ กุลัพบุรี',
     homeroomTeacherName: identity.teacherName || 'นายภูริณัฐ กุลัพบุรี',
-  }), [identity]);
+    schoolLogoDataUrl: identity.useGarudaInsteadOfLogo ? '' : identity.schoolLogoDataUrl,
+    useGarudaInsteadOfLogo: identity.useGarudaInsteadOfLogo,
+  }), [identity, session.workspace?.schoolName]);
+
+  const loadWorkspaceData = async () => {
+    try {
+      // 1. โหลดจาก localStorage ที่แยกตาม workspaceId
+      const stored = loadSchoolReportIdentity(workspaceId);
+      let merged: SchoolReportIdentity = {
+        ...stored,
+        schoolName: session.workspace?.schoolName || stored.schoolName || 'โรงเรียนบ้านหนองไฮ่ย',
+      };
+
+      // 2. หากเชื่อมต่อ Supabase สำเร็จ ให้ดึงการตั้งค่าจริงจากตาราง workspaces
+      if (!isDemo && isSupabaseReady && supabase && workspaceId) {
+        const { data: wsData, error: wsError } = await supabase
+          .from('workspaces')
+          .select('name, school_name, academic_year, settings')
+          .eq('id', workspaceId)
+          .maybeSingle();
+
+        if (!wsError && wsData) {
+          const rep = ((wsData.settings as any)?.report_identity || {}) as Partial<SchoolReportIdentity>;
+          merged = {
+            ...merged,
+            schoolName: wsData.school_name || rep.schoolName || merged.schoolName,
+            directorName: rep.directorName ?? merged.directorName,
+            directorPosition: rep.directorPosition ?? merged.directorPosition ?? 'ผู้อำนวยการสถานศึกษา',
+            teacherName: rep.teacherName ?? merged.teacherName,
+            academicHeadName: rep.academicHeadName ?? merged.academicHeadName,
+            registrarName: rep.registrarName ?? merged.registrarName,
+            coAdvisorName: rep.coAdvisorName ?? merged.coAdvisorName,
+            schoolLogoDataUrl: rep.schoolLogoDataUrl || merged.schoolLogoDataUrl || '',
+            district: rep.district || merged.district || 'อ.ขุขันธ์',
+            province: rep.province || merged.province || 'จ.ศรีสะเกษ',
+            jurisdiction: rep.jurisdiction || merged.jurisdiction || 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+            useGarudaInsteadOfLogo: rep.useGarudaInsteadOfLogo ?? merged.useGarudaInsteadOfLogo ?? false,
+          };
+          saveSchoolReportIdentity(merged, workspaceId);
+        }
+      }
+
+      setIdentity(merged);
+    } catch (err) {
+      console.warn('[OfficialAcademicDocumentsModal] Failed to load workspace school identity:', err);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
-      setIdentity(loadSchoolReportIdentity());
-      loadClassroomsAndStudents();
+      void loadWorkspaceData();
+      void loadClassroomsAndStudents();
     }
-  }, [isOpen, selectedClassroomId]);
+  }, [isOpen, workspaceId, selectedClassroomId]);
 
   const loadClassroomsAndStudents = async () => {
     setLoading(true);
@@ -228,6 +302,130 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
     }
   };
 
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLogoUploading(true);
+      const compressedDataUrl = await compressImageFile(file, 520, 0.78);
+      setIdentity((prev) => ({
+        ...prev,
+        schoolLogoDataUrl: compressedDataUrl,
+        useGarudaInsteadOfLogo: false,
+      }));
+      setSaveNotice({
+        type: 'info',
+        text: 'แนบตราโรงเรียนเรียบร้อยแล้ว กรุณากด "บันทึกข้อมูล" ด้านล่างเพื่อปรับใช้ถาวร',
+      });
+    } catch (err) {
+      console.error('Logo upload error:', err);
+      setSaveNotice({
+        type: 'error',
+        text: 'ไม่สามารถอัปโหลดไฟล์รูปภาพได้ กรุณาใช้ไฟล์ภาพประเภท PNG, JPG หรือ WebP',
+      });
+    } finally {
+      setLogoUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setIdentity((prev) => ({
+      ...prev,
+      schoolLogoDataUrl: '',
+    }));
+    setSaveNotice({
+      type: 'info',
+      text: 'นำตราโรงเรียนออกแล้ว (เอกสารจะแสดงตราครุฑพ่าห์ สพฐ. มาตรฐาน)',
+    });
+  };
+
+  const handleSyncFromWorkspace = async () => {
+    setIsSyncing(true);
+    setSaveNotice(null);
+    try {
+      await loadWorkspaceData();
+      setSaveNotice({
+        type: 'success',
+        text: 'ดึงข้อมูลล่าสุดจากระบบและตราโรงเรียนเรียบร้อยแล้ว',
+      });
+    } catch (err) {
+      setSaveNotice({
+        type: 'error',
+        text: 'ไม่สามารถดึงข้อมูลได้ โปรดลองอีกครั้ง',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSaveIdentity = async () => {
+    setIsSaving(true);
+    setSaveNotice(null);
+
+    try {
+      // 1. บันทึกลง localStorage ของ workspace
+      saveSchoolReportIdentity(identity, workspaceId);
+
+      // 2. บันทึกลง Supabase workspaces หากเชื่อมต่ออยู่
+      if (!isDemo && isSupabaseReady && supabase && workspaceId) {
+        const { data: currentWs } = await supabase
+          .from('workspaces')
+          .select('settings')
+          .eq('id', workspaceId)
+          .maybeSingle();
+
+        const currentSettings = (currentWs?.settings as Record<string, unknown>) || {};
+
+        const { error } = await supabase
+          .from('workspaces')
+          .update({
+            school_name: identity.schoolName,
+            settings: {
+              ...currentSettings,
+              report_identity: identity,
+            },
+          })
+          .eq('id', workspaceId);
+
+        if (error) throw error;
+
+        await writeAuditLog(session, {
+          action: 'workspace_settings.updated',
+          entityId: workspaceId,
+          entityTable: 'workspaces',
+          metadata: {
+            school_name: identity.schoolName,
+            director_name: identity.directorName,
+            has_logo: Boolean(identity.schoolLogoDataUrl),
+            source: 'official_academic_documents_modal',
+          },
+          riskLevel: 'low',
+          source: 'academic_documents',
+        });
+      }
+
+      setSaveNotice({
+        type: 'success',
+        text: 'บันทึกข้อมูลโรงเรียนและตราสัญลักษณ์สำเร็จ! ข้อมูลถูกปรับใช้ในเล่ม ปพ.๕, ปพ.๖ และหนังสือรับรองทุกหน้าทันที',
+      });
+    } catch (err: any) {
+      console.error('Save error:', err);
+      setSaveNotice({
+        type: 'error',
+        text: `เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${err?.message || 'โปรดลองใหม่อีกครั้ง'}`,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleNavigateToWorkspaceSettings = () => {
+    onClose();
+    navigate('/app/dashboard?view=workspace-settings#workspace-profile');
+  };
+
   const handleClassroomChange = (cid: string) => {
     setSelectedClassroomId(cid);
     const found = classrooms.find((c) => c.id === cid);
@@ -247,8 +445,16 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-900/90 sticky top-0 z-20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-white font-bold">
-              สพฐ.
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-white font-bold overflow-hidden p-1 bg-white">
+              {schoolHeader.schoolLogoDataUrl ? (
+                <img
+                  src={schoolHeader.schoolLogoDataUrl}
+                  alt="ตราโรงเรียน"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-amber-950 font-black text-xs">สพฐ.</span>
+              )}
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -421,13 +627,21 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                   <div ref={certSheetRef} className="bg-white text-slate-900 p-12 shadow-2xl rounded-sm border border-slate-300 font-serif max-w-[210mm] mx-auto min-h-[297mm]">
                     <div className="text-center mb-8">
                       <div className="flex justify-center mb-3">
-                        <svg
-                          viewBox="0 0 200 220"
-                          className="w-20 h-20 text-slate-900 fill-current drop-shadow-sm"
-                          aria-label="ตราครุฑพ่าห์"
-                        >
-                          <path d="M100 15 C95 10 90 20 85 28 C80 35 70 38 65 35 C55 30 45 42 50 52 C55 60 48 70 40 75 C30 82 25 95 35 105 C42 112 40 120 32 128 C22 138 28 152 42 155 C52 157 58 168 55 178 C52 188 65 198 75 192 C82 188 90 195 92 205 C94 215 106 215 108 205 C110 195 118 188 125 192 C135 198 148 188 145 178 C142 168 148 157 158 155 C172 152 178 138 168 128 C160 120 158 112 165 105 C175 95 170 82 160 75 C152 70 145 60 150 52 C155 42 145 30 135 35 C130 38 120 35 115 28 C110 20 105 10 100 15 Z M95 45 C98 40 102 40 105 45 C108 55 92 55 95 45 Z M85 70 C85 62 115 62 115 70 C115 78 85 78 85 70 Z M75 95 C75 85 125 85 125 95 C125 105 75 105 75 95 Z M80 125 C80 115 120 115 120 125 C120 135 80 135 80 125 Z M90 155 C90 148 110 148 110 155 C110 162 90 162 90 155 Z" />
-                        </svg>
+                        {!schoolHeader.useGarudaInsteadOfLogo && schoolHeader.schoolLogoDataUrl ? (
+                          <img
+                            src={schoolHeader.schoolLogoDataUrl}
+                            alt="ตราประจำโรงเรียน"
+                            className="w-20 h-20 max-h-20 max-w-[120px] object-contain drop-shadow-sm"
+                          />
+                        ) : (
+                          <svg
+                            viewBox="0 0 200 220"
+                            className="w-20 h-20 text-slate-900 fill-current drop-shadow-sm"
+                            aria-label="ตราครุฑพ่าห์"
+                          >
+                            <path d="M100 15 C95 10 90 20 85 28 C80 35 70 38 65 35 C55 30 45 42 50 52 C55 60 48 70 40 75 C30 82 25 95 35 105 C42 112 40 120 32 128 C22 138 28 152 42 155 C52 157 58 168 55 178 C52 188 65 198 75 192 C82 188 90 195 92 205 C94 215 106 215 108 205 C110 195 118 188 125 192 C135 198 148 188 145 178 C142 168 148 157 158 155 C172 152 178 138 168 128 C160 120 158 112 165 105 C175 95 170 82 160 75 C152 70 145 60 150 52 C155 42 145 30 135 35 C130 38 120 35 115 28 C110 20 105 10 100 15 Z M95 45 C98 40 102 40 105 45 C108 55 92 55 95 45 Z M85 70 C85 62 115 62 115 70 C115 78 85 78 85 70 Z M75 95 C75 85 125 85 125 95 C125 105 75 105 75 95 Z M80 125 C80 115 120 115 120 125 C120 135 80 135 80 125 Z M90 155 C90 148 110 148 110 155 C110 162 90 162 90 155 Z" />
+                          </svg>
+                        )}
                       </div>
                       <h3 className="text-xl font-bold tracking-wider">หนังสือรับรอง</h3>
                       <p className="text-sm font-semibold">{schoolHeader.schoolName}</p>
@@ -458,75 +672,347 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                 </div>
               )}
 
-              {/* 4. การตั้งค่าข้อมูลโรงเรียนและผู้บริหาร */}
+              {/* 4. การตั้งค่าข้อมูลโรงเรียน ตราสัญลักษณ์ และผู้บริหาร */}
               {docCategory === 'settings' && (
-                <div className="max-w-2xl mx-auto bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
-                  <h4 className="font-bold text-base text-white flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-amber-400" />
-                    ข้อมูลโรงเรียนและผู้บริหารสำหรับเอกสาร ปพ.
-                  </h4>
-                  <p className="text-xs text-slate-400">
-                    ข้อมูลเหล่านี้จะปรากฏในช่องลงนาม 3 ฝ่าย และส่วนหัวของเล่ม ปพ.๕ และ ปพ.๖ ทุกหน้า
-                  </p>
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* ซ่อน file input สำหรับอัปโหลดตราโรงเรียน */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => void handleLogoUpload(e)}
+                    className="hidden"
+                  />
 
-                  <div className="space-y-3 text-xs pt-2">
-                    <div>
-                      <label className="block text-slate-400 mb-1">ชื่อโรงเรียน</label>
-                      <input
-                        type="text"
-                        value={identity.schoolName || ''}
-                        onChange={(e) => setIdentity({ ...identity, schoolName: e.target.value })}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                      />
+                  {/* Header & Quick Navigation Bar */}
+                  <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-base text-white flex items-center gap-2">
+                          <Building2 className="w-5 h-5 text-amber-400" />
+                          ข้อมูลโรงเรียนและผู้บริหารสำหรับเอกสาร ปพ.
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-1">
+                          ข้อมูลเหล่านี้จะปรากฏในช่องลงนาม 3 ฝ่าย และส่วนหัวของเล่ม ปพ.๕, ปพ.๖ และหนังสือรับรองทุกหน้า
+                        </p>
+                      </div>
+
+                      {/* Quick Navigation Buttons */}
+                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void handleSyncFromWorkspace()}
+                          disabled={isSyncing}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition disabled:opacity-50"
+                          title="ดึงข้อมูลโรงเรียนและตราล่าสุดจากระบบ"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+                          <span>{isSyncing ? 'กำลังซิงค์...' : 'ซิงค์จากระบบ'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleNavigateToWorkspaceSettings}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold rounded-xl border border-amber-500/30 transition"
+                          title="ไปยังหน้าตั้งค่าโรงเรียนหลัก (Workspace Settings)"
+                        >
+                          <Settings2 className="w-3.5 h-3.5" />
+                          <span>ไปตั้งค่าโรงเรียนหลัก</span>
+                          <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-slate-400 mb-1">ชื่อผู้อำนวยการโรงเรียน</label>
-                        <input
-                          type="text"
-                          value={identity.directorName || ''}
-                          onChange={(e) => setIdentity({ ...identity, directorName: e.target.value })}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                        />
+
+                    {/* Notice / Feedback alert */}
+                    {saveNotice && (
+                      <div
+                        className={`p-3 rounded-2xl text-xs font-medium flex items-center gap-2 border ${
+                          saveNotice.type === 'success'
+                            ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                            : saveNotice.type === 'error'
+                            ? 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                            : 'bg-sky-950/60 border-sky-500/40 text-sky-300'
+                        }`}
+                      >
+                        {saveNotice.type === 'success' ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                        ) : saveNotice.type === 'error' ? (
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 shrink-0 text-sky-400" />
+                        )}
+                        <span>{saveNotice.text}</span>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Section 1: ตราสัญลักษณ์สถานศึกษา / โรงเรียน (School Logo / Emblem) */}
+                  <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                       <div>
-                        <label className="block text-slate-400 mb-1">ชื่อครูประจำชั้น</label>
-                        <input
-                          type="text"
-                          value={identity.teacherName || ''}
-                          onChange={(e) => setIdentity({ ...identity, teacherName: e.target.value })}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                        />
+                        <h5 className="font-bold text-sm text-white flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4 text-amber-400" />
+                          ตราประจำโรงเรียน (School Emblem / Logo)
+                        </h5>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          นำไปแสดงบนหน้าปกสมุด ปพ.๖, ปพ.๕ และหนังสือรับรองผลการเรียน (Transcript)
+                        </p>
+                      </div>
+                      {identity.schoolLogoDataUrl && (
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          ✓ มีตราโรงเรียนแล้ว
+                        </span>
+                      )}
+                    </div>
+
+                    {identity.schoolLogoDataUrl ? (
+                      <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-2xl bg-slate-850 border border-slate-800 bg-slate-950/50">
+                        {/* กรอบพรีวิวตราโรงเรียนพื้นหลังขาว */}
+                        <div className="w-24 h-24 rounded-2xl bg-white border-2 border-amber-500/30 p-2 shadow-xl flex items-center justify-center shrink-0">
+                          <img
+                            src={identity.schoolLogoDataUrl}
+                            alt="ตราโรงเรียน"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+
+                        <div className="flex-1 space-y-2 text-center sm:text-left">
+                          <p className="text-xs font-semibold text-slate-200">
+                            ตรวจพบตราสัญลักษณ์โรงเรียนในระบบ (พร้อมใช้งานในรายงานและเอกสารทางการ)
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            ระบบซิงค์ตราโรงเรียนนี้เชื่อมโยงร่วมกับหน้า 'ตั้งค่าโรงเรียนหลัก' และรายงานอื่นๆ โดยอัตโนมัติ
+                          </p>
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={logoUploading}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-amber-400" />
+                              <span>{logoUploading ? 'กำลังอัปโหลด...' : 'เปลี่ยนรูปตราโรงเรียน'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleRemoveLogo}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/30 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>นำตราโรงเรียนออก</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-slate-700 hover:border-amber-500/50 bg-slate-950/40 hover:bg-slate-950/80 p-6 rounded-2xl cursor-pointer text-center transition group space-y-2"
+                      >
+                        <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition">
+                          <Upload className="w-6 h-6" />
+                        </div>
+                        <p className="text-xs font-bold text-white">
+                          {logoUploading ? 'กำลังประมวลผลรูปภาพ...' : 'คลิกเพื่อแนบรูปภาพตราโรงเรียน (PNG, JPG, WebP)'}
+                        </p>
+                        <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                          ระบบจะปรับสเกลขนาดภาพอัตโนมัติเพื่อให้คมชัดบนเอกสาร ปพ. หากคุณครูเคยอัปโหลดไว้ในหน้า 'ตั้งค่าโรงเรียนหลัก' ให้กดปุ่ม "ซิงค์จากระบบ" ด้านบนเพื่อดึงมาได้ทันที
+                        </p>
+                      </div>
+                    )}
+
+                    {/* ตัวเลือกแสดงตราบนเอกสาร */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <label className="text-xs text-slate-300 font-bold block mb-2">
+                        รูปแบบตราสัญลักษณ์บนหน้าปกเอกสาร ปพ.:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <label
+                          className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
+                            !identity.useGarudaInsteadOfLogo
+                              ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+                              : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:bg-slate-800'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="logoMode"
+                            checked={!identity.useGarudaInsteadOfLogo}
+                            onChange={() => setIdentity({ ...identity, useGarudaInsteadOfLogo: false })}
+                            className="text-amber-500 focus:ring-amber-500"
+                          />
+                          <span className="font-semibold">
+                            ใช้ตราโรงเรียน (เมื่อมีตราโรงเรียน)
+                          </span>
+                        </label>
+
+                        <label
+                          className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
+                            identity.useGarudaInsteadOfLogo
+                              ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+                              : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:bg-slate-800'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="logoMode"
+                            checked={Boolean(identity.useGarudaInsteadOfLogo)}
+                            onChange={() => setIdentity({ ...identity, useGarudaInsteadOfLogo: true })}
+                            className="text-amber-500 focus:ring-amber-500"
+                          />
+                          <span className="font-semibold">
+                            ใช้ตราครุฑพ่าห์ สพฐ. มาตรฐานราชการ
+                          </span>
+                        </label>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                  </div>
+
+                  {/* Section 2: ข้อมูลสถานศึกษาและสังกัด */}
+                  <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
+                    <h5 className="font-bold text-sm text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <GraduationCap className="w-4 h-4 text-amber-400" />
+                      ข้อมูลสถานศึกษาและสังกัด
+                    </h5>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div>
-                        <label className="block text-slate-400 mb-1">ชื่อหัวหน้างานวิชาการ</label>
+                        <label className="block text-slate-400 mb-1 font-semibold">ชื่อโรงเรียน</label>
                         <input
                           type="text"
-                          value={identity.academicHeadName || ''}
-                          onChange={(e) => setIdentity({ ...identity, academicHeadName: e.target.value })}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                          value={identity.schoolName || ''}
+                          onChange={(e) => setIdentity({ ...identity, schoolName: e.target.value })}
+                          placeholder="เช่น โรงเรียนบ้านหนองไฮ่ย"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
+
                       <div>
-                        <label className="block text-slate-400 mb-1">ชื่อนายทะเบียน</label>
+                        <label className="block text-slate-400 mb-1 font-semibold">สังกัด / สำนักงานเขตพื้นที่การศึกษา</label>
                         <input
                           type="text"
-                          value={identity.registrarName || ''}
-                          onChange={(e) => setIdentity({ ...identity, registrarName: e.target.value })}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                          value={identity.jurisdiction || ''}
+                          onChange={(e) => setIdentity({ ...identity, jurisdiction: e.target.value })}
+                          placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">อำเภอ</label>
+                        <input
+                          type="text"
+                          value={identity.district || ''}
+                          onChange={(e) => setIdentity({ ...identity, district: e.target.value })}
+                          placeholder="เช่น อ.ขุขันธ์"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">จังหวัด</label>
+                        <input
+                          type="text"
+                          value={identity.province || ''}
+                          onChange={(e) => setIdentity({ ...identity, province: e.target.value })}
+                          placeholder="เช่น จ.ศรีสะเกษ"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="pt-4 flex justify-end">
+                  {/* Section 3: รายนามผู้มีอำนาจลงนาม 3 ฝ่าย */}
+                  <div className="bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
+                    <h5 className="font-bold text-sm text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <UserCheck className="w-4 h-4 text-amber-400" />
+                      รายนามผู้บริหารและผู้มีอำนาจลงนาม 3 ฝ่าย (เอกสาร ปพ.)
+                    </h5>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">ชื่อผู้อำนวยการโรงเรียน</label>
+                        <input
+                          type="text"
+                          value={identity.directorName || ''}
+                          onChange={(e) => setIdentity({ ...identity, directorName: e.target.value })}
+                          placeholder="เช่น นางสาวนิตยาภรณ์ ตรีแก้ว"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">ตำแหน่งผู้บริหาร</label>
+                        <input
+                          type="text"
+                          value={identity.directorPosition || 'ผู้อำนวยการสถานศึกษา'}
+                          onChange={(e) => setIdentity({ ...identity, directorPosition: e.target.value })}
+                          placeholder="เช่น ผู้อำนวยการสถานศึกษา"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">ชื่อครูประจำชั้น / ครูที่ปรึกษา</label>
+                        <input
+                          type="text"
+                          value={identity.teacherName || ''}
+                          onChange={(e) => setIdentity({ ...identity, teacherName: e.target.value })}
+                          placeholder="เช่น นายภูริณัฐ กุลัพบุรี"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">ชื่อหัวหน้างานวิชาการ</label>
+                        <input
+                          type="text"
+                          value={identity.academicHeadName || ''}
+                          onChange={(e) => setIdentity({ ...identity, academicHeadName: e.target.value })}
+                          placeholder="เช่น นางมุณี ทองแท้"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">ชื่อนายทะเบียน</label>
+                        <input
+                          type="text"
+                          value={identity.registrarName || ''}
+                          onChange={(e) => setIdentity({ ...identity, registrarName: e.target.value })}
+                          placeholder="เช่น นายภูริณัฐ กุลัพบุรี"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-semibold">ชื่อครูประจำชั้นร่วม / ผู้ช่วย (ถ้ามี)</label>
+                        <input
+                          type="text"
+                          value={identity.coAdvisorName || ''}
+                          onChange={(e) => setIdentity({ ...identity, coAdvisorName: e.target.value })}
+                          placeholder="ชื่อครูประจำชั้นร่วม (ถ้ามี)"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Action Footer */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                    <p className="text-xs text-slate-400">
+                      💡 เมื่อกดบันทึก ข้อมูลและตราโรงเรียนจะถูกจัดเก็บเข้าสู่ระบบเพื่อใช้กับเอกสาร ปพ.๕, ปพ.๖ และหนังสือรับรองโดยอัตโนมัติ
+                    </p>
+
                     <button
-                      onClick={() => alert('บันทึกข้อมูลโรงเรียนสำเร็จ!')}
-                      className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow transition"
+                      type="button"
+                      onClick={() => void handleSaveIdentity()}
+                      disabled={isSaving}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition disabled:opacity-50 shrink-0"
                     >
-                      บันทึกข้อมูล
+                      <Save className={`w-4 h-4 ${isSaving ? 'animate-spin' : ''}`} />
+                      <span>{isSaving ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูล'}</span>
                     </button>
                   </div>
                 </div>

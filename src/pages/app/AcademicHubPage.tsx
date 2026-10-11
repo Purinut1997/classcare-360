@@ -43,6 +43,7 @@ import {
   fetchRealAcademicDataForClassroom,
 } from '../../lib/obecAcademicEngine';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
@@ -179,16 +180,19 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       const roomName = activeRoom?.name || 'ประถมศึกษาปีที่ 5';
       const master = getPrimaryMasterData(roomName);
 
+      const identity = loadSchoolReportIdentity(session.workspace?.id);
       const schoolHeader: OBECSchoolHeader = {
-        schoolName: session.workspace?.name || 'โรงเรียนวัดบ้านโคกสูง',
-        district: 'ขุนหาญ',
-        province: 'ศรีสะเกษ',
-        jurisdiction: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
-        directorName: 'นายประสิทธิ์ มั่นคง',
-        directorPosition: 'ผู้อำนวยการสถานศึกษา',
-        academicHeadName: 'นางสาวสมใจ นึกดี',
-        registrarName: 'นางกาญจนา ศรีสุข',
-        homeroomTeacherName: session.profile?.displayName || 'ครูประจำชั้น',
+        schoolName: identity.schoolName || session.workspace?.schoolName || session.workspace?.name || 'โรงเรียนวัดบ้านโคกสูง',
+        district: identity.district || 'ขุนหาญ',
+        province: identity.province || 'ศรีสะเกษ',
+        jurisdiction: identity.jurisdiction || 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+        directorName: identity.directorName || 'นายประสิทธิ์ มั่นคง',
+        directorPosition: identity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
+        academicHeadName: identity.academicHeadName || 'นางสาวสมใจ นึกดี',
+        registrarName: identity.registrarName || 'นางกาญจนา ศรีสุข',
+        homeroomTeacherName: identity.teacherName || session.profile?.displayName || 'ครูประจำชั้น',
+        schoolLogoDataUrl: identity.useGarudaInsteadOfLogo ? '' : identity.schoolLogoDataUrl,
+        useGarudaInsteadOfLogo: identity.useGarudaInsteadOfLogo,
       };
 
       const realData = await fetchRealAcademicDataForClassroom(
