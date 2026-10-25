@@ -40,17 +40,15 @@ const coreDirectItemKeys = [
 
 const sidebarSections: SidebarSectionConfig[] = [
   {
-    key: 'classroom-admin',
-    label: 'ธุรการชั้นเรียน',
+    key: 'daily-routine',
+    label: 'กิจวัตร & หน้าที่ประจำวัน',
     icon: ClipboardList,
     defaultOpen: true,
     itemKeys: [
-      'students',              // 1. ทะเบียนและประวัตินักเรียน
-      'teacher-work',          // 2. เช็กชื่อและสถิติเวลาเรียน
+      'teacher-work',          // 1. เช็กชื่อและสถิติเวลาเรียน
+      'classroom-operations',  // 2. ตารางเวรทำความสะอาด
       'student-health',        // 3. สุขภาพและกิจวัตรประจำวัน
-      'classroom-operations',  // 4. ตารางเวรและกิจกรรมห้องเรียน
-      'savings',               // 5. สมุดเงินออมนักเรียน
-      'daily-brief',           // 6. สรุปบันทึกประจำวันครู
+      'daily-brief',           // 4. สรุปบันทึกประจำวันครู
     ],
   },
   {
@@ -68,12 +66,14 @@ const sidebarSections: SidebarSectionConfig[] = [
   },
   {
     key: 'student-care',
-    label: 'ดูแลช่วยเหลือนักเรียน',
+    label: 'ข้อมูลนักเรียน & ดูแลช่วยเหลือ',
     icon: Heart,
     defaultOpen: false,
     itemKeys: [
-      'behavior',              // พฤติกรรม & ดูแลช่วยเหลือนักเรียน
+      'students',              // ทะเบียนและประวัตินักเรียน
+      'behavior',              // พฤติกรรม & บันทึกความดี
       'desirable-characteristics', // ประเมินคุณลักษณะ 8 ประการ
+      'savings',               // สมุดเงินออมนักเรียน
       'automation',            // แจ้งเตือนเด็กเสี่ยง (ขาด/ตก)
     ],
   },
@@ -89,12 +89,13 @@ const sidebarSections: SidebarSectionConfig[] = [
   },
   {
     key: 'school-management',
-    label: 'ตั้งค่าโรงเรียน & ระบบ',
+    label: 'ตั้งค่าโรงเรียน & จัดการระบบ',
     icon: School,
     defaultOpen: false,
     itemKeys: [
       'workspace-settings',    // ศูนย์จัดการโรงเรียน
       'academic-year',         // ปิดชั้นและคลังปีการศึกษา
+      'period-locks',          // ล็อกงวดข้อมูล
       'import-export',         // นำเข้า & ส่งออกข้อมูล
       'data-safety',           // สำรองข้อมูล & กู้คืน
     ],

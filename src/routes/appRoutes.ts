@@ -83,7 +83,7 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'classroom-operations',
-    label: 'ตารางเวรทำความสะอาด & กิจวัตร',
+    label: 'ตารางเวรทำความสะอาด',
     icon: ClipboardCheck,
     moduleKey: 'behavior',
     path: '/app/dashboard?view=classroom-operations',

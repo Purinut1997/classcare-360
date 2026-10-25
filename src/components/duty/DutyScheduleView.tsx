@@ -41,6 +41,7 @@ interface DutyScheduleViewProps {
   onOpenInspection: (date: string) => void;
   onQuickAssignPresets?: () => void;
   onDeleteAssignment: (assignmentId: string) => Promise<void>;
+  onSeedDefaultTasks?: () => Promise<void>;
 }
 
 export function DutyScheduleView({
@@ -63,6 +64,7 @@ export function DutyScheduleView({
   onOpenInspection,
   onQuickAssignPresets,
   onDeleteAssignment,
+  onSeedDefaultTasks,
 }: DutyScheduleViewProps) {
   const [viewMode, setViewMode] = useState<"matrix" | "cards">("matrix");
 
@@ -252,8 +254,41 @@ export function DutyScheduleView({
           </div>
         </div>
 
-        {/* Empty State Banner (if no assignments exist for this week) */}
-        {totalAssignedThisWeek === 0 ? (
+        {/* Empty State Banner (if no tasks exist OR if no assignments exist for this week) */}
+        {activeUniqueTasks.length === 0 ? (
+          <div className="mt-5 rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50/90 via-white to-blue-50/90 p-6 text-center shadow-xs">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-100 text-cyan-700">
+              <ClipboardList size={26} />
+            </div>
+            <h3 className="mt-3 text-lg font-black text-slate-900">
+              ห้องเรียนนี้ยังไม่มีหน้าที่เวรทำความสะอาด
+            </h3>
+            <p className="mx-auto mt-1 max-w-lg text-xs font-bold leading-5 text-slate-500">
+              เริ่มต้นใช้งานง่ายๆ โดยสร้างหน้าที่เวรพื้นฐานของห้องเรียน (กวาดพื้น, ทิ้งขยะ, ลบกระดาน, จัดโต๊ะเก้าอี้, รดน้ำต้นไม้) ในคลิกเดียว
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {onSeedDefaultTasks ? (
+                <button
+                  className="blue-action inline-flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-black shadow-xs"
+                  disabled={busy || !canManage}
+                  onClick={() => void onSeedDefaultTasks()}
+                  type="button"
+                >
+                  <Sparkles size={15} />
+                  สร้างหน้าที่เวรมาตรฐาน 5 หน้าที่ทันที
+                </button>
+              ) : null}
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 hover:bg-slate-50"
+                onClick={onOpenTaskDesigner}
+                type="button"
+              >
+                <Plus size={15} />
+                กำหนดหน้าที่เวรเอง
+              </button>
+            </div>
+          </div>
+        ) : totalAssignedThisWeek === 0 ? (
           <div className="mt-5 rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50/80 via-white to-blue-50/80 p-6 text-center shadow-xs">
             <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-100 text-cyan-700">
               <CalendarCheck size={26} />
@@ -345,7 +380,14 @@ export function DutyScheduleView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {activeUniqueTasks.map((task) => (
+                {activeUniqueTasks.length === 0 ? (
+                  <tr>
+                    <td className="p-8 text-center text-xs font-bold text-slate-400" colSpan={6}>
+                      ยังไม่มีหน้าที่เวรที่เปิดใช้งาน — กรุณากดปุ่ม &ldquo;สร้างหน้าที่เวรมาตรฐาน 5 หน้าที่ทันที&rdquo; ด้านบน
+                    </td>
+                  </tr>
+                ) : (
+                  activeUniqueTasks.map((task) => (
                   <tr className="hover:bg-slate-50/50" key={task.id}>
                     <th className="bg-slate-50/70 p-3 font-black text-slate-900">
                       <span className="block">{task.name}</span>
@@ -435,7 +477,7 @@ export function DutyScheduleView({
                       );
                     })}
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
