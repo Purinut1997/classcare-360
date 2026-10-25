@@ -771,23 +771,48 @@ export function ClassroomOperationsPage({
     }
     setBusy(true);
     setNotice(null);
-    const { data, error } = await supabase.rpc("generate_balanced_duty_range", {
-      target_classroom_id: classroomId,
-      target_end_date: range.end,
-      target_scope: dutyGenerationScope,
-      target_start_date: range.start,
-      target_workspace_id: session.workspace.id,
-    });
-    if (error) setNotice(error.message);
-    else {
+
+    // Split date range into ~21-day chunks to prevent PostgreSQL statement timeout on large ranges (e.g. 150+ day term)
+    const chunks = splitDateRangeIntoChunks(range.start, range.end, 21);
+    let totalAssignments = 0;
+    let totalSchoolDays = 0;
+    let failedError: string | null = null;
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      if (chunks.length > 1) {
+        setNotice(`กำลังสุ่มจัดเวร... ช่วงที่ ${i + 1}/${chunks.length} (${chunk.start} ถึง ${chunk.end})`);
+      }
+      const { data, error } = await supabase.rpc("generate_balanced_duty_range", {
+        target_classroom_id: classroomId,
+        target_end_date: chunk.end,
+        target_scope: dutyGenerationScope,
+        target_start_date: chunk.start,
+        target_workspace_id: session.workspace.id,
+      });
+
+      if (error) {
+        failedError = `สุ่มจัดเวรช่วงที่ ${i + 1}/${chunks.length} ไม่สำเร็จ: ${error.message}`;
+        break;
+      }
+
       const result = (data || {}) as { assignments?: number; school_days?: number };
+      totalAssignments += result.assignments || 0;
+      totalSchoolDays += result.school_days || 0;
+    }
+
+    if (failedError) {
+      setNotice(failedError);
+    } else {
       const refreshed = await supabase
         .from("duty_assignments")
         .select("id,duty_task_id,duty_date,student_id,substitute_student_id,status")
         .eq("workspace_id", session.workspace.id)
         .gte("duty_date", range.start)
         .lte("duty_date", range.end)
-        .order("duty_date");
+        .order("duty_date")
+        .limit(5000);
+
       if (refreshed.error) {
         setNotice(`จัดเวรแล้ว แต่โหลดผลล่าสุดไม่สำเร็จ: ${refreshed.error.message}`);
       } else {
@@ -796,14 +821,14 @@ export function ClassroomOperationsPage({
           ...current.filter((item) => item.duty_date < range.start || item.duty_date > range.end),
           ...refreshedRows,
         ]);
-        setNotice(`จัดเวรสำเร็จ ${result.assignments || 0} รายการ ครอบคลุม ${result.school_days || 0} วันเรียน ระบบข้ามวันหยุดตามปฏิทินโรงเรียนแล้ว`);
+        setNotice(`จัดเวรสำเร็จ ${totalAssignments} รายการ ครอบคลุม ${totalSchoolDays} วันเรียน ระบบข้ามวันหยุดตามปฏิทินโรงเรียนแล้ว`);
       }
       setDutyGeneratorOpen(false);
       await writeAuditLog(session, {
         action: "duty.range_generated",
         entityId: classroomId,
         entityTable: "duty_weeks",
-        metadata: { classroomId, scope: dutyGenerationScope, ...range, ...result },
+        metadata: { classroomId, scope: dutyGenerationScope, ...range, assignments: totalAssignments, schoolDays: totalSchoolDays },
         riskLevel: "normal",
         source: "classroom_operations",
       });
@@ -2414,6 +2439,19 @@ function addDays(value: string, count: number) {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(date.getDate() + count);
   return date.toISOString().slice(0, 10);
+}
+
+function splitDateRangeIntoChunks(startDate: string, endDate: string, maxDays = 21): Array<{ start: string; end: string }> {
+  const chunks: Array<{ start: string; end: string }> = [];
+  let currentStart = startDate;
+
+  while (currentStart <= endDate) {
+    const chunkEndCandidate = addDays(currentStart, maxDays - 1);
+    const chunkEnd = chunkEndCandidate < endDate ? chunkEndCandidate : endDate;
+    chunks.push({ start: currentStart, end: chunkEnd });
+    currentStart = addDays(chunkEnd, 1);
+  }
+  return chunks;
 }
 function escapeDutyHtml(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({
