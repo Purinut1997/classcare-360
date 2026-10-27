@@ -328,15 +328,15 @@ export function DutyScheduleView({
         {/* Schedule Matrix Table View */}
         {viewMode === "matrix" ? (
           <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
-            <table className="w-full min-w-[960px] text-left text-sm">
+            <table className="w-full min-w-[920px] table-fixed text-left text-sm">
               <thead className="bg-slate-950 text-white">
                 <tr>
-                  <th className="w-48 p-3 text-xs font-black">งาน / วัน</th>
+                  <th className="w-[170px] min-w-[170px] max-w-[180px] p-3 text-xs font-black whitespace-nowrap">งาน / วัน</th>
                   {days.map((day) => {
                     const isToday = day.date === todayStr;
                     return (
                       <th
-                        className={`p-2 text-center transition ${
+                        className={`w-[calc((100%-170px)/5)] min-w-[150px] p-2 text-center transition ${
                           selectedDutyDate === day.date
                             ? "bg-cyan-900"
                             : isToday
@@ -389,9 +389,9 @@ export function DutyScheduleView({
                 ) : (
                   activeUniqueTasks.map((task) => (
                   <tr className="hover:bg-slate-50/50" key={task.id}>
-                    <th className="bg-slate-50/70 p-3 font-black text-slate-900">
-                      <span className="block">{task.name}</span>
-                      <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                    <th className="w-[170px] min-w-[170px] max-w-[180px] bg-slate-50/70 p-3 font-black text-slate-900 align-top">
+                      <span className="block text-sm font-black text-slate-900 leading-snug break-words" title={task.name}>{task.name}</span>
+                      <span className="mt-1 block text-[11px] font-bold text-slate-500 whitespace-nowrap">
                         {task.location || "ประจำห้อง"} · {task.slots_per_day} คน
                       </span>
                     </th>
@@ -404,7 +404,7 @@ export function DutyScheduleView({
 
                       return (
                         <td
-                          className={`p-2 align-top ${
+                          className={`w-[calc((100%-170px)/5)] min-w-[150px] p-2 align-top ${
                             selectedDutyDate === day.date ? "bg-cyan-50/30" : ""
                           }`}
                           key={day.date}

@@ -4068,7 +4068,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           ) : null}
         </div>
 
-        <div className="grid gap-5">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] items-start pb-24">
           {!editingStudentId ? (
           <form className="nexus-card p-4 sm:p-5" onSubmit={handleStudentSubmit}>
             <div className="nexus-kicker">
@@ -4077,31 +4077,43 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ห้องเรียน
-                <select
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setStudentForm((current) => ({ ...current, classroomId: event.target.value }))}
-                  value={studentForm.classroomId}
-                >
-                  {activeClassrooms.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
-                      {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                    </option>
-                  ))}
-                  {activeClassrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
-                </select>
-              </label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  ห้องเรียน
+                  <select
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setStudentForm((current) => ({ ...current, classroomId: event.target.value }))}
+                    value={studentForm.classroomId}
+                  >
+                    {activeClassrooms.map((classroom) => (
+                      <option key={classroom.id} value={classroom.id}>
+                        {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                      </option>
+                    ))}
+                    {activeClassrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
+                  </select>
+                </label>
 
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                รหัสนักเรียน
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setStudentForm((current) => ({ ...current, studentCode: event.target.value }))}
-                  placeholder="เช่น 001"
-                  value={studentForm.studentCode}
-                />
-              </label>
+                <label className="grid gap-2 text-sm font-black text-slate-700">
+                  รหัสนักเรียน
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setStudentForm((current) => ({ ...current, studentCode: event.target.value }))}
+                    placeholder="เช่น 001"
+                    value={studentForm.studentCode}
+                  />
+                </label>
+
+                <label className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2 lg:col-span-1">
+                  ชื่อเล่น
+                  <input
+                    className="nexus-field h-11 px-3"
+                    onChange={(event) => setStudentForm((current) => ({ ...current, nickname: event.target.value }))}
+                    placeholder="เช่น ต้นกล้า"
+                    value={studentForm.nickname}
+                  />
+                </label>
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -4109,6 +4121,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   <input
                     className="nexus-field h-11 px-3"
                     onChange={(event) => setStudentForm((current) => ({ ...current, firstName: event.target.value }))}
+                    placeholder="เช่น ภูริณัฏฐ์"
                     value={studentForm.firstName}
                   />
                 </label>
@@ -4118,19 +4131,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   <input
                     className="nexus-field h-11 px-3"
                     onChange={(event) => setStudentForm((current) => ({ ...current, lastName: event.target.value }))}
+                    placeholder="เช่น กุลัพพบุรี"
                     value={studentForm.lastName}
                   />
                 </label>
               </div>
-
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ชื่อเล่น
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setStudentForm((current) => ({ ...current, nickname: event.target.value }))}
-                  value={studentForm.nickname}
-                />
-              </label>
 
               <details className="rounded-3xl bg-amber-50/70 p-4 ring-1 ring-amber-100">
                 <summary className="cursor-pointer text-sm font-black text-amber-900">

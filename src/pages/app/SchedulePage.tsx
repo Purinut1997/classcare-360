@@ -1296,137 +1296,143 @@ export function SchedulePage({ session }: SchedulePageProps) {
         </section>
 
         {activeView === 'settings' ? (
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-            <section className="app-panel-pad">
-              <div className="nexus-kicker">
-                <Settings2 size={16} aria-hidden="true" />
-                ตั้งค่าคาบเรียน
-              </div>
-              <div className="mt-4 grid gap-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    จำนวนคาบ
-                    <input className="nexus-field h-11 px-3" min={1} max={12} onChange={(event) => updateSettings({ periodCount: Number(event.target.value) })} type="number" value={settings.periodCount} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    นาทีต่อคาบ
-                    <input className="nexus-field h-11 px-3" min={20} max={90} onChange={(event) => updateSettings({ periodMinutes: Number(event.target.value) })} type="number" value={settings.periodMinutes} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2">
-                    เวลาเริ่มเรียน
-                    <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ startTime: event.target.value })} type="time" value={settings.startTime} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    เริ่มพักเที่ยง
-                    <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ lunchStart: event.target.value })} type="time" value={settings.lunchStart} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    จบพักเที่ยง
-                    <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ lunchEnd: event.target.value })} type="time" value={settings.lunchEnd} />
-                  </label>
+          <section className="grid gap-5 lg:grid-cols-2 items-start pb-20">
+            {/* Column 1: ตั้งค่าโครงสร้าง, เวลา และห้องเรียน */}
+            <div className="space-y-5">
+              <section className="app-panel-pad">
+                <div className="nexus-kicker">
+                  <Settings2 size={16} aria-hidden="true" />
+                  ตั้งค่าคาบเรียนและเวลา
                 </div>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ชื่อรายงาน / รายวิชาเอกสาร
-                  <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ courseTitle: event.target.value })} value={settings.courseTitle} />
-                </label>
-                <div>
-                  <p className="text-sm font-black text-slate-700">วันเรียน</p>
-                  <div className="mt-2 grid grid-cols-4 gap-2">
-                    {defaultDays.map((day) => {
-                      const isActive = settings.activeDays.includes(day);
-                      return (
-                        <button
-                          className={`h-10 rounded-2xl text-xs font-black ring-1 transition hover:-translate-y-0.5 ${
-                            isActive ? 'bg-[#4b2f18] text-white ring-[#4b2f18]' : 'bg-white text-slate-500 ring-slate-200'
-                          }`}
-                          key={day}
-                          onClick={() => toggleDay(day)}
-                          type="button"
-                        >
-                          {day}
-                        </button>
-                      );
-                    })}
+                <div className="mt-4 grid gap-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      จำนวนคาบ
+                      <input className="nexus-field h-11 px-3" min={1} max={12} onChange={(event) => updateSettings({ periodCount: Number(event.target.value) })} type="number" value={settings.periodCount} />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      นาทีต่อคาบ
+                      <input className="nexus-field h-11 px-3" min={20} max={90} onChange={(event) => updateSettings({ periodMinutes: Number(event.target.value) })} type="number" value={settings.periodMinutes} />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2">
+                      เวลาเริ่มเรียน
+                      <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ startTime: event.target.value })} type="time" value={settings.startTime} />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      เริ่มพักเที่ยง
+                      <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ lunchStart: event.target.value })} type="time" value={settings.lunchStart} />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      จบพักเที่ยง
+                      <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ lunchEnd: event.target.value })} type="time" value={settings.lunchEnd} />
+                    </label>
+                  </div>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ชื่อรายงาน / รายวิชาเอกสาร
+                    <input className="nexus-field h-11 px-3" onChange={(event) => updateSettings({ courseTitle: event.target.value })} value={settings.courseTitle} />
+                  </label>
+                  <div>
+                    <p className="text-sm font-black text-slate-700">วันเรียนที่เปิดสอน</p>
+                    <div className="mt-2 grid grid-cols-4 gap-2">
+                      {defaultDays.map((day) => {
+                        const isActive = settings.activeDays.includes(day);
+                        return (
+                          <button
+                            className={`h-10 rounded-2xl text-xs font-black ring-1 transition hover:-translate-y-0.5 ${
+                              isActive ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-500 ring-slate-200'
+                            }`}
+                            key={day}
+                            onClick={() => toggleDay(day)}
+                            type="button"
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={savePeriodSettings} type="button">
+                    <Save size={17} aria-hidden="true" />
+                    บันทึกตั้งค่าคาบเรียน
+                  </button>
+                </div>
+              </section>
+
+              <section className="app-panel-pad">
+                <div className="nexus-kicker">
+                  <FileSpreadsheet size={16} aria-hidden="true" />
+                  ห้องเรียนและส่งออกข้อมูล
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ห้องเรียนที่ใช้ในตาราง
+                    <input className="nexus-field h-11 px-3" list="schedule-classroom-options" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom} />
+                    <datalist id="schedule-classroom-options">
+                      {settings.classroomOptions.map((classroom) => (
+                        <option key={classroom} value={classroom} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={saveClassroomSettings} type="button">
+                      <Save size={17} aria-hidden="true" />
+                      บันทึกห้องเรียน
+                    </button>
+                    <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => exportScheduleCsv(settings)} type="button">
+                      <Download size={17} aria-hidden="true" />
+                      ส่งออก CSV
+                    </button>
                   </div>
                 </div>
-                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={savePeriodSettings} type="button">
-                  <Save size={17} aria-hidden="true" />
-                  บันทึกตั้งค่าคาบเรียน
-                </button>
-              </div>
-            </section>
+              </section>
+            </div>
 
-            <section className="app-panel-pad">
-              <div className="nexus-kicker">
-                <BookOpenCheck size={16} aria-hidden="true" />
-                ตั้งค่ารายวิชาที่สอน
-              </div>
-              <div className="mt-4 grid gap-3">
-                <div className="grid gap-3 md:grid-cols-[160px_minmax(0,1fr)]">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    รหัสวิชา
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, code: event.target.value }))} placeholder="เช่น ค15101" value={subjectDraft.code} />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ชื่อรายวิชา
-                    <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น คณิตศาสตร์" value={subjectDraft.name} />
-                  </label>
+            {/* Column 2: จัดการรายวิชาที่สอน (สัดส่วนสมดุลพอดี ไม่เหลือพื้นที่ว่าง) */}
+            <div className="space-y-5">
+              <section className="app-panel-pad">
+                <div className="nexus-kicker">
+                  <BookOpenCheck size={16} aria-hidden="true" />
+                  ตั้งค่ารายวิชาที่สอน
                 </div>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ครูผู้สอนรายวิชา
-                  <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, teacherName: event.target.value }))} placeholder="เว้นว่างได้ ถ้าใช้ครูผู้สอนหลัก" value={subjectDraft.teacherName || ''} />
-                </label>
-                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={addSubject} type="button">
-                  <Plus size={17} aria-hidden="true" />
-                  เพิ่มรายวิชาใน dropdown
-                </button>
-                <div className="mt-2 grid gap-2">
-                  {settings.subjects.map((subject) => (
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#ead8bd] bg-[#fffaf0] p-3" key={subject.name}>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-950">{subject.name}</p>
-                        <p className="text-xs font-bold text-slate-500">{subject.code || 'ยังไม่กรอกรหัส'}{subject.teacherName ? ` | ${subject.teacherName}` : ''}</p>
+                <div className="mt-4 grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      รหัสวิชา
+                      <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, code: event.target.value }))} placeholder="เช่น ค15101" value={subjectDraft.code} />
+                    </label>
+                    <label className="grid gap-2 text-sm font-black text-slate-700">
+                      ชื่อรายวิชา
+                      <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น คณิตศาสตร์" value={subjectDraft.name} />
+                    </label>
+                  </div>
+                  <label className="grid gap-2 text-sm font-black text-slate-700">
+                    ครูผู้สอนรายวิชา
+                    <input className="nexus-field h-11 px-3" onChange={(event) => setSubjectDraft((current) => ({ ...current, teacherName: event.target.value }))} placeholder="เว้นว่างได้ ถ้าใช้ครูผู้สอนหลัก" value={subjectDraft.teacherName || ''} />
+                  </label>
+                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={addSubject} type="button">
+                    <Plus size={17} aria-hidden="true" />
+                    เพิ่มรายวิชาใน dropdown
+                  </button>
+                  <div className="mt-2 max-h-[420px] overflow-y-auto space-y-2 pr-1">
+                    {settings.subjects.map((subject) => (
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3 hover:bg-white transition" key={subject.name}>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-slate-950">{subject.name}</p>
+                          <p className="text-xs font-bold text-slate-500">{subject.code || 'ยังไม่กรอกรหัส'}{subject.teacherName ? ` | ${subject.teacherName}` : ''}</p>
+                        </div>
+                        <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-50 text-rose-600 ring-1 ring-rose-200 hover:bg-rose-100" onClick={() => removeSubject(subject.name)} title="ลบรายวิชาออกจาก dropdown" type="button">
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
                       </div>
-                      <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-50 text-rose-600 ring-1 ring-rose-200" onClick={() => removeSubject(subject.name)} title="ลบรายวิชาออกจาก dropdown" type="button">
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={saveSubjectSettings} type="button">
-                  <Save size={17} aria-hidden="true" />
-                  บันทึกรายวิชาทั้งหมด
-                </button>
-              </div>
-            </section>
-
-            <section className="app-panel-pad">
-              <div className="nexus-kicker">
-                <FileSpreadsheet size={16} aria-hidden="true" />
-                ห้องเรียนและส่งออก
-              </div>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ห้องเรียนที่ใช้ในตาราง
-                  <input className="nexus-field h-11 px-3" list="schedule-classroom-options" onChange={(event) => setSelectedClassroom(event.target.value)} value={selectedClassroom} />
-                  <datalist id="schedule-classroom-options">
-                    {settings.classroomOptions.map((classroom) => (
-                      <option key={classroom} value={classroom} />
                     ))}
-                  </datalist>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={saveClassroomSettings} type="button">
+                  </div>
+                  <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={saveSubjectSettings} type="button">
                     <Save size={17} aria-hidden="true" />
-                    บันทึกห้องเรียน
-                  </button>
-                  <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => exportScheduleCsv(settings)} type="button">
-                    <Download size={17} aria-hidden="true" />
-                    CSV
+                    บันทึกรายวิชาทั้งหมด
                   </button>
                 </div>
-              </div>
-            </section>
+              </section>
+            </div>
           </section>
         ) : (
           <section className="schedule-v2 app-panel-pad overflow-hidden">
@@ -1637,11 +1643,11 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 ) : null}
 
                 {/* Timetable Grid */}
-                <div className="grid gap-2.5" style={{ gridTemplateColumns: `110px repeat(${scheduleColumns.length}, minmax(104px, 1fr))` }}>
+                <div className="grid gap-2.5" style={{ gridTemplateColumns: `100px repeat(${scheduleColumns.length}, minmax(96px, 1fr))` }}>
                   {/* Top-Left Header: Day / Period */}
-                  <div className="grid min-h-[84px] place-items-center rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-2 text-center text-white shadow-sm ring-1 ring-white/10">
+                  <div className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-2 text-center text-white shadow-sm ring-1 ring-white/10">
                     <div className="flex flex-col items-center gap-1">
-                      <CalendarClock size={20} className="text-sky-300" />
+                      <CalendarClock size={19} className="text-sky-300" />
                       <span className="text-sm font-black">วัน / คาบ</span>
                     </div>
                   </div>
@@ -1650,7 +1656,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   {scheduleColumns.map((column) =>
                     column.type === 'lunch' ? (
                       <div
-                        className="grid min-h-[84px] place-items-center rounded-2xl bg-gradient-to-br from-amber-100 via-orange-100 to-amber-200 p-2 text-center font-black text-amber-950 ring-1 ring-amber-300 shadow-sm"
+                        className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-amber-100 via-orange-100 to-amber-200 p-2 text-center font-black text-amber-950 ring-1 ring-amber-300 shadow-sm"
                         key={column.key}
                       >
                         <span className="flex items-center gap-1 text-xs font-black">
@@ -1662,7 +1668,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       </div>
                     ) : (
                       <div
-                        className="grid min-h-[84px] place-items-center rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-2 text-center font-black text-white shadow-sm ring-1 ring-white/10"
+                        className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-2 text-center font-black text-white shadow-sm ring-1 ring-white/10"
                         key={column.period.index}
                       >
                         <span className="text-xs font-black text-sky-200">{column.period.label}</span>
@@ -1682,7 +1688,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                     return (
                       <Fragment key={day}>
                         {/* Day Header Cell with official Thai Day Color */}
-                        <div className={`grid min-h-[96px] place-items-center rounded-2xl p-2 text-center text-lg font-black tracking-tight ${dayStyle.headerBg}`}>
+                        <div className={`grid min-h-[88px] place-items-center rounded-2xl p-2 text-center text-lg font-black tracking-tight ${dayStyle.headerBg}`}>
                           <span>{day}</span>
                         </div>
 
@@ -1691,11 +1697,11 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           if (column.type === 'lunch') {
                             return (
                               <div
-                                className="grid min-h-[96px] place-items-center rounded-2xl border border-amber-200/90 bg-gradient-to-b from-amber-50/90 via-orange-50/50 to-amber-100/70 p-2 text-center shadow-2xs"
+                                className="grid min-h-[88px] place-items-center rounded-2xl border border-amber-200/90 bg-gradient-to-b from-amber-50/90 via-orange-50/50 to-amber-100/70 p-2 text-center shadow-2xs"
                                 key={`${day}-${column.key}`}
                               >
                                 <div className="flex flex-col items-center gap-1">
-                                  <Utensils size={16} className="text-amber-600 opacity-80" />
+                                  <Utensils size={15} className="text-amber-600 opacity-80" />
                                   <span className="text-xs font-black text-amber-950">พักกลางวัน</span>
                                 </div>
                               </div>
@@ -1713,9 +1719,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           const isMoveTargetMode = Boolean(movingCellKey && movingCellKey !== key);
 
                           return (
-                            <button
+                            <div
                               key={key}
-                              type="button"
+                              role="button"
+                              tabIndex={0}
                               draggable={hasContent}
                               onDragStart={(e) => {
                                 if (!hasContent) return;
@@ -1760,7 +1767,17 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                 }
                                 openCellEditor(day, period.index);
                               }}
-                              className={`group relative flex min-h-[96px] flex-col justify-between rounded-2xl border p-2.5 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-400 select-none ${
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  if (movingCellKey) {
+                                    moveOrSwapCell(movingCellKey, key);
+                                  } else {
+                                    openCellEditor(day, period.index);
+                                  }
+                                }
+                              }}
+                              className={`group relative flex min-h-[88px] flex-col justify-between rounded-2xl border p-2.5 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-sky-400 select-none ${
                                 isDragged
                                   ? 'opacity-30 scale-95 border-dashed border-sky-400 ring-2 ring-sky-400'
                                   : isDragOver
@@ -1775,7 +1792,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                     : 'hover:ring-4 hover:ring-emerald-400 hover:bg-emerald-50 cursor-pointer'
                                   : hasContent && theme
                                   ? `${theme.card} hover:-translate-y-1 hover:shadow-lg cursor-grab active:cursor-grabbing`
-                                  : 'border-dashed border-slate-300/80 bg-white/75 text-slate-400 hover:border-sky-400 hover:bg-sky-50/60 hover:text-sky-600 hover:shadow-sm'
+                                  : 'border-dashed border-slate-300/80 bg-white/75 text-slate-400 hover:border-sky-400 hover:bg-sky-50/60 hover:text-sky-600 hover:shadow-sm cursor-pointer'
                               }`}
                             >
                               {/* Drag over overlay indicators */}
@@ -1864,7 +1881,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                   )}
                                 </div>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </Fragment>

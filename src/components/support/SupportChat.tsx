@@ -1782,9 +1782,9 @@ export function SupportChat({
           AI
         </span>
 
-        {/* Floating Tooltip Bubble with Pointer Arrow */}
+        {/* Floating Tooltip Bubble with Pointer Arrow (Only appears on hover, never blocks buttons) */}
         {!open && (
-          <div className="pointer-events-none absolute right-full mr-3 hidden lg:flex items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200 group-hover:flex">
+          <div className="pointer-events-none absolute right-full mr-3 hidden lg:flex opacity-0 group-hover:opacity-100 items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200">
             <span className="text-sm">{currentMascot.emoji}</span>
             <span className="bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
               มีอะไรให้{currentMascot.name}ช่วยไหม{politeEnding === "male" ? "ครับ" : "คะ"}? ✨
