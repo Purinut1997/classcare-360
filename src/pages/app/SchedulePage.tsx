@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   BookOpenCheck,
+  CalendarClock,
   CalendarRange,
   Download,
   FileSpreadsheet,
+  Palette,
   Plus,
   Printer,
   Save,
@@ -11,6 +13,8 @@ import {
   Sparkles,
   Trash2,
   UserRound,
+  Users,
+  Utensils,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
@@ -23,12 +27,17 @@ import {
   buildSchedulePeriods,
   defaultDays,
   exportScheduleCsv,
+  getScheduleTheme,
+  getSubjectIcon,
   loadScheduleSettings,
   loadSchoolReportIdentity,
   makeScheduleCellKey,
   saveScheduleSettings,
   saveSchoolReportIdentity,
+  thaiDayHeaderStyles,
+  thaiDayStyles,
   type DayName,
+  type ScheduleCardTheme,
   type ScheduleCell,
   type SchedulePeriod,
   type ScheduleSubjectOption,
@@ -270,6 +279,44 @@ export function SchedulePage({ session }: SchedulePageProps) {
     const totalHours = Math.round(((totalPeriods * settings.periodMinutes) / 60) * 10) / 10;
     return { items, totalPeriods, totalHours };
   }, [settings, periods, identity.classroomName]);
+
+  const scheduleLegend = useMemo(() => {
+    const gradeMap = new Map<string, { count: number; name: string; theme: ScheduleCardTheme }>();
+    const activityMap = new Map<string, { count: number; icon: string; label: string; theme: ScheduleCardTheme }>();
+    const subjectMap = new Map<string, { count: number; icon: string; label: string; theme: ScheduleCardTheme }>();
+
+    for (const day of settings.activeDays) {
+      for (const period of periods) {
+        const cell = settings.cells[makeScheduleCellKey(day, period.index)];
+        if (!cell || !cell.subject.trim()) continue;
+        const sub = cell.subject.trim();
+        const room = cell.classroom?.trim() || '';
+        const theme = getScheduleTheme(sub, room);
+
+        if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ|ชุมนุม|ชมรม|กิจกรรม|แนะแนว|ซ่อมเสริม|โฮมรูม|สวดมนต์/.test(sub)) {
+          const key = theme.categoryLabel || sub;
+          const current = activityMap.get(key) || { count: 0, icon: theme.icon || '🎯', label: key, theme };
+          current.count += 1;
+          activityMap.set(key, current);
+        } else if (room) {
+          const current = gradeMap.get(room) || { count: 0, name: room, theme };
+          current.count += 1;
+          gradeMap.set(room, current);
+        } else {
+          const key = theme.categoryLabel || sub;
+          const current = subjectMap.get(key) || { count: 0, icon: theme.icon || '📚', label: key, theme };
+          current.count += 1;
+          subjectMap.set(key, current);
+        }
+      }
+    }
+
+    const grades = Array.from(gradeMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+    const activities = Array.from(activityMap.values()).sort((a, b) => b.count - a.count);
+    const subjects = Array.from(subjectMap.values()).sort((a, b) => b.count - a.count);
+
+    return { activities, grades, subjects };
+  }, [settings, periods]);
 
   const scheduleClassroomOptions = useMemo(() => {
     const options = new Map<string, { label: string; value: string }>();
@@ -1384,91 +1431,218 @@ export function SchedulePage({ session }: SchedulePageProps) {
             </div>
 
             <div className="mt-5 overflow-x-auto">
-              <div className="min-w-[980px] rounded-[2rem] border border-[#e3b875] bg-[#fff7df] p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.55)]">
-                <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-white/80 p-3">
+              <div className="min-w-[980px] rounded-[2.5rem] border border-slate-200/90 bg-white/95 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+                {/* School & Teacher Header Banner */}
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-800/60">
                   <div className="flex items-center gap-3">
                     {printLogoDataUrl ? <img alt="โลโก้โรงเรียน" className="h-12 w-12 object-contain" src={printLogoDataUrl} /> : null}
                     <div>
-                      <p className="font-black text-slate-950">{settings.courseTitle}</p>
-                      <p className="text-xs font-bold text-slate-500">{identity.teacherName || 'ยังไม่กรอกครูผู้สอน'} | ปีการศึกษา {identity.academicYear}</p>
+                      <p className="text-base font-black text-slate-950 dark:text-white">{settings.courseTitle}</p>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        {identity.teacherName || 'ยังไม่กรอกครูผู้สอน'} | ปีการศึกษา {identity.academicYear} | รวม {workloadSummary.totalPeriods} คาบ ({workloadSummary.totalHours} ชม./สัปดาห์)
+                      </p>
                     </div>
                   </div>
-                  <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
-                    <UserRound size={15} aria-hidden="true" />
-                    {selectedSubjectCode || 'รหัสวิชา'} / {selectedSubject}
+                  <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-xs border border-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                    <UserRound size={15} aria-hidden="true" className="text-amber-500" />
+                    <span>{selectedSubjectCode || 'รหัสวิชา'} / {selectedSubject}</span>
                   </div>
                 </div>
 
-                <div className="grid gap-2" style={{ gridTemplateColumns: `110px repeat(${scheduleColumns.length}, minmax(96px, 1fr))` }}>
-                  <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-center text-lg font-black text-white">
-                    วัน/เวลา
+                {/* 🎨 Color Legend Strip: แถบอธิบายสีวิชาและระดับชั้น */}
+                {(scheduleLegend.grades.length > 0 || scheduleLegend.activities.length > 0 || scheduleLegend.subjects.length > 0) ? (
+                  <div className="mb-4 rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-amber-50/40 p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200 mr-1">
+                          <Palette size={15} className="text-amber-500" />
+                          <span>แยกสีตาราง:</span>
+                        </span>
+
+                        {/* Grade color pills */}
+                        {scheduleLegend.grades.map((grade) => (
+                          <span
+                            key={grade.name}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-2xs border ${grade.theme.card}`}
+                            title={`ชั้น ${grade.name} มีการสอน ${grade.count} คาบ`}
+                          >
+                            <span className="inline-block rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">
+                              {grade.name}
+                            </span>
+                            <span className="text-[10.5px] opacity-90 font-bold">{grade.count} คาบ</span>
+                          </span>
+                        ))}
+
+                        {/* Activity color pills */}
+                        {scheduleLegend.activities.map((act) => (
+                          <span
+                            key={act.label}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-2xs border ${act.theme.card}`}
+                            title={`${act.label} (${act.count} คาบ)`}
+                          >
+                            <span>{act.icon}</span>
+                            <span>{act.label}</span>
+                            <span className="text-[10.5px] opacity-90 font-bold">({act.count})</span>
+                          </span>
+                        ))}
+
+                        {/* Subject color pills (if subjects without classroom) */}
+                        {scheduleLegend.subjects.map((subj) => (
+                          <span
+                            key={subj.label}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-2xs border ${subj.theme.card}`}
+                            title={`${subj.label} (${subj.count} คาบ)`}
+                          >
+                            <span>{subj.icon}</span>
+                            <span>{subj.label}</span>
+                            <span className="text-[10.5px] opacity-90 font-bold">({subj.count})</span>
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Day color guide pills */}
+                      <div className="hidden xl:flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        <span className="text-slate-400 mr-1">สีประจำวัน:</span>
+                        <span className="rounded-md bg-amber-400 px-1.5 py-0.5 text-amber-950 font-black text-[10px] shadow-2xs">จ.</span>
+                        <span className="rounded-md bg-pink-500 px-1.5 py-0.5 text-white font-black text-[10px] shadow-2xs">อ.</span>
+                        <span className="rounded-md bg-emerald-500 px-1.5 py-0.5 text-white font-black text-[10px] shadow-2xs">พ.</span>
+                        <span className="rounded-md bg-orange-500 px-1.5 py-0.5 text-white font-black text-[10px] shadow-2xs">พฤ.</span>
+                        <span className="rounded-md bg-sky-500 px-1.5 py-0.5 text-white font-black text-[10px] shadow-2xs">ศ.</span>
+                      </div>
+                    </div>
                   </div>
+                ) : null}
+
+                {/* Timetable Grid */}
+                <div className="grid gap-2.5" style={{ gridTemplateColumns: `110px repeat(${scheduleColumns.length}, minmax(104px, 1fr))` }}>
+                  {/* Top-Left Header: Day / Period */}
+                  <div className="grid min-h-[84px] place-items-center rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-2 text-center text-white shadow-sm ring-1 ring-white/10">
+                    <div className="flex flex-col items-center gap-1">
+                      <CalendarClock size={20} className="text-sky-300" />
+                      <span className="text-sm font-black">วัน / คาบ</span>
+                    </div>
+                  </div>
+
+                  {/* Period Headers */}
                   {scheduleColumns.map((column) =>
                     column.type === 'lunch' ? (
-                      <div className="grid min-h-20 place-items-center rounded-2xl bg-[#fff1c9] p-2 text-center font-black text-[#7a4f26] ring-1 ring-[#e6bd70]" key={column.key}>
-                        <span>พักเที่ยง</span>
-                        <span className="text-xs leading-5">{column.start}<br />{column.end}</span>
+                      <div
+                        className="grid min-h-[84px] place-items-center rounded-2xl bg-gradient-to-br from-amber-100 via-orange-100 to-amber-200 p-2 text-center font-black text-amber-950 ring-1 ring-amber-300 shadow-sm"
+                        key={column.key}
+                      >
+                        <span className="flex items-center gap-1 text-xs font-black">
+                          <Utensils size={13} className="text-amber-700" /> พักเที่ยง
+                        </span>
+                        <span className="rounded-md bg-white/80 px-2 py-0.5 text-[11px] font-bold text-amber-900 shadow-2xs mt-1">
+                          {column.start} - {column.end}
+                        </span>
                       </div>
                     ) : (
-                      <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-center font-black text-white" key={column.period.index}>
-                        <span>{column.period.label}</span>
-                        <span className="text-xs leading-5">{column.period.start}<br />{column.period.end}</span>
+                      <div
+                        className="grid min-h-[84px] place-items-center rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-2 text-center font-black text-white shadow-sm ring-1 ring-white/10"
+                        key={column.period.index}
+                      >
+                        <span className="text-xs font-black text-sky-200">{column.period.label}</span>
+                        <span className="rounded-md bg-slate-700/80 px-2 py-0.5 text-[11px] font-bold text-slate-300 mt-1">
+                          {column.period.start} - {column.period.end}
+                        </span>
                       </div>
                     ),
                   )}
 
-                  {settings.activeDays.map((day) => (
-                    <Fragment key={day}>
-                      <div className="grid min-h-20 place-items-center rounded-2xl bg-[#dfae6d] p-2 text-lg font-black text-white">
-                        {day}
-                      </div>
-                      {scheduleColumns.map((column) => {
-                        if (column.type === 'lunch') {
-                          return (
-                            <div
-                              className="grid min-h-20 place-items-center rounded-2xl border border-[#e6bd70] bg-[#fff8df] p-2 text-center text-sm font-black text-[#7a4f26]"
-                              key={`${day}-${column.key}`}
-                            >
-                              พักกลางวัน
-                            </div>
-                          );
-                        }
+                  {/* Day Rows */}
+                  {settings.activeDays.map((day) => {
+                    const dayStyle = thaiDayHeaderStyles[day] || {
+                      headerBg: 'bg-gradient-to-br from-slate-700 to-slate-800 text-white',
+                    };
 
-                        const { period } = column;
-                        const key = makeScheduleCellKey(day, period.index);
-                        const cell = settings.cells[key];
+                    return (
+                      <Fragment key={day}>
+                        {/* Day Header Cell with official Thai Day Color */}
+                        <div className={`grid min-h-[96px] place-items-center rounded-2xl p-2 text-center text-lg font-black tracking-tight ${dayStyle.headerBg}`}>
+                          <span>{day}</span>
+                        </div>
 
-                        return (
-                          <button
-                            className={`min-h-20 rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 ${
-                              cell
-                                ? 'border-[#4b2f18] bg-[#4b2f18] text-white shadow-[0_14px_26px_rgba(75,47,24,0.20)]'
-                                : 'border-[#e7c997] bg-white/95 text-slate-400 hover:border-[#d99b40]'
-                            }`}
-                            key={key}
-                            onClick={() => openCellEditor(day, period.index)}
-                            type="button"
-                          >
-                            {cell ? (
-                              <>
-                                <div className="flex items-center justify-between gap-1">
-                                  <p className="text-xs font-black opacity-80">{cell.subjectCode || '-'}</p>
-                                  {formatScheduleClassroom(cell.classroom) ? (
-                                    <span className="rounded bg-amber-200/90 text-amber-950 font-black px-1.5 py-0.5 text-[10px] shadow-2xs">
-                                      {formatScheduleClassroom(cell.classroom)}
-                                    </span>
-                                  ) : null}
+                        {/* Period Columns for this Day */}
+                        {scheduleColumns.map((column) => {
+                          if (column.type === 'lunch') {
+                            return (
+                              <div
+                                className="grid min-h-[96px] place-items-center rounded-2xl border border-amber-200/90 bg-gradient-to-b from-amber-50/90 via-orange-50/50 to-amber-100/70 p-2 text-center shadow-2xs"
+                                key={`${day}-${column.key}`}
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <Utensils size={16} className="text-amber-600 opacity-80" />
+                                  <span className="text-xs font-black text-amber-950">พักกลางวัน</span>
                                 </div>
-                                <p className="mt-1 text-sm font-black leading-tight">{cell.subject}</p>
-                              </>
-                            ) : (
-                              <span className="grid h-full place-items-center text-center text-xs font-black">เพิ่ม</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </Fragment>
-                  ))}
+                              </div>
+                            );
+                          }
+
+                          const { period } = column;
+                          const key = makeScheduleCellKey(day, period.index);
+                          const cell = settings.cells[key];
+                          const hasContent = Boolean(cell && cell.subject?.trim());
+                          const theme = hasContent ? getScheduleTheme(cell.subject, cell.classroom) : null;
+
+                          return (
+                            <button
+                              className={`group relative flex min-h-[96px] flex-col justify-between rounded-2xl border p-2.5 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-sky-400 ${
+                                hasContent && theme
+                                  ? `${theme.card}`
+                                  : 'border-dashed border-slate-300/80 bg-white/75 text-slate-400 hover:border-sky-400 hover:bg-sky-50/60 hover:text-sky-600 hover:shadow-sm'
+                              }`}
+                              key={key}
+                              onClick={() => openCellEditor(day, period.index)}
+                              type="button"
+                            >
+                              {hasContent && theme ? (
+                                <>
+                                  {/* Upper row: Subject Code + Classroom High Contrast Pill */}
+                                  <div className="flex items-center justify-between gap-1 w-full">
+                                    <span className={`text-[10px] font-mono tracking-tight ${theme.codeTag}`}>
+                                      {cell.subjectCode || '—'}
+                                    </span>
+                                    {formatScheduleClassroom(cell.classroom) ? (
+                                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black tracking-tight ${theme.badge}`}>
+                                        <Users size={10} className="opacity-75" />
+                                        {formatScheduleClassroom(cell.classroom)}
+                                      </span>
+                                    ) : (
+                                      <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-bold opacity-80">
+                                        ทุกห้อง
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Middle row: Subject name with category icon */}
+                                  <div className="my-1">
+                                    <p className="text-[12px] font-black leading-tight line-clamp-2">
+                                      {theme.icon ? <span className="mr-1 inline-block select-none">{theme.icon}</span> : null}
+                                      {cell.subject}
+                                    </p>
+                                  </div>
+
+                                  {/* Bottom row: Category badge + Edit hint */}
+                                  <div className="flex items-center justify-between text-[10px] font-bold opacity-85">
+                                    <span className="truncate text-[9.5px] opacity-90">{theme.categoryLabel}</span>
+                                    <span className="text-[9px] opacity-70 group-hover:opacity-100 transition-opacity">แก้ไข</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="grid h-full w-full place-items-center py-2 text-center">
+                                  <div className="flex flex-col items-center gap-1 text-slate-400 transition-colors group-hover:text-sky-600">
+                                    <Plus size={17} className="transition-transform duration-200 group-hover:scale-125" />
+                                    <span className="text-[11px] font-black">เพิ่มคาบ</span>
+                                  </div>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1547,15 +1721,39 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       </label>
                     </div>
 
-                    <div className="rounded-3xl border border-[#ead8bd] bg-[#fffaf0] p-4">
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#b46a00]">ตัวอย่างในช่อง</p>
-                      <div className="mt-3 rounded-2xl bg-[#4b2f18] p-4 text-white">
-                        <p className="text-sm font-black opacity-80">{cellDraft.subjectCode || '-'}</p>
-                        <p className="mt-1 text-lg font-black">{cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}</p>
-                        {formatScheduleClassroom(cellDraft.classroom) ? (
-                          <p className="mt-1 text-sm font-bold opacity-80">{formatScheduleClassroom(cellDraft.classroom)}</p>
-                        ) : null}
-                      </div>
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+                      {(() => {
+                        const draftTheme = getScheduleTheme(cellDraft.subject, cellDraft.classroom);
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-black uppercase tracking-wider text-slate-500">ตัวอย่างการแสดงผลในตาราง</p>
+                              <span className="text-xs font-bold text-slate-500">{draftTheme.categoryLabel}</span>
+                            </div>
+                            <div className={`mt-3 rounded-2xl border p-4 shadow-md ${draftTheme.card}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs font-mono font-black ${draftTheme.codeTag}`}>
+                                  {cellDraft.subjectCode || '— รหัสวิชา —'}
+                                </span>
+                                {formatScheduleClassroom(cellDraft.classroom) ? (
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-black shadow-xs ${draftTheme.badge}`}>
+                                    <Users size={11} className="opacity-75" />
+                                    {formatScheduleClassroom(cellDraft.classroom)}
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold opacity-80">
+                                    ทุกห้อง / กิจกรรมรวม
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-2 text-lg font-black leading-snug">
+                                {draftTheme.icon ? <span className="mr-1.5">{draftTheme.icon}</span> : null}
+                                {cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}
+                              </p>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
