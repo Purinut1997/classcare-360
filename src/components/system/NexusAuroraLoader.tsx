@@ -23,9 +23,9 @@ export const LOADER_THEMES: LoaderThemeOption[] = [
   },
   {
     id: 'aurora',
-    name: 'Aurora Glass',
-    badge: 'แสงเหนือ พรีเมียมหรู',
-    tagline: 'กระจกแก้วฝ้า + คลื่นแสงออโรร่าพริ้วไหวสีรุ้ง',
+    name: 'Aurora Obsidian Pro',
+    badge: 'พรีเมียม สไตล์ Apple/Linear',
+    tagline: 'กระจกแก้วฝ้าหรูหรา + แสงออโรร่าพริ้วไหวระดับสตูดิโอ',
     icon: '🌌',
   },
   {
@@ -74,20 +74,27 @@ export function NexusAuroraVisual({
   const [percent, setPercent] = useState(28);
   const [stepIndex, setStepIndex] = useState(0);
 
-  // Simulated smooth progression animation
+  // Smooth continuous progression animation
   useEffect(() => {
     const timer = setInterval(() => {
       setPercent((prev) => {
         if (prev >= 96) return 96;
-        const jump = Math.floor(Math.random() * 8) + 3;
+        const jump = Math.floor(Math.random() * 6) + 3;
         const next = Math.min(96, prev + jump);
-        if (next > 70) setStepIndex(2);
-        else if (next > 40) setStepIndex(1);
+        if (next > 72) setStepIndex(2);
+        else if (next > 38) setStepIndex(1);
         return next;
       });
-    }, 450);
+    }, 280);
     return () => clearInterval(timer);
   }, []);
+
+  const statusHint = useMemo(() => {
+    if (percent < 38) return 'กำลังตรวจสอบความปลอดภัยและยืนยันสิทธิ์...';
+    if (percent < 72) return 'กำลังเชื่อมต่อและโหลดโมดูลการทำงาน...';
+    if (percent < 95) return 'กำลังจัดเตรียมสภาพแวดล้อมให้พร้อมใช้...';
+    return 'ระบบพร้อมใช้งาน กำลังเปิดหน้าจอ...';
+  }, [percent]);
 
 
   return (
@@ -192,81 +199,110 @@ export function NexusAuroraVisual({
       )}
 
       {/* ========================================================
-          THEME 2: AURORA BOREALIS GLASS (แสงเหนือพรีเมียมหรูหรา)
+          THEME 2: AURORA OBSIDIAN PRO (พรีเมียม สไตล์ Apple/Linear)
           ======================================================== */}
       {currentTheme === 'aurora' && (
-        <div className="relative w-full rounded-[2.5rem] border border-white/20 bg-gradient-to-b from-white/10 via-slate-900/40 to-slate-950/80 p-8 sm:p-10 text-center shadow-[0_30px_100px_rgba(30,58,138,0.4)] backdrop-blur-3xl overflow-hidden">
-          {/* Multi-layered Fluid Aurora Lights */}
-          <div className="absolute -top-32 -left-20 h-72 w-72 rounded-full bg-gradient-to-br from-teal-400 via-emerald-400 to-transparent opacity-30 blur-3xl pointer-events-none animate-pulse" />
-          <div
-            className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full bg-gradient-to-tr from-fuchsia-500 via-indigo-600 to-transparent opacity-30 blur-3xl pointer-events-none"
-            style={{ animationDelay: '1s' }}
-          />
-          <div className="absolute top-1/3 left-1/4 h-60 w-60 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none animate-pulse" />
+        <div className="relative w-full max-w-[480px] rounded-[2rem] border border-white/[0.1] bg-slate-950/80 p-7 sm:p-9 text-center shadow-[0_32px_100px_-20px_rgba(0,0,0,0.85),0_0_60px_-15px_rgba(14,165,233,0.15)] backdrop-blur-3xl overflow-hidden">
+          {/* Hairline Prismatic Top Highlight */}
+          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent pointer-events-none" />
 
-          {/* Floating Logo Badge with Aurora Halo */}
-          <div className="relative z-10 mx-auto grid h-32 w-32 place-items-center mb-6">
-            <div className="absolute inset-0 rounded-[2.2rem] bg-gradient-to-tr from-teal-400 via-cyan-400 to-fuchsia-500 opacity-60 blur-md animate-[spin_8s_linear_infinite]" />
-            <div className="relative z-10 grid h-24 w-24 place-items-center rounded-[2rem] bg-slate-950/85 p-2.5 border border-white/30 shadow-2xl backdrop-blur-xl">
-              <AppLogo className="h-16 w-16 rounded-2xl object-contain drop-shadow-[0_8px_20px_rgba(45,212,191,0.5)]" />
+          {/* Interior Ambient Lights */}
+          <div className="absolute -top-24 -left-20 h-56 w-56 rounded-full bg-teal-400/15 blur-3xl pointer-events-none animate-pulse" />
+          <div className="absolute -bottom-24 -right-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+
+          {/* Floating Logo Podium with Dual Orbit Rings */}
+          <div className="relative z-10 mx-auto grid h-28 w-28 place-items-center mb-5">
+            {/* Ambient Radial Glow */}
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-cyan-500 via-teal-400 to-indigo-500 opacity-25 blur-xl animate-pulse" />
+
+            {/* Fine Concentric Orbit Rings */}
+            <div className="absolute -inset-1.5 rounded-[1.8rem] border border-cyan-400/20 animate-[spin_24s_linear_infinite]" />
+            <div className="absolute -inset-3.5 rounded-[2.2rem] border border-dashed border-indigo-400/15 animate-[spin_32s_linear_infinite_reverse]" />
+
+            {/* Emblem Glass Squircle */}
+            <div className="relative z-10 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-3 border border-white/15 shadow-2xl backdrop-blur-xl">
+              <AppLogo className="h-14 w-14 rounded-xl object-contain drop-shadow-[0_4px_16px_rgba(45,212,191,0.4)]" />
             </div>
           </div>
 
-          {/* Eyebrow Pill */}
-          <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-teal-300/30 bg-teal-500/10 px-4 py-1 text-[11px] font-black tracking-wide text-teal-200 backdrop-blur-md mb-3">
-            <Sparkles size={12} className="text-teal-300 animate-spin" />
-            <span>CLASSCARE 360 LUXURY SUITE</span>
+          {/* System Status Pill */}
+          <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-teal-400/25 bg-teal-500/10 px-3.5 py-1 text-[11px] font-bold tracking-wider text-teal-200 backdrop-blur-md mb-3 shadow-xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
+            </span>
+            <span className="font-black uppercase tracking-widest text-[10px]">CLASSCARE 360 INTELLIGENCE</span>
           </div>
 
-          <h2 className="relative z-10 text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-teal-100 to-sky-200">
+          {/* Title & Message */}
+          <h2 className="relative z-10 text-2xl sm:text-[26px] font-black tracking-tight text-white drop-shadow-sm">
             {title}
           </h2>
-          <p className="relative z-10 mt-2 text-xs sm:text-sm text-slate-300/80 max-w-md mx-auto leading-relaxed">
-            {message || 'ระบบกำลังจัดเตรียมบริการความปลอดภัยระดับพรีเมียมสำหรับโรงเรียน'}
+          <p className="relative z-10 mt-1.5 text-xs sm:text-[13px] text-slate-300/80 max-w-sm mx-auto leading-relaxed">
+            {message || 'กำลังตรวจสอบความปลอดภัยและจัดเตรียมระบบให้พร้อมใช้งาน'}
           </p>
 
-          {/* 3 Frosted Glass Steps */}
-          <div className="relative z-10 mt-6 grid grid-cols-3 gap-2 text-[11px] font-bold">
+          {/* 3-Step Pipeline */}
+          <div className="relative z-10 mt-6 grid grid-cols-3 gap-2 text-[11px]">
             {[
-              { label: 'ตรวจสอบข้อมูล', step: 0 },
-              { label: 'เตรียมรายการ', step: 1 },
-              { label: 'พร้อมใช้งาน', step: 2 },
+              { label: 'ตรวจสอบสิทธิ์', step: 0 },
+              { label: 'ซิงค์ข้อมูลระบบ', step: 1 },
+              { label: 'พร้อมเริ่มใช้งาน', step: 2 },
             ].map((item) => {
-              const active = stepIndex >= item.step;
+              const isCompleted = stepIndex > item.step;
+              const isActive = stepIndex === item.step;
               return (
                 <div
                   key={item.step}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl border py-1.5 px-2 transition-all duration-300 ${
-                    active
-                      ? 'border-teal-400/40 bg-teal-500/15 text-teal-200 shadow-[0_0_15px_rgba(45,212,191,0.2)] font-black'
-                      : 'border-white/5 bg-white/5 text-slate-500'
+                  className={`relative flex items-center justify-center gap-1.5 rounded-xl border py-2 px-1.5 transition-all duration-300 ${
+                    isActive
+                      ? 'border-teal-400/40 bg-teal-500/15 text-teal-200 shadow-[0_0_15px_rgba(45,212,191,0.15)] font-black'
+                      : isCompleted
+                      ? 'border-teal-500/20 bg-slate-900/60 text-teal-300/90 font-bold'
+                      : 'border-white/5 bg-slate-900/30 text-slate-500 font-medium'
                   }`}
                 >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      active ? 'bg-teal-300 shadow-[0_0_8px_#2dd4bf]' : 'bg-slate-600'
-                    }`}
-                  />
-                  <span className="truncate">{item.label}</span>
+                  {isCompleted ? (
+                    <CheckCircle2 size={12} className="text-teal-300 shrink-0" />
+                  ) : (
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                        isActive ? 'bg-teal-300 animate-pulse shadow-[0_0_8px_#2dd4bf]' : 'bg-slate-600'
+                      }`}
+                    />
+                  )}
+                  <span className="truncate text-[10.5px]">{item.label}</span>
                 </div>
               );
             })}
           </div>
 
-          {/* Smooth Aurora Progress Bar */}
-          <div className="relative z-10 mt-6">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10 p-0.5 backdrop-blur-sm">
+          {/* High-Precision Progress Bar */}
+          <div className="relative z-10 mt-5">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900/90 p-[1px] border border-white/5">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-teal-400 via-cyan-400 to-fuchsia-400 shadow-[0_0_20px_rgba(45,212,191,0.8)] transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400 shadow-[0_0_12px_rgba(45,212,191,0.6)] transition-all duration-300 ease-out"
                 style={{ width: `${percent}%` }}
               />
             </div>
-            <div className="mt-3 flex items-center justify-between text-xs font-bold text-teal-200/90">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-teal-300" />
-                <span>ระบบจะดำเนินการต่อโดยอัตโนมัติ</span>
+            <div className="mt-2.5 flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span className="flex items-center gap-1.5 text-teal-300/90 text-[11px] font-bold">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-ping" />
+                <span>{statusHint}</span>
               </span>
-              <span className="font-mono text-white text-xs">{percent}%</span>
+              <span className="font-mono text-xs font-bold text-white">{percent}%</span>
+            </div>
+          </div>
+
+          {/* Security & System Trust Footnote */}
+          <div className="relative z-10 mt-5 pt-3.5 border-t border-white/[0.06] flex items-center justify-between text-[10.5px] text-slate-400/80 font-medium">
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <ShieldCheck size={13} className="text-teal-400/90" />
+              <span>TLS 1.3 / AES-256 GCM</span>
+            </div>
+            <div className="flex items-center gap-1 text-slate-500 font-mono">
+              <Zap size={11} className="text-amber-400/80" />
+              <span>Cloud Sync Active</span>
             </div>
           </div>
         </div>
@@ -395,7 +431,21 @@ export function NexusAuroraLoader({
 }: NexusAuroraLoaderProps) {
   if (variant === 'page') {
     return (
-      <main className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center bg-[#050b14] overflow-y-auto px-4 py-8">
+      <main className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center bg-[#070b14] overflow-hidden px-4 py-8 select-none">
+        {/* Ambient Cosmic Atmosphere */}
+        <div className="absolute -top-32 -left-32 h-[450px] w-[450px] rounded-full bg-cyan-500/12 blur-[130px] pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 h-[480px] w-[480px] rounded-full bg-indigo-500/15 blur-[130px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[550px] w-[550px] rounded-full bg-teal-500/8 blur-[150px] pointer-events-none" />
+
+        {/* Subtle Architectural Grid with Radial Mask */}
+        <div
+          className="absolute inset-0 opacity-[0.035] pointer-events-none [mask-image:radial-gradient(ellipse_65%_55%_at_50%_50%,#000_65%,transparent_100%)]"
+          style={{
+            backgroundImage: `linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)`,
+            backgroundSize: '40px 40px',
+          }}
+        />
+
         <NexusAuroraVisual message={message} title={title} theme={theme} />
       </main>
     );

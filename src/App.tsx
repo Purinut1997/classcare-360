@@ -592,11 +592,11 @@ function AppRoutes() {
   const { error, session, state } = useAppSession(location.search);
 
   if (state === 'loading' && location.pathname !== '/') {
-    return <SessionStateScreen detail="กำลังตรวจ Supabase Auth, profile, workspace และ subscription เพื่อส่งต่อให้ route guard" title="กำลังโหลดข้อมูลผู้ใช้" />;
+    return <SessionStateScreen detail="กำลังตรวจสอบสิทธิ์ความปลอดภัยและเตรียมข้อมูลผู้ใช้" title="กำลังเข้าสู่ระบบ" />;
   }
 
   if (state === 'error' && location.pathname !== '/') {
-    return <SessionStateScreen detail={error || 'ตรวจสอบ .env.local, migration, RLS policy และการเชื่อมต่อ Supabase อีกครั้ง'} title="โหลด session ไม่สำเร็จ" />;
+    return <SessionStateScreen detail={error || 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง'} title="เกิดข้อผิดพลาดในการโหลดระบบ" />;
   }
 
   if (session?.profile.needsProfile && !['/auth/complete-profile', '/auth/reset-password'].includes(location.pathname)) {
@@ -640,7 +640,7 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<SessionStateScreen detail="กำลังเปิดหน้าและโหลดโมดูลที่จำเป็นสำหรับการใช้งาน" title="กำลังโหลดหน้า" />}>
+      <Suspense fallback={<SessionStateScreen detail="กำลังเปิดหน้าและจัดเตรียมโมดูลสำหรับการใช้งาน" title="กำลังจัดเตรียมห้องเรียน" />}>
         <AppRoutes />
       </Suspense>
     </BrowserRouter>
