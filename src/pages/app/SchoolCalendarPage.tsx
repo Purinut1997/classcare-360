@@ -1615,7 +1615,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                 if (event.currentTarget === event.target) closeDayDialog();
               }}
             >
-              <section aria-labelledby="calendar-day-dialog-title" aria-modal="true" className="my-auto w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-[0_32px_100px_rgba(2,8,23,0.45)]" role="dialog">
+              <section aria-labelledby="calendar-day-dialog-title" aria-modal="true" className="my-auto w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-[0_32px_100px_rgba(2,8,23,0.45)]" role="dialog">
                 <header className="flex items-start justify-between gap-4 bg-gradient-to-br from-slate-950 to-slate-900 px-5 py-5 text-white sm:px-7">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">รายละเอียดวันในปฏิทิน</p>
@@ -1746,6 +1746,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             <FieldLabel>
                               วันที่เริ่มต้น (วัน A)
                               <ThaiDatePicker
+                                align="left"
                                 className="mt-2 h-12 px-4"
                                 value={draft.date}
                                 onValueChange={(value) =>
@@ -1759,6 +1760,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             <FieldLabel>
                               วันที่สิ้นสุด (วัน B)
                               <ThaiDatePicker
+                                align="right"
                                 className="mt-2 h-12 px-4"
                                 value={draft.endDate}
                                 onValueChange={(value) =>

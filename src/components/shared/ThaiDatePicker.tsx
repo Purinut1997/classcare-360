@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 type PickerMode = 'date' | 'month';
 
 interface ThaiDatePickerProps {
+  align?: 'left' | 'right' | 'auto';
   appearance?: 'adaptive' | 'light';
   className?: string;
   disabled?: boolean;
@@ -50,6 +51,7 @@ function isAllowed(value: string, min?: string, max?: string) {
 }
 
 export function ThaiDatePicker({
+  align = 'auto',
   appearance = 'adaptive',
   className = '',
   disabled = false,
@@ -66,6 +68,7 @@ export function ThaiDatePicker({
   const today = new Date();
   const [isOpen, setIsOpen] = useState(false);
   const [openAbove, setOpenAbove] = useState(false);
+  const [openRight, setOpenRight] = useState(false);
   const [viewMonth, setViewMonth] = useState(selected?.month ?? today.getMonth());
   const [viewYear, setViewYear] = useState(selected?.year ?? today.getFullYear());
   const adaptiveSurface = appearance === 'adaptive';
@@ -97,9 +100,19 @@ export function ThaiDatePicker({
     if (!isOpen && rootRef.current) {
       const rect = rootRef.current.getBoundingClientRect();
       const estimatedPickerHeight = mode === 'month' ? 250 : 360;
+      const estimatedPickerWidth = 336;
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       setOpenAbove(spaceBelow < estimatedPickerHeight && spaceAbove > spaceBelow);
+
+      if (align === 'right') {
+        setOpenRight(true);
+      } else if (align === 'left') {
+        setOpenRight(false);
+      } else {
+        const spaceRight = window.innerWidth - rect.left;
+        setOpenRight(spaceRight < estimatedPickerWidth || rect.right > window.innerWidth - 120);
+      }
     }
     if (selected) {
       setViewMonth(selected.month);
@@ -147,7 +160,7 @@ export function ThaiDatePicker({
       </button>
 
       {isOpen ? (
-        <div aria-label={mode === 'month' ? 'เลือกเดือนแบบไทย' : 'เลือกวันที่แบบไทย'} className={`absolute left-0 z-[100] w-[min(21rem,calc(100vw-4rem))] rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.22)] ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'} ${adaptiveSurface ? 'dark:border-slate-700 dark:bg-slate-900 dark:text-white' : ''}`} role="dialog">
+        <div aria-label={mode === 'month' ? 'เลือกเดือนแบบไทย' : 'เลือกวันที่แบบไทย'} className={`absolute z-[100] w-[min(21rem,calc(100vw-4rem))] rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.22)] ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'} ${openRight ? 'right-0' : 'left-0'} ${adaptiveSurface ? 'dark:border-slate-700 dark:bg-slate-900 dark:text-white' : ''}`} role="dialog">
           <div className="flex items-center justify-between gap-2">
             {mode === 'date' ? (
               <button aria-label="เดือนก่อนหน้า" className={`grid h-9 w-9 place-items-center rounded-xl hover:bg-slate-100 ${adaptiveSurface ? 'dark:hover:bg-slate-800' : ''}`} onClick={() => moveMonth(-1)} type="button"><ChevronLeft size={18} /></button>
