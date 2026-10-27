@@ -311,3 +311,149 @@ export function exportScheduleCsv(settings: ScheduleSettings) {
   anchor.click();
   URL.revokeObjectURL(url);
 }
+
+export interface ScheduleCardTheme {
+  accentDot: string;
+  badge: string;
+  card: string;
+  subtext: string;
+}
+
+export const thaiDayStyles: Record<string, { badge: string; bar: string; bg: string; text: string }> = {
+  'จันทร์': { badge: 'bg-amber-100 text-amber-900 border-amber-300', bar: 'bg-amber-400', bg: 'bg-amber-50/70', text: 'text-amber-950' },
+  'อังคาร': { badge: 'bg-pink-100 text-pink-900 border-pink-300', bar: 'bg-pink-400', bg: 'bg-pink-50/70', text: 'text-pink-950' },
+  'พุธ': { badge: 'bg-emerald-100 text-emerald-900 border-emerald-300', bar: 'bg-emerald-400', bg: 'bg-emerald-50/70', text: 'text-emerald-950' },
+  'พฤหัสบดี': { badge: 'bg-orange-100 text-orange-900 border-orange-300', bar: 'bg-orange-400', bg: 'bg-orange-50/70', text: 'text-orange-950' },
+  'ศุกร์': { badge: 'bg-sky-100 text-sky-900 border-sky-300', bar: 'bg-sky-400', bg: 'bg-sky-50/70', text: 'text-sky-950' },
+  'เสาร์': { badge: 'bg-purple-100 text-purple-900 border-purple-300', bar: 'bg-purple-400', bg: 'bg-purple-50/70', text: 'text-purple-950' },
+  'อาทิตย์': { badge: 'bg-red-100 text-red-900 border-red-300', bar: 'bg-red-400', bg: 'bg-red-50/70', text: 'text-red-950' },
+};
+
+export function getScheduleTheme(subject = '', classroom = ''): ScheduleCardTheme {
+  const normSub = subject.trim();
+  const normClass = classroom.trim();
+
+  // 1. กิจกรรมพัฒนาผู้เรียน / ลูกเสือ / ชุมนุม / แนะแนว / ซ่อมเสริม / โฮมรูม
+  if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ/.test(normSub)) {
+    return {
+      accentDot: 'bg-emerald-500',
+      badge: 'bg-emerald-700 text-white',
+      card: 'border-emerald-200/90 bg-emerald-50/90 text-emerald-950 hover:border-emerald-300 hover:bg-emerald-100/80',
+      subtext: 'text-emerald-700/90',
+    };
+  }
+  if (/ชุมนุม|ชมรม|กิจกรรม/.test(normSub)) {
+    return {
+      accentDot: 'bg-purple-500',
+      badge: 'bg-purple-700 text-white',
+      card: 'border-purple-200/90 bg-purple-50/90 text-purple-950 hover:border-purple-300 hover:bg-purple-100/80',
+      subtext: 'text-purple-700/90',
+    };
+  }
+  if (/แนะแนว/.test(normSub)) {
+    return {
+      accentDot: 'bg-teal-500',
+      badge: 'bg-teal-700 text-white',
+      card: 'border-teal-200/90 bg-teal-50/90 text-teal-950 hover:border-teal-300 hover:bg-teal-100/80',
+      subtext: 'text-teal-700/90',
+    };
+  }
+  if (/ซ่อมเสริม|ทบทวน|ติว/.test(normSub)) {
+    return {
+      accentDot: 'bg-amber-500',
+      badge: 'bg-amber-600 text-white',
+      card: 'border-amber-200/90 bg-amber-50/90 text-amber-950 hover:border-amber-300 hover:bg-amber-100/80',
+      subtext: 'text-amber-800/90',
+    };
+  }
+  if (/โฮมรูม/.test(normSub)) {
+    return {
+      accentDot: 'bg-blue-500',
+      badge: 'bg-blue-600 text-white',
+      card: 'border-blue-200/90 bg-blue-50/90 text-blue-950 hover:border-blue-300 hover:bg-blue-100/80',
+      subtext: 'text-blue-700/90',
+    };
+  }
+
+  // 2. แยกตามระดับชั้นอย่างชัดเจน (ป.1 - ม.6)
+  if (/ป\.?1(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-pink-500',
+      badge: 'bg-pink-600 text-white',
+      card: 'border-pink-200/90 bg-pink-50/90 text-pink-950 hover:border-pink-300 hover:bg-pink-100/80',
+      subtext: 'text-pink-700/90',
+    };
+  }
+  if (/ป\.?2(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-cyan-500',
+      badge: 'bg-cyan-600 text-white',
+      card: 'border-cyan-200/90 bg-cyan-50/90 text-cyan-950 hover:border-cyan-300 hover:bg-cyan-100/80',
+      subtext: 'text-cyan-700/90',
+    };
+  }
+  if (/ป\.?3(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-teal-500',
+      badge: 'bg-teal-600 text-white',
+      card: 'border-teal-200/90 bg-teal-50/90 text-teal-950 hover:border-teal-300 hover:bg-teal-100/80',
+      subtext: 'text-teal-700/90',
+    };
+  }
+  if (/ป\.?4(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-amber-500',
+      badge: 'bg-amber-600 text-white',
+      card: 'border-amber-200/90 bg-amber-50/90 text-amber-950 hover:border-amber-300 hover:bg-amber-100/80',
+      subtext: 'text-amber-800/90',
+    };
+  }
+  if (/ป\.?5(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-indigo-500',
+      badge: 'bg-indigo-600 text-white',
+      card: 'border-indigo-200/90 bg-indigo-50/90 text-indigo-950 hover:border-indigo-300 hover:bg-indigo-100/80',
+      subtext: 'text-indigo-700/90',
+    };
+  }
+  if (/ป\.?6(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-rose-500',
+      badge: 'bg-rose-600 text-white',
+      card: 'border-rose-200/90 bg-rose-50/90 text-rose-950 hover:border-rose-300 hover:bg-rose-100/80',
+      subtext: 'text-rose-700/90',
+    };
+  }
+  if (/ม\.?1(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-violet-500',
+      badge: 'bg-violet-600 text-white',
+      card: 'border-violet-200/90 bg-violet-50/90 text-violet-950 hover:border-violet-300 hover:bg-violet-100/80',
+      subtext: 'text-violet-700/90',
+    };
+  }
+  if (/ม\.?2(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-emerald-500',
+      badge: 'bg-emerald-600 text-white',
+      card: 'border-emerald-200/90 bg-emerald-50/90 text-emerald-950 hover:border-emerald-300 hover:bg-emerald-100/80',
+      subtext: 'text-emerald-700/90',
+    };
+  }
+  if (/ม\.?3(\b|\/)/i.test(normClass)) {
+    return {
+      accentDot: 'bg-blue-500',
+      badge: 'bg-blue-600 text-white',
+      card: 'border-blue-200/90 bg-blue-50/90 text-blue-950 hover:border-blue-300 hover:bg-blue-100/80',
+      subtext: 'text-blue-700/90',
+    };
+  }
+
+  // Fallback: Default Clean Sky theme
+  return {
+    accentDot: 'bg-sky-500',
+    badge: 'bg-sky-600 text-white',
+    card: 'border-sky-200/90 bg-sky-50/90 text-sky-950 hover:border-sky-300 hover:bg-sky-100/80',
+    subtext: 'text-sky-700/90',
+  };
+}
