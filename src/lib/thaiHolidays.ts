@@ -19,13 +19,18 @@ export function getThaiPublicHolidays(year: number = 2026): PresetHoliday[] {
   const y = String(year);
 
   // Approximate Buddhist lunar holidays by year for accuracy
-  // 2025 (2568), 2026 (2569), 2027 (2570)
+  // 2024 (2567), 2025 (2568), 2026 (2569), 2027 (2570), 2028 (2571)
   let makha = `${y}-03-03`;
   let visakha = `${y}-05-31`;
   let asahna = `${y}-07-29`;
   let khaoPhansa = `${y}-07-30`;
 
-  if (year === 2025) {
+  if (year === 2024) {
+    makha = '2024-02-24';
+    visakha = '2024-05-22';
+    asahna = '2024-07-20';
+    khaoPhansa = '2024-07-21';
+  } else if (year === 2025) {
     makha = '2025-02-12';
     visakha = '2025-05-11';
     asahna = '2025-07-10';
@@ -35,6 +40,11 @@ export function getThaiPublicHolidays(year: number = 2026): PresetHoliday[] {
     visakha = '2027-05-20';
     asahna = '2027-07-18';
     khaoPhansa = '2027-07-19';
+  } else if (year === 2028) {
+    makha = '2028-02-10';
+    visakha = '2028-05-08';
+    asahna = '2028-07-06';
+    khaoPhansa = '2028-07-07';
   }
 
   const holidays: PresetHoliday[] = [

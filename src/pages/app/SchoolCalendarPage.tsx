@@ -1,4 +1,4 @@
-import { CalendarDays, FileCheck2, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Plus, Printer, RefreshCw, Sparkles, Trash2, X } from 'lucide-react';
+import { CalendarDays, FileCheck2, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Printer, RefreshCw, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
@@ -286,6 +286,11 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   });
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(() => currentMonth.getFullYear());
+  const [showAiHolidayModal, setShowAiHolidayModal] = useState(false);
+  const [aiImportYearMode, setAiImportYearMode] = useState<'next_year' | 'current_year' | 'both_years' | 'custom'>('next_year');
+  const [aiCustomYear, setAiCustomYear] = useState(() => currentMonth.getFullYear() + 1);
 
   const loadEvents = async () => {
     if (!supabase || !session.workspace?.id || isDemoSession(session)) {
@@ -619,6 +624,122 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     setEditingEvent(null);
   };
 
+  const baseYear = currentMonth.getFullYear();
+
+  const aiPreviewHolidays = useMemo(() => {
+    const years =
+      aiImportYearMode === 'next_year'
+        ? [baseYear + 1]
+        : aiImportYearMode === 'current_year'
+        ? [baseYear]
+        : aiImportYearMode === 'both_years'
+        ? [baseYear, baseYear + 1]
+        : [aiCustomYear];
+
+    const existingMap = new Set(events.map((e) => `${e.date}|${e.title}`));
+
+    const allPresets: Array<{
+      date: string;
+      title: string;
+      type: CalendarType;
+      attendancePolicy: AttendancePolicy;
+      isExisting: boolean;
+    }> = [];
+
+    years.forEach((y) => {
+      const list = getThaiPublicHolidays(y);
+      list.forEach((item) => {
+        const isExisting = existingMap.has(`${item.date}|${item.title}`);
+        allPresets.push({
+          ...item,
+          isExisting,
+        });
+      });
+    });
+
+    allPresets.sort((a, b) => a.date.localeCompare(b.date));
+    const newCount = allPresets.filter((p) => !p.isExisting).length;
+    const existingCount = allPresets.length - newCount;
+
+    return {
+      items: allPresets,
+      newCount,
+      existingCount,
+      years,
+    };
+  }, [aiImportYearMode, aiCustomYear, baseYear, events]);
+
+  const executeAiImport = async () => {
+    if (!canEditCalendar || aiPreviewHolidays.newCount === 0) return;
+    const newItems = aiPreviewHolidays.items.filter((item) => !item.isExisting);
+
+    setSync({ status: 'loading', message: `✨ AI กำลังนำเข้าวันหยุดราชการ ${newItems.length} วัน...` });
+
+    let supabaseSuccess = false;
+    let createdEvents: CalendarEvent[] = [];
+
+    const workspaceId = session.workspace?.id;
+    if (supabase && workspaceId && !isDemoSession(session)) {
+      try {
+        const rowsToInsert = newItems.map((h) => ({
+          workspace_id: workspaceId,
+          calendar_date: h.date,
+          day_type: toDayType(h.type),
+          title: h.title,
+          affects_attendance: false,
+          affects_reports: true,
+          created_by: session.profile.id,
+          metadata: { attendancePolicy: h.attendancePolicy },
+        }));
+
+        const { data, error } = await supabase
+          .from('school_calendar_days')
+          .insert(rowsToInsert)
+          .select('*');
+
+        if (!error && data) {
+          supabaseSuccess = true;
+          createdEvents = (data as DbRow[]).map(mapCalendarRow);
+        }
+      } catch (err) {
+        console.warn('Batch holiday Supabase insert error, falling back to local storage:', err);
+      }
+    }
+
+    if (!supabaseSuccess) {
+      createdEvents = newItems.map((h, i) => ({
+        id: `cal-preset-${Date.now()}-${i}`,
+        date: h.date,
+        title: h.title,
+        type: h.type,
+        attendancePolicy: h.attendancePolicy,
+        source: 'local' as const,
+      }));
+    }
+
+    // Merge into local storage safety backup
+    const storageKey = getDataSafetyStorageKey(session);
+    const state = getLocalSafetyState(storageKey);
+    const existingRules = state.calendarRules || [];
+    state.calendarRules = [...existingRules, ...createdEvents];
+    window.localStorage.setItem(storageKey, JSON.stringify(state));
+
+    setEvents((current) => [...current, ...createdEvents]);
+
+    // Automatically navigate to the target year so teacher immediately sees the imported calendar!
+    const targetFirstYear = aiPreviewHolidays.years[0];
+    if (targetFirstYear && targetFirstYear !== currentMonth.getFullYear()) {
+      setCurrentMonth(new Date(targetFirstYear, 0, 1));
+    }
+
+    setSync({
+      status: supabaseSuccess ? 'synced' : 'local',
+      message: `✨ AI นำเข้าวันหยุดราชการสำเร็จแล้ว ${createdEvents.length} รายการ`,
+    });
+    notifyCalendarUpdated();
+    setShowAiHolidayModal(false);
+  };
+
   const handleImportOfficialHolidays = async () => {
     if (!canEditCalendar) return;
     const targetYear = resolveCalendarYear(session.workspace?.academicYear || currentMonth.getFullYear());
@@ -724,13 +845,13 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               </button>
               {canEditCalendar && (
                 <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 text-sm font-black text-rose-700 hover:bg-rose-100 transition shadow-xs active:scale-95"
-                  onClick={handleImportOfficialHolidays}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 px-4 text-sm font-black text-white shadow-md shadow-rose-500/25 hover:shadow-lg hover:shadow-rose-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  onClick={() => setShowAiHolidayModal(true)}
                   type="button"
-                  title="นำเข้าวันหยุดราชการไทยตลอดทั้งปีในคลิกเดียว"
+                  title="AI ช่วยนำเข้าวันหยุดราชการไทย ทั้งปีนี้และล่วงหน้า 1 ปี"
                 >
-                  <Sparkles size={15} aria-hidden="true" className="text-rose-600" />
-                  โหลดวันหยุดราชการทั้งปี
+                  <Sparkles size={16} aria-hidden="true" className="text-amber-200 animate-pulse" />
+                  <span>✨ AI นำเข้าวันหยุดล่วงหน้า 1 ปี</span>
                 </button>
               )}
             </div>
@@ -768,7 +889,139 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-cyan-700">ภาพรวมเดือน</p>
                 <div className="flex flex-wrap items-center gap-2.5 mt-0.5">
-                  <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">{currentMonthText}</h2>
+                  {/* Clickable Month-Year Trigger with Popover */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickerYear(currentMonth.getFullYear());
+                        setShowMonthPicker((prev) => !prev);
+                      }}
+                      className="group flex items-center gap-2 rounded-2xl border border-transparent px-2.5 py-1 -ml-2.5 transition hover:bg-slate-100 hover:border-slate-200 active:scale-[0.98]"
+                      title="คลิกเพื่อเลือกเดือนและปีที่ต้องการดู"
+                      aria-expanded={showMonthPicker}
+                    >
+                      <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight group-hover:text-cyan-700 transition">
+                        {currentMonthText}
+                      </h2>
+                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-slate-100 text-slate-600 group-hover:bg-cyan-100 group-hover:text-cyan-800 transition">
+                        <ChevronDown size={17} className={`transition-transform duration-200 ${showMonthPicker ? 'rotate-180 text-cyan-700' : ''}`} />
+                      </span>
+                    </button>
+
+                    {/* Month & Year Picker Dropdown Popover */}
+                    {showMonthPicker && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-[60]"
+                          onClick={() => setShowMonthPicker(false)}
+                        />
+                        <div
+                          role="dialog"
+                          aria-label="เลือกเดือนและปี"
+                          className="absolute left-0 top-full z-[70] mt-2 w-[320px] sm:w-[360px] overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-4 shadow-2xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150"
+                        >
+                          {/* Year Controls Header */}
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <button
+                              type="button"
+                              onClick={() => setPickerYear((y) => y - 1)}
+                              className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 transition"
+                              title="ปีก่อนหน้า"
+                            >
+                              <ChevronLeft size={16} />
+                            </button>
+
+                            <div className="text-center">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700">เลือกปี พ.ศ.</span>
+                              <div className="text-base font-black text-slate-950">
+                                พ.ศ. {pickerYear + 543} <span className="text-xs text-slate-400">({pickerYear})</span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setPickerYear((y) => y + 1)}
+                              className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 transition"
+                              title="ปีถัดไป"
+                            >
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+
+                          {/* Quick Year Jump Pills */}
+                          <div className="mt-2.5 flex items-center justify-center gap-1.5 flex-wrap">
+                            {[today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1, today.getFullYear() + 2].map((y) => (
+                              <button
+                                key={y}
+                                type="button"
+                                onClick={() => setPickerYear(y)}
+                                className={`rounded-xl px-2.5 py-1 text-[11px] font-black transition-all ${
+                                  pickerYear === y
+                                    ? 'bg-slate-950 text-white shadow-2xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                              >
+                                {y + 543}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* 12 Months Grid */}
+                          <div className="mt-3 grid grid-cols-3 gap-1.5">
+                            {thaiMonthNames.map((name, index) => {
+                              const isSelected = currentMonth.getFullYear() === pickerYear && currentMonth.getMonth() === index;
+                              const isCurrentMonthNow = today.getFullYear() === pickerYear && today.getMonth() === index;
+                              return (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentMonth(new Date(pickerYear, index, 1));
+                                    setShowMonthPicker(false);
+                                  }}
+                                  className={`flex flex-col items-center justify-center rounded-2xl py-2 px-1 text-xs font-black transition-all active:scale-95 ${
+                                    isSelected
+                                      ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30 ring-2 ring-cyan-500'
+                                      : isCurrentMonthNow
+                                      ? 'border-2 border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                                      : 'border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <span>{name}</span>
+                                  {isCurrentMonthNow && !isSelected && (
+                                    <span className="text-[9px] font-bold text-amber-600 leading-none mt-0.5">เดือนนี้</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Popover Footer */}
+                          <div className="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+                                setShowMonthPicker(false);
+                              }}
+                              className="text-xs font-black text-cyan-700 hover:underline"
+                            >
+                              ↺ กลับเดือนปัจจุบัน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowMonthPicker(false)}
+                              className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-black text-slate-600 hover:bg-slate-50"
+                            >
+                              ปิด
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
                   {/* Integrated Month Navigation Controls right beside month title */}
                   <div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-2xs">
                     <button
@@ -798,6 +1051,19 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                       <ChevronRight size={16} aria-hidden="true" />
                     </button>
                   </div>
+
+                  {/* AI Quick Button right beside navigation */}
+                  {canEditCalendar && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAiHolidayModal(true)}
+                      className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50/90 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 transition shadow-2xs active:scale-95"
+                      title="AI นำเข้าวันหยุดราชการล่วงหน้า 1 ปี"
+                    >
+                      <Sparkles size={14} className="text-rose-600 animate-pulse" />
+                      <span>AI วันหยุดล่วงหน้า 1 ปี</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1175,6 +1441,215 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
             document.querySelector('.app-shell') || document.body,
           )
         : null}
+
+      {/* ✨ AI Holiday Importer Modal */}
+      {showAiHolidayModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setShowAiHolidayModal(false);
+            }}
+          >
+            <section
+              role="dialog"
+              aria-labelledby="ai-holiday-modal-title"
+              aria-modal="true"
+              className="my-auto w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-[0_32px_100px_rgba(2,8,23,0.5)]"
+            >
+              {/* Modal Header */}
+              <header className="flex items-start justify-between gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-6 py-5 text-white">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-0.5 text-[11px] font-black text-amber-300">
+                    <Sparkles size={13} className="animate-pulse" />
+                    <span>AI Assistant · School Calendar</span>
+                  </div>
+                  <h2 id="ai-holiday-modal-title" className="mt-2 text-2xl font-black tracking-tight">
+                    ✨ AI นำเข้าวันหยุดราชการไทยอัตโนมัติ
+                  </h2>
+                  <p className="mt-1 text-xs font-bold text-slate-300">
+                    วางแผนวันหยุดล่วงหน้า 1 ปี ข้ามปีการศึกษา ไม่ต้องนั่งกรอกทีละวัน ระบบตั้งค่านโยบายข้ามเช็กชื่อให้อัตโนมัติ
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAiHolidayModal(false)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  aria-label="ปิดหน้าต่าง"
+                >
+                  <X size={18} />
+                </button>
+              </header>
+
+              {/* Modal Body */}
+              <div className="max-h-[calc(100vh-12rem)] overflow-y-auto p-5 sm:p-6 space-y-4">
+                {/* Year Selection Options */}
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-500">
+                    เลือกช่วงปีที่ต้องการนำเข้า
+                  </label>
+                  <div className="mt-2 grid gap-2.5 sm:grid-cols-3">
+                    {/* Option 1: Next Year (1 year in advance - what user specifically requested!) */}
+                    <button
+                      type="button"
+                      onClick={() => setAiImportYearMode('next_year')}
+                      className={`relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                        aiImportYearMode === 'next_year'
+                          ? 'border-2 border-rose-500 bg-rose-50/80 ring-2 ring-rose-400/20 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="inline-block rounded-full bg-rose-500 text-white px-2 py-0.5 text-[9.5px] font-black w-fit mb-1 shadow-2xs">
+                        ⭐ แนะนำ (ล่วงหน้า 1 ปี)
+                      </span>
+                      <div className="text-base font-black text-slate-950">
+                        พ.ศ. {currentMonth.getFullYear() + 1 + 543}
+                      </div>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500 leading-snug">
+                        ปีถัดไป ({currentMonth.getFullYear() + 1}) วางแผนการสอนล่วงหน้า
+                      </p>
+                    </button>
+
+                    {/* Option 2: Current Year */}
+                    <button
+                      type="button"
+                      onClick={() => setAiImportYearMode('current_year')}
+                      className={`flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                        aiImportYearMode === 'current_year'
+                          ? 'border-2 border-indigo-500 bg-indigo-50/80 ring-2 ring-indigo-400/20 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-[10px] font-black text-slate-400 mb-1">ปีการศึกษาปัจจุบัน</span>
+                      <div className="text-base font-black text-slate-950">
+                        พ.ศ. {currentMonth.getFullYear() + 543}
+                      </div>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500 leading-snug">
+                        ปีปัจจุบัน ({currentMonth.getFullYear()}) ~20 วันหยุดราชการ
+                      </p>
+                    </button>
+
+                    {/* Option 3: Both Years */}
+                    <button
+                      type="button"
+                      onClick={() => setAiImportYearMode('both_years')}
+                      className={`flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                        aiImportYearMode === 'both_years'
+                          ? 'border-2 border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-400/20 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-[10px] font-black text-emerald-700 mb-1">⚡ รวดเดียว 2 ปี</span>
+                      <div className="text-base font-black text-slate-950">
+                        {currentMonth.getFullYear() + 543} + {currentMonth.getFullYear() + 1 + 543}
+                      </div>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500 leading-snug">
+                        ปีนี้ + ล่วงหน้า 1 ปี รวม ~40 วัน ครอบคลุมทั้งสองปี
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Summary Banner */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-100 text-cyan-800 font-black">
+                      {aiPreviewHolidays.items.length}
+                    </span>
+                    <div>
+                      <p className="font-black text-slate-900">
+                        ตรวจพบวันหยุดทั้งหมด {aiPreviewHolidays.items.length} รายการ
+                      </p>
+                      <p className="text-[11px] font-bold text-slate-500">
+                        คำนวณวันหยุดราชการไทยและวันหยุดตามจันทรคติอัตโนมัติ
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 font-black">
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-0.5">
+                      + เพิ่มใหม่ {aiPreviewHolidays.newCount} วัน
+                    </span>
+                    {aiPreviewHolidays.existingCount > 0 && (
+                      <span className="rounded-full bg-slate-200 text-slate-600 px-2.5 py-0.5">
+                        มีแล้ว {aiPreviewHolidays.existingCount} วัน (ข้าม)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Holiday Items List */}
+                <div>
+                  <p className="text-xs font-black text-slate-600 mb-2">
+                    ตัวอย่างรายการที่จะนำเข้า ({aiPreviewHolidays.items.length} รายการ):
+                  </p>
+                  <div className="max-h-[260px] overflow-y-auto space-y-1.5 rounded-2xl border border-slate-200 p-2 bg-white [scrollbar-width:thin]">
+                    {aiPreviewHolidays.items.map((item, idx) => (
+                      <div
+                        key={`${item.date}-${idx}`}
+                        className={`flex items-center justify-between gap-2 rounded-xl p-2 text-xs transition ${
+                          item.isExisting
+                            ? 'bg-slate-50 opacity-60'
+                            : 'bg-rose-50/70 border border-rose-200/80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-base shrink-0">🏖️</span>
+                          <span className="font-black text-slate-800 shrink-0">
+                            {formatThaiOfficialDate(item.date)}
+                          </span>
+                          <span className="font-bold text-slate-700 truncate" title={item.title}>
+                            {item.title}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {item.isExisting ? (
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                              มีในปฏิทินแล้ว
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-rose-500 text-white px-2 py-0.5 text-[10px] font-black shadow-2xs">
+                              พร้อมนำเข้า
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <footer className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+                <p className="text-xs font-bold text-slate-500">
+                  ระบบจะตั้งค่านโยบาย &quot;ไม่นับเป็นวันเรียน (ข้ามเช็กชื่อ)&quot; ให้อัตโนมัติทุกรายการ
+                </p>
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAiHolidayModal(false)}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    disabled={aiPreviewHolidays.newCount === 0}
+                    onClick={() => void executeAiImport()}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-rose-500/25 hover:shadow-lg hover:shadow-rose-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Sparkles size={14} className="text-amber-200 animate-pulse" />
+                    <span>
+                      {aiPreviewHolidays.newCount === 0
+                        ? 'มีรายการวันหยุดครบถ้วนแล้ว'
+                        : `ยืนยันนำเข้า ${aiPreviewHolidays.newCount} วันด้วย AI`}
+                    </span>
+                  </button>
+                </div>
+              </footer>
+            </section>
+          </div>,
+          document.querySelector('.app-shell') || document.body,
+        )}
     </main>
   );
 }
