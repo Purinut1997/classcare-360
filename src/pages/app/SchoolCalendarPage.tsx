@@ -34,12 +34,19 @@ type DbRow = Record<string, unknown>;
 
 const thaiMonthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-const weekDays = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
-const weekDaysShort = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
+const thaiWeekDayThemes = [
+  { name: 'จันทร์', short: 'จ.', bg: 'bg-amber-400 text-amber-950 border border-amber-300/80 shadow-2xs' },
+  { name: 'อังคาร', short: 'อ.', bg: 'bg-pink-400 text-pink-950 border border-pink-300/80 shadow-2xs' },
+  { name: 'พุธ', short: 'พ.', bg: 'bg-emerald-500 text-white border border-emerald-400/80 shadow-2xs' },
+  { name: 'พฤหัสบดี', short: 'พฤ.', bg: 'bg-orange-500 text-white border border-orange-400/80 shadow-2xs' },
+  { name: 'ศุกร์', short: 'ศ.', bg: 'bg-sky-400 text-sky-950 border border-sky-300/80 shadow-2xs' },
+  { name: 'เสาร์', short: 'ส.', bg: 'bg-purple-500 text-white border border-purple-400/80 shadow-2xs' },
+  { name: 'อาทิตย์', short: 'อา.', bg: 'bg-rose-500 text-white border border-rose-400/80 shadow-2xs' },
+];
 
 const typeLabels: Record<CalendarType, string> = {
   holiday: 'หยุดเรียน',
-  exam: 'สอบ',
+  exam: 'วันสอบ',
   activity: 'กิจกรรม',
   makeup: 'เรียนชดเชย',
   custom: 'กำหนดเอง',
@@ -51,12 +58,65 @@ const policyLabels: Record<AttendancePolicy, string> = {
   skip: 'ไม่นับเป็นวันเรียน',
 };
 
+const typeConfig: Record<
+  CalendarType,
+  {
+    badge: string;
+    chip: string;
+    dot: string;
+    borderLeft: string;
+    icon: string;
+    filterActive: string;
+  }
+> = {
+  holiday: {
+    badge: 'border-rose-300 bg-rose-100 text-rose-800',
+    chip: 'border-rose-300 bg-rose-50/95 text-rose-800 hover:bg-rose-100 shadow-2xs',
+    dot: 'bg-rose-500 ring-2 ring-rose-200',
+    borderLeft: 'border-l-4 border-l-rose-500',
+    icon: '🏖️',
+    filterActive: 'border-rose-500 bg-rose-500 text-white shadow-xs',
+  },
+  exam: {
+    badge: 'border-indigo-300 bg-indigo-100 text-indigo-900',
+    chip: 'border-indigo-300 bg-indigo-50/95 text-indigo-900 hover:bg-indigo-100 shadow-2xs',
+    dot: 'bg-indigo-600 ring-2 ring-indigo-200',
+    borderLeft: 'border-l-4 border-l-indigo-600',
+    icon: '📝',
+    filterActive: 'border-indigo-600 bg-indigo-600 text-white shadow-xs',
+  },
+  activity: {
+    badge: 'border-emerald-300 bg-emerald-100 text-emerald-900',
+    chip: 'border-emerald-300 bg-emerald-50/95 text-emerald-900 hover:bg-emerald-100 shadow-2xs',
+    dot: 'bg-emerald-500 ring-2 ring-emerald-200',
+    borderLeft: 'border-l-4 border-l-emerald-500',
+    icon: '🎪',
+    filterActive: 'border-emerald-600 bg-emerald-600 text-white shadow-xs',
+  },
+  makeup: {
+    badge: 'border-amber-300 bg-amber-100 text-amber-950',
+    chip: 'border-amber-300 bg-amber-50/95 text-amber-950 hover:bg-amber-100 shadow-2xs',
+    dot: 'bg-amber-500 ring-2 ring-amber-200',
+    borderLeft: 'border-l-4 border-l-amber-500',
+    icon: '⏰',
+    filterActive: 'border-amber-500 bg-amber-500 text-white shadow-xs',
+  },
+  custom: {
+    badge: 'border-sky-300 bg-sky-100 text-sky-900',
+    chip: 'border-sky-300 bg-sky-50/95 text-sky-900 hover:bg-sky-100 shadow-2xs',
+    dot: 'bg-sky-500 ring-2 ring-sky-200',
+    borderLeft: 'border-l-4 border-l-sky-500',
+    icon: '📌',
+    filterActive: 'border-sky-600 bg-sky-600 text-white shadow-xs',
+  },
+};
+
 const typeStyles: Record<CalendarType, string> = {
-  holiday: 'border-rose-200 bg-rose-50 text-rose-700',
-  exam: 'border-sky-200 bg-sky-50 text-sky-700',
-  activity: 'border-amber-200 bg-amber-50 text-amber-800',
-  makeup: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  custom: 'border-slate-200 bg-slate-50 text-slate-600',
+  holiday: typeConfig.holiday.badge,
+  exam: typeConfig.exam.badge,
+  activity: typeConfig.activity.badge,
+  makeup: typeConfig.makeup.badge,
+  custom: typeConfig.custom.badge,
 };
 
 function toDateInput(date: Date) {
@@ -186,6 +246,12 @@ function buildMonthCells(month: Date) {
     date.setDate(gridStart.getDate() + index);
     return date;
   });
+}
+
+function notifyCalendarUpdated() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('classcare-calendar-updated'));
+  }
 }
 
 function StatCard({ label, value, detail }: { label: string; value: string | number; detail: string }) {
@@ -391,6 +457,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
         status: 'local',
         message: 'บันทึกไว้ในหน้าเว็บก่อน เพราะยังไม่พร้อมเชื่อม Supabase',
       });
+      notifyCalendarUpdated();
       return;
     }
 
@@ -414,6 +481,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
       setEvents((current) => current.map((event) => (event.id === nextEvent.id ? mapCalendarRow(data) : event)));
       setSync({ status: 'synced', message: 'บันทึกวันพิเศษลง Supabase แล้ว' });
+      notifyCalendarUpdated();
     } catch (error) {
       setSync({
         status: isMissingCalendarSql(error) ? 'missing_sql' : 'error',
@@ -437,6 +505,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       setEvents((current) => current.filter((event) => event.id !== eventId));
       setSync({ status: 'local', message: 'ลบรายการในเครื่องแล้ว' });
+      notifyCalendarUpdated();
       return;
     }
 
@@ -451,6 +520,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       // Remove from UI after successful deletion
       setEvents((current) => current.filter((event) => event.id !== eventId));
       setSync({ status: 'synced', message: 'ลบวันพิเศษออกจาก Supabase แล้ว' });
+      notifyCalendarUpdated();
     } catch (error) {
       setSync({
         status: 'error',
@@ -484,6 +554,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       setSync({ status: 'local', message: 'แก้ไขรายการในเครื่องแล้ว' });
       setSelectedDate(draft.date);
       setEditingEvent(null);
+      notifyCalendarUpdated();
       return;
     }
 
@@ -510,6 +581,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       setSync({ status: 'synced', message: 'แก้ไขวันพิเศษใน Supabase แล้ว' });
       setSelectedDate(draft.date);
       setEditingEvent(null);
+      notifyCalendarUpdated();
     } catch (error) {
       setSync({
         status: 'error',
@@ -619,6 +691,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       status: supabaseSuccess ? 'synced' : 'local',
       message: `นำเข้าวันหยุดราชการประจำปี ${thaiYear} สำเร็จแล้ว ${createdEvents.length} รายการ`,
     });
+    notifyCalendarUpdated();
   };
 
   return (
@@ -633,20 +706,9 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
             <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">ปฏิทินภาพรวมโรงเรียน</h1>
             <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">รวมวันหยุด วันสอบ กิจกรรม และวันเรียนชดเชย เพื่อให้เช็กชื่อ ตารางสอน และรายงานใช้ข้อมูลวันเดียวกัน ไม่ต้องเดาจากหลายเมนู</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700" onClick={() => shiftMonth(-1)} type="button">
-                <ChevronLeft size={17} aria-hidden="true" />
-                เดือนก่อน
-              </button>
-              <button className="dark-action inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1))} type="button">
-                เดือนนี้
-              </button>
-              <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700" onClick={() => shiftMonth(1)} type="button">
-                เดือนถัดไป
-                <ChevronRight size={17} aria-hidden="true" />
-              </button>
-              <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700" onClick={printCalendarReport} type="button">
+              <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs" onClick={printCalendarReport} type="button">
                 <Printer size={17} aria-hidden="true" />
-                พิมพ์
+                พิมพ์ปฏิทิน
               </button>
               <button
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
@@ -698,29 +760,87 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
       <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${sync.status === 'synced' ? 'border-teal-200 bg-teal-50 text-teal-800' : sync.status === 'missing_sql' || sync.status === 'error' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-[#ead8bd] bg-white/80 text-slate-600'}`}>{sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : sync.message}</div>
 
-      <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.45fr)]">
+      <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,0.45fr)]">
         <div className="app-panel-pad">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-black text-cyan-700">ภาพรวมเดือน</p>
-              <h2 className="text-3xl font-black text-slate-950">{currentMonthText}</h2>
+          {/* Calendar Header: Month Title + Month Navigation Controls + Filter Pills */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-cyan-700">ภาพรวมเดือน</p>
+                <div className="flex flex-wrap items-center gap-2.5 mt-0.5">
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">{currentMonthText}</h2>
+                  {/* Integrated Month Navigation Controls right beside month title */}
+                  <div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-2xs">
+                    <button
+                      className="grid h-8 w-8 place-items-center rounded-xl text-slate-700 hover:bg-slate-100 active:scale-95 transition"
+                      onClick={() => shiftMonth(-1)}
+                      type="button"
+                      title="เดือนก่อนหน้า"
+                      aria-label="เดือนก่อนหน้า"
+                    >
+                      <ChevronLeft size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      className="rounded-xl px-2.5 py-1 text-xs font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition"
+                      onClick={() => setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1))}
+                      type="button"
+                      title="กลับมาเดือนปัจจุบัน"
+                    >
+                      เดือนนี้
+                    </button>
+                    <button
+                      className="grid h-8 w-8 place-items-center rounded-xl text-slate-700 hover:bg-slate-100 active:scale-95 transition"
+                      onClick={() => shiftMonth(1)}
+                      type="button"
+                      title="เดือนถัดไป"
+                      aria-label="เดือนถัดไป"
+                    >
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(['all', 'holiday', 'exam', 'activity', 'makeup'] as Array<'all' | CalendarType>).map((item) => (
-                <button className={`rounded-2xl border px-4 py-2 text-xs font-black transition ${filter === item ? 'border-slate-950 bg-slate-950 text-white' : 'border-[#ead8bd] bg-white text-slate-600 hover:bg-[#fff8eb]'}`} key={item} onClick={() => setFilter(item)} type="button">
-                  {item === 'all' ? 'ทั้งหมด' : typeLabels[item]}
-                </button>
-              ))}
+
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['all', 'holiday', 'exam', 'activity', 'makeup'] as Array<'all' | CalendarType>).map((item) => {
+                const isActive = filter === item;
+                const activeCls = item === 'all'
+                  ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
+                  : typeConfig[item].filterActive;
+
+                return (
+                  <button
+                    className={`rounded-2xl border px-3 sm:px-3.5 py-1.5 text-xs font-black transition-all ${
+                      isActive
+                        ? activeCls
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                    key={item}
+                    onClick={() => setFilter(item)}
+                    type="button"
+                  >
+                    {item !== 'all' ? <span className="mr-1">{typeConfig[item].icon}</span> : null}
+                    {item === 'all' ? 'ทั้งหมด' : typeLabels[item]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-7 gap-1 sm:gap-2">
-            {weekDays.map((day, idx) => (
-              <div className="rounded-xl sm:rounded-2xl bg-[#3a2817] px-1 py-2 sm:px-2 sm:py-3 text-center text-xs font-black text-white" key={day}>
-                <span className="sm:hidden text-[11px]">{weekDaysShort[idx]}</span>
-                <span className="hidden sm:inline">{day}</span>
+          {/* Day of Week Headers with Iconic Thai Day Colors */}
+          <div className="mt-4 grid grid-cols-7 gap-1 sm:gap-2">
+            {thaiWeekDayThemes.map((day) => (
+              <div
+                className={`rounded-xl sm:rounded-2xl px-1 py-2 sm:px-2 sm:py-2.5 text-center text-xs font-black transition ${day.bg}`}
+                key={day.name}
+              >
+                <span className="sm:hidden text-[11px]">{day.short}</span>
+                <span className="hidden sm:inline">{day.name}</span>
               </div>
             ))}
+
             {monthCells.map((date) => {
               const dateText = toDateInput(date);
               const dayEvents = (eventsByDate[dateText] || []).filter((event) => filter === 'all' || event.type === filter);
@@ -732,21 +852,21 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                   aria-label={`เปิดรายละเอียดวันที่ ${toThaiDate(dateText)}${dayEvents.length ? ` มี ${dayEvents.length} รายการ` : ' ยังไม่มีรายการ'}`}
                   className={`group min-h-[58px] sm:min-h-[118px] rounded-xl sm:rounded-2xl border p-1 sm:p-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-[0_14px_30px_rgba(8,145,178,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${
                     isToday
-                      ? 'border-[#d89333] bg-[#fff1c9] shadow-[0_16px_34px_rgba(188,117,32,0.16)]'
+                      ? 'border-2 border-amber-400 bg-gradient-to-b from-amber-50/90 to-amber-100/40 ring-2 ring-amber-300/30 shadow-[0_12px_24px_rgba(245,158,11,0.18)]'
                       : isCurrentMonth
-                      ? 'border-[#ead8bd] bg-white/85'
-                      : 'border-slate-100 bg-white/45 text-slate-300'
+                      ? 'border-slate-200/90 bg-white/95'
+                      : 'border-slate-100 bg-slate-50/50 text-slate-300 opacity-60'
                   }`}
                   key={dateText}
                   onClick={() => openDayDialog(date)}
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-1">
-                    <span className={`text-xs sm:text-sm font-black ${isCurrentMonth ? 'text-slate-950' : 'text-slate-300'}`}>
+                    <span className={`text-xs sm:text-sm font-black ${isCurrentMonth ? (isToday ? 'text-amber-950 font-black' : 'text-slate-950') : 'text-slate-300'}`}>
                       {date.getDate()}
                     </span>
                     {isToday ? (
-                      <span className="rounded-full bg-white px-1 sm:px-2 py-0.2 sm:py-0.5 text-[8.5px] sm:text-[10px] font-black text-[#8a5200] shadow-2xs">
+                      <span className="rounded-full bg-amber-500 px-1.5 sm:px-2 py-0.2 sm:py-0.5 text-[8.5px] sm:text-[10px] font-black text-white shadow-2xs">
                         วันนี้
                       </span>
                     ) : null}
@@ -755,17 +875,8 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                   {/* Mobile Indicator Dots */}
                   <div className="mt-1 flex items-center justify-center gap-1 sm:hidden flex-wrap">
                     {dayEvents.slice(0, 3).map((event) => {
-                      const dotColor =
-                        event.type === 'holiday'
-                          ? 'bg-rose-500'
-                          : event.type === 'exam'
-                          ? 'bg-sky-500'
-                          : event.type === 'activity'
-                          ? 'bg-amber-500'
-                          : event.type === 'makeup'
-                          ? 'bg-emerald-500'
-                          : 'bg-slate-400';
-                      return <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />;
+                      const conf = typeConfig[event.type] || typeConfig.custom;
+                      return <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${conf.dot}`} />;
                     })}
                     {dayEvents.length > 3 ? (
                       <span className="text-[8.5px] font-black text-slate-500 leading-none">
@@ -774,20 +885,28 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     ) : null}
                   </div>
 
-                  {/* Desktop Full Event Chips */}
+                  {/* Desktop Full Event Chips with Distinct Vibrant Styling & Emojis */}
                   <div className="mt-2 hidden space-y-1 sm:block">
-                    {dayEvents.slice(0, 3).map((event) => (
-                      <div className={`truncate rounded-xl border px-2 py-1 text-[11px] font-black ${typeStyles[event.type]}`} key={event.id} title={event.title}>
-                        {event.title}
-                      </div>
-                    ))}
+                    {dayEvents.slice(0, 3).map((event) => {
+                      const conf = typeConfig[event.type] || typeConfig.custom;
+                      return (
+                        <div
+                          className={`truncate rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black transition-transform hover:scale-[1.02] ${conf.chip}`}
+                          key={event.id}
+                          title={event.title}
+                        >
+                          <span className="mr-1">{conf.icon}</span>
+                          {event.title}
+                        </div>
+                      );
+                    })}
                     {dayEvents.length > 3 ? (
-                      <div className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-500">
+                      <div className="rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-black text-slate-500">
                         +{dayEvents.length - 3} รายการ
                       </div>
                     ) : null}
                     {!dayEvents.length && isCurrentMonth ? (
-                      <span className="mt-4 hidden text-[11px] font-black text-cyan-700 opacity-0 transition group-hover:block group-hover:opacity-100 sm:block">
+                      <span className="mt-3 hidden text-[10.5px] font-black text-cyan-700 opacity-0 transition group-hover:block group-hover:opacity-100 sm:block">
                         + เพิ่มรายการ
                       </span>
                     ) : null}
@@ -798,55 +917,107 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
           </div>
 
           {/* Mobile Color Legend */}
-          <div className="mt-3 flex items-center justify-center gap-3 text-[10.5px] font-bold text-slate-500 sm:hidden flex-wrap">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> หยุดเรียน</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-500" /> วันสอบ</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> กิจกรรม</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> เรียนชดเชย</span>
+          <div className="mt-3 flex items-center justify-center gap-3 text-[10.5px] font-bold text-slate-600 sm:hidden flex-wrap">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500 ring-1 ring-rose-200" /> หยุดเรียน</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-600 ring-1 ring-indigo-200" /> วันสอบ</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-emerald-200" /> กิจกรรม</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500 ring-1 ring-amber-200" /> เรียนชดเชย</span>
           </div>
         </div>
 
-        <div className="grid gap-5 content-start">
-          <div className="app-panel-pad">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-black text-cyan-700">รายการเดือนนี้</p>
-                <h2 className="text-2xl font-black text-slate-950">{monthEvents.length} รายการ</h2>
+        {/* Right Column: Month Events List (Non-stretching, Contained with Scrollbar) */}
+        <div className="flex flex-col h-full max-h-[660px] rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 shrink-0">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider text-cyan-700">รายการเดือนนี้</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-950">{monthEvents.length} รายการ</h3>
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+                  {filter === 'all' ? 'ทั้งหมด' : typeLabels[filter]}
+                </span>
               </div>
-              <button className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-3 text-xs font-black text-slate-700" onClick={() => void loadEvents()} type="button">
-                <RefreshCw size={15} aria-hidden="true" />
-                รีเฟรช
-              </button>
             </div>
+            <button
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+              onClick={() => void loadEvents()}
+              type="button"
+              title="รีเฟรชข้อมูลปฏิทิน"
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              <span>รีเฟรช</span>
+            </button>
+          </div>
 
-            <div className="mt-4 grid gap-3">
-              {monthEvents.length ? (
-                monthEvents.map((event) => (
-                  <div className="rounded-2xl border border-[#ead8bd] bg-white/85 p-4" key={event.id}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-400">{toThaiDate(event.date)}</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-950">{event.title}</h3>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span className={`rounded-full border px-3 py-1 text-xs font-black ${typeStyles[event.type]}`}>{typeLabels[event.type]}</span>
-                          <span className="rounded-full border border-[#ead8bd] bg-[#fff8eb] px-3 py-1 text-xs font-black text-[#7a4f26]">{policyLabels[event.attendancePolicy]}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {canEditCalendar ? <button className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600" onClick={() => openEditModal(event)} type="button" aria-label={`แก้ไข ${event.title}`}>
-                          <Pencil size={16} aria-hidden="true" />
-                        </button> : null}
-                        {canEditCalendar ? <button className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600" onClick={() => void removeEvent(event.id)} type="button" aria-label={`ลบ ${event.title}`}>
-                          <Trash2 size={16} aria-hidden="true" />
-                        </button> : null}
+          {/* Scrollable Event List */}
+          <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1 min-h-0 [scrollbar-width:thin]">
+            {monthEvents.length ? (
+              monthEvents.map((event) => {
+                const conf = typeConfig[event.type] || typeConfig.custom;
+                const evDate = new Date(`${event.date}T00:00:00`);
+                const dayNumber = evDate.getDate();
+                const monthShort = thaiMonthNames[evDate.getMonth()]?.slice(0, 3) || '';
+                const dayOfWeekShort = thaiWeekDayThemes[(evDate.getDay() + 6) % 7]?.short || '';
+
+                return (
+                  <div
+                    key={event.id}
+                    className={`group relative flex items-center gap-3 rounded-2xl border border-slate-200/90 bg-white p-2.5 sm:p-3 transition-all hover:shadow-md hover:border-slate-300 ${conf.borderLeft}`}
+                  >
+                    {/* Compact Date Box */}
+                    <div className="flex flex-col items-center justify-center rounded-xl bg-slate-100 px-2.5 py-1 text-center shrink-0 min-w-[46px]">
+                      <span className="text-[10px] font-black text-slate-500 leading-tight">{dayOfWeekShort}</span>
+                      <span className="text-base font-black text-slate-900 leading-none">{dayNumber}</span>
+                      <span className="text-[9.5px] font-bold text-slate-400 leading-tight">{monthShort}</span>
+                    </div>
+
+                    {/* Event Info */}
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-black text-slate-900 truncate" title={event.title}>
+                        <span className="mr-1">{conf.icon}</span>
+                        {event.title}
+                      </h4>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${conf.badge}`}>
+                          {typeLabels[event.type]}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {policyLabels[event.attendancePolicy]}
+                        </span>
                       </div>
                     </div>
+
+                    {/* Quick Actions */}
+                    {canEditCalendar && (
+                      <div className="flex shrink-0 items-center gap-1 opacity-70 group-hover:opacity-100 transition">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(event)}
+                          className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+                          title={`แก้ไข ${event.title}`}
+                          aria-label={`แก้ไข ${event.title}`}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeEvent(event.id)}
+                          className="grid h-8 w-8 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition"
+                          title={`ลบ ${event.title}`}
+                          aria-label={`ลบ ${event.title}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-[#ead8bd] bg-[#fff8eb] p-4 text-sm font-bold text-slate-600">ยังไม่มีรายการตามตัวกรองนี้ในเดือนที่เลือก</div>
-              )}
-            </div>
+                );
+              })
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center text-xs font-bold text-slate-500">
+                <CalendarDays size={28} className="text-slate-300 mb-2" />
+                ไม่มีรายการตามตัวกรองนี้ในเดือนที่เลือก
+              </div>
+            )}
           </div>
         </div>
       </section>

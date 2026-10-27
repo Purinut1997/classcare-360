@@ -19,6 +19,7 @@ import { DailyStatsSummary } from '../../components/dashboard/DailyStatsSummary'
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
+import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -87,6 +88,53 @@ interface UpcomingEvent {
   title: string;
   type: UpcomingEventType;
 }
+
+const eventTypeConfig: Record<
+  UpcomingEventType,
+  {
+    badge: string;
+    dot: string;
+    icon: string;
+    label: string;
+    border: string;
+  }
+> = {
+  holiday: {
+    badge: 'bg-rose-100 text-rose-800 border-rose-300',
+    dot: 'bg-rose-500 ring-2 ring-rose-200',
+    icon: '🏖️',
+    label: 'หยุดเรียน',
+    border: 'border-l-rose-500',
+  },
+  exam: {
+    badge: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+    dot: 'bg-indigo-600 ring-2 ring-indigo-200',
+    icon: '📝',
+    label: 'วันสอบ',
+    border: 'border-l-indigo-600',
+  },
+  activity: {
+    badge: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    dot: 'bg-emerald-500 ring-2 ring-emerald-200',
+    icon: '🎪',
+    label: 'กิจกรรม',
+    border: 'border-l-emerald-500',
+  },
+  makeup: {
+    badge: 'bg-amber-100 text-amber-950 border-amber-300',
+    dot: 'bg-amber-500 ring-2 ring-amber-200',
+    icon: '⏰',
+    label: 'เรียนชดเชย',
+    border: 'border-l-amber-500',
+  },
+  custom: {
+    badge: 'bg-sky-100 text-sky-900 border-sky-300',
+    dot: 'bg-sky-500 ring-2 ring-sky-200',
+    icon: '📌',
+    label: 'กำหนดเอง',
+    border: 'border-l-sky-500',
+  },
+};
 
 interface BirthdayStudent {
   birthDate: string;
@@ -789,53 +837,122 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [demoMode, selectedClassroomId, session.workspace]);
 
-  // Load Upcoming School Calendar Events
+  // Load Upcoming School Calendar Events (DB + Local Storage + Thai Holidays Preset + Realtime Sync)
   useEffect(() => {
     let isMounted = true;
 
     async function loadUpcomingEvents() {
-      if (!supabase || !session.workspace || demoMode) {
-        // Demo mode: create sample events
-        const today = new Date();
-        const fmt = (d: Date) => d.toISOString().slice(0, 10);
-        setUpcomingEvents([
-          { id: 'demo-ev-1', date: fmt(new Date(today.getTime() + 3 * 86_400_000)), title: 'สอบกลางภาค', type: 'exam' },
-          { id: 'demo-ev-2', date: fmt(new Date(today.getTime() + 7 * 86_400_000)), title: 'กิจกรรมหน้าเสาธง', type: 'activity' },
-          { id: 'demo-ev-3', date: fmt(new Date(today.getTime() + 12 * 86_400_000)), title: 'วันหยุดชดเชย', type: 'holiday' },
-        ]);
-        return;
-      }
+      const todayStr = getBangkokDate();
+      const todayObj = new Date();
+      const targetYear = todayObj.getFullYear();
+      const futureDate = new Date(Date.now() + 60 * 86_400_000);
+      const futureStr = getBangkokDate(futureDate);
 
-      const today = getBangkokDate();
-      const future = getBangkokDate(new Date(Date.now() + 30 * 86_400_000));
-      const { data } = await supabase
-        .from('school_calendar_days')
-        .select('id, calendar_date, title, day_type')
-        .eq('workspace_id', session.workspace.id)
-        .gte('calendar_date', today)
-        .lte('calendar_date', future)
-        .neq('day_type', 'school_day')
-        .order('calendar_date', { ascending: true })
-        .limit(5);
-
-      if (!isMounted) return;
       const toEventType = (t: string): UpcomingEventType => {
         if (t === 'holiday' || t === 'exam' || t === 'activity' || t === 'makeup') return t;
         return 'custom';
       };
-      setUpcomingEvents(
-        (data || []).map((row) => ({
-          id: String(row.id),
-          date: String(row.calendar_date).slice(0, 10),
-          title: String(row.title),
-          type: toEventType(String(row.day_type || 'custom')),
-        }))
-      );
+
+      const collected: UpcomingEvent[] = [];
+      const seen = new Set<string>();
+
+      // 1. Load from Supabase if connected
+      if (supabase && session.workspace && !demoMode) {
+        try {
+          const { data, error } = await supabase
+            .from('school_calendar_days')
+            .select('id, calendar_date, title, day_type')
+            .eq('workspace_id', session.workspace.id)
+            .gte('calendar_date', todayStr)
+            .lte('calendar_date', futureStr)
+            .neq('day_type', 'school_day')
+            .order('calendar_date', { ascending: true })
+            .limit(10);
+
+          if (!error && data) {
+            data.forEach((row) => {
+              const d = String(row.calendar_date).slice(0, 10);
+              const key = `${d}|${row.title}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                collected.push({
+                  id: String(row.id),
+                  date: d,
+                  title: String(row.title),
+                  type: toEventType(String(row.day_type || 'custom')),
+                });
+              }
+            });
+          }
+        } catch {
+          // ignore error and proceed to local storage
+        }
+      }
+
+      // 2. Load from Local Storage Data Safety backup
+      try {
+        const storageKey = `classcare:data-safety:${session.workspace?.id || session.profile?.id}`;
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const state = JSON.parse(raw) as { calendarRules?: Array<{ id: string; date: string; title: string; type: string }> };
+          (state.calendarRules || []).forEach((item) => {
+            if (item.date >= todayStr && item.date <= futureStr) {
+              const key = `${item.date}|${item.title}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                collected.push({
+                  id: item.id || `local-${item.date}`,
+                  date: item.date,
+                  title: item.title,
+                  type: toEventType(item.type),
+                });
+              }
+            }
+          });
+        }
+      } catch {
+        // ignore
+      }
+
+      // 3. Supplement with Official Thai Public Holidays so teacher always has schedule context
+      if (collected.length < 5) {
+        const presets = getThaiPublicHolidays(targetYear);
+        presets.forEach((p, idx) => {
+          if (p.date >= todayStr && p.date <= futureStr) {
+            const key = `${p.date}|${p.title}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              collected.push({
+                id: `preset-${p.date}-${idx}`,
+                date: p.date,
+                title: p.title,
+                type: toEventType(p.type),
+              });
+            }
+          }
+        });
+      }
+
+      // Sort ascending by date
+      collected.sort((a, b) => a.date.localeCompare(b.date));
+
+      if (isMounted) {
+        setUpcomingEvents(collected.slice(0, 8));
+      }
     }
 
     void loadUpcomingEvents();
-    return () => { isMounted = false; };
-  }, [demoMode, session.workspace]);
+
+    const handleCalendarUpdate = () => {
+      void loadUpcomingEvents();
+    };
+    window.addEventListener('classcare-calendar-updated', handleCalendarUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('classcare-calendar-updated', handleCalendarUpdate);
+    };
+  }, [demoMode, session.profile?.id, session.workspace]);
 
   // Load Student Birthdays This Week (for selected classroom)
   useEffect(() => {
@@ -1157,6 +1274,120 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </div>
       </div>
 
+      {/* 🔔 HOMEPAGE CALENDAR NOTIFICATION & REMINDER BANNER (Always visible in both modes!) */}
+      {(() => {
+        const todayStr = getBangkokDate();
+        const todayEvents = upcomingEvents.filter((ev) => ev.date === todayStr);
+        const upcomingSlice = upcomingEvents.filter((ev) => ev.date > todayStr).slice(0, 3);
+
+        if (todayEvents.length > 0) {
+          const primaryEvent = todayEvents[0];
+          const conf = eventTypeConfig[primaryEvent.type] || eventTypeConfig.custom;
+          return (
+            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="mt-5 overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 p-4 sm:p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3 min-w-0">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 text-xl animate-pulse">
+                    🔔
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-amber-500 text-white px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider shadow-2xs">
+                        แจ้งเตือนวันนี้
+                      </span>
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[10.5px] font-black ${conf.badge}`}>
+                        {conf.icon} {conf.label}
+                      </span>
+                    </div>
+                    <h3 className="mt-1 text-base sm:text-lg font-black text-slate-950 truncate">
+                      {todayEvents.map((e) => e.title).join(' · ')}
+                    </h3>
+                    <p className="mt-0.5 text-xs font-bold text-slate-600">
+                      {todayEvents.length > 1
+                        ? `มีทั้งหมด ${todayEvents.length} รายการวันนี้`
+                        : primaryEvent.type === 'holiday'
+                        ? 'วันหยุดสถานศึกษา ระบบตั้งค่าข้ามการนับเวลาเรียนให้อัตโนมัติ'
+                        : primaryEvent.type === 'exam'
+                        ? 'มีกำหนดการสอบ โปรดตรวจสอบการบันทึกเวลาเรียนและเอกสารวัดผล'
+                        : 'กิจกรรมของโรงเรียนในวันนี้'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <Link
+                    to="/app/dashboard?view=school-calendar"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-4 text-xs font-black text-white hover:bg-slate-800 transition shadow-xs active:scale-95"
+                  >
+                    <span>เปิดปฏิทินโรงเรียน</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            </section>
+          );
+        }
+
+        if (upcomingSlice.length > 0) {
+          return (
+            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="mt-5 rounded-3xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl bg-rose-50 text-rose-600 text-base shadow-2xs">
+                    <CalendarDays size={19} />
+                  </span>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">แจ้งเตือนกำหนดการ</span>
+                    <h4 className="text-sm font-black text-slate-900 leading-tight">กิจกรรม & วันสำคัญเร็วๆ นี้</h4>
+                  </div>
+                </div>
+
+                {/* Event Pills */}
+                <div className="flex flex-wrap items-center gap-2 flex-1">
+                  {upcomingSlice.map((ev) => {
+                    const conf = eventTypeConfig[ev.type] || eventTypeConfig.custom;
+                    const evDate = new Date(`${ev.date}T00:00:00`);
+                    const daysFromNow = Math.round((evDate.getTime() - Date.now()) / 86_400_000);
+                    const countdown = daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`;
+                    const dateFormatted = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(evDate);
+
+                    return (
+                      <div
+                        key={ev.id}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-1.5 transition hover:bg-slate-100 hover:border-slate-300"
+                      >
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                          daysFromNow <= 1 ? 'bg-rose-500 text-white' : daysFromNow <= 3 ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {countdown}
+                        </span>
+                        <span className="text-xs font-black text-slate-800 truncate max-w-[150px] sm:max-w-[200px]" title={ev.title}>
+                          <span className="mr-1">{conf.icon}</span>
+                          {ev.title}
+                        </span>
+                        <span className="text-[10.5px] font-bold text-slate-400">
+                          ({dateFormatted})
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <Link
+                  to="/app/dashboard?view=school-calendar"
+                  className="inline-flex items-center gap-1 text-xs font-black text-cyan-700 hover:text-cyan-900 hover:underline shrink-0 self-end lg:self-center"
+                >
+                  <span>ดูปฏิทินทั้งหมด</span>
+                  <ArrowRight size={13} />
+                </Link>
+              </div>
+            </section>
+          );
+        }
+
+        return null;
+      })()}
+
       {/* 🚀 MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
       <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-3xl border border-slate-200/90 bg-white p-2 sm:p-2.5 shadow-xs">
         <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl w-full sm:w-auto">
@@ -1410,34 +1641,27 @@ export function DashboardPage({ session }: DashboardPageProps) {
           {upcomingEvents.length > 0 ? (
             <ul className="mt-4 divide-y divide-slate-100">
               {upcomingEvents.map((ev) => {
-                const typeStyle: Record<UpcomingEventType, { badge: string; dot: string }> = {
-                  holiday: { badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
-                  exam: { badge: 'bg-sky-100 text-sky-700', dot: 'bg-sky-500' },
-                  activity: { badge: 'bg-amber-100 text-amber-800', dot: 'bg-amber-400' },
-                  makeup: { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-                  custom: { badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
-                };
-                const typeLabel: Record<UpcomingEventType, string> = {
-                  holiday: 'หยุด', exam: 'สอบ', activity: 'กิจกรรม', makeup: 'ชดเชย', custom: 'อื่นๆ',
-                };
-                const style = typeStyle[ev.type];
+                const conf = eventTypeConfig[ev.type] || eventTypeConfig.custom;
                 const evDate = new Date(`${ev.date}T00:00:00`);
                 const daysFromNow = Math.round((evDate.getTime() - Date.now()) / 86_400_000);
                 const daysLabel = daysFromNow === 0 ? 'วันนี้!' : daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`;
                 return (
                   <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={ev.id}>
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${conf.dot}`} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-black text-slate-900 text-sm">{ev.title}</span>
+                      <span className="block truncate font-black text-slate-900 text-sm">
+                        <span className="mr-1">{conf.icon}</span>
+                        {ev.title}
+                      </span>
                       <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
                         {new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(evDate)}
                       </span>
                     </span>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-black ${style.badge}`}>
-                      {typeLabel[ev.type]}
+                    <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-black ${conf.badge}`}>
+                      {conf.label}
                     </span>
                     <span className={`shrink-0 text-[11px] font-black ${
-                      daysFromNow === 0 ? 'text-rose-600' : daysFromNow <= 3 ? 'text-amber-700' : 'text-slate-400'
+                      daysFromNow === 0 ? 'text-rose-600 font-black' : daysFromNow <= 3 ? 'text-amber-700 font-black' : 'text-slate-400'
                     }`}>
                       {daysLabel}
                     </span>
