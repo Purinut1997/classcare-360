@@ -71,6 +71,9 @@ type RosterReviewClassification =
   | 'graduated'
   | 'inactive';
 
+type StudentImportMode = 'merge' | 'overwrite';
+type OverwriteScope = 'target_rooms' | 'all_workspace';
+
 interface StudentRosterReviewRow {
   classification: RosterReviewClassification;
   id: string;
@@ -268,10 +271,16 @@ function normalizeGender(value: unknown): PreviewRow['gender'] {
 
 function normalizeDmcBirthDate(value: unknown) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    const y = value.getFullYear();
+    const m = (value.getMonth() + 1).toString().padStart(2, '0');
+    const d = value.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   const text = normalizeCell(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
   const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (!match) return null;
 
@@ -467,63 +476,107 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
   }
 
   const headers = rows[headerIndex].map(normalizeHeader);
+
+  // 1. Collect all candidate indices for citizen ID and student code
+  const codeCandidateIndices: number[] = [];
+  headers.forEach((h, idx) => {
+    if (
+      h === 'เลขประจำตัวนักเรียน' ||
+      h === 'เลขประจำตัว' ||
+      h === 'รหัสนักเรียน' ||
+      h === 'student_code' ||
+      h === 'student_id' ||
+      h === 'เลขประจำตัวประชาชน' ||
+      h === 'เลขประชาชน' ||
+      h === 'เลขบัตรประชาชน' ||
+      h === 'citizen_id' ||
+      h === 'id_card' ||
+      ((h.includes('เลขประจำตัว') || h.includes('รหัส')) && !h.includes('โรงเรียน') && !h.includes('ไปรษณีย์'))
+    ) {
+      codeCandidateIndices.push(idx);
+    }
+  });
+
+  // Explicit citizen ID header?
   let idCardIndex = headers.findIndex((h) =>
     h === 'เลขประจำตัวประชาชน' || h === 'เลขประชาชน' || h === 'เลขบัตรประชาชน' || h === 'citizen_id' || h === 'id_card'
   );
-  let studentCodeIndex = headers.findIndex((h) =>
-    h === 'เลขประจำตัวนักเรียน' || h === 'เลขประจำตัว' || h === 'รหัสนักเรียน' || h === 'student_code' || h === 'student_id' || h === 'รหัส'
-  );
-  const rollNoIndex = headers.findIndex((h) => h === 'เลขที่' || h === 'ลำดับที่' || h === 'ที่');
+  let studentCodeIndex = -1;
 
-  if (studentCodeIndex < 0 && idCardIndex < 0) {
-    const studentNumberIndexes = headers
-      .map((header, index) => (header.includes('เลขประจำตัว') || header.includes('รหัส') ? index : -1))
-      .filter((index) => index >= 0);
-    if (studentNumberIndexes.length > 1) {
-      idCardIndex = studentNumberIndexes[0];
-      studentCodeIndex = studentNumberIndexes[1];
-    } else if (studentNumberIndexes.length === 1) {
-      studentCodeIndex = studentNumberIndexes[0];
+  // Inspect sample data rows (up to 25 rows) to disambiguate 13-digit citizen id vs shorter student code
+  const sampleRows = rows.slice(headerIndex + 1, headerIndex + 25);
+  for (const candidateIdx of codeCandidateIndices) {
+    if (candidateIdx === idCardIndex) continue;
+    let thirteenDigitCount = 0;
+    let shortCodeCount = 0;
+    let totalSampleCount = 0;
+
+    for (const sRow of sampleRows) {
+      const val = normalizeCell(sRow[candidateIdx]).replace(/\D/g, '');
+      if (val) {
+        totalSampleCount += 1;
+        if (val.length === 13) thirteenDigitCount += 1;
+        else if (val.length > 0 && val.length <= 10) shortCodeCount += 1;
+      }
+    }
+
+    if (totalSampleCount > 0) {
+      if (thirteenDigitCount > totalSampleCount / 2) {
+        if (idCardIndex < 0) idCardIndex = candidateIdx;
+      } else if (shortCodeCount > 0) {
+        if (studentCodeIndex < 0) studentCodeIndex = candidateIdx;
+      }
     }
   }
 
-  const schoolCodeIndex = getColumnIndex(headers, 'รหัสโรงเรียน');
-  const schoolNameIndex = getColumnIndex(headers, 'ชื่อโรงเรียน');
+  // Fallbacks if not set
+  if (studentCodeIndex < 0) {
+    const remaining = codeCandidateIndices.filter((idx) => idx !== idCardIndex);
+    if (remaining.length > 0) {
+      studentCodeIndex = remaining[0];
+    } else if (idCardIndex >= 0) {
+      studentCodeIndex = idCardIndex;
+    }
+  }
+
+  const rollNoIndex = headers.findIndex((h) => h === 'เลขที่' || h === 'ลำดับที่' || h === 'ที่');
+  const schoolCodeIndex = getColumnIndex(headers, 'รหัสโรงเรียน', 0);
+  const schoolNameIndex = getColumnIndex(headers, 'ชื่อโรงเรียน', 1);
   const gradeIndex = getColumnIndex(headers, 'ชั้น', 3);
   const roomIndex = getColumnIndex(headers, 'ห้อง', 4);
-  const genderIndex = getColumnIndex(headers, 'เพศ');
-  const prefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อ');
+  const genderIndex = getColumnIndex(headers, 'เพศ', 6);
+  const prefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อ', 7);
   const firstNameIndex = getColumnIndex(headers, 'ชื่อ', 8);
   const lastNameIndex = getColumnIndex(headers, 'นามสกุล', 9);
-  const birthDateIndex = getColumnIndex(headers, 'วันเกิด');
-  const ageIndex = getColumnIndex(headers, 'อายุ(ปี)');
-  const weightIndex = getColumnIndex(headers, 'น้ำหนัก');
-  const heightIndex = getColumnIndex(headers, 'ส่วนสูง');
-  const bloodTypeIndex = getColumnIndex(headers, 'กลุ่มเลือด');
-  const religionIndex = getColumnIndex(headers, 'ศาสนา');
-  const ethnicityIndex = getColumnIndex(headers, 'เชื้อชาติ');
-  const nationalityIndex = getColumnIndex(headers, 'สัญชาติ');
-  const houseNoIndex = getColumnIndex(headers, 'บ้านเลขที่');
-  const villageNoIndex = getColumnIndex(headers, 'หมู่');
-  const roadIndex = getColumnIndex(headers, 'ถนน/ซอย');
-  const subdistrictIndex = getColumnIndex(headers, 'ตำบล');
-  const districtIndex = getColumnIndex(headers, 'อำเภอ');
-  const provinceIndex = getColumnIndex(headers, 'จังหวัด');
-  const guardianPrefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อผู้ปกครอง');
-  const guardianFirstNameIndex = getColumnIndex(headers, 'ชื่อผู้ปกครอง');
-  const guardianLastNameIndex = getColumnIndex(headers, 'นามสกุลผู้ปกครอง');
-  const guardianJobIndex = getColumnIndex(headers, 'อาชีพของผู้ปกครอง');
-  const guardianRelationIndex = getColumnIndex(headers, 'ความเกี่ยวข้องของผู้ปกครองกับนักเรียน');
-  const fatherPrefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อบิดา');
-  const fatherFirstNameIndex = getColumnIndex(headers, 'ชื่อบิดา');
-  const fatherLastNameIndex = getColumnIndex(headers, 'นามสกุลบิดา');
-  const fatherJobIndex = getColumnIndex(headers, 'อาชีพของบิดา');
-  const motherPrefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อมารดา');
-  const motherFirstNameIndex = getColumnIndex(headers, 'ชื่อมารดา');
-  const motherLastNameIndex = getColumnIndex(headers, 'นามสกุลมารดา');
-  const motherJobIndex = getColumnIndex(headers, 'อาชีพของมารดา');
-  const disadvantageIndex = getColumnIndex(headers, 'ความด้อยโอกาส');
-  const cannotDisposeIndex = getColumnIndex(headers, 'ยังไม่สามารถจำหน่ายได้(3.1.8)');
+  const birthDateIndex = getColumnIndex(headers, 'วันเกิด', 10);
+  const ageIndex = getColumnIndex(headers, 'อายุ(ปี)', 11);
+  const weightIndex = getColumnIndex(headers, 'น้ำหนัก', 12);
+  const heightIndex = getColumnIndex(headers, 'ส่วนสูง', 13);
+  const bloodTypeIndex = getColumnIndex(headers, 'กลุ่มเลือด', 14);
+  const religionIndex = getColumnIndex(headers, 'ศาสนา', 15);
+  const ethnicityIndex = getColumnIndex(headers, 'เชื้อชาติ', 16);
+  const nationalityIndex = getColumnIndex(headers, 'สัญชาติ', 17);
+  const houseNoIndex = getColumnIndex(headers, 'บ้านเลขที่', 18);
+  const villageNoIndex = getColumnIndex(headers, 'หมู่', 19);
+  const roadIndex = getColumnIndex(headers, 'ถนน/ซอย', 20);
+  const subdistrictIndex = getColumnIndex(headers, 'ตำบล', 21);
+  const districtIndex = getColumnIndex(headers, 'อำเภอ', 22);
+  const provinceIndex = getColumnIndex(headers, 'จังหวัด', 23);
+  const guardianPrefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อผู้ปกครอง', 24);
+  const guardianFirstNameIndex = getColumnIndex(headers, 'ชื่อผู้ปกครอง', 25);
+  const guardianLastNameIndex = getColumnIndex(headers, 'นามสกุลผู้ปกครอง', 26);
+  const guardianJobIndex = getColumnIndex(headers, 'อาชีพของผู้ปกครอง', 27);
+  const guardianRelationIndex = getColumnIndex(headers, 'ความเกี่ยวข้องของผู้ปกครองกับนักเรียน', 28);
+  const fatherPrefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อบิดา', 29);
+  const fatherFirstNameIndex = getColumnIndex(headers, 'ชื่อบิดา', 30);
+  const fatherLastNameIndex = getColumnIndex(headers, 'นามสกุลบิดา', 31);
+  const fatherJobIndex = getColumnIndex(headers, 'อาชีพของบิดา', 32);
+  const motherPrefixIndex = getColumnIndex(headers, 'คำนำหน้าชื่อมารดา', 33);
+  const motherFirstNameIndex = getColumnIndex(headers, 'ชื่อมารดา', 34);
+  const motherLastNameIndex = getColumnIndex(headers, 'นามสกุลมารดา', 35);
+  const motherJobIndex = getColumnIndex(headers, 'อาชีพของมารดา', 36);
+  const disadvantageIndex = getColumnIndex(headers, 'ความด้อยโอกาส', 37);
+  const cannotDisposeIndex = headers.findIndex((h) => h.includes('ยังไม่สามารถจำหน่ายได้'));
 
   const seenCodes = new Set<string>();
   const previewRows = rows.slice(headerIndex + 1).flatMap((row, index) => {
@@ -533,8 +586,10 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
     const lastName = normalizeCell(row[lastNameIndex]);
     const rawCode = studentCodeIndex >= 0 ? normalizeCell(row[studentCodeIndex]) : '';
     const rawIdCard = idCardIndex >= 0 ? normalizeCell(row[idCardIndex]) : '';
+    const cleanRawCode = rawCode.endsWith('.0') ? rawCode.slice(0, -2) : rawCode;
+    const cleanRawIdCard = rawIdCard.endsWith('.0') ? rawIdCard.slice(0, -2) : rawIdCard;
     const rollNo = rollNoIndex >= 0 ? normalizeCell(row[rollNoIndex]) : '';
-    const studentCode = rawCode || rawIdCard || (rollNo ? `${grade || 'ห้อง'}-${rollNo}` : '');
+    const studentCode = cleanRawCode || cleanRawIdCard || (rollNo ? `${grade || 'ห้อง'}-${rollNo}` : '');
     const prefix = normalizeCell(row[prefixIndex]);
     const birthDate = normalizeDmcBirthDate(row[birthDateIndex]);
     const classroomName = [grade, room].filter(Boolean).join('/') || grade || room;
@@ -565,14 +620,30 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
       occupation: nullableText(row[motherJobIndex]),
       prefix: nullableText(row[motherPrefixIndex]),
     };
+    const rawWeight = nullableText(row[weightIndex]);
+    const rawHeight = nullableText(row[heightIndex]);
+    const numWeight = rawWeight ? Number(rawWeight) : null;
+    const numHeight = rawHeight ? Number(rawHeight) : null;
+    let bmiStr: string | null = null;
+    if (
+      numWeight !== null &&
+      numHeight !== null &&
+      !Number.isNaN(numWeight) &&
+      !Number.isNaN(numHeight) &&
+      numHeight > 0
+    ) {
+      const calculatedBmi = Math.round((numWeight / Math.pow(numHeight / 100, 2)) * 100) / 100;
+      bmiStr = String(calculatedBmi);
+    }
     const healthFlags = {
       blood_type: nullableText(row[bloodTypeIndex]),
-      height_cm: nullableText(row[heightIndex]),
+      bmi: bmiStr,
+      height_cm: rawHeight,
       source: 'DMC',
-      weight_kg: nullableText(row[weightIndex]),
+      weight_kg: rawWeight,
     };
     const careFlags = {
-      cannot_dispose_status: nullableText(row[cannotDisposeIndex]),
+      cannot_dispose_status: cannotDisposeIndex >= 0 ? nullableText(row[cannotDisposeIndex]) : null,
       disadvantage: nullableText(row[disadvantageIndex]),
       source: 'DMC',
     };
@@ -601,6 +672,7 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
       healthFlags,
       lastName,
       metadata: {
+        citizen_id: cleanRawIdCard || null,
         dmc_address: address,
         dmc_age_years: nullableText(row[ageIndex]),
         dmc_birth_date_raw: normalizeCell(row[birthDateIndex]) || null,
@@ -608,7 +680,7 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
         dmc_father: father,
         dmc_grade: grade || null,
         dmc_guardian: guardian,
-        dmc_id_card: idCardIndex >= 0 ? normalizeCell(row[idCardIndex]) || null : null,
+        dmc_id_card: cleanRawIdCard || null,
         dmc_import_source: 'DMC',
         dmc_mother: mother,
         dmc_nationality: nullableText(row[nationalityIndex]),
@@ -617,6 +689,8 @@ function parseDmcWorkbookRows(rows: unknown[][], existingCodes: Set<string>) {
         dmc_room: room || null,
         dmc_school_code: normalizeCell(row[schoolCodeIndex]) || null,
         dmc_school_name: normalizeCell(row[schoolNameIndex]) || null,
+        prefix: prefix || null,
+        roll_no: rollNo || undefined,
       },
       nickname: '',
       populatedFieldCount: row.slice(0, headers.length).filter((value) => Boolean(normalizeCell(value))).length,
@@ -873,7 +947,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const validGuardianRows = guardianPreviewRows.filter((row) => row.errors.length === 0);
   const invalidGuardianRows = guardianPreviewRows.filter((row) => row.errors.length > 0);
 
-  const [replaceTargetClassroomRoster, setReplaceTargetClassroomRoster] = useState(false);
+  const [importMode, setImportMode] = useState<StudentImportMode>('merge');
+  const [overwriteScope, setOverwriteScope] = useState<OverwriteScope>('target_rooms');
+  const [confirmOverwriteWorkspace, setConfirmOverwriteWorkspace] = useState(false);
 
   async function reloadData(showNotice = false) {
     if (!useRealBackend || !supabase || !session.workspace) {
@@ -1030,45 +1106,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     downloadText('classcare-students-export.csv', lines.join('\n'), 'text/csv;charset=utf-8');
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const fallbackClass = session.workspace?.classroomName || manualStudent.classroomName || 'ป.5/1';
-    try {
-      if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet') || file.type.includes('excel')) {
-        const rows = await readSheet(file);
-        const rowsArray = rows as unknown[][];
-        const dmcHeaderIdx = findHeaderIndex(rowsArray);
-        if (dmcHeaderIdx >= 0) {
-          const parsed = parseDmcWorkbookRows(rowsArray, existingCodes);
-          const firstClassKey = parsed.classOptions[0]?.key;
-          const initialKeys = firstClassKey ? [firstClassKey] : [];
-          setDmcRows(parsed.previewRows);
-          setDmcClassOptions(parsed.classOptions);
-          setSelectedDmcClassKeys(initialKeys);
-          setPreviewRows(
-            firstClassKey
-              ? parsed.previewRows.filter((row) => `${row.dmcGrade || ''}::${row.dmcRoom || ''}` === firstClassKey)
-              : parsed.previewRows,
-          );
-          setNotice(`อ่านไฟล์ Excel DMC "${file.name}" แล้ว พบ ${parsed.classOptions.length} ชั้น/ห้อง กรุณาเลือกชั้นที่ดูแลก่อน import`);
-        } else {
-          const generalRows = parseGeneralExcelRows(rowsArray, existingCodes, fallbackClass);
-          setPreviewRows(generalRows);
-          setNotice(`อ่านไฟล์ Excel "${file.name}" แล้ว พบ ${generalRows.length} รายชื่อ กรุณาตรวจ preview ก่อน import`);
-        }
-      } else {
-        const text = await file.text();
-        const csvRows = parseStudentCsv(text, existingCodes, fallbackClass);
-        setPreviewRows(csvRows);
-        setNotice(`อ่านไฟล์ CSV "${file.name}" แล้ว พบ ${csvRows.length} รายชื่อ กรุณาตรวจ preview ก่อน import`);
-      }
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
-    }
-  }
-
   function applyDmcClassSelection(classKeys: string[], rows = dmcRows) {
     setSelectedDmcClassKeys(classKeys);
     const selectedKeySet = new Set(classKeys);
@@ -1089,8 +1126,41 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
     const fallbackClass = session.workspace?.classroomName || manualStudent.classroomName || 'ป.5/1';
     try {
-      const rows = await readSheet(file);
-      const rowsArray = rows as unknown[][];
+      let rowsArray: unknown[][] = [];
+      const fileNameLower = file.name.toLowerCase();
+
+      if (fileNameLower.endsWith('.csv') || file.type === 'text/csv') {
+        const text = await file.text();
+        const cleanText = text.replace(/^\uFEFF/, '');
+        const lines = cleanText.split(/\r?\n/).filter((line) => line.trim().length > 0);
+        rowsArray = lines.map((line) => {
+          if (line.includes('\t')) return line.split('\t').map((c) => c.trim());
+          return parseCsvLine(line);
+        });
+      } else {
+        try {
+          const sheetRows = await readSheet(file);
+          rowsArray = sheetRows as unknown[][];
+        } catch (excelErr) {
+          try {
+            const text = await file.text();
+            const cleanText = text.replace(/^\uFEFF/, '');
+            const lines = cleanText.split(/\r?\n/).filter((line) => line.trim().length > 0);
+            rowsArray = lines.map((line) => {
+              if (line.includes('\t')) return line.split('\t').map((c) => c.trim());
+              return parseCsvLine(line);
+            });
+          } catch {
+            throw excelErr;
+          }
+        }
+      }
+
+      if (rowsArray.length === 0) {
+        setNotice('ไม่พบข้อมูลในไฟล์ที่เลือก');
+        return;
+      }
+
       const dmcHeaderIdx = findHeaderIndex(rowsArray);
       if (dmcHeaderIdx >= 0) {
         const parsed = parseDmcWorkbookRows(rowsArray, existingCodes);
@@ -1099,16 +1169,21 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         setDmcRows(parsed.previewRows);
         setDmcClassOptions(parsed.classOptions);
         setSelectedDmcClassKeys(initialKeys);
+        if (parsed.classOptions.length > 1) {
+          setTargetClassroomMode('from_file');
+        }
         setPreviewRows(
           firstClassKey
             ? parsed.previewRows.filter((row) => `${row.dmcGrade || ''}::${row.dmcRoom || ''}` === firstClassKey)
             : parsed.previewRows,
         );
-        setNotice(`อ่านไฟล์ DMC "${file.name}" แล้ว พบ ${parsed.classOptions.length} ชั้น/ห้อง กรุณาเลือกชั้นที่ดูแลก่อน import`);
+        setNotice(
+          `อ่านไฟล์ DMC "${file.name}" สำเร็จ: พบ ${parsed.classOptions.length} ชั้น/ห้อง รวม ${parsed.previewRows.length} รายชื่อ พร้อมข้อมูลสุขภาพและที่อยู่`
+        );
       } else {
         const generalRows = parseGeneralExcelRows(rowsArray, existingCodes, fallbackClass);
         setPreviewRows(generalRows);
-        setNotice(`อ่านไฟล์ Excel ทั่วไป "${file.name}" แล้ว พบ ${generalRows.length} รายชื่อ (แปลงเข้าสู่ระบบเรียบร้อย)`);
+        setNotice(`อ่านไฟล์ทั่วไป "${file.name}" แล้ว พบ ${generalRows.length} รายชื่อ (แปลงเข้าสู่ระบบเรียบร้อย)`);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
@@ -1444,6 +1519,20 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return;
     }
 
+    if (importMode === 'overwrite') {
+      if (overwriteScope === 'all_workspace' && !confirmOverwriteWorkspace) {
+        setNotice('กรุณาทำเครื่องหมายยืนยันความยินยอมเพื่อล้างข้อมูลนักเรียนทั้งโรงเรียน');
+        return;
+      }
+      const confirmMsg = overwriteScope === 'all_workspace'
+        ? `⚠️ ยืนยันล้างข้อมูลนักเรียนทั้งโรงเรียน (${students.length} คน) และนำเข้ารายชื่อใหม่ ${validPreviewRows.length} คน หรือไม่?\n\nข้อมูลนักเรียนเดิมและประวัติที่ผูกอยู่จะถูกลบออกจากฐานข้อมูลอย่างสมบูรณ์`
+        : `⚠️ ยืนยันลบข้อมูลนักเรียนเดิมในห้องเป้าหมายและนำเข้ารายชื่อใหม่ ${validPreviewRows.length} คน หรือไม่?`;
+      if (!window.confirm(confirmMsg)) return;
+
+      void executeImport('update_name');
+      return;
+    }
+
     // Check for students with matching code but changed names
     const mismatches: Array<{
       studentCode: string;
@@ -1499,8 +1588,26 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     const existingClassroomNames = new Set(classrooms.filter((classroom) => classroom.status === 'active').map((classroom) => classroom.name));
     const newActiveClassrooms = [...requestedClassroomNames].filter((name) => !existingClassroomNames.has(name)).length;
 
-    if (activeStudentCount + newActiveStudents > workspaceLimits.activeStudents) {
-      setNotice(`นำเข้าไม่ได้: จะมีนักเรียน active ${activeStudentCount + newActiveStudents} คน แต่แพ็กเกจ ${planLabels[effectivePlanCode]} รองรับ ${workspaceLimits.activeStudents} คน (กรุณาเก็บถาวรหรือลบนักเรียนที่ไม่ใช้งานออกก่อน)`);
+    let projectedActiveStudents = activeStudentCount + newActiveStudents;
+    if (importMode === 'overwrite') {
+      if (overwriteScope === 'all_workspace') {
+        projectedActiveStudents = validPreviewRows.length;
+      } else {
+        const targetRoomNames = targetClassroomMode === 'current_workspace'
+          ? new Set([targetClassroomName!])
+          : new Set(validPreviewRows.map((r) => r.classroomName.trim()).filter(Boolean));
+        const targetClassroomIds = new Set(
+          classrooms.filter((c) => targetRoomNames.has(c.name)).map((c) => c.id),
+        );
+        const keptStudents = students.filter(
+          (s) => s.status === 'active' && (!s.classroom_id || !targetClassroomIds.has(s.classroom_id)),
+        );
+        projectedActiveStudents = keptStudents.length + validPreviewRows.length;
+      }
+    }
+
+    if (projectedActiveStudents > workspaceLimits.activeStudents) {
+      setNotice(`นำเข้าไม่ได้: จะมีนักเรียน active ${projectedActiveStudents} คน แต่แพ็กเกจ ${planLabels[effectivePlanCode]} รองรับ ${workspaceLimits.activeStudents} คน (กรุณาเก็บถาวรหรือลบนักเรียนที่ไม่ใช้งานออกก่อน)`);
       setIsSubmitting(false);
       return;
     }
@@ -1517,21 +1624,26 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         runtimeClassroomsMap.set(c.name.trim(), c.id);
       }
 
-      // Handle replaceTargetClassroomRoster if selected
-      if (replaceTargetClassroomRoster && session.workspace) {
-        const targetRoomNames = targetClassroomMode === 'current_workspace'
-          ? new Set([targetClassroomName!])
-          : new Set(validPreviewRows.map((r) => r.classroomName.trim()).filter(Boolean));
+      // Handle purge if in overwrite mode
+      if (importMode === 'overwrite' && session.workspace) {
+        let studentsToPurge: StudentExportRow[] = [];
+        if (overwriteScope === 'all_workspace') {
+          studentsToPurge = students;
+        } else {
+          const targetRoomNames = targetClassroomMode === 'current_workspace'
+            ? new Set([targetClassroomName!])
+            : new Set(validPreviewRows.map((r) => r.classroomName.trim()).filter(Boolean));
 
-        const targetClassroomIds = new Set(
-          classrooms
-            .filter((c) => targetRoomNames.has(c.name))
-            .map((c) => c.id),
-        );
+          const targetClassroomIds = new Set(
+            classrooms
+              .filter((c) => targetRoomNames.has(c.name))
+              .map((c) => c.id),
+          );
 
-        const studentsToPurge = students.filter(
-          (s) => s.classroom_id && targetClassroomIds.has(s.classroom_id),
-        );
+          studentsToPurge = students.filter(
+            (s) => s.classroom_id && targetClassroomIds.has(s.classroom_id),
+          );
+        }
 
         if (studentsToPurge.length > 0) {
           await purgeStudentsPermanently({
@@ -1577,6 +1689,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           metadata: {
             ...(existingStudent?.metadata || {}),
             ...(row.metadata || {}),
+            citizen_id: row.metadata?.citizen_id || existingStudent?.metadata?.citizen_id || undefined,
+            dmc_id_card: row.metadata?.dmc_id_card || existingStudent?.metadata?.dmc_id_card || undefined,
+            prefix: row.metadata?.prefix || existingStudent?.metadata?.prefix || undefined,
             import_source: row.source || 'student_csv',
             last_imported_at: new Date().toISOString(),
             reactivated_from_archive: existingStudent?.status === 'archived' ? true : undefined,
@@ -1589,18 +1704,36 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       }
 
       if (!useRealBackend || !supabase || !session.workspace) {
-        setStudents((current) => [
-          ...rowsToInsert.map((row, index) => ({
-            classroom_id: row.classroom_id,
-            first_name: row.first_name,
-            id: `demo-imported-student-${Date.now()}-${index}`,
-            last_name: row.last_name,
-            nickname: row.nickname,
-            status: 'active' as const,
-            student_code: row.student_code,
-          })),
-          ...current,
-        ]);
+        setStudents((current) => {
+          let remainingStudents = current;
+          if (importMode === 'overwrite') {
+            if (overwriteScope === 'all_workspace') {
+              remainingStudents = [];
+            } else {
+              const targetRoomNames = targetClassroomMode === 'current_workspace'
+                ? new Set([targetClassroomName!])
+                : new Set(validPreviewRows.map((r) => r.classroomName.trim()).filter(Boolean));
+              const targetClassroomIds = new Set(
+                classrooms.filter((c) => targetRoomNames.has(c.name)).map((c) => c.id),
+              );
+              remainingStudents = current.filter(
+                (s) => !s.classroom_id || !targetClassroomIds.has(s.classroom_id),
+              );
+            }
+          }
+          return [
+            ...rowsToInsert.map((row, index) => ({
+              classroom_id: row.classroom_id,
+              first_name: row.first_name,
+              id: `demo-imported-student-${Date.now()}-${index}`,
+              last_name: row.last_name,
+              nickname: row.nickname,
+              status: 'active' as const,
+              student_code: row.student_code,
+            })),
+            ...remainingStudents,
+          ];
+        });
         setPreviewRows([]);
         setNotice('import นักเรียนในโหมดตัวอย่างสำเร็จ');
         setIsSubmitting(false);
@@ -1705,6 +1838,67 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             if (error) throw error;
           }
         }
+
+        // Auto-upsert initial growth measurements (weight, height, BMI) into student_health_records
+        const todayDateStr = new Date().toISOString().slice(0, 10);
+        const growthRecordsToUpsert: Array<{
+          classroom_id: string;
+          height_cm: number;
+          note: string;
+          record_date: string;
+          record_type: 'growth';
+          recorded_by: string;
+          status: 'recorded';
+          student_id: string;
+          weight_kg: number;
+          workspace_id: string;
+        }> = [];
+
+        for (const row of validPreviewRows) {
+          const student = row.studentCode ? importedByCode.get(row.studentCode) : null;
+          if (!student) continue;
+
+          const weight = row.healthFlags?.weight_kg ? Number(row.healthFlags.weight_kg) : null;
+          const height = row.healthFlags?.height_cm ? Number(row.healthFlags.height_cm) : null;
+
+          if (
+            weight !== null &&
+            height !== null &&
+            !Number.isNaN(weight) &&
+            !Number.isNaN(height) &&
+            weight >= 1 &&
+            weight <= 300 &&
+            height >= 30 &&
+            height <= 250
+          ) {
+            growthRecordsToUpsert.push({
+              classroom_id: student.classroom_id || runtimeClassroomsMap.get(row.classroomName.trim()) || '',
+              height_cm: height,
+              note: 'บันทึกน้ำหนัก-ส่วนสูงตั้งต้นจากระบบ DMC',
+              record_date: todayDateStr,
+              record_type: 'growth',
+              recorded_by: session.profile.id,
+              status: 'recorded',
+              student_id: student.id,
+              weight_kg: weight,
+              workspace_id: workspaceId,
+            });
+          }
+        }
+
+        if (growthRecordsToUpsert.length > 0) {
+          try {
+            const { error: healthError } = await supabase.from('student_health_records').upsert(
+              growthRecordsToUpsert,
+              { onConflict: 'workspace_id,student_id,record_date,record_type' }
+            );
+            if (healthError) {
+              console.warn('Auto growth record upsert warning:', healthError);
+            }
+          } catch (healthErr) {
+            console.warn('Auto growth record upsert catch:', healthErr);
+          }
+        }
       }
 
       try {
@@ -1734,12 +1928,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         entityTable: 'import_jobs',
         metadata: {
           dmc_class_keys: selectedDmcClassKeys,
+          growth_records_synced: rowsToInsert.filter((r) => r.health_flags?.weight_kg && r.health_flags?.height_cm).length,
+          import_mode: importMode,
           import_sources: Array.from(new Set(previewRows.map((row) => row.source || 'csv'))),
           invalid_rows: invalidPreviewRows.length,
+          overwrite_scope: importMode === 'overwrite' ? overwriteScope : undefined,
           total_rows: previewRows.length,
           valid_rows: validPreviewRows.length,
         },
-        riskLevel: invalidPreviewRows.length > 0 ? 'normal' : 'low',
+        riskLevel: invalidPreviewRows.length > 0 || importMode === 'overwrite' ? 'normal' : 'low',
         source: 'import_export',
       });
       setStudents((current) => {
@@ -1755,8 +1952,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const updatedCount = rowsWithCode.filter((row) => studentsByCode.has(row.student_code || '')).length;
       const insertedCount = rowsToInsert.length - updatedCount;
       const reactivatedMsg = reactivatedCount > 0 ? ` (ในนี้มี ${reactivatedCount} คนที่ฟื้นคืนชีพกลับมาจากหมวดเก็บถาวร)` : '';
+      const modeSummary = importMode === 'overwrite'
+        ? (overwriteScope === 'all_workspace' ? ' (โหมดล้างทั้งโรงเรียนแล้ววางทับใหม่)' : ' (โหมดล้างเฉพาะห้องเป้าหมายแล้ววางทับใหม่)')
+        : ' (โหมดผสานและอัปเดต)';
+      const healthGrowthCount = rowsToInsert.filter((r) => r.health_flags?.weight_kg && r.health_flags?.height_cm).length;
+      const healthSummary = healthGrowthCount > 0 ? ` พร้อมบันทึกข้อมูลสุขภาพ/BMI เริ่มต้น ${healthGrowthCount} คน` : '';
       void reloadData();
-      setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน${reactivatedMsg}`);
+      setNotice(`นำเข้าข้อมูลครบชุดสำเร็จ${modeSummary}: เพิ่มใหม่ ${insertedCount} คน อัปเดตข้อมูลเดิม ${updatedCount} คน${reactivatedMsg}${healthSummary}`);
     } catch (error) {
       setNotice(translateDatabaseError(error instanceof Error ? error.message : 'import ไม่สำเร็จ'));
     } finally {
@@ -2129,13 +2331,30 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   ผู้ปกครอง CSV
                 </button>
                 <button
-                  className="dark-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white"
-                  disabled={isSubmitting || validPreviewRows.length === 0}
+                  className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white transition-all ${
+                    importMode === 'overwrite'
+                      ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-600/30'
+                      : 'dark-action'
+                  }`}
+                  disabled={
+                    isSubmitting ||
+                    validPreviewRows.length === 0 ||
+                    (importMode === 'overwrite' && overwriteScope === 'all_workspace' && !confirmOverwriteWorkspace)
+                  }
                   onClick={requestImport}
                   type="button"
                 >
-                  <Save size={17} aria-hidden="true" />
-                  นำเข้า {validPreviewRows.length} แถว
+                  {importMode === 'overwrite' ? (
+                    <>
+                      <Trash2 size={17} aria-hidden="true" />
+                      ลบทับ & นำเข้า ({validPreviewRows.length})
+                    </>
+                  ) : (
+                    <>
+                      <Save size={17} aria-hidden="true" />
+                      นำเข้า {validPreviewRows.length} แถว
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -2526,13 +2745,30 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </h2>
               </div>
               <button
-                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={isSubmitting || validPreviewRows.length === 0}
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black transition-all ${
+                  importMode === 'overwrite'
+                    ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 hover:bg-rose-700 disabled:bg-slate-300'
+                    : 'blue-action disabled:bg-slate-300'
+                } disabled:cursor-not-allowed`}
+                disabled={
+                  isSubmitting ||
+                  validPreviewRows.length === 0 ||
+                  (importMode === 'overwrite' && overwriteScope === 'all_workspace' && !confirmOverwriteWorkspace)
+                }
                 onClick={requestImport}
                 type="button"
               >
-                <Upload size={17} aria-hidden="true" />
-                นำเข้ารายชื่อนักเรียน ({validPreviewRows.length} คน)
+                {importMode === 'overwrite' ? (
+                  <>
+                    <Trash2 size={17} aria-hidden="true" />
+                    ลบข้อมูลเดิมและนำเข้ารายชื่อใหม่ ({validPreviewRows.length} คน)
+                  </>
+                ) : (
+                  <>
+                    <Upload size={17} aria-hidden="true" />
+                    ผสานและอัปเดตรายชื่อนักเรียน ({validPreviewRows.length} คน)
+                  </>
+                )}
               </button>
             </div>
 
@@ -2564,7 +2800,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                         onChange={() => setTargetClassroomMode('current_workspace')}
                         className="text-cyan-600"
                       />
-                      <span>นำเข้าเข้าห้อง "{session.workspace?.classroomName || 'ห้องปัจจุบัน'}" ทั้งหมด (แนะนำ)</span>
+                      <span>นำเข้าเข้าห้อง "{session.workspace?.classroomName || 'ห้องปัจจุบัน'}" ทั้งหมด</span>
                     </label>
 
                     <label className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
@@ -2579,30 +2815,151 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                         onChange={() => setTargetClassroomMode('from_file')}
                         className="text-cyan-600"
                       />
-                      <span>แยกตามห้องในไฟล์ DMC</span>
-                    </label>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-cyan-100 dark:border-cyan-800/40">
-                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={replaceTargetClassroomRoster}
-                        onChange={(e) => setReplaceTargetClassroomRoster(e.target.checked)}
-                        className="mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                      />
-                      <div>
-                        <span className="text-xs font-black text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                          <Trash2 size={13} className="text-amber-600" />
-                          ล้างรายชื่อนักเรียนเดิมในห้องเป้าหมายก่อนนำเข้า (แทนที่รายชื่อเดิมทั้งหมด)
-                        </span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          แนะนำหากต้องการอัปเดตบัญชีรายชื่อใหม่ทั้งหมด เพื่อป้องกันข้อมูลนักเรียนเก่าค้างหรือชื่อซ้ำซ้อน
-                        </p>
-                      </div>
+                      <span>แยกตามห้องในไฟล์ (แนะนำสำหรับไฟล์หลายห้อง)</span>
                     </label>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Import Strategy Mode Selector */}
+            {previewRows.length > 0 && (
+              <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+                  <div>
+                    <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <Sparkles size={14} className="text-cyan-600" />
+                      รูปแบบการนำเข้าข้อมูล (Import Mode)
+                    </span>
+                    <p className="mt-0.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                      เลือกว่าต้องการผสานข้อมูลกับของเดิม หรือลบข้อมูลเดิมในระบบแล้ววางทับใหม่
+                    </p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 self-start sm:self-auto rounded-full px-3 py-1 text-xs font-black ${
+                    importMode === 'merge'
+                      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800'
+                      : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800'
+                  }`}>
+                    {importMode === 'merge' ? '🔄 โหมดผสานข้อมูล' : '⚠️ โหมดลบทับข้อมูล'}
+                  </span>
+                </div>
+
+                <div className="mt-3.5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Mode A: Merge */}
+                  <label
+                    className={`relative flex cursor-pointer flex-col rounded-2xl border p-4 transition-all ${
+                      importMode === 'merge'
+                        ? 'border-cyan-500 bg-cyan-50/50 shadow-sm ring-2 ring-cyan-500/20 dark:border-cyan-400 dark:bg-cyan-950/20'
+                        : 'border-slate-200 bg-white/70 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="importMode"
+                          checked={importMode === 'merge'}
+                          onChange={() => setImportMode('merge')}
+                          className="h-4 w-4 text-cyan-600 focus:ring-cyan-500"
+                        />
+                        <span className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          <RotateCcw size={15} className="text-cyan-600" />
+                          ผสานและอัปเดตข้อมูล (Smart Merge)
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-cyan-100/80 px-2 py-0.5 text-[10px] font-black text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-200">
+                        แนะนำ
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300 pl-6">
+                      • อัปเดตข้อมูลนักเรียนเดิม (ส่วนสูง, น้ำหนัก, ที่อยู่, ผู้ปกครอง, ความด้อยโอกาส)<br />
+                      • <strong className="font-bold text-slate-800 dark:text-slate-200">คงประวัติเดิมครบ 100%</strong>: เช็คชื่อ, คะแนน OMR, ความดี, เงินออม<br />
+                      • เพิ่มนักเรียนใหม่ที่ยังไม่มีในระบบให้อัตโนมัติ
+                    </p>
+                  </label>
+
+                  {/* Mode B: Overwrite */}
+                  <label
+                    className={`relative flex cursor-pointer flex-col rounded-2xl border p-4 transition-all ${
+                      importMode === 'overwrite'
+                        ? 'border-rose-400 bg-rose-50/50 shadow-sm ring-2 ring-rose-500/20 dark:border-rose-500 dark:bg-rose-950/20'
+                        : 'border-slate-200 bg-white/70 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="importMode"
+                          checked={importMode === 'overwrite'}
+                          onChange={() => setImportMode('overwrite')}
+                          className="h-4 w-4 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          <Trash2 size={15} className="text-rose-600" />
+                          ลบข้อมูลเดิมแล้ววางทับใหม่ (Full Overwrite)
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-rose-100/80 px-2 py-0.5 text-[10px] font-black text-rose-800 dark:bg-rose-900/60 dark:text-rose-200">
+                        เริ่มปีใหม่
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300 pl-6">
+                      • ล้างรายชื่อนักเรียนเดิมออกจากระบบ แล้วใส่รายชื่อใหม่ทั้งหมดจากไฟล์<br />
+                      • เหมาะสำหรับเริ่มต้นปีการศึกษาใหม่ หรือจัดห้องเรียนใหม่ยกแผง<br />
+                      • ป้องกันนักเรียนตกค้างหรือชื่อซ้ำซ้อน
+                    </p>
+                  </label>
+                </div>
+
+                {/* Sub-options when Overwrite Mode is active */}
+                {importMode === 'overwrite' && (
+                  <div className="mt-3.5 rounded-2xl border border-rose-200 bg-rose-50/60 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">
+                    <p className="text-xs font-black text-rose-950 dark:text-rose-200 flex items-center gap-1.5">
+                      <AlertTriangle size={15} className="text-rose-600" />
+                      ระบุขอบเขตการลบข้อมูลเดิม:
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap gap-3">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <input
+                          type="radio"
+                          name="overwriteScope"
+                          checked={overwriteScope === 'target_rooms'}
+                          onChange={() => setOverwriteScope('target_rooms')}
+                          className="h-4 w-4 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span>ลบเฉพาะห้องเรียนที่มีในไฟล์นี้ (ปลอดภัยกว่า)</span>
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-rose-900 dark:text-rose-300">
+                        <input
+                          type="radio"
+                          name="overwriteScope"
+                          checked={overwriteScope === 'all_workspace'}
+                          onChange={() => setOverwriteScope('all_workspace')}
+                          className="h-4 w-4 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span>ล้างข้อมูลนักเรียนทั้งโรงเรียน (ทุกห้องเรียน)</span>
+                      </label>
+                    </div>
+
+                    {overwriteScope === 'all_workspace' && (
+                      <div className="mt-3 rounded-xl border border-rose-300 bg-white/90 p-3 dark:border-rose-800 dark:bg-slate-900/80">
+                        <p className="text-xs font-bold text-rose-700 dark:text-rose-300">
+                          ⚠️ คำเตือน: ระบบจะลบนักเรียนทั้งหมด {students.length} คนในโรงเรียน พร้อมประวัติการเข้าเรียนและคะแนนที่ผูกอยู่ทั้งหมดอย่างถาวร
+                        </p>
+                        <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-xs font-black text-rose-900 dark:text-rose-200">
+                          <input
+                            type="checkbox"
+                            checked={confirmOverwriteWorkspace}
+                            onChange={(e) => setConfirmOverwriteWorkspace(e.target.checked)}
+                            className="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                          />
+                          <span>ฉันเข้าใจและยืนยันต้องการล้างข้อมูลนักเรียนทั้งโรงเรียน</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -2621,14 +2978,40 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   {previewRows.map((row) => (
                     <tr className="hover:bg-slate-50" key={`${row.rowNumber}-${row.studentCode}-${row.firstName}`}>
                       <td className="whitespace-nowrap px-3 py-3 font-black text-slate-600">{row.rowNumber}</td>
-                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.studentCode || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
+                        <span>{row.studentCode || '-'}</span>
+                        {row.metadata?.citizen_id ? (
+                          <p className="text-[11px] font-medium text-slate-400">
+                            ปชช: {String(row.metadata.citizen_id)}
+                          </p>
+                        ) : null}
+                      </td>
                       <td className="px-3 py-3">
                         <p className="font-black text-slate-950">{row.firstName} {row.lastName}</p>
-                        <p className="text-xs font-bold text-slate-500">
-                          {row.source === 'dmc'
-                            ? `อ่านข้อมูล ${row.populatedFieldCount || 0}/${row.sourceColumnCount || 0} ช่องจาก DMC`
-                            : row.nickname || 'ไม่มีชื่อเล่น'}
-                        </p>
+                        {row.source === 'dmc' ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                            {row.healthFlags?.weight_kg && row.healthFlags?.height_cm ? (
+                              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200/60">
+                                ⚖️ {String(row.healthFlags.weight_kg)} กก. / {String(row.healthFlags.height_cm)} ซม.
+                                {row.healthFlags.bmi ? ` (BMI ${String(row.healthFlags.bmi)})` : ''}
+                              </span>
+                            ) : null}
+                            {row.careFlags?.disadvantage ? (
+                              <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-200/60">
+                                🏷️ {String(row.careFlags.disadvantage)}
+                              </span>
+                            ) : null}
+                            {row.metadata?.dmc_guardian && typeof row.metadata.dmc_guardian === 'object' && (row.metadata.dmc_guardian as Record<string, unknown>).first_name ? (
+                              <span className="rounded-md bg-slate-50 px-1.5 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                                👤 ปกครอง: {String((row.metadata.dmc_guardian as Record<string, unknown>).first_name)} ({String((row.metadata.dmc_guardian as Record<string, unknown>).relation || 'ผู้ปกครอง')})
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="text-xs font-bold text-slate-500">
+                            {row.nickname || 'ไม่มีชื่อเล่น'}
+                          </p>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
                         {targetClassroomMode === 'current_workspace' ? (
@@ -2647,7 +3030,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                         )}
                       </td>
                       <td className="px-3 py-3">
-                        {row.errors.length === 0 && row.warnings.length === 0 ? (
+                        {importMode === 'overwrite' ? (
+                          <div className="grid gap-1">
+                            <span className="w-fit rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-200">
+                              ลบทับข้อมูลเดิม
+                            </span>
+                            {row.errors.length > 0 && (
+                              <span className="text-xs font-bold text-rose-700">{row.errors.join(', ')}</span>
+                            )}
+                          </div>
+                        ) : row.errors.length === 0 && row.warnings.length === 0 ? (
                           <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">ผ่าน</span>
                         ) : row.errors.length === 0 && !row.warnings.some((warning) => warning.includes('ซ้ำในไฟล์')) ? (
                           <div className="grid gap-1">
