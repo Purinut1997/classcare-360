@@ -84,9 +84,49 @@ type UpcomingEventType = 'holiday' | 'exam' | 'activity' | 'makeup' | 'custom';
 
 interface UpcomingEvent {
   date: string;
+  endDate?: string;
+  durationDays?: number;
   id: string;
   title: string;
   type: UpcomingEventType;
+}
+
+function groupUpcomingEvents(events: UpcomingEvent[]): UpcomingEvent[] {
+  if (events.length === 0) return [];
+  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
+  const grouped: UpcomingEvent[] = [];
+
+  for (const ev of sorted) {
+    const last = grouped[grouped.length - 1];
+    if (
+      last &&
+      last.title.trim().toLowerCase() === ev.title.trim().toLowerCase() &&
+      last.type === ev.type
+    ) {
+      const lastEndDate = last.endDate || last.date;
+      const lastDateTime = new Date(`${lastEndDate}T00:00:00`).getTime();
+      const currDateTime = new Date(`${ev.date}T00:00:00`).getTime();
+      const diffDays = Math.round((currDateTime - lastDateTime) / 86_400_000);
+
+      if (diffDays === 1) {
+        last.endDate = ev.date;
+        const startDateTime = new Date(`${last.date}T00:00:00`).getTime();
+        last.durationDays = Math.round((currDateTime - startDateTime) / 86_400_000) + 1;
+        continue;
+      }
+      if (diffDays === 0) {
+        continue;
+      }
+    }
+
+    grouped.push({
+      ...ev,
+      endDate: ev.endDate || ev.date,
+      durationDays: ev.durationDays || 1,
+    });
+  }
+
+  return grouped;
 }
 
 const eventTypeConfig: Record<
@@ -933,11 +973,12 @@ export function DashboardPage({ session }: DashboardPageProps) {
         });
       }
 
-      // Sort ascending by date
+      // Sort ascending by date & group consecutive multi-day events
       collected.sort((a, b) => a.date.localeCompare(b.date));
+      const groupedEvents = groupUpcomingEvents(collected);
 
       if (isMounted) {
-        setUpcomingEvents(collected.slice(0, 8));
+        setUpcomingEvents(groupedEvents.slice(0, 8));
       }
     }
 
@@ -1277,8 +1318,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
       {/* 🔔 HOMEPAGE CALENDAR NOTIFICATION & REMINDER BANNER (Always visible in both modes!) */}
       {(() => {
         const todayStr = getBangkokDate();
-        const todayEvents = upcomingEvents.filter((ev) => ev.date === todayStr);
-        const upcomingSlice = upcomingEvents.filter((ev) => ev.date > todayStr).slice(0, 3);
+        const todayEvents = upcomingEvents.filter((ev) => {
+          if (ev.endDate && ev.endDate !== ev.date) {
+            return todayStr >= ev.date && todayStr <= ev.endDate;
+          }
+          return ev.date === todayStr;
+        });
+        const upcomingSlice = upcomingEvents.filter((ev) => {
+          const checkDate = ev.endDate || ev.date;
+          return checkDate > todayStr;
+        }).slice(0, 3);
 
         if (todayEvents.length > 0) {
           const primaryEvent = todayEvents[0];
@@ -1644,7 +1693,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
                 const conf = eventTypeConfig[ev.type] || eventTypeConfig.custom;
                 const evDate = new Date(`${ev.date}T00:00:00`);
                 const daysFromNow = Math.round((evDate.getTime() - Date.now()) / 86_400_000);
-                const daysLabel = daysFromNow === 0 ? 'วันนี้!' : daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`;
+                const daysLabel = daysFromNow <= 0 ? 'วันนี้!' : daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`;
+                const isMultiDay = Boolean(ev.endDate && ev.endDate !== ev.date && (ev.durationDays || 1) > 1);
+
+                let dateSubtitle = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(evDate);
+                if (isMultiDay && ev.endDate) {
+                  const endObj = new Date(`${ev.endDate}T00:00:00`);
+                  const endFmt = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(endObj);
+                  dateSubtitle = `${dateSubtitle} - ${endFmt} (${ev.durationDays} วัน)`;
+                }
+
                 return (
                   <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={ev.id}>
                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${conf.dot}`} />
@@ -1654,14 +1712,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
                         {ev.title}
                       </span>
                       <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
-                        {new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(evDate)}
+                        {dateSubtitle}
                       </span>
                     </span>
                     <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-black ${conf.badge}`}>
-                      {conf.label}
+                      {conf.label}{isMultiDay ? ` (${ev.durationDays} วัน)` : ''}
                     </span>
                     <span className={`shrink-0 text-[11px] font-black ${
-                      daysFromNow === 0 ? 'text-rose-600 font-black' : daysFromNow <= 3 ? 'text-amber-700 font-black' : 'text-slate-400'
+                      daysFromNow <= 0 ? 'text-rose-600 font-black' : daysFromNow <= 3 ? 'text-amber-700 font-black' : 'text-slate-400'
                     }`}>
                       {daysLabel}
                     </span>

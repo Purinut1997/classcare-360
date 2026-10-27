@@ -24,10 +24,120 @@ type SyncStatus = 'local' | 'loading' | 'synced' | 'missing_sql' | 'error';
 interface CalendarEvent {
   id: string;
   date: string;
+  endDate?: string;
+  rangeGroupId?: string;
   title: string;
   type: CalendarType;
   attendancePolicy: AttendancePolicy;
   source?: 'supabase' | 'local' | 'demo';
+}
+
+interface EventSpan {
+  id: string;
+  title: string;
+  type: CalendarType;
+  attendancePolicy: AttendancePolicy;
+  startDate: string;
+  endDate: string;
+  dates: string[];
+  durationDays: number;
+  eventIds: string[];
+  rangeGroupId?: string;
+}
+
+function computeEventSpans(events: CalendarEvent[]): EventSpan[] {
+  if (events.length === 0) return [];
+  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
+  const spans: EventSpan[] = [];
+
+  for (const ev of sorted) {
+    const last = spans[spans.length - 1];
+    if (
+      last &&
+      last.title.trim().toLowerCase() === ev.title.trim().toLowerCase() &&
+      last.type === ev.type
+    ) {
+      const lastEndDate = last.dates[last.dates.length - 1];
+      const lastDateTime = new Date(`${lastEndDate}T00:00:00`).getTime();
+      const currDateTime = new Date(`${ev.date}T00:00:00`).getTime();
+      const diffDays = Math.round((currDateTime - lastDateTime) / 86_400_000);
+
+      if (diffDays === 1) {
+        last.endDate = ev.date;
+        last.dates.push(ev.date);
+        last.durationDays += 1;
+        if (!last.eventIds.includes(ev.id)) last.eventIds.push(ev.id);
+        continue;
+      }
+      if (diffDays === 0) {
+        if (!last.eventIds.includes(ev.id)) last.eventIds.push(ev.id);
+        continue;
+      }
+    }
+
+    spans.push({
+      id: ev.rangeGroupId || ev.id,
+      title: ev.title,
+      type: ev.type,
+      attendancePolicy: ev.attendancePolicy,
+      startDate: ev.date,
+      endDate: ev.date,
+      dates: [ev.date],
+      durationDays: 1,
+      eventIds: [ev.id],
+      rangeGroupId: ev.rangeGroupId,
+    });
+  }
+
+  return spans;
+}
+
+const spanBarThemes: Record<
+  CalendarType,
+  {
+    bg: string;
+    textColor: string;
+    borderColor: string;
+    dotColor: string;
+  }
+> = {
+  activity: {
+    bg: 'bg-purple-600 hover:bg-purple-700',
+    textColor: 'text-white',
+    borderColor: 'border-purple-500',
+    dotColor: 'bg-purple-500',
+  },
+  holiday: {
+    bg: 'bg-rose-600 hover:bg-rose-700',
+    textColor: 'text-white',
+    borderColor: 'border-rose-500',
+    dotColor: 'bg-rose-500',
+  },
+  exam: {
+    bg: 'bg-indigo-600 hover:bg-indigo-700',
+    textColor: 'text-white',
+    borderColor: 'border-indigo-500',
+    dotColor: 'bg-indigo-600',
+  },
+  makeup: {
+    bg: 'bg-amber-500 hover:bg-amber-600',
+    textColor: 'text-white',
+    borderColor: 'border-amber-400',
+    dotColor: 'bg-amber-500',
+  },
+  custom: {
+    bg: 'bg-teal-600 hover:bg-teal-700',
+    textColor: 'text-white',
+    borderColor: 'border-teal-500',
+    dotColor: 'bg-teal-600',
+  },
+};
+
+function toShortThaiDate(dateText: string) {
+  const date = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateText;
+  const shortMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  return `${date.getDate()} ${shortMonths[date.getMonth()]}`;
 }
 
 type DbRow = Record<string, unknown>;
@@ -169,6 +279,8 @@ function mapCalendarRow(row: DbRow): CalendarEvent {
     title: String(row.title || ''),
     type,
     attendancePolicy: (metadata.attendancePolicy as AttendancePolicy | undefined) || (row.affects_attendance === false ? 'skip' : type === 'exam' || type === 'holiday' ? 'warn' : 'normal'),
+    rangeGroupId: (metadata.rangeGroupId as string | undefined) || undefined,
+    endDate: (metadata.endDate as string | undefined) || undefined,
     source: 'supabase',
   };
 }
@@ -280,6 +392,8 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   const [filter, setFilter] = useState<'all' | CalendarType>('all');
   const [draft, setDraft] = useState({
     date: toDateInput(today),
+    endDate: toDateInput(today),
+    isRange: false,
     title: '',
     type: 'activity' as CalendarType,
     attendancePolicy: 'normal' as AttendancePolicy,
@@ -358,6 +472,16 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       return acc;
     }, {});
   }, [events]);
+
+  const eventSpans = useMemo(() => computeEventSpans(events), [events]);
+
+  const calculatedRangeDays = useMemo(() => {
+    if (!draft.isRange || !draft.date || !draft.endDate) return 1;
+    const start = new Date(`${draft.date}T00:00:00`).getTime();
+    const end = new Date(`${draft.endDate}T00:00:00`).getTime();
+    if (end < start) return 1;
+    return Math.round((end - start) / 86_400_000) + 1;
+  }, [draft.date, draft.endDate, draft.isRange]);
 
   const monthEvents = useMemo(() => {
     return events
@@ -440,52 +564,92 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   const addEvent = async () => {
     if (!canEditCalendar || !draft.title.trim()) return;
 
-    const nextEvent: CalendarEvent = {
-      id: `local-${Date.now()}`,
-      date: draft.date,
+    const isMultiDay = draft.isRange && draft.endDate > draft.date;
+    const targetDates: string[] = [];
+
+    if (isMultiDay) {
+      const startObj = new Date(`${draft.date}T00:00:00`);
+      const endObj = new Date(`${draft.endDate}T00:00:00`);
+      const curObj = new Date(startObj);
+      while (curObj <= endObj) {
+        targetDates.push(toDateInput(curObj));
+        curObj.setDate(curObj.getDate() + 1);
+      }
+    } else {
+      targetDates.push(draft.date);
+    }
+
+    const rangeGroupId = isMultiDay ? `range-${Date.now()}` : undefined;
+
+    const nextEvents: CalendarEvent[] = targetDates.map((d, index) => ({
+      id: `local-${Date.now()}-${index}`,
+      date: d,
+      endDate: isMultiDay ? draft.endDate : undefined,
+      rangeGroupId,
       title: draft.title.trim(),
       type: draft.type,
       attendancePolicy: draft.attendancePolicy,
       source: 'local',
-    };
+    }));
 
-    setEvents((current) => [...current, nextEvent]);
-    setDraft((current) => ({ ...current, title: '' }));
-    setSelectedDate(nextEvent.date);
+    setEvents((current) => [...current, ...nextEvents]);
+    setDraft((current) => ({ ...current, title: '', isRange: false }));
+    setSelectedDate(draft.date);
 
     if (!supabase || !session.workspace?.id || isDemoSession(session)) {
       const storageKey = getDataSafetyStorageKey(session);
       const state = getLocalSafetyState(storageKey);
-      state.calendarRules = [...loadLocalCalendar(session), nextEvent];
+      state.calendarRules = [...loadLocalCalendar(session), ...nextEvents];
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       setSync({
         status: 'local',
-        message: 'บันทึกไว้ในหน้าเว็บก่อน เพราะยังไม่พร้อมเชื่อม Supabase',
+        message: isMultiDay
+          ? `บันทึกกิจกรรมต่อเนื่อง "${draft.title}" (${targetDates.length} วัน) ในเครื่องแล้ว`
+          : 'บันทึกไว้ในหน้าเว็บก่อน เพราะยังไม่พร้อมเชื่อม Supabase',
       });
       notifyCalendarUpdated();
       return;
     }
 
     try {
+      const rowsToInsert = nextEvents.map((ev) => ({
+        workspace_id: session.workspace!.id,
+        calendar_date: ev.date,
+        day_type: toDayType(ev.type),
+        title: ev.title,
+        affects_attendance: ev.attendancePolicy !== 'skip',
+        affects_reports: true,
+        created_by: session.profile.id,
+        metadata: {
+          attendancePolicy: ev.attendancePolicy,
+          rangeGroupId: ev.rangeGroupId,
+          startDate: draft.date,
+          endDate: draft.endDate,
+          isRange: isMultiDay,
+        },
+      }));
+
       const { data, error } = await supabase
         .from('school_calendar_days')
-        .insert({
-          workspace_id: session.workspace.id,
-          calendar_date: nextEvent.date,
-          day_type: toDayType(nextEvent.type),
-          title: nextEvent.title,
-          affects_attendance: nextEvent.attendancePolicy !== 'skip',
-          affects_reports: true,
-          created_by: session.profile.id,
-          metadata: { attendancePolicy: nextEvent.attendancePolicy },
-        })
-        .select('*')
-        .single();
+        .insert(rowsToInsert)
+        .select('*');
 
       if (error) throw error;
 
-      setEvents((current) => current.map((event) => (event.id === nextEvent.id ? mapCalendarRow(data) : event)));
-      setSync({ status: 'synced', message: 'บันทึกวันพิเศษลง Supabase แล้ว' });
+      if (data) {
+        const mapped = data.map(mapCalendarRow);
+        const nextIds = new Set(nextEvents.map((e) => e.id));
+        setEvents((current) => [
+          ...current.filter((e) => !nextIds.has(e.id)),
+          ...mapped,
+        ]);
+      }
+      setSync({
+        status: 'synced',
+        message: isMultiDay
+          ? `บันทึกกิจกรรมต่อเนื่อง "${draft.title}" (${targetDates.length} วัน) ลง Supabase แล้ว`
+          : 'บันทึกวันพิเศษลง Supabase แล้ว',
+      });
       notifyCalendarUpdated();
     } catch (error) {
       setSync({
@@ -500,15 +664,26 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     const target = events.find((event) => event.id === eventId);
     if (!target) return;
 
-    // If it's a local event or no Supabase, just remove from localStorage
+    // Check if event belongs to a multi-day span
+    const targetSpan = eventSpans.find((s) => s.eventIds.includes(eventId));
+    let idsToDelete = [eventId];
+
+    if (targetSpan && targetSpan.durationDays > 1) {
+      const confirmMsg = `ลบกิจกรรม "${target.title}" ทั้งช่วงวันที่ (${targetSpan.durationDays} วัน: ${toShortThaiDate(targetSpan.startDate)} - ${toShortThaiDate(targetSpan.endDate)}) หรือไม่?\n\n- กด OK เพื่อลบทั้งช่วง ${targetSpan.durationDays} วัน\n- กด Cancel เพื่อยกเลิก`;
+      if (!window.confirm(confirmMsg)) return;
+      idsToDelete = targetSpan.eventIds;
+    }
+
+    const idSet = new Set(idsToDelete);
+
     if (!supabase || !isUuid(eventId) || target.source === 'local') {
       const localEvents = loadLocalCalendar(session);
-      const updatedLocal = localEvents.filter((event) => event.id !== eventId);
+      const updatedLocal = localEvents.filter((event) => !idSet.has(event.id));
       const storageKey = getDataSafetyStorageKey(session);
       const state = getLocalSafetyState(storageKey);
       state.calendarRules = updatedLocal;
       window.localStorage.setItem(storageKey, JSON.stringify(state));
-      setEvents((current) => current.filter((event) => event.id !== eventId));
+      setEvents((current) => current.filter((event) => !idSet.has(event.id)));
       setSync({ status: 'local', message: 'ลบรายการในเครื่องแล้ว' });
       notifyCalendarUpdated();
       return;
@@ -519,17 +694,16 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       const { error } = await supabase
         .from('school_calendar_days')
         .delete()
-        .eq('id', eventId)
+        .in('id', idsToDelete)
         .eq('workspace_id', session.workspace?.id || '');
       if (error) throw error;
-      // Remove from UI after successful deletion
-      setEvents((current) => current.filter((event) => event.id !== eventId));
-      setSync({ status: 'synced', message: 'ลบวันพิเศษออกจาก Supabase แล้ว' });
+      setEvents((current) => current.filter((event) => !idSet.has(event.id)));
+      setSync({ status: 'synced', message: 'ลบรายการออกจาก Supabase แล้ว' });
       notifyCalendarUpdated();
     } catch (error) {
       setSync({
         status: 'error',
-        message: `ลบวันพิเศษไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
+        message: `ลบไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
       });
     }
   };
@@ -537,8 +711,39 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   const updateEvent = async () => {
     if (!canEditCalendar || !editingEvent || !draft.title.trim()) return;
 
+    const targetSpan = eventSpans.find((s) => s.eventIds.includes(editingEvent.id));
+    const wasMultiDay = targetSpan && targetSpan.durationDays > 1;
+    const isNowMultiDay = draft.isRange && draft.endDate > draft.date;
+
+    if (wasMultiDay || isNowMultiDay) {
+      const oldIds = targetSpan ? targetSpan.eventIds : [editingEvent.id];
+      const oldIdSet = new Set(oldIds);
+
+      // Local storage cleanup
+      const localEvents = loadLocalCalendar(session).filter((e) => !oldIdSet.has(e.id));
+      const storageKey = getDataSafetyStorageKey(session);
+      const state = getLocalSafetyState(storageKey);
+      state.calendarRules = localEvents;
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+
+      // Supabase cleanup
+      if (supabase && session.workspace?.id && !isDemoSession(session)) {
+        try {
+          await supabase
+            .from('school_calendar_days')
+            .delete()
+            .in('id', oldIds)
+            .eq('workspace_id', session.workspace.id);
+        } catch {}
+      }
+
+      setEvents((current) => current.filter((e) => !oldIdSet.has(e.id)));
+      setEditingEvent(null);
+      await addEvent();
+      return;
+    }
+
     if (!supabase || !isUuid(editingEvent.id) || editingEvent.source === 'local') {
-      // Update local storage
       const localEvents = loadLocalCalendar(session);
       const updatedLocal = localEvents.map((event) =>
         event.id === editingEvent.id
@@ -563,7 +768,6 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       return;
     }
 
-    // Update in Supabase
     try {
       const { data, error } = await supabase
         .from('school_calendar_days')
@@ -597,14 +801,28 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
   const openEditModal = (event: CalendarEvent) => {
     if (!canEditCalendar) return;
+    const targetSpan = eventSpans.find((s) => s.eventIds.includes(event.id) || s.dates.includes(event.date));
     setSelectedDate(event.date);
     setEditingEvent(event);
-    setDraft({
-      date: event.date,
-      title: event.title,
-      type: event.type,
-      attendancePolicy: event.attendancePolicy,
-    });
+    if (targetSpan && targetSpan.durationDays > 1) {
+      setDraft({
+        date: targetSpan.startDate,
+        endDate: targetSpan.endDate,
+        isRange: true,
+        title: targetSpan.title,
+        type: targetSpan.type,
+        attendancePolicy: targetSpan.attendancePolicy,
+      });
+    } else {
+      setDraft({
+        date: event.date,
+        endDate: event.date,
+        isRange: false,
+        title: event.title,
+        type: event.type,
+        attendancePolicy: event.attendancePolicy,
+      });
+    }
   };
 
   const openDayDialog = (date: Date) => {
@@ -613,6 +831,8 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     setEditingEvent(null);
     setDraft({
       date: dateText,
+      endDate: dateText,
+      isRange: false,
       title: '',
       type: 'activity',
       attendancePolicy: 'normal',
@@ -1107,16 +1327,23 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               </div>
             ))}
 
-            {monthCells.map((date) => {
+            {monthCells.map((date, cellIndex) => {
               const dateText = toDateInput(date);
-              const dayEvents = (eventsByDate[dateText] || []).filter((event) => filter === 'all' || event.type === filter);
+              const colIndex = cellIndex % 7;
+              const weekStartCellIndex = cellIndex - colIndex;
+              const weekDates = [0, 1, 2, 3, 4, 5, 6].map((i) => toDateInput(monthCells[weekStartCellIndex + i]));
+
+              const daySpans = eventSpans.filter(
+                (span) => (filter === 'all' || span.type === filter) && span.dates.includes(dateText),
+              );
+
               const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
               const isToday = isSameDate(date, today);
 
               return (
                 <button
-                  aria-label={`เปิดรายละเอียดวันที่ ${toThaiDate(dateText)}${dayEvents.length ? ` มี ${dayEvents.length} รายการ` : ' ยังไม่มีรายการ'}`}
-                  className={`group min-h-[58px] sm:min-h-[118px] rounded-xl sm:rounded-2xl border p-1 sm:p-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-[0_14px_30px_rgba(8,145,178,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${
+                  aria-label={`เปิดรายละเอียดวันที่ ${toThaiDate(dateText)}${daySpans.length ? ` มี ${daySpans.length} รายการ` : ' ยังไม่มีรายการ'}`}
+                  className={`group min-h-[58px] sm:min-h-[118px] rounded-xl sm:rounded-2xl border p-1 sm:p-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-[0_14px_30px_rgba(8,145,178,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 overflow-visible relative ${
                     isToday
                       ? 'border-2 border-amber-400 bg-gradient-to-b from-amber-50/90 to-amber-100/40 ring-2 ring-amber-300/30 shadow-[0_12px_24px_rgba(245,158,11,0.18)]'
                       : isCurrentMonth
@@ -1138,40 +1365,132 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     ) : null}
                   </div>
 
-                  {/* Mobile Indicator Dots */}
-                  <div className="mt-1 flex items-center justify-center gap-1 sm:hidden flex-wrap">
-                    {dayEvents.slice(0, 3).map((event) => {
-                      const conf = typeConfig[event.type] || typeConfig.custom;
-                      return <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${conf.dot}`} />;
+                  {/* Mobile Indicator Dots & Connected Line Ribbons */}
+                  <div className="mt-1 flex items-center justify-center gap-0.5 sm:hidden flex-wrap">
+                    {daySpans.slice(0, 3).map((span) => {
+                      const isMulti = span.durationDays > 1;
+                      const hasPrevInWeek = colIndex > 0 && span.dates.includes(weekDates[colIndex - 1]);
+                      const hasNextInWeek = colIndex < 6 && span.dates.includes(weekDates[colIndex + 1]);
+                      const barTheme = spanBarThemes[span.type] || spanBarThemes.custom;
+
+                      if (isMulti) {
+                        return (
+                          <span
+                            key={span.id}
+                            className={`h-1.5 w-full ${barTheme.dotColor} ${
+                              !hasPrevInWeek && hasNextInWeek
+                                ? 'rounded-l-full -mr-1'
+                                : hasPrevInWeek && hasNextInWeek
+                                ? 'rounded-none -mx-1'
+                                : hasPrevInWeek && !hasNextInWeek
+                                ? 'rounded-r-full -ml-1'
+                                : 'rounded-full'
+                            }`}
+                          />
+                        );
+                      }
+                      const conf = typeConfig[span.type] || typeConfig.custom;
+                      return <span key={span.id} className={`h-1.5 w-1.5 rounded-full ${conf.dot}`} />;
                     })}
-                    {dayEvents.length > 3 ? (
+                    {daySpans.length > 3 ? (
                       <span className="text-[8.5px] font-black text-slate-500 leading-none">
-                        +{dayEvents.length - 3}
+                        +{daySpans.length - 3}
                       </span>
                     ) : null}
                   </div>
 
-                  {/* Desktop Full Event Chips with Distinct Vibrant Styling & Emojis */}
-                  <div className="mt-2 hidden space-y-1 sm:block">
-                    {dayEvents.slice(0, 3).map((event) => {
-                      const conf = typeConfig[event.type] || typeConfig.custom;
+                  {/* Desktop Full Event Chips: Continuous Dragged Horizontal Bars for Multi-Day events (Image 2 style) */}
+                  <div className="mt-2 hidden space-y-1 sm:block relative">
+                    {daySpans.slice(0, 3).map((span) => {
+                      const isMulti = span.durationDays > 1;
+                      const hasPrevInWeek = colIndex > 0 && span.dates.includes(weekDates[colIndex - 1]);
+                      const hasNextInWeek = colIndex < 6 && span.dates.includes(weekDates[colIndex + 1]);
+                      const continuesFromPrevWeek = !hasPrevInWeek && span.startDate < dateText;
+                      const continuesToNextWeek = !hasNextInWeek && span.endDate > dateText;
+                      const barTheme = spanBarThemes[span.type] || spanBarThemes.custom;
+                      const conf = typeConfig[span.type] || typeConfig.custom;
+
+                      // Single Day Event Pill
+                      if (!isMulti) {
+                        return (
+                          <div
+                            className={`truncate rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black transition-transform hover:scale-[1.02] ${conf.chip}`}
+                            key={span.id}
+                            title={span.title}
+                          >
+                            <span className="mr-1">{conf.icon}</span>
+                            {span.title}
+                          </div>
+                        );
+                      }
+
+                      // Multi-day Event Continuous Horizontal Bar (Exact match to Image 2!)
+                      // Case 1: Start of continuous bar in this week row
+                      if (!hasPrevInWeek && hasNextInWeek) {
+                        return (
+                          <div
+                            key={span.id}
+                            title={`${span.title} (${span.durationDays} วัน: ${toThaiDate(span.startDate)} - ${toThaiDate(span.endDate)})`}
+                            className={`h-6 rounded-l-lg rounded-r-none border-y border-l border-r-0 mr-[-6px] sm:mr-[-10px] z-10 px-2 py-0.5 text-[10.5px] font-black flex items-center gap-1 shadow-sm transition-transform hover:scale-[1.01] ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
+                          >
+                            <span className="shrink-0">{conf.icon}</span>
+                            <span className="truncate font-black">{continuesFromPrevWeek ? `◀ ${span.title}` : span.title}</span>
+                            <span className="shrink-0 text-[9px] opacity-85 font-black hidden lg:inline">({span.durationDays}ว.)</span>
+                          </div>
+                        );
+                      }
+
+                      // Case 2: Middle of continuous bar in this week row
+                      if (hasPrevInWeek && hasNextInWeek) {
+                        return (
+                          <div
+                            key={span.id}
+                            title={`${span.title} (${span.durationDays} วัน)`}
+                            className={`h-6 rounded-none border-y border-x-0 mx-[-6px] sm:mx-[-10px] z-10 px-0.5 py-0.5 text-[10.5px] font-black flex items-center justify-center shadow-sm ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
+                          >
+                            <div className="h-0.5 w-full bg-white/40 rounded-full mx-1" />
+                          </div>
+                        );
+                      }
+
+                      // Case 3: End of continuous bar in this week row
+                      if (hasPrevInWeek && !hasNextInWeek) {
+                        return (
+                          <div
+                            key={span.id}
+                            title={`${span.title} (สิ้นสุด)`}
+                            className={`h-6 rounded-r-lg rounded-l-none border-y border-r border-l-0 ml-[-6px] sm:ml-[-10px] z-10 px-1.5 py-0.5 text-[10.5px] font-black flex items-center justify-end shadow-sm ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
+                          >
+                            {continuesToNextWeek ? (
+                              <span className="text-[10px] font-black text-white">▶</span>
+                            ) : (
+                              <span className="text-[8.5px] font-black opacity-90 pr-0.5">สิ้นสุด</span>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Case 4: Standalone day in this row spanning across weeks
                       return (
                         <div
-                          className={`truncate rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black transition-transform hover:scale-[1.02] ${conf.chip}`}
-                          key={event.id}
-                          title={event.title}
+                          key={span.id}
+                          title={`${span.title} (${span.durationDays} วัน)`}
+                          className={`h-6 rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black flex items-center justify-between shadow-sm ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
                         >
-                          <span className="mr-1">{conf.icon}</span>
-                          {event.title}
+                          <span className="truncate font-black">{span.title}</span>
+                          <span className="text-[9px] font-black opacity-85">
+                            {continuesFromPrevWeek ? '◀' : continuesToNextWeek ? '▶' : ''}
+                          </span>
                         </div>
                       );
                     })}
-                    {dayEvents.length > 3 ? (
+
+                    {daySpans.length > 3 ? (
                       <div className="rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-black text-slate-500">
-                        +{dayEvents.length - 3} รายการ
+                        +{daySpans.length - 3} รายการ
                       </div>
                     ) : null}
-                    {!dayEvents.length && isCurrentMonth ? (
+                    {!daySpans.length && isCurrentMonth ? (
                       <span className="mt-3 hidden text-[10.5px] font-black text-cyan-700 opacity-0 transition group-hover:block group-hover:opacity-100 sm:block">
                         + เพิ่มรายการ
                       </span>
@@ -1315,25 +1634,43 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     <p className="text-sm font-black text-slate-950">รายการของวันนี้</p>
                     <div className="mt-3 grid gap-2">
                       {(eventsByDate[selectedDate] || []).length ? (
-                        (eventsByDate[selectedDate] || []).map((event) => (
-                          <div className={`rounded-2xl border p-3 ${typeStyles[event.type]}`} key={event.id}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-[10px] font-black uppercase tracking-[0.1em]">{typeLabels[event.type]}</p>
-                                <h3 className="mt-1 text-sm font-black text-slate-950">{event.title}</h3>
-                                <p className="mt-1 text-[11px] font-bold opacity-75">{policyLabels[event.attendancePolicy]}</p>
-                              </div>
-                              <div className="flex shrink-0 gap-1">
-                                <button aria-label={`แก้ไข ${event.title}`} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/80 text-slate-600" onClick={() => openEditModal(event)} type="button">
-                                  <Pencil size={15} />
-                                </button>
-                                <button aria-label={`ลบ ${event.title}`} className="grid h-9 w-9 place-items-center rounded-full border border-rose-200 bg-white/80 text-rose-600" onClick={() => void removeEvent(event.id)} type="button">
-                                  <Trash2 size={15} />
-                                </button>
+                        (eventsByDate[selectedDate] || []).map((event) => {
+                          const span = eventSpans.find((s) => s.eventIds.includes(event.id) || s.dates.includes(event.date));
+                          const isSpanMulti = span && span.durationDays > 1;
+                          const dayNum = span ? span.dates.indexOf(event.date) + 1 : 1;
+
+                          return (
+                            <div className={`rounded-2xl border p-3 ${typeStyles[event.type]}`} key={event.id}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.1em]">{typeLabels[event.type]}</p>
+                                    {isSpanMulti && (
+                                      <span className="rounded-full bg-purple-100 text-purple-800 px-2 py-0.2 text-[9px] font-black">
+                                        🗓️ {span.durationDays} วัน (วันที่ {dayNum}/{span.durationDays})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h3 className="mt-1 text-sm font-black text-slate-950">{event.title}</h3>
+                                  {isSpanMulti && (
+                                    <p className="text-[10.5px] font-bold text-slate-500 mt-0.5">
+                                      {toShortThaiDate(span.startDate)} - {toShortThaiDate(span.endDate)}
+                                    </p>
+                                  )}
+                                  <p className="mt-1 text-[11px] font-bold opacity-75">{policyLabels[event.attendancePolicy]}</p>
+                                </div>
+                                <div className="flex shrink-0 gap-1">
+                                  <button aria-label={`แก้ไข ${event.title}`} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/80 text-slate-600 hover:bg-white" onClick={() => openEditModal(event)} type="button">
+                                    <Pencil size={15} />
+                                  </button>
+                                  <button aria-label={`ลบ ${event.title}`} className="grid h-9 w-9 place-items-center rounded-full border border-rose-200 bg-white/80 text-rose-600 hover:bg-rose-50" onClick={() => void removeEvent(event.id)} type="button">
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">
                           วันนี้ยังไม่มีรายการ
@@ -1348,7 +1685,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-black text-cyan-700">{editingEvent ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่'}</p>
-                        <h3 className="text-lg font-black text-slate-950">{editingEvent ? editingEvent.title : 'กำหนดรายละเอียดของวันนี้'}</h3>
+                        <h3 className="text-lg font-black text-slate-950">{editingEvent ? editingEvent.title : 'กำหนดรายละเอียด'}</h3>
                       </div>
                       {editingEvent ? (
                         <button
@@ -1357,6 +1694,8 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             setEditingEvent(null);
                             setDraft({
                               date: selectedDate,
+                              endDate: selectedDate,
+                              isRange: false,
                               title: '',
                               type: 'activity',
                               attendancePolicy: 'normal',
@@ -1368,11 +1707,81 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                         </button>
                       ) : null}
                     </div>
+
+                    {/* Date Range Mode Switcher */}
+                    <div className="mt-3.5 flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-2xl text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setDraft((curr) => ({ ...curr, isRange: false, endDate: curr.date }))}
+                        className={`flex-1 py-1.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 ${
+                          !draft.isRange
+                            ? 'bg-white text-slate-900 font-black shadow-xs ring-1 ring-slate-300/60'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>📅</span> วันเดียว
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraft((curr) => ({ ...curr, isRange: true, endDate: curr.endDate || curr.date }))}
+                        className={`flex-1 py-1.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 ${
+                          draft.isRange
+                            ? 'bg-purple-600 text-white font-black shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>🗓️</span> ช่วงวันที่ (วัน A ถึง วัน B)
+                      </button>
+                    </div>
+
                     <div className="mt-4 grid gap-4">
-                      <FieldLabel>
-                        วันที่
-                        <ThaiDatePicker className="mt-2 h-12 px-4" value={draft.date} onValueChange={(value) => setDraft((current) => ({ ...current, date: value }))} />
-                      </FieldLabel>
+                      {!draft.isRange ? (
+                        <FieldLabel>
+                          วันที่
+                          <ThaiDatePicker className="mt-2 h-12 px-4" value={draft.date} onValueChange={(value) => setDraft((current) => ({ ...current, date: value, endDate: value }))} />
+                        </FieldLabel>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <FieldLabel>
+                              วันที่เริ่มต้น (วัน A)
+                              <ThaiDatePicker
+                                className="mt-2 h-12 px-4"
+                                value={draft.date}
+                                onValueChange={(value) =>
+                                  setDraft((current) => {
+                                    const nextEnd = current.endDate < value ? value : current.endDate;
+                                    return { ...current, date: value, endDate: nextEnd };
+                                  })
+                                }
+                              />
+                            </FieldLabel>
+                            <FieldLabel>
+                              วันที่สิ้นสุด (วัน B)
+                              <ThaiDatePicker
+                                className="mt-2 h-12 px-4"
+                                value={draft.endDate}
+                                onValueChange={(value) =>
+                                  setDraft((current) => {
+                                    const nextStart = current.date > value ? value : current.date;
+                                    return { ...current, date: nextStart, endDate: value };
+                                  })
+                                }
+                              />
+                            </FieldLabel>
+                          </div>
+                          <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-2.5 text-xs font-bold text-purple-900 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <Sparkles size={14} className="text-purple-600" />
+                              ระยะเวลารวม: <strong className="font-black text-purple-700">{calculatedRangeDays} วัน</strong>
+                            </span>
+                            <span className="text-[11px] text-purple-700 font-black">
+                              แถบลากยาวต่อเนื่อง
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       <FieldLabel>
                         ประเภทวัน
                         <select
@@ -1385,11 +1794,11 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             }))
                           }
                         >
-                          <option value="activity">กิจกรรม</option>
-                          <option value="holiday">หยุดเรียน</option>
-                          <option value="exam">สอบ</option>
-                          <option value="makeup">เรียนชดเชย</option>
-                          <option value="custom">กำหนดเอง</option>
+                          <option value="activity">กิจกรรม (แถบสีม่วง)</option>
+                          <option value="holiday">หยุดเรียน (แถบสีแดง)</option>
+                          <option value="exam">สอบ (แถบสีน้ำเงิน)</option>
+                          <option value="makeup">เรียนชดเชย (แถบสีส้ม)</option>
+                          <option value="custom">กำหนดเอง (แถบสีเขียวอมฟ้า)</option>
                         </select>
                       </FieldLabel>
                       <FieldLabel>
@@ -1413,7 +1822,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                         ชื่อรายการ
                         <input
                           className="nexus-field mt-2 h-12 px-4"
-                          placeholder="เช่น สอบกลางภาค / กิจกรรมวันแม่"
+                          placeholder="เช่น กีฬากลุ่ม / สอบปลายภาค / ทัศนศึกษา"
                           value={draft.title}
                           onChange={(event) =>
                             setDraft((current) => ({
@@ -1423,9 +1832,22 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                           }
                         />
                       </FieldLabel>
-                      <button className="amber-action inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50" disabled={!canEditCalendar || !draft.title.trim()} onClick={() => void (editingEvent ? updateEvent() : addEvent())} type="button">
+                      <button
+                        className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50 transition shadow-md ${
+                          draft.isRange
+                            ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/30'
+                            : 'amber-action'
+                        }`}
+                        disabled={!canEditCalendar || !draft.title.trim()}
+                        onClick={() => void (editingEvent ? updateEvent() : addEvent())}
+                        type="button"
+                      >
                         {editingEvent ? <Pencil size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
-                        {editingEvent ? 'บันทึกการแก้ไข' : 'เพิ่มรายการในวันนี้'}
+                        {editingEvent
+                          ? 'บันทึกการแก้ไข'
+                          : draft.isRange && draft.endDate > draft.date
+                          ? `บันทึกกิจกรรมต่อเนื่อง (${calculatedRangeDays} วัน)`
+                          : 'เพิ่มรายการในวันนี้'}
                       </button>
                     </div>
                   </div>
