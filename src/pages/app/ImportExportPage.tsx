@@ -9,11 +9,13 @@ import {
   ClipboardCheck,
   ClipboardList,
   Download,
+  Eye,
   FileSpreadsheet,
   FileUp,
   Filter,
   HelpCircle,
   Info,
+  RefreshCw,
   RotateCcw,
   Save,
   Search,
@@ -804,6 +806,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const dmcFileInputRef = useRef<HTMLInputElement | null>(null);
   const studentCsvInputRef = useRef<HTMLInputElement | null>(null);
   const guardianCsvInputRef = useRef<HTMLInputElement | null>(null);
+  const previewSectionRef = useRef<HTMLDivElement | null>(null);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
   const [students, setStudents] = useState<StudentExportRow[]>(demoStudents);
   const [rosterReviews, setRosterReviews] = useState<StudentRosterReviewRow[]>([]);
@@ -2214,7 +2217,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   }
 
   return (
-    <main className="app-page">
+    <main className={`app-page ${validPreviewRows.length > 0 && activeMainTab === 'import' ? 'pb-28' : ''}`}>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="nexus-kicker">
@@ -2513,6 +2516,158 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </div>
               </div>
             )}
+
+            {/* Quick Import Action Panel directly inside Card 1 */}
+            {validPreviewRows.length > 0 && (
+              <div className="mt-4 rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-50/90 via-white to-cyan-50/80 p-4 shadow-md ring-1 ring-emerald-500/20">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/70 pb-3">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-900">
+                      <Sparkles size={15} className="text-emerald-600" />
+                      พร้อมนำเข้าข้อมูลทันที
+                    </span>
+                    <p className="mt-0.5 text-xs font-bold text-slate-600">
+                      {selectedDmcClassKeys.length > 0
+                        ? `เลือก ${selectedDmcClassKeys.length} ห้องเรียน (จาก DMC)`
+                        : 'อ่านข้อมูลรายชื่อจากไฟล์เรียบร้อย'}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-800 shadow-sm ring-1 ring-emerald-300">
+                    <CheckCircle2 size={13} className="text-emerald-600" />
+                    พร้อมนำเข้า {validPreviewRows.length} รายชื่อ
+                  </span>
+                </div>
+
+                {/* Import Strategy Options right inside Card 1 */}
+                <div className="mt-3">
+                  <div className="text-[11px] font-black uppercase text-slate-500 mb-1.5">
+                    เลือกรูปแบบการนำเข้า (Import Strategy):
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setImportMode('merge')}
+                      className={`flex items-start gap-2 rounded-xl p-2.5 text-left transition-all ${
+                        importMode === 'merge'
+                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-2 ring-emerald-600'
+                          : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <RefreshCw size={15} className={`shrink-0 mt-0.5 ${importMode === 'merge' ? 'text-white' : 'text-emerald-600'}`} />
+                      <div>
+                        <div className="text-xs font-black">🔄 อัปเดต/ผสานข้อมูล</div>
+                        <div className={`text-[10px] mt-0.5 ${importMode === 'merge' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                          คงข้อมูลเดิม เติม/อัปเดตข้อมูลใหม่ (แนะนำ)
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setImportMode('overwrite')}
+                      className={`flex items-start gap-2 rounded-xl p-2.5 text-left transition-all ${
+                        importMode === 'overwrite'
+                          ? 'bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-600'
+                          : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Trash2 size={15} className={`shrink-0 mt-0.5 ${importMode === 'overwrite' ? 'text-white' : 'text-rose-600'}`} />
+                      <div>
+                        <div className="text-xs font-black">⚠️ ลบข้อมูลเดิมแล้ววางทับ</div>
+                        <div className={`text-[10px] mt-0.5 ${importMode === 'overwrite' ? 'text-rose-100' : 'text-slate-500'}`}>
+                          ลบข้อมูลในห้องที่เลือกแล้วใส่ใหม่
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Overwrite Scope Options when Overwrite is selected */}
+                {importMode === 'overwrite' && (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/90 p-3 space-y-2 text-xs font-bold text-rose-900">
+                    <p className="font-black text-rose-800 flex items-center gap-1.5">
+                      <AlertTriangle size={14} /> ขอบเขตการลบข้อมูลเดิม:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-1.5 ring-1 ring-rose-200 text-slate-700">
+                        <input
+                          type="radio"
+                          name="card1_overwriteScope"
+                          checked={overwriteScope === 'target_rooms'}
+                          onChange={() => setOverwriteScope('target_rooms')}
+                          className="text-rose-600"
+                        />
+                        <span>ลบเฉพาะห้องเป้าหมาย ({selectedDmcClassKeys.length > 0 ? `${selectedDmcClassKeys.length} ห้อง` : 'ห้องในไฟล์'})</span>
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-1.5 ring-1 ring-rose-200 text-rose-700">
+                        <input
+                          type="radio"
+                          name="card1_overwriteScope"
+                          checked={overwriteScope === 'all_workspace'}
+                          onChange={() => setOverwriteScope('all_workspace')}
+                          className="text-rose-600"
+                        />
+                        <span>ล้างนักเรียนทั้งโรงเรียน ({students.length} คน)</span>
+                      </label>
+                    </div>
+                    {overwriteScope === 'all_workspace' && (
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-rose-100/80 p-2 text-rose-900">
+                        <input
+                          type="checkbox"
+                          checked={confirmOverwriteWorkspace}
+                          onChange={(e) => setConfirmOverwriteWorkspace(e.target.checked)}
+                          className="rounded border-rose-400 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span className="font-black text-[11px]">
+                          ข้าพเจ้ายืนยันที่จะลบข้อมูลนักเรียนทั้งหมดในโรงเรียน ({students.length} คน) เพื่อวางทับใหม่
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {/* Big Action Buttons */}
+                <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={requestImport}
+                    disabled={
+                      isSubmitting ||
+                      validPreviewRows.length === 0 ||
+                      (importMode === 'overwrite' && overwriteScope === 'all_workspace' && !confirmOverwriteWorkspace)
+                    }
+                    className={`w-full py-3.5 px-4 rounded-2xl text-base font-black flex items-center justify-center gap-2.5 shadow-lg transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none ${
+                      importMode === 'overwrite'
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+                    }`}
+                  >
+                    {isSubmitting ? (
+                      <>กำลังนำเข้าข้อมูล...</>
+                    ) : importMode === 'overwrite' ? (
+                      <>
+                        <Trash2 size={20} />
+                        ⚠️ ยืนยันลบทับ & นำเข้ารายชื่อ ({validPreviewRows.length} คน)
+                      </>
+                    ) : (
+                      <>
+                        <Save size={20} />
+                        🚀 บันทึกนำเข้ารายชื่อทันที ({validPreviewRows.length} คน)
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => previewSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                    className="w-full py-1.5 text-xs font-black text-cyan-800 hover:text-cyan-900 hover:underline flex items-center justify-center gap-1.5"
+                  >
+                    <Eye size={14} />
+                    ดูตาราง Preview ตรวจสอบความถูกต้องแบบละเอียด ({validPreviewRows.length} รายชื่อ) ↓
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Card 2: Copy-Paste Text OR Manual Entry */}
@@ -2736,7 +2891,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           </section>
 
           {/* Import Preview */}
-          <div className="nexus-card p-4 sm:p-5">
+          <div ref={previewSectionRef} className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-black text-cyan-700">Import Preview</p>
@@ -4112,6 +4267,78 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🚀 Floating Bottom Import Dock */}
+      {validPreviewRows.length > 0 && activeMainTab === 'import' && (
+        <aside
+          aria-label="แถบดำเนินการนำเข้าด่วน"
+          className="fixed bottom-4 left-3 right-3 sm:left-6 sm:right-6 z-40 max-w-4xl mx-auto rounded-3xl bg-slate-950/95 text-white backdrop-blur-md p-3.5 sm:p-4 shadow-2xl border border-slate-700/80 ring-1 ring-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
+        >
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 text-white shadow-md">
+              <Save size={22} />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-white">
+                  พร้อมนำเข้า {validPreviewRows.length} รายชื่อ
+                </span>
+                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                  importMode === 'overwrite'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }`}>
+                  {importMode === 'overwrite' ? '⚠️ โหมดลบทับ' : '🔄 โหมดผสาน'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-bold truncate">
+                {selectedDmcClassKeys.length > 0
+                  ? `เลือก ${selectedDmcClassKeys.length} ห้องเรียน (จาก DMC)`
+                  : 'จากไฟล์ Excel / CSV'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+            <button
+              type="button"
+              onClick={() => previewSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="h-11 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1.5 transition"
+            >
+              <Eye size={15} />
+              ดูตาราง Preview ↓
+            </button>
+            <button
+              type="button"
+              onClick={requestImport}
+              disabled={
+                isSubmitting ||
+                validPreviewRows.length === 0 ||
+                (importMode === 'overwrite' && overwriteScope === 'all_workspace' && !confirmOverwriteWorkspace)
+              }
+              className={`h-11 px-6 rounded-xl text-sm font-black flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500 ${
+                importMode === 'overwrite'
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+              }`}
+            >
+              {isSubmitting ? (
+                <>กำลังนำเข้า...</>
+              ) : importMode === 'overwrite' ? (
+                <>
+                  <Trash2 size={16} />
+                  ลบทับ & บันทึก ({validPreviewRows.length})
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  🚀 กดนำเข้าทันที ({validPreviewRows.length} คน)
+                </>
+              )}
+            </button>
+          </div>
+        </aside>
       )}
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">Created by MIKPURINUT</footer>
