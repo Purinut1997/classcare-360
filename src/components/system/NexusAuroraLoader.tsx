@@ -23,10 +23,10 @@ export const LOADER_THEMES: LoaderThemeOption[] = [
   },
   {
     id: 'aurora',
-    name: 'Aurora Obsidian Pro',
-    badge: 'พรีเมียม สไตล์ Apple/Linear',
-    tagline: 'กระจกแก้วฝ้าหรูหรา + แสงออโรร่าพริ้วไหวระดับสตูดิโอ',
-    icon: '🌌',
+    name: 'Aurora Circular Orb',
+    badge: 'วงกลมเรืองแสง พรีเมียม',
+    tagline: 'วงกลมแก้วฝ้า + วงแหวนเรเดียลโพรเกรสระดับสตูดิโอ',
+    icon: '🔮',
   },
   {
     id: 'titanium',
@@ -199,64 +199,107 @@ export function NexusAuroraVisual({
       )}
 
       {/* ========================================================
-          THEME 2: AURORA OBSIDIAN PRO (พรีเมียม สไตล์ Apple/Linear)
+          THEME 2: AURORA CIRCULAR ORB PRO (ทรงกลมเรืองแสง พรีเมียมมินิมอล)
           ======================================================== */}
       {currentTheme === 'aurora' && (
-        <div className="relative w-full max-w-[480px] rounded-[2rem] border border-white/[0.1] bg-slate-950/80 p-7 sm:p-9 text-center shadow-[0_32px_100px_-20px_rgba(0,0,0,0.85),0_0_60px_-15px_rgba(14,165,233,0.15)] backdrop-blur-3xl overflow-hidden">
-          {/* Hairline Prismatic Top Highlight */}
-          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent pointer-events-none" />
+        <div className="relative flex flex-col items-center justify-center">
+          {/* Main Circular Portal / Orb */}
+          <div className="relative flex h-80 w-80 sm:h-96 sm:w-96 flex-col items-center justify-center rounded-full border border-white/10 bg-slate-950/85 p-6 sm:p-8 text-center shadow-[0_0_120px_rgba(14,165,233,0.22),inset_0_0_50px_rgba(255,255,255,0.03)] backdrop-blur-3xl">
+            {/* Outer Rotating Dashed Planetary Ring */}
+            <div className="absolute -inset-4 sm:-inset-5 rounded-full border border-dashed border-teal-400/20 animate-[spin_35s_linear_infinite]" />
 
-          {/* Interior Ambient Lights */}
-          <div className="absolute -top-24 -left-20 h-56 w-56 rounded-full bg-teal-400/15 blur-3xl pointer-events-none animate-pulse" />
-          <div className="absolute -bottom-24 -right-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+            {/* Outer Subtle Orbit Ring */}
+            <div className="absolute -inset-2 rounded-full border border-cyan-400/15 animate-[spin_20s_linear_infinite_reverse]" />
 
-          {/* Floating Logo Podium with Dual Orbit Rings */}
-          <div className="relative z-10 mx-auto grid h-28 w-28 place-items-center mb-5">
-            {/* Ambient Radial Glow */}
-            <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-cyan-500 via-teal-400 to-indigo-500 opacity-25 blur-xl animate-pulse" />
+            {/* Ambient Radial Core Glow */}
+            <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-cyan-500/20 via-teal-400/15 to-indigo-500/20 blur-2xl pointer-events-none animate-pulse" />
 
-            {/* Fine Concentric Orbit Rings */}
-            <div className="absolute -inset-1.5 rounded-[1.8rem] border border-cyan-400/20 animate-[spin_24s_linear_infinite]" />
-            <div className="absolute -inset-3.5 rounded-[2.2rem] border border-dashed border-indigo-400/15 animate-[spin_32s_linear_infinite_reverse]" />
+            {/* SVG Radial Progress Ring (0% -> 100% Sweep) */}
+            <svg
+              className="absolute inset-0 h-full w-full -rotate-90 pointer-events-none"
+              viewBox="0 0 100 100"
+            >
+              <defs>
+                <linearGradient id="auroraCircleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2dd4bf" />
+                  <stop offset="50%" stopColor="#38bdf8" />
+                  <stop offset="100%" stopColor="#818cf8" />
+                </linearGradient>
+              </defs>
+              {/* Background Track */}
+              <circle
+                cx="50"
+                cy="50"
+                r="47.5"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.08)"
+                strokeWidth="2.5"
+              />
+              {/* Dynamic Progress Arc */}
+              <circle
+                cx="50"
+                cy="50"
+                r="47.5"
+                fill="none"
+                stroke="url(#auroraCircleGrad)"
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 47.5}
+                strokeDashoffset={2 * Math.PI * 47.5 * (1 - percent / 100)}
+                className="transition-all duration-300 ease-out"
+                style={{
+                  filter: 'drop-shadow(0 0 6px rgba(45, 212, 191, 0.6))',
+                }}
+              />
+            </svg>
 
-            {/* Emblem Glass Squircle */}
-            <div className="relative z-10 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-3 border border-white/15 shadow-2xl backdrop-blur-xl">
-              <AppLogo className="h-14 w-14 rounded-xl object-contain drop-shadow-[0_4px_16px_rgba(45,212,191,0.4)]" />
+            {/* Inner Content - Symmetrically Arranged Inside the Circle */}
+            {/* 1. Brand Eyebrow */}
+            <div className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-teal-400/25 bg-teal-500/10 px-3 py-0.5 text-[9.5px] font-black tracking-widest text-teal-200 shadow-xs mb-2 backdrop-blur-md">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-400" />
+              </span>
+              <span>CLASSCARE 360</span>
             </div>
+
+            {/* 2. Central Logo Pedestal */}
+            <div className="relative z-10 grid h-16 w-16 sm:h-18 sm:w-18 place-items-center rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-2.5 border border-white/15 shadow-[0_0_25px_rgba(45,212,191,0.35)] backdrop-blur-xl mb-1.5 animate-pulse">
+              <AppLogo className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl object-contain drop-shadow-[0_4px_16px_rgba(45,212,191,0.4)]" />
+            </div>
+
+            {/* 3. Percentage Counter */}
+            <div className="relative z-10 text-3xl sm:text-4xl font-black font-mono tracking-tight text-white drop-shadow-md">
+              {percent}%
+            </div>
+
+            {/* 4. Title */}
+            <h2 className="relative z-10 text-sm sm:text-base font-black tracking-tight text-slate-100 drop-shadow-sm mt-0.5 max-w-[200px] sm:max-w-[240px] truncate">
+              {title}
+            </h2>
+
+            {/* 5. Dynamic Status Hint */}
+            <p className="relative z-10 mt-1 text-[10.5px] sm:text-[11.5px] text-teal-200/90 font-bold max-w-[210px] sm:max-w-[240px] leading-tight flex items-center justify-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-ping shrink-0" />
+              <span className="truncate">{statusHint}</span>
+            </p>
           </div>
 
-          {/* System Status Pill */}
-          <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-teal-400/25 bg-teal-500/10 px-3.5 py-1 text-[11px] font-bold tracking-wider text-teal-200 backdrop-blur-md mb-3 shadow-xs">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
-            </span>
-            <span className="font-black uppercase tracking-widest text-[10px]">CLASSCARE 360 INTELLIGENCE</span>
-          </div>
-
-          {/* Title & Message */}
-          <h2 className="relative z-10 text-2xl sm:text-[26px] font-black tracking-tight text-white drop-shadow-sm">
-            {title}
-          </h2>
-          <p className="relative z-10 mt-1.5 text-xs sm:text-[13px] text-slate-300/80 max-w-sm mx-auto leading-relaxed">
-            {message || 'กำลังตรวจสอบความปลอดภัยและจัดเตรียมระบบให้พร้อมใช้งาน'}
-          </p>
-
-          {/* 3-Step Pipeline */}
-          <div className="relative z-10 mt-6 grid grid-cols-3 gap-2 text-[11px]">
+          {/* Connected 3-Step Circular Pills Below the Orb */}
+          <div className="relative z-10 mt-6 flex flex-wrap items-center justify-center gap-2">
             {[
               { label: 'ตรวจสอบสิทธิ์', step: 0 },
               { label: 'ซิงค์ข้อมูลระบบ', step: 1 },
-              { label: 'พร้อมเริ่มใช้งาน', step: 2 },
+              { label: 'พร้อมใช้งาน', step: 2 },
             ].map((item) => {
               const isCompleted = stepIndex > item.step;
               const isActive = stepIndex === item.step;
               return (
                 <div
                   key={item.step}
-                  className={`relative flex items-center justify-center gap-1.5 rounded-xl border py-2 px-1.5 transition-all duration-300 ${
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] border transition-all duration-300 ${
                     isActive
-                      ? 'border-teal-400/40 bg-teal-500/15 text-teal-200 shadow-[0_0_15px_rgba(45,212,191,0.15)] font-black'
+                      ? 'border-teal-400/40 bg-teal-500/15 text-teal-200 shadow-[0_0_15px_rgba(45,212,191,0.2)] font-black'
                       : isCompleted
                       ? 'border-teal-500/20 bg-slate-900/60 text-teal-300/90 font-bold'
                       : 'border-white/5 bg-slate-900/30 text-slate-500 font-medium'
@@ -277,30 +320,14 @@ export function NexusAuroraVisual({
             })}
           </div>
 
-          {/* High-Precision Progress Bar */}
-          <div className="relative z-10 mt-5">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900/90 p-[1px] border border-white/5">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400 shadow-[0_0_12px_rgba(45,212,191,0.6)] transition-all duration-300 ease-out"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-            <div className="mt-2.5 flex items-center justify-between text-xs font-semibold text-slate-400">
-              <span className="flex items-center gap-1.5 text-teal-300/90 text-[11px] font-bold">
-                <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-ping" />
-                <span>{statusHint}</span>
-              </span>
-              <span className="font-mono text-xs font-bold text-white">{percent}%</span>
-            </div>
-          </div>
-
           {/* Security & System Trust Footnote */}
-          <div className="relative z-10 mt-5 pt-3.5 border-t border-white/[0.06] flex items-center justify-between text-[10.5px] text-slate-400/80 font-medium">
+          <div className="relative z-10 mt-3.5 flex items-center justify-center gap-3 text-[10.5px] text-slate-400/80 font-medium">
             <div className="flex items-center gap-1.5 text-slate-400">
               <ShieldCheck size={13} className="text-teal-400/90" />
               <span>TLS 1.3 / AES-256 GCM</span>
             </div>
-            <div className="flex items-center gap-1 text-slate-500 font-mono">
+            <span>•</span>
+            <div className="flex items-center gap-1 text-slate-400 font-mono">
               <Zap size={11} className="text-amber-400/80" />
               <span>Cloud Sync Active</span>
             </div>
