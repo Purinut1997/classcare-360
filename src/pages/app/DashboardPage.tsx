@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Cake, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, TrendingDown, TrendingUp, UserPlus, Utensils } from 'lucide-react';
+import { ArrowRight, Cake, Calendar, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, List, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, TrendingDown, TrendingUp, UserPlus, Utensils } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
@@ -17,6 +17,7 @@ import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoad
 import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
 import { DailyStatsSummary } from '../../components/dashboard/DailyStatsSummary';
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
+import { DashboardMiniCalendar } from '../../components/dashboard/DashboardMiniCalendar';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
@@ -392,6 +393,25 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [quickLogNotice, setQuickLogNotice] = useState<string | null>(null);
   const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id));
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [allCalendarEvents, setAllCalendarEvents] = useState<UpcomingEvent[]>([]);
+  const [calendarViewMode, setCalendarViewMode] = useState<'calendar' | 'list'>(() => {
+    try {
+      const saved = window.localStorage.getItem('classcare:dashboard_calendar_view');
+      if (saved === 'list' || saved === 'calendar') return saved;
+    } catch {
+      // ignore
+    }
+    return 'calendar';
+  });
+
+  const handleToggleCalendarView = (mode: 'calendar' | 'list') => {
+    setCalendarViewMode(mode);
+    try {
+      window.localStorage.setItem('classcare:dashboard_calendar_view', mode);
+    } catch {
+      // ignore
+    }
+  };
   const [birthdayStudents, setBirthdayStudents] = useState<BirthdayStudent[]>([]);
   const thaiDayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
   const currentThaiDay = thaiDayNames[new Date().getDay()] || 'จันทร์';
@@ -885,7 +905,9 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const todayStr = getBangkokDate();
       const todayObj = new Date();
       const targetYear = todayObj.getFullYear();
-      const futureDate = new Date(Date.now() + 60 * 86_400_000);
+      const pastDate = new Date(Date.now() - 35 * 86_400_000);
+      const pastStr = getBangkokDate(pastDate);
+      const futureDate = new Date(Date.now() + 120 * 86_400_000);
       const futureStr = getBangkokDate(futureDate);
 
       const toEventType = (t: string): UpcomingEventType => {
@@ -903,11 +925,11 @@ export function DashboardPage({ session }: DashboardPageProps) {
             .from('school_calendar_days')
             .select('id, calendar_date, title, day_type')
             .eq('workspace_id', session.workspace.id)
-            .gte('calendar_date', todayStr)
+            .gte('calendar_date', pastStr)
             .lte('calendar_date', futureStr)
             .neq('day_type', 'school_day')
             .order('calendar_date', { ascending: true })
-            .limit(10);
+            .limit(100);
 
           if (!error && data) {
             data.forEach((row) => {
@@ -936,7 +958,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         if (raw) {
           const state = JSON.parse(raw) as { calendarRules?: Array<{ id: string; date: string; title: string; type: string }> };
           (state.calendarRules || []).forEach((item) => {
-            if (item.date >= todayStr && item.date <= futureStr) {
+            if (item.date >= pastStr && item.date <= futureStr) {
               const key = `${item.date}|${item.title}`;
               if (!seen.has(key)) {
                 seen.add(key);
@@ -955,30 +977,33 @@ export function DashboardPage({ session }: DashboardPageProps) {
       }
 
       // 3. Supplement with Official Thai Public Holidays so teacher always has schedule context
-      if (collected.length < 5) {
-        const presets = getThaiPublicHolidays(targetYear);
-        presets.forEach((p, idx) => {
-          if (p.date >= todayStr && p.date <= futureStr) {
-            const key = `${p.date}|${p.title}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              collected.push({
-                id: `preset-${p.date}-${idx}`,
-                date: p.date,
-                title: p.title,
-                type: toEventType(p.type),
-              });
-            }
+      const presets = [...getThaiPublicHolidays(targetYear), ...getThaiPublicHolidays(targetYear + 1)];
+      presets.forEach((p, idx) => {
+        if (p.date >= pastStr && p.date <= futureStr) {
+          const key = `${p.date}|${p.title}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            collected.push({
+              id: `preset-${p.date}-${idx}`,
+              date: p.date,
+              title: p.title,
+              type: toEventType(p.type),
+            });
           }
-        });
-      }
+        }
+      });
 
       // Sort ascending by date & group consecutive multi-day events
       collected.sort((a, b) => a.date.localeCompare(b.date));
       const groupedEvents = groupUpcomingEvents(collected);
 
       if (isMounted) {
-        setUpcomingEvents(groupedEvents.slice(0, 8));
+        setAllCalendarEvents(groupedEvents);
+        const upcomingOnly = groupedEvents.filter((ev) => {
+          const checkDate = ev.endDate || ev.date;
+          return checkDate >= todayStr;
+        });
+        setUpcomingEvents(upcomingOnly.slice(0, 10));
       }
     }
 
@@ -1675,19 +1700,58 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       {/* 🟡 PRIORITY 3: Upcoming Events + Birthdays — Time-sensitive info */}
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
-        {/* Widget: Upcoming School Events */}
+        {/* Widget: Upcoming School Events / Mini Calendar */}
         <article className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100/80 pb-3.5">
             <div className="flex items-center gap-2">
               <CalendarDays className="text-rose-600" size={19} aria-hidden="true" />
-              <h2 className="text-lg font-black text-slate-950">กิจกรรม / วันหยุดที่จะมาถึง</h2>
+              <h2 className="text-lg font-black text-slate-950">กิจกรรม / วันสำคัญ</h2>
             </div>
-            <Link className="text-xs font-black text-sky-800 hover:underline" to="/app/dashboard?view=school-calendar">
-              ดูปฏิทินทั้งหมด <ArrowRight className="inline" size={14} />
-            </Link>
+
+            <div className="flex items-center gap-2">
+              {/* View Switcher Pills */}
+              <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/90 p-0.5 text-xs font-black shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handleToggleCalendarView('calendar')}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 transition-all ${
+                    calendarViewMode === 'calendar'
+                      ? 'bg-white text-sky-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  aria-pressed={calendarViewMode === 'calendar'}
+                  title="แสดงมุมมองมินิปฏิทิน"
+                >
+                  <Calendar size={13} />
+                  <span>ปฏิทินย่อ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleCalendarView('list')}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 transition-all ${
+                    calendarViewMode === 'list'
+                      ? 'bg-white text-sky-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  aria-pressed={calendarViewMode === 'list'}
+                  title="แสดงมุมมองรายการ"
+                >
+                  <List size={13} />
+                  <span>รายการ</span>
+                </button>
+              </div>
+
+              <Link className="text-xs font-black text-sky-800 hover:underline ml-1" to="/app/dashboard?view=school-calendar">
+                ดูทั้งหมด <ArrowRight className="inline" size={14} />
+              </Link>
+            </div>
           </div>
 
-          {upcomingEvents.length > 0 ? (
+          {calendarViewMode === 'calendar' ? (
+            <div className="mt-3">
+              <DashboardMiniCalendar events={allCalendarEvents.length > 0 ? allCalendarEvents : upcomingEvents} />
+            </div>
+          ) : upcomingEvents.length > 0 ? (
             <ul className="mt-4 divide-y divide-slate-100">
               {upcomingEvents.map((ev) => {
                 const conf = eventTypeConfig[ev.type] || eventTypeConfig.custom;
