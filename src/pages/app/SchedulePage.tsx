@@ -1,10 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeftRight,
   BookOpenCheck,
   CalendarClock,
   CalendarRange,
   Download,
   FileSpreadsheet,
+  GripVertical,
   Palette,
   Plus,
   Printer,
@@ -12,6 +14,7 @@ import {
   Settings2,
   Sparkles,
   Trash2,
+  Undo2,
   UserRound,
   Users,
   Utensils,
@@ -130,6 +133,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
     subjectCode: firstSubject?.code || 'ค15101',
   }));
   const [notice, setNotice] = useState<string | null>(null);
+  const [draggedCellKey, setDraggedCellKey] = useState<string | null>(null);
+  const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
+  const [movingCellKey, setMovingCellKey] = useState<string | null>(null);
+  const [isDraggingNow, setIsDraggingNow] = useState(false);
+  const [lastActionUndo, setLastActionUndo] = useState<{
+    message: string;
+    previousCells: Record<string, ScheduleCell>;
+  } | null>(null);
   const [quickSubjectName, setQuickSubjectName] = useState('');
   const [workspaceClassrooms, setWorkspaceClassrooms] = useState<WorkspaceClassroomRow[]>([]);
   const [printLogoDataUrl, setPrintLogoDataUrl] = useState('');
@@ -591,6 +602,55 @@ export function SchedulePage({ session }: SchedulePageProps) {
     persistSharedSchedule(nextSettings);
     setEditingCell(null);
     setNotice(`ล้างช่อง ${editingCell.day} คาบ ${editingCell.periodIndex} แล้ว`);
+  }
+
+  function moveOrSwapCell(sourceKey: string, targetKey: string) {
+    if (sourceKey === targetKey) {
+      setMovingCellKey(null);
+      return;
+    }
+
+    const sourceCell = settings.cells[sourceKey];
+    if (!sourceCell) return;
+
+    const targetCell = settings.cells[targetKey];
+    const previousCells = { ...settings.cells };
+    const nextCells = { ...settings.cells };
+
+    if (targetCell) {
+      // สลับตำแหน่งระหว่าง 2 คาบ (Swap)
+      nextCells[targetKey] = sourceCell;
+      nextCells[sourceKey] = targetCell;
+      setLastActionUndo({
+        message: `สลับคาบเรียนระหว่าง "${sourceCell.subject}" กับ "${targetCell.subject}" เรียบร้อย`,
+        previousCells,
+      });
+      setNotice(`🔄 สลับคาบเรียนระหว่าง "${sourceCell.subject}" กับ "${targetCell.subject}" เรียบร้อย`);
+    } else {
+      // ย้ายไปยังช่องว่าง (Move to empty)
+      delete nextCells[sourceKey];
+      nextCells[targetKey] = sourceCell;
+      setLastActionUndo({
+        message: `ย้าย "${sourceCell.subject}${sourceCell.classroom ? ` (${sourceCell.classroom})` : ''}" ไปยังช่องใหม่เรียบร้อย`,
+        previousCells,
+      });
+      setNotice(`✨ ย้ายคาบ "${sourceCell.subject}${sourceCell.classroom ? ` (${sourceCell.classroom})` : ''}" ไปยังช่องใหม่เรียบร้อย`);
+    }
+
+    const nextSettings = { ...settings, cells: nextCells };
+    saveAll(nextSettings);
+    setDraggedCellKey(null);
+    setDragOverCellKey(null);
+    setMovingCellKey(null);
+    setIsDraggingNow(false);
+  }
+
+  function undoLastMove() {
+    if (!lastActionUndo) return;
+    const nextSettings = { ...settings, cells: lastActionUndo.previousCells };
+    saveAll(nextSettings);
+    setNotice(`↩️ เลิกทำการย้าย/สลับคาบเรียนแล้ว`);
+    setLastActionUndo(null);
   }
 
   function printSchedule() {
@@ -1513,6 +1573,69 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   </div>
                 ) : null}
 
+                {/* 💡 Tips & Guidance bar */}
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
+                  <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <span className="text-amber-500">💡</span>
+                    <span>สามารถ<strong>คลิกลาก (Drag & Drop)</strong> การ์ดวิชาเพื่อย้ายคาบ หรือสลับช่องได้ทันที หรือกด "ย้าย" ที่มุมการ์ด</span>
+                  </span>
+                  {workloadSummary.totalPeriods > 0 ? (
+                    <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      รวมทั้งหมด {workloadSummary.totalPeriods} คาบ
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* 📦 Moving Mode Banner */}
+                {movingCellKey && settings.cells[movingCellKey] ? (
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-3.5 shadow-md">
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-black text-amber-950">
+                      <ArrowLeftRight size={18} className="text-amber-700 animate-spin" />
+                      <span>กำลังย้ายคาบ:</span>
+                      <span className="rounded-lg bg-amber-200/90 px-2 py-0.5 text-amber-950 shadow-2xs">
+                        {settings.cells[movingCellKey]?.subject} {settings.cells[movingCellKey]?.classroom ? `[${settings.cells[movingCellKey]?.classroom}]` : ''}
+                      </span>
+                      <span className="text-xs font-bold text-amber-800">
+                        👉 คลิกที่ช่องปลายทางใดก็ได้ในตารางเพื่อ "วาง" หรือ "สลับคาบ"
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMovingCellKey(null)}
+                      className="rounded-xl bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-2xs border border-amber-300 hover:bg-amber-100"
+                    >
+                      ยกเลิกการย้าย
+                    </button>
+                  </div>
+                ) : null}
+
+                {/* ↩️ Undo Banner */}
+                {lastActionUndo ? (
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-bold text-sky-950 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">✨</span>
+                      <span className="font-black">{lastActionUndo.message}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={undoLastMove}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1 text-xs font-black text-sky-800 shadow-2xs border border-sky-200 hover:bg-sky-100"
+                      >
+                        <Undo2 size={13} />
+                        เลิกทำ (Undo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLastActionUndo(null)}
+                        className="text-sky-600 hover:text-sky-900 px-1 font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* Timetable Grid */}
                 <div className="grid gap-2.5" style={{ gridTemplateColumns: `110px repeat(${scheduleColumns.length}, minmax(104px, 1fr))` }}>
                   {/* Top-Left Header: Day / Period */}
@@ -1584,25 +1707,109 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           const cell = settings.cells[key];
                           const hasContent = Boolean(cell && cell.subject?.trim());
                           const theme = hasContent ? getScheduleTheme(cell.subject, cell.classroom) : null;
+                          const isDragged = draggedCellKey === key;
+                          const isDragOver = dragOverCellKey === key && draggedCellKey !== key;
+                          const isMovingSource = movingCellKey === key;
+                          const isMoveTargetMode = Boolean(movingCellKey && movingCellKey !== key);
 
                           return (
                             <button
-                              className={`group relative flex min-h-[96px] flex-col justify-between rounded-2xl border p-2.5 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-                                hasContent && theme
-                                  ? `${theme.card}`
+                              key={key}
+                              type="button"
+                              draggable={hasContent}
+                              onDragStart={(e) => {
+                                if (!hasContent) return;
+                                setDraggedCellKey(key);
+                                setIsDraggingNow(true);
+                                e.dataTransfer.setData('text/plain', key);
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              onDragEnd={() => {
+                                setDraggedCellKey(null);
+                                setDragOverCellKey(null);
+                                setTimeout(() => setIsDraggingNow(false), 150);
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'move';
+                                if (draggedCellKey && draggedCellKey !== key && dragOverCellKey !== key) {
+                                  setDragOverCellKey(key);
+                                }
+                              }}
+                              onDragLeave={(e) => {
+                                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                                if (dragOverCellKey === key) {
+                                  setDragOverCellKey(null);
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const sourceKey = e.dataTransfer.getData('text/plain') || draggedCellKey;
+                                if (sourceKey && sourceKey !== key) {
+                                  moveOrSwapCell(sourceKey, key);
+                                }
+                                setDraggedCellKey(null);
+                                setDragOverCellKey(null);
+                                setIsDraggingNow(false);
+                              }}
+                              onClick={() => {
+                                if (isDraggingNow) return;
+                                if (movingCellKey) {
+                                  moveOrSwapCell(movingCellKey, key);
+                                  return;
+                                }
+                                openCellEditor(day, period.index);
+                              }}
+                              className={`group relative flex min-h-[96px] flex-col justify-between rounded-2xl border p-2.5 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-400 select-none ${
+                                isDragged
+                                  ? 'opacity-30 scale-95 border-dashed border-sky-400 ring-2 ring-sky-400'
+                                  : isDragOver
+                                  ? hasContent
+                                    ? 'ring-4 ring-amber-400 scale-[1.04] shadow-2xl brightness-110 z-10'
+                                    : 'ring-4 ring-emerald-400 bg-emerald-50/90 border-emerald-400 scale-[1.04] shadow-2xl z-10'
+                                  : isMovingSource
+                                  ? 'ring-4 ring-amber-400 animate-pulse'
+                                  : isMoveTargetMode
+                                  ? hasContent
+                                    ? 'hover:ring-4 hover:ring-amber-400 hover:scale-[1.02] cursor-pointer'
+                                    : 'hover:ring-4 hover:ring-emerald-400 hover:bg-emerald-50 cursor-pointer'
+                                  : hasContent && theme
+                                  ? `${theme.card} hover:-translate-y-1 hover:shadow-lg cursor-grab active:cursor-grabbing`
                                   : 'border-dashed border-slate-300/80 bg-white/75 text-slate-400 hover:border-sky-400 hover:bg-sky-50/60 hover:text-sky-600 hover:shadow-sm'
                               }`}
-                              key={key}
-                              onClick={() => openCellEditor(day, period.index)}
-                              type="button"
                             >
+                              {/* Drag over overlay indicators */}
+                              {isDragOver ? (
+                                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-black/45 p-2 text-center text-white backdrop-blur-[2px]">
+                                  {hasContent ? (
+                                    <div className="flex flex-col items-center gap-1 font-black">
+                                      <ArrowLeftRight size={20} className="text-amber-300 animate-bounce" />
+                                      <span className="text-[11px] text-amber-200">สลับตำแหน่งกับคาบนี้</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-1 font-black">
+                                      <Plus size={20} className="text-emerald-300 animate-bounce" />
+                                      <span className="text-[11px] text-emerald-200">วางที่นี่ (ย้ายมาช่องนี้)</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : null}
+
                               {hasContent && theme ? (
                                 <>
-                                  {/* Upper row: Subject Code + Classroom High Contrast Pill */}
+                                  {/* Upper row: Subject Code + Classroom Pill + Drag Handle */}
                                   <div className="flex items-center justify-between gap-1 w-full">
-                                    <span className={`text-[10px] font-mono tracking-tight ${theme.codeTag}`}>
-                                      {cell.subjectCode || '—'}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className="cursor-grab active:cursor-grabbing text-white/50 group-hover:text-white transition-colors"
+                                        title="คลิกลากเพื่อย้ายหรือสลับคาบ"
+                                      >
+                                        <GripVertical size={13} />
+                                      </span>
+                                      <span className={`text-[10px] font-mono tracking-tight ${theme.codeTag}`}>
+                                        {cell.subjectCode || '—'}
+                                      </span>
+                                    </div>
                                     {formatScheduleClassroom(cell.classroom) ? (
                                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black tracking-tight ${theme.badge}`}>
                                         <Users size={10} className="opacity-75" />
@@ -1623,18 +1830,38 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                     </p>
                                   </div>
 
-                                  {/* Bottom row: Category badge + Edit hint */}
+                                  {/* Bottom row: Category badge + Quick Actions (Move & Edit) */}
                                   <div className="flex items-center justify-between text-[10px] font-bold opacity-85">
                                     <span className="truncate text-[9.5px] opacity-90">{theme.categoryLabel}</span>
-                                    <span className="text-[9px] opacity-70 group-hover:opacity-100 transition-opacity">แก้ไข</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setMovingCellKey(movingCellKey === key ? null : key);
+                                        }}
+                                        className="text-[9px] underline opacity-75 hover:opacity-100 hover:text-amber-200 cursor-pointer"
+                                        title="ย้ายคาบนี้ไปยังช่องอื่น"
+                                      >
+                                        {movingCellKey === key ? 'ยกเลิก' : 'ย้าย'}
+                                      </span>
+                                      <span className="text-[9px] opacity-60">•</span>
+                                      <span className="text-[9px] opacity-75 group-hover:opacity-100">แก้ไข</span>
+                                    </div>
                                   </div>
                                 </>
                               ) : (
                                 <div className="grid h-full w-full place-items-center py-2 text-center">
-                                  <div className="flex flex-col items-center gap-1 text-slate-400 transition-colors group-hover:text-sky-600">
-                                    <Plus size={17} className="transition-transform duration-200 group-hover:scale-125" />
-                                    <span className="text-[11px] font-black">เพิ่มคาบ</span>
-                                  </div>
+                                  {isMoveTargetMode ? (
+                                    <div className="flex flex-col items-center gap-1 text-emerald-600 animate-pulse font-black">
+                                      <Plus size={18} />
+                                      <span className="text-[11px]">คลิกวางที่นี่</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-1 text-slate-400 transition-colors group-hover:text-sky-600">
+                                      <Plus size={17} className="transition-transform duration-200 group-hover:scale-125" />
+                                      <span className="text-[11px] font-black">เพิ่มคาบ</span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </button>
