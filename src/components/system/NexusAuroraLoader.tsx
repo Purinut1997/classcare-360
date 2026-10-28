@@ -204,19 +204,25 @@ export function NexusAuroraVisual({
       {currentTheme === 'aurora' && (
         <div className="relative flex flex-col items-center justify-center">
           {/* Main Circular Portal / Orb */}
-          <div className="relative flex h-80 w-80 sm:h-96 sm:w-96 flex-col items-center justify-center rounded-full border border-white/10 bg-slate-950/85 p-6 sm:p-8 text-center shadow-[0_0_120px_rgba(14,165,233,0.22),inset_0_0_50px_rgba(255,255,255,0.03)] backdrop-blur-3xl">
-            {/* Outer Rotating Dashed Planetary Ring */}
-            <div className="absolute -inset-4 sm:-inset-5 rounded-full border border-dashed border-teal-400/20 animate-[spin_35s_linear_infinite]" />
+          <div className="relative flex h-80 w-80 sm:h-96 sm:w-96 flex-col items-center justify-center rounded-full border border-white/10 bg-slate-950/90 p-6 sm:p-8 text-center shadow-[0_0_100px_rgba(14,165,233,0.18),inset_0_0_40px_rgba(255,255,255,0.03)] backdrop-blur-md">
+            {/* Outer Rotating Dashed Planetary Ring (GPU Accelerated) */}
+            <div className="absolute -inset-4 sm:-inset-5 rounded-full border border-dashed border-teal-400/20 animate-[spin_35s_linear_infinite] transform-gpu pointer-events-none" />
 
-            {/* Outer Subtle Orbit Ring */}
-            <div className="absolute -inset-2 rounded-full border border-cyan-400/15 animate-[spin_20s_linear_infinite_reverse]" />
+            {/* Outer Subtle Orbit Ring (GPU Accelerated) */}
+            <div className="absolute -inset-2 rounded-full border border-cyan-400/15 animate-[spin_20s_linear_infinite_reverse] transform-gpu pointer-events-none" />
 
-            {/* Ambient Radial Core Glow */}
-            <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-cyan-500/20 via-teal-400/15 to-indigo-500/20 blur-2xl pointer-events-none animate-pulse" />
+            {/* Ambient Radial Core Glow - Zero Filter Overhead */}
+            <div
+              className="absolute inset-4 rounded-full pointer-events-none opacity-60"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(45, 212, 191, 0.18) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 75%)',
+              }}
+            />
 
             {/* SVG Radial Progress Ring (0% -> 100% Sweep) */}
             <svg
-              className="absolute inset-0 h-full w-full -rotate-90 pointer-events-none"
+              className="absolute inset-0 h-full w-full -rotate-90 pointer-events-none transform-gpu"
               viewBox="0 0 100 100"
             >
               <defs>
@@ -235,7 +241,21 @@ export function NexusAuroraVisual({
                 stroke="rgba(255, 255, 255, 0.08)"
                 strokeWidth="2.5"
               />
-              {/* Dynamic Progress Arc */}
+              {/* Glow Underlayer (Zero GPU Filter Overhead) */}
+              <circle
+                cx="50"
+                cy="50"
+                r="47.5"
+                fill="none"
+                stroke="#2dd4bf"
+                strokeWidth="5"
+                strokeOpacity="0.25"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 47.5}
+                strokeDashoffset={2 * Math.PI * 47.5 * (1 - percent / 100)}
+                className="transition-all duration-300 ease-out"
+              />
+              {/* Dynamic Crisp Arc */}
               <circle
                 cx="50"
                 cy="50"
@@ -247,15 +267,12 @@ export function NexusAuroraVisual({
                 strokeDasharray={2 * Math.PI * 47.5}
                 strokeDashoffset={2 * Math.PI * 47.5 * (1 - percent / 100)}
                 className="transition-all duration-300 ease-out"
-                style={{
-                  filter: 'drop-shadow(0 0 6px rgba(45, 212, 191, 0.6))',
-                }}
               />
             </svg>
 
             {/* Inner Content - Symmetrically Arranged Inside the Circle */}
             {/* 1. Brand Eyebrow */}
-            <div className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-teal-400/25 bg-teal-500/10 px-3 py-0.5 text-[9.5px] font-black tracking-widest text-teal-200 shadow-xs mb-2 backdrop-blur-md">
+            <div className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-teal-400/25 bg-teal-500/10 px-3 py-0.5 text-[9.5px] font-black tracking-widest text-teal-200 shadow-xs mb-2 backdrop-blur-xs">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-400" />
@@ -264,7 +281,7 @@ export function NexusAuroraVisual({
             </div>
 
             {/* 2. Central Logo Pedestal */}
-            <div className="relative z-10 grid h-16 w-16 sm:h-18 sm:w-18 place-items-center rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-2.5 border border-white/15 shadow-[0_0_25px_rgba(45,212,191,0.35)] backdrop-blur-xl mb-1.5 animate-pulse">
+            <div className="relative z-10 grid h-16 w-16 sm:h-18 sm:w-18 place-items-center rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-2.5 border border-white/15 shadow-[0_0_20px_rgba(45,212,191,0.25)] backdrop-blur-xs mb-1.5 animate-pulse">
               <AppLogo className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl object-contain drop-shadow-[0_4px_16px_rgba(45,212,191,0.4)]" />
             </div>
 
@@ -459,10 +476,17 @@ export function NexusAuroraLoader({
   if (variant === 'page') {
     return (
       <main className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center bg-[#070b14] overflow-hidden px-4 py-8 select-none">
-        {/* Ambient Cosmic Atmosphere */}
-        <div className="absolute -top-32 -left-32 h-[450px] w-[450px] rounded-full bg-cyan-500/12 blur-[130px] pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 h-[480px] w-[480px] rounded-full bg-indigo-500/15 blur-[130px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[550px] w-[550px] rounded-full bg-teal-500/8 blur-[150px] pointer-events-none" />
+        {/* Ambient Cosmic Atmosphere - Zero GPU Overhead */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `
+              radial-gradient(circle at 18% 18%, rgba(6, 182, 212, 0.12), transparent 45%),
+              radial-gradient(circle at 82% 82%, rgba(99, 102, 241, 0.14), transparent 50%),
+              radial-gradient(circle at 50% 50%, rgba(20, 184, 166, 0.08), transparent 55%)
+            `,
+          }}
+        />
 
         {/* Subtle Architectural Grid with Radial Mask */}
         <div
