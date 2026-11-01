@@ -123,76 +123,64 @@ const STATUS_EMOJI: Record<AttendanceStatus, string> = {
   activity: '🏅',
 };
 
-const animalTone: Record<AttendanceStatus, { badge: string; button: string; face: string; label: string }> = {
+const postItTone: Record<
+  AttendanceStatus,
+  { bg: string; text: string; shadow: string; border: string; label: string }
+> = {
   present: {
-    badge: 'border-lime-400 text-lime-700',
-    button: 'bg-lime-100 text-lime-800 ring-lime-400',
-    face: 'bg-lime-50 border-lime-400',
-    label: 'text-lime-700',
+    bg: 'bg-[#d9f99d]',
+    text: 'text-[#3f6212]',
+    shadow: 'shadow-[2px_5px_8px_rgba(63,98,18,0.18)]',
+    border: 'border-lime-300/40',
+    label: 'text-[#3f6212]',
   },
   absent: {
-    badge: 'border-rose-400 text-rose-700',
-    button: 'bg-rose-100 text-rose-800 ring-rose-400',
-    face: 'bg-rose-50 border-rose-400',
-    label: 'text-rose-600',
-  },
-  late: {
-    badge: 'border-orange-400 text-orange-700',
-    button: 'bg-orange-100 text-orange-800 ring-orange-400',
-    face: 'bg-orange-50 border-orange-400',
-    label: 'text-orange-600',
+    bg: 'bg-[#fecdd3]',
+    text: 'text-[#9f1239]',
+    shadow: 'shadow-[2px_5px_8px_rgba(159,18,57,0.18)]',
+    border: 'border-rose-300/40',
+    label: 'text-[#9f1239]',
   },
   leave: {
-    badge: 'border-sky-400 text-sky-700',
-    button: 'bg-sky-100 text-sky-800 ring-sky-400',
-    face: 'bg-sky-50 border-sky-400',
-    label: 'text-sky-600',
+    bg: 'bg-[#bae6fd]',
+    text: 'text-[#075985]',
+    shadow: 'shadow-[2px_5px_8px_rgba(7,89,133,0.18)]',
+    border: 'border-sky-300/40',
+    label: 'text-[#075985]',
+  },
+  late: {
+    bg: 'bg-[#fde68a]',
+    text: 'text-[#92400e]',
+    shadow: 'shadow-[2px_5px_8px_rgba(146,64,14,0.18)]',
+    border: 'border-amber-300/40',
+    label: 'text-[#92400e]',
   },
   sick: {
-    badge: 'border-violet-400 text-violet-700',
-    button: 'bg-violet-100 text-violet-800 ring-violet-400',
-    face: 'bg-violet-50 border-violet-400',
-    label: 'text-violet-600',
+    bg: 'bg-[#e9d5ff]',
+    text: 'text-[#6b21a8]',
+    shadow: 'shadow-[2px_5px_8px_rgba(107,33,168,0.18)]',
+    border: 'border-purple-300/40',
+    label: 'text-[#6b21a8]',
   },
   activity: {
-    badge: 'border-teal-400 text-teal-700',
-    button: 'bg-teal-100 text-teal-800 ring-teal-400',
-    face: 'bg-teal-50 border-teal-400',
-    label: 'text-teal-600',
+    bg: 'bg-[#a7f3d0]',
+    text: 'text-[#065f46]',
+    shadow: 'shadow-[2px_5px_8px_rgba(6,95,70,0.18)]',
+    border: 'border-teal-300/40',
+    label: 'text-[#065f46]',
   },
 };
 
-const ANIMALS = [
-  '🐼', '🐰', '🦊', '🐻', '🐱', '🐶', '🐨', '🐯', '🐸', '🐵',
-  '🐥', '🦁', '🐹', '🐷', '🐮', '🦄', '🐧', '🐙', '🐳', '🦋',
-  '🐞', '🐢', '🦔', '🦉', '🐬', '🐝', '🐲', '🦩', '🐠', '🐴',
-  '🐺', '🦒', '🦓', '🐘', '🦛', '🦦', '🦥', '🦜', '🦢', '🐊',
-  '🦕', '🦖', '🐌', '🦀', '🐡', '🐿️', '🦘', '🐑', '🐐', '🦚',
+const NOTE_ROTATIONS = [
+  'rotate-[1.5deg]',
+  '-rotate-[2deg]',
+  'rotate-[2deg]',
+  '-rotate-[1.5deg]',
+  'rotate-[1deg]',
+  '-rotate-[2.5deg]',
+  'rotate-[2.5deg]',
+  '-rotate-[1deg]',
 ];
-
-function hashString(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-/** Gives every student a stable animal (same one every day), avoiding duplicates inside a class when possible. */
-function assignAnimals(students: Array<{ id: string; student_code: string | null }>) {
-  const used = new Set<number>();
-  const result: Record<string, string> = {};
-  for (const student of students) {
-    let index = hashString(student.student_code || student.id) % ANIMALS.length;
-    if (used.size < ANIMALS.length) {
-      while (used.has(index)) index = (index + 1) % ANIMALS.length;
-    }
-    used.add(index);
-    result[student.id] = ANIMALS[index];
-  }
-  return result;
-}
 
 function getTodayDate() {
   return getBangkokDate();
@@ -322,7 +310,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
   const sessionLabel = `${mode === 'homeroom' ? 'ประจำวัน' : 'รายวิชา'} | ${periodLabel}`;
 
-  const studentAnimals = useMemo(() => assignAnimals(classroomStudents), [classroomStudents]);
 
   const savedStatusByStudent = useMemo(
     () => Object.fromEntries(records.map((record) => [record.student_id, record])),
@@ -892,59 +879,64 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   return (
-    <main className="app-page pb-36 lg:pb-24 font-sans">
+    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
       {/* ======================================================== */}
-      {/* TOP HEADER: Warm & Friendly "แก๊งสัตว์น้อย" Style         */}
+      {/* CORKBOARD / LINED PAPER CONTAINER (Style 5: Post-it)     */}
       {/* ======================================================== */}
-      <header className="rounded-3xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-white p-4 sm:p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+        
+        {/* Header */}
+        <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-2xl sm:text-3xl select-none animate-bounce">🐾</span>
-              <h1 className="text-xl sm:text-2xl font-black text-amber-950 tracking-tight">
-                เพื่อน ๆ มากันครบไหม?
+              <h1 className="text-2xl sm:text-3xl font-normal text-[#3f3a36] tracking-tight flex items-center gap-1.5">
+                <span>เช็คชื่อวันนี้</span>
+                <span className="text-xl sm:text-2xl">📌</span>
               </h1>
             </div>
-            <p className="mt-1 text-xs sm:text-sm font-bold text-amber-900/70">
-              📅 {thaiDateLabel} · {mode === 'homeroom' ? (periodLabel === 'เช้า' ? 'ช่วงเช้า' : periodLabel) : `${subjectName} (${periodLabel})`}
+            <p className="mt-0.5 text-sm sm:text-base text-[#8a8178]">
+              {thaiDateLabel} · {mode === 'homeroom' ? (periodLabel === 'เช้า' ? 'ช่วงเช้า' : periodLabel) : `${subjectName} (${periodLabel})`}
+            </p>
+            <p className="mt-1 text-xs sm:text-sm text-[#a3998e]">
+              แตะโน้ตของคนที่ไม่มา (แตะค้างเพื่อใส่หมายเหตุ)
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Native Classroom Select Dropdown */}
-            <div className="relative inline-flex items-center">
+            {/* Classroom Selector */}
+            <div className="relative inline-flex items-center rotate-[1.5deg] shadow-xs">
               <select
                 value={classroomId}
                 onChange={(e) => setClassroomId(e.target.value)}
-                className="appearance-none rounded-2xl border-2 border-amber-300 bg-white py-2 pl-3.5 pr-8 text-xs sm:text-sm font-black text-amber-950 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                className="appearance-none rounded-xl border border-[#ded5c6] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#3f3a36] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
               >
                 {displayClassrooms.map((c) => {
                   const badge = getClassroomScopeBadge(c, session.profile.id);
                   return (
                     <option key={c.id} value={c.id}>
-                      {badge.prefix}{c.name} {c.academic_year ? `(${c.academic_year})` : ''} — {badge.label}
+                      {c.name} {c.academic_year ? `(${c.academic_year})` : ''} — {badge.label}
                     </option>
                   );
                 })}
               </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-700" />
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
             </div>
 
-            {/* More Menu Button */}
+            {/* More Settings Button */}
             <button
               type="button"
               onClick={() => setIsMoreOpen(true)}
-              className="inline-flex h-9.5 w-9.5 items-center justify-center rounded-2xl border border-amber-200 bg-white text-amber-900 hover:bg-amber-100/70 active:scale-95 transition shadow-xs"
+              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-[#ded5c6] bg-white text-[#78716c] hover:bg-white/80 active:scale-95 transition shadow-xs rotate-[-1deg]"
               title="เมนูเพิ่มเติม (เปลี่ยนวันที่ / รายวิชา / แก้ไขย้อนหลัง)"
             >
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={17} />
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Holiday Banner if today affects calendar */}
         {isHolidayBlocked && calendarPolicy && (
-          <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-900">
+          <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-300 bg-rose-50 p-3 text-xs sm:text-sm text-rose-900 font-bold">
             <AlertTriangle size={16} className="text-rose-600 shrink-0" />
             <span>วันนี้เป็นวันหยุดตามปฏิทิน: {calendarPolicy.title} (ระบบงดบันทึกเวลาเรียน)</span>
           </div>
@@ -952,70 +944,64 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
         {/* Notice alert if any */}
         {notice && (
-          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 animate-in fade-in">
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs sm:text-sm text-amber-950 font-bold animate-in fade-in">
             <div className="flex items-center gap-2">
               <AlertTriangle size={15} className="text-amber-600 shrink-0" />
               <span>{notice}</span>
             </div>
-            <button type="button" onClick={() => setNotice(null)} className="text-amber-700 hover:text-amber-950">
+            <button type="button" onClick={() => setNotice(null)} className="text-amber-800 hover:text-amber-950">
               <X size={15} />
             </button>
           </div>
         )}
 
-        {/* Quick action tools pill row */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-amber-200/60">
-          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-amber-900/80 bg-amber-100/50 rounded-xl px-3 py-1.5 border border-amber-200/50">
-            <span>🐾 ทุกคนเริ่มต้นเป็น "มา" แตะสัตว์ของเพื่อนที่ไม่มาได้เลย</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
+        {/* Quick action buttons row */}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t border-[#e2d5c3]">
+          <button
+            type="button"
+            onClick={() => markAll('present')}
+            className="inline-flex items-center gap-1 rounded-lg border border-lime-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#3f6212] hover:bg-white active:scale-95 transition shadow-2xs"
+          >
+            <Check size={13} className="text-[#3f6212] stroke-[3]" />
+            <span>มาทุกคน</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsQuickRollOpen((prev) => !prev)}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-bold transition active:scale-95 shadow-2xs ${
+              isQuickRollOpen
+                ? 'border-amber-400 bg-amber-200 text-amber-950'
+                : 'border-amber-300 bg-white/90 text-amber-800 hover:bg-white'
+            }`}
+          >
+            <UserCheck size={13} className="text-amber-600" />
+            <span>คีย์เลขที่</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsOcrModalOpen(true)}
+            className="inline-flex items-center gap-1 rounded-lg border border-teal-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-white active:scale-95 transition shadow-2xs"
+          >
+            <Camera size={13} className="text-teal-600" />
+            <span>สแกน AI</span>
+          </button>
+          {alertStudents.length > 0 && (
             <button
               type="button"
-              onClick={() => markAll('present')}
-              className="inline-flex items-center gap-1 rounded-xl border border-lime-300 bg-lime-50 px-2.5 py-1 text-xs font-black text-lime-800 hover:bg-lime-100 active:scale-95 transition"
+              onClick={() => void notifyGuardians()}
+              disabled={isNotifying}
+              className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-rose-800 hover:bg-white active:scale-95 transition shadow-2xs disabled:opacity-50"
             >
-              <Check size={13} className="text-lime-600 stroke-[3]" />
-              <span>มาทุกคน</span>
+              <Send size={13} className="text-rose-600" />
+              <span>แจ้งผู้ปกครอง ({alertStudents.length})</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setIsQuickRollOpen((prev) => !prev)}
-              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-black transition active:scale-95 ${
-                isQuickRollOpen
-                  ? 'border-amber-400 bg-amber-200 text-amber-950'
-                  : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-              }`}
-            >
-              <UserCheck size={13} className="text-amber-600" />
-              <span>คีย์เลขที่</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsOcrModalOpen(true)}
-              className="inline-flex items-center gap-1 rounded-xl border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-black text-teal-800 hover:bg-teal-100 active:scale-95 transition"
-            >
-              <Camera size={13} className="text-teal-600" />
-              <span>สแกน AI</span>
-            </button>
-            {alertStudents.length > 0 && (
-              <button
-                type="button"
-                onClick={() => void notifyGuardians()}
-                disabled={isNotifying}
-                className="inline-flex items-center gap-1 rounded-xl border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-800 hover:bg-rose-100 active:scale-95 transition disabled:opacity-50"
-              >
-                <Send size={13} className="text-rose-600" />
-                <span>แจ้งผู้ปกครอง ({alertStudents.length})</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Quick roll numbers drawer */}
         {isQuickRollOpen && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300 bg-white p-3 shadow-sm animate-in slide-in-from-top-2 duration-150">
-            <span className="text-xs font-black text-amber-950">เลขที่คนไม่มา:</span>
+            <span className="text-xs font-bold text-amber-950">เลขที่คนไม่มา:</span>
             <input
               type="text"
               placeholder="เช่น 3, 7, 12"
@@ -1035,7 +1021,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   key={st}
                   type="button"
                   onClick={() => setQuickRollStatus(st)}
-                  className={`h-8.5 px-2.5 rounded-xl text-xs font-black transition ${
+                  className={`h-8.5 px-2.5 rounded-xl text-xs font-bold transition ${
                     quickRollStatus === st ? 'bg-amber-950 text-white shadow-xs' : 'bg-slate-100 border border-slate-200 text-slate-700 hover:bg-white'
                   }`}
                 >
@@ -1046,7 +1032,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             <button
               type="button"
               onClick={handleApplyQuickRollNumbers}
-              className="h-8.5 rounded-xl bg-amber-600 px-3.5 text-xs font-black text-white hover:bg-amber-700 active:scale-95 transition"
+              className="h-8.5 rounded-xl bg-amber-600 px-3.5 text-xs font-bold text-white hover:bg-amber-700 active:scale-95 transition"
             >
               ปรับสถานะ
             </button>
@@ -1059,140 +1045,122 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </button>
           </div>
         )}
-      </header>
 
-      {/* ======================================================== */}
-      {/* ANIMAL GRID: แบบ 3 แก๊งสัตว์น้อย (Tap to Cycle, Hold to Detail) */}
-      {/* ======================================================== */}
-      <section className="mt-5">
-        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2.5 sm:gap-3.5">
-          {classroomStudents.map((student, idx) => {
-            const rollNumber = student.student_code ? student.student_code.replace(/^[A-Za-z]+-?/, '') : idx + 1;
-            const animal = studentAnimals[student.id] || '🐾';
-            const mark = marks[student.id] || 'present';
-            const tone = animalTone[mark] || animalTone.present;
-            const isAbsent = mark === 'absent';
-            const hasNote = Boolean(notes[student.id]?.trim());
+        {/* ======================================================== */}
+        {/* POST-IT NOTES GRID (4 columns on mobile, matching image)  */}
+        {/* ======================================================== */}
+        <section className="mt-5">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4.5 pt-2">
+            {classroomStudents.map((student, idx) => {
+              const rollNumber = idx + 1;
+              const mark = marks[student.id] || 'present';
+              const tone = postItTone[mark] || postItTone.present;
+              const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+              const isPresent = mark === 'present';
+              const displayName = isPresent
+                ? student.nickname || student.first_name
+                : statusLabels[mark];
+              const hasNote = Boolean(notes[student.id]?.trim());
 
-            return (
-              <button
-                key={student.id}
-                type="button"
-                onClick={() => handleStudentTap(student.id)}
-                onPointerDown={() => handlePointerDown(student.id)}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setSheetStudentId(student.id);
-                }}
-                className={`relative flex flex-col items-center justify-between rounded-2xl border-2 p-2 sm:p-2.5 transition-all select-none active:scale-90 ${tone.face} ${
-                  isAbsent ? 'opacity-85 shadow-none' : 'shadow-xs hover:shadow-md'
-                }`}
-                title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${statusLabels[mark]}) — แตะเพื่อวนสถานะ, แตะค้างเพื่อใส่หมายเหตุ`}
-              >
-                {/* Roll number pill at top-left */}
-                <span className={`absolute -top-1.5 -left-1.5 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-white border-2 text-[10px] sm:text-[11px] font-black shadow-xs ${tone.badge}`}>
-                  {rollNumber}
-                </span>
+              return (
+                <button
+                  key={student.id}
+                  type="button"
+                  onClick={() => handleStudentTap(student.id)}
+                  onPointerDown={() => handlePointerDown(student.id)}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerCancel}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setSheetStudentId(student.id);
+                  }}
+                  className={`relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
+                  title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${statusLabels[mark]}) — แตะเพื่อวนสถานะ, แตะค้างเพื่อดูรายละเอียด`}
+                >
+                  {/* Frosted Tape on top of note */}
+                  <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
 
-                {/* Note Indicator at top-right */}
-                {hasNote && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-amber-400 text-white text-[10px] font-black shadow-xs" title={notes[student.id]}>
-                    💬
+                  {/* Note indicator badge if custom note exists */}
+                  {hasNote && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-white text-[9px] font-bold shadow-xs" title={notes[student.id]}>
+                      💬
+                    </span>
+                  )}
+
+                  {/* Large Roll Number */}
+                  <span className={`text-2xl sm:text-3xl font-normal leading-none tracking-tight ${tone.text}`}>
+                    {rollNumber}
                   </span>
-                )}
 
-                {/* Cute Animal Mascot Emoji */}
-                <div className={`mt-1 flex h-11 w-11 sm:h-13 sm:w-13 items-center justify-center text-3xl sm:text-4xl transition-transform ${
-                  isAbsent ? 'grayscale-[0.6] scale-95' : 'hover:scale-110'
-                }`}>
-                  <span>{animal}</span>
-                </div>
-
-                {/* Name / Status Label */}
-                <div className="mt-1 w-full text-center">
-                  <p className={`truncate text-[11px] sm:text-xs font-black ${tone.label}`}>
-                    {mark === 'present'
-                      ? student.nickname ? `น้อง${student.nickname}` : student.first_name
-                      : `${STATUS_EMOJI[mark]} ${statusLabels[mark]}`}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Empty State */}
-        {classroomStudents.length === 0 && !isLoading && (
-          <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-center text-amber-950">
-            <p className="text-base font-black">ยังไม่มีนักเรียนในห้องนี้</p>
-            <p className="mt-1 text-xs text-amber-800/80">กรุณาเพิ่มหรือนำเข้ารายชื่อนักเรียนก่อนเช็คเวลาเรียน</p>
-            <div className="mt-4 flex justify-center gap-2.5">
-              <Link to="/app/dashboard?view=students" className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-slate-800">
-                เพิ่มนักเรียน
-              </Link>
-              <Link to="/app/dashboard?view=import-export" className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-900 hover:bg-amber-50">
-                นำเข้ารายชื่อ
-              </Link>
-            </div>
+                  {/* Student Name / Status */}
+                  <span className={`text-xs sm:text-sm font-normal truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
+                    {displayName}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        )}
-      </section>
+
+          {/* Empty State */}
+          {classroomStudents.length === 0 && !isLoading && (
+            <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-center text-amber-950">
+              <p className="text-base font-bold">ยังไม่มีนักเรียนในห้องนี้</p>
+              <p className="mt-1 text-xs text-amber-800/80">กรุณาเพิ่มหรือนำเข้ารายชื่อนักเรียนก่อนเช็คเวลาเรียน</p>
+              <div className="mt-4 flex justify-center gap-2.5">
+                <Link to="/app/dashboard?view=students" className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800">
+                  เพิ่มนักเรียน
+                </Link>
+                <Link to="/app/dashboard?view=import-export" className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-50">
+                  นำเข้ารายชื่อ
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Generous bottom spacer so page can scroll comfortably past bottom dock */}
+          <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />
+        </section>
+      </div>
 
       {/* ======================================================== */}
-      {/* FLOATING BOTTOM DOCK: Summary & Big Thumb-Friendly Save  */}
+      {/* BOTTOM FOOTER DOCK: Matches Image 2 (Style 5)             */}
       {/* ======================================================== */}
       {classroomStudents.length > 0 && (
-        <div className="fixed inset-x-3 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-4xl rounded-2xl sm:rounded-3xl border-2 border-lime-300 bg-white/95 p-2.5 sm:p-3.5 shadow-xl backdrop-blur-md">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4">
-            {/* Status Pills Summary */}
-            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto text-[11px] sm:text-xs font-black w-full sm:w-auto justify-around sm:justify-start">
-              <span className="rounded-xl bg-lime-100/90 px-2.5 py-1 text-lime-900 ring-1 ring-lime-300 flex items-center gap-1">
-                <span>🐾 มา</span>
-                <b>{summary.find((s) => s.value === 'present')?.count || 0}</b>
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#ded5c6] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+          {/* Summary Text: มา 27 ขาด 1 ลา 1 สาย 1 */}
+          <div className="flex items-center justify-center gap-3 sm:gap-4 text-sm sm:text-base text-[#57534e]">
+            <span>
+              มา <b className="text-[#3f6212]">{summary.find((s) => s.value === 'present')?.count || 0}</b>
+            </span>
+            <span>
+              ขาด <b className="text-[#9f1239]">{summary.find((s) => s.value === 'absent')?.count || 0}</b>
+            </span>
+            <span>
+              ลา <b className="text-[#075985]">{summary.find((s) => s.value === 'leave')?.count || 0}</b>
+            </span>
+            <span>
+              สาย <b className="text-[#92400e]">{summary.find((s) => s.value === 'late')?.count || 0}</b>
+            </span>
+            {((summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)) > 0 && (
+              <span>
+                ป่วย/อื่น <b>{(summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)}</b>
               </span>
-              <span className="rounded-xl bg-rose-100/90 px-2.5 py-1 text-rose-900 ring-1 ring-rose-300 flex items-center gap-1">
-                <span>ขาด</span>
-                <b>{summary.find((s) => s.value === 'absent')?.count || 0}</b>
-              </span>
-              <span className="rounded-xl bg-sky-100/90 px-2.5 py-1 text-sky-900 ring-1 ring-sky-300 flex items-center gap-1">
-                <span>ลา</span>
-                <b>{summary.find((s) => s.value === 'leave')?.count || 0}</b>
-              </span>
-              <span className="rounded-xl bg-orange-100/90 px-2.5 py-1 text-orange-900 ring-1 ring-orange-300 flex items-center gap-1">
-                <span>สาย</span>
-                <b>{summary.find((s) => s.value === 'late')?.count || 0}</b>
-              </span>
-              {((summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)) > 0 && (
-                <span className="rounded-xl bg-purple-100/90 px-2.5 py-1 text-purple-900 ring-1 ring-purple-300 flex items-center gap-1">
-                  <span>ป่วย/อื่น</span>
-                  <b>{(summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)}</b>
-                </span>
-              )}
-            </div>
-
-            {/* Primary Action Button */}
-            <button
-              type="button"
-              onClick={() => void handleSaveRecords()}
-              disabled={isSubmitting || isHolidayBlocked}
-              className={`flex h-11.5 w-full sm:w-auto items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black text-white shadow-lg transition active:scale-95 disabled:opacity-50 ${
-                hasUnsavedChanges
-                  ? 'bg-gradient-to-r from-lime-600 via-emerald-600 to-teal-600 hover:from-lime-500 hover:to-emerald-500 shadow-emerald-500/25 ring-2 ring-lime-400'
-                  : 'bg-slate-900 hover:bg-slate-800'
-              }`}
-            >
-              {isSubmitting ? (
-                <span>กำลังบันทึก...</span>
-              ) : (
-                <>
-                  <Check size={18} className="stroke-[3]" />
-                  <span>{hasUnsavedChanges ? `บันทึกเช็คชื่อเลย 🐾 (${classroomStudents.length} คน)` : 'บันทึกแล้ว ✓ (กดบันทึกซ้ำได้)'}</span>
-                </>
-              )}
-            </button>
+            )}
           </div>
+
+          {/* Big Charcoal Button with Golden Shadow */}
+          <button
+            type="button"
+            onClick={() => void handleSaveRecords()}
+            disabled={isSubmitting || isHolidayBlocked}
+            className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <span>กำลังบันทึก...</span>
+            ) : (
+              <span>{hasUnsavedChanges ? `บันทึก ✓ (${classroomStudents.length} คน)` : 'บันทึกเรียบร้อย ✓'}</span>
+            )}
+          </button>
         </div>
       )}
 
@@ -1201,7 +1169,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       {/* ======================================================== */}
       {sheetStudent && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="relative w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-amber-200 bg-white p-5 sm:p-6 shadow-2xl animate-in slide-in-from-bottom duration-200">
+          <div className="relative w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#ded5c6] bg-[#fbf8f3] p-5 sm:p-6 shadow-2xl animate-in slide-in-from-bottom duration-200">
             <button
               type="button"
               onClick={() => setSheetStudentId(null)}
@@ -1210,23 +1178,23 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <X size={18} />
             </button>
 
-            {/* Header with Animal & Name */}
+            {/* Header with Post-it Number & Name */}
             <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 border-2 border-amber-300 text-3xl shadow-xs">
-                {studentAnimals[sheetStudent.id] || '🐾'}
+              <div className={`flex h-14 w-14 items-center justify-center rounded-xl text-3xl font-bold shadow-xs ${postItTone[marks[sheetStudent.id] || 'present'].bg} ${postItTone[marks[sheetStudent.id] || 'present'].text}`}>
+                {sheetStudentIndex + 1}
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-black text-slate-700">
-                    เลขที่ {sheetStudent.student_code ? sheetStudent.student_code.replace(/^[A-Za-z]+-?/, '') : sheetStudentIndex + 1}
+                  <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+                    เลขที่ {sheetStudentIndex + 1}
                   </span>
                   {sheetStudent.nickname && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
                       น้อง{sheetStudent.nickname}
                     </span>
                   )}
                 </div>
-                <h3 className="mt-1 text-base font-black text-slate-900">
+                <h3 className="mt-1 text-base sm:text-lg font-bold text-slate-900">
                   {sheetStudent.first_name} {sheetStudent.last_name}
                 </h3>
               </div>
@@ -1236,7 +1204,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             <div className="mt-4 grid grid-cols-3 gap-2">
               {statusOptions.map((opt) => {
                 const isSelected = (marks[sheetStudent.id] || 'present') === opt.value;
-                const tone = animalTone[opt.value];
+                const tone = postItTone[opt.value];
                 return (
                   <button
                     key={opt.value}
@@ -1244,10 +1212,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     onClick={() => {
                       setMarks((prev) => ({ ...prev, [sheetStudent.id]: opt.value }));
                     }}
-                    className={`flex h-11 items-center justify-center gap-1.5 rounded-xl text-xs font-black transition active:scale-95 ${
+                    className={`flex h-11 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
                       isSelected
-                        ? `${tone.button} ring-2 shadow-xs font-black`
-                        : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-white'
+                        ? `${tone.bg} ${tone.text} ring-2 ring-current shadow-xs`
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <span>{STATUS_EMOJI[opt.value]}</span>
@@ -1260,12 +1228,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
             {/* Note Input */}
             <div className="mt-3.5">
-              <label className="block text-xs font-black text-slate-700 mb-1">
+              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
                 หมายเหตุ (เช่น อาการป่วย, เหตุผลการลา):
               </label>
               <input
                 type="text"
-                className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
+                className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
                 placeholder={`ระบุหมายเหตุสำหรับ ${sheetStudent.first_name}...`}
                 value={notes[sheetStudent.id] || ''}
                 onChange={(e) => setNotes((prev) => ({ ...prev, [sheetStudent.id]: e.target.value }))}
@@ -1273,7 +1241,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </div>
 
             {/* Navigation and Done */}
-            <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+            <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-slate-200">
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -1283,7 +1251,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                       setSheetStudentId(classroomStudents[sheetStudentIndex - 1].id);
                     }
                   }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-100"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-100"
                 >
                   ← ก่อนหน้า
                 </button>
@@ -1295,7 +1263,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                       setSheetStudentId(classroomStudents[sheetStudentIndex + 1].id);
                     }
                   }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-100"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-100"
                 >
                   ถัดไป →
                 </button>
@@ -1303,7 +1271,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <button
                 type="button"
                 onClick={() => setSheetStudentId(null)}
-                className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-black text-white hover:bg-slate-800 active:scale-95 shadow-xs"
+                className="rounded-xl bg-[#3f3a36] px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-slate-800 active:scale-95 shadow-xs"
               >
                 เสร็จสิ้น
               </button>
@@ -1326,13 +1294,13 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <X size={18} />
             </button>
 
-            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <span>⚙️ การตั้งค่า & เครื่องมือเพิ่มเติม</span>
             </h3>
 
             {/* Date Selector */}
             <div className="mt-4 grid gap-1.5">
-              <label className="text-xs font-black text-slate-700">📅 เปลี่ยนวันที่เช็คชื่อ:</label>
+              <label className="text-xs font-bold text-slate-700">📅 เปลี่ยนวันที่เช็คชื่อ:</label>
               <ThaiDatePicker
                 className="h-10 px-3 text-xs"
                 value={attendanceDate}
@@ -1345,7 +1313,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
             {/* Mode Selector */}
             <div className="mt-4 grid gap-1.5">
-              <label className="text-xs font-black text-slate-700">🎯 รูปแบบการเช็คชื่อ:</label>
+              <label className="text-xs font-bold text-slate-700">🎯 รูปแบบการเช็คชื่อ:</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -1354,7 +1322,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     setPeriodLabel('เช้า');
                     setSubjectName(modeCopy.homeroom.subject);
                   }}
-                  className={`rounded-xl border p-2.5 text-left text-xs font-black transition ${
+                  className={`rounded-xl border p-2.5 text-left text-xs font-bold transition ${
                     mode === 'homeroom' ? 'border-teal-400 bg-teal-50 text-teal-900 ring-1 ring-teal-300' : 'border-slate-200 bg-slate-50 text-slate-600'
                   }`}
                 >
@@ -1370,7 +1338,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     setPeriodLabel('คาบ 1');
                     setSubjectName(modeCopy.subject.subject);
                   }}
-                  className={`rounded-xl border p-2.5 text-left text-xs font-black transition ${
+                  className={`rounded-xl border p-2.5 text-left text-xs font-bold transition ${
                     mode === 'subject' ? 'border-teal-400 bg-teal-50 text-teal-900 ring-1 ring-teal-300' : 'border-slate-200 bg-slate-50 text-slate-600'
                   }`}
                 >
@@ -1386,7 +1354,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             {mode === 'subject' && (
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-black text-slate-700 block mb-1">คาบเรียน:</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">คาบเรียน:</label>
                   <input
                     type="text"
                     className="h-9 w-full rounded-xl border border-slate-300 px-2.5 text-xs font-bold"
@@ -1396,7 +1364,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-black text-slate-700 block mb-1">รายวิชา:</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">รายวิชา:</label>
                   <input
                     type="text"
                     className="h-9 w-full rounded-xl border border-slate-300 px-2.5 text-xs font-bold"
@@ -1411,7 +1379,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             {/* Correct existing session date */}
             {attendanceSession && (
               <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
-                <label className="text-xs font-black text-slate-700 block mb-1">แก้ไขวันที่บันทึกย้อนหลัง:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">แก้ไขวันที่บันทึกย้อนหลัง:</label>
                 <div className="flex items-center gap-2">
                   <ThaiDatePicker
                     className="h-9 flex-1 bg-white px-2.5 text-xs"
@@ -1422,7 +1390,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     type="button"
                     disabled={isSubmitting || editSessionDate === attendanceSession.attendance_date}
                     onClick={() => void handleCorrectSessionDate()}
-                    className="rounded-xl bg-sky-700 px-3 py-2 text-xs font-black text-white disabled:bg-slate-300"
+                    className="rounded-xl bg-sky-700 px-3 py-2 text-xs font-bold text-white disabled:bg-slate-300"
                   >
                     ย้ายวันที่
                   </button>
@@ -1435,7 +1403,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <button
                 type="button"
                 onClick={() => setIsMoreOpen(false)}
-                className="w-full rounded-xl bg-slate-900 py-2.5 text-xs font-black text-white hover:bg-slate-800"
+                className="w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
               >
                 ปิดหน้าต่าง
               </button>
