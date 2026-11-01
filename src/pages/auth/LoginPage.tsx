@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   Crown,
   Eye,
   EyeOff,
@@ -55,6 +56,40 @@ const authModes: Array<{ icon: typeof LockKeyhole; label: string; mode: AuthMode
   { icon: KeyRound, label: 'ลืมรหัสผ่าน', mode: 'forgot' },
 ];
 
+const featureHighlights = [
+  {
+    icon: FileSpreadsheet,
+    title: 'เอกสาร ปพ.๕ / ปพ.๖',
+    desc: 'มาตรฐาน สพฐ. พิมพ์ & Excel 1-Click',
+    color: 'bg-blue-500/20 border-blue-400/30 text-blue-300',
+  },
+  {
+    icon: GraduationCap,
+    title: 'คะแนน & ตัดเกรด 8 ระดับ',
+    desc: 'ตัดเกรดอัตโนมัติ 8 กลุ่มสาระ คำนวณ GPA',
+    color: 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300',
+  },
+  {
+    icon: Users,
+    title: 'ดูแลช่วยเหลือนักเรียน 360°',
+    desc: 'เช็คชื่อ, คุณลักษณะ 8 ประการ & สุขภาพ BMI',
+    color: 'bg-purple-500/20 border-purple-400/30 text-purple-300',
+  },
+  {
+    icon: Sparkles,
+    title: 'จัดการชั้นเรียนอัจฉริยะ',
+    desc: 'สุ่มชื่อตอบ, ผังที่นั่ง, ตารางสอน & ออมทรัพย์',
+    color: 'bg-amber-500/20 border-amber-400/30 text-amber-300',
+  },
+];
+
+const trustBadges = [
+  'คุ้มครองข้อมูล PDPA',
+  'คลาวด์เรียลไทม์ 24 ชม.',
+  'พอร์ทัลดูผลการเรียน',
+  'รองรับทุกอุปกรณ์',
+];
+
 function getModeFromQuery(mode: string | null): AuthMode {
   if (mode === 'register' || mode === 'forgot') return mode;
   return 'login';
@@ -74,6 +109,7 @@ export function LoginPage({ session }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [showMobileFeatures, setShowMobileFeatures] = useState(false);
   const [notice, setNotice] = useState<string | null>(() => {
     if (searchParams.get('reset') === 'success') return 'ตั้งรหัสผ่านใหม่สำเร็จแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่';
     return isSupabaseReady ? null : 'ยังไม่ได้ตั้งค่า .env.local จึงแสดงเป็นโหมดตัวอย่างก่อน';
@@ -183,19 +219,19 @@ export function LoginPage({ session }: LoginPageProps) {
   }
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-10 overflow-hidden font-sans">
+    <main className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-3.5 sm:p-6 lg:p-10 overflow-x-hidden font-sans">
       {/* Dynamic Ambient Mesh Glow Background */}
       <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/20 blur-[130px]" />
       <div className="pointer-events-none absolute -right-40 -bottom-40 h-96 w-96 rounded-full bg-indigo-600/20 blur-[140px]" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[160px]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[length:32px_32px]" />
 
-      <section className="relative z-10 mx-auto w-full max-w-6xl grid lg:grid-cols-[1.1fr_450px] gap-6 lg:gap-8 items-stretch">
+      <section className="relative z-10 mx-auto w-full max-w-6xl flex flex-col lg:grid lg:grid-cols-[1.1fr_450px] gap-5 lg:gap-8 items-stretch">
         
         {/* ======================================================== */}
-        {/* LEFT COLUMN: Hero Brand Showcase */}
+        {/* DESKTOP-ONLY LEFT COLUMN: Hero Brand Showcase */}
         {/* ======================================================== */}
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-blue-950/70 p-8 sm:p-10 lg:p-12 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+        <div className="hidden lg:flex flex-col justify-between overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-blue-950/70 p-8 sm:p-10 lg:p-12 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
@@ -235,94 +271,67 @@ export function LoginPage({ session }: LoginPageProps) {
               </p>
             </div>
 
-            {/* Feature Highlights Grid (4 Key Highlights) */}
+            {/* Feature Highlights Grid */}
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
-                    <FileSpreadsheet size={20} />
+              {featureHighlights.map((feat) => {
+                const Icon = feat.icon;
+                return (
+                  <div
+                    key={feat.title}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${feat.color}`}>
+                        <Icon size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">{feat.title}</h4>
+                        <p className="text-[11px] text-slate-300/80 mt-0.5">{feat.desc}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">เอกสาร ปพ.๕ / ปพ.๖</h4>
-                    <p className="text-[11px] text-slate-300/80 mt-0.5">มาตรฐาน สพฐ. พิมพ์ & Excel 1-Click</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
-                    <GraduationCap size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">คะแนน & ตัดเกรด 8 ระดับ</h4>
-                    <p className="text-[11px] text-slate-300/80 mt-0.5">ตัดเกรดอัตโนมัติ 8 กลุ่มสาระ คำนวณ GPA</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
-                    <Users size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">ดูแลช่วยเหลือนักเรียน 360°</h4>
-                    <p className="text-[11px] text-slate-300/80 mt-0.5">เช็คชื่อ, คุณลักษณะ 8 ประการ & สุขภาพ BMI</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
-                    <Sparkles size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">จัดการชั้นเรียนอัจฉริยะ</h4>
-                    <p className="text-[11px] text-slate-300/80 mt-0.5">สุ่มชื่อตอบ, ผังที่นั่ง, ตารางสอน & ออมทรัพย์</p>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
 
           {/* Bottom Trust Indicators */}
           <div className="mt-8 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-300">คุ้มครองข้อมูล PDPA</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-300">คลาวด์เรียลไทม์ 24 ชม.</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-300">พอร์ทัลดูผลการเรียน</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-300">รองรับทุกอุปกรณ์</span>
-            </div>
+            {trustBadges.map((badge) => (
+              <div key={badge} className="flex items-center gap-2">
+                <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
+                <span className="text-xs font-semibold text-slate-300">{badge}</span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* ======================================================== */}
-        {/* RIGHT COLUMN: Auth Card */}
+        {/* PRIMARY AUTH CARD (Immediate on Mobile, Right on Desktop) */}
         {/* ======================================================== */}
-        <div className="relative flex flex-col justify-between rounded-[2.5rem] border border-slate-200/80 bg-white p-6 sm:p-8 shadow-2xl text-slate-900">
+        <div className="relative flex flex-col justify-between rounded-3xl sm:rounded-[2.5rem] border border-slate-200/80 bg-white p-5 sm:p-8 shadow-2xl text-slate-900 w-full max-w-md lg:max-w-none mx-auto">
           
           <div>
             {/* Top Navigation Row */}
-            <div className="flex items-center justify-between gap-3 mb-6 pb-2">
-              <span className="text-xs font-bold text-slate-400">ClassCare 360 Account</span>
+            <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 pb-2.5 sm:pb-2 border-b border-slate-100 sm:border-0">
+              <div className="flex items-center gap-2.5">
+                <AppLogo className="h-9 w-9 rounded-xl bg-slate-900 p-1 ring-1 ring-slate-200 shrink-0 lg:hidden" />
+                <div>
+                  <div className="flex items-center gap-1.5 lg:hidden">
+                    <span className="text-sm font-black text-slate-900 leading-tight">ClassCare 360</span>
+                    <span className="rounded-full bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">v2.0</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400 block">
+                    {mode === 'login' ? 'เข้าสู่ระบบบัญชีผู้ใช้' : mode === 'register' ? 'ลงทะเบียนใช้งาน' : 'กู้คืนรหัสผ่าน'}
+                  </span>
+                </div>
+              </div>
               <Link
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 transition group"
+                className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-600 transition group bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200/80"
                 to="/"
               >
-                <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-                <span>กลับหน้าหลัก</span>
+                <ArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+                <span>หน้าหลัก</span>
               </Link>
             </div>
 
@@ -337,9 +346,9 @@ export function LoginPage({ session }: LoginPageProps) {
                     key={item.mode}
                     onClick={() => switchMode(item.mode)}
                     type="button"
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
+                    className={`flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
                       isActive
-                        ? 'bg-white text-blue-600 shadow-md shadow-slate-200/60 font-black'
+                        ? 'bg-white text-blue-600 shadow-sm font-black'
                         : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
                     }`}
                   >
@@ -351,10 +360,10 @@ export function LoginPage({ session }: LoginPageProps) {
             </div>
 
             {/* Auth Form */}
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+            <form className="mt-4 sm:mt-6 space-y-3 sm:space-y-4" onSubmit={handleSubmit}>
               {mode === 'register' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     ชื่อ - นามสกุล หรือ ชื่อที่แสดงในระบบ
                   </label>
                   <div className="relative">
@@ -371,7 +380,7 @@ export function LoginPage({ session }: LoginPageProps) {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   อีเมล (Email)
                 </label>
                 <div className="relative">
@@ -390,7 +399,7 @@ export function LoginPage({ session }: LoginPageProps) {
 
               {mode !== 'forgot' && (
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold text-slate-700">
                       รหัสผ่าน (Password)
                     </label>
@@ -432,7 +441,7 @@ export function LoginPage({ session }: LoginPageProps) {
               <button
                 type="submit"
                 disabled={primaryDisabled}
-                className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-600 text-white text-sm font-black shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none mt-2"
+                className="w-full inline-flex h-11 sm:h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-600 text-white text-sm font-black shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none mt-1 sm:mt-2"
               >
                 <span>{isSubmitting ? 'กำลังดำเนินการ...' : currentCopy.button}</span>
                 <ArrowRight size={16} />
@@ -440,7 +449,7 @@ export function LoginPage({ session }: LoginPageProps) {
             </form>
 
             {/* Divider */}
-            <div className="relative my-5">
+            <div className="relative my-3.5 sm:my-5">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200" />
               </div>
@@ -474,7 +483,7 @@ export function LoginPage({ session }: LoginPageProps) {
           </div>
 
           {/* Bottom Card Footer with VIP link */}
-          <div className="mt-6 pt-4 border-t border-slate-100 text-center space-y-3">
+          <div className="mt-5 pt-3.5 sm:mt-6 sm:pt-4 border-t border-slate-100 text-center space-y-2.5 sm:space-y-3">
             <Link
               to="/pricing"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/70 text-xs font-bold text-purple-700 hover:text-purple-900 hover:border-purple-300 transition shadow-xs"
@@ -488,6 +497,61 @@ export function LoginPage({ session }: LoginPageProps) {
               {appEnv.appName} • ดูแลทั้งห้อง ครบจบในระบบเดียว
             </p>
           </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* MOBILE-ONLY COLLAPSIBLE: Feature Highlights & Trust Badges */}
+        {/* ======================================================== */}
+        <div className="lg:hidden w-full max-w-md mx-auto flex flex-col items-center pb-2">
+          <button
+            type="button"
+            onClick={() => setShowMobileFeatures((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition backdrop-blur-md shadow-xs active:scale-95"
+          >
+            <Sparkles size={13} className="text-amber-300" />
+            <span>{showMobileFeatures ? 'ซ่อนจุดเด่นระบบ' : 'ดูจุดเด่นและบริการใน ClassCare 360'}</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${showMobileFeatures ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showMobileFeatures && (
+            <div className="mt-3.5 w-full rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-blue-950/70 p-5 shadow-xl text-left animate-in fade-in slide-in-from-top-3 duration-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={14} className="text-amber-300" />
+                <h3 className="text-sm font-black text-white">จุดเด่นระบบบริหารสถานศึกษา สพฐ.</h3>
+              </div>
+
+              <div className="grid gap-2.5">
+                {featureHighlights.map((feat) => {
+                  const Icon = feat.icon;
+                  return (
+                    <div
+                      key={feat.title}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-md"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${feat.color}`}>
+                          <Icon size={18} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-white">{feat.title}</h4>
+                          <p className="text-[11px] text-slate-300/80 mt-0.5">{feat.desc}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 pt-3.5 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-300">
+                {trustBadges.map((badge) => (
+                  <div key={badge} className="flex items-center gap-1.5">
+                    <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                    <span>{badge}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
       </section>
