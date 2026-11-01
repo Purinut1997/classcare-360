@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   ClipboardCheck,
   HeartPulse,
   Ruler,
@@ -10,6 +11,7 @@ import {
   ShieldCheck,
   Sparkles,
   Utensils,
+  X,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
@@ -67,6 +69,40 @@ const demoStudents: StudentRow[] = [
 const routineModes: RoutineMode[] = ['toothbrushing', 'milk', 'lunch'];
 const inspectionKeys = ['nails', 'hair', 'ears', 'nose', 'teeth', 'skin', 'clothes'] as const;
 type InspectionKey = (typeof inspectionKeys)[number];
+
+const NOTE_ROTATIONS = [
+  'rotate-[1.5deg]',
+  '-rotate-[2deg]',
+  'rotate-[2deg]',
+  '-rotate-[1.5deg]',
+  'rotate-[1deg]',
+  '-rotate-[2.5deg]',
+  'rotate-[2.5deg]',
+  '-rotate-[1deg]',
+];
+
+const routineTone: Record<RoutineStatus, { bg: string; text: string; shadow: string; label: string }> = {
+  completed: {
+    bg: 'bg-[#d9f99d]',
+    text: 'text-[#3f6212]',
+    shadow: 'shadow-[2px_5px_8px_rgba(63,98,18,0.18)]',
+    label: 'เรียบร้อย ✓',
+  },
+  missed: {
+    bg: 'bg-[#fecdd3]',
+    text: 'text-[#9f1239]',
+    shadow: 'shadow-[2px_5px_8px_rgba(159,18,57,0.18)]',
+    label: 'ไม่ได้ทำ ✕',
+  },
+  exempt: {
+    bg: 'bg-[#fde68a]',
+    text: 'text-[#92400e]',
+    shadow: 'shadow-[2px_5px_8px_rgba(146,64,14,0.18)]',
+    label: 'ยกเว้น',
+  },
+};
+
+const ROUTINE_CYCLE: RoutineStatus[] = ['completed', 'missed', 'exempt'];
 
 const inspectionLabels: Record<InspectionKey, string> = {
   nails: 'เล็บ',
@@ -368,130 +404,394 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
   }
 
   return (
-    <main className="app-page">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <div className="nexus-kicker"><HeartPulse size={16} aria-hidden="true" /> Student Health & Daily Care</div>
-          <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight text-slate-950 sm:text-4xl">สุขภาพและกิจวัตรนักเรียน ครบทั้งห้องในหน้าเดียว</h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">อ้างอิงจากแบบบันทึกน้ำหนัก–ส่วนสูง, BMI, การแปรงฟัน, ดื่มนม, ตรวจสุขภาพ และอาหารกลางวัน พร้อมผูกข้อมูลกับนักเรียนจริง</p>
-        </div>
-        <div className="grid min-w-[280px] grid-cols-3 gap-2">
-          {[
-            { label: 'นักเรียน', value: classroomStudents.length },
-            { label: 'ครบแล้ว', value: completedCount },
-            { label: 'ติดตาม', value: attentionCount },
-          ].map((item) => <div className="nexus-card p-3 text-center" key={item.label}><p className="text-2xl font-black text-slate-950">{item.value}</p><p className="mt-1 text-xs font-black text-slate-500">{item.label}</p></div>)}
-        </div>
-      </div>
+    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
+      {/* ======================================================== */}
+      {/* CORKBOARD / LINED PAPER CONTAINER (Post-it Theme)         */}
+      {/* ======================================================== */}
+      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
 
-      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {modeOptions.map((option) => {
-          const Icon = option.icon;
-          const active = mode === option.value;
-          return <button className={`nexus-card p-4 text-left transition ${active ? 'ring-2 ring-cyan-400' : 'hover:-translate-y-0.5'}`} key={option.value} onClick={() => selectMode(option.value)} type="button"><span className={`grid h-10 w-10 place-items-center rounded-2xl ${active ? 'bg-cyan-600 text-white' : 'bg-cyan-50 text-cyan-700'}`}><Icon size={19} /></span><strong className="mt-3 block text-sm font-black text-slate-950">{option.label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{option.body}</span></button>;
-        })}
-      </section>
-
-      <section className="mt-5 nexus-card p-4 sm:p-5">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+        {/* Top Header */}
+        <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-              <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
-              {teacherScope.hasMultipleScopes ? (
-                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-black">
-                  <button
-                    className={`rounded-lg px-2.5 py-0.5 transition ${
-                      scopeFilter === 'homeroom'
-                        ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    onClick={() => {
-                      setScopeFilter('homeroom');
-                      if (
-                        teacherScope.homeroomClassrooms.length > 0 &&
-                        !teacherScope.homeroomClassrooms.some((c) => c.id === classroomId)
-                      ) {
-                        const targetId = teacherScope.homeroomClassrooms[0].id;
-                        setClassroomId(targetId);
-                        const nextParams = new URLSearchParams(searchParams);
-                        nextParams.set('classroomId', targetId);
-                        setSearchParams(nextParams, { replace: true });
-                      }
-                    }}
-                    type="button"
-                  >
-                    ⭐ ที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
-                  </button>
-                  <button
-                    className={`rounded-lg px-2.5 py-0.5 transition ${
-                      scopeFilter === 'all'
-                        ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    onClick={() => setScopeFilter('all')}
-                    type="button"
-                  >
-                    🌐 ทุกห้อง ({teacherScope.allClassrooms.length})
-                  </button>
-                </div>
-              ) : teacherScope.hasHomeroom ? (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-800 ring-1 ring-emerald-200">
-                  ⭐ ห้องที่ปรึกษา
-                </span>
-              ) : null}
+            <h1 className="text-2xl sm:text-3xl font-normal text-[#3f3a36] tracking-tight flex items-center gap-1.5">
+              <span>สุขภาพและกิจวัตรนักเรียน</span>
+              <span className="text-xl sm:text-2xl">📌</span>
+            </h1>
+            <p className="mt-0.5 text-sm sm:text-base text-[#8a8178]">
+              บันทึกกิจกรรมประจำวัน น้ำหนัก ส่วนสูง BMI และตรวจสุขภาพ 7 ด้าน
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Classroom Selector with cute tilt */}
+            <div className="relative inline-flex items-center rotate-[1.5deg] shadow-xs">
+              <select
+                value={classroomId}
+                onChange={(event) => {
+                  setClassroomId(event.target.value);
+                  const nextParams = new URLSearchParams(searchParams);
+                  nextParams.set('classroomId', event.target.value);
+                  setSearchParams(nextParams, { replace: true });
+                }}
+                className="appearance-none rounded-xl border border-[#ded5c6] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#3f3a36] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              >
+                {displayClassrooms.map((c) => {
+                  const badge = getClassroomScopeBadge(c, session.profile.id);
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.academic_year ? `(${c.academic_year})` : ''} — {badge.label}
+                    </option>
+                  );
+                })}
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
             </div>
-            <select
-              className="nexus-field"
-              value={classroomId}
-              onChange={(event) => {
-                setClassroomId(event.target.value);
-                const nextParams = new URLSearchParams(searchParams);
-                nextParams.set('classroomId', event.target.value);
-                setSearchParams(nextParams, { replace: true });
-              }}
-            >
-              {displayClassrooms.map((classroom) => {
-                const badge = getClassroomScopeBadge(classroom, session.profile.id);
+
+            {/* Date Picker */}
+            <div className="relative inline-flex items-center rotate-[-1deg] shadow-xs">
+              <ThaiDatePicker
+                className="h-8.5 rounded-xl border border-[#ded5c6] bg-white px-2.5 text-xs font-bold text-[#3f3a36]"
+                value={recordDate}
+                onValueChange={setRecordDate}
+              />
+            </div>
+          </div>
+        </header>
+
+        {/* Notice alert if any */}
+        {notice && (
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs sm:text-sm text-amber-950 font-bold animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+              <span>{notice}</span>
+            </div>
+            <button type="button" onClick={() => setNotice(null)} className="text-amber-800 hover:text-amber-950">
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Mode Selector Tabs (Styled as cute sticky tabs) */}
+        <div className="mt-4 flex flex-wrap gap-2 pt-2 border-t border-[#e2d5c3]">
+          {modeOptions.map((option, idx) => {
+            const active = mode === option.value;
+            const tabRotations = ['rotate-[1deg]', '-rotate-[1deg]', 'rotate-[0.5deg]', '-rotate-[1.5deg]', 'rotate-[1deg]'];
+            const rot = tabRotations[idx % tabRotations.length];
+            return (
+              <button
+                key={option.value}
+                onClick={() => selectMode(option.value)}
+                type="button"
+                className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all ${rot} ${
+                  active
+                    ? 'bg-[#3f3a36] text-white shadow-[2px_3px_0_#f59e0b] -translate-y-0.5'
+                    : 'bg-white/85 text-[#57534e] border border-[#ded5c6] hover:bg-white shadow-2xs'
+                }`}
+              >
+                <span>{option.value === 'toothbrushing' ? '🪥' : option.value === 'milk' ? '🥛' : option.value === 'lunch' ? '🍱' : option.value === 'growth' ? '⚖️' : '🧼'}</span>
+                <span>{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Quick actions for current mode */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs sm:text-sm text-[#8a8178]">
+            {routineModes.includes(mode as RoutineMode)
+              ? 'แตะโน้ตเพื่อสลับสถานะ: เรียบร้อย ➔ ไม่ได้ทำ ➔ ยกเว้น'
+              : mode === 'growth'
+              ? 'กรอกน้ำหนักและส่วนสูง ระบบจะคำนวณ BMI อัตโนมัติ'
+              : 'แตะที่แต่ละด้านเพื่อตรวจ: ผ่าน ➔ ติดตาม ➔ ยังไม่ตรวจ'}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {routineModes.includes(mode as RoutineMode) && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => markAllRoutine('completed')}
+                  className="inline-flex items-center gap-1 rounded-lg border border-lime-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#3f6212] hover:bg-white active:scale-95 transition shadow-2xs"
+                >
+                  <Check size={13} className="stroke-[3]" />
+                  <span>เรียบร้อยทุกคน</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markAllRoutine('missed')}
+                  className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#9f1239] hover:bg-white active:scale-95 transition shadow-2xs"
+                >
+                  <X size={13} />
+                  <span>ล้างเป็นไม่ได้ทำ</span>
+                </button>
+              </>
+            )}
+            {mode === 'hygiene' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => markAllInspection('pass')}
+                  className="inline-flex items-center gap-1 rounded-lg border border-lime-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#3f6212] hover:bg-white active:scale-95 transition shadow-2xs"
+                >
+                  <Check size={13} className="stroke-[3]" />
+                  <span>ผ่านหมดทุกคน</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markAllInspection('not_checked')}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#ded5c6] bg-white/90 px-2.5 py-1 text-xs font-bold text-[#78716c] hover:bg-white active:scale-95 transition shadow-2xs"
+                >
+                  <span>ล้างค่า</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* STUDENT CONTENT (Post-it Grid or Cards)                   */}
+        {/* ======================================================== */}
+        <section className="mt-5">
+          {/* Routine Mode: Post-it Grid (แปรงฟัน, ดื่มนม, อาหารกลางวัน) */}
+          {routineModes.includes(mode as RoutineMode) && (
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4.5 pt-2">
+              {classroomStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const status = activeRoutineMarks[student.id] || 'completed';
+                const tone = routineTone[status] || routineTone.completed;
+                const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+                const displayName = status === 'completed'
+                  ? (student.nickname || student.first_name)
+                  : routineLabels[status];
+
                 return (
-                  <option key={classroom.id} value={classroom.id}>
-                    {badge.prefix}{classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''} — {badge.label}
-                  </option>
+                  <button
+                    key={student.id}
+                    type="button"
+                    onClick={() => {
+                      const nextStatus = ROUTINE_CYCLE[(ROUTINE_CYCLE.indexOf(status) + 1) % ROUTINE_CYCLE.length];
+                      setRoutineMarks((current) => ({
+                        ...current,
+                        [mode]: { ...current[mode as RoutineMode], [student.id]: nextStatus },
+                      }));
+                    }}
+                    className={`relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
+                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${routineLabels[status]}) — แตะเพื่อสลับสถานะ`}
+                  >
+                    {/* Frosted Tape on top */}
+                    <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
+
+                    {/* Roll Number */}
+                    <span className={`text-2xl sm:text-3xl font-normal leading-none tracking-tight ${tone.text}`}>
+                      {rollNumber}
+                    </span>
+
+                    {/* Name / Status */}
+                    <span className={`text-xs sm:text-sm font-normal truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
+                      {displayName}
+                    </span>
+                  </button>
                 );
               })}
-            </select>
+            </div>
+          )}
+
+          {/* Growth Mode (น้ำหนัก ส่วนสูง BMI) */}
+          {mode === 'growth' && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+              {classroomStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const bmi = calculateBmi(growthValues[student.id]?.weight || '', growthValues[student.id]?.height || '');
+                const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+                return (
+                  <div
+                    key={student.id}
+                    className={`relative rounded-2xl border border-[#ded5c6] bg-white/95 p-3.5 shadow-sm transition-all ${rotation} hover:scale-[1.01]`}
+                  >
+                    {/* Top tape */}
+                    <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-8 rounded-[1px] bg-white/80 shadow-2xs" />
+
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-xs font-bold text-amber-900">
+                          {rollNumber}
+                        </span>
+                        <div>
+                          <p className="text-sm font-bold text-[#3f3a36]">
+                            {student.first_name} {student.last_name}
+                          </p>
+                          <p className="text-[11px] text-[#8a8178]">
+                            {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* BMI Badge */}
+                      <div className="text-right">
+                        <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold ${
+                          bmi === null
+                            ? 'bg-slate-100 text-slate-500'
+                            : bmi < 18.5
+                            ? 'bg-sky-100 text-sky-800'
+                            : bmi <= 22.9
+                            ? 'bg-lime-100 text-lime-800'
+                            : 'bg-amber-100 text-amber-900'
+                        }`}>
+                          <span>BMI:</span>
+                          <b>{bmi === null ? '—' : bmi.toFixed(1)}</b>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#78716c] mb-0.5">น้ำหนัก (กก.):</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="เช่น 32.5"
+                          value={growthValues[student.id]?.weight || ''}
+                          onChange={(e) =>
+                            setGrowthValues((current) => ({
+                              ...current,
+                              [student.id]: { height: current[student.id]?.height || '', weight: e.target.value },
+                            }))
+                          }
+                          className="h-8.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#78716c] mb-0.5">ส่วนสูง (ซม.):</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="เช่น 138"
+                          value={growthValues[student.id]?.height || ''}
+                          onChange={(e) =>
+                            setGrowthValues((current) => ({
+                              ...current,
+                              [student.id]: { height: e.target.value, weight: current[student.id]?.weight || '' },
+                            }))
+                          }
+                          className="h-8.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Hygiene Mode (ตรวจสุขภาพ 7 ด้าน) */}
+          {mode === 'hygiene' && (
+            <div className="grid gap-3 sm:grid-cols-2 pt-2">
+              {classroomStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+                return (
+                  <div
+                    key={student.id}
+                    className={`relative rounded-2xl border border-[#ded5c6] bg-white/95 p-3.5 shadow-sm ${rotation}`}
+                  >
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 text-xs font-bold text-teal-900">
+                        {rollNumber}
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold text-[#3f3a36]">
+                          {student.first_name} {student.last_name}
+                        </p>
+                        <p className="text-[11px] text-[#8a8178]">
+                          {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                      {inspectionKeys.map((key) => {
+                        const status = inspectionValues[student.id]?.[key] || 'not_checked';
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() =>
+                              setInspectionValues((current) => ({
+                                ...current,
+                                [student.id]: {
+                                  ...current[student.id],
+                                  [key]: status === 'not_checked' ? 'pass' : status === 'pass' ? 'attention' : 'not_checked',
+                                },
+                              }))
+                            }
+                            className={`rounded-xl p-1.5 text-center text-xs font-bold transition active:scale-95 ${
+                              status === 'pass'
+                                ? 'bg-[#d9f99d] text-[#3f6212] ring-1 ring-lime-400'
+                                : status === 'attention'
+                                ? 'bg-[#fecdd3] text-[#9f1239] ring-1 ring-rose-400'
+                                : 'bg-slate-100 text-slate-500 hover:bg-white border border-slate-200'
+                            }`}
+                          >
+                            <span className="block text-[11px]">{inspectionLabels[key]}</span>
+                            <span className="block text-[9px] mt-0.5">
+                              {status === 'pass' ? '✓ ผ่าน' : status === 'attention' ? '✕ ตรวจ' : '—'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {classroomStudents.length === 0 && !isLoading && (
+            <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-center text-amber-950">
+              <p className="text-base font-bold">ห้องนี้ยังไม่มีนักเรียน</p>
+              <p className="mt-1 text-xs text-amber-800/80">กรุณาเพิ่มหรือนำเข้ารายชื่อนักเรียนก่อนบันทึกสุขภาพ</p>
+            </div>
+          )}
+
+          {/* Bottom spacer for mobile scrolling */}
+          <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />
+        </section>
+      </div>
+
+      {/* ======================================================== */}
+      {/* BOTTOM FOOTER DOCK: Matches Theme (Style 5)               */}
+      {/* ======================================================== */}
+      {classroomStudents.length > 0 && (
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#ded5c6] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+          {/* Summary Text */}
+          <div className="flex items-center justify-center gap-4 text-sm sm:text-base text-[#57534e]">
+            <span>
+              ครบแล้ว <b className="text-[#3f6212]">{completedCount}</b>
+            </span>
+            <span>
+              ติดตาม/ขาด <b className="text-[#9f1239]">{attentionCount}</b>
+            </span>
+            <span>
+              ทั้งหมด <b>{classroomStudents.length}</b>
+            </span>
           </div>
-          <label><span className="text-xs font-black uppercase text-slate-500">วันที่บันทึก</span><ThaiDatePicker className="mt-2" value={recordDate} onValueChange={setRecordDate} /></label>
-          <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading || isSaving} onClick={() => void saveRecords()} type="button"><Save size={17} />{isSaving ? 'กำลังบันทึก...' : 'บันทึกทั้งห้อง'}</button>
+
+          {/* Big Charcoal Button */}
+          <button
+            type="button"
+            onClick={() => void saveRecords()}
+            disabled={isLoading || isSaving}
+            className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isSaving ? (
+              <span>กำลังบันทึก...</span>
+            ) : (
+              <span>บันทึกทั้งห้อง ✓ ({classroomStudents.length} คน)</span>
+            )}
+          </button>
         </div>
-      </section>
-
-      <section className="mt-5 nexus-card overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div><p className="text-sm font-black text-cyan-700">{modeOptions.find((item) => item.value === mode)?.label}</p><h2 className="mt-1 text-2xl font-black text-slate-950">รายชื่อนักเรียน {classroomStudents.length} คน</h2></div>
-          {routineModes.includes(mode as RoutineMode) ? <div className="flex flex-wrap gap-2">{(['completed', 'missed', 'exempt'] as RoutineStatus[]).map((status) => <button className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" key={status} onClick={() => markAllRoutine(status)} type="button">ทั้งห้อง: {routineLabels[status]}</button>)}</div> : null}
-          {mode === 'hygiene' ? <div className="flex gap-2"><button className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 ring-1 ring-emerald-100" onClick={() => markAllInspection('pass')} type="button">ผ่านทั้งหมด</button><button className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200" onClick={() => markAllInspection('not_checked')} type="button">ล้างค่า</button></div> : null}
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {classroomStudents.map((student, index) => {
-            const bmi = calculateBmi(growthValues[student.id]?.weight || '', growthValues[student.id]?.height || '');
-            return <div className="grid gap-3 p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(0,2fr)] lg:items-center sm:p-5" key={student.id}>
-              <div className="flex items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-slate-100 text-sm font-black text-slate-600">{index + 1}</span><div className="min-w-0"><p className="truncate font-black text-slate-950">{student.first_name} {student.last_name}</p><p className="text-xs font-bold text-slate-500">{student.student_code || 'ไม่มีรหัส'} • {student.nickname || 'ไม่มีชื่อเล่น'}</p></div></div>
-
-              {routineModes.includes(mode as RoutineMode) ? <div className="grid grid-cols-3 gap-2">{(['completed', 'missed', 'exempt'] as RoutineStatus[]).map((status) => { const active = activeRoutineMarks[student.id] === status; return <button className={`h-10 rounded-xl text-xs font-black transition ${active ? status === 'completed' ? 'bg-emerald-600 text-white' : status === 'missed' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`} key={status} onClick={() => setRoutineMarks((current) => ({ ...current, [mode]: { ...current[mode as RoutineMode], [student.id]: status } }))} type="button">{active ? <Check className="mr-1 inline" size={14} /> : null}{routineLabels[status]}</button>; })}</div> : null}
-
-              {mode === 'growth' ? <div className="grid gap-2 sm:grid-cols-[1fr_1fr_140px]"><label className="relative"><Scale className="absolute left-3 top-3 text-slate-400" size={16} /><input className="nexus-field pl-10" min="1" max="300" step="0.1" type="number" placeholder="น้ำหนัก (กก.)" value={growthValues[student.id]?.weight || ''} onChange={(event) => setGrowthValues((current) => ({ ...current, [student.id]: { height: current[student.id]?.height || '', weight: event.target.value } }))} /></label><label className="relative"><Ruler className="absolute left-3 top-3 text-slate-400" size={16} /><input className="nexus-field pl-10" min="30" max="250" step="0.1" type="number" placeholder="ส่วนสูง (ซม.)" value={growthValues[student.id]?.height || ''} onChange={(event) => setGrowthValues((current) => ({ ...current, [student.id]: { height: event.target.value, weight: current[student.id]?.weight || '' } }))} /></label><div className="rounded-2xl bg-cyan-50 px-3 py-2 text-center ring-1 ring-cyan-100"><p className="text-[10px] font-black uppercase text-cyan-600">BMI</p><p className="text-lg font-black text-cyan-950">{bmi === null ? '—' : bmi.toFixed(2)}</p></div></div> : null}
-
-              {mode === 'hygiene' ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">{inspectionKeys.map((key) => { const status = inspectionValues[student.id]?.[key] || 'not_checked'; return <button className={`rounded-xl px-2 py-2 text-xs font-black ring-1 transition ${status === 'pass' ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : status === 'attention' ? 'bg-rose-50 text-rose-700 ring-rose-100' : 'bg-white text-slate-500 ring-slate-200'}`} key={key} onClick={() => setInspectionValues((current) => ({ ...current, [student.id]: { ...current[student.id], [key]: status === 'not_checked' ? 'pass' : status === 'pass' ? 'attention' : 'not_checked' } }))} type="button">{inspectionLabels[key]}<span className="mt-0.5 block text-[10px]">{status === 'pass' ? 'ผ่าน' : status === 'attention' ? 'ติดตาม' : 'ยังไม่ตรวจ'}</span></button>; })}</div> : null}
-            </div>;
-          })}
-          {!classroomStudents.length ? <div className="p-8 text-center text-sm font-bold text-slate-500">ห้องนี้ยังไม่มีนักเรียน กรุณาเพิ่มหรือนำเข้ารายชื่อก่อน</div> : null}
-        </div>
-      </section>
-
-      <div className="mt-5 rounded-2xl border border-cyan-200 bg-cyan-50/90 p-4 text-sm font-bold leading-7 text-cyan-900"><strong>หมายเหตุเรื่อง BMI เด็ก:</strong> ระบบคำนวณค่าดัชนีมวลกายจากน้ำหนักและส่วนสูงเพื่อบันทึกแนวโน้มเท่านั้น การแปลผลภาวะโภชนาการเด็กควรใช้เกณฑ์อายุและเพศจากหน่วยงานสาธารณสุข</div>
-      {notice ? <div className="mt-4 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle className="mt-0.5 shrink-0" size={17} /><p>{notice}</p></div> : null}
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">Created by MIKPURINUT</footer>
+      )}
     </main>
   );
 }

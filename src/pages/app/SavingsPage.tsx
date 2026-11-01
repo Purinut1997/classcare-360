@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ChevronDown,
   ArrowDownToLine,
   CheckCircle2,
   Download,
@@ -828,427 +829,463 @@ export function SavingsPage({ session }: SavingsPageProps) {
   }, [batchOpeningAmounts, classroomStudents]);
 
   return (
-    <main className="app-page">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <div className="nexus-kicker">
-            <PiggyBank size={16} aria-hidden="true" />
-            Savings Center
+    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
+      {/* ======================================================== */}
+      {/* CORKBOARD / LINED PAPER CONTAINER (Post-it Theme)         */}
+      {/* ======================================================== */}
+      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+        
+        {/* Top Header */}
+        <header className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-normal text-[#3f3a36] tracking-tight flex items-center gap-1.5">
+              <span>สมุดเงินออมนักเรียน</span>
+              <span className="text-xl sm:text-2xl">📌</span>
+            </h1>
+            <p className="mt-0.5 text-sm sm:text-base text-[#8a8178]">
+              ฝาก ถอน ปรับยอด ดูยอดรวมทั้งห้อง และพิมพ์ใบส่งมอบเงินออม
+            </p>
           </div>
-          <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
-            เงินออมนักเรียนแบบแยกบัญชีรายคนและตรวจย้อนหลังได้
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            ฝาก ถอน ปรับยอด ดูยอดรวมทั้งห้อง และ export รายชื่อนักเรียนพร้อมยอดคงเหลือ โดยทุกธุรกรรมผูกกับ workspace และผู้บันทึก
-          </p>
-        </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:min-w-[560px] sm:grid-cols-4">
-          <div className="nexus-card p-3 text-center border-l-4 border-l-cyan-600">
-            <p className="text-xl font-black text-slate-950">{formatBaht(summary.totalBalance)} ฿</p>
-            <p className="mt-1 text-xs font-black text-cyan-700">ยอดคงเหลือรวม</p>
-          </div>
-          <div className="nexus-card p-3 text-center border-l-4 border-l-indigo-600">
-            <p className="text-xl font-black text-indigo-700">{formatBaht(summary.openingTotal)} ฿</p>
-            <p className="mt-1 text-xs font-black text-indigo-600">ยอดยกมาจากชั้นก่อน</p>
-          </div>
-          <div className="nexus-card p-3 text-center border-l-4 border-l-emerald-600">
-            <p className="text-xl font-black text-emerald-700">{formatBaht(summary.deposits)} ฿</p>
-            <p className="mt-1 text-xs font-black text-emerald-600">ฝากเพิ่มรอบนี้</p>
-          </div>
-          <div className="nexus-card p-3 text-center border-l-4 border-l-rose-600">
-            <p className="text-xl font-black text-rose-700">{formatBaht(summary.withdrawals)} ฿</p>
-            <p className="mt-1 text-xs font-black text-rose-600">ถอนรอบนี้</p>
-          </div>
-        </div>
-      </div>
-
-      <section className="app-workbench">
-        <aside className="grid gap-4">
-          <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void handleCreateTransaction(event)}>
-            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-              <Wallet size={16} aria-hidden="true" />
-              บันทึกธุรกรรม
+          {/* 4 Post-it Stat Memo Cards */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:min-w-[500px]">
+            {/* Total Balance */}
+            <div className="relative rounded-xl bg-[#d9f99d] p-3 text-center shadow-[2px_4px_6px_rgba(63,98,18,0.15)] rotate-[1deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#3f6212]">{formatBaht(summary.totalBalance)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#3f6212]/80">ยอดคงเหลือรวม</p>
             </div>
-            <div className="mt-4 grid gap-3">
-              <div className="block">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
-                  {teacherScope.hasHomeroom && (
-                    <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-black">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setScopeFilter('homeroom');
-                          if (teacherScope.homeroomClassrooms[0]) {
-                            setClassroomId(teacherScope.homeroomClassrooms[0].id);
-                          }
-                        }}
-                        className={`rounded-lg px-2 py-0.5 transition ${
-                          scopeFilter === 'homeroom'
-                            ? 'bg-white text-cyan-700 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        ⭐ ที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setScopeFilter('all')}
-                        className={`rounded-lg px-2 py-0.5 transition ${
-                          scopeFilter === 'all'
-                            ? 'bg-white text-slate-800 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        🌐 ทุกห้อง
-                      </button>
-                    </div>
-                  )}
+
+            {/* Opening Total */}
+            <div className="relative rounded-xl bg-[#e9d5ff] p-3 text-center shadow-[2px_4px_6px_rgba(107,33,168,0.15)] -rotate-[1.5deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#6b21a8]">{formatBaht(summary.openingTotal)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#6b21a8]/80">ยอดยกมาจากชั้นก่อน</p>
+            </div>
+
+            {/* Deposits */}
+            <div className="relative rounded-xl bg-[#bae6fd] p-3 text-center shadow-[2px_4px_6px_rgba(7,89,133,0.15)] rotate-[1.5deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#075985]">{formatBaht(summary.deposits)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#075985]/80">ฝากเพิ่มรอบนี้</p>
+            </div>
+
+            {/* Withdrawals */}
+            <div className="relative rounded-xl bg-[#fecdd3] p-3 text-center shadow-[2px_4px_6px_rgba(159,18,57,0.15)] -rotate-[1deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#9f1239]">{formatBaht(summary.withdrawals)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#9f1239]/80">ถอนรอบนี้</p>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Workbench Layout */}
+        <div className="mt-6 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)] items-start">
+          
+          {/* Left Column: Transaction Form & Tools (Deposit Slip Style) */}
+          <aside className="grid gap-4">
+            
+            {/* Transaction Form Card */}
+            <form
+              className="relative rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm"
+              onSubmit={(event) => void handleCreateTransaction(event)}
+            >
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-8 rounded-[1px] bg-white/80 shadow-2xs" />
+
+              <div className="flex items-center gap-2 text-sm font-bold text-[#3f3a36] border-b border-[#f0e8dc] pb-2.5">
+                <Wallet size={16} className="text-[#3f3a36]" aria-hidden="true" />
+                <span>บันทึกธุรกรรมเงินออม</span>
+              </div>
+
+              <div className="mt-3.5 grid gap-3">
+                {/* Classroom Selector */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-[#78716c]">ห้องเรียน:</span>
+                    {teacherScope.hasHomeroom && (
+                      <div className="inline-flex rounded-lg bg-amber-50 p-0.5 text-[11px] font-bold border border-amber-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScopeFilter('homeroom');
+                            if (teacherScope.homeroomClassrooms[0]) {
+                              setClassroomId(teacherScope.homeroomClassrooms[0].id);
+                            }
+                          }}
+                          className={`rounded-md px-2 py-0.5 transition ${
+                            scopeFilter === 'homeroom'
+                              ? 'bg-white text-amber-900 shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          ⭐ ที่ปรึกษา
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScopeFilter('all')}
+                          className={`rounded-md px-2 py-0.5 transition ${
+                            scopeFilter === 'all'
+                              ? 'bg-white text-slate-800 shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          🌐 ทุกห้อง
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <select
+                      className="h-9.5 w-full appearance-none rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 pr-8 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                      onChange={(event) => setClassroomId(event.target.value)}
+                      value={classroomId}
+                    >
+                      {displayClassrooms.map((classroom) => {
+                        const badge = getClassroomScopeBadge(classroom, session.profile.id);
+                        return (
+                          <option key={classroom.id} value={classroom.id}>
+                            {badge.prefix}{classroom.name} — {badge.label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
+                  </div>
                 </div>
-                <select className="nexus-field mt-2" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
-                  {displayClassrooms.map((classroom) => {
-                    const badge = getClassroomScopeBadge(classroom, session.profile.id);
-                    return (
-                      <option key={classroom.id} value={classroom.id}>
-                        {badge.prefix}{classroom.name} — {badge.label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">นักเรียน</span>
-                <select className="nexus-field mt-2" onChange={(event) => setSelectedStudentId(event.target.value)} value={selectedStudent?.id || ''}>
-                  {classroomStudents.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.student_code || '-'} {student.first_name} {student.last_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  className={`h-11 rounded-2xl px-4 text-sm font-black transition ${
-                    form.transactionType === 'deposit' ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-200' : 'bg-white text-slate-600 ring-1 ring-slate-200'
-                  }`}
-                  onClick={() => setForm((current) => ({ ...current, transactionType: 'deposit' }))}
-                  type="button"
-                >
-                  <Plus className="mr-1 inline" size={16} aria-hidden="true" />
-                  ฝาก
-                </button>
-                <button
-                  className={`h-11 rounded-2xl px-4 text-sm font-black transition ${
-                    form.transactionType === 'withdrawal' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'bg-white text-slate-600 ring-1 ring-slate-200'
-                  }`}
-                  onClick={() => setForm((current) => ({ ...current, transactionType: 'withdrawal' }))}
-                  type="button"
-                >
-                  <Minus className="mr-1 inline" size={16} aria-hidden="true" />
-                  ถอน
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black uppercase text-slate-500">วันที่</span>
-                  <ThaiDatePicker className="mt-2" onValueChange={(value) => setForm((current) => ({ ...current, transactionDate: value }))} value={form.transactionDate} />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-black uppercase text-slate-500">จำนวนเงิน</span>
-                  <input className="nexus-field mt-2" min="1" onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} type="number" value={form.amount} />
-                </label>
-              </div>
-              <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">หมายเหตุ</span>
-                <input className="nexus-field mt-2" onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} placeholder="เช่น ฝากประจำวัน / ถอนซื้ออุปกรณ์" value={form.note} />
-              </label>
-            </div>
-            <button className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isSubmitting || isLoading} type="submit">
-              <Save size={17} aria-hidden="true" />
-              บันทึกธุรกรรม
-            </button>
-          </form>
 
-          <div className="nexus-card p-4 sm:p-5 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-black text-indigo-700">
-              <RotateCcw size={16} aria-hidden="true" />
-              การจัดการยอดยกมา
-            </div>
-            <p className="text-xs font-bold leading-6 text-slate-600">
-              มีเงินออมสะสมส่งต่อมาจาก ป.4 หรือปีก่อนหน้า? ใช้ระบบยอดยกมาเพื่อเปิดบัญชีพร้อมกันทั้งห้อง
-            </p>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-indigo-200 transition hover:bg-indigo-700"
-              onClick={handleOpenBatchModal}
-              type="button"
-            >
-              <ArrowDownToLine size={17} aria-hidden="true" />
-              บันทึกยอดยกมา (ทั้งห้อง)
-            </button>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
-              onClick={handlePrintHandoverReport}
-              type="button"
-            >
-              <Printer size={17} aria-hidden="true" />
-              พิมพ์ใบส่งมอบเงินออม
-            </button>
-          </div>
+                {/* Student Selector */}
+                <div>
+                  <span className="text-xs font-bold text-[#78716c] block mb-1">เลือกนักเรียน:</span>
+                  <div className="relative">
+                    <select
+                      className="h-9.5 w-full appearance-none rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 pr-8 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                      onChange={(event) => setSelectedStudentId(event.target.value)}
+                      value={selectedStudent?.id || ''}
+                    >
+                      {classroomStudents.map((student, idx) => (
+                        <option key={student.id} value={student.id}>
+                          {idx + 1}. {student.first_name} {student.last_name} {student.nickname ? `(${student.nickname})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
+                  </div>
+                </div>
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 text-sm font-black text-teal-700">
-              <ShieldCheck size={16} aria-hidden="true" />
-              Audit Ready
-            </div>
-            <p className="mt-3 text-sm font-bold leading-7 text-slate-600">
-              เงินออมควรห้ามลบธุรกรรมจริงใน production ให้ใช้รายการ adjustment และ audit log แทน เพื่อให้ครูตรวจย้อนหลังได้ครบ
-            </p>
-            <button className="amber-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={exportSavingsCsv} type="button">
-              <Download size={17} aria-hidden="true" />
-              Export ยอดคงเหลือ
-            </button>
-          </div>
-        </aside>
-
-        <section className="grid gap-5">
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm font-black text-cyan-700">Classroom Balances</p>
-                <div className="flex items-center gap-3">
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">{classroomStudents.length} บัญชีในห้องนี้</h2>
+                {/* Type buttons (ฝาก vs ถอน) */}
+                <div className="grid grid-cols-2 gap-2 mt-1">
                   <button
-                    onClick={handleOpenBatchModal}
-                    className="mt-1 inline-flex items-center gap-1 rounded-xl bg-indigo-50 px-2.5 py-1 text-xs font-black text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
-                    title="บันทึกยอดยกมาพร้อมกันทั้งห้อง"
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, transactionType: 'deposit' }))}
+                    className={`flex h-10 items-center justify-center gap-1 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
+                      form.transactionType === 'deposit'
+                        ? 'bg-[#d9f99d] text-[#3f6212] ring-2 ring-lime-400 shadow-xs'
+                        : 'bg-white border border-[#ded5c6] text-[#78716c] hover:bg-slate-50'
+                    }`}
                   >
-                    <ArrowDownToLine size={13} />
-                    ยกยอดมา
+                    <Plus size={15} />
+                    <span>ฝากเงิน</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, transactionType: 'withdrawal' }))}
+                    className={`flex h-10 items-center justify-center gap-1 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
+                      form.transactionType === 'withdrawal'
+                        ? 'bg-[#fecdd3] text-[#9f1239] ring-2 ring-rose-400 shadow-xs'
+                        : 'bg-white border border-[#ded5c6] text-[#78716c] hover:bg-slate-50'
+                    }`}
+                  >
+                    <Minus size={15} />
+                    <span>ถอนเงิน</span>
                   </button>
                 </div>
-              </div>
-              <label className="flex min-h-11 min-w-[260px] items-center gap-2 rounded-2xl bg-white/80 px-3 ring-1 ring-slate-200">
-                <Search className="shrink-0 text-slate-400" size={17} aria-hidden="true" />
-                <input className="min-w-0 flex-1 bg-transparent text-sm font-bold text-slate-700 outline-none" onChange={(event) => setSearchTerm(event.target.value)} placeholder="ค้นหานักเรียน" value={searchTerm} />
-              </label>
-            </div>
 
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-100 text-left">
-                <thead>
-                  <tr className="text-xs font-black uppercase text-slate-500">
-                    <th className="px-3 py-3">รหัส</th>
-                    <th className="px-3 py-3">นักเรียน</th>
-                    <th className="px-3 py-3 text-right">ยอดยกมา</th>
-                    <th className="px-3 py-3 text-right">ยอดคงเหลือสุทธิ</th>
-                    <th className="px-3 py-3">สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredStudents.map((student) => {
-                    const account = accountByStudent.get(student.id);
-                    const opening = Number(account?.metadata?.opening_balance || 0);
-                    return (
-                      <tr className="cursor-pointer hover:bg-slate-50" key={student.id} onClick={() => setSelectedStudentId(student.id)}>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{student.student_code || '-'}</td>
-                        <td className="px-3 py-3">
-                          <p className="font-black text-slate-950">{student.first_name} {student.last_name}</p>
-                          <p className="text-xs font-bold text-slate-500">{student.nickname || 'ไม่มีชื่อเล่น'}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-600">
-                          {opening > 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-black text-indigo-700 ring-1 ring-indigo-100">
-                              {formatBaht(opening)} ฿
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-xs">0 ฿</span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right text-lg font-black text-slate-950">{formatBaht(account?.balance || 0)} ฿</td>
-                        <td className="whitespace-nowrap px-3 py-3">
-                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">{account?.status || 'active'}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-black text-teal-700">Transaction Timeline</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'เลือกนักเรียน'}
-                </h2>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-indigo-600">
-                  ยอดยกมา: {formatBaht(Number(selectedStudent ? accountByStudent.get(selectedStudent.id)?.metadata?.opening_balance || 0 : 0))} ฿
-                </p>
-                <p className="text-sm font-black text-slate-700">
-                  ยอดปัจจุบัน {formatBaht(selectedStudent ? accountByStudent.get(selectedStudent.id)?.balance || 0 : 0)} ฿
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-3">
-              {selectedTransactions.map((transaction) => {
-                const isWithdrawal = transaction.transaction_type === 'withdrawal';
-                const isAdjustment = transaction.transaction_type === 'adjustment';
-                const Icon = isWithdrawal ? TrendingDown : isAdjustment ? RotateCcw : TrendingUp;
-                return (
-                  <div className="nexus-muted-box flex items-center justify-between gap-3 p-3" key={transaction.id}>
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white ${isWithdrawal ? 'text-rose-700' : isAdjustment ? 'text-indigo-700' : 'text-cyan-700'} shadow-sm`}>
-                        <Icon size={18} aria-hidden="true" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-950">
-                          {isWithdrawal ? 'ถอน' : isAdjustment ? 'ยอดยกมา / ปรับยอด' : 'ฝาก'} {formatBaht(transaction.amount)} ฿
-                        </p>
-                        <p className="text-xs font-bold text-slate-500">{transaction.transaction_date} | {transaction.note || 'ไม่มีหมายเหตุ'}</p>
-                      </div>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${isWithdrawal ? 'bg-rose-50 text-rose-700 ring-rose-100' : isAdjustment ? 'bg-indigo-50 text-indigo-700 ring-indigo-100' : 'bg-cyan-50 text-cyan-700 ring-cyan-100'}`}>
-                      {isAdjustment ? 'ยอดยกมา' : transaction.transaction_type}
-                    </span>
+                {/* Date & Amount */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-[#78716c] block mb-1">วันที่:</span>
+                    <ThaiDatePicker
+                      className="h-9.5 text-xs font-bold text-[#3f3a36]"
+                      onValueChange={(value) => setForm((current) => ({ ...current, transactionDate: value }))}
+                      value={form.transactionDate}
+                    />
                   </div>
-                );
-              })}
-              {selectedTransactions.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">ยังไม่มีธุรกรรมของนักเรียนคนนี้</div>
-              ) : null}
+                  <div>
+                    <span className="text-xs font-bold text-[#78716c] block mb-1">จำนวนเงิน (บาท):</span>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="เช่น 20"
+                      value={form.amount}
+                      onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                      className="h-9.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Note */}
+                <div>
+                  <span className="text-xs font-bold text-[#78716c] block mb-1">หมายเหตุ:</span>
+                  <input
+                    type="text"
+                    placeholder="เช่น ฝากประจำวัน / ถอนซื้อสมุด"
+                    value={form.note}
+                    onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
+                    className="h-9.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting || isLoading}
+                className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-sm font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Save size={16} />
+                <span>บันทึกธุรกรรม ✓</span>
+              </button>
+            </form>
+
+            {/* Quick Tools Sticky Notes */}
+            <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 space-y-2.5 shadow-sm">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#3f3a36]">
+                <RotateCcw size={15} className="text-indigo-600" />
+                <span>เครื่องมือจัดการเงินออม</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenBatchModal}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 text-xs sm:text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition active:scale-95"
+              >
+                <ArrowDownToLine size={15} />
+                <span>บันทึกยอดยกมา (ทั้งห้อง)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintHandoverReport}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95"
+              >
+                <Printer size={15} />
+                <span>พิมพ์ใบส่งมอบเงินออม</span>
+              </button>
+              <button
+                type="button"
+                onClick={exportSavingsCsv}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm font-bold text-amber-900 hover:bg-amber-100 transition active:scale-95"
+              >
+                <Download size={15} />
+                <span>Export ยอดคงเหลือ (Excel)</span>
+              </button>
             </div>
-          </div>
-        </section>
-      </section>
+          </aside>
+
+          {/* Right Column: Ledger Table & Timeline */}
+          <section className="grid gap-5">
+            {/* Balances Ledger Table */}
+            <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0e8dc] pb-3">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#3f3a36]">
+                    สมุดบัญชีเงินออม ({classroomStudents.length} คน)
+                  </h2>
+                  <p className="text-xs text-[#8a8178]">
+                    แตะที่ชื่อนักเรียนเพื่อดูประวัติการฝาก–ถอน
+                  </p>
+                </div>
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อหรือเลขที่..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="h-9 w-full sm:w-56 rounded-xl border border-[#ded5c6] bg-amber-50/40 pl-9 pr-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full divide-y divide-[#f0e8dc] text-left">
+                  <thead>
+                    <tr className="text-xs font-bold text-[#78716c]">
+                      <th className="px-3 py-2.5">ลำดับ</th>
+                      <th className="px-3 py-2.5">ชื่อ-สกุล นักเรียน</th>
+                      <th className="px-3 py-2.5 text-right">ยอดยกมา</th>
+                      <th className="px-3 py-2.5 text-right">ยอดคงเหลือสุทธิ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f0e8dc] text-xs sm:text-sm">
+                    {filteredStudents.map((student, idx) => {
+                      const account = accountByStudent.get(student.id);
+                      const opening = Number(account?.metadata?.opening_balance || 0);
+                      const isSelected = selectedStudentId === student.id;
+                      return (
+                        <tr
+                          key={student.id}
+                          onClick={() => setSelectedStudentId(student.id)}
+                          className={`cursor-pointer transition ${
+                            isSelected ? 'bg-amber-100/70 font-bold' : 'hover:bg-amber-50/50'
+                          }`}
+                        >
+                          <td className="px-3 py-2.5 text-[#78716c] font-bold">{idx + 1}</td>
+                          <td className="px-3 py-2.5">
+                            <p className="text-[#3f3a36] font-bold">
+                              {student.first_name} {student.last_name}
+                            </p>
+                            <p className="text-[11px] text-[#8a8178]">
+                              {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-[#78716c]">
+                            {opening > 0 ? `${formatBaht(opening)} ฿` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-base sm:text-lg font-bold text-[#3f3a36]">
+                            {formatBaht(account?.balance || 0)} ฿
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Transaction Timeline */}
+            <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0e8dc] pb-2.5">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#3f3a36]">
+                    ประวัติธุรกรรม: {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'เลือกนักเรียน'}
+                  </h3>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-[#8a8178]">ยอดเงินปัจจุบัน: </span>
+                  <b className="text-base text-[#3f3a36]">
+                    {formatBaht(selectedStudent ? accountByStudent.get(selectedStudent.id)?.balance || 0 : 0)} ฿
+                  </b>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-2">
+                {selectedTransactions.map((transaction) => {
+                  const isWithdrawal = transaction.transaction_type === 'withdrawal';
+                  const isAdjustment = transaction.transaction_type === 'adjustment';
+                  const Icon = isWithdrawal ? TrendingDown : isAdjustment ? RotateCcw : TrendingUp;
+                  return (
+                    <div
+                      key={transaction.id}
+                      className={`flex items-center justify-between gap-3 p-3 rounded-xl border text-xs sm:text-sm ${
+                        isWithdrawal
+                          ? 'bg-[#fecdd3]/40 border-rose-200'
+                          : isAdjustment
+                          ? 'bg-[#e9d5ff]/40 border-purple-200'
+                          : 'bg-[#d9f99d]/40 border-lime-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                          isWithdrawal ? 'bg-rose-100 text-rose-700' : isAdjustment ? 'bg-purple-100 text-purple-700' : 'bg-lime-100 text-lime-700'
+                        }`}>
+                          <Icon size={16} />
+                        </span>
+                        <div>
+                          <p className="font-bold text-[#3f3a36]">
+                            {isWithdrawal ? 'ถอนเงิน' : isAdjustment ? 'ยอดยกมา / ปรับยอด' : 'ฝากเงิน'}{' '}
+                            <b>{formatBaht(transaction.amount)} ฿</b>
+                          </p>
+                          <p className="text-[11px] text-[#8a8178]">
+                            {transaction.transaction_date} | {transaction.note || 'ไม่มีหมายเหตุ'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-bold text-[#78716c]">
+                        {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
+                      </span>
+                    </div>
+                  );
+                })}
+                {selectedTransactions.length === 0 && (
+                  <div className="p-4 text-center text-xs sm:text-sm text-[#8a8178]">
+                    ยังไม่มีรายการธุรกรรมของนักเรียนคนนี้
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Generous bottom spacer so page can scroll comfortably past bottom dock */}
+        <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />
+      </div>
 
       {/* Batch Opening Balance Modal */}
       {isBatchOpeningModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div className="nexus-card flex max-h-[92vh] w-full max-w-3xl flex-col p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-3xl rounded-3xl border border-[#ded5c6] bg-[#fbf8f3] p-5 sm:p-6 shadow-2xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#f0e8dc] pb-3">
               <div>
-                <div className="flex items-center gap-2 text-indigo-600 font-black text-sm">
-                  <RotateCcw size={18} />
-                  บันทึกยอดยกมาจากชั้นเรียนก่อนหน้า
-                </div>
-                <h3 className="text-xl font-black text-slate-950 mt-1">
-                  ตั้งค่ายอดยกมา (Opening Balance) — {classrooms.find((c) => c.id === classroomId)?.name || 'ห้องเรียน'}
+                <h3 className="text-lg font-bold text-[#3f3a36]">
+                  ตั้งค่ายอดยกมาจากปีก่อนหน้า (Opening Balance)
                 </h3>
+                <p className="text-xs text-[#8a8178]">
+                  {classrooms.find((c) => c.id === classroomId)?.name || 'ห้องเรียน'} · กรอกยอดเงินยกมาของนักเรียนแต่ละคน
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsBatchOpeningModalOpen(false)}
-                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-black uppercase text-slate-500">ชั้นเรียนเดิมที่ส่งต่อมา</label>
-                <input
-                  type="text"
-                  className="nexus-field mt-1.5"
-                  value={batchSourceGrade}
-                  onChange={(e) => setBatchSourceGrade(e.target.value)}
-                  placeholder="เช่น ป.4/1 หรือ ยอดยกมาจาก ป.4"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-black uppercase text-slate-500">วันที่ยกยอดมา</label>
-                <ThaiDatePicker
-                  className="mt-1.5"
-                  value={batchOpeningDate}
-                  onValueChange={setBatchOpeningDate}
-                />
-              </div>
-            </div>
-
-            {/* Quick paste helper */}
-            <div className="mt-3 rounded-2xl bg-indigo-50/60 p-3 border border-indigo-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-indigo-900 flex items-center gap-1.5">
-                  <FileSpreadsheet size={15} />
-                  วางยอดเงินจาก Excel ได้ทั้งแถบ (เรียงตามรายชื่อด้านล่าง)
-                </span>
-                {batchPasteInput && (
-                  <button
-                    type="button"
-                    onClick={() => handlePasteExcel(batchPasteInput)}
-                    className="rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-black text-white hover:bg-indigo-700"
+            <div className="flex-1 overflow-y-auto py-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {classroomStudents.map((student, idx) => (
+                  <div
+                    key={student.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-[#ded5c6] bg-white text-xs"
                   >
-                    กดนำเข้ายอด
-                  </button>
-                )}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-[11px] font-bold text-amber-900">
+                        {idx + 1}
+                      </span>
+                      <p className="truncate font-bold text-[#3f3a36]">
+                        {student.first_name} {student.last_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={batchOpeningAmounts[student.id] ?? ''}
+                        onChange={(e) =>
+                          setBatchOpeningAmounts((prev) => ({
+                            ...prev,
+                            [student.id]: e.target.value,
+                          }))
+                        }
+                        className="h-8 w-24 rounded-lg border border-[#ded5c6] px-2 text-right text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                      <span className="text-[#78716c]">฿</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <input
-                type="text"
-                className="nexus-field mt-2 bg-white text-xs"
-                placeholder="คลิกที่นี่แล้วกด Ctrl + V เพื่อวางตัวเลขจาก Excel (เช่น 500 [Enter] 320 [Enter] ...)"
-                value={batchPasteInput}
-                onChange={(e) => {
-                  setBatchPasteInput(e.target.value);
-                  handlePasteExcel(e.target.value);
-                }}
-              />
             </div>
 
-            {/* Student list grid */}
-            <div className="mt-4 flex-1 overflow-y-auto pr-1 border border-slate-100 rounded-2xl">
-              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
-                <thead className="bg-slate-50 sticky top-0 z-10 text-xs font-black uppercase text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2.5">ลำดับ</th>
-                    <th className="px-3 py-2.5">รหัส</th>
-                    <th className="px-3 py-2.5">ชื่อ - นามสกุล</th>
-                    <th className="px-3 py-2.5 text-right w-44">ยอดยกมา (บาท)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {classroomStudents.map((student, idx) => (
-                    <tr key={student.id} className="hover:bg-slate-50/70">
-                      <td className="px-3 py-2 text-slate-500 font-bold">{idx + 1}</td>
-                      <td className="px-3 py-2 text-slate-600 font-bold">{student.student_code || '-'}</td>
-                      <td className="px-3 py-2">
-                        <span className="font-black text-slate-900">{student.first_name} {student.last_name}</span>
-                        {student.nickname && <span className="text-xs text-slate-500 ml-1.5">({student.nickname})</span>}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          className="nexus-field h-9 text-right font-black text-slate-950 w-full"
-                          placeholder="0"
-                          value={batchOpeningAmounts[student.id] ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setBatchOpeningAmounts((prev) => ({ ...prev, [student.id]: val }));
-                          }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 pt-4">
-              <div className="text-sm font-bold text-slate-600">
-                นักเรียนทั้งหมด <span className="font-black text-slate-950">{classroomStudents.length}</span> คน | รวมยอดยกมาทั้งห้อง:{' '}
-                <span className="text-lg font-black text-indigo-700">{formatBaht(batchTotalSum)} ฿</span>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex items-center justify-between border-t border-[#f0e8dc] pt-3">
+              <p className="text-xs sm:text-sm text-[#78716c]">
+                ยอดรวมยกมาทั้งห้อง: <b className="text-base text-[#3f3a36]">{formatBaht(batchTotalSum)} ฿</b>
+              </p>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsBatchOpeningModalOpen(false)}
-                  className="rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 transition"
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-[#78716c] hover:bg-slate-100"
                   disabled={isBatchSaving}
                 >
                   ยกเลิก
@@ -1257,7 +1294,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                   type="button"
                   onClick={handleSaveBatchOpeningBalance}
                   disabled={isBatchSaving}
-                  className="rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-indigo-200 transition hover:bg-indigo-700 disabled:opacity-50"
+                  className="rounded-xl bg-[#3f3a36] px-5 py-2 text-xs font-bold text-white shadow-[2px_3px_0_#f59e0b] hover:bg-slate-800 disabled:opacity-50"
                 >
                   {isBatchSaving ? 'กำลังบันทึก...' : `บันทึกยอดยกมา (${classroomStudents.length} คน)`}
                 </button>
@@ -1267,14 +1304,17 @@ export function SavingsPage({ session }: SavingsPageProps) {
         </div>
       )}
 
-      {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
-          <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-          <p>{notice}</p>
+      {notice && (
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs sm:text-sm text-amber-950 font-bold">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+            <span>{notice}</span>
+          </div>
+          <button type="button" onClick={() => setNotice(null)} className="text-amber-800 hover:text-amber-950">
+            <X size={15} />
+          </button>
         </div>
-      ) : null}
-
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">Created by MIKPURINUT</footer>
+      )}
     </main>
   );
 }
