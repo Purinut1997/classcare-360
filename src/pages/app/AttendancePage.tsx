@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   BookOpen,
@@ -1192,134 +1193,150 @@ export function AttendancePage({ session }: AttendancePageProps) {
       )}
 
       {/* ======================================================== */}
-      {/* DETAILED STUDENT BOTTOM SHEET (Long Press or Edit)       */}
+      {/* DETAILED STUDENT POPUP MODAL                             */}
       {/* ======================================================== */}
-      {sheetStudent && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="relative w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#ded5c6] bg-[#fbf8f3] p-5 sm:p-6 shadow-2xl animate-in slide-in-from-bottom duration-200">
-            <button
-              type="button"
+      {sheetStudent &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150">
+            {/* Backdrop click to dismiss */}
+            <div
+              className="absolute inset-0"
               onClick={() => setSheetStudentId(null)}
-              className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Header with Post-it Number & Name */}
-            <div className="flex items-center gap-3">
-              <div className={`flex h-14 w-14 items-center justify-center rounded-xl text-3xl font-bold shadow-xs ${postItTone[marks[sheetStudent.id] || 'present'].bg} ${postItTone[marks[sheetStudent.id] || 'present'].text}`}>
-                {sheetStudentIndex + 1}
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
-                    เลขที่ {sheetStudentIndex + 1}
-                  </span>
-                  {sheetStudent.nickname && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                      น้อง{sheetStudent.nickname}
-                    </span>
-                  )}
-                </div>
-                <h3 className="mt-1 text-base sm:text-lg font-bold text-slate-900">
-                  {sheetStudent.first_name} {sheetStudent.last_name}
-                </h3>
-              </div>
-            </div>
-
-            {/* 6 Status Options */}
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {statusOptions.map((opt) => {
-                const isSelected = (marks[sheetStudent.id] || 'present') === opt.value;
-                const tone = postItTone[opt.value];
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setMarks((prev) => ({ ...prev, [sheetStudent.id]: opt.value }));
-                    }}
-                    className={`flex h-11 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
-                      isSelected
-                        ? `${tone.bg} ${tone.text} ring-2 ring-current shadow-xs`
-                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{STATUS_EMOJI[opt.value]}</span>
-                    <span>{opt.label}</span>
-                    {isSelected && <Check size={14} className="stroke-[3]" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Note Input */}
-            <div className="mt-3.5">
-              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
-                หมายเหตุ (เช่น อาการป่วย, เหตุผลการลา):
-              </label>
-              <input
-                type="text"
-                className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
-                placeholder={`ระบุหมายเหตุสำหรับ ${sheetStudent.first_name}...`}
-                value={notes[sheetStudent.id] || ''}
-                onChange={(e) => setNotes((prev) => ({ ...prev, [sheetStudent.id]: e.target.value }))}
-              />
-            </div>
-
-            {/* Navigation and Done */}
-            <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-slate-200">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={sheetStudentIndex <= 0}
-                  onClick={() => {
-                    if (sheetStudentIndex > 0) {
-                      setSheetStudentId(classroomStudents[sheetStudentIndex - 1].id);
-                    }
-                  }}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-100"
-                >
-                  ← ก่อนหน้า
-                </button>
-                <button
-                  type="button"
-                  disabled={sheetStudentIndex >= classroomStudents.length - 1}
-                  onClick={() => {
-                    if (sheetStudentIndex < classroomStudents.length - 1) {
-                      setSheetStudentId(classroomStudents[sheetStudentIndex + 1].id);
-                    }
-                  }}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-100"
-                >
-                  ถัดไป →
-                </button>
-              </div>
+              aria-hidden="true"
+            />
+            <div className="relative z-10 w-full max-w-lg rounded-[28px] sm:rounded-[32px] border border-[#c7bca9] bg-[#fbf8f3] p-5 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto">
               <button
                 type="button"
                 onClick={() => setSheetStudentId(null)}
-                className="rounded-xl bg-[#3f3a36] px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-slate-800 active:scale-95 shadow-xs"
+                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-stone-400 hover:bg-stone-200/60 hover:text-stone-800 transition cursor-pointer"
+                aria-label="ปิดหน้าต่าง"
               >
-                เสร็จสิ้น
+                <X size={18} />
               </button>
+
+              {/* Header with Post-it Number & Name */}
+              <div className="flex items-center gap-3">
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-bold shadow-xs ${postItTone[marks[sheetStudent.id] || 'present'].bg} ${postItTone[marks[sheetStudent.id] || 'present'].text}`}>
+                  {sheetStudentIndex + 1}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-full bg-slate-200/90 px-2.5 py-0.5 text-xs font-bold text-slate-800">
+                      เลขที่ {sheetStudentIndex + 1}
+                    </span>
+                    {sheetStudent.nickname && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-200">
+                        น้อง{sheetStudent.nickname}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="mt-1 text-lg sm:text-xl font-bold text-slate-950">
+                    {sheetStudent.first_name} {sheetStudent.last_name}
+                  </h3>
+                </div>
+              </div>
+
+              {/* 6 Status Options */}
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-2.5">
+                {statusOptions.map((opt) => {
+                  const isSelected = (marks[sheetStudent.id] || 'present') === opt.value;
+                  const tone = postItTone[opt.value];
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setMarks((prev) => ({ ...prev, [sheetStudent.id]: opt.value }));
+                      }}
+                      className={`flex h-12 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
+                        isSelected
+                          ? `${tone.bg} ${tone.text} ring-2 ring-current shadow-xs`
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{STATUS_EMOJI[opt.value]}</span>
+                      <span>{opt.label}</span>
+                      {isSelected && <Check size={14} className="stroke-[3]" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Note Input */}
+              <div className="mt-4">
+                <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                  หมายเหตุ (เช่น อาการป่วย, เหตุผลการลา):
+                </label>
+                <input
+                  type="text"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-xs sm:text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-slate-400 shadow-2xs"
+                  placeholder={`ระบุหมายเหตุสำหรับ ${sheetStudent.first_name}...`}
+                  value={notes[sheetStudent.id] || ''}
+                  onChange={(e) => setNotes((prev) => ({ ...prev, [sheetStudent.id]: e.target.value }))}
+                />
+              </div>
+
+              {/* Navigation and Done */}
+              <div className="mt-5 flex items-center justify-between gap-2 pt-3 border-t border-slate-200">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={sheetStudentIndex <= 0}
+                    onClick={() => {
+                      if (sheetStudentIndex > 0) {
+                        setSheetStudentId(classroomStudents[sheetStudentIndex - 1].id);
+                      }
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 disabled:opacity-30 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                  >
+                    ← ก่อนหน้า
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sheetStudentIndex >= classroomStudents.length - 1}
+                    onClick={() => {
+                      if (sheetStudentIndex < classroomStudents.length - 1) {
+                        setSheetStudentId(classroomStudents[sheetStudentIndex + 1].id);
+                      }
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 disabled:opacity-30 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                  >
+                    ถัดไป →
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSheetStudentId(null)}
+                  className="rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] px-6 py-2 text-xs sm:text-sm font-bold text-white shadow-[2px_3px_0_#f59e0b] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                >
+                  เสร็จสิ้น
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* ======================================================== */}
       {/* MORE OPTIONS MODAL: Date change, Subject mode, History   */}
       {/* ======================================================== */}
-      {isMoreOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <button
-              type="button"
+      {isMoreOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+            <div
+              className="absolute inset-0"
               onClick={() => setIsMoreOpen(false)}
-              className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
-            >
-              <X size={18} />
-            </button>
+              aria-hidden="true"
+            />
+            <div className="relative z-10 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl max-h-[90dvh] overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => setIsMoreOpen(false)}
+                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 cursor-pointer"
+                aria-label="ปิดหน้าต่าง"
+              >
+                <X size={18} />
+              </button>
 
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <span>⚙️ การตั้งค่า & เครื่องมือเพิ่มเติม</span>
@@ -1436,7 +1453,8 @@ export function AttendancePage({ session }: AttendancePageProps) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ======================================================== */}
