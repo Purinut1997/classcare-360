@@ -838,11 +838,11 @@ export function SavingsPage({ session }: SavingsPageProps) {
         {/* Top Header */}
         <header className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-normal text-[#3f3a36] tracking-tight flex items-center gap-1.5">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
               <span>สมุดเงินออมนักเรียน</span>
               <span className="text-xl sm:text-2xl">📌</span>
             </h1>
-            <p className="mt-0.5 text-sm sm:text-base text-[#8a8178]">
+            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
               ฝาก ถอน ปรับยอด ดูยอดรวมทั้งห้อง และพิมพ์ใบส่งมอบเงินออม
             </p>
           </div>
@@ -850,31 +850,31 @@ export function SavingsPage({ session }: SavingsPageProps) {
           {/* 4 Post-it Stat Memo Cards */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:min-w-[500px]">
             {/* Total Balance */}
-            <div className="relative rounded-xl bg-[#d9f99d] p-3 text-center shadow-[2px_4px_6px_rgba(63,98,18,0.15)] rotate-[1deg] hover:scale-105 transition">
+            <div className="relative rounded-xl bg-[#d9f99d] p-3 text-center shadow-[2px_4px_6px_rgba(27,62,4,0.18)] rotate-[1deg] hover:scale-105 transition">
               <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#3f6212]">{formatBaht(summary.totalBalance)} ฿</p>
-              <p className="mt-0.5 text-xs font-bold text-[#3f6212]/80">ยอดคงเหลือรวม</p>
+              <p className="text-lg sm:text-xl font-bold text-[#1b3e04]">{formatBaht(summary.totalBalance)} ฿</p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#1b3e04]">ยอดคงเหลือรวม</p>
             </div>
 
             {/* Opening Total */}
-            <div className="relative rounded-xl bg-[#e9d5ff] p-3 text-center shadow-[2px_4px_6px_rgba(107,33,168,0.15)] -rotate-[1.5deg] hover:scale-105 transition">
+            <div className="relative rounded-xl bg-[#e9d5ff] p-3 text-center shadow-[2px_4px_6px_rgba(88,28,135,0.18)] -rotate-[1.5deg] hover:scale-105 transition">
               <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#6b21a8]">{formatBaht(summary.openingTotal)} ฿</p>
-              <p className="mt-0.5 text-xs font-bold text-[#6b21a8]/80">ยอดยกมาจากชั้นก่อน</p>
+              <p className="text-lg sm:text-xl font-bold text-[#581c87]">{formatBaht(summary.openingTotal)} ฿</p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#581c87]">ยอดยกมาจากชั้นก่อน</p>
             </div>
 
             {/* Deposits */}
-            <div className="relative rounded-xl bg-[#bae6fd] p-3 text-center shadow-[2px_4px_6px_rgba(7,89,133,0.15)] rotate-[1.5deg] hover:scale-105 transition">
+            <div className="relative rounded-xl bg-[#bae6fd] p-3 text-center shadow-[2px_4px_6px_rgba(3,79,119,0.18)] rotate-[1.5deg] hover:scale-105 transition">
               <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#075985]">{formatBaht(summary.deposits)} ฿</p>
-              <p className="mt-0.5 text-xs font-bold text-[#075985]/80">ฝากเพิ่มรอบนี้</p>
+              <p className="text-lg sm:text-xl font-bold text-[#034f77]">{formatBaht(summary.deposits)} ฿</p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#034f77]">ฝากเพิ่มรอบนี้</p>
             </div>
 
             {/* Withdrawals */}
-            <div className="relative rounded-xl bg-[#fecdd3] p-3 text-center shadow-[2px_4px_6px_rgba(159,18,57,0.15)] -rotate-[1deg] hover:scale-105 transition">
+            <div className="relative rounded-xl bg-[#fecdd3] p-3 text-center shadow-[2px_4px_6px_rgba(136,19,55,0.18)] -rotate-[1deg] hover:scale-105 transition">
               <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#9f1239]">{formatBaht(summary.withdrawals)} ฿</p>
-              <p className="mt-0.5 text-xs font-bold text-[#9f1239]/80">ถอนรอบนี้</p>
+              <p className="text-lg sm:text-xl font-bold text-[#881337]">{formatBaht(summary.withdrawals)} ฿</p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#881337]">ถอนรอบนี้</p>
             </div>
           </div>
         </header>

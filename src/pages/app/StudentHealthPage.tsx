@@ -84,20 +84,20 @@ const NOTE_ROTATIONS = [
 const routineTone: Record<RoutineStatus, { bg: string; text: string; shadow: string; label: string }> = {
   completed: {
     bg: 'bg-[#d9f99d]',
-    text: 'text-[#3f6212]',
-    shadow: 'shadow-[2px_5px_8px_rgba(63,98,18,0.18)]',
+    text: 'text-[#1b3e04]',
+    shadow: 'shadow-[2px_5px_8px_rgba(27,62,4,0.22)]',
     label: 'เรียบร้อย ✓',
   },
   missed: {
     bg: 'bg-[#fecdd3]',
-    text: 'text-[#9f1239]',
-    shadow: 'shadow-[2px_5px_8px_rgba(159,18,57,0.18)]',
+    text: 'text-[#881337]',
+    shadow: 'shadow-[2px_5px_8px_rgba(136,19,55,0.22)]',
     label: 'ไม่ได้ทำ ✕',
   },
   exempt: {
     bg: 'bg-[#fde68a]',
-    text: 'text-[#92400e]',
-    shadow: 'shadow-[2px_5px_8px_rgba(146,64,14,0.18)]',
+    text: 'text-[#78350f]',
+    shadow: 'shadow-[2px_5px_8px_rgba(120,53,15,0.22)]',
     label: 'ยกเว้น',
   },
 };
@@ -413,11 +413,11 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
         {/* Top Header */}
         <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-normal text-[#3f3a36] tracking-tight flex items-center gap-1.5">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
               <span>สุขภาพและกิจวัตรนักเรียน</span>
               <span className="text-xl sm:text-2xl">📌</span>
             </h1>
-            <p className="mt-0.5 text-sm sm:text-base text-[#8a8178]">
+            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
               บันทึกกิจกรรมประจำวัน น้ำหนัก ส่วนสูง BMI และตรวจสุขภาพ 7 ด้าน
             </p>
           </div>
@@ -433,7 +433,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                   nextParams.set('classroomId', event.target.value);
                   setSearchParams(nextParams, { replace: true });
                 }}
-                className="appearance-none rounded-xl border border-[#ded5c6] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#3f3a36] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
               >
                 {displayClassrooms.map((c) => {
                   const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -444,13 +444,13 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                   );
                 })}
               </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#57534e]" />
             </div>
 
             {/* Date Picker */}
             <div className="relative inline-flex items-center rotate-[-1deg] shadow-xs">
               <ThaiDatePicker
-                className="h-8.5 rounded-xl border border-[#ded5c6] bg-white px-2.5 text-xs font-bold text-[#3f3a36]"
+                className="h-8.5 rounded-xl border border-[#c7bca9] bg-white px-2.5 text-xs font-bold text-[#1c1917]"
                 value={recordDate}
                 onValueChange={setRecordDate}
               />
@@ -485,7 +485,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                 className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all ${rot} ${
                   active
                     ? 'bg-[#3f3a36] text-white shadow-[2px_3px_0_#f59e0b] -translate-y-0.5'
-                    : 'bg-white/85 text-[#57534e] border border-[#ded5c6] hover:bg-white shadow-2xs'
+                    : 'bg-white text-[#292524] border border-[#c7bca9] hover:bg-stone-50 shadow-2xs'
                 }`}
               >
                 <span>{option.value === 'toothbrushing' ? '🪥' : option.value === 'milk' ? '🥛' : option.value === 'lunch' ? '🍱' : option.value === 'growth' ? '⚖️' : '🧼'}</span>
@@ -497,7 +497,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
 
         {/* Quick actions for current mode */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs sm:text-sm text-[#8a8178]">
+          <p className="text-sm sm:text-base font-semibold text-[#292524]">
             {routineModes.includes(mode as RoutineMode)
               ? 'แตะโน้ตเพื่อสลับสถานะ: เรียบร้อย ➔ ไม่ได้ทำ ➔ ยกเว้น'
               : mode === 'growth'
@@ -511,17 +511,17 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                 <button
                   type="button"
                   onClick={() => markAllRoutine('completed')}
-                  className="inline-flex items-center gap-1 rounded-lg border border-lime-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#3f6212] hover:bg-white active:scale-95 transition shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-lime-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
                 >
-                  <Check size={13} className="stroke-[3]" />
+                  <Check size={14} className="stroke-[3]" />
                   <span>เรียบร้อยทุกคน</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => markAllRoutine('missed')}
-                  className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#9f1239] hover:bg-white active:scale-95 transition shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#881337] hover:bg-rose-50 active:scale-95 transition shadow-2xs"
                 >
-                  <X size={13} />
+                  <X size={14} />
                   <span>ล้างเป็นไม่ได้ทำ</span>
                 </button>
               </>
@@ -531,15 +531,15 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                 <button
                   type="button"
                   onClick={() => markAllInspection('pass')}
-                  className="inline-flex items-center gap-1 rounded-lg border border-lime-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#3f6212] hover:bg-white active:scale-95 transition shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-lime-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
                 >
-                  <Check size={13} className="stroke-[3]" />
+                  <Check size={14} className="stroke-[3]" />
                   <span>ผ่านหมดทุกคน</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => markAllInspection('not_checked')}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[#ded5c6] bg-white/90 px-2.5 py-1 text-xs font-bold text-[#78716c] hover:bg-white active:scale-95 transition shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#c7bca9] bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#44403c] hover:bg-stone-50 active:scale-95 transition shadow-2xs"
                 >
                   <span>ล้างค่า</span>
                 </button>
@@ -582,12 +582,12 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                     <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
 
                     {/* Roll Number */}
-                    <span className={`text-2xl sm:text-3xl font-normal leading-none tracking-tight ${tone.text}`}>
+                    <span className={`text-2xl sm:text-3xl font-bold leading-none tracking-tight ${tone.text}`}>
                       {rollNumber}
                     </span>
 
                     {/* Name / Status */}
-                    <span className={`text-xs sm:text-sm font-normal truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
+                    <span className={`text-sm sm:text-base font-bold truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
                       {displayName}
                     </span>
                   </button>
@@ -606,21 +606,21 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                 return (
                   <div
                     key={student.id}
-                    className={`relative rounded-2xl border border-[#ded5c6] bg-white/95 p-3.5 shadow-sm transition-all ${rotation} hover:scale-[1.01]`}
+                    className={`relative rounded-2xl border border-[#c7bca9] bg-white/95 p-3.5 shadow-sm transition-all ${rotation} hover:scale-[1.01]`}
                   >
                     {/* Top tape */}
                     <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-8 rounded-[1px] bg-white/80 shadow-2xs" />
 
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-xs font-bold text-amber-900">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-200 text-sm font-bold text-amber-950 shadow-2xs">
                           {rollNumber}
                         </span>
                         <div>
-                          <p className="text-sm font-bold text-[#3f3a36]">
+                          <p className="text-base font-bold text-[#1c1917]">
                             {student.first_name} {student.last_name}
                           </p>
-                          <p className="text-[11px] text-[#8a8178]">
+                          <p className="text-xs sm:text-sm font-semibold text-[#44403c]">
                             {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
                           </p>
                         </div>
@@ -628,14 +628,14 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
 
                       {/* BMI Badge */}
                       <div className="text-right">
-                        <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold ${
+                        <span className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs sm:text-sm font-bold shadow-2xs ${
                           bmi === null
-                            ? 'bg-slate-100 text-slate-500'
+                            ? 'bg-stone-100 text-stone-700 border border-stone-300'
                             : bmi < 18.5
-                            ? 'bg-sky-100 text-sky-800'
+                            ? 'bg-sky-100 text-sky-900 border border-sky-300'
                             : bmi <= 22.9
-                            ? 'bg-lime-100 text-lime-800'
-                            : 'bg-amber-100 text-amber-900'
+                            ? 'bg-lime-100 text-lime-900 border border-lime-300'
+                            : 'bg-amber-100 text-amber-950 border border-amber-300'
                         }`}>
                           <span>BMI:</span>
                           <b>{bmi === null ? '—' : bmi.toFixed(1)}</b>
@@ -645,7 +645,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
 
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       <div>
-                        <label className="block text-[11px] font-bold text-[#78716c] mb-0.5">น้ำหนัก (กก.):</label>
+                        <label className="block text-xs sm:text-sm font-bold text-[#1c1917] mb-1">น้ำหนัก (กก.):</label>
                         <input
                           type="number"
                           step="0.1"
@@ -657,11 +657,11 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                               [student.id]: { height: current[student.id]?.height || '', weight: e.target.value },
                             }))
                           }
-                          className="h-8.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400"
+                          className="h-9 w-full rounded-xl border border-[#c7bca9] bg-white px-3 text-sm font-bold text-[#1c1917] placeholder:text-stone-400 outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-[#78716c] mb-0.5">ส่วนสูง (ซม.):</label>
+                        <label className="block text-xs sm:text-sm font-bold text-[#1c1917] mb-1">ส่วนสูง (ซม.):</label>
                         <input
                           type="number"
                           step="0.1"
@@ -673,7 +673,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                               [student.id]: { height: e.target.value, weight: current[student.id]?.weight || '' },
                             }))
                           }
-                          className="h-8.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400"
+                          className="h-9 w-full rounded-xl border border-[#c7bca9] bg-white px-3 text-sm font-bold text-[#1c1917] placeholder:text-stone-400 outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
                         />
                       </div>
                     </div>
@@ -692,17 +692,17 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                 return (
                   <div
                     key={student.id}
-                    className={`relative rounded-2xl border border-[#ded5c6] bg-white/95 p-3.5 shadow-sm ${rotation}`}
+                    className={`relative rounded-2xl border border-[#c7bca9] bg-white/95 p-3.5 shadow-sm ${rotation}`}
                   >
                     <div className="flex items-center gap-2 mb-2.5">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 text-xs font-bold text-teal-900">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-200 text-sm font-bold text-teal-950 shadow-2xs">
                         {rollNumber}
                       </span>
                       <div>
-                        <p className="text-sm font-bold text-[#3f3a36]">
+                        <p className="text-base font-bold text-[#1c1917]">
                           {student.first_name} {student.last_name}
                         </p>
-                        <p className="text-[11px] text-[#8a8178]">
+                        <p className="text-xs sm:text-sm font-semibold text-[#44403c]">
                           {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
                         </p>
                       </div>
@@ -724,17 +724,17 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                                 },
                               }))
                             }
-                            className={`rounded-xl p-1.5 text-center text-xs font-bold transition active:scale-95 ${
+                            className={`rounded-xl p-2 text-center transition active:scale-95 ${
                               status === 'pass'
-                                ? 'bg-[#d9f99d] text-[#3f6212] ring-1 ring-lime-400'
+                                ? 'bg-[#d9f99d] text-[#1b3e04] ring-2 ring-lime-500 font-bold shadow-xs'
                                 : status === 'attention'
-                                ? 'bg-[#fecdd3] text-[#9f1239] ring-1 ring-rose-400'
-                                : 'bg-slate-100 text-slate-500 hover:bg-white border border-slate-200'
+                                ? 'bg-[#fecdd3] text-[#881337] ring-2 ring-rose-500 font-bold shadow-xs'
+                                : 'bg-stone-100 text-[#44403c] hover:bg-stone-200/80 border border-stone-300 font-bold'
                             }`}
                           >
-                            <span className="block text-[11px]">{inspectionLabels[key]}</span>
-                            <span className="block text-[9px] mt-0.5">
-                              {status === 'pass' ? '✓ ผ่าน' : status === 'attention' ? '✕ ตรวจ' : '—'}
+                            <span className="block text-xs sm:text-sm font-bold leading-tight">{inspectionLabels[key]}</span>
+                            <span className="block text-xs font-bold mt-1">
+                              {status === 'pass' ? '✓ ผ่าน' : status === 'attention' ? '✕ ตรวจ' : '— รอ'}
                             </span>
                           </button>
                         );
@@ -763,14 +763,14 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       {/* BOTTOM FOOTER DOCK: Matches Theme (Style 5)               */}
       {/* ======================================================== */}
       {classroomStudents.length > 0 && (
-        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#ded5c6] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#c7bca9] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
           {/* Summary Text */}
-          <div className="flex items-center justify-center gap-4 text-sm sm:text-base text-[#57534e]">
+          <div className="flex items-center justify-center gap-4 text-base sm:text-lg font-bold text-[#1c1917]">
             <span>
-              ครบแล้ว <b className="text-[#3f6212]">{completedCount}</b>
+              ครบแล้ว <b className="text-[#1b3e04]">{completedCount}</b>
             </span>
             <span>
-              ติดตาม/ขาด <b className="text-[#9f1239]">{attentionCount}</b>
+              ติดตาม/ขาด <b className="text-[#881337]">{attentionCount}</b>
             </span>
             <span>
               ทั้งหมด <b>{classroomStudents.length}</b>

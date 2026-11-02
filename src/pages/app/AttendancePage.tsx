@@ -130,45 +130,45 @@ const postItTone: Record<
 > = {
   present: {
     bg: 'bg-[#d9f99d]',
-    text: 'text-[#3f6212]',
-    shadow: 'shadow-[2px_5px_8px_rgba(63,98,18,0.18)]',
-    border: 'border-lime-300/40',
-    label: 'text-[#3f6212]',
+    text: 'text-[#1b3e04]',
+    shadow: 'shadow-[2px_5px_8px_rgba(27,62,4,0.22)]',
+    border: 'border-lime-400/60',
+    label: 'text-[#1b3e04]',
   },
   absent: {
     bg: 'bg-[#fecdd3]',
-    text: 'text-[#9f1239]',
-    shadow: 'shadow-[2px_5px_8px_rgba(159,18,57,0.18)]',
-    border: 'border-rose-300/40',
-    label: 'text-[#9f1239]',
+    text: 'text-[#881337]',
+    shadow: 'shadow-[2px_5px_8px_rgba(136,19,55,0.22)]',
+    border: 'border-rose-400/60',
+    label: 'text-[#881337]',
   },
   leave: {
     bg: 'bg-[#bae6fd]',
-    text: 'text-[#075985]',
-    shadow: 'shadow-[2px_5px_8px_rgba(7,89,133,0.18)]',
-    border: 'border-sky-300/40',
-    label: 'text-[#075985]',
+    text: 'text-[#034f77]',
+    shadow: 'shadow-[2px_5px_8px_rgba(3,79,119,0.22)]',
+    border: 'border-sky-400/60',
+    label: 'text-[#034f77]',
   },
   late: {
     bg: 'bg-[#fde68a]',
-    text: 'text-[#92400e]',
-    shadow: 'shadow-[2px_5px_8px_rgba(146,64,14,0.18)]',
-    border: 'border-amber-300/40',
-    label: 'text-[#92400e]',
+    text: 'text-[#78350f]',
+    shadow: 'shadow-[2px_5px_8px_rgba(120,53,15,0.22)]',
+    border: 'border-amber-400/60',
+    label: 'text-[#78350f]',
   },
   sick: {
     bg: 'bg-[#e9d5ff]',
-    text: 'text-[#6b21a8]',
-    shadow: 'shadow-[2px_5px_8px_rgba(107,33,168,0.18)]',
-    border: 'border-purple-300/40',
-    label: 'text-[#6b21a8]',
+    text: 'text-[#581c87]',
+    shadow: 'shadow-[2px_5px_8px_rgba(88,28,135,0.22)]',
+    border: 'border-purple-400/60',
+    label: 'text-[#581c87]',
   },
   activity: {
     bg: 'bg-[#a7f3d0]',
-    text: 'text-[#065f46]',
-    shadow: 'shadow-[2px_5px_8px_rgba(6,95,70,0.18)]',
-    border: 'border-teal-300/40',
-    label: 'text-[#065f46]',
+    text: 'text-[#064e3b]',
+    shadow: 'shadow-[2px_5px_8px_rgba(6,78,59,0.22)]',
+    border: 'border-teal-400/60',
+    label: 'text-[#064e3b]',
   },
 };
 
@@ -890,15 +890,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
         <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-normal text-[#3f3a36] tracking-tight flex items-center gap-1.5">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
                 <span>เช็คชื่อวันนี้</span>
                 <span className="text-xl sm:text-2xl">📌</span>
               </h1>
             </div>
-            <p className="mt-0.5 text-sm sm:text-base text-[#8a8178]">
+            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
               {thaiDateLabel} · {mode === 'homeroom' ? (periodLabel === 'เช้า' ? 'ช่วงเช้า' : periodLabel) : `${subjectName} (${periodLabel})`}
             </p>
-            <p className="mt-1 text-xs sm:text-sm text-[#a3998e]">
+            <p className="mt-1 text-sm sm:text-base font-medium text-[#292524]">
               แตะโน้ตเพื่อเปลี่ยนสถานะ หรือกด ✏️ เพื่อดูรายละเอียด/ใส่หมายเหตุ
             </p>
           </div>
@@ -909,7 +909,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <select
                 value={classroomId}
                 onChange={(e) => setClassroomId(e.target.value)}
-                className="appearance-none rounded-xl border border-[#ded5c6] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#3f3a36] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
               >
                 {displayClassrooms.map((c) => {
                   const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -920,14 +920,14 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   );
                 })}
               </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#57534e]" />
             </div>
 
             {/* More Settings Button */}
             <button
               type="button"
               onClick={() => setIsMoreOpen(true)}
-              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-[#ded5c6] bg-white text-[#78716c] hover:bg-white/80 active:scale-95 transition shadow-xs rotate-[-1deg]"
+              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-[#c7bca9] bg-white text-[#44403c] hover:bg-white/80 active:scale-95 transition shadow-xs rotate-[-1deg]"
               title="เมนูเพิ่มเติม (เปลี่ยนวันที่ / รายวิชา / แก้ไขย้อนหลัง)"
             >
               <MoreHorizontal size={17} />
@@ -961,29 +961,29 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <button
             type="button"
             onClick={() => markAll('present')}
-            className="inline-flex items-center gap-1 rounded-lg border border-lime-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#3f6212] hover:bg-white active:scale-95 transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-lime-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
           >
-            <Check size={13} className="text-[#3f6212] stroke-[3]" />
+            <Check size={14} className="text-[#1b3e04] stroke-[3]" />
             <span>มาทุกคน</span>
           </button>
           <button
             type="button"
             onClick={() => setIsQuickRollOpen((prev) => !prev)}
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-bold transition active:scale-95 shadow-2xs ${
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 shadow-2xs ${
               isQuickRollOpen
                 ? 'border-amber-400 bg-amber-200 text-amber-950'
-                : 'border-amber-300 bg-white/90 text-amber-800 hover:bg-white'
+                : 'border-amber-400 bg-white text-amber-900 hover:bg-amber-50'
             }`}
           >
-            <UserCheck size={13} className="text-amber-600" />
+            <UserCheck size={14} className="text-amber-700" />
             <span>คีย์เลขที่</span>
           </button>
           <button
             type="button"
             onClick={() => setIsOcrModalOpen(true)}
-            className="inline-flex items-center gap-1 rounded-lg border border-teal-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-white active:scale-95 transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-teal-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-teal-900 hover:bg-teal-50 active:scale-95 transition shadow-2xs"
           >
-            <Camera size={13} className="text-teal-600" />
+            <Camera size={14} className="text-teal-700" />
             <span>สแกน AI</span>
           </button>
           {alertStudents.length > 0 && (
@@ -991,9 +991,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
               type="button"
               onClick={() => void notifyGuardians()}
               disabled={isNotifying}
-              className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-rose-800 hover:bg-white active:scale-95 transition shadow-2xs disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-rose-900 hover:bg-rose-50 active:scale-95 transition shadow-2xs disabled:opacity-50"
             >
-              <Send size={13} className="text-rose-600" />
+              <Send size={14} className="text-rose-700" />
               <span>แจ้งผู้ปกครอง ({alertStudents.length})</span>
             </button>
           )}
@@ -1115,12 +1115,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   </button>
 
                   {/* Large Roll Number */}
-                  <span className={`text-2xl sm:text-3xl font-normal leading-none tracking-tight ${tone.text}`}>
+                  <span className={`text-2xl sm:text-3xl font-bold leading-none tracking-tight ${tone.text}`}>
                     {rollNumber}
                   </span>
 
                   {/* Student Name / Status */}
-                  <span className={`text-xs sm:text-sm font-normal truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
+                  <span className={`text-sm sm:text-base font-bold truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
                     {displayName}
                   </span>
                 </div>
@@ -1153,24 +1153,24 @@ export function AttendancePage({ session }: AttendancePageProps) {
       {/* BOTTOM FOOTER DOCK: Matches Image 2 (Style 5)             */}
       {/* ======================================================== */}
       {classroomStudents.length > 0 && (
-        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#ded5c6] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#c7bca9] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
           {/* Summary Text: มา 27 ขาด 1 ลา 1 สาย 1 */}
-          <div className="flex items-center justify-center gap-3 sm:gap-4 text-sm sm:text-base text-[#57534e]">
+          <div className="flex items-center justify-center gap-3 sm:gap-4 text-base sm:text-lg font-bold text-[#1c1917]">
             <span>
-              มา <b className="text-[#3f6212]">{summary.find((s) => s.value === 'present')?.count || 0}</b>
+              มา <b className="text-[#1b3e04]">{summary.find((s) => s.value === 'present')?.count || 0}</b>
             </span>
             <span>
-              ขาด <b className="text-[#9f1239]">{summary.find((s) => s.value === 'absent')?.count || 0}</b>
+              ขาด <b className="text-[#881337]">{summary.find((s) => s.value === 'absent')?.count || 0}</b>
             </span>
             <span>
-              ลา <b className="text-[#075985]">{summary.find((s) => s.value === 'leave')?.count || 0}</b>
+              ลา <b className="text-[#034f77]">{summary.find((s) => s.value === 'leave')?.count || 0}</b>
             </span>
             <span>
-              สาย <b className="text-[#92400e]">{summary.find((s) => s.value === 'late')?.count || 0}</b>
+              สาย <b className="text-[#78350f]">{summary.find((s) => s.value === 'late')?.count || 0}</b>
             </span>
             {((summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)) > 0 && (
               <span>
-                ป่วย/อื่น <b>{(summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)}</b>
+                ป่วย/อื่น <b className="text-[#581c87]">{(summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)}</b>
               </span>
             )}
           </div>
