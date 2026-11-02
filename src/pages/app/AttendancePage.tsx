@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Home,
   MoreHorizontal,
+  Pencil,
   Send,
   Smile,
   UserCheck,
@@ -898,7 +899,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               {thaiDateLabel} · {mode === 'homeroom' ? (periodLabel === 'เช้า' ? 'ช่วงเช้า' : periodLabel) : `${subjectName} (${periodLabel})`}
             </p>
             <p className="mt-1 text-xs sm:text-sm text-[#a3998e]">
-              แตะโน้ตของคนที่ไม่มา (แตะค้างเพื่อใส่หมายเหตุ)
+              แตะโน้ตเพื่อเปลี่ยนสถานะ หรือกด ✏️ เพื่อดูรายละเอียด/ใส่หมายเหตุ
             </p>
           </div>
 
@@ -1063,10 +1064,17 @@ export function AttendancePage({ session }: AttendancePageProps) {
               const hasNote = Boolean(notes[student.id]?.trim());
 
               return (
-                <button
+                <div
                   key={student.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleStudentTap(student.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleStudentTap(student.id);
+                    }
+                  }}
                   onPointerDown={() => handlePointerDown(student.id)}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={handlePointerCancel}
@@ -1074,18 +1082,37 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     e.preventDefault();
                     setSheetStudentId(student.id);
                   }}
-                  className={`relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
-                  title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${statusLabels[mark]}) — แตะเพื่อวนสถานะ, แตะค้างเพื่อดูรายละเอียด`}
+                  className={`group relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
+                  title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${statusLabels[mark]}) — แตะเพื่อเปลี่ยนสถานะ หรือกด ✏️ เพื่อดูรายละเอียด`}
                 >
                   {/* Frosted Tape on top of note */}
                   <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
 
-                  {/* Note indicator badge if custom note exists */}
-                  {hasNote && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-white text-[9px] font-bold shadow-xs" title={notes[student.id]}>
-                      💬
-                    </span>
-                  )}
+                  {/* Small Cute Edit / Detail Icon Button to Open Popup */}
+                  <button
+                    type="button"
+                    aria-label={`แก้ไขรายละเอียดและหมายเหตุของเลขที่ ${rollNumber} ${student.first_name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSheetStudentId(student.id);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    className={`absolute top-1 right-1 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full transition-all cursor-pointer z-20 shadow-2xs ${
+                      hasNote
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300 ring-1 ring-amber-400/60'
+                        : 'bg-white/85 hover:bg-white text-stone-500 hover:text-stone-900 border border-stone-200/70'
+                    } hover:scale-115 active:scale-90`}
+                    title={hasNote ? `หมายเหตุ: "${notes[student.id]}" (กดเพื่อแก้ไข)` : 'กดเพื่อดูรายละเอียด / ใส่หมายเหตุ'}
+                  >
+                    <Pencil className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    {hasNote && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                      </span>
+                    )}
+                  </button>
 
                   {/* Large Roll Number */}
                   <span className={`text-2xl sm:text-3xl font-normal leading-none tracking-tight ${tone.text}`}>
@@ -1096,7 +1123,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   <span className={`text-xs sm:text-sm font-normal truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
                     {displayName}
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
