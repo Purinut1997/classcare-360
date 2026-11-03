@@ -1,13 +1,18 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ChevronDown,
   ArrowDownToLine,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  Coins,
   Download,
   FileSpreadsheet,
   History,
+  LayoutGrid,
+  ListFilter,
   Minus,
+  Pencil,
   PiggyBank,
   Plus,
   Printer,
@@ -118,6 +123,8 @@ const demoTransactions: SavingsTransactionRow[] = [
   },
 ];
 
+const NOTE_ROTATIONS = ['rotate-[-1.5deg]', 'rotate-[1deg]', 'rotate-[-0.8deg]', 'rotate-[1.8deg]', 'rotate-[-1deg]', 'rotate-[0.8deg]'];
+
 function getTodayDate() {
   return getBangkokDate();
 }
@@ -196,6 +203,17 @@ export function SavingsPage({ session }: SavingsPageProps) {
     amount: '20',
     note: '',
     transactionDate: getTodayDate(),
+    transactionType: 'deposit' as SavingsTransactionType,
+  });
+
+  // Cute Post-it Board states
+  const [viewMode, setViewMode] = useState<'board' | 'ledger'>('board');
+  const [draftDeposits, setDraftDeposits] = useState<Record<string, number>>({});
+  const [selectedPresetAmount, setSelectedPresetAmount] = useState<number>(20);
+  const [sheetStudent, setSheetStudent] = useState<StudentRow | null>(null);
+  const [sheetForm, setSheetForm] = useState({
+    amount: '20',
+    note: '',
     transactionType: 'deposit' as SavingsTransactionType,
   });
 
@@ -488,6 +506,231 @@ export function SavingsPage({ session }: SavingsPageProps) {
     setTransactions((current) => [transaction, ...current]);
     setNotice('บันทึกเงินออมแล้ว');
     setIsSubmitting(false);
+  }
+
+  async function handleSaveDailySavings() {
+    const studentIdsToSave = Object.keys(draftDeposits).filter((id) => (draftDeposits[id] || 0) > 0);
+    if (studentIdsToSave.length === 0) {
+      setNotice('ยังไม่มียอดเงินออมที่ต้องบันทึกในวันนี้ (แตะที่โน้ตของนักเรียนเพื่อใส่ยอดฝาก)');
+      return;
+    }
+    setIsSubmitting(true);
+    setNotice(null);
+    const today = getTodayDate();
+    let totalDeposited = 0;
+
+    try {
+      if (!supabase || !session.workspace || isDemoSession(session)) {
+        const newTransactions: SavingsTransactionRow[] = [];
+        setAccounts((current) => {
+          const updated = [...current];
+          studentIdsToSave.forEach((stId) => {
+            const amount = draftDeposits[stId] || 0;
+            totalDeposited += amount;
+            const existingIdx = updated.findIndex((a) => a.student_id === stId);
+            const currentAcc = existingIdx >= 0 ? updated[existingIdx] : null;
+            const nextBalance = (currentAcc?.balance || 0) + amount;
+            const accId = currentAcc?.id || `demo-saving-account-${stId}`;
+
+            const nextAcc: SavingsAccountRow = {
+              id: accId,
+              student_id: stId,
+              balance: nextBalance,
+              status: 'active',
+              metadata: currentAcc?.metadata || null,
+            };
+
+            if (existingIdx >= 0) updated[existingIdx] = nextAcc;
+            else updated.push(nextAcc);
+
+            newTransactions.push({
+              account_id: accId,
+              amount,
+              created_at: new Date().toISOString(),
+              id: `demo-tx-${Date.now()}-${stId}`,
+              note: 'ฝากประจำวัน (บันทึกด่วน)',
+              recorded_by: session.profile.id,
+              student_id: stId,
+              transaction_date: today,
+              transaction_type: 'deposit',
+              workspace_id: session.workspace?.id || 'demo-workspace',
+            });
+          });
+          return updated;
+        });
+
+        setTransactions((current) => [...newTransactions, ...current]);
+        setDraftDeposits({});
+        setNotice(`✨ บันทึกเงินออมประจำวันเรียบร้อยแล้ว (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿) [โหมดตัวอย่าง]`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Supabase
+      const newTransactions: SavingsTransactionRow[] = [];
+      const updatedAccounts: SavingsAccountRow[] = [];
+
+      for (const stId of studentIdsToSave) {
+        const amount = draftDeposits[stId] || 0;
+        totalDeposited += amount;
+        const currentAcc = accountByStudent.get(stId);
+        const nextBalance = (currentAcc?.balance || 0) + amount;
+
+        const { data: accData, error: accError } = await supabase
+          .from('savings_accounts')
+          .upsert(
+            {
+              balance: nextBalance,
+              status: 'active',
+              student_id: stId,
+              workspace_id: session.workspace.id,
+              metadata: currentAcc?.metadata || null,
+            },
+            { onConflict: 'workspace_id,student_id' }
+          )
+          .select('id,student_id,balance,status,metadata')
+          .single();
+
+        if (accError) throw accError;
+        const savedAcc = accData as SavingsAccountRow;
+        updatedAccounts.push(savedAcc);
+
+        const { data: txData, error: txError } = await supabase
+          .from('savings_transactions')
+          .insert({
+            account_id: savedAcc.id,
+            amount,
+            note: 'ฝากประจำวัน (บันทึกด่วน)',
+            recorded_by: session.profile.id,
+            student_id: stId,
+            transaction_date: today,
+            transaction_type: 'deposit',
+            workspace_id: session.workspace.id,
+          })
+          .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at')
+          .single();
+
+        if (txError) throw txError;
+        newTransactions.push(txData as SavingsTransactionRow);
+      }
+
+      setAccounts((current) => {
+        const next = [...current];
+        updatedAccounts.forEach((acc) => {
+          const idx = next.findIndex((a) => a.id === acc.id);
+          if (idx >= 0) next[idx] = acc;
+          else next.push(acc);
+        });
+        return next;
+      });
+
+      setTransactions((current) => [...newTransactions, ...current]);
+      setDraftDeposits({});
+      setNotice(`✨ บันทึกเงินออมประจำวันสำเร็จ (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿)`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setNotice(`บันทึกเงินออมไม่สำเร็จ: ${msg}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSaveSheetStudentTransaction(event: FormEvent) {
+    event.preventDefault();
+    if (!sheetStudent) return;
+    const amount = Number(sheetForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setNotice('จำนวนเงินต้องมากกว่า 0');
+      return;
+    }
+    const currentAccount = accountByStudent.get(sheetStudent.id);
+    const signedAmount = sheetForm.transactionType === 'withdrawal' ? -amount : amount;
+    const nextBalance = (currentAccount?.balance || 0) + signedAmount;
+    if (nextBalance < 0) {
+      setNotice('ยอดถอนมากกว่ายอดคงเหลือ');
+      return;
+    }
+    setIsSubmitting(true);
+    setNotice(null);
+
+    try {
+      if (!supabase || !session.workspace || isDemoSession(session)) {
+        const accountId = currentAccount?.id || `demo-saving-account-${sheetStudent.id}`;
+        const transaction: SavingsTransactionRow = {
+          account_id: accountId,
+          amount,
+          created_at: new Date().toISOString(),
+          id: `demo-tx-${Date.now()}`,
+          note: sheetForm.note.trim() || null,
+          recorded_by: session.profile.id,
+          student_id: sheetStudent.id,
+          transaction_date: getTodayDate(),
+          transaction_type: sheetForm.transactionType,
+          workspace_id: session.workspace?.id || 'demo-workspace',
+        };
+        setAccounts((current) => {
+          const existing = current.find((a) => a.student_id === sheetStudent.id);
+          if (!existing) {
+            return [...current, { balance: nextBalance, id: accountId, status: 'active', student_id: sheetStudent.id }];
+          }
+          return current.map((a) => (a.student_id === sheetStudent.id ? { ...a, balance: nextBalance } : a));
+        });
+        setTransactions((current) => [transaction, ...current]);
+        setSheetStudent(null);
+        setNotice(`บันทึก${sheetForm.transactionType === 'withdrawal' ? 'ถอนเงิน' : 'ฝากเงิน'}ให้น้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย [โหมดตัวอย่าง]`);
+        return;
+      }
+
+      const { data: accountData, error: accountError } = await supabase
+        .from('savings_accounts')
+        .upsert(
+          {
+            balance: nextBalance,
+            status: 'active',
+            student_id: sheetStudent.id,
+            workspace_id: session.workspace.id,
+          },
+          { onConflict: 'workspace_id,student_id' }
+        )
+        .select('id,student_id,balance,status')
+        .single();
+      if (accountError) throw accountError;
+
+      const account = accountData as SavingsAccountRow;
+      const { data: transactionData, error: transactionError } = await supabase
+        .from('savings_transactions')
+        .insert({
+          account_id: account.id,
+          amount,
+          note: sheetForm.note.trim() || null,
+          recorded_by: session.profile.id,
+          student_id: sheetStudent.id,
+          transaction_date: getTodayDate(),
+          transaction_type: sheetForm.transactionType,
+          workspace_id: session.workspace.id,
+        })
+        .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at')
+        .single();
+      if (transactionError) throw transactionError;
+
+      setAccounts((current) => {
+        const idx = current.findIndex((a) => a.id === account.id);
+        if (idx >= 0) {
+          const next = [...current];
+          next[idx] = account;
+          return next;
+        }
+        return [...current, account];
+      });
+      setTransactions((current) => [transactionData as SavingsTransactionRow, ...current]);
+      setSheetStudent(null);
+      setNotice(`บันทึก${sheetForm.transactionType === 'withdrawal' ? 'ถอนเงิน' : 'ฝากเงิน'}ให้น้อง${sheetStudent.nickname || sheetStudent.first_name}สำเร็จ`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setNotice(`เกิดข้อผิดพลาด: ${msg}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function exportSavingsCsv() {
@@ -879,345 +1122,714 @@ export function SavingsPage({ session }: SavingsPageProps) {
           </div>
         </header>
 
-        {/* Main Workbench Layout */}
-        <div className="mt-6 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)] items-start">
-          
-          {/* Left Column: Transaction Form & Tools (Deposit Slip Style) */}
-          <aside className="grid gap-4">
-            
-            {/* Transaction Form Card */}
-            <form
-              className="relative rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm"
-              onSubmit={(event) => void handleCreateTransaction(event)}
+        {/* Mode Switcher & Filter Bar */}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2d5c3] pt-3.5">
+          {/* View Mode Toggle */}
+          <div className="inline-flex rounded-2xl bg-white/80 p-1 border border-[#c7bca9] shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('board')}
+              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+                viewMode === 'board'
+                  ? 'bg-[#332f2b] text-white shadow-xs'
+                  : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
             >
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-8 rounded-[1px] bg-white/80 shadow-2xs" />
+              <LayoutGrid size={15} />
+              <span>กระดานออมเงิน 📌</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('ledger')}
+              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+                viewMode === 'ledger'
+                  ? 'bg-[#332f2b] text-white shadow-xs'
+                  : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
+            >
+              <ListFilter size={15} />
+              <span>สมุดบัญชีละเอียด 📋</span>
+            </button>
+          </div>
 
-              <div className="flex items-center gap-2 text-sm font-bold text-[#3f3a36] border-b border-[#f0e8dc] pb-2.5">
-                <Wallet size={16} className="text-[#3f3a36]" aria-hidden="true" />
-                <span>บันทึกธุรกรรมเงินออม</span>
+          {/* Classroom Selector */}
+          <div className="relative inline-flex items-center rotate-[0.8deg] shadow-xs">
+            <select
+              value={classroomId}
+              onChange={(e) => setClassroomId(e.target.value)}
+              className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            >
+              {displayClassrooms.map((c) => {
+                const badge = getClassroomScopeBadge(c, session.profile.id);
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.academic_year ? `(${c.academic_year})` : ''} — {badge.label}
+                  </option>
+                );
+              })}
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#57534e]" />
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* POST-IT BOARD MODE                                       */}
+        {/* ======================================================== */}
+        {viewMode === 'board' && (
+          <div className="mt-4">
+            {/* Quick Action & Preset Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-bold text-[#57534e]">เลือกยอดฝาก:</span>
+                {[10, 20, 50, 100].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setSelectedPresetAmount(amt)}
+                    className={`h-8 px-2.5 rounded-xl text-xs font-bold transition active:scale-95 shadow-2xs ${
+                      selectedPresetAmount === amt
+                        ? 'bg-[#332f2b] text-white ring-2 ring-amber-400'
+                        : 'bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50'
+                    }`}
+                  >
+                    +{amt} ฿
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next: Record<string, number> = {};
+                    classroomStudents.forEach((s) => {
+                      next[s.id] = selectedPresetAmount;
+                    });
+                    setDraftDeposits(next);
+                  }}
+                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border border-lime-400 bg-white text-xs font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
+                >
+                  <Coins size={13} className="text-[#1b3e04]" />
+                  <span>+{selectedPresetAmount} ฿ ทุกคน</span>
+                </button>
+
+                {Object.keys(draftDeposits).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDraftDeposits({})}
+                    className="h-8 px-2.5 rounded-xl border border-rose-300 bg-white text-xs font-bold text-[#881337] hover:bg-rose-50 active:scale-95 transition shadow-2xs"
+                  >
+                    ล้างยอดวันนี้
+                  </button>
+                )}
               </div>
 
-              <div className="mt-3.5 grid gap-3">
-                {/* Classroom Selector */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-[#78716c]">ห้องเรียน:</span>
-                    {teacherScope.hasHomeroom && (
-                      <div className="inline-flex rounded-lg bg-amber-50 p-0.5 text-[11px] font-bold border border-amber-200">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setScopeFilter('homeroom');
-                            if (teacherScope.homeroomClassrooms[0]) {
-                              setClassroomId(teacherScope.homeroomClassrooms[0].id);
-                            }
-                          }}
-                          className={`rounded-md px-2 py-0.5 transition ${
-                            scopeFilter === 'homeroom'
-                              ? 'bg-white text-amber-900 shadow-2xs'
-                              : 'text-slate-500 hover:text-slate-800'
-                          }`}
-                        >
-                          ⭐ ที่ปรึกษา
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setScopeFilter('all')}
-                          className={`rounded-md px-2 py-0.5 transition ${
-                            scopeFilter === 'all'
-                              ? 'bg-white text-slate-800 shadow-2xs'
-                              : 'text-slate-500 hover:text-slate-800'
-                          }`}
-                        >
-                          🌐 ทุกห้อง
-                        </button>
-                      </div>
-                    )}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleOpenBatchModal}
+                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border border-indigo-200 bg-white text-xs font-bold text-indigo-800 hover:bg-indigo-50 active:scale-95 transition shadow-2xs"
+                >
+                  <ArrowDownToLine size={13} />
+                  <span>ยอดยกมา</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintHandoverReport}
+                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border border-[#c7bca9] bg-white text-xs font-bold text-[#44403c] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
+                >
+                  <Printer size={13} />
+                  <span>พิมพ์ใบส่งมอบ</span>
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-1 text-xs sm:text-sm font-medium text-[#57534e]">
+              แตะโน้ตเพื่อเพิ่มยอดฝาก +{selectedPresetAmount} ฿ (แตะซ้ำเพื่อเพิ่ม หรือวนกลับเป็น 0) หรือกด ✏️ เพื่อดูรายละเอียด/ถอนเงิน
+            </p>
+
+            {/* Post-it Notes Grid */}
+            <div className="mt-4 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4.5 pt-2">
+              {classroomStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const draft = draftDeposits[student.id] || 0;
+                const account = accountByStudent.get(student.id);
+                const currentBalance = account?.balance || 0;
+                const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+                const hasDeposit = draft > 0;
+
+                // Tone colors
+                const bgClass = hasDeposit
+                  ? 'bg-[#d9f99d] text-[#1b3e04] shadow-[2px_4px_6px_rgba(27,62,4,0.18)] ring-2 ring-lime-400'
+                  : 'bg-[#fef08a] text-[#713f12] shadow-[2px_4px_6px_rgba(113,63,18,0.18)]';
+
+                return (
+                  <div
+                    key={student.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setDraftDeposits((prev) => {
+                        const cur = prev[student.id] || 0;
+                        if (cur === 0) return { ...prev, [student.id]: selectedPresetAmount };
+                        if (cur === selectedPresetAmount) return { ...prev, [student.id]: selectedPresetAmount * 2 };
+                        const next = { ...prev };
+                        delete next[student.id];
+                        return next;
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setDraftDeposits((prev) => {
+                          const cur = prev[student.id] || 0;
+                          if (cur === 0) return { ...prev, [student.id]: selectedPresetAmount };
+                          if (cur === selectedPresetAmount) return { ...prev, [student.id]: selectedPresetAmount * 2 };
+                          const next = { ...prev };
+                          delete next[student.id];
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`group relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[74px] sm:min-h-[82px] transition-all select-none active:scale-95 cursor-pointer ${bgClass} ${rotation} hover:scale-105 hover:z-10`}
+                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (ยอดปัจจุบัน ${formatBaht(currentBalance)} ฿) — แตะเพื่อเพิ่มยอดฝาก +${selectedPresetAmount} ฿`}
+                  >
+                    {/* Frosted Tape */}
+                    <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
+
+                    {/* Pencil Edit Icon Button */}
+                    <button
+                      type="button"
+                      aria-label={`แก้ไขเงินออมของ ${student.first_name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSheetStudent(student);
+                        setSheetForm({
+                          amount: String(draft > 0 ? draft : selectedPresetAmount),
+                          note: '',
+                          transactionType: 'deposit',
+                        });
+                      }}
+                      className="absolute top-1 right-1 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-white/85 hover:bg-white text-stone-500 hover:text-stone-900 border border-stone-200/70 transition-all cursor-pointer z-20 shadow-2xs hover:scale-115 active:scale-90"
+                    >
+                      <Pencil className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    </button>
+
+                    {/* Large Roll Number */}
+                    <span className="text-2xl sm:text-3xl font-bold leading-none tracking-tight">
+                      {rollNumber}
+                    </span>
+
+                    {/* Student Name */}
+                    <span className="text-xs sm:text-sm font-bold truncate mt-0.5 max-w-full text-center px-0.5">
+                      {student.nickname || student.first_name}
+                    </span>
+
+                    {/* Badge: Today Draft Deposit or Current Balance */}
+                    <div className="mt-1">
+                      {hasDeposit ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-[#1b3e04] px-1.5 py-0.2 text-[10px] sm:text-xs font-bold text-white shadow-2xs animate-in zoom-in-75 duration-100">
+                          +{draft} ฿
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold opacity-75">
+                          {currentBalance > 0 ? `${formatBaht(currentBalance)}฿` : '0฿'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Empty State */}
+            {classroomStudents.length === 0 && !isLoading && (
+              <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-center text-amber-950">
+                <p className="text-base font-bold">ยังไม่มีนักเรียนในห้องนี้</p>
+                <p className="mt-1 text-xs text-amber-800/80">กรุณาเพิ่มหรือนำเข้ารายชื่อนักเรียนก่อนบันทึกเงินออม</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* DETAILED LEDGER MODE (Workbench)                         */}
+        {/* ======================================================== */}
+        {viewMode === 'ledger' && (
+          <div className="mt-6 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)] items-start">
+            {/* Left Column: Transaction Form & Tools (Deposit Slip Style) */}
+            <aside className="grid gap-4">
+              {/* Transaction Form Card */}
+              <form
+                className="relative rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm"
+                onSubmit={(event) => void handleCreateTransaction(event)}
+              >
+                <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-8 rounded-[1px] bg-white/80 shadow-2xs" />
+
+                <div className="flex items-center gap-2 text-sm font-bold text-[#3f3a36] border-b border-[#f0e8dc] pb-2.5">
+                  <Wallet size={16} className="text-[#3f3a36]" aria-hidden="true" />
+                  <span>บันทึกธุรกรรมเงินออม</span>
+                </div>
+
+                <div className="mt-3.5 grid gap-3">
+                  {/* Classroom Selector */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-[#78716c]">ห้องเรียน:</span>
+                      {teacherScope.hasHomeroom && (
+                        <div className="inline-flex rounded-lg bg-amber-50 p-0.5 text-[11px] font-bold border border-amber-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setScopeFilter('homeroom');
+                              if (teacherScope.homeroomClassrooms[0]) {
+                                setClassroomId(teacherScope.homeroomClassrooms[0].id);
+                              }
+                            }}
+                            className={`rounded-md px-2 py-0.5 transition ${
+                              scopeFilter === 'homeroom'
+                                ? 'bg-white text-amber-900 shadow-2xs'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            ⭐ ที่ปรึกษา
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setScopeFilter('all')}
+                            className={`rounded-md px-2 py-0.5 transition ${
+                              scopeFilter === 'all'
+                                ? 'bg-white text-slate-800 shadow-2xs'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            🌐 ทุกห้อง
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <select
+                        className="h-9.5 w-full appearance-none rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 pr-8 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                        onChange={(event) => setClassroomId(event.target.value)}
+                        value={classroomId}
+                      >
+                        {displayClassrooms.map((classroom) => {
+                          const badge = getClassroomScopeBadge(classroom, session.profile.id);
+                          return (
+                            <option key={classroom.id} value={classroom.id}>
+                              {badge.prefix}{classroom.name} — {badge.label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
+                    </div>
+                  </div>
+
+                  {/* Student Selector */}
+                  <div>
+                    <span className="text-xs font-bold text-[#78716c] block mb-1">เลือกนักเรียน:</span>
+                    <div className="relative">
+                      <select
+                        className="h-9.5 w-full appearance-none rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 pr-8 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                        onChange={(event) => setSelectedStudentId(event.target.value)}
+                        value={selectedStudent?.id || ''}
+                      >
+                        {classroomStudents.map((student, idx) => (
+                          <option key={student.id} value={student.id}>
+                            {idx + 1}. {student.first_name} {student.last_name} {student.nickname ? `(${student.nickname})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
+                    </div>
+                  </div>
+
+                  {/* Type buttons (ฝาก vs ถอน) */}
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, transactionType: 'deposit' }))}
+                      className={`flex h-10 items-center justify-center gap-1 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
+                        form.transactionType === 'deposit'
+                          ? 'bg-[#d9f99d] text-[#3f6212] ring-2 ring-lime-400 shadow-xs'
+                          : 'bg-white border border-[#ded5c6] text-[#78716c] hover:bg-slate-50'
+                      }`}
+                    >
+                      <Plus size={15} />
+                      <span>ฝากเงิน</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, transactionType: 'withdrawal' }))}
+                      className={`flex h-10 items-center justify-center gap-1 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
+                        form.transactionType === 'withdrawal'
+                          ? 'bg-[#fecdd3] text-[#9f1239] ring-2 ring-rose-400 shadow-xs'
+                          : 'bg-white border border-[#ded5c6] text-[#78716c] hover:bg-slate-50'
+                      }`}
+                    >
+                      <Minus size={15} />
+                      <span>ถอนเงิน</span>
+                    </button>
+                  </div>
+
+                  {/* Date & Amount */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-[#78716c] block mb-1">วันที่:</span>
+                      <ThaiDatePicker
+                        className="h-9.5 text-xs font-bold text-[#3f3a36]"
+                        onValueChange={(value) => setForm((current) => ({ ...current, transactionDate: value }))}
+                        value={form.transactionDate}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#78716c] block mb-1">จำนวนเงิน (บาท):</span>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="เช่น 20"
+                        value={form.amount}
+                        onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                        className="h-9.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Note */}
+                  <div>
+                    <span className="text-xs font-bold text-[#78716c] block mb-1">หมายเหตุ:</span>
+                    <input
+                      type="text"
+                      placeholder="เช่น ฝากประจำวัน / ถอนซื้อสมุด"
+                      value={form.note}
+                      onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
+                      className="h-9.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isLoading}
+                  className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-sm font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <Save size={16} />
+                  <span>บันทึกธุรกรรม ✓</span>
+                </button>
+              </form>
+
+              {/* Quick Tools Sticky Notes */}
+              <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 space-y-2.5 shadow-sm">
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#3f3a36]">
+                  <RotateCcw size={15} className="text-indigo-600" />
+                  <span>เครื่องมือจัดการเงินออม</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenBatchModal}
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 text-xs sm:text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition active:scale-95"
+                >
+                  <ArrowDownToLine size={15} />
+                  <span>บันทึกยอดยกมา (ทั้งห้อง)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintHandoverReport}
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95"
+                >
+                  <Printer size={15} />
+                  <span>พิมพ์ใบส่งมอบเงินออม</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={exportSavingsCsv}
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm font-bold text-amber-900 hover:bg-amber-100 transition active:scale-95"
+                >
+                  <Download size={15} />
+                  <span>Export ยอดคงเหลือ (Excel)</span>
+                </button>
+              </div>
+            </aside>
+
+            {/* Right Column: Ledger Table & Timeline */}
+            <section className="grid gap-5">
+              {/* Balances Ledger Table */}
+              <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0e8dc] pb-3">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-[#3f3a36]">
+                      สมุดบัญชีเงินออม ({classroomStudents.length} คน)
+                    </h2>
+                    <p className="text-xs text-[#8a8178]">
+                      แตะที่ชื่อนักเรียนเพื่อดูประวัติการฝาก–ถอน
+                    </p>
                   </div>
                   <div className="relative">
-                    <select
-                      className="h-9.5 w-full appearance-none rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 pr-8 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
-                      onChange={(event) => setClassroomId(event.target.value)}
-                      value={classroomId}
-                    >
-                      {displayClassrooms.map((classroom) => {
-                        const badge = getClassroomScopeBadge(classroom, session.profile.id);
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาชื่อหรือเลขที่..."
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      className="h-9 w-full sm:w-56 rounded-xl border border-[#ded5c6] bg-amber-50/40 pl-9 pr-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-[#f0e8dc] text-left">
+                    <thead>
+                      <tr className="text-xs font-bold text-[#78716c]">
+                        <th className="px-3 py-2.5">ลำดับ</th>
+                        <th className="px-3 py-2.5">ชื่อ-สกุล นักเรียน</th>
+                        <th className="px-3 py-2.5 text-right">ยอดยกมา</th>
+                        <th className="px-3 py-2.5 text-right">ยอดคงเหลือสุทธิ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f0e8dc] text-xs sm:text-sm">
+                      {filteredStudents.map((student, idx) => {
+                        const account = accountByStudent.get(student.id);
+                        const opening = Number(account?.metadata?.opening_balance || 0);
+                        const isSelected = selectedStudentId === student.id;
                         return (
-                          <option key={classroom.id} value={classroom.id}>
-                            {badge.prefix}{classroom.name} — {badge.label}
-                          </option>
+                          <tr
+                            key={student.id}
+                            onClick={() => setSelectedStudentId(student.id)}
+                            className={`cursor-pointer transition ${
+                              isSelected ? 'bg-amber-100/70 font-bold' : 'hover:bg-amber-50/50'
+                            }`}
+                          >
+                            <td className="px-3 py-2.5 text-[#78716c] font-bold">{idx + 1}</td>
+                            <td className="px-3 py-2.5">
+                              <p className="text-[#3f3a36] font-bold">
+                                {student.first_name} {student.last_name}
+                              </p>
+                              <p className="text-[11px] text-[#8a8178]">
+                                {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-[#78716c]">
+                              {opening > 0 ? `${formatBaht(opening)} ฿` : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-base sm:text-lg font-bold text-[#3f3a36]">
+                              {formatBaht(account?.balance || 0)} ฿
+                            </td>
+                          </tr>
                         );
                       })}
-                    </select>
-                    <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
-                  </div>
+                    </tbody>
+                  </table>
                 </div>
+              </div>
 
-                {/* Student Selector */}
-                <div>
-                  <span className="text-xs font-bold text-[#78716c] block mb-1">เลือกนักเรียน:</span>
-                  <div className="relative">
-                    <select
-                      className="h-9.5 w-full appearance-none rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 pr-8 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
-                      onChange={(event) => setSelectedStudentId(event.target.value)}
-                      value={selectedStudent?.id || ''}
-                    >
-                      {classroomStudents.map((student, idx) => (
-                        <option key={student.id} value={student.id}>
-                          {idx + 1}. {student.first_name} {student.last_name} {student.nickname ? `(${student.nickname})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78716c]" />
-                  </div>
-                </div>
-
-                {/* Type buttons (ฝาก vs ถอน) */}
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setForm((current) => ({ ...current, transactionType: 'deposit' }))}
-                    className={`flex h-10 items-center justify-center gap-1 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
-                      form.transactionType === 'deposit'
-                        ? 'bg-[#d9f99d] text-[#3f6212] ring-2 ring-lime-400 shadow-xs'
-                        : 'bg-white border border-[#ded5c6] text-[#78716c] hover:bg-slate-50'
-                    }`}
-                  >
-                    <Plus size={15} />
-                    <span>ฝากเงิน</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setForm((current) => ({ ...current, transactionType: 'withdrawal' }))}
-                    className={`flex h-10 items-center justify-center gap-1 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 ${
-                      form.transactionType === 'withdrawal'
-                        ? 'bg-[#fecdd3] text-[#9f1239] ring-2 ring-rose-400 shadow-xs'
-                        : 'bg-white border border-[#ded5c6] text-[#78716c] hover:bg-slate-50'
-                    }`}
-                  >
-                    <Minus size={15} />
-                    <span>ถอนเงิน</span>
-                  </button>
-                </div>
-
-                {/* Date & Amount */}
-                <div className="grid grid-cols-2 gap-2">
+              {/* Transaction Timeline */}
+              <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0e8dc] pb-2.5">
                   <div>
-                    <span className="text-xs font-bold text-[#78716c] block mb-1">วันที่:</span>
-                    <ThaiDatePicker
-                      className="h-9.5 text-xs font-bold text-[#3f3a36]"
-                      onValueChange={(value) => setForm((current) => ({ ...current, transactionDate: value }))}
-                      value={form.transactionDate}
-                    />
+                    <h3 className="text-base sm:text-lg font-bold text-[#3f3a36]">
+                      ประวัติธุรกรรม: {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'เลือกนักเรียน'}
+                    </h3>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#78716c] block mb-1">จำนวนเงิน (บาท):</span>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="เช่น 20"
-                      value={form.amount}
-                      onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-                      className="h-9.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
-                    />
+                  <div className="text-right">
+                    <span className="text-xs text-[#8a8178]">ยอดเงินปัจจุบัน: </span>
+                    <b className="text-base text-[#3f3a36]">
+                      {formatBaht(selectedStudent ? accountByStudent.get(selectedStudent.id)?.balance || 0 : 0)} ฿
+                    </b>
                   </div>
                 </div>
 
-                {/* Note */}
-                <div>
-                  <span className="text-xs font-bold text-[#78716c] block mb-1">หมายเหตุ:</span>
-                  <input
-                    type="text"
-                    placeholder="เช่น ฝากประจำวัน / ถอนซื้อสมุด"
-                    value={form.note}
-                    onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
-                    className="h-9.5 w-full rounded-xl border border-[#ded5c6] bg-amber-50/40 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
-                  />
+                <div className="mt-3 grid gap-2">
+                  {selectedTransactions.map((transaction) => {
+                    const isWithdrawal = transaction.transaction_type === 'withdrawal';
+                    const isAdjustment = transaction.transaction_type === 'adjustment';
+                    const Icon = isWithdrawal ? TrendingDown : isAdjustment ? RotateCcw : TrendingUp;
+                    return (
+                      <div
+                        key={transaction.id}
+                        className={`flex items-center justify-between gap-3 p-3 rounded-xl border text-xs sm:text-sm ${
+                          isWithdrawal
+                            ? 'bg-[#fecdd3]/40 border-rose-200'
+                            : isAdjustment
+                            ? 'bg-[#e9d5ff]/40 border-purple-200'
+                            : 'bg-[#d9f99d]/40 border-lime-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                            isWithdrawal ? 'bg-rose-100 text-rose-700' : isAdjustment ? 'bg-purple-100 text-purple-700' : 'bg-lime-100 text-lime-700'
+                          }`}>
+                            <Icon size={16} />
+                          </span>
+                          <div>
+                            <p className="font-bold text-[#3f3a36]">
+                              {isWithdrawal ? 'ถอนเงิน' : isAdjustment ? 'ยอดยกมา / ปรับยอด' : 'ฝากเงิน'}{' '}
+                              <b>{formatBaht(transaction.amount)} ฿</b>
+                            </p>
+                            <p className="text-[11px] text-[#8a8178]">
+                              {transaction.transaction_date} | {transaction.note || 'ไม่มีหมายเหตุ'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold text-[#78716c]">
+                          {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {selectedTransactions.length === 0 && (
+                    <div className="p-4 text-center text-xs sm:text-sm text-[#8a8178]">
+                      ยังไม่มีรายการธุรกรรมของนักเรียนคนนี้
+                    </div>
+                  )}
                 </div>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* Generous bottom spacer so page can scroll comfortably past bottom dock */}
+        <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />
+      </div>
+
+      {/* ======================================================== */}
+      {/* FLOATING ACTION DOCK: Matches Style 5                      */}
+      {/* ======================================================== */}
+      {viewMode === 'board' && classroomStudents.length > 0 && (
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#c7bca9] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+          {/* Summary Text */}
+          <div className="flex items-center justify-center gap-3 sm:gap-4 text-sm sm:text-base font-bold text-[#1c1917]">
+            <span>
+              ฝากวันนี้ <b className="text-[#1b3e04]">{Object.keys(draftDeposits).filter((id) => (draftDeposits[id] || 0) > 0).length} คน</b>
+            </span>
+            <span>·</span>
+            <span>
+              รวมยอด <b className="text-[#1b3e04]">{formatBaht(Object.values(draftDeposits).reduce((sum, v) => sum + (v || 0), 0))} ฿</b>
+            </span>
+          </div>
+
+          {/* Big Charcoal Button with Golden Shadow */}
+          <button
+            type="button"
+            onClick={() => void handleSaveDailySavings()}
+            disabled={isSubmitting || Object.keys(draftDeposits).filter((id) => (draftDeposits[id] || 0) > 0).length === 0}
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#332f2b] text-base font-bold text-white shadow-[0_5px_0_#d97706] hover:bg-[#252220] active:translate-y-1 active:shadow-[0_2px_0_#d97706] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {isSubmitting ? (
+              <span>กำลังบันทึก...</span>
+            ) : (
+              <>
+                <span>บันทึกเงินออมเรียบร้อย</span>
+                <Check size={20} className="stroke-[3]" />
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SINGLE STUDENT QUICK TRANSACTION MODAL                     */}
+      {/* ======================================================== */}
+      {sheetStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm rounded-3xl border border-[#ded5c6] bg-[#fbf8f3] p-5 shadow-2xl flex flex-col font-['Itim',sans-serif]">
+            <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 h-3 w-12 rounded-[1px] bg-white/80 shadow-2xs" />
+            <div className="flex items-center justify-between border-b border-[#f0e8dc] pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-[#3f3a36]">
+                  {sheetStudent.first_name} {sheetStudent.last_name}
+                </h3>
+                <p className="text-xs text-[#8a8178]">
+                  {sheetStudent.nickname ? `น้อง${sheetStudent.nickname}` : 'นักเรียน'} · ยอดคงเหลือปัจจุบัน: {formatBaht(accountByStudent.get(sheetStudent.id)?.balance || 0)} ฿
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSheetStudent(null)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => void handleSaveSheetStudentTransaction(e)} className="mt-3.5 space-y-3">
+              {/* Type Switcher */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSheetForm((prev) => ({ ...prev, transactionType: 'deposit' }))}
+                  className={`h-9 rounded-xl text-xs font-bold transition ${
+                    sheetForm.transactionType === 'deposit'
+                      ? 'bg-[#d9f99d] text-[#1b3e04] ring-2 ring-lime-400 shadow-xs'
+                      : 'bg-white border border-[#ded5c6] text-[#78716c]'
+                  }`}
+                >
+                  ฝากเงิน (+)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetForm((prev) => ({ ...prev, transactionType: 'withdrawal' }))}
+                  className={`h-9 rounded-xl text-xs font-bold transition ${
+                    sheetForm.transactionType === 'withdrawal'
+                      ? 'bg-[#fecdd3] text-[#881337] ring-2 ring-rose-400 shadow-xs'
+                      : 'bg-white border border-[#ded5c6] text-[#78716c]'
+                  }`}
+                >
+                  ถอนเงิน (-)
+                </button>
+              </div>
+
+              {/* Amount Quick Presets */}
+              <div className="flex items-center gap-1.5">
+                {[10, 20, 50, 100].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setSheetForm((prev) => ({ ...prev, amount: String(amt) }))}
+                    className="flex-1 h-8 rounded-lg border border-[#ded5c6] bg-white text-xs font-bold text-[#3f3a36] hover:bg-amber-50 active:scale-95 transition"
+                  >
+                    {amt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Amount Input */}
+              <div>
+                <label className="text-xs font-bold text-[#78716c] block mb-1">จำนวนเงิน (บาท):</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={sheetForm.amount}
+                  onChange={(e) => setSheetForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  className="h-10 w-full rounded-xl border border-[#ded5c6] bg-amber-50/30 px-3 text-base font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="text-xs font-bold text-[#78716c] block mb-1">หมายเหตุ:</label>
+                <input
+                  type="text"
+                  placeholder="เช่น ฝากประจำวัน / ถอนซื้ออุปกรณ์"
+                  value={sheetForm.note}
+                  onChange={(e) => setSheetForm((prev) => ({ ...prev, note: e.target.value }))}
+                  className="h-9 w-full rounded-xl border border-[#ded5c6] bg-amber-50/30 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
+                />
               </div>
 
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || isLoading}
-                className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-sm font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+                disabled={isSubmitting}
+                className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] text-white text-sm font-bold shadow-[2px_3px_0_#f59e0b] hover:bg-[#2c2825] active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
               >
-                <Save size={16} />
-                <span>บันทึกธุรกรรม ✓</span>
+                {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกรายการ ✓'}
               </button>
             </form>
-
-            {/* Quick Tools Sticky Notes */}
-            <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 space-y-2.5 shadow-sm">
-              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#3f3a36]">
-                <RotateCcw size={15} className="text-indigo-600" />
-                <span>เครื่องมือจัดการเงินออม</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenBatchModal}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 text-xs sm:text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition active:scale-95"
-              >
-                <ArrowDownToLine size={15} />
-                <span>บันทึกยอดยกมา (ทั้งห้อง)</span>
-              </button>
-              <button
-                type="button"
-                onClick={handlePrintHandoverReport}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95"
-              >
-                <Printer size={15} />
-                <span>พิมพ์ใบส่งมอบเงินออม</span>
-              </button>
-              <button
-                type="button"
-                onClick={exportSavingsCsv}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm font-bold text-amber-900 hover:bg-amber-100 transition active:scale-95"
-              >
-                <Download size={15} />
-                <span>Export ยอดคงเหลือ (Excel)</span>
-              </button>
-            </div>
-          </aside>
-
-          {/* Right Column: Ledger Table & Timeline */}
-          <section className="grid gap-5">
-            {/* Balances Ledger Table */}
-            <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0e8dc] pb-3">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-[#3f3a36]">
-                    สมุดบัญชีเงินออม ({classroomStudents.length} คน)
-                  </h2>
-                  <p className="text-xs text-[#8a8178]">
-                    แตะที่ชื่อนักเรียนเพื่อดูประวัติการฝาก–ถอน
-                  </p>
-                </div>
-                <div className="relative">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="ค้นหาชื่อหรือเลขที่..."
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    className="h-9 w-full sm:w-56 rounded-xl border border-[#ded5c6] bg-amber-50/40 pl-9 pr-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full divide-y divide-[#f0e8dc] text-left">
-                  <thead>
-                    <tr className="text-xs font-bold text-[#78716c]">
-                      <th className="px-3 py-2.5">ลำดับ</th>
-                      <th className="px-3 py-2.5">ชื่อ-สกุล นักเรียน</th>
-                      <th className="px-3 py-2.5 text-right">ยอดยกมา</th>
-                      <th className="px-3 py-2.5 text-right">ยอดคงเหลือสุทธิ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f0e8dc] text-xs sm:text-sm">
-                    {filteredStudents.map((student, idx) => {
-                      const account = accountByStudent.get(student.id);
-                      const opening = Number(account?.metadata?.opening_balance || 0);
-                      const isSelected = selectedStudentId === student.id;
-                      return (
-                        <tr
-                          key={student.id}
-                          onClick={() => setSelectedStudentId(student.id)}
-                          className={`cursor-pointer transition ${
-                            isSelected ? 'bg-amber-100/70 font-bold' : 'hover:bg-amber-50/50'
-                          }`}
-                        >
-                          <td className="px-3 py-2.5 text-[#78716c] font-bold">{idx + 1}</td>
-                          <td className="px-3 py-2.5">
-                            <p className="text-[#3f3a36] font-bold">
-                              {student.first_name} {student.last_name}
-                            </p>
-                            <p className="text-[11px] text-[#8a8178]">
-                              {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-[#78716c]">
-                            {opening > 0 ? `${formatBaht(opening)} ฿` : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-base sm:text-lg font-bold text-[#3f3a36]">
-                            {formatBaht(account?.balance || 0)} ฿
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Transaction Timeline */}
-            <div className="rounded-2xl border border-[#ded5c6] bg-white/95 p-4 sm:p-5 shadow-sm">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0e8dc] pb-2.5">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#3f3a36]">
-                    ประวัติธุรกรรม: {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'เลือกนักเรียน'}
-                  </h3>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-[#8a8178]">ยอดเงินปัจจุบัน: </span>
-                  <b className="text-base text-[#3f3a36]">
-                    {formatBaht(selectedStudent ? accountByStudent.get(selectedStudent.id)?.balance || 0 : 0)} ฿
-                  </b>
-                </div>
-              </div>
-
-              <div className="mt-3 grid gap-2">
-                {selectedTransactions.map((transaction) => {
-                  const isWithdrawal = transaction.transaction_type === 'withdrawal';
-                  const isAdjustment = transaction.transaction_type === 'adjustment';
-                  const Icon = isWithdrawal ? TrendingDown : isAdjustment ? RotateCcw : TrendingUp;
-                  return (
-                    <div
-                      key={transaction.id}
-                      className={`flex items-center justify-between gap-3 p-3 rounded-xl border text-xs sm:text-sm ${
-                        isWithdrawal
-                          ? 'bg-[#fecdd3]/40 border-rose-200'
-                          : isAdjustment
-                          ? 'bg-[#e9d5ff]/40 border-purple-200'
-                          : 'bg-[#d9f99d]/40 border-lime-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                          isWithdrawal ? 'bg-rose-100 text-rose-700' : isAdjustment ? 'bg-purple-100 text-purple-700' : 'bg-lime-100 text-lime-700'
-                        }`}>
-                          <Icon size={16} />
-                        </span>
-                        <div>
-                          <p className="font-bold text-[#3f3a36]">
-                            {isWithdrawal ? 'ถอนเงิน' : isAdjustment ? 'ยอดยกมา / ปรับยอด' : 'ฝากเงิน'}{' '}
-                            <b>{formatBaht(transaction.amount)} ฿</b>
-                          </p>
-                          <p className="text-[11px] text-[#8a8178]">
-                            {transaction.transaction_date} | {transaction.note || 'ไม่มีหมายเหตุ'}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-bold text-[#78716c]">
-                        {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
-                      </span>
-                    </div>
-                  );
-                })}
-                {selectedTransactions.length === 0 && (
-                  <div className="p-4 text-center text-xs sm:text-sm text-[#8a8178]">
-                    ยังไม่มีรายการธุรกรรมของนักเรียนคนนี้
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          </div>
         </div>
-
-        {/* Generous bottom spacer so page can scroll comfortably past bottom dock */}
-        <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />
-      </div>
+      )}
 
       {/* Batch Opening Balance Modal */}
       {isBatchOpeningModalOpen && (

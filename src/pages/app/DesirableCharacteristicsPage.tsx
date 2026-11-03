@@ -10,6 +10,9 @@ import {
   Filter,
   GraduationCap,
   HelpCircle,
+  LayoutGrid,
+  ListFilter,
+  Pencil,
   Printer,
   RefreshCw,
   Save,
@@ -17,6 +20,7 @@ import {
   Sparkles,
   UserCheck,
   Users,
+  X,
 } from 'lucide-react';
 
 import { writeAuditLog } from '../../lib/auditLog';
@@ -108,7 +112,13 @@ function calculateObecSummary(scores: EvaluationLevel[]): EvaluationLevel {
   return 1;
 }
 
+const NOTE_ROTATIONS = ['rotate-[-1.5deg]', 'rotate-[1deg]', 'rotate-[-0.8deg]', 'rotate-[1.8deg]', 'rotate-[-1deg]', 'rotate-[0.8deg]'];
+
 export function DesirableCharacteristicsPage({ session }: DesirableCharacteristicsPageProps) {
+  const [viewMode, setViewMode] = useState<'board' | 'table'>('board');
+  const [selectedIndicatorId, setSelectedIndicatorId] = useState<number | 'summary'>('summary');
+  const [sheetStudent, setSheetStudent] = useState<StudentRecord | null>(null);
+
   const [classrooms, setClassrooms] = useState<ClassroomRecord[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
   const [academicYear, setAcademicYear] = useState<string>('2569');
@@ -438,6 +448,32 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
     showToast(`🎯 ปรับทั้งคอลัมน์เป็นระดับ ${level} เรียบร้อยแล้ว`);
   };
 
+  const handleNoteCycle = (studentId: string) => {
+    const ev = evaluations[studentId];
+    if (activeTab === 'reading') {
+      if (selectedIndicatorId === 'summary') {
+        const cur = ev?.reading_summary ?? 3;
+        const nextLevel: EvaluationLevel = cur === 3 ? 2 : cur === 2 ? 1 : cur === 1 ? 0 : 3;
+        updateSummaryOverride(studentId, 'reading', nextLevel);
+      } else {
+        const cur = ev?.reading[selectedIndicatorId] ?? 3;
+        const nextLevel: EvaluationLevel = cur === 3 ? 2 : cur === 2 ? 1 : cur === 1 ? 0 : 3;
+        updateReading(studentId, selectedIndicatorId, nextLevel);
+      }
+    } else {
+      // traits
+      if (selectedIndicatorId === 'summary') {
+        const cur = ev?.trait_summary ?? 3;
+        const nextLevel: EvaluationLevel = cur === 3 ? 2 : cur === 2 ? 1 : cur === 1 ? 0 : 3;
+        updateSummaryOverride(studentId, 'traits', nextLevel);
+      } else {
+        const cur = ev?.traits[selectedIndicatorId] ?? 3;
+        const nextLevel: EvaluationLevel = cur === 3 ? 2 : cur === 2 ? 1 : cur === 1 ? 0 : 3;
+        updateTrait(studentId, selectedIndicatorId, nextLevel);
+      }
+    }
+  };
+
   // Save to Database + LocalStorage Fallback
   const handleSave = async () => {
     setIsSaving(true);
@@ -690,7 +726,7 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
   }, [evaluations]);
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-28 font-['Itim',sans-serif]">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-2xl transition-all">
@@ -699,278 +735,374 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-md">
-              <Award className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
-                  มาตรฐานหลักสูตรแกนกลาง สพฐ. 2551
+      {/* ======================================================== */}
+      {/* CORKBOARD / LINED PAPER CONTAINER (Style 5: Post-it)     */}
+      {/* ======================================================== */}
+      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+        
+        {/* Header */}
+        <header className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-900 border border-amber-300">
+                <Award size={13} className="text-amber-700" />
+                มาตรฐานหลักสูตรแกนกลาง สพฐ. 2551
+              </span>
+              {currentClassroom && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-0.5 text-xs font-bold text-stone-700 border border-stone-300">
+                  ชั้น {currentClassroom.name}
                 </span>
-                {currentClassroom && (
-                  <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                    ชั้น {currentClassroom.name}
-                  </span>
-                )}
-              </div>
-              <h1 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                คุณลักษณะอันพึงประสงค์ & อ่าน คิดวิเคราะห์ เขียน
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-500">
-                บันทึกผลการประเมิน 8 คุณลักษณะ และทักษะการอ่าน คิดวิเคราะห์ เขียน สำหรับทำแบบ ปพ.5 และรายงาน ปพ.6
-              </p>
+              )}
             </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
+              <span>คุณลักษณะอันพึงประสงค์ & อ่านคิดเขียน</span>
+              <span className="text-xl sm:text-2xl">🎖️📌</span>
+            </h1>
+            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
+              บันทึกผลการประเมิน 8 คุณลักษณะ และทักษะการอ่าน คิดวิเคราะห์ เขียน สำหรับทำแบบ ปพ.5 และ ปพ.6
+            </p>
           </div>
 
-          {/* Top Actions */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* 4 Post-it Stat Memo Cards */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:min-w-[480px]">
+            {/* Level 3: ดีเยี่ยม */}
+            <div className="relative rounded-xl bg-[#d9f99d] p-3 text-center shadow-[2px_4px_6px_rgba(27,62,4,0.18)] rotate-[1deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#1b3e04]">{stats.count3} <span className="text-xs font-normal">คน</span></p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#1b3e04]">ดีเยี่ยม (3) · {stats.pct3}%</p>
+            </div>
+
+            {/* Level 2: ดี */}
+            <div className="relative rounded-xl bg-[#bae6fd] p-3 text-center shadow-[2px_4px_6px_rgba(3,79,119,0.18)] -rotate-[1.5deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#034f77]">{stats.count2} <span className="text-xs font-normal">คน</span></p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#034f77]">ดี (2) · {stats.pct2}%</p>
+            </div>
+
+            {/* Level 1: ผ่าน */}
+            <div className="relative rounded-xl bg-[#fef08a] p-3 text-center shadow-[2px_4px_6px_rgba(113,63,18,0.18)] rotate-[1.5deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#713f12]">{stats.count1} <span className="text-xs font-normal">คน</span></p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#713f12]">ผ่าน (1) · {stats.pct1}%</p>
+            </div>
+
+            {/* Level 0: ไม่ผ่าน */}
+            <div className="relative rounded-xl bg-[#fecdd3] p-3 text-center shadow-[2px_4px_6px_rgba(136,19,55,0.18)] -rotate-[1deg] hover:scale-105 transition">
+              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
+              <p className="text-lg sm:text-xl font-bold text-[#881337]">{stats.count0} <span className="text-xs font-normal">คน</span></p>
+              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#881337]">ไม่ผ่าน (0) · {stats.pct0}%</p>
+            </div>
+          </div>
+        </header>
+
+        {/* Filter / Selector Bar */}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2d5c3] pt-3.5">
+          {/* View Mode Toggle */}
+          <div className="inline-flex rounded-2xl bg-white/80 p-1 border border-[#c7bca9] shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('board')}
+              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+                viewMode === 'board'
+                  ? 'bg-[#332f2b] text-white shadow-xs'
+                  : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
+            >
+              <LayoutGrid size={15} />
+              <span>บอร์ดประเมินด่วน 📌</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+                viewMode === 'table'
+                  ? 'bg-[#332f2b] text-white shadow-xs'
+                  : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
+            >
+              <ListFilter size={15} />
+              <span>ตาราง ปพ.5 ละเอียด 📊</span>
+            </button>
+          </div>
+
+          {/* Selectors: Room, Year, Term */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative inline-flex items-center rotate-[0.8deg] shadow-xs">
+              <select
+                value={selectedClassroomId}
+                onChange={(e) => setSelectedClassroomId(e.target.value)}
+                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3 pr-7 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              >
+                {classrooms.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.academic_year ? `(${c.academic_year})` : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#57534e]" />
+            </div>
+
+            <div className="relative inline-flex items-center shadow-xs">
+              <select
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3 pr-7 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              >
+                <option value="2569">ปี 2569</option>
+                <option value="2568">ปี 2568</option>
+                <option value="2567">ปี 2567</option>
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#57534e]" />
+            </div>
+
+            <div className="relative inline-flex items-center shadow-xs">
+              <select
+                value={term}
+                onChange={(e) => setTerm(e.target.value as any)}
+                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3 pr-7 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              >
+                <option value="1">ภาคเรียนที่ 1</option>
+                <option value="2">ภาคเรียนที่ 2</option>
+                <option value="yearly">สรุปทั้งปี</option>
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#57534e]" />
+            </div>
+          </div>
+        </div>
+
+        {/* Section Tabs (8 คุณลักษณะ / อ่านคิดเขียน / ภาพรวม) */}
+        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-b border-[#e2d5c3] pb-3">
+          <div className="inline-flex rounded-xl bg-white/70 p-1 border border-[#c7bca9]">
+            <button
+              onClick={() => {
+                setActiveTab('traits');
+                setSelectedIndicatorId('summary');
+              }}
+              type="button"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold transition ${
+                activeTab === 'traits' ? 'bg-[#332f2b] text-white shadow-xs' : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
+            >
+              <Award size={14} />
+              <span>คุณลักษณะ 8 ประการ</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('reading');
+                setSelectedIndicatorId('summary');
+              }}
+              type="button"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold transition ${
+                activeTab === 'reading' ? 'bg-[#332f2b] text-white shadow-xs' : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
+            >
+              <BookOpen size={14} />
+              <span>การอ่าน คิดวิเคราะห์ เขียน</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('overview')}
+              type="button"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-bold transition ${
+                activeTab === 'overview' ? 'bg-[#332f2b] text-white shadow-xs' : 'text-[#57534e] hover:text-[#1c1917]'
+              }`}
+            >
+              <GraduationCap size={14} />
+              <span>สรุปผลรวม ปพ.5</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
               onClick={setAllToExcellent}
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] transition-all"
+              className="inline-flex items-center gap-1 rounded-xl bg-lime-600 hover:bg-lime-700 px-3 py-1.5 text-xs font-bold text-white shadow-2xs active:scale-95 transition"
             >
-              <Sparkles className="h-4 w-4" />
-              <span>✨ ตั้งต้นทุกคนเป็นระดับ 3 (ดีเยี่ยม)</span>
+              <Sparkles size={13} />
+              <span>✨ ดีเยี่ยม (3) ทุกคน</span>
             </button>
-
             <button
               onClick={handleExportExcel}
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all"
+              className="inline-flex items-center gap-1 rounded-xl border border-[#c7bca9] bg-white px-3 py-1.5 text-xs font-bold text-[#44403c] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
             >
-              <Download className="h-4 w-4 text-slate-500" />
-              <span>ส่งออก ปพ.5 (Excel)</span>
-            </button>
-
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              type="button"
-              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm transition-all active:scale-[0.98] ${
-                hasDirtyRecords
-                  ? 'bg-blue-600 hover:bg-blue-500 ring-2 ring-blue-400 ring-offset-2 animate-pulse'
-                  : 'bg-slate-800 hover:bg-slate-700'
-              }`}
-            >
-              <Save className="h-4 w-4" />
-              <span>{isSaving ? 'กำลังบันทึก...' : hasDirtyRecords ? 'บันทึกการเปลี่ยนแปลง *' : 'บันทึกข้อมูล'}</span>
+              <Download size={13} />
+              <span>Excel ปพ.5</span>
             </button>
           </div>
         </div>
 
-        {/* Filter Controls Row */}
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 border-t border-slate-100 pt-5">
-          {/* Classroom Selector */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">ห้องเรียน</label>
-            <select
-              value={selectedClassroomId}
-              onChange={(e) => setSelectedClassroomId(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none"
-            >
-              {classrooms.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.academic_year ? `(${c.academic_year})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* ======================================================== */}
+        {/* POST-IT BOARD MODE                                       */}
+        {/* ======================================================== */}
+        {viewMode === 'board' && activeTab !== 'overview' && (
+          <div className="mt-4">
+            {/* Indicator Pills Toolbar */}
+            <div className="flex flex-wrap items-center gap-1.5 pb-2">
+              <span className="text-xs font-bold text-[#57534e]">เลือกประเมินข้อ:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedIndicatorId('summary')}
+                className={`h-7.5 px-2.5 rounded-lg text-xs font-bold transition active:scale-95 ${
+                  selectedIndicatorId === 'summary'
+                    ? 'bg-[#332f2b] text-white ring-2 ring-amber-400'
+                    : 'bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50'
+                }`}
+              >
+                ⭐ สรุปภาพรวม
+              </button>
 
-          {/* Academic Year */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">ปีการศึกษา</label>
-            <select
-              value={academicYear}
-              onChange={(e) => setAcademicYear(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="2569">2569</option>
-              <option value="2568">2568</option>
-              <option value="2567">2567</option>
-            </select>
-          </div>
+              {activeTab === 'traits' &&
+                OBEC_TRAITS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedIndicatorId(t.id)}
+                    className={`h-7.5 px-2.5 rounded-lg text-xs font-bold transition active:scale-95 ${
+                      selectedIndicatorId === t.id
+                        ? 'bg-[#332f2b] text-white ring-2 ring-amber-400'
+                        : 'bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50'
+                    }`}
+                    title={t.description}
+                  >
+                    {t.shortName}
+                  </button>
+                ))}
 
-          {/* Term */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">ภาคเรียน</label>
-            <select
-              value={term}
-              onChange={(e) => setTerm(e.target.value as any)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="1">ภาคเรียนที่ 1</option>
-              <option value="2">ภาคเรียนที่ 2</option>
-              <option value="yearly">สรุปตลอดปีการศึกษา</option>
-            </select>
-          </div>
-
-          {/* Search Box */}
-          <div className="md:col-span-1 lg:col-span-2">
-            <label className="block text-xs font-medium text-slate-500 mb-1">ค้นหานักเรียน</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="ค้นหาชื่อ, นามสกุล, เลขที่..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none"
-              />
+              {activeTab === 'reading' &&
+                READING_INDICATORS.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setSelectedIndicatorId(r.id)}
+                    className={`h-7.5 px-2.5 rounded-lg text-xs font-bold transition active:scale-95 ${
+                      selectedIndicatorId === r.id
+                        ? 'bg-[#332f2b] text-white ring-2 ring-amber-400'
+                        : 'bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50'
+                    }`}
+                    title={r.description}
+                  >
+                    {r.shortName}
+                  </button>
+                ))}
             </div>
+
+            <p className="mt-1 text-xs sm:text-sm font-medium text-[#57534e]">
+              แตะโน้ตเพื่อสลับระดับ (3 ดีเยี่ยม ➔ 2 ดี ➔ 1 ผ่าน ➔ 0 ไม่ผ่าน) หรือกด ✏️ เพื่อดู/ประเมินครบทุกข้อรายคน
+            </p>
+
+            {/* Post-it Notes Grid */}
+            <div className="mt-4 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4.5 pt-2">
+              {filteredStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const ev = evaluations[student.id];
+                const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+
+                // Calculate level for active indicator
+                let level: EvaluationLevel = 3;
+                if (activeTab === 'reading') {
+                  level = selectedIndicatorId === 'summary'
+                    ? (ev?.reading_summary ?? 3)
+                    : (ev?.reading[selectedIndicatorId] ?? 3);
+                } else {
+                  level = selectedIndicatorId === 'summary'
+                    ? (ev?.trait_summary ?? 3)
+                    : (ev?.traits[selectedIndicatorId] ?? 3);
+                }
+
+                // Pastel Color Scheme matching level
+                const levelConfig = {
+                  3: { bg: 'bg-[#d9f99d] text-[#1b3e04] shadow-[2px_4px_6px_rgba(27,62,4,0.18)]', badge: 'bg-[#1b3e04]', label: 'ดีเยี่ยม (3)' },
+                  2: { bg: 'bg-[#bae6fd] text-[#034f77] shadow-[2px_4px_6px_rgba(3,79,119,0.18)]', badge: 'bg-[#034f77]', label: 'ดี (2)' },
+                  1: { bg: 'bg-[#fef08a] text-[#713f12] shadow-[2px_4px_6px_rgba(113,63,18,0.18)]', badge: 'bg-[#713f12]', label: 'ผ่าน (1)' },
+                  0: { bg: 'bg-[#fecdd3] text-[#881337] shadow-[2px_4px_6px_rgba(136,19,55,0.18)]', badge: 'bg-[#881337]', label: 'ไม่ผ่าน (0)' },
+                }[level];
+
+                return (
+                  <div
+                    key={student.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleNoteCycle(student.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleNoteCycle(student.id);
+                      }
+                    }}
+                    className={`group relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[74px] sm:min-h-[82px] transition-all select-none active:scale-95 cursor-pointer ${levelConfig.bg} ${rotation} hover:scale-105 hover:z-10`}
+                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${levelConfig.label}) — แตะเพื่อเปลี่ยนระดับ`}
+                  >
+                    {/* Frosted Tape */}
+                    <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
+
+                    {/* Pencil Edit Icon Button */}
+                    <button
+                      type="button"
+                      aria-label={`แก้ไขรายละเอียดของ ${student.first_name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSheetStudent(student);
+                      }}
+                      className="absolute top-1 right-1 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-white/85 hover:bg-white text-stone-500 hover:text-stone-900 border border-stone-200/70 transition-all cursor-pointer z-20 shadow-2xs hover:scale-115 active:scale-90"
+                    >
+                      <Pencil className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    </button>
+
+                    {/* Large Roll Number */}
+                    <span className="text-2xl sm:text-3xl font-bold leading-none tracking-tight">
+                      {rollNumber}
+                    </span>
+
+                    {/* Student Name */}
+                    <span className="text-xs sm:text-sm font-bold truncate mt-0.5 max-w-full text-center px-0.5">
+                      {student.nickname || student.first_name}
+                    </span>
+
+                    {/* Badge: Level */}
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.2 text-[10px] sm:text-xs font-bold text-white shadow-2xs ${levelConfig.badge}`}>
+                        {levelConfig.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Empty State */}
+            {filteredStudents.length === 0 && !isLoading && (
+              <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-center text-amber-950">
+                <p className="text-base font-bold">ไม่พบนักเรียนตามเงื่อนไขที่เลือก</p>
+                <p className="mt-1 text-xs text-amber-800/80">ลองเปลี่ยนห้องเรียนหรือคำค้นหา</p>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Navigation Tabs (8 คุณลักษณะ / อ่าน คิดวิเคราะห์ เขียน / ภาพรวม) */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex rounded-xl bg-slate-100 p-1">
-          <button
-            onClick={() => setActiveTab('traits')}
-            type="button"
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'traits'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Award className="h-4 w-4" />
-            <span>คุณลักษณะอันพึงประสงค์ 8 ประการ</span>
-          </button>
+        {/* ======================================================== */}
+        {/* DETAILED TABLE MODE & OVERVIEW                           */}
+        {/* ======================================================== */}
+        {(viewMode === 'table' || activeTab === 'overview') && (
+          <div className="mt-6 rounded-2xl border border-[#ded5c6] bg-white/95 shadow-sm overflow-hidden">
+            <div className="border-b border-[#f0e8dc] bg-amber-50/30 px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#3f3a36] uppercase tracking-wider">
+                  {activeTab === 'traits'
+                    ? 'ตารางประเมินคุณลักษณะอันพึงประสงค์ 8 ประการ'
+                    : activeTab === 'reading'
+                    ? 'ตารางประเมินการอ่าน คิดวิเคราะห์ และเขียน'
+                    : 'ตารางสรุปผลรวมทั้งสองด้าน'}
+                </span>
+                <span className="text-xs text-[#8a8178]">({filteredStudents.length} คน)</span>
+              </div>
 
-          <button
-            onClick={() => setActiveTab('reading')}
-            type="button"
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'reading'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BookOpen className="h-4 w-4" />
-            <span>การอ่าน คิดวิเคราะห์ และเขียน</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('overview')}
-            type="button"
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all ${
-              activeTab === 'overview'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <GraduationCap className="h-4 w-4" />
-            <span>สรุปผลรวม (ปพ.5)</span>
-          </button>
-        </div>
-
-        {/* Filter Badges */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">กรอง:</span>
-          <button
-            onClick={() => setFilterMode('all')}
-            type="button"
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-              filterMode === 'all'
-                ? 'bg-slate-800 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            ทั้งหมด ({students.length})
-          </button>
-          <button
-            onClick={() => setFilterMode('needs_attention')}
-            type="button"
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-              filterMode === 'needs_attention'
-                ? 'bg-amber-600 text-white'
-                : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-            }`}
-          >
-            ต้องติดตาม (0 หรือ 1)
-          </button>
-          <button
-            onClick={() => setFilterMode('excellent')}
-            type="button"
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-              filterMode === 'excellent'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-            }`}
-          >
-            ดีเยี่ยมทั้งหมด
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Stat Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 sm:p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-800">ระดับ 3 (ดีเยี่ยม)</span>
-            <span className="rounded-md bg-emerald-200/60 px-1.5 py-0.5 text-[11px] font-bold text-emerald-900">
-              {stats.pct3}%
-            </span>
-          </div>
-          <div className="mt-2 text-2xl font-black text-emerald-900">{stats.count3} <span className="text-xs font-normal text-emerald-700">คน</span></div>
-        </div>
-
-        <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 sm:p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-sky-800">ระดับ 2 (ดี)</span>
-            <span className="rounded-md bg-sky-200/60 px-1.5 py-0.5 text-[11px] font-bold text-sky-900">
-              {stats.pct2}%
-            </span>
-          </div>
-          <div className="mt-2 text-2xl font-black text-sky-900">{stats.count2} <span className="text-xs font-normal text-sky-700">คน</span></div>
-        </div>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 sm:p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-800">ระดับ 1 (ผ่าน)</span>
-            <span className="rounded-md bg-amber-200/60 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-              {stats.pct1}%
-            </span>
-          </div>
-          <div className="mt-2 text-2xl font-black text-amber-900">{stats.count1} <span className="text-xs font-normal text-amber-700">คน</span></div>
-        </div>
-
-        <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 sm:p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-800">ระดับ 0 (ไม่ผ่าน)</span>
-            <span className="rounded-md bg-rose-200/60 px-1.5 py-0.5 text-[11px] font-bold text-rose-900">
-              {stats.pct0}%
-            </span>
-          </div>
-          <div className="mt-2 text-2xl font-black text-rose-900">{stats.count0} <span className="text-xs font-normal text-rose-700">คน</span></div>
-        </div>
-      </div>
-
-      {/* Main Interactive Evaluation Table */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              {activeTab === 'traits'
-                ? 'ตารางประเมินคุณลักษณะอันพึงประสงค์ 8 ประการ'
-                : activeTab === 'reading'
-                ? 'ตารางประเมินการอ่าน คิดวิเคราะห์ และเขียน'
-                : 'ตารางสรุปผลรวมทั้งสองด้าน'}
-            </span>
-            <span className="text-xs text-slate-400">({filteredStudents.length} คน)</span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 3 = ดีเยี่ยม</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" /> 2 = ดี</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> 1 = ผ่าน</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> 0 = ไม่ผ่าน</span>
-          </div>
-        </div>
+              <div className="flex items-center gap-3 text-xs font-bold text-[#78716c]">
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-lime-500" /> 3 = ดีเยี่ยม</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" /> 2 = ดี</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> 1 = ผ่าน</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> 0 = ไม่ผ่าน</span>
+              </div>
+            </div>
 
         {/* Table Container */}
         <div className="overflow-x-auto">
@@ -1345,9 +1477,9 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
         </div>
 
         {/* Footer save status */}
-        <div className="border-t border-slate-100 bg-slate-50/50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="border-t border-[#f0e8dc] bg-amber-50/20 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#78716c]">
           <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="inline-block h-2 w-2 rounded-full bg-lime-500" />
             <span>เกณฑ์การประเมินสอดคล้องกับระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียนรู้</span>
           </div>
 
@@ -1355,13 +1487,188 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
             onClick={handleSave}
             disabled={isSaving}
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#332f2b] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#252220] active:scale-95 transition"
           >
             <Save className="h-4 w-4" />
-            <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลผลการประเมิน'}</span>
+            <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลผลการประเมิน ✓'}</span>
           </button>
         </div>
       </div>
+      )}
+
+      {/* Generous bottom spacer so page can scroll comfortably past bottom dock */}
+      <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />
+      </div>
+
+      {/* ======================================================== */}
+      {/* FLOATING ACTION DOCK: Matches Style 5                      */}
+      {/* ======================================================== */}
+      {viewMode === 'board' && filteredStudents.length > 0 && (
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#c7bca9] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+          {/* Summary Text */}
+          <div className="flex items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm font-bold text-[#1c1917]">
+            <span>
+              ดีเยี่ยม <b className="text-[#1b3e04]">{stats.count3}</b>
+            </span>
+            <span>
+              ดี <b className="text-[#034f77]">{stats.count2}</b>
+            </span>
+            <span>
+              ผ่าน <b className="text-[#713f12]">{stats.count1}</b>
+            </span>
+            <span>
+              ไม่ผ่าน <b className="text-[#881337]">{stats.count0}</b>
+            </span>
+          </div>
+
+          {/* Big Charcoal Button with Golden Shadow */}
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={isSaving}
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#332f2b] text-base font-bold text-white shadow-[0_5px_0_#d97706] hover:bg-[#252220] active:translate-y-1 active:shadow-[0_2px_0_#d97706] transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isSaving ? (
+              <span>กำลังบันทึก...</span>
+            ) : (
+              <>
+                <span>บันทึกผลประเมินเรียบร้อย</span>
+                <Check size={20} className="stroke-[3]" />
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SINGLE STUDENT EVALUATION MODAL (Pencil Click)            */}
+      {/* ======================================================== */}
+      {sheetStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-lg rounded-3xl border border-[#ded5c6] bg-[#fbf8f3] p-5 sm:p-6 shadow-2xl max-h-[92vh] flex flex-col font-['Itim',sans-serif]">
+            <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 h-3 w-12 rounded-[1px] bg-white/80 shadow-2xs" />
+            <div className="flex items-center justify-between border-b border-[#f0e8dc] pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-[#3f3a36]">
+                  {sheetStudent.first_name} {sheetStudent.last_name}
+                </h3>
+                <p className="text-xs text-[#8a8178]">
+                  {sheetStudent.nickname ? `น้อง${sheetStudent.nickname}` : 'นักเรียน'} · ประเมินผลครบทุกข้อ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSheetStudent(null)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto py-3 space-y-3">
+              {activeTab === 'reading' ? (
+                /* 5 Reading Items */
+                READING_INDICATORS.map((r) => {
+                  const ev = evaluations[sheetStudent.id];
+                  const currentLevel = ev?.reading[r.id] ?? 3;
+                  return (
+                    <div key={r.id} className="p-3 rounded-2xl bg-white border border-[#ded5c6]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-[#3f3a36]">{r.name}</span>
+                        <span className="text-xs text-[#8a8178]">({LEVEL_LABELS[currentLevel].short})</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {([3, 2, 1, 0] as EvaluationLevel[]).map((lvl) => (
+                          <button
+                            key={lvl}
+                            type="button"
+                            onClick={() => updateReading(sheetStudent.id, r.id, lvl)}
+                            className={`h-8 rounded-xl text-xs font-bold transition ${
+                              currentLevel === lvl
+                                ? `${LEVEL_LABELS[lvl].bg} text-white shadow-xs ring-2 ring-amber-400`
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {LEVEL_LABELS[lvl].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                /* 8 Traits Items */
+                OBEC_TRAITS.map((t) => {
+                  const ev = evaluations[sheetStudent.id];
+                  const currentLevel = ev?.traits[t.id] ?? 3;
+                  return (
+                    <div key={t.id} className="p-3 rounded-2xl bg-white border border-[#ded5c6]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-[#3f3a36]">{t.name}</span>
+                        <span className="text-xs text-[#8a8178]">({LEVEL_LABELS[currentLevel].short})</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {([3, 2, 1, 0] as EvaluationLevel[]).map((lvl) => (
+                          <button
+                            key={lvl}
+                            type="button"
+                            onClick={() => updateTrait(sheetStudent.id, t.id, lvl)}
+                            className={`h-8 rounded-xl text-xs font-bold transition ${
+                              currentLevel === lvl
+                                ? `${LEVEL_LABELS[lvl].bg} text-white shadow-xs ring-2 ring-amber-400`
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {LEVEL_LABELS[lvl].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+
+              {/* Note field */}
+              <div className="p-3 rounded-2xl bg-white border border-[#ded5c6]">
+                <label className="text-xs font-bold text-[#78716c] block mb-1">หมายเหตุ / จุดที่ควรส่งเสริม:</label>
+                <input
+                  type="text"
+                  placeholder="เช่น มีพัฒนาการดีขึ้น, ควรส่งเสริมด้านความรับผิดชอบ"
+                  value={evaluations[sheetStudent.id]?.note || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEvaluations((prev) => ({
+                      ...prev,
+                      [sheetStudent.id]: {
+                        ...(prev[sheetStudent.id] || {
+                          student_id: sheetStudent.id,
+                          traits: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3, 7: 3, 8: 3 },
+                          trait_summary: 3,
+                          reading: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+                          reading_summary: 3,
+                        }),
+                        note: val,
+                        isDirty: true,
+                      },
+                    }));
+                  }}
+                  className="h-9 w-full rounded-xl border border-[#ded5c6] bg-amber-50/30 px-3 text-xs font-bold text-[#3f3a36] outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-[#f0e8dc] pt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSheetStudent(null)}
+                className="h-10 px-5 rounded-xl bg-[#332f2b] text-white text-xs font-bold shadow-xs hover:bg-[#252220] transition active:scale-95"
+              >
+                เรียบร้อย ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

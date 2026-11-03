@@ -97,30 +97,31 @@ export function DailyInspectionModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
       role="dialog"
     >
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-white/30 bg-white shadow-2xl">
-        {/* Header with Dark Modern Theme */}
-        <div className="relative overflow-hidden bg-slate-950 px-6 py-5 text-white">
-          <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-emerald-400/20 blur-3xl" />
+      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border-2 border-[#e6dcce] bg-[#fbf8f3] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] shadow-2xl font-['Itim',sans-serif]">
+        {/* Top Header */}
+        <div className="relative border-b border-[#e2d5c3] bg-[#f5efe6] px-6 py-5">
+          <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-10 rounded-[1px] bg-white/80 shadow-2xs" />
           <div className="flex items-start justify-between">
             <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-black text-emerald-300 ring-1 ring-emerald-400/30">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-900 border border-emerald-300">
                 <CheckCircle2 size={13} />
                 ตรวจผลเวรประจำวัน
               </span>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-1.5 flex items-center gap-2">
                 <button
-                  className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+                  className="grid h-7 w-7 place-items-center rounded-lg bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
                   onClick={() => changeDay(-1)}
                   title="วันก่อนหน้า"
                   type="button"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <h2 className="text-xl font-black" id="inspection-modal-title">
-                  {formattedDate}
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5" id="inspection-modal-title">
+                  <span>{formattedDate}</span>
+                  <span>🧹📌</span>
                 </h2>
                 <button
-                  className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+                  className="grid h-7 w-7 place-items-center rounded-lg bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
                   onClick={() => changeDay(1)}
                   title="วันถัดไป"
                   type="button"
@@ -131,7 +132,7 @@ export function DailyInspectionModal({
             </div>
             <button
               aria-label="ปิด"
-              className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+              className="grid h-9 w-9 place-items-center rounded-xl bg-white border border-[#c7bca9] text-[#57534e] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
               onClick={onClose}
               type="button"
             >
@@ -140,30 +141,30 @@ export function DailyInspectionModal({
           </div>
 
           {/* Quick Metrics & Cleanliness Rating */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
-            <div className="flex items-center gap-4 text-xs font-bold">
-              <span>
-                ทั้งหมด: <strong className="text-white">{dayAssignments.length}</strong> คน
+          <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2d5c3] pt-3">
+            <div className="flex items-center gap-2.5 text-xs font-bold">
+              <span className="rounded-lg bg-white/90 border border-[#c7bca9] px-2.5 py-1 text-[#3f3a36]">
+                ทั้งหมด: <strong>{dayAssignments.length}</strong> คน
               </span>
-              <span className="text-emerald-400">
+              <span className="rounded-lg bg-[#d9f99d] border border-lime-300 px-2.5 py-1 text-[#1b3e04]">
                 ทำแล้ว: <strong>{completedCount}</strong>
               </span>
-              <span className="text-amber-300">
+              <span className="rounded-lg bg-[#fef08a] border border-amber-300 px-2.5 py-1 text-[#713f12]">
                 รอตรวจ: <strong>{pendingCount}</strong>
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
-              <span className="mr-1 text-[11px] font-bold text-slate-400">ระดับความสะอาด:</span>
+            <div className="flex items-center gap-1 bg-white/80 border border-[#c7bca9] px-2.5 py-1 rounded-xl">
+              <span className="mr-1 text-xs font-bold text-[#78716c]">ความสะอาด:</span>
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
-                  className={`transition ${star <= starRating ? "text-amber-400" : "text-white/20 hover:text-amber-200"}`}
+                  className={`transition ${star <= starRating ? "text-amber-500 scale-110" : "text-stone-300 hover:text-amber-300"}`}
                   key={star}
                   onClick={() => setStarRating(star)}
                   title={`ให้ ${star} ดาว`}
                   type="button"
                 >
-                  <Star className="fill-current" size={16} />
+                  <Star className="fill-current" size={15} />
                 </button>
               ))}
             </div>
@@ -172,19 +173,19 @@ export function DailyInspectionModal({
 
         {/* 1-Click Action Bar */}
         {dayAssignments.length > 0 && pendingCount > 0 ? (
-          <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/70 px-6 py-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-              <Sparkles className="text-emerald-600" size={16} />
+          <div className="flex items-center justify-between border-b border-lime-200 bg-lime-50/80 px-6 py-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-lime-950">
+              <Sparkles className="text-lime-700" size={15} />
               <span>ตรวจด่วน: หากนักเรียนทุกคนช่วยกันทำงานเรียบร้อยแล้ว</span>
             </div>
             <button
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#332f2b] px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_3px_0_#d97706] hover:bg-[#252220] active:translate-y-0.5 active:shadow-none transition disabled:opacity-50"
               disabled={busy || !canManage}
               onClick={() => void onMarkAllDone(selectedDate)}
               type="button"
             >
-              <CheckCircle2 size={14} />
-              ทำครบทุกคน ({pendingCount} คน)
+              <CheckCircle2 size={13} />
+              ทำครบทุกคน ({pendingCount} คน) ✓
             </button>
           </div>
         ) : null}
@@ -192,16 +193,16 @@ export function DailyInspectionModal({
         {/* Assignment List */}
         <div className="max-h-[500px] flex-1 overflow-y-auto p-4 sm:p-6">
           {dayAssignments.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
-              <Clock className="mx-auto text-slate-300" size={36} />
-              <h3 className="mt-3 text-base font-black text-slate-700">ไม่มีเวรในวันนี้</h3>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+            <div className="rounded-3xl border-2 border-dashed border-[#d5c9b6] bg-white/60 p-10 text-center">
+              <Clock className="mx-auto text-stone-400" size={36} />
+              <h3 className="mt-2 text-base font-bold text-[#3f3a36]">ไม่มีเวรในวันนี้</h3>
+              <p className="mt-1 text-xs text-[#8a8178]">
                 อาจเป็นวันหยุดตามปฏิทินโรงเรียน หรือยังไม่ได้มอบหมายเวรในวันนี้
               </p>
             </div>
           ) : (
             <div className="grid gap-3">
-              {dayAssignments.map((assignment) => {
+              {dayAssignments.map((assignment, idx) => {
                 const task = tasks.find((t) => t.id === assignment.duty_task_id);
                 const student = studentMap.get(assignment.student_id);
                 const substitute = assignment.substitute_student_id
@@ -210,29 +211,38 @@ export function DailyInspectionModal({
                 const statusConf = DUTY_STATUS_CONFIG[assignment.status];
                 const isSubmittingSub = activeSubstituteAssignmentId === assignment.id;
 
+                const cardTone = {
+                  completed: 'bg-[#d9f99d]/50 border-lime-300 text-[#1b3e04]',
+                  missed: 'bg-[#fecdd3]/50 border-rose-300 text-[#881337]',
+                  excused: 'bg-[#bae6fd]/50 border-sky-300 text-[#034f77]',
+                  substituted: 'bg-[#fef08a]/50 border-amber-300 text-[#713f12]',
+                  assigned: 'bg-white/95 border-[#ded5c6] text-[#3f3a36]',
+                }[assignment.status] || 'bg-white/95 border-[#ded5c6] text-[#3f3a36]';
+
                 return (
                   <article
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300"
+                    className={`relative rounded-2xl border p-4 shadow-sm transition hover:shadow-md ${cardTone}`}
                     key={assignment.id}
                   >
+                    <span className="pointer-events-none absolute -top-1.5 left-8 h-2 w-6 rounded-[1px] bg-white/80 shadow-2xs" />
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-black text-slate-900">
+                          <span className="font-bold text-base text-[#1c1917]">
                             {task?.name || "หน้าที่เวร"}
                           </span>
                           {task?.location ? (
-                            <span className="text-xs font-bold text-slate-400">
+                            <span className="text-xs text-[#78716c]">
                               · {task.location}
                             </span>
                           ) : null}
                           <span
-                            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black ${statusConf.badgeClass}`}
+                            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${statusConf.badgeClass}`}
                           >
                             {statusConf.label}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm font-bold text-slate-700">
+                        <p className="mt-1 text-sm font-bold text-[#44403c]">
                           {student?.student_code ? `[${student.student_code}] ` : ""}
                           {student ? `${student.first_name} ${student.last_name}` : "-"}
                           {substitute ? (
@@ -246,10 +256,10 @@ export function DailyInspectionModal({
                       {/* Status Action Buttons */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <button
-                          className={`rounded-xl px-2.5 py-1.5 text-xs font-black transition ${
+                          className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
                             assignment.status === "completed"
-                              ? "bg-emerald-600 text-white shadow-sm"
-                              : "border border-slate-200 bg-slate-50 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
+                              ? "bg-[#1b3e04] text-white shadow-xs"
+                              : "border border-lime-300 bg-white text-lime-900 hover:bg-lime-50"
                           }`}
                           disabled={busy || !canManage}
                           onClick={() => {
@@ -272,10 +282,10 @@ export function DailyInspectionModal({
                         </button>
 
                         <button
-                          className={`rounded-xl px-2.5 py-1.5 text-xs font-black transition ${
+                          className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
                             assignment.status === "missed"
-                              ? "bg-rose-600 text-white shadow-sm"
-                              : "border border-slate-200 bg-slate-50 text-slate-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800"
+                              ? "bg-[#881337] text-white shadow-xs"
+                              : "border border-rose-300 bg-white text-rose-900 hover:bg-rose-50"
                           }`}
                           disabled={busy || !canManage}
                           onClick={() => void onRecord(assignment, "missed")}
@@ -285,10 +295,10 @@ export function DailyInspectionModal({
                         </button>
 
                         <button
-                          className={`rounded-xl px-2.5 py-1.5 text-xs font-black transition ${
+                          className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
                             assignment.status === "excused"
-                              ? "bg-slate-700 text-white shadow-sm"
-                              : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                              ? "bg-slate-700 text-white shadow-xs"
+                              : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
                           }`}
                           disabled={busy || !canManage}
                           onClick={() => void onRecord(assignment, "excused")}
@@ -299,10 +309,10 @@ export function DailyInspectionModal({
 
                         {task?.allow_substitute ? (
                           <button
-                            className={`rounded-xl px-2.5 py-1.5 text-xs font-black transition ${
+                            className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
                               assignment.status === "substituted" || isSubmittingSub
-                                ? "bg-amber-600 text-white shadow-sm"
-                                : "border border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
+                                ? "bg-amber-600 text-white shadow-xs"
+                                : "border border-amber-300 bg-white text-amber-900 hover:bg-amber-50"
                             }`}
                             disabled={busy || !canManage}
                             onClick={() => {
@@ -425,16 +435,16 @@ export function DailyInspectionModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4">
-          <p className="text-xs font-bold text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#e2d5c3] bg-[#f5efe6] px-6 py-3.5">
+          <p className="text-xs font-bold text-[#78716c]">
             ระบบจะอัปเดตแต้มจิตพิสัย (+1 / -1) ไปยังสมุดพฤติกรรมอัตโนมัติ
           </p>
           <button
-            className="rounded-xl bg-slate-900 px-6 py-2 text-sm font-black text-white hover:bg-slate-800"
+            className="rounded-xl bg-[#332f2b] px-6 py-2 text-sm font-bold text-white shadow-[0_3px_0_#d97706] hover:bg-[#252220] active:translate-y-0.5 active:shadow-none transition cursor-pointer"
             onClick={onClose}
             type="button"
           >
-            เสร็จสิ้น
+            เสร็จสิ้น ✓
           </button>
         </div>
       </div>
