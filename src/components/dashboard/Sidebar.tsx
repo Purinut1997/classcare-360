@@ -43,7 +43,8 @@ const sidebarSections: SidebarSectionConfig[] = [
     key: 'daily-routine',
     label: 'กิจวัตร & หน้าที่ประจำวัน',
     icon: ClipboardList,
-    defaultOpen: true,
+    // Keep the first screen calm for new teachers; the active group opens automatically.
+    defaultOpen: false,
     itemKeys: [
       'teacher-work',          // 1. เช็กชื่อและสถิติเวลาเรียน
       'classroom-operations',  // 2. ตารางเวรทำความสะอาด
@@ -55,7 +56,7 @@ const sidebarSections: SidebarSectionConfig[] = [
     key: 'academic-assessment',
     label: 'งานวิชาการ & วัดผล',
     icon: BookOpen,
-    defaultOpen: true,
+    defaultOpen: false,
     itemKeys: [
       'schedule',              // ตารางสอน/ตารางเรียน
       'scores',                // สมุดคะแนน & ตัดเกรด
