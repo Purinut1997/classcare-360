@@ -1241,34 +1241,37 @@ export function DashboardPage({ session }: DashboardPageProps) {
   return (
     <main className="app-page dashboard-premium">
       {/* Friendly Hero Banner & Classroom Header */}
-      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="relative overflow-hidden flex flex-col gap-4 rounded-3xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        {/* Cute Tape Sticker */}
+        <span className="absolute -top-1.5 left-12 w-14 h-3.5 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[-2deg] pointer-events-none" />
+
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-2xl">☀️</span>
-            <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
-              สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'}
+            <span className="text-2xl animate-bounce">☀️</span>
+            <h1 className="text-xl font-black tracking-tight text-[#1c1917] sm:text-2xl">
+              สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'} 🎒
             </h1>
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-bold text-stone-600">
             <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
             <span>·</span>
-            <span className={isSelectedClassroomHomeroom ? 'font-black text-amber-700' : 'text-slate-700'}>
+            <span className={isSelectedClassroomHomeroom ? 'font-black text-amber-800' : 'text-stone-800'}>
               {isSelectedClassroomHomeroom ? '⭐ ห้องที่ปรึกษา: ' : 'ห้องเรียน: '}
               {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
             </span>
             <span>·</span>
             <span>{formatThaiRecordDate(getBangkokDate())}</span>
             {isSelectedClassroomHomeroom && (
-              <span className="rounded-full border border-amber-400/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-black text-amber-800">
+              <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 shadow-2xs">
                 คุณเป็นครูที่ปรึกษา
               </span>
             )}
             {attendanceTrendDelta !== null && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black ${
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black shadow-2xs ${
                   attendanceTrendDelta >= 0
-                    ? 'border border-emerald-400/40 bg-emerald-500/10 text-emerald-800'
-                    : 'border border-rose-400/40 bg-rose-500/10 text-rose-800'
+                    ? 'border border-emerald-300 bg-emerald-100 text-emerald-900'
+                    : 'border border-rose-300 bg-rose-100 text-rose-900'
                 }`}
                 title="เปรียบเทียบอัตราการมาเรียน 3 วันล่าสุด กับ 3 วันก่อนหน้า"
               >
@@ -1285,7 +1288,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
             <button
               type="button"
               onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
-              className="flex items-center gap-1.5 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2 text-xs font-black text-amber-800 shadow-sm transition-all hover:bg-amber-500/20 hover:scale-105"
+              className="flex items-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-amber-100/90 px-3.5 py-2 text-xs font-black text-amber-900 shadow-xs transition-all hover:bg-amber-200 active:scale-95"
               title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
             >
               <span>⭐ กลับไปห้องที่ปรึกษา ({myAdvisoryClassroom.name})</span>
@@ -1296,10 +1299,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
           {classrooms.length > 0 ? (
             <div className="relative inline-block text-left">
               <div
-                className={`flex items-center gap-2 rounded-2xl border p-2 px-3.5 shadow-sm transition-all ${
+                className={`flex items-center gap-2 rounded-2xl border-2 p-2 px-3.5 shadow-xs transition-all ${
                   isSelectedClassroomHomeroom
-                    ? 'border-amber-400/60 bg-amber-500/10 ring-1 ring-amber-400/30'
-                    : 'border-slate-200 bg-slate-50'
+                    ? 'border-amber-300 bg-amber-50/90 text-amber-950'
+                    : 'border-[#cbd5e1] bg-white text-slate-800'
                 }`}
               >
                 {isSelectedClassroomHomeroom ? (
@@ -1331,7 +1334,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           ) : null}
 
           <Link
-            className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black transition hover:-translate-y-0.5 shadow-sm"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white px-5 text-sm font-black shadow-md shadow-emerald-700/20 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
             to="/app/dashboard?view=teacher-work"
           >
             <CalendarClock size={18} aria-hidden="true" />
@@ -1358,7 +1361,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
           const primaryEvent = todayEvents[0];
           const conf = eventTypeConfig[primaryEvent.type] || eventTypeConfig.custom;
           return (
-            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="mt-5 overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 p-4 sm:p-5 shadow-sm">
+            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="relative mt-5 overflow-hidden rounded-[26px] border-2 border-amber-300 bg-gradient-to-r from-amber-100/90 via-amber-50 to-orange-100/80 p-4 sm:p-5 shadow-sm">
+              {/* Cute Tape */}
+              <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-12 h-3.5 bg-white/90 border border-amber-300 rounded-xs shadow-2xs rotate-[1deg] pointer-events-none" />
+
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-3 min-w-0">
                   <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 text-xl animate-pulse">
@@ -1366,8 +1372,8 @@ export function DashboardPage({ session }: DashboardPageProps) {
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-amber-500 text-white px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider shadow-2xs">
-                        แจ้งเตือนวันนี้
+                      <span className="rounded-full bg-amber-600 text-white px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider shadow-2xs">
+                        แจ้งเตือนวันนี้ 📌
                       </span>
                       <span className={`rounded-full border px-2.5 py-0.5 text-[10.5px] font-black ${conf.badge}`}>
                         {conf.icon} {conf.label}
@@ -1463,21 +1469,21 @@ export function DashboardPage({ session }: DashboardPageProps) {
       })()}
 
       {/* 🚀 MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
-      <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-3xl border border-slate-200/90 bg-white p-2 sm:p-2.5 shadow-xs">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl w-full sm:w-auto">
+      <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-2 sm:p-2.5 shadow-2xs">
+        <div className="flex items-center gap-1.5 p-1 bg-[#ede4d5] rounded-xl w-full sm:w-auto">
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('shortcuts')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-3.5 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
               dashboardViewMode === 'shortcuts'
-                ? 'bg-white text-teal-900 shadow-sm ring-1 ring-slate-200/80 scale-[1.01]'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                ? 'bg-white text-emerald-950 shadow-sm ring-1 ring-stone-300 scale-[1.01]'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
             }`}
           >
-            <Sparkles size={15} className={dashboardViewMode === 'shortcuts' ? 'text-teal-600' : 'text-slate-400'} />
+            <Sparkles size={15} className={dashboardViewMode === 'shortcuts' ? 'text-emerald-600' : 'text-stone-400'} />
             <span className="sm:hidden">ทางลัดทุกเมนู</span>
             <span className="hidden sm:inline">ศูนย์รวมทางลัดทุกเมนู (โหมดง่าย)</span>
-            <span className="hidden md:inline-block rounded-full bg-teal-100 text-teal-800 px-2 py-0.5 text-[10px] font-black">
+            <span className="hidden md:inline-block rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
               เริ่มต้น
             </span>
           </button>
@@ -1485,19 +1491,19 @@ export function DashboardPage({ session }: DashboardPageProps) {
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('analytics')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-3.5 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
               dashboardViewMode === 'analytics'
-                ? 'bg-white text-sky-900 shadow-sm ring-1 ring-slate-200/80 scale-[1.01]'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                ? 'bg-white text-sky-950 shadow-sm ring-1 ring-stone-300 scale-[1.01]'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
             }`}
           >
-            <FileSpreadsheet size={15} className={dashboardViewMode === 'analytics' ? 'text-sky-600' : 'text-slate-400'} />
+            <FileSpreadsheet size={15} className={dashboardViewMode === 'analytics' ? 'text-sky-600' : 'text-stone-400'} />
             <span className="sm:hidden">สถิติภาพรวม</span>
             <span className="hidden sm:inline">สถิติ & กราฟวิเคราะห์ห้องเรียน</span>
           </button>
         </div>
 
-        <div className="px-3 text-[11px] font-bold text-slate-500 hidden md:block">
+        <div className="px-3 text-[11px] font-bold text-stone-500 hidden md:block">
           {dashboardViewMode === 'shortcuts' ? (
             <span>💡 เข้าถึง 20+ เมนูในคลิกเดียว จัดหมวดตามสิ่งที่ครูทำจริง</span>
           ) : (

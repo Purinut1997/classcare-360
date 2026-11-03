@@ -652,13 +652,16 @@ export function DailyStatsSummary({
   }).format(new Date(`${selectedDate}T12:00:00+07:00`));
 
   return (
-    <section className="daily-stats-panel" aria-label="สรุปสถิติประจำวัน">
+    <section className="daily-stats-panel relative overflow-hidden rounded-[28px] border-2 border-[#e6dcce] bg-[#fcfaf4] shadow-sm" aria-label="สรุปสถิติประจำวัน">
+      {/* Cute Tape Sticker */}
+      <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-14 h-3.5 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[1deg] pointer-events-none" />
+
       {/* ── Top Header & Tab Controls ── */}
       <div className="daily-stats-header">
         <div>
           <div className="daily-stats-eyebrow">
-            <span className="daily-stats-badge">
-              <Zap size={11} className="text-amber-400 animate-pulse" /> DAILY INTELLIGENCE
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+              📌 DAILY INTELLIGENCE
             </span>
             <span className="daily-stats-date">{displayDate}</span>
           </div>
