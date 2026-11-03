@@ -395,11 +395,13 @@ export function SupportChat({
   }, [loadTickets]);
 
   useEffect(() => {
+    if (!open) return;
+    void loadTickets();
     const interval = window.setInterval(() => {
       if (!document.hidden) void loadTickets();
     }, 45_000);
     return () => window.clearInterval(interval);
-  }, [loadTickets]);
+  }, [loadTickets, open]);
 
   async function openThread(ticket: Ticket) {
     setSelected(ticket);
@@ -1754,8 +1756,8 @@ export function SupportChat({
         className="group relative ml-auto hidden lg:grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer pointer-events-auto"
         onClick={() => setOpen((value) => !value)}
       >
-        {/* Breathing animated aura ring */}
-        <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-pink-400 via-sky-400 to-amber-300 opacity-60 blur-xs animate-pulse group-hover:opacity-100 transition-opacity" />
+        {/* Subtle hover aura ring (static at rest to save GPU/battery) */}
+        <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-pink-400 via-sky-400 to-amber-300 opacity-50 blur-xs group-hover:opacity-100 transition-opacity" />
 
         <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-600 shadow-inner overflow-hidden">
           {open ? (
@@ -1765,7 +1767,7 @@ export function SupportChat({
               <CuteCareyAvatar type={mascotType} size={38} className="drop-shadow-sm" />
               <Sparkles
                 size={13}
-                className="absolute -top-1 -right-1 text-amber-300 animate-bounce drop-shadow"
+                className="absolute -top-1 -right-1 text-amber-300 drop-shadow transition-transform group-hover:scale-125"
               />
             </div>
           )}

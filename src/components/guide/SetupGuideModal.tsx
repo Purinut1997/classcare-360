@@ -327,17 +327,14 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
   // 1. MINIMIZED FLOATING BADGE (TINY PILL IN CORNER)
   if (displayMode === 'minimized') {
     return (
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 sm:bottom-5 sm:right-5 z-[100] animate-bounce">
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 sm:bottom-5 sm:right-5 z-[100]">
         <button
           type="button"
           onClick={() => setDisplayMode('floating')}
           className="group flex items-center gap-2.5 rounded-full border border-cyan-500/50 bg-slate-900/95 px-4 py-2.5 text-xs font-bold text-slate-100 shadow-2xl shadow-cyan-500/30 backdrop-blur-xl ring-2 ring-cyan-500/20 transition-all hover:scale-105 hover:border-cyan-400"
         >
-          <span className="relative flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-500" />
-          </span>
-          <Compass size={16} className="text-cyan-400 animate-spin duration-3000" />
+          <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-500" />
+          <Compass size={16} className="text-cyan-400 transition-transform duration-300 group-hover:rotate-45" />
           <span>ตัวนำทาง: ขั้นที่ {currentStep.stepNumber}/{totalSteps} ({progressPercent}%)</span>
           <ChevronUp size={15} className="text-cyan-400 transition-transform group-hover:-translate-y-0.5" />
         </button>
@@ -359,7 +356,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/60 px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-              <Compass size={15} className="animate-spin duration-3000" />
+              <Compass size={15} />
             </span>
             <div>
               <div className="flex items-center gap-1.5">

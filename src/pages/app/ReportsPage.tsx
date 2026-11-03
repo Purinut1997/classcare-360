@@ -80,6 +80,16 @@ type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
 type RegisterOptionalField = 'address' | 'citizenId' | 'family' | 'health';
 type RegisterFieldSelection = Record<RegisterOptionalField, boolean>;
+type IndividualReportSectionKey =
+  | 'guardian'
+  | 'attendance'
+  | 'scores'
+  | 'savings'
+  | 'health'
+  | 'behavior'
+  | 'homeVisit'
+  | 'teacherComment';
+type IndividualReportSectionSelection = Record<IndividualReportSectionKey, boolean>;
 type DisplayMode = 'a4' | 'mobile';
 type ExecutiveScope = 'classroom' | 'school';
 
@@ -516,6 +526,158 @@ const registerFieldLabels: Record<RegisterOptionalField, string> = {
   family: 'บิดา มารดา / ผู้ปกครอง (เบอร์โทร)',
   health: 'น้ำหนัก / ส่วนสูง',
 };
+
+const defaultIndividualReportSections: IndividualReportSectionSelection = {
+  attendance: true,
+  behavior: true,
+  guardian: true,
+  health: true,
+  homeVisit: true,
+  savings: true,
+  scores: true,
+  teacherComment: true,
+};
+
+const defaultIndividualTeacherComment =
+  'นักเรียนมีความตั้งใจในการเรียนและร่วมกิจกรรมของชั้นเรียนด้วยดี ผู้ปกครองสามารถตรวจสอบและลงนามรับทราบผลการพัฒนาได้ด้านล่าง';
+
+const individualSectionOptions: Array<{
+  description: string;
+  label: string;
+  value: IndividualReportSectionKey;
+}> = [
+  {
+    description: 'ชื่อผู้ปกครอง ความสัมพันธ์ และเบอร์โทรศัพท์ติดต่อ',
+    label: '1. ข้อมูลผู้ปกครอง',
+    value: 'guardian',
+  },
+  {
+    description: 'ร้อยละเวลาเรียน วันมาเรียน สาย ลา และขาดเรียน',
+    label: '2. สรุปเวลาเรียน',
+    value: 'attendance',
+  },
+  {
+    description: 'เกรดเฉลี่ย (GPA) และตารางคะแนน/เกรด/งานค้างรายวิชา',
+    label: '3. ผลการเรียนรายวิชา',
+    value: 'scores',
+  },
+  {
+    description: 'ยอดเงินออมสะสมคงเหลือ และยอดฝาก-ถอนในช่วงเวลา',
+    label: '4. เงินออมนักเรียน',
+    value: 'savings',
+  },
+  {
+    description: 'น้ำหนัก ส่วนสูง BMI แปรงฟัน ดื่มนม อาหารกลางวัน และสุขอนามัย',
+    label: '5. สุขภาพและกิจวัตร',
+    value: 'health',
+  },
+  {
+    description: 'บันทึกความดี พฤติกรรม และเคสติดตามดูแล',
+    label: '6. พฤติกรรมและการดูแล',
+    value: 'behavior',
+  },
+  {
+    description: 'สถานะการเยี่ยมบ้านและวันที่ดำเนินการ',
+    label: '7. การเยี่ยมบ้าน / กสศ.',
+    value: 'homeVisit',
+  },
+  {
+    description: 'ข้อความความเห็นครูประจำชั้น และช่องลงนามรับทราบ',
+    label: '8. ความเห็นครู & ลายเซ็น',
+    value: 'teacherComment',
+  },
+];
+
+const individualSectionPresets: Array<{
+  id: string;
+  label: string;
+  sections: IndividualReportSectionSelection;
+}> = [
+  {
+    id: 'all',
+    label: 'ครบทุกด้าน (ค่าเริ่มต้น)',
+    sections: { ...defaultIndividualReportSections },
+  },
+  {
+    id: 'academic',
+    label: 'เฉพาะผลการเรียน + เวลาเรียน',
+    sections: {
+      attendance: true,
+      behavior: false,
+      guardian: true,
+      health: false,
+      homeVisit: false,
+      savings: false,
+      scores: true,
+      teacherComment: true,
+    },
+  },
+  {
+    id: 'care',
+    label: 'เฉพาะสุขภาพ + พฤติกรรม + เยี่ยมบ้าน',
+    sections: {
+      attendance: true,
+      behavior: true,
+      guardian: true,
+      health: true,
+      homeVisit: true,
+      savings: false,
+      scores: false,
+      teacherComment: true,
+    },
+  },
+  {
+    id: 'monthly_saving',
+    label: 'เฉพาะเวลาเรียน + เงินออม',
+    sections: {
+      attendance: true,
+      behavior: false,
+      guardian: true,
+      health: false,
+      homeVisit: false,
+      savings: true,
+      scores: false,
+      teacherComment: true,
+    },
+  },
+];
+
+function loadIndividualReportSections(workspaceId?: string | null): IndividualReportSectionSelection {
+  if (typeof window === 'undefined') return { ...defaultIndividualReportSections };
+  try {
+    const raw = window.localStorage.getItem(`classcare:individual-report-sections:${workspaceId || 'default'}`);
+    if (!raw) return { ...defaultIndividualReportSections };
+    const parsed = JSON.parse(raw) as Partial<IndividualReportSectionSelection>;
+    const merged: IndividualReportSectionSelection = {
+      attendance: parsed.attendance ?? true,
+      behavior: parsed.behavior ?? true,
+      guardian: parsed.guardian ?? true,
+      health: parsed.health ?? true,
+      homeVisit: parsed.homeVisit ?? true,
+      savings: parsed.savings ?? true,
+      scores: parsed.scores ?? true,
+      teacherComment: parsed.teacherComment ?? true,
+    };
+    if (!Object.values(merged).some(Boolean)) {
+      return { ...defaultIndividualReportSections };
+    }
+    return merged;
+  } catch {
+    return { ...defaultIndividualReportSections };
+  }
+}
+
+function saveIndividualReportSections(sections: IndividualReportSectionSelection, workspaceId?: string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      `classcare:individual-report-sections:${workspaceId || 'default'}`,
+      JSON.stringify(sections),
+    );
+  } catch {
+    // ignore storage errors
+  }
+}
 
 const reportPeriods: Array<{ label: string; sub: string; value: ReportPeriod }> = [
   { label: 'รายเดือน', sub: 'ตารางรายวัน 1-31', value: 'month' },
@@ -1825,6 +1987,8 @@ function buildPrintableIndividualStudentHtml({
   orientation,
   reportIdentity,
   schoolName,
+  sections = defaultIndividualReportSections,
+  teacherCommentText = defaultIndividualTeacherComment,
   teacherName,
 }: {
   bundles: IndividualStudentReportBundle[];
@@ -1834,8 +1998,12 @@ function buildPrintableIndividualStudentHtml({
   orientation: OfficialReportOrientation;
   reportIdentity: SchoolReportIdentity;
   schoolName: string;
+  sections?: IndividualReportSectionSelection;
+  teacherCommentText?: string;
   teacherName: string;
 }) {
+  const commentText = teacherCommentText.trim() || defaultIndividualTeacherComment;
+
   const pagesHtml = bundles
     .map((b, pageIdx) => {
       const studentName = getStudentFullName(b.student);
@@ -1864,6 +2032,79 @@ function buildPrintableIndividualStudentHtml({
               .join(' · ')
           : 'ประพฤติตนเรียบร้อยตามระเบียบของโรงเรียน ไม่พบเคสต้องติดตามพิเศษ';
 
+      const kpiItemsHtml: string[] = [];
+      if (sections.attendance) {
+        kpiItemsHtml.push(
+          `<div class="official-kpi"><span>อัตราเวลาเรียน</span><strong>${b.attendance.percent}%</strong><span style="font-size:8pt;color:#475569;">มา ${b.attendance.present} · สาย ${b.attendance.late} · ลา ${b.attendance.leave} · ขาด ${b.attendance.absent}</span></div>`,
+        );
+      }
+      if (sections.scores) {
+        kpiItemsHtml.push(
+          `<div class="official-kpi"><span>เกรดเฉลี่ยสะสม</span><strong>${escapeHtml(b.totalGpa)}</strong><span style="font-size:8pt;color:#475569;">${b.subjectRows.length} รายวิชาที่ประเมิน</span></div>`,
+        );
+      }
+      if (sections.savings) {
+        kpiItemsHtml.push(
+          `<div class="official-kpi"><span>เงินออมสะสมคงเหลือ</span><strong>${b.savings.balance.toLocaleString('th-TH')} ฿</strong><span style="font-size:8pt;color:#475569;">ฝาก ${b.savings.deposits.toLocaleString('th-TH')} · ถอน ${b.savings.withdrawals.toLocaleString('th-TH')}</span></div>`,
+        );
+      }
+      if (sections.health) {
+        kpiItemsHtml.push(
+          `<div class="official-kpi"><span>สุขภาพและกิจวัตร</span><strong>${escapeHtml(b.health.attentionText === 'ปกติ' ? 'ปกติครบถ้วน' : 'มีจุดติดตาม')}</strong><span style="font-size:8pt;color:#475569;">แปรงฟัน ${b.health.brushingText} · ดื่มนม ${b.health.milkText}</span></div>`,
+        );
+      }
+
+      let secNo = 1;
+      const scoresSectionHtml = sections.scores
+        ? `<h2 class="official-section-title" style="font-size:11.5pt;margin:1.5mm 0 1mm;">${secNo++}. สรุปผลสัมฤทธิ์ทางการเรียนรายวิชา</h2>
+        <table class="official-table">
+          <colgroup><col style="width:10mm"><col><col style="width:28mm"><col style="width:22mm"><col style="width:22mm"><col style="width:26mm"></colgroup>
+          <thead>
+            <tr><th>ที่</th><th>รายวิชา</th><th>คะแนนที่ได้/เต็ม</th><th>ร้อยละ</th><th>ระดับผลการเรียน</th><th>การส่งงาน</th></tr>
+          </thead>
+          <tbody>${subjectRowsHtml}</tbody>
+        </table>`
+        : '';
+
+      const detailRowsHtml: string[] = [];
+      if (sections.attendance) {
+        detailRowsHtml.push(
+          `<tr><td><strong>สรุปเวลาเรียน</strong></td><td>มาเรียน <strong>${b.attendance.present}</strong> วัน · มาสาย <strong>${b.attendance.late}</strong> วัน · ลา/ป่วย <strong>${b.attendance.leave}</strong> วัน · ขาดเรียน <strong>${b.attendance.absent}</strong> วัน (คิดเป็นร้อยละ <strong>${b.attendance.percent}%</strong>)</td></tr>`,
+        );
+      }
+      if (sections.savings) {
+        detailRowsHtml.push(
+          `<tr><td><strong>เงินออมนักเรียน</strong></td><td>ยอดเงินออมสะสมคงเหลือ <strong>${b.savings.balance.toLocaleString('th-TH')} บาท</strong> · ฝากในช่วงนี้ ${b.savings.deposits.toLocaleString('th-TH')} บาท · ถอน ${b.savings.withdrawals.toLocaleString('th-TH')} บาท (${b.savings.txCount} รายการ)</td></tr>`,
+        );
+      }
+      if (sections.health) {
+        detailRowsHtml.push(
+          `<tr><td><strong>สุขภาพและกิจวัตร</strong></td><td>น้ำหนัก ${b.health.weight ?? '-'} กก. · ส่วนสูง ${b.health.height ?? '-'} ซม. · BMI ${b.health.bmi ?? '-'} · แปรงฟัน ${escapeHtml(b.health.brushingText)} ครั้ง · ดื่มนม ${escapeHtml(b.health.milkText)} ครั้ง · อาหารกลางวัน ${escapeHtml(b.health.lunchText)} ครั้ง · ผลตรวจสุขอนามัย: ${escapeHtml(b.health.attentionText)}</td></tr>`,
+        );
+      }
+      if (sections.behavior) {
+        detailRowsHtml.push(`<tr><td><strong>พฤติกรรมและการดูแล</strong></td><td>${escapeHtml(behaviorSummary)}</td></tr>`);
+      }
+      if (sections.homeVisit) {
+        detailRowsHtml.push(
+          `<tr><td><strong>การเยี่ยมบ้าน / กสศ.</strong></td><td>${b.homeVisit ? `ดำเนินการแล้ว (${b.homeVisit.completion_percent || 100}%) เมื่อ ${formatThaiOfficialShortDate(b.homeVisit.visited_at)}` : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้านประจำภาคเรียน'}</td></tr>`,
+        );
+      }
+      if (sections.teacherComment) {
+        detailRowsHtml.push(`<tr><td><strong>ความเห็นครูประจำชั้น</strong></td><td>${escapeHtml(commentText)}</td></tr>`);
+      }
+
+      const detailsSectionHtml =
+        detailRowsHtml.length > 0
+          ? `<h2 class="official-section-title" style="font-size:11.5pt;margin:2mm 0 1mm;">${secNo++}. สรุปข้อมูลพัฒนาการและการดูแลช่วยเหลือนักเรียน</h2>
+        <table class="official-table">
+          <colgroup><col style="width:42mm"><col></colgroup>
+          <tbody>
+            ${detailRowsHtml.join('')}
+          </tbody>
+        </table>`
+          : '';
+
       return `<main class="official-sheet" style="${pageIdx > 0 ? 'page-break-before: always;' : ''}">
         ${buildOfficialHeaderHtml({
           classroomName,
@@ -1878,44 +2119,32 @@ function buildPrintableIndividualStudentHtml({
         <section style="border:1px solid #cbd5e1;border-radius:2mm;background:#f8fafc;padding:2mm 3mm;margin-bottom:2mm;font-size:10pt;display:grid;grid-template-columns:1fr 1fr;gap:1mm 6mm;">
           <div><strong>ชื่อ - นามสกุล:</strong> ${escapeHtml(studentName)} (${escapeHtml(b.student.nickname || '-')})</div>
           <div><strong>เลขประจำตัวนักเรียน:</strong> ${escapeHtml(b.student.student_code || '-')} · <strong>ชั้น:</strong> ${escapeHtml(classroomName)}</div>
-          <div><strong>ข้อมูลสุขภาพล่าสุด:</strong> น้ำหนัก ${b.health.weight ?? '-'} กก. · ส่วนสูง ${b.health.height ?? '-'} ซม. · BMI ${b.health.bmi ?? '-'}</div>
-          <div><strong>ผู้ปกครอง:</strong> ${escapeHtml(b.guardianText)}</div>
+          ${sections.health ? `<div><strong>ข้อมูลสุขภาพล่าสุด:</strong> น้ำหนัก ${b.health.weight ?? '-'} กก. · ส่วนสูง ${b.health.height ?? '-'} ซม. · BMI ${b.health.bmi ?? '-'}</div>` : ''}
+          ${sections.guardian ? `<div><strong>ผู้ปกครอง:</strong> ${escapeHtml(b.guardianText)}</div>` : ''}
         </section>
 
-        <section class="official-kpi-grid">
-          <div class="official-kpi"><span>อัตราเวลาเรียน</span><strong>${b.attendance.percent}%</strong><span style="font-size:8pt;color:#475569;">มา ${b.attendance.present} · สาย ${b.attendance.late} · ลา ${b.attendance.leave} · ขาด ${b.attendance.absent}</span></div>
-          <div class="official-kpi"><span>เกรดเฉลี่ยสะสม</span><strong>${escapeHtml(b.totalGpa)}</strong><span style="font-size:8pt;color:#475569;">${b.subjectRows.length} รายวิชาที่ประเมิน</span></div>
-          <div class="official-kpi"><span>เงินออมสะสมคงเหลือ</span><strong>${b.savings.balance.toLocaleString('th-TH')} ฿</strong><span style="font-size:8pt;color:#475569;">ฝาก ${b.savings.deposits.toLocaleString('th-TH')} · ถอน ${b.savings.withdrawals.toLocaleString('th-TH')}</span></div>
-          <div class="official-kpi"><span>สุขภาพและกิจวัตร</span><strong>${escapeHtml(b.health.attentionText === 'ปกติ' ? 'ปกติครบถ้วน' : 'มีจุดติดตาม')}</strong><span style="font-size:8pt;color:#475569;">แปรงฟัน ${b.health.brushingText} · ดื่มนม ${b.health.milkText}</span></div>
-        </section>
+        ${
+          kpiItemsHtml.length > 0
+            ? `<section class="official-kpi-grid" style="grid-template-columns: repeat(${kpiItemsHtml.length}, minmax(0, 1fr));">
+          ${kpiItemsHtml.join('')}
+        </section>`
+            : ''
+        }
 
-        <h2 class="official-section-title" style="font-size:11.5pt;margin:1.5mm 0 1mm;">1. สรุปผลสัมฤทธิ์ทางการเรียนรายวิชา</h2>
-        <table class="official-table">
-          <colgroup><col style="width:10mm"><col><col style="width:28mm"><col style="width:22mm"><col style="width:22mm"><col style="width:26mm"></colgroup>
-          <thead>
-            <tr><th>ที่</th><th>รายวิชา</th><th>คะแนนที่ได้/เต็ม</th><th>ร้อยละ</th><th>ระดับผลการเรียน</th><th>การส่งงาน</th></tr>
-          </thead>
-          <tbody>${subjectRowsHtml}</tbody>
-        </table>
-
-        <h2 class="official-section-title" style="font-size:11.5pt;margin:2mm 0 1mm;">2. สรุปพฤติกรรม สุขอนามัย และการดูแลช่วยเหลือนักเรียน</h2>
-        <table class="official-table">
-          <colgroup><col style="width:42mm"><col></colgroup>
-          <tbody>
-            <tr><td><strong>สุขอนามัยและกิจวัตร</strong></td><td>แปรงฟัน ${escapeHtml(b.health.brushingText)} ครั้ง · ดื่มนม ${escapeHtml(b.health.milkText)} ครั้ง · อาหารกลางวัน ${escapeHtml(b.health.lunchText)} ครั้ง · ผลตรวจสุขอนามัย: ${escapeHtml(b.health.attentionText)}</td></tr>
-            <tr><td><strong>พฤติกรรมและการดูแล</strong></td><td>${escapeHtml(behaviorSummary)}</td></tr>
-            <tr><td><strong>การเยี่ยมบ้าน / กสศ.</strong></td><td>${b.homeVisit ? `ดำเนินการแล้ว (${b.homeVisit.completion_percent || 100}%) เมื่อ ${formatThaiOfficialShortDate(b.homeVisit.visited_at)}` : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้านประจำภาคเรียน'}</td></tr>
-            <tr><td><strong>ความเห็นครูประจำชั้น</strong></td><td>นักเรียนมีความตั้งใจในการเรียนและร่วมกิจกรรมของชั้นเรียนด้วยดี ผู้ปกครองสามารถตรวจสอบและลงนามรับทราบผลการพัฒนาได้ด้านล่าง</td></tr>
-          </tbody>
-        </table>
+        ${scoresSectionHtml}
+        ${detailsSectionHtml}
 
         <div class="official-closing-block">
           <div class="official-certification">เอกสารฉบับนี้ออกโดยระบบสารสนเทศ ClassCare 360 เพื่อแจ้งผลการพัฒนาคุณภาพผู้เรียนรายบุคคลให้ผู้ปกครองรับทราบ</div>
-          ${buildOfficialSignaturesHtml([
-            { name: reportIdentity.teacherName || teacherName, role: 'ครูประจำชั้น / ผู้รายงาน' },
-            { name: reportIdentity.directorName, role: 'ผู้อำนวยการโรงเรียน' },
-            { name: '', role: 'ผู้ปกครองนักเรียน (ผู้รับทราบ)' },
-          ])}
+          ${
+            sections.teacherComment
+              ? buildOfficialSignaturesHtml([
+                  { name: reportIdentity.teacherName || teacherName, role: 'ครูประจำชั้น / ผู้รายงาน' },
+                  { name: reportIdentity.directorName, role: 'ผู้อำนวยการโรงเรียน' },
+                  { name: '', role: 'ผู้ปกครองนักเรียน (ผู้รับทราบ)' },
+                ])
+              : ''
+          }
           ${buildOfficialFooterHtml({ confidential: true, documentCode })}
         </div>
       </main>`;
@@ -2178,6 +2407,29 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     health: true,
   });
   const [revealCitizenIds, setRevealCitizenIds] = useState(false);
+  const [individualSections, setIndividualSections] = useState<IndividualReportSectionSelection>(() =>
+    loadIndividualReportSections(session.workspace?.id),
+  );
+  const [individualTeacherComment, setIndividualTeacherComment] = useState<string>(defaultIndividualTeacherComment);
+
+  const updateIndividualSections = (next: IndividualReportSectionSelection) => {
+    setIndividualSections(next);
+    saveIndividualReportSections(next, session.workspace?.id);
+  };
+
+  const toggleIndividualSection = (key: IndividualReportSectionKey) => {
+    const next = { ...individualSections, [key]: !individualSections[key] };
+    if (!Object.values(next).some(Boolean)) {
+      setNotice('กรุณาเลือกข้อมูลอย่างน้อย 1 หัวข้อเพื่อแสดงในใบรายงานรายบุคคล');
+      return;
+    }
+    updateIndividualSections(next);
+  };
+
+  const activeIndividualSectionCount = useMemo(
+    () => Object.values(individualSections).filter(Boolean).length,
+    [individualSections],
+  );
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -2851,9 +3103,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     const presentRate = totalAtt > 0 ? round((attended / totalAtt) * 100) : 100;
     const riskCount = dailyAttendanceGrid.rows.filter((r) => r.attendancePercent < 80).length;
 
+    const scoredAssessmentRows = scoreAssessmentRows.filter((r) => r.enteredCount > 0);
     const avgScore =
-      scoreAssessmentRows.length > 0
-        ? round(scoreAssessmentRows.reduce((sum, r) => sum + r.averagePercent, 0) / scoreAssessmentRows.length)
+      scoredAssessmentRows.length > 0
+        ? round(scoredAssessmentRows.reduce((sum, r) => sum + r.averagePercent, 0) / scoredAssessmentRows.length)
         : 0;
 
     const routineRecords = classroomHealthRecords.filter((record) =>
@@ -3299,6 +3552,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       orientation: pageOrientation,
       reportIdentity: syncedIdentity,
       schoolName: common.schoolName,
+      sections: individualSections,
+      teacherCommentText: individualTeacherComment,
       teacherName: common.teacherName,
     });
   }
@@ -3423,15 +3678,66 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         ];
       });
     } else if (reportView === 'individual' && selectedStudentBundle) {
-      headers = ['รายวิชา', 'คะแนนที่ได้', 'คะแนนเต็ม', 'ร้อยละ', 'เกรด', 'งานค้าง'];
-      lines = selectedStudentBundle.subjectRows.map((sub) => [
-        sub.subject,
-        String(sub.earned),
-        String(sub.max),
-        `${sub.percent}%`,
-        String(sub.grade),
-        String(sub.missing),
-      ]);
+      headers = ['หมวดหมู่', 'รายการ', 'รายละเอียด / ผลการประเมิน'];
+      lines = [
+        ['ข้อมูลพื้นฐาน', 'ชื่อ - นามสกุล', getStudentFullName(selectedStudentBundle.student)],
+        ['ข้อมูลพื้นฐาน', 'เลขประจำตัวนักเรียน', selectedStudentBundle.student.student_code || '-'],
+      ];
+      if (individualSections.guardian) {
+        lines.push(['ข้อมูลผู้ปกครอง', 'ผู้ปกครอง', selectedStudentBundle.guardianText]);
+      }
+      if (individualSections.attendance) {
+        lines.push([
+          'สรุปเวลาเรียน',
+          `อัตราเวลาเรียน ${selectedStudentBundle.attendance.percent}%`,
+          `มา ${selectedStudentBundle.attendance.present} · สาย ${selectedStudentBundle.attendance.late} · ลา ${selectedStudentBundle.attendance.leave} · ขาด ${selectedStudentBundle.attendance.absent}`,
+        ]);
+      }
+      if (individualSections.scores) {
+        lines.push(['ผลการเรียน', 'เกรดเฉลี่ยสะสม (GPA)', selectedStudentBundle.totalGpa]);
+        selectedStudentBundle.subjectRows.forEach((sub) => {
+          lines.push([
+            'รายวิชา',
+            sub.subject,
+            `คะแนน ${sub.earned}/${sub.max} (${sub.percent}%) · เกรด ${sub.grade} · ${sub.missing > 0 ? `ค้าง ${sub.missing} งาน` : 'ส่งงานครบ'}`,
+          ]);
+        });
+      }
+      if (individualSections.savings) {
+        lines.push([
+          'เงินออมนักเรียน',
+          `ยอดคงเหลือ ${selectedStudentBundle.savings.balance.toLocaleString('th-TH')} บาท`,
+          `ฝาก ${selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} บาท · ถอน ${selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')} บาท`,
+        ]);
+      }
+      if (individualSections.health) {
+        lines.push([
+          'สุขภาพและกิจวัตร',
+          `น้ำหนัก ${selectedStudentBundle.health.weight ?? '-'} กก. / ส่วนสูง ${selectedStudentBundle.health.height ?? '-'} ซม. (BMI ${selectedStudentBundle.health.bmi ?? '-'})`,
+          `แปรงฟัน ${selectedStudentBundle.health.brushingText} · ดื่มนม ${selectedStudentBundle.health.milkText} · อาหารกลางวัน ${selectedStudentBundle.health.lunchText} · ${selectedStudentBundle.health.attentionText}`,
+        ]);
+      }
+      if (individualSections.behavior) {
+        lines.push([
+          'พฤติกรรมและการดูแล',
+          `${selectedStudentBundle.behaviors.length} รายการ`,
+          selectedStudentBundle.behaviors.length > 0
+            ? selectedStudentBundle.behaviors.map((b) => `${b.category} (${b.description})`).join(' · ')
+            : 'ประพฤติตนเรียบร้อยตามระเบียบของสถานศึกษา',
+        ]);
+      }
+      if (individualSections.homeVisit) {
+        lines.push([
+          'การเยี่ยมบ้าน',
+          'สถานะการเยี่ยมบ้าน',
+          selectedStudentBundle.homeVisit
+            ? `ดำเนินการแล้ว (${selectedStudentBundle.homeVisit.completion_percent || 100}%)`
+            : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้าน',
+        ]);
+      }
+      if (individualSections.teacherComment) {
+        lines.push(['ความเห็นครูประจำชั้น', 'ข้อเสนอแนะ', individualTeacherComment.trim() || defaultIndividualTeacherComment]);
+      }
     }
 
     const csvContent = [headers.map(escapeCsv).join(','), ...lines.map((row) => row.map(escapeCsv).join(','))].join('\n');
@@ -3619,24 +3925,85 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         title: `รายงานพฤติกรรมและเคสดูแล ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'individual' && selectedStudentBundle) {
-      const headers = ['ที่', 'รายวิชา', 'คะแนนที่ได้', 'คะแนนเต็ม', 'ร้อยละ', 'เกรด', 'งานค้าง'];
-      const lines = selectedStudentBundle.subjectRows.map((sub, idx) => [
-        String(idx + 1),
-        sub.subject,
-        String(sub.earned),
-        String(sub.max),
-        `${sub.percent}%`,
-        String(sub.grade),
-        String(sub.missing),
-      ]);
+      const summaryRows: string[][] = [
+        ['ข้อมูลพื้นฐาน', 'ชื่อ - นามสกุล', getStudentFullName(selectedStudentBundle.student)],
+        ['ข้อมูลพื้นฐาน', 'เลขประจำตัวนักเรียน', selectedStudentBundle.student.student_code || '-'],
+      ];
+      if (individualSections.guardian) {
+        summaryRows.push(['ผู้ปกครอง', 'ข้อมูลผู้ปกครอง', selectedStudentBundle.guardianText]);
+      }
+      if (individualSections.attendance) {
+        summaryRows.push([
+          'สรุปเวลาเรียน',
+          `อัตราเวลาเรียน ${selectedStudentBundle.attendance.percent}%`,
+          `มา ${selectedStudentBundle.attendance.present} วัน · สาย ${selectedStudentBundle.attendance.late} วัน · ลา ${selectedStudentBundle.attendance.leave} วัน · ขาด ${selectedStudentBundle.attendance.absent} วัน`,
+        ]);
+      }
+      if (individualSections.savings) {
+        summaryRows.push([
+          'เงินออมนักเรียน',
+          `ยอดคงเหลือ ${selectedStudentBundle.savings.balance.toLocaleString('th-TH')} บาท`,
+          `ฝากช่วงนี้ ${selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} บาท · ถอน ${selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')} บาท`,
+        ]);
+      }
+      if (individualSections.health) {
+        summaryRows.push([
+          'สุขภาพและกิจวัตร',
+          `น้ำหนัก ${selectedStudentBundle.health.weight ?? '-'} กก. / ส่วนสูง ${selectedStudentBundle.health.height ?? '-'} ซม. (BMI ${selectedStudentBundle.health.bmi ?? '-'})`,
+          `แปรงฟัน ${selectedStudentBundle.health.brushingText} · ดื่มนม ${selectedStudentBundle.health.milkText} · อาหารกลางวัน ${selectedStudentBundle.health.lunchText} · ${selectedStudentBundle.health.attentionText}`,
+        ]);
+      }
+      if (individualSections.behavior) {
+        summaryRows.push([
+          'พฤติกรรมและการดูแล',
+          `${selectedStudentBundle.behaviors.length} รายการ`,
+          selectedStudentBundle.behaviors.length > 0
+            ? selectedStudentBundle.behaviors.map((b) => `${b.category} (${b.description})`).join(' · ')
+            : 'ประพฤติตนเรียบร้อยตามระเบียบของสถานศึกษา',
+        ]);
+      }
+      if (individualSections.homeVisit) {
+        summaryRows.push([
+          'การเยี่ยมบ้าน',
+          'สถานะการเยี่ยมบ้าน',
+          selectedStudentBundle.homeVisit
+            ? `ดำเนินการแล้ว (${selectedStudentBundle.homeVisit.completion_percent || 100}%)`
+            : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้าน',
+        ]);
+      }
+      if (individualSections.teacherComment) {
+        summaryRows.push(['ความเห็นครูประจำชั้น', 'ข้อเสนอแนะ', individualTeacherComment.trim() || defaultIndividualTeacherComment]);
+      }
+
       sheets.push({
-        columns: headers,
+        columns: ['หมวดหมู่', 'หัวข้อ', 'รายละเอียด / ผลการประเมิน'],
         documentCode: buildOfficialDocumentCode('CC-IND', dateFrom, selectedStudentBundle.student.student_code),
-        rows: lines,
-        sheetName: 'ผลรายบุคคล',
-        subtitle: `${getStudentFullName(selectedStudentBundle.student)} · GPA ${selectedStudentBundle.totalGpa}`,
-        title: 'รายงานผลการเรียนรายบุคคล',
+        rows: summaryRows,
+        sheetName: 'สรุปรายบุคคล',
+        subtitle: `${getStudentFullName(selectedStudentBundle.student)} (${activeIndividualSectionCount} หัวข้อที่เลือก)`,
+        title: 'รายงานผลการพัฒนาคุณภาพผู้เรียนรายบุคคล',
       });
+
+      if (individualSections.scores) {
+        const headers = ['ที่', 'รายวิชา', 'คะแนนที่ได้', 'คะแนนเต็ม', 'ร้อยละ', 'เกรด', 'งานค้าง'];
+        const lines = selectedStudentBundle.subjectRows.map((sub, idx) => [
+          String(idx + 1),
+          sub.subject,
+          String(sub.earned),
+          String(sub.max),
+          `${sub.percent}%`,
+          String(sub.grade),
+          String(sub.missing),
+        ]);
+        sheets.push({
+          columns: headers,
+          documentCode: buildOfficialDocumentCode('CC-IND-SCO', dateFrom, selectedStudentBundle.student.student_code),
+          rows: lines,
+          sheetName: 'ผลการเรียนรายวิชา',
+          subtitle: `${getStudentFullName(selectedStudentBundle.student)} · GPA ${selectedStudentBundle.totalGpa}`,
+          title: 'ตารางผลการเรียนรายวิชา (รายบุคคล)',
+        });
+      }
     }
 
     if (sheets.length === 0) return;
@@ -4037,51 +4404,134 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           ) : null}
 
           {reportView === 'individual' ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-black text-indigo-950">เลือกนักเรียนรายบุคคล:</span>
+            <div className="mt-3 space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-black text-indigo-950">เลือกนักเรียนรายบุคคล:</span>
+                  <button
+                    type="button"
+                    disabled={currentStudentIdx <= 0}
+                    onClick={() => {
+                      if (currentStudentIdx > 0) setSelectedStudentId(allClassroomStudents[currentStudentIdx - 1].id);
+                    }}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <select
+                    className="nexus-field h-9 rounded-xl bg-white px-3 text-sm font-black text-slate-900"
+                    onChange={(event) => setSelectedStudentId(event.target.value)}
+                    value={selectedStudent?.id || ''}
+                  >
+                    {allClassroomStudents.map((student, idx) => (
+                      <option key={student.id} value={student.id}>
+                        เลขที่ {idx + 1} · {student.student_code || '-'} {getStudentFullName(student)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={currentStudentIdx < 0 || currentStudentIdx >= allClassroomStudents.length - 1}
+                    onClick={() => {
+                      if (currentStudentIdx >= 0 && currentStudentIdx < allClassroomStudents.length - 1) {
+                        setSelectedStudentId(allClassroomStudents[currentStudentIdx + 1].id);
+                      }
+                    }}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
                 <button
                   type="button"
-                  disabled={currentStudentIdx <= 0}
-                  onClick={() => {
-                    if (currentStudentIdx > 0) setSelectedStudentId(allClassroomStudents[currentStudentIdx - 1].id);
-                  }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
+                  onClick={() => void printReport(true)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-indigo-700"
                 >
-                  <ChevronLeft size={16} />
-                </button>
-                <select
-                  className="nexus-field h-9 rounded-xl bg-white px-3 text-sm font-black text-slate-900"
-                  onChange={(event) => setSelectedStudentId(event.target.value)}
-                  value={selectedStudent?.id || ''}
-                >
-                  {allClassroomStudents.map((student, idx) => (
-                    <option key={student.id} value={student.id}>
-                      เลขที่ {idx + 1} · {student.student_code || '-'} {getStudentFullName(student)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={currentStudentIdx < 0 || currentStudentIdx >= allClassroomStudents.length - 1}
-                  onClick={() => {
-                    if (currentStudentIdx >= 0 && currentStudentIdx < allClassroomStudents.length - 1) {
-                      setSelectedStudentId(allClassroomStudents[currentStudentIdx + 1].id);
-                    }
-                  }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
-                >
-                  <ChevronRight size={16} />
+                  <Printer size={14} />
+                  <span>พิมพ์ครบทุกคนในห้อง ({allClassroomStudents.length} แผ่น A4)</span>
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => void printReport(true)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-indigo-700"
-              >
-                <Printer size={14} />
-                <span>พิมพ์ครบทุกคนในห้อง ({allClassroomStudents.length} แผ่น A4)</span>
-              </button>
+
+              {/* Section Selector for Individual Student Report */}
+              <div className="rounded-2xl border border-indigo-200/80 bg-white p-3.5 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-black text-slate-900">
+                      เลือกข้อมูลที่ต้องการแสดงในใบรายงานรายบุคคล ({activeIndividualSectionCount}/{individualSectionOptions.length} หัวข้อ)
+                    </p>
+                    <p className="text-[11px] font-bold text-slate-500">
+                      ติ๊กเลือกเฉพาะหัวข้อที่ต้องการพิมพ์แจกผู้ปกครองได้อิสระ (ทั้งการพิมพ์รายคนและพิมพ์ทั้งห้องจะแสดงตามที่เลือก)
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {individualSectionPresets.map((preset) => {
+                      const isPresetActive = individualSectionOptions.every(
+                        (opt) => individualSections[opt.value] === preset.sections[opt.value],
+                      );
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => updateIndividualSections({ ...preset.sections })}
+                          className={`rounded-xl px-2.5 py-1.5 text-[11px] font-black transition ${
+                            isPresetActive
+                              ? 'bg-indigo-600 text-white shadow-2xs'
+                              : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-indigo-50 hover:text-indigo-800'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {individualSectionOptions.map((option) => {
+                    const checked = individualSections[option.value];
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-2.5 transition ${
+                          checked
+                            ? 'border-indigo-500 bg-indigo-50/60 text-slate-950 shadow-2xs'
+                            : 'border-slate-200 bg-slate-50/40 text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          checked={checked}
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600"
+                          onChange={() => toggleIndividualSection(option.value)}
+                          type="checkbox"
+                        />
+                        <div className="min-w-0">
+                          <span className="block text-xs font-black leading-tight">{option.label}</span>
+                          <span className="mt-0.5 block text-[10px] font-bold leading-snug text-slate-500">
+                            {option.description}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {individualSections.teacherComment ? (
+                  <div className="mt-3 border-t border-slate-100 pt-2.5">
+                    <label className="block">
+                      <span className="text-[11px] font-black text-slate-700">
+                        ข้อความความเห็นครูประจำชั้น (แก้ไขข้อความก่อนพิมพ์ได้):
+                      </span>
+                      <input
+                        className="nexus-field mt-1 h-9 w-full rounded-xl bg-slate-50 px-3 text-xs font-bold text-slate-800"
+                        onChange={(event) => setIndividualTeacherComment(event.target.value)}
+                        placeholder={defaultIndividualTeacherComment}
+                        type="text"
+                        value={individualTeacherComment}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -4171,7 +4621,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               value: `${classroomKpiMetrics.attendance.presentRate}%`,
             },
             {
-              detail: `${classroomKpiMetrics.scores.assessmentCount} ชุดคะแนน · ${scoreSubjectOptions.length} รายวิชา`,
+              detail:
+                classroomKpiMetrics.scores.assessmentCount > 0 && scoreAssessmentRows.every((r) => r.enteredCount === 0)
+                  ? `${classroomKpiMetrics.scores.assessmentCount} ชุดคะแนน (รอกรอกคะแนน) · ${scoreSubjectOptions.length} วิชา`
+                  : `${classroomKpiMetrics.scores.assessmentCount} ชุดคะแนน · ${scoreSubjectOptions.length} รายวิชา`,
               label: 'คะแนนเฉลี่ยห้อง',
               value: `${classroomKpiMetrics.scores.averagePercent}%`,
             },
@@ -4601,6 +5054,74 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                     ไม่พบบันทึกพฤติกรรมที่ต้องติดตามในช่วงเวลานี้
                   </div>
                 ))}
+
+              {reportView === 'individual' && selectedStudentBundle && (
+                <article className="space-y-3 rounded-2xl border border-indigo-200 bg-white p-4 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">
+                        {getStudentFullName(selectedStudentBundle.student)} ({selectedStudentBundle.student.nickname || '-'})
+                      </p>
+                      <p className="text-xs font-bold text-slate-500">
+                        รหัสประจำตัว: {selectedStudentBundle.student.student_code || '-'} · ชั้น {selectedClassroom?.name || '-'}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-black text-indigo-800">
+                      เลือกแสดง {activeIndividualSectionCount} หัวข้อ
+                    </span>
+                  </div>
+
+                  {individualSections.guardian && (
+                    <div className="rounded-xl bg-slate-50 p-2.5 text-xs font-bold text-slate-700">
+                      <span className="text-slate-500">ผู้ปกครอง: </span>
+                      {selectedStudentBundle.guardianText}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                    {individualSections.attendance && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5">
+                        <span className="block text-[10px] font-bold text-emerald-700">อัตราเวลาเรียน</span>
+                        <strong className="text-lg font-black text-emerald-900">{selectedStudentBundle.attendance.percent}%</strong>
+                        <span className="block text-[10px] font-bold text-emerald-700">
+                          มา {selectedStudentBundle.attendance.present} · สาย {selectedStudentBundle.attendance.late} · ลา{' '}
+                          {selectedStudentBundle.attendance.leave} · ขาด {selectedStudentBundle.attendance.absent}
+                        </span>
+                      </div>
+                    )}
+                    {individualSections.scores && (
+                      <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-2.5">
+                        <span className="block text-[10px] font-bold text-indigo-700">เกรดเฉลี่ย (GPA)</span>
+                        <strong className="text-lg font-black text-indigo-900">{selectedStudentBundle.totalGpa}</strong>
+                        <span className="block text-[10px] font-bold text-indigo-700">
+                          {selectedStudentBundle.subjectRows.length} รายวิชา
+                        </span>
+                      </div>
+                    )}
+                    {individualSections.savings && (
+                      <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-2.5">
+                        <span className="block text-[10px] font-bold text-teal-700">เงินออมสะสม</span>
+                        <strong className="text-lg font-black text-teal-900">
+                          {selectedStudentBundle.savings.balance.toLocaleString('th-TH')} ฿
+                        </strong>
+                        <span className="block text-[10px] font-bold text-teal-700">
+                          ฝาก {selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} · ถอน{' '}
+                          {selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')}
+                        </span>
+                      </div>
+                    )}
+                    {individualSections.health && (
+                      <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-2.5">
+                        <span className="block text-[10px] font-bold text-cyan-700">สุขภาพและกิจวัตร</span>
+                        <strong className="text-sm font-black text-cyan-950">{selectedStudentBundle.health.attentionText}</strong>
+                        <span className="block text-[10px] font-bold text-cyan-700">
+                          นน. {selectedStudentBundle.health.weight ?? '-'} กก. · สส. {selectedStudentBundle.health.height ?? '-'} ซม.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              )}
 
               {(reportView === 'individual' || reportView === 'executive') && (
                 <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-center text-xs font-black text-teal-900">
@@ -5080,101 +5601,233 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                           <strong>เลขประจำตัว:</strong> {selectedStudentBundle.student.student_code || '-'} · <strong>ชั้น:</strong>{' '}
                           {selectedClassroom?.name || '-'}
                         </div>
-                        <div>
-                          <strong>สุขภาพ:</strong> น้ำหนัก {selectedStudentBundle.health.weight ?? '-'} กก. · ส่วนสูง{' '}
-                          {selectedStudentBundle.health.height ?? '-'} ซม. · BMI {selectedStudentBundle.health.bmi ?? '-'}
-                        </div>
-                        <div>
-                          <strong>ผู้ปกครอง:</strong> {selectedStudentBundle.guardianText}
-                        </div>
+                        {individualSections.health ? (
+                          <div>
+                            <strong>สุขภาพล่าสุด:</strong> น้ำหนัก {selectedStudentBundle.health.weight ?? '-'} กก. · ส่วนสูง{' '}
+                            {selectedStudentBundle.health.height ?? '-'} ซม. · BMI {selectedStudentBundle.health.bmi ?? '-'}
+                          </div>
+                        ) : null}
+                        {individualSections.guardian ? (
+                          <div>
+                            <strong>ผู้ปกครอง:</strong> {selectedStudentBundle.guardianText}
+                          </div>
+                        ) : null}
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2 text-center">
-                        <div className="rounded-xl border border-slate-300 bg-white p-2">
-                          <span className="block text-[11px] font-bold text-slate-500">เวลาเรียน</span>
-                          <strong className="text-lg font-black text-emerald-700">{selectedStudentBundle.attendance.percent}%</strong>
-                          <span className="block text-[10px] text-slate-500">
-                            มา {selectedStudentBundle.attendance.present} · สาย {selectedStudentBundle.attendance.late} · ลา{' '}
-                            {selectedStudentBundle.attendance.leave} · ขาด {selectedStudentBundle.attendance.absent}
-                          </span>
-                        </div>
-                        <div className="rounded-xl border border-slate-300 bg-white p-2">
-                          <span className="block text-[11px] font-bold text-slate-500">เกรดเฉลี่ย (GPA)</span>
-                          <strong className="text-lg font-black text-indigo-700">{selectedStudentBundle.totalGpa}</strong>
-                          <span className="block text-[10px] text-slate-500">{selectedStudentBundle.subjectRows.length} รายวิชา</span>
-                        </div>
-                        <div className="rounded-xl border border-slate-300 bg-white p-2">
-                          <span className="block text-[11px] font-bold text-slate-500">เงินออมสะสม</span>
-                          <strong className="text-lg font-black text-teal-700">
-                            {selectedStudentBundle.savings.balance.toLocaleString('th-TH')} ฿
-                          </strong>
-                          <span className="block text-[10px] text-slate-500">
-                            ฝาก {selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} · ถอน{' '}
-                            {selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')}
-                          </span>
-                        </div>
-                        <div className="rounded-xl border border-slate-300 bg-white p-2">
-                          <span className="block text-[11px] font-bold text-slate-500">สุขอนามัย/กิจวัตร</span>
-                          <strong className="text-sm font-black text-slate-900">{selectedStudentBundle.health.attentionText}</strong>
-                          <span className="block text-[10px] text-slate-500">
-                            แปรงฟัน {selectedStudentBundle.health.brushingText} · ดื่มนม {selectedStudentBundle.health.milkText}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const kpiCards = [
+                          individualSections.attendance ? (
+                            <div className="rounded-xl border border-slate-300 bg-white p-2" key="attendance">
+                              <span className="block text-[11px] font-bold text-slate-500">เวลาเรียน</span>
+                              <strong className="text-lg font-black text-emerald-700">
+                                {selectedStudentBundle.attendance.percent}%
+                              </strong>
+                              <span className="block text-[10px] text-slate-500">
+                                มา {selectedStudentBundle.attendance.present} · สาย {selectedStudentBundle.attendance.late} · ลา{' '}
+                                {selectedStudentBundle.attendance.leave} · ขาด {selectedStudentBundle.attendance.absent}
+                              </span>
+                            </div>
+                          ) : null,
+                          individualSections.scores ? (
+                            <div className="rounded-xl border border-slate-300 bg-white p-2" key="scores">
+                              <span className="block text-[11px] font-bold text-slate-500">เกรดเฉลี่ย (GPA)</span>
+                              <strong className="text-lg font-black text-indigo-700">{selectedStudentBundle.totalGpa}</strong>
+                              <span className="block text-[10px] text-slate-500">
+                                {selectedStudentBundle.subjectRows.length} รายวิชา
+                              </span>
+                            </div>
+                          ) : null,
+                          individualSections.savings ? (
+                            <div className="rounded-xl border border-slate-300 bg-white p-2" key="savings">
+                              <span className="block text-[11px] font-bold text-slate-500">เงินออมสะสม</span>
+                              <strong className="text-lg font-black text-teal-700">
+                                {selectedStudentBundle.savings.balance.toLocaleString('th-TH')} ฿
+                              </strong>
+                              <span className="block text-[10px] text-slate-500">
+                                ฝาก {selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} · ถอน{' '}
+                                {selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')}
+                              </span>
+                            </div>
+                          ) : null,
+                          individualSections.health ? (
+                            <div className="rounded-xl border border-slate-300 bg-white p-2" key="health">
+                              <span className="block text-[11px] font-bold text-slate-500">สุขอนามัย/กิจวัตร</span>
+                              <strong className="text-sm font-black text-slate-900">
+                                {selectedStudentBundle.health.attentionText}
+                              </strong>
+                              <span className="block text-[10px] text-slate-500">
+                                แปรงฟัน {selectedStudentBundle.health.brushingText} · ดื่มนม {selectedStudentBundle.health.milkText}
+                              </span>
+                            </div>
+                          ) : null,
+                        ].filter(Boolean);
 
-                      <h4 className="font-black text-slate-900">1. ตารางผลการเรียนรายวิชา</h4>
-                      <table className="w-full border-collapse border border-slate-300 text-xs">
-                        <thead>
-                          <tr className="bg-cyan-50 text-slate-900">
-                            <th className="border border-slate-300 px-2 py-1.5 text-center w-10">ที่</th>
-                            <th className="border border-slate-300 px-3 py-1.5 text-left">รายวิชา</th>
-                            <th className="border border-slate-300 px-2 py-1.5 text-center">คะแนนที่ได้ / เต็ม</th>
-                            <th className="border border-slate-300 px-2 py-1.5 text-center">ร้อยละ</th>
-                            <th className="border border-slate-300 px-2 py-1.5 text-center">เกรด</th>
-                            <th className="border border-slate-300 px-2 py-1.5 text-center">การส่งงาน</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedStudentBundle.subjectRows.length > 0 ? (
-                            selectedStudentBundle.subjectRows.map((sub, idx) => (
-                              <tr className="even:bg-slate-50" key={sub.subject}>
-                                <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
-                                <td className="border border-slate-300 px-3 py-1.5 font-bold">{sub.subject}</td>
-                                <td className="border border-slate-300 px-2 py-1.5 text-center">
-                                  {sub.earned} / {sub.max}
-                                </td>
-                                <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">{sub.percent}%</td>
-                                <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-emerald-800">{sub.grade}</td>
-                                <td className="border border-slate-300 px-2 py-1.5 text-center">
-                                  {sub.missing > 0 ? `ค้าง ${sub.missing} งาน` : 'ครบ'}
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td className="border border-slate-300 py-4 text-center text-slate-500" colSpan={6}>
-                                ยังไม่มีรายการประเมินคะแนน
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                        if (kpiCards.length === 0) return null;
+                        const gridColClass =
+                          kpiCards.length === 1
+                            ? 'grid-cols-1'
+                            : kpiCards.length === 2
+                              ? 'grid-cols-2'
+                              : kpiCards.length === 3
+                                ? 'grid-cols-3'
+                                : 'grid-cols-4';
+                        return <div className={`grid ${gridColClass} gap-2 text-center`}>{kpiCards}</div>;
+                      })()}
 
-                      <h4 className="font-black text-slate-900">2. การดูแลพฤติกรรมและการเยี่ยมบ้าน</h4>
-                      <div className="rounded-xl border border-slate-300 p-3 space-y-1">
-                        <p>
-                          <strong>พฤติกรรมและการดูแล:</strong>{' '}
-                          {selectedStudentBundle.behaviors.length > 0
-                            ? selectedStudentBundle.behaviors.map((b) => `${b.category} (${b.description})`).join(' · ')
-                            : 'ประพฤติตนเรียบร้อยตามระเบียบของสถานศึกษา'}
-                        </p>
-                        <p>
-                          <strong>สถานะการเยี่ยมบ้าน:</strong>{' '}
-                          {selectedStudentBundle.homeVisit
-                            ? `ดำเนินการแล้ว (${selectedStudentBundle.homeVisit.completion_percent || 100}%)`
-                            : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้าน'}
-                        </p>
-                      </div>
+                      {(() => {
+                        let secNo = 1;
+                        const hasDetailsSection =
+                          individualSections.attendance ||
+                          individualSections.savings ||
+                          individualSections.health ||
+                          individualSections.behavior ||
+                          individualSections.homeVisit ||
+                          individualSections.teacherComment;
+
+                        return (
+                          <>
+                            {individualSections.scores ? (
+                              <div>
+                                <h4 className="mb-1.5 font-black text-slate-900">
+                                  {secNo++}. สรุปผลสัมฤทธิ์ทางการเรียนรายวิชา
+                                </h4>
+                                <table className="w-full border-collapse border border-slate-300 text-xs">
+                                  <thead>
+                                    <tr className="bg-cyan-50 text-slate-900">
+                                      <th className="border border-slate-300 px-2 py-1.5 text-center w-10">ที่</th>
+                                      <th className="border border-slate-300 px-3 py-1.5 text-left">รายวิชา</th>
+                                      <th className="border border-slate-300 px-2 py-1.5 text-center">คะแนนที่ได้ / เต็ม</th>
+                                      <th className="border border-slate-300 px-2 py-1.5 text-center">ร้อยละ</th>
+                                      <th className="border border-slate-300 px-2 py-1.5 text-center">เกรด</th>
+                                      <th className="border border-slate-300 px-2 py-1.5 text-center">การส่งงาน</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {selectedStudentBundle.subjectRows.length > 0 ? (
+                                      selectedStudentBundle.subjectRows.map((sub, idx) => (
+                                        <tr className="even:bg-slate-50" key={sub.subject}>
+                                          <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                                          <td className="border border-slate-300 px-3 py-1.5 font-bold">{sub.subject}</td>
+                                          <td className="border border-slate-300 px-2 py-1.5 text-center">
+                                            {sub.earned} / {sub.max}
+                                          </td>
+                                          <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">
+                                            {sub.percent}%
+                                          </td>
+                                          <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-emerald-800">
+                                            {sub.grade}
+                                          </td>
+                                          <td className="border border-slate-300 px-2 py-1.5 text-center">
+                                            {sub.missing > 0 ? `ค้าง ${sub.missing} งาน` : 'ครบ'}
+                                          </td>
+                                        </tr>
+                                      ))
+                                    ) : (
+                                      <tr>
+                                        <td className="border border-slate-300 py-4 text-center text-slate-500" colSpan={6}>
+                                          ยังไม่มีรายการประเมินคะแนน
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : null}
+
+                            {hasDetailsSection ? (
+                              <div>
+                                <h4 className="mb-1.5 font-black text-slate-900">
+                                  {secNo++}. สรุปข้อมูลพัฒนาการและการดูแลช่วยเหลือนักเรียน
+                                </h4>
+                                <table className="w-full border-collapse border border-slate-300 text-xs">
+                                  <tbody>
+                                    {individualSections.attendance ? (
+                                      <tr className="even:bg-slate-50">
+                                        <td className="w-40 border border-slate-300 px-3 py-1.5 font-black text-slate-800">
+                                          สรุปเวลาเรียน
+                                        </td>
+                                        <td className="border border-slate-300 px-3 py-1.5">
+                                          มาเรียน <strong>{selectedStudentBundle.attendance.present}</strong> วัน · สาย{' '}
+                                          <strong>{selectedStudentBundle.attendance.late}</strong> วัน · ลา/ป่วย{' '}
+                                          <strong>{selectedStudentBundle.attendance.leave}</strong> วัน · ขาดเรียน{' '}
+                                          <strong>{selectedStudentBundle.attendance.absent}</strong> วัน (คิดเป็นร้อยละ{' '}
+                                          <strong>{selectedStudentBundle.attendance.percent}%</strong>)
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {individualSections.savings ? (
+                                      <tr className="even:bg-slate-50">
+                                        <td className="w-40 border border-slate-300 px-3 py-1.5 font-black text-slate-800">
+                                          เงินออมนักเรียน
+                                        </td>
+                                        <td className="border border-slate-300 px-3 py-1.5">
+                                          ยอดเงินออมสะสมคงเหลือ{' '}
+                                          <strong>{selectedStudentBundle.savings.balance.toLocaleString('th-TH')} บาท</strong> ·
+                                          ฝากในช่วงนี้ {selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} บาท · ถอน{' '}
+                                          {selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')} บาท (
+                                          {selectedStudentBundle.savings.txCount} รายการ)
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {individualSections.health ? (
+                                      <tr className="even:bg-slate-50">
+                                        <td className="w-40 border border-slate-300 px-3 py-1.5 font-black text-slate-800">
+                                          สุขภาพและกิจวัตร
+                                        </td>
+                                        <td className="border border-slate-300 px-3 py-1.5">
+                                          น้ำหนัก {selectedStudentBundle.health.weight ?? '-'} กก. · ส่วนสูง{' '}
+                                          {selectedStudentBundle.health.height ?? '-'} ซม. · BMI{' '}
+                                          {selectedStudentBundle.health.bmi ?? '-'} · แปรงฟัน{' '}
+                                          {selectedStudentBundle.health.brushingText} ครั้ง · ดื่มนม{' '}
+                                          {selectedStudentBundle.health.milkText} ครั้ง · อาหารกลางวัน{' '}
+                                          {selectedStudentBundle.health.lunchText} ครั้ง · ผลตรวจสุขอนามัย:{' '}
+                                          {selectedStudentBundle.health.attentionText}
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {individualSections.behavior ? (
+                                      <tr className="even:bg-slate-50">
+                                        <td className="w-40 border border-slate-300 px-3 py-1.5 font-black text-slate-800">
+                                          พฤติกรรมและการดูแล
+                                        </td>
+                                        <td className="border border-slate-300 px-3 py-1.5">
+                                          {selectedStudentBundle.behaviors.length > 0
+                                            ? selectedStudentBundle.behaviors
+                                                .map((b) => `${b.category} (${b.description})`)
+                                                .join(' · ')
+                                            : 'ประพฤติตนเรียบร้อยตามระเบียบของสถานศึกษา'}
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {individualSections.homeVisit ? (
+                                      <tr className="even:bg-slate-50">
+                                        <td className="w-40 border border-slate-300 px-3 py-1.5 font-black text-slate-800">
+                                          การเยี่ยมบ้าน / กสศ.
+                                        </td>
+                                        <td className="border border-slate-300 px-3 py-1.5">
+                                          {selectedStudentBundle.homeVisit
+                                            ? `ดำเนินการแล้ว (${selectedStudentBundle.homeVisit.completion_percent || 100}%)`
+                                            : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้าน'}
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {individualSections.teacherComment ? (
+                                      <tr className="even:bg-slate-50">
+                                        <td className="w-40 border border-slate-300 px-3 py-1.5 font-black text-slate-800">
+                                          ความเห็นครูประจำชั้น
+                                        </td>
+                                        <td className="border border-slate-300 px-3 py-1.5">
+                                          {individualTeacherComment.trim() || defaultIndividualTeacherComment}
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -5434,29 +6087,45 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                 </div>
 
                 {/* Official A4 Sheet Signatures Footer */}
-                <footer className="mt-6 border-t border-slate-300 pt-4">
-                  <div className="grid grid-cols-3 gap-4 text-center text-xs">
-                    <div>
-                      <p>ลงชื่อ ................................................</p>
-                      <p className="mt-1 font-bold">({reportIdentity.teacherName || session.profile.displayName || '............................................'})</p>
-                      <p className="text-[11px] text-slate-600">ครูประจำชั้น / ผู้จัดทำ</p>
+                {reportView !== 'individual' || individualSections.teacherComment ? (
+                  <footer className="mt-6 border-t border-slate-300 pt-4">
+                    <div className="grid grid-cols-3 gap-4 text-center text-xs">
+                      <div>
+                        <p>ลงชื่อ ................................................</p>
+                        <p className="mt-1 font-bold">
+                          ({reportIdentity.teacherName || session.profile.displayName || '............................................'})
+                        </p>
+                        <p className="text-[11px] text-slate-600">ครูประจำชั้น / ผู้รายงาน</p>
+                      </div>
+                      <div>
+                        <p>ลงชื่อ ................................................</p>
+                        <p className="mt-1 font-bold">
+                          (
+                          {reportView === 'individual'
+                            ? reportIdentity.directorName || '............................................'
+                            : reportIdentity.academicHeadName || '............................................'}
+                          )
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          {reportView === 'individual'
+                            ? 'ผู้อำนวยการโรงเรียน'
+                            : reportView === 'student-register'
+                              ? 'นายทะเบียน / ผู้ตรวจสอบ'
+                              : 'หัวหน้างานวิชาการ / ผู้ตรวจสอบ'}
+                        </p>
+                      </div>
+                      <div>
+                        <p>ลงชื่อ ................................................</p>
+                        <p className="mt-1 font-bold">
+                          ({reportView === 'individual' ? '............................................' : reportIdentity.directorName || '............................................'})
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          {reportView === 'individual' ? 'ผู้ปกครองนักเรียน (ผู้รับทราบ)' : 'ผู้อำนวยการโรงเรียน / ผู้รับรอง'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p>ลงชื่อ ................................................</p>
-                      <p className="mt-1 font-bold">({reportIdentity.academicHeadName || '............................................'})</p>
-                      <p className="text-[11px] text-slate-600">
-                        {reportView === 'student-register' ? 'นายทะเบียน / ผู้ตรวจสอบ' : 'หัวหน้างานวิชาการ / ผู้ตรวจสอบ'}
-                      </p>
-                    </div>
-                    <div>
-                      <p>ลงชื่อ ................................................</p>
-                      <p className="mt-1 font-bold">({reportIdentity.directorName || '............................................'})</p>
-                      <p className="text-[11px] text-slate-600">
-                        {reportView === 'individual' ? 'ผู้ปกครอง / ผู้อำนวยการโรงเรียน' : 'ผู้อำนวยการโรงเรียน / ผู้รับรอง'}
-                      </p>
-                    </div>
-                  </div>
-                </footer>
+                  </footer>
+                ) : null}
               </div>
             </div>
           ) : null}
