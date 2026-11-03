@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import {
@@ -8,6 +8,8 @@ import {
   Camera,
   CheckCircle2,
   Edit3,
+  FileSpreadsheet,
+  HeartPulse,
   History,
   Home,
   Link2,
@@ -20,6 +22,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Upload,
   RefreshCw,
@@ -1095,7 +1098,26 @@ function nullableValue(value: string) {
   return trimmed || null;
 }
 
+function getStudentGender(student: StudentRow): 'male' | 'female' | 'other' {
+  if (student.gender === 'male' || student.gender === 'female') return student.gender;
+  const name = (student.first_name || '').trim();
+  if (name.startsWith('เด็กชาย') || name.startsWith('ด.ช.') || name.startsWith('นาย')) {
+    return 'male';
+  }
+  if (
+    name.startsWith('เด็กหญิง') ||
+    name.startsWith('ด.ญ.') ||
+    name.startsWith('นางสาว') ||
+    name.startsWith('น.ส.') ||
+    name.startsWith('นาง')
+  ) {
+    return 'female';
+  }
+  return 'other';
+}
+
 export function StudentsPage({ session }: StudentsPageProps) {
+  const navigate = useNavigate();
   const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const [searchParams] = useSearchParams();
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(useRealBackend ? [] : demoClassrooms);
@@ -1301,6 +1323,90 @@ export function StudentsPage({ session }: StudentsPageProps) {
       return haystack.includes(normalizedQuery);
     });
   }, [classrooms, query, rosterClassroomFilter, rosterStatusFilter, students]);
+
+  const activeClassroomForStats = useMemo(() => {
+    if (rosterClassroomFilter === 'all') return null;
+    return classrooms.find((c) => c.id === rosterClassroomFilter) || null;
+  }, [classrooms, rosterClassroomFilter]);
+
+  const currentViewStudents = useMemo(() => {
+    if (rosterClassroomFilter === 'all') return students.filter((s) => s.status === 'active');
+    const master = (!useRealBackend && activeClassroomForStats) ? getPrimaryMasterData(activeClassroomForStats.name) : null;
+    const expectedCodes = master ? new Set(master.students.map((s) => s.student_code)) : null;
+
+    return students.filter((student) => {
+      if (student.status !== 'active') return false;
+      if (!useRealBackend && expectedCodes && expectedCodes.size > 0) {
+        return !!student.student_code && expectedCodes.has(student.student_code);
+      }
+      return student.classroom_id === rosterClassroomFilter;
+    });
+  }, [activeClassroomForStats, rosterClassroomFilter, students, useRealBackend]);
+
+  const classroomStats = useMemo(() => {
+    const list = currentViewStudents;
+    const total = list.length;
+    let maleCount = 0;
+    let femaleCount = 0;
+    let completeCount = 0;
+    let specialCareCount = 0;
+
+    list.forEach((s) => {
+      const g = getStudentGender(s);
+      if (g === 'male') maleCount++;
+      else if (g === 'female') femaleCount++;
+
+      const hasCode = !!s.student_code?.trim();
+      const hasFirst = !!s.first_name?.trim();
+      const hasLast = !!s.last_name?.trim();
+      const meta = (s.metadata && typeof s.metadata === 'object' ? s.metadata : {}) as Record<string, unknown>;
+      const hasExtra = !!s.nickname?.trim() || !!meta.national_id || !!meta.citizen_id;
+      if (hasCode && hasFirst && hasLast && hasExtra) {
+        completeCount++;
+      }
+
+      const hasCare = Object.keys(s.care_flags || {}).length > 0;
+      const hasHealth = Object.keys(s.health_flags || {}).length > 0;
+      if (hasCare || hasHealth) {
+        specialCareCount++;
+      }
+    });
+
+    const completePercent = total > 0 ? Math.round((completeCount / total) * 100) : 0;
+    const incompleteCount = Math.max(0, total - completeCount);
+
+    return {
+      total,
+      maleCount,
+      femaleCount,
+      completeCount,
+      incompleteCount,
+      completePercent,
+      specialCareCount,
+    };
+  }, [currentViewStudents]);
+
+  const handleFocusAddStudent = () => {
+    setEditingStudentId(null);
+    if (activeStudentView !== 'roster') {
+      navigate('/app/dashboard?view=students&studentView=roster');
+      setTimeout(() => {
+        const formElement = document.getElementById('add-student-form');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const codeInput = formElement.querySelector<HTMLInputElement>('input[placeholder*="รหัส"], input');
+          codeInput?.focus();
+        }
+      }, 100);
+      return;
+    }
+    const formElement = document.getElementById('add-student-form');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const codeInput = formElement.querySelector<HTMLInputElement>('input[placeholder*="รหัส"], input');
+      codeInput?.focus();
+    }
+  };
 
   const studentsWithoutClassroom = useMemo(
     () => students.filter((student) => !student.classroom_id || !classrooms.some((classroom) => classroom.id === student.classroom_id)),
@@ -3417,7 +3523,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
   return (
     <main className="app-page">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="nexus-kicker">
             <Users size={18} aria-hidden="true" />
@@ -3426,46 +3532,154 @@ export function StudentsPage({ session }: StudentsPageProps) {
           <h1 className="app-page-title">
             {activeStudentTask.title}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            {session.workspace?.schoolName || 'Demo Workspace'} | {session.workspace?.classroomName || 'ป.5/2'} | {activeStudentTask.description}
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+            {session.workspace?.schoolName || 'Demo Workspace'} {activeClassroomForStats ? `| ${activeClassroomForStats.name}` : (session.workspace?.classroomName ? `| ${session.workspace?.classroomName}` : '')} | {activeStudentTask.description}
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
-          {[
-            { label: 'ทั้งหมด', value: students.length },
-            { label: 'กำลังเรียน', value: activeStudents.length },
-            { label: 'ติดตาม', value: careStudents.length },
-          ].map((item) => (
-            <div className="nexus-card p-3 text-center transition hover:-translate-y-1" key={item.label}>
-              <p className="text-2xl font-black text-slate-950">{item.value}</p>
-              <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+        {/* 4 Demographics & Quality Stat Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:min-w-[500px]">
+          {/* 1. Classroom Students & Gender Breakdown */}
+          <div className="rounded-2xl border border-sky-100 bg-white/90 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow">
+            <div className="flex items-center justify-between text-sky-700">
+              <span className="text-xs font-black">
+                {rosterClassroomFilter !== 'all' ? 'ในห้องที่เลือก' : 'ทั้งหมด'}
+              </span>
+              <Users size={16} />
             </div>
-          ))}
+            <p className="mt-1 text-2xl font-black text-slate-900">
+              {classroomStats.total} <span className="text-xs font-bold text-slate-500">คน</span>
+            </p>
+            <p className="mt-1 text-[11px] font-bold text-sky-800">
+              👦 ชาย {classroomStats.maleCount} · 👧 หญิง {classroomStats.femaleCount}
+            </p>
+          </div>
+
+          {/* 2. Complete Info */}
+          <div className="rounded-2xl border border-emerald-100 bg-white/90 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow">
+            <div className="flex items-center justify-between text-emerald-700">
+              <span className="text-xs font-black">ข้อมูลสมบูรณ์</span>
+              <CheckCircle2 size={16} />
+            </div>
+            <p className="mt-1 text-2xl font-black text-emerald-950">
+              {classroomStats.completePercent}<span className="text-xs font-bold text-emerald-700">%</span>
+            </p>
+            <p className="mt-1 text-[11px] font-bold text-emerald-700">
+              ครบ {classroomStats.completeCount} จาก {classroomStats.total} คน
+            </p>
+          </div>
+
+          {/* 3. Incomplete / Needs Docs */}
+          <Link
+            to="/app/dashboard?view=students&studentView=quality"
+            className="group rounded-2xl border border-amber-200/90 bg-amber-50/50 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-100/70 hover:shadow"
+            title="คลิกเพื่อตรวจคุณภาพข้อมูลนักเรียน"
+          >
+            <div className="flex items-center justify-between text-amber-800">
+              <span className="text-xs font-black">รอเอกสาร/ไม่ครบ</span>
+              <AlertTriangle size={16} className="text-amber-600 transition group-hover:scale-110" />
+            </div>
+            <p className="mt-1 text-2xl font-black text-amber-950">
+              {classroomStats.incompleteCount} <span className="text-xs font-bold text-amber-700">คน</span>
+            </p>
+            <p className="mt-1 text-[11px] font-bold text-amber-800 underline decoration-amber-300">
+              ตรวจจุดบกพร่อง &rarr;
+            </p>
+          </Link>
+
+          {/* 4. Special Care / Health */}
+          <Link
+            to="/app/dashboard?view=students&studentView=care"
+            className="group rounded-2xl border border-rose-100 bg-rose-50/50 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100/70 hover:shadow"
+            title="คลิกเพื่อดูนักเรียนที่ต้องดูแลเป็นพิเศษหรือมีโรคประจำตัว"
+          >
+            <div className="flex items-center justify-between text-rose-800">
+              <span className="text-xs font-black">ดูแล & สุขภาพ</span>
+              <HeartPulse size={16} className="text-rose-600 transition group-hover:scale-110" />
+            </div>
+            <p className="mt-1 text-2xl font-black text-rose-950">
+              {classroomStats.specialCareCount} <span className="text-xs font-bold text-rose-700">คน</span>
+            </p>
+            <p className="mt-1 text-[11px] font-bold text-rose-800 underline decoration-rose-300">
+              ดูเคสดูแล &rarr;
+            </p>
+          </Link>
         </div>
       </div>
 
       {notice ? (
-        <div aria-live="polite" className="mt-5 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-950">
+        <div aria-live="polite" className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-950">
           {notice}
         </div>
       ) : null}
 
-      <section className="nexus-card mt-5 p-4" aria-label="โควตานักเรียน Workspace">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-700">{planLabels[effectivePlanCode]}</p>
-            <p className="mt-1 text-sm font-black text-slate-950">นักเรียน active {activeStudents.length} / {workspaceLimits.activeStudents} คน</p>
+      {/* Quick Action Toolbar & Compact Plan Quota */}
+      <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm sm:p-3.5" aria-label="เครื่องมือด่วนและโควตา">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Quick Actions for Teachers */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleFocusAddStudent}
+              disabled={studentLimitReached || !canWriteRoster}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 active:scale-95 disabled:opacity-50"
+            >
+              <UserPlus size={15} />
+              เพิ่มนักเรียนใหม่
+            </button>
+
+            <Link
+              to="/app/dashboard?view=import-export"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+            >
+              <FileSpreadsheet size={15} className="text-emerald-600" />
+              นำเข้า / ส่งออก Excel
+            </Link>
+
+            <Link
+              to="/app/dashboard?view=reports&reportView=roster"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+            >
+              <Printer size={15} className="text-sky-600" />
+              พิมพ์ใบรายชื่อ A4
+            </Link>
+
+            <Link
+              to="/app/dashboard?view=students&studentView=quality"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-black text-amber-900 transition hover:bg-amber-100"
+            >
+              <Sparkles size={15} className="text-amber-600" />
+              ตรวจคุณภาพข้อมูล
+            </Link>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 sm:max-w-xs">
-            <div
-              className={`h-full rounded-full ${studentLimitReached ? 'bg-rose-500' : 'bg-cyan-500'}`}
-              style={{ width: `${Math.min((activeStudents.length / Math.max(workspaceLimits.activeStudents, 1)) * 100, 100)}%` }}
-            />
+
+          {/* Compact VIP Plan Quota Badge */}
+          <div className="flex items-center gap-3 self-end sm:self-auto rounded-xl border border-cyan-100 bg-cyan-50/60 px-3 py-1.5">
+            <div className="text-right">
+              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700">{planLabels[effectivePlanCode]}</span>
+              <p className="text-xs font-black text-slate-800">
+                นักเรียน {activeStudents.length} / {workspaceLimits.activeStudents} คน
+              </p>
+            </div>
+            <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-200 sm:w-28">
+              <div
+                className={`h-full rounded-full transition-all ${studentLimitReached ? 'bg-rose-500' : 'bg-cyan-500'}`}
+                style={{ width: `${Math.min((activeStudents.length / Math.max(workspaceLimits.activeStudents, 1)) * 100, 100)}%` }}
+              />
+            </div>
           </div>
         </div>
-        {studentLimitReached ? <p className="mt-2 text-xs font-bold text-rose-700">เก็บนักเรียนที่ย้ายออก/จบแล้วเป็นประวัติ หรืออัปเกรดแพ็กเกจก่อนเพิ่มรายชื่อใหม่</p> : null}
-        {!canWriteRoster ? <p className="mt-2 text-xs font-bold text-amber-700">โหมดอ่านอย่างเดียว: เจ้าของ Workspace ยังไม่ได้เปิดสิทธิ์เพิ่มและแก้ไขรายชื่อนักเรียนให้บัญชีนี้</p> : null}
+
+        {studentLimitReached ? (
+          <p className="mt-2 text-xs font-bold text-rose-700">
+            ⚠️ โควตานักเรียนเต็ม: จัดเก็บนักเรียนที่ย้ายออก/จบการศึกษาแล้วเป็นประวัติ หรืออัปเกรดแพ็กเกจก่อนเพิ่มรายชื่อใหม่
+          </p>
+        ) : null}
+        {!canWriteRoster ? (
+          <p className="mt-2 text-xs font-bold text-amber-700">
+            ℹ️ โหมดอ่านอย่างเดียว: เจ้าของ Workspace ยังไม่ได้เปิดสิทธิ์เพิ่มและแก้ไขรายชื่อนักเรียนให้บัญชีนี้
+          </p>
+        ) : null}
       </section>
 
       <nav
@@ -4070,7 +4284,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] items-start pb-24">
           {!editingStudentId ? (
-          <form className="nexus-card p-4 sm:p-5" onSubmit={handleStudentSubmit}>
+          <form id="add-student-form" className="nexus-card p-4 sm:p-5" onSubmit={handleStudentSubmit}>
             <div className="nexus-kicker">
               <UserPlus size={16} aria-hidden="true" />
               เพิ่มนักเรียน
