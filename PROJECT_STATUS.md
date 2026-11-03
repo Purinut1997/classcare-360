@@ -1,5 +1,16 @@
 # ClassCare 360 - PROJECT STATUS
 
+อัปเดตล่าสุด: 2026-11-03
+Timezone: Asia/Bangkok
+
+## อัปเดตล่าสุด 2026-11-03
+
+- ปรับ Sidebar สำหรับผู้เริ่มต้น โดยพับหมวดเมนูประจำวันและงานวิชาการไว้เมื่อเริ่มใช้งาน; หมวดของหน้าปัจจุบันยังเปิดให้อัตโนมัติ
+- Push การเปลี่ยนแปลง UX ไปยัง GitHub `main` ที่ commit `2a17f0f3b018df2c6d8adfd09fcb702e4a83aee7`
+- ตรวจ `npm run build` และ `npm run check:deploy` ผ่าน; readiness 87/87 และ navigation regression ผ่าน
+- ตรวจ production `https://classcare-360.pages.dev`: HTTP 200 และ bundle `App-DcleZOj1.js` ตรงกับ build ในเครื่องแบบ byte-for-byte; การ push ไป `main` ทำให้ Pages ใช้ build นี้แล้ว
+- Wrangler manual deploy ไม่ได้ทำงานเพราะไม่มี `CLOUDFLARE_API_TOKEN`; ยืนยัน production จาก asset ที่ deploy แล้วแทน
+
 อัปเดตล่าสุด: 2026-09-06
 Timezone: Asia/Bangkok
 
