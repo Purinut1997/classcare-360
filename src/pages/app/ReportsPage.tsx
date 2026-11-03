@@ -1,5 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarRange, Download, FileSpreadsheet, ImagePlus, Printer, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Award,
+  BookOpen,
+  Building2,
+  CalendarRange,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  HeartPulse,
+  ImagePlus,
+  LayoutList,
+  Printer,
+  Save,
+  Search,
+  Settings,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Trash2,
+  UserCheck,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 
@@ -14,25 +40,48 @@ import {
   formatThaiOfficialDate,
   formatThaiOfficialShortDate,
   maskThaiCitizenId,
+  type OfficialReportOrientation,
 } from '../../lib/officialReport';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
-import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
+import {
+  compressImageFile,
+  loadReportTermRanges,
+  loadSchoolReportIdentity,
+  saveReportTermRanges,
+  saveSchoolReportIdentity,
+  type ReportTermRanges,
+  type SchoolReportIdentity,
+} from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
 import { generateExcelReportBuffer, downloadExcelBuffer, type ExcelSheetConfig } from '../../lib/excelReport';
 import { OfficialAcademicDocumentsModal } from '../../components/academic/OfficialAcademicDocumentsModal';
+import { printHtmlStringAsDocument } from '../../lib/academicPrintService';
+import { calculateOBECGrade } from '../../lib/obecAcademicEngine';
 
 interface ReportsPageProps {
   session: AppSessionContext;
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave' | 'sick' | 'activity';
-type ReportView = 'attendance' | 'subject-attendance' | 'savings' | 'scores' | 'subject-scores' | 'health' | 'student-register' | 'executive' | 'individual' | 'behavior' | 'settings';
+type ReportView =
+  | 'attendance'
+  | 'subject-attendance'
+  | 'savings'
+  | 'scores'
+  | 'subject-scores'
+  | 'health'
+  | 'student-register'
+  | 'executive'
+  | 'individual'
+  | 'behavior'
+  | 'settings';
+type ReportCategoryKey = 'attendance_savings' | 'academic_scores' | 'student_care' | 'executive_settings';
 type ReportPeriod = 'month' | 'term' | 'year';
 type TermKey = 'term1' | 'term2';
-type RegisterOrientation = 'portrait' | 'landscape';
 type RegisterOptionalField = 'address' | 'citizenId' | 'family' | 'health';
-
 type RegisterFieldSelection = Record<RegisterOptionalField, boolean>;
+type DisplayMode = 'a4' | 'mobile';
+type ExecutiveScope = 'classroom' | 'school';
 
 interface ClassroomRow {
   academic_year: string | null;
@@ -159,50 +208,87 @@ interface StudentHealthRecordRow {
   weight_kg: number | string | null;
 }
 
-interface CoreReportMetrics {
-  attendance: {
-    presentRate: number;
-    riskCount: number;
-    total: number;
-  };
-  behavior: {
-    followUps: number;
-    positiveCount: number;
-    totalPoints: number;
-  };
-  savings: {
-    accountCount: number;
-    totalBalance: number;
-  };
-  scores: {
-    assessmentCount: number;
-    averagePercent: number;
-    belowHalfCount: number;
-  };
-}
-
 const demoClassrooms: ClassroomRow[] = [{ academic_year: '2569', id: 'demo-classroom', name: 'ป.5/2' }];
 
 const demoStudents: StudentRow[] = [
-  { birth_date: '2015-01-12', classroom_id: 'demo-classroom', first_name: 'ณัฐวุฒิ', gender: 'male', health_flags: { height_cm: 142, weight_kg: 35.5 }, id: 'demo-student-1', last_name: 'ใจดี', metadata: { dmc_address: { district: 'เมือง', house_no: '12', province: 'นครราชสีมา', subdistrict: 'ในเมือง', village_no: '3' }, dmc_father: { first_name: 'สมชาย', last_name: 'ใจดี', prefix: 'นาย' }, dmc_id_card: '1100100000001', dmc_mother: { first_name: 'สมใจ', last_name: 'ใจดี', prefix: 'นาง' } }, nickname: 'นัท', status: 'active', student_code: '001' },
-  { birth_date: '2015-03-03', classroom_id: 'demo-classroom', first_name: 'พิมพ์ชนก', gender: 'female', health_flags: { height_cm: 138, weight_kg: 34.4 }, id: 'demo-student-2', last_name: 'แสงทอง', metadata: { dmc_address: { district: 'เมือง', house_no: '25/1', province: 'นครราชสีมา', subdistrict: 'โคกสูง', village_no: '2' }, dmc_father: { first_name: 'ประสงค์', last_name: 'แสงทอง', prefix: 'นาย' }, dmc_id_card: '1100100000002', dmc_mother: { first_name: 'มาลี', last_name: 'แสงทอง', prefix: 'นาง' } }, nickname: 'พิม', status: 'active', student_code: '002' },
-  { birth_date: '2015-07-27', classroom_id: 'demo-classroom', first_name: 'กิตติพงศ์', gender: 'male', health_flags: { height_cm: 141, weight_kg: 36.1 }, id: 'demo-student-3', last_name: 'สุขใจ', metadata: { dmc_address: { district: 'เมือง', house_no: '41', province: 'นครราชสีมา', subdistrict: 'โคกสูง', village_no: '5' }, dmc_father: { first_name: 'มนตรี', last_name: 'สุขใจ', prefix: 'นาย' }, dmc_id_card: '1100100000003', dmc_mother: { first_name: 'รัตนา', last_name: 'สุขใจ', prefix: 'นาง' } }, nickname: 'ก้อง', status: 'active', student_code: '003' },
+  {
+    birth_date: '2015-01-12',
+    classroom_id: 'demo-classroom',
+    first_name: 'ณัฐวุฒิ',
+    gender: 'male',
+    health_flags: { height_cm: 142, weight_kg: 35.5 },
+    id: 'demo-student-1',
+    last_name: 'ใจดี',
+    metadata: {
+      dmc_address: { district: 'เมือง', house_no: '12', province: 'นครราชสีมา', subdistrict: 'ในเมือง', village_no: '3' },
+      dmc_father: { first_name: 'สมชาย', last_name: 'ใจดี', prefix: 'นาย' },
+      dmc_id_card: '1100100000001',
+      dmc_mother: { first_name: 'สมใจ', last_name: 'ใจดี', prefix: 'นาง' },
+    },
+    nickname: 'นัท',
+    status: 'active',
+    student_code: '001',
+  },
+  {
+    birth_date: '2015-03-03',
+    classroom_id: 'demo-classroom',
+    first_name: 'พิมพ์ชนก',
+    gender: 'female',
+    health_flags: { height_cm: 138, weight_kg: 34.4 },
+    id: 'demo-student-2',
+    last_name: 'แสงทอง',
+    metadata: {
+      dmc_address: { district: 'เมือง', house_no: '25/1', province: 'นครราชสีมา', subdistrict: 'โคกสูง', village_no: '2' },
+      dmc_father: { first_name: 'ประสงค์', last_name: 'แสงทอง', prefix: 'นาย' },
+      dmc_id_card: '1100100000002',
+      dmc_mother: { first_name: 'มาลี', last_name: 'แสงทอง', prefix: 'นาง' },
+    },
+    nickname: 'พิม',
+    status: 'active',
+    student_code: '002',
+  },
+  {
+    birth_date: '2015-07-27',
+    classroom_id: 'demo-classroom',
+    first_name: 'กิตติพงศ์',
+    gender: 'male',
+    health_flags: { height_cm: 141, weight_kg: 36.1 },
+    id: 'demo-student-3',
+    last_name: 'สุขใจ',
+    metadata: {
+      dmc_address: { district: 'เมือง', house_no: '41', province: 'นครราชสีมา', subdistrict: 'โคกสูง', village_no: '5' },
+      dmc_father: { first_name: 'มนตรี', last_name: 'สุขใจ', prefix: 'นาย' },
+      dmc_id_card: '1100100000003',
+      dmc_mother: { first_name: 'รัตนา', last_name: 'สุขใจ', prefix: 'นาง' },
+    },
+    nickname: 'ก้อง',
+    status: 'active',
+    student_code: '003',
+  },
 ];
 
 const demoGuardians: StudentGuardianReportRow[] = [
-  { display_name: 'นางสมใจ ใจดี', is_primary: true, phone: '08x-xxx-1101', relation: 'มารดา', student_id: 'demo-student-1' },
-  { display_name: 'นายประสงค์ แสงทอง', is_primary: true, phone: '08x-xxx-1102', relation: 'บิดา', student_id: 'demo-student-2' },
-  { display_name: 'นางรัตนา สุขใจ', is_primary: true, phone: '08x-xxx-1103', relation: 'มารดา', student_id: 'demo-student-3' },
+  { display_name: 'นางสมใจ ใจดี', is_primary: true, phone: '081-234-1101', relation: 'มารดา', student_id: 'demo-student-1' },
+  { display_name: 'นายประสงค์ แสงทอง', is_primary: true, phone: '081-234-1102', relation: 'บิดา', student_id: 'demo-student-2' },
+  { display_name: 'นางรัตนา สุขใจ', is_primary: true, phone: '081-234-1103', relation: 'มารดา', student_id: 'demo-student-3' },
 ];
 
+function getTodayDate() {
+  return getBangkokDate();
+}
+
 const demoSessions: AttendanceSessionRow[] = [
-  { attendance_date: getBangkokDate(), classroom_id: 'demo-classroom', id: 'demo-session-1', period_label: 'เช้า', subject_name: 'โฮมรูม' },
+  { attendance_date: getTodayDate(), classroom_id: 'demo-classroom', id: 'demo-session-1', period_label: 'เช้า', subject_name: 'โฮมรูม' },
+  { attendance_date: getTodayDate(), classroom_id: 'demo-classroom', id: 'demo-session-2', period_label: 'คาบ 1', subject_name: 'คณิตศาสตร์' },
 ];
 
 const demoRecords: AttendanceRecordRow[] = [
   { note: null, session_id: 'demo-session-1', status: 'present', student_id: 'demo-student-1' },
   { note: 'มาสาย 10 นาที', session_id: 'demo-session-1', status: 'late', student_id: 'demo-student-2' },
   { note: 'ผู้ปกครองแจ้งลา', session_id: 'demo-session-1', status: 'leave', student_id: 'demo-student-3' },
+  { note: null, session_id: 'demo-session-2', status: 'present', student_id: 'demo-student-1' },
+  { note: null, session_id: 'demo-session-2', status: 'present', student_id: 'demo-student-2' },
+  { note: 'ลาป่วย', session_id: 'demo-session-2', status: 'leave', student_id: 'demo-student-3' },
 ];
 
 const demoSavingsAccounts: SavingsAccountRow[] = [
@@ -217,23 +303,30 @@ const demoSavingsTransactions: SavingsTransactionRow[] = [
 ];
 
 const demoScoreAssessments: ScoreAssessmentRow[] = [
-  { assessment_date: getTodayDate(), category: 'midterm', classroom_id: 'demo-classroom', id: 'demo-score-1', max_score: 20, status: 'published', subject_name: 'คณิตศาสตร์', title: 'กลางภาค', weight: 30 },
-  { assessment_date: getTodayDate(), category: 'final', classroom_id: 'demo-classroom', id: 'demo-score-2', max_score: 30, status: 'published', subject_name: 'คณิตศาสตร์', title: 'ปลายภาค', weight: 30 },
+  { assessment_date: getTodayDate(), category: 'midterm', classroom_id: 'demo-classroom', id: 'demo-score-1', max_score: 50, status: 'published', subject_name: 'คณิตศาสตร์', title: 'คะแนนเก็บและสอบกลางภาค', weight: 50 },
+  { assessment_date: getTodayDate(), category: 'final', classroom_id: 'demo-classroom', id: 'demo-score-2', max_score: 50, status: 'published', subject_name: 'คณิตศาสตร์', title: 'สอบปลายภาค', weight: 50 },
+  { assessment_date: getTodayDate(), category: 'midterm', classroom_id: 'demo-classroom', id: 'demo-score-3', max_score: 100, status: 'published', subject_name: 'ภาษาไทย', title: 'รวมคะแนนภาษาไทย', weight: 100 },
 ];
 
 const demoScoreEntries: ScoreEntryRow[] = [
-  { assessment_id: 'demo-score-1', id: 'demo-entry-1', note: null, score: 16, student_id: 'demo-student-1' },
-  { assessment_id: 'demo-score-1', id: 'demo-entry-2', note: null, score: 14, student_id: 'demo-student-2' },
-  { assessment_id: 'demo-score-2', id: 'demo-entry-3', note: null, score: 25, student_id: 'demo-student-1' },
+  { assessment_id: 'demo-score-1', id: 'demo-entry-1', note: null, score: 42, student_id: 'demo-student-1' },
+  { assessment_id: 'demo-score-1', id: 'demo-entry-2', note: null, score: 38, student_id: 'demo-student-2' },
+  { assessment_id: 'demo-score-1', id: 'demo-entry-3', note: null, score: 35, student_id: 'demo-student-3' },
+  { assessment_id: 'demo-score-2', id: 'demo-entry-4', note: null, score: 44, student_id: 'demo-student-1' },
+  { assessment_id: 'demo-score-2', id: 'demo-entry-5', note: null, score: 39, student_id: 'demo-student-2' },
+  { assessment_id: 'demo-score-3', id: 'demo-entry-6', note: null, score: 85, student_id: 'demo-student-1' },
+  { assessment_id: 'demo-score-3', id: 'demo-entry-7', note: null, score: 82, student_id: 'demo-student-2' },
+  { assessment_id: 'demo-score-3', id: 'demo-entry-8', note: null, score: 76, student_id: 'demo-student-3' },
 ];
 
 const demoBehaviorRecords: BehaviorRecordRow[] = [
-  { behavior_date: getTodayDate(), category: 'ช่วยเหลือเพื่อน', created_at: new Date().toISOString(), description: 'ช่วยเพื่อนเก็บอุปกรณ์หลังเลิกเรียน', follow_up_status: 'none', id: 'demo-behavior-1', points: 3, student_id: 'demo-student-1', tone: 'positive' },
-  { behavior_date: getTodayDate(), category: 'งานไม่ครบ', created_at: new Date().toISOString(), description: 'ค้างใบงาน นัดติดตามในคาบโฮมรูม', follow_up_status: 'watch', id: 'demo-behavior-2', points: -2, student_id: 'demo-student-2', tone: 'concern' },
+  { behavior_date: getTodayDate(), category: 'จิตอาสาช่วยเหลือเพื่อน', created_at: new Date().toISOString(), description: 'ช่วยเพื่อนเก็บอุปกรณ์หลังเลิกเรียนอย่างสม่ำเสมอ', follow_up_status: 'none', id: 'demo-behavior-1', points: 5, student_id: 'demo-student-1', tone: 'positive' },
+  { behavior_date: getTodayDate(), category: 'ส่งงานล่าช้า', created_at: new Date().toISOString(), description: 'ค้างใบงานคณิตศาสตร์ นัดติดตามซ่อมเสริมในคาบโฮมรูม', follow_up_status: 'watch', id: 'demo-behavior-2', points: -2, student_id: 'demo-student-2', tone: 'concern' },
 ];
 
 const demoHomeVisits: HomeVisitReportRow[] = [
-  { academic_year: '2569', completion_percent: 43, id: 'demo-home-visit-1', status: 'draft', student_id: 'demo-student-1', term: '1', visited_at: getTodayDate() },
+  { academic_year: '2569', completion_percent: 100, id: 'demo-home-visit-1', status: 'submitted', student_id: 'demo-student-1', term: '1', visited_at: getTodayDate() },
+  { academic_year: '2569', completion_percent: 80, id: 'demo-home-visit-2', status: 'ready', student_id: 'demo-student-2', term: '1', visited_at: getTodayDate() },
 ];
 
 const demoHealthRecords: StudentHealthRecordRow[] = [
@@ -243,32 +336,10 @@ const demoHealthRecords: StudentHealthRecordRow[] = [
   { bmi: null, height_cm: null, id: 'demo-health-4', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'lunch', status: 'completed', student_id: 'demo-student-1', weight_kg: null },
   { bmi: null, height_cm: null, id: 'demo-health-5', inspection_results: { hair: 'pass', nails: 'attention', skin: 'pass', teeth: 'pass' }, note: 'ติดตามความสะอาดเล็บ', record_date: getTodayDate(), record_type: 'hygiene', status: 'attention', student_id: 'demo-student-1', weight_kg: null },
   { bmi: 18.07, height_cm: 138, id: 'demo-health-6', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'growth', status: 'recorded', student_id: 'demo-student-2', weight_kg: 34.4 },
-  { bmi: null, height_cm: null, id: 'demo-health-7', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'toothbrushing', status: 'missed', student_id: 'demo-student-2', weight_kg: null },
+  { bmi: null, height_cm: null, id: 'demo-health-7', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'toothbrushing', status: 'completed', student_id: 'demo-student-2', weight_kg: null },
   { bmi: null, height_cm: null, id: 'demo-health-8', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'milk', status: 'completed', student_id: 'demo-student-2', weight_kg: null },
   { bmi: null, height_cm: null, id: 'demo-health-9', inspection_results: {}, note: null, record_date: getTodayDate(), record_type: 'lunch', status: 'completed', student_id: 'demo-student-2', weight_kg: null },
 ];
-
-const emptyCoreMetrics: CoreReportMetrics = {
-  attendance: {
-    presentRate: 0,
-    riskCount: 0,
-    total: 0,
-  },
-  behavior: {
-    followUps: 0,
-    positiveCount: 0,
-    totalPoints: 0,
-  },
-  savings: {
-    accountCount: 0,
-    totalBalance: 0,
-  },
-  scores: {
-    assessmentCount: 0,
-    averagePercent: 0,
-    belowHalfCount: 0,
-  },
-};
 
 const statusLabels: Record<AttendanceStatus, string> = {
   present: 'มา',
@@ -279,33 +350,177 @@ const statusLabels: Record<AttendanceStatus, string> = {
   activity: 'กิจกรรม',
 };
 
-const statusOrder: AttendanceStatus[] = ['present', 'absent', 'late', 'leave', 'sick', 'activity'];
+const monthlyStatusAbbreviations: Record<AttendanceStatus, string> = {
+  present: '✓',
+  late: 'ส',
+  leave: 'ล',
+  sick: 'ป',
+  absent: 'ข',
+  activity: 'ก',
+};
 
-const reportViews: Array<{ description: string; label: string; value: ReportView }> = [
-  { description: 'รายเดือน / เทอม / ปีการศึกษา', label: 'เวลาเรียน', value: 'attendance' },
-  { description: 'แยกวิชา คาบ และช่วงเวลา พร้อม export', label: 'เวลาเรียนรายวิชา', value: 'subject-attendance' },
-  { description: 'เงินฝาก ถอน และยอดคงเหลือ', label: 'เงินออม', value: 'savings' },
-  { description: 'สรุปคะแนนรวมห้องและรายชั้น', label: 'คะแนนรวมห้อง', value: 'scores' },
-    { description: 'ตารางคะแนนรวมและงานค้างแยกรายวิชา', label: 'คะแนนรายวิชา', value: 'subject-scores' },
-  { description: 'การเจริญเติบโต สุขอนามัย แปรงฟัน ดื่มนม และอาหารกลางวัน', label: 'สุขภาพและกิจวัตร', value: 'health' },
-  { description: 'บัญชีรายชื่อนักเรียนพร้อมข้อมูลผู้ปกครองและการรับรอง', label: 'ทะเบียนนักเรียน', value: 'student-register' },
-  { description: 'ภาพรวมผลดำเนินงาน ประเด็นเฝ้าระวัง และข้อเสนอเพื่อพิจารณา', label: 'สรุปผู้บริหาร', value: 'executive' },
-  { description: 'รวมเวลาเรียน คะแนน เงินออม พฤติกรรม', label: 'รายบุคคล', value: 'individual' },
-  { description: 'เคสดูแลและพฤติกรรมที่ต้องติดตาม', label: 'พฤติกรรม/เคสดูแล', value: 'behavior' },
-  { description: 'ห้วงเวลาเทอม โลโก้ ลายเซ็น template', label: 'ตั้งค่ารายงาน', value: 'settings' },
+interface ReportViewConfig {
+  category: ReportCategoryKey;
+  defaultOrientation: OfficialReportOrientation;
+  description: string;
+  icon: string;
+  label: string;
+  shortLabel: string;
+  value: ReportView;
+}
+
+const reportViews: ReportViewConfig[] = [
+  {
+    category: 'attendance_savings',
+    defaultOrientation: 'landscape',
+    description: 'ตารางเช็คชื่อรายเดือน หรือสรุปเวลาเรียนรายเทอม/ปีการศึกษา พร้อมร้อยละเวลาเรียน',
+    icon: '📅',
+    label: 'บัญชีเวลาเรียนประจำชั้น',
+    shortLabel: 'เวลาเรียน',
+    value: 'attendance',
+  },
+  {
+    category: 'attendance_savings',
+    defaultOrientation: 'landscape',
+    description: 'สรุปเวลาเรียนแยกรายวิชาและคาบเรียน พร้อมพิมพ์ตารางเช็คชื่อรายวิชา',
+    icon: '📖',
+    label: 'เวลาเรียนแยกรายวิชา',
+    shortLabel: 'เวลาเรียนรายวิชา',
+    value: 'subject-attendance',
+  },
+  {
+    category: 'attendance_savings',
+    defaultOrientation: 'landscape',
+    description: 'ตารางบันทึกเงินออมรายวัน สรุปยอดฝาก-ถอนรายเดือน และยอดเงินสะสมคงเหลือจริง',
+    icon: '🐷',
+    label: 'รายงานการออมเงินนักเรียน',
+    shortLabel: 'เงินออม',
+    value: 'savings',
+  },
+  {
+    category: 'academic_scores',
+    defaultOrientation: 'landscape',
+    description: 'ตารางสรุปคะแนนรวมทุกวิชา เกรดเฉลี่ย (GPA) และสรุปชุดการประเมินทั้งห้อง',
+    icon: '🎯',
+    label: 'สรุปคะแนนรวมทุกวิชา (ทั้งห้อง)',
+    shortLabel: 'คะแนนรวมห้อง',
+    value: 'scores',
+  },
+  {
+    category: 'academic_scores',
+    defaultOrientation: 'landscape',
+    description: 'ตารางคะแนนเก็บรายช่อง คะแนนรวม เกรด และจำนวนงานค้างแยกรายวิชา',
+    icon: '📊',
+    label: 'ตารางคะแนนและงานค้างรายวิชา',
+    shortLabel: 'คะแนนรายวิชา',
+    value: 'subject-scores',
+  },
+  {
+    category: 'student_care',
+    defaultOrientation: 'portrait',
+    description: 'ใบสรุปผลการเรียน เวลาเรียน สุขภาพ เงินออม และพฤติกรรมรายคน สำหรับแจกผู้ปกครอง (A4)',
+    icon: '👤',
+    label: 'ใบรายงานผลรายบุคคล (แจกผู้ปกครอง)',
+    shortLabel: 'รายบุคคล (สมุดพกย่อ)',
+    value: 'individual',
+  },
+  {
+    category: 'student_care',
+    defaultOrientation: 'portrait',
+    description: 'บัญชีรายชื่อนักเรียน ใบเซ็นชื่อรับเงิน และข้อมูลทะเบียนครอบครัว/ผู้ปกครอง A4',
+    icon: '📋',
+    label: 'ทะเบียนรายชื่อ / ใบเซ็นชื่อ A4',
+    shortLabel: 'ทะเบียนรายชื่อ',
+    value: 'student-register',
+  },
+  {
+    category: 'student_care',
+    defaultOrientation: 'landscape',
+    description: 'รายงานน้ำหนัก ส่วนสูง ดัชนีมวลกาย (BMI) แปรงฟัน ดื่มนม อาหารกลางวัน และสุขอนามัย',
+    icon: '🏥',
+    label: 'รายงานสุขภาพและกิจวัตรนักเรียน',
+    shortLabel: 'สุขภาพ/กิจวัตร',
+    value: 'health',
+  },
+  {
+    category: 'student_care',
+    defaultOrientation: 'portrait',
+    description: 'สรุปความดี คะแนนพฤติกรรม และเคสดูแลช่วยเหลือนักเรียนที่ต้องติดตาม',
+    icon: '💬',
+    label: 'รายงานพฤติกรรมและเคสดูแล',
+    shortLabel: 'พฤติกรรม',
+    value: 'behavior',
+  },
+  {
+    category: 'executive_settings',
+    defaultOrientation: 'portrait',
+    description: 'ใบสรุปผลการดำเนินงานประจำเดือน/เทอม/ปี สำหรับเสนอผู้อำนวยการโรงเรียนพิจารณาลงนาม',
+    icon: '👔',
+    label: 'รายงานสรุปสำหรับผู้บริหาร',
+    shortLabel: 'สรุปผู้บริหาร',
+    value: 'executive',
+  },
+  {
+    category: 'executive_settings',
+    defaultOrientation: 'portrait',
+    description: 'ตั้งค่าชื่อโรงเรียน ตราโรงเรียน ชื่อผู้ลงนามในรายงาน และวันที่เปิด-ปิดภาคเรียน',
+    icon: '⚙️',
+    label: 'ตั้งค่าหัวกระดาษและผู้ลงนาม',
+    shortLabel: 'ตั้งค่ารายงาน',
+    value: 'settings',
+  },
+];
+
+const reportCategories: Array<{
+  description: string;
+  icon: string;
+  key: ReportCategoryKey;
+  title: string;
+}> = [
+  {
+    description: 'เช็คชื่อรายเดือน/เทอม/ปี และสมุดเงินออม',
+    icon: '📅',
+    key: 'attendance_savings',
+    title: '1. เวลาเรียน & เงินออม',
+  },
+  {
+    description: 'คะแนนรวมห้อง คะแนนรายวิชา และ ปพ.5/ปพ.6',
+    icon: '📊',
+    key: 'academic_scores',
+    title: '2. ผลการเรียน & ปพ.',
+  },
+  {
+    description: 'ใบสรุปรายคน บัญชีรายชื่อ สุขภาพ พฤติกรรม',
+    icon: '👤',
+    key: 'student_care',
+    title: '3. นักเรียน & รายบุคคล',
+  },
+  {
+    description: 'ใบสรุปเสนอผู้บริหาร และตั้งค่าหัวกระดาษ',
+    icon: '🏛️',
+    key: 'executive_settings',
+    title: '4. ผู้บริหาร & ตั้งค่า',
+  },
 ];
 
 const registerFieldOptions: Array<{ description: string; label: string; value: RegisterOptionalField }> = [
-  { description: 'ปกปิดบางส่วนโดยค่าเริ่มต้น', label: 'เลขบัตรประชาชน', value: 'citizenId' },
-  { description: 'ข้อมูลวัดล่าสุดหรือข้อมูลนำเข้า DMC', label: 'น้ำหนักและส่วนสูง', value: 'health' },
+  { description: 'ปกปิดบางส่วนหรือแสดงครบ 13 หลัก', label: 'เลขบัตรประชาชน', value: 'citizenId' },
+  { description: 'น้ำหนัก ส่วนสูง และ BMI ล่าสุด', label: 'น้ำหนักและส่วนสูง', value: 'health' },
   { description: 'บ้านเลขที่ หมู่ ตำบล อำเภอ จังหวัด', label: 'ที่อยู่นักเรียน', value: 'address' },
-  { description: 'บิดา มารดา ผู้ปกครอง และเบอร์ติดต่อ', label: 'ข้อมูลครอบครัว', value: 'family' },
+  { description: 'บิดา มารดา ผู้ปกครอง และเบอร์โทร', label: 'ข้อมูลผู้ปกครอง/เบอร์โทร', value: 'family' },
 ];
 
-const reportPeriods: Array<{ label: string; value: ReportPeriod }> = [
-  { label: 'เดือน', value: 'month' },
-  { label: 'เทอม', value: 'term' },
-  { label: 'ปีการศึกษา', value: 'year' },
+const registerFieldLabels: Record<RegisterOptionalField, string> = {
+  address: 'ที่อยู่ตามทะเบียน',
+  citizenId: 'เลขประจำตัวประชาชน',
+  family: 'บิดา มารดา / ผู้ปกครอง (เบอร์โทร)',
+  health: 'น้ำหนัก / ส่วนสูง',
+};
+
+const reportPeriods: Array<{ label: string; sub: string; value: ReportPeriod }> = [
+  { label: 'รายเดือน', sub: 'ตารางรายวัน 1-31', value: 'month' },
+  { label: 'รายเทอม', sub: 'สรุปรวมทุกเดือนในเทอม', value: 'term' },
+  { label: 'ปีการศึกษา', sub: 'สรุปรวมตลอดปี (พ.ค.-เม.ย.)', value: 'year' },
 ];
 
 const scoreCategoryLabels: Record<ScoreAssessmentRow['category'], string> = {
@@ -319,48 +534,29 @@ const scoreCategoryLabels: Record<ScoreAssessmentRow['category'], string> = {
   reading: 'อ่านเขียน',
 };
 
-const savingsTransactionLabels: Record<SavingsTransactionRow['transaction_type'], string> = {
-  adjustment: 'ปรับยอด',
-  deposit: 'ฝาก',
-  withdrawal: 'ถอน',
-};
-
 const toneLabels: Record<BehaviorRecordRow['tone'], string> = {
   concern: 'ต้องดูแล',
   discipline: 'วินัย',
-  positive: 'เชิงบวก',
-  support: 'สนับสนุน',
+  positive: 'ชื่นชม/เชิงบวก',
+  support: 'ช่วยเหลือ/สนับสนุน',
 };
 
 const followUpLabels: Record<BehaviorRecordRow['follow_up_status'], string> = {
-  contact_guardian: 'ติดต่อผู้ปกครอง',
-  none: 'ไม่ต้องติดตาม',
-  referred: 'ส่งต่อ',
-  resolved: 'ปิดเคสแล้ว',
-  watch: 'เฝ้าดู',
+  contact_guardian: 'ประสานผู้ปกครอง',
+  none: 'ปกติ/ไม่ต้องติดตาม',
+  referred: 'ส่งต่อฝ่ายแนะแนว',
+  resolved: 'ดูแลเรียบร้อยแล้ว',
+  watch: 'เฝ้าติดตาม',
 };
-
-const monthlyStatusAbbreviations: Record<AttendanceStatus, string> = {
-  present: 'มา',
-  late: 'ส',
-  leave: 'ล',
-  sick: 'ป',
-  absent: 'ข',
-  activity: 'ก',
-};
-
-function getTodayDate() {
-  return getBangkokDate();
-}
 
 function escapeCsv(value: string | number) {
-  const text = String(value);
+  const text = String(value ?? '');
   if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
   return text;
 }
 
-function escapeHtml(value: string | number) {
-  return String(value)
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -396,13 +592,12 @@ function formatDateKey(year: number, monthIndex: number, day: number) {
 }
 
 function getReportMonthContext(dateValue: string) {
-  const monthDate = parseLocalDate(dateValue);
+  const monthDate = parseLocalDate(dateValue.length === 7 ? `${dateValue}-01` : dateValue);
   const year = monthDate.getFullYear();
   const monthIndex = monthDate.getMonth();
   const days = Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, index) => {
     const day = index + 1;
     const date = new Date(year, monthIndex, day);
-
     return {
       day,
       dateKey: formatDateKey(year, monthIndex, day),
@@ -433,6 +628,47 @@ function getMonthDateRange(monthValue: string) {
   };
 }
 
+interface MonthBucket {
+  from: string;
+  fullLabel: string;
+  key: string;
+  shortLabel: string;
+  to: string;
+}
+
+function getMonthsBetween(dateFrom: string, dateTo: string): MonthBucket[] {
+  const start = parseLocalDate(dateFrom);
+  const end = parseLocalDate(dateTo);
+  const buckets: MonthBucket[] = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+
+  let guard = 0;
+  while (cursor <= last && guard < 24) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+    const shortLabel = new Intl.DateTimeFormat('th-TH', {
+      month: 'short',
+      year: '2-digit',
+    }).format(cursor);
+    const fullLabel = new Intl.DateTimeFormat('th-TH', {
+      month: 'long',
+      year: 'numeric',
+    }).format(cursor);
+    buckets.push({
+      from: formatDateKey(y, m, 1),
+      fullLabel,
+      key,
+      shortLabel,
+      to: formatDateKey(y, m, new Date(y, m + 1, 0).getDate()),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+    guard += 1;
+  }
+  return buckets;
+}
+
 function academicYearToGregorianStart(academicYear: string | null | undefined) {
   const numericYear = Number(String(academicYear || '').replace(/\D/g, ''));
   if (!numericYear) return new Date().getFullYear();
@@ -447,616 +683,26 @@ function isReportPeriod(value: string | null): value is ReportPeriod {
   return reportPeriods.some((item) => item.value === value);
 }
 
-function buildReportRows(
-  classrooms: ClassroomRow[],
-  students: StudentRow[],
-  sessions: AttendanceSessionRow[],
-  records: AttendanceRecordRow[],
-) {
-  return records.map((record) => {
-    const session = sessions.find((item) => item.id === record.session_id);
-    const student = students.find((item) => item.id === record.student_id);
-    const classroom = classrooms.find((item) => item.id === session?.classroom_id || item.id === student?.classroom_id);
-
-    return {
-      classroomName: classroom?.name || '-',
-      date: session?.attendance_date || '-',
-      note: record.note || '',
-      periodLabel: session?.period_label || '-',
-      status: record.status,
-      studentCode: student?.student_code || '-',
-      studentName: student ? `${student.first_name} ${student.last_name}` : '-',
-      subjectName: session?.subject_name || '-',
-    };
-  });
-}
-
-interface MonthlyAttendanceRow {
-  dailyStatuses: Record<string, AttendanceStatus | null>;
-  studentCode: string;
-  studentName: string;
-  totals: Record<'absent' | 'late' | 'leave' | 'present', number>;
-}
-
-interface MonthlyAttendanceGrid {
-  classroom: ClassroomRow | null;
-  dayTotals: Record<number, number>;
-  rows: MonthlyAttendanceRow[];
-  summary: Record<'absent' | 'late' | 'leave' | 'present', number>;
-}
-
-function toMonthlySummaryStatus(status: AttendanceStatus | null): 'absent' | 'late' | 'leave' | 'present' | null {
-  if (!status) return null;
-  if (status === 'present' || status === 'activity') return 'present';
-  if (status === 'late') return 'late';
-  if (status === 'leave' || status === 'sick') return 'leave';
-  return 'absent';
-}
-
-function buildMonthlyAttendanceGrid({
-  attendanceRecords,
-  attendanceSessions,
-  classroomId,
-  classrooms,
-  dateFrom,
-  periodLabel,
-  sessionKind,
-  subjectName,
-  students,
-}: {
-  attendanceRecords: AttendanceRecordRow[];
-  attendanceSessions: AttendanceSessionRow[];
-  classroomId: string;
-  classrooms: ClassroomRow[];
-  dateFrom: string;
-  periodLabel?: string;
-  sessionKind: 'daily' | 'subject';
-  subjectName?: string;
-  students: StudentRow[];
-}): MonthlyAttendanceGrid {
-  const { days } = getReportMonthContext(dateFrom);
-  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null;
-  const selectedClassroomId = selectedClassroom?.id || classroomId;
-  const classroomStudents = students.filter((student) => !selectedClassroomId || student.classroom_id === selectedClassroomId);
-  const sessionsByDate = new Map(
-    attendanceSessions
-      .filter((session) => !selectedClassroomId || session.classroom_id === selectedClassroomId)
-      .filter((session) => {
-        const isLegacyHomeroom = session.subject_name === 'โฮมรูม';
-        return sessionKind === 'subject' ? Boolean(session.subject_name) && !isLegacyHomeroom : !session.subject_name || isLegacyHomeroom;
-      })
-      .filter((session) => !subjectName || session.subject_name === subjectName)
-      .filter((session) => !periodLabel || session.period_label === periodLabel)
-      .map((session) => [session.attendance_date, session]),
-  );
-  const recordsBySessionStudent = new Map(
-    attendanceRecords.map((record) => [`${record.session_id}:${record.student_id}`, record]),
-  );
-  const summary: MonthlyAttendanceGrid['summary'] = {
-    present: 0,
-    late: 0,
-    leave: 0,
-    absent: 0,
-  };
-  const dayTotals: MonthlyAttendanceGrid['dayTotals'] = {};
-
-  const rows = classroomStudents.map((student) => {
-    const dailyStatuses: MonthlyAttendanceRow['dailyStatuses'] = {};
-    const totals: MonthlyAttendanceRow['totals'] = {
-      present: 0,
-      late: 0,
-      leave: 0,
-      absent: 0,
-    };
-
-    days.forEach((day) => {
-      const session = sessionsByDate.get(day.dateKey);
-      const record = session ? recordsBySessionStudent.get(`${session.id}:${student.id}`) : null;
-      const status = record?.status || null;
-      const summaryStatus = toMonthlySummaryStatus(status);
-      dailyStatuses[day.dateKey] = status;
-
-      if (summaryStatus) {
-        totals[summaryStatus] += 1;
-        summary[summaryStatus] += 1;
-        dayTotals[day.day] = (dayTotals[day.day] || 0) + 1;
-      }
-    });
-
-    return {
-      dailyStatuses,
-      studentCode: student.student_code || '-',
-      studentName: `${student.first_name} ${student.last_name}`,
-      totals,
-    };
-  });
-
-  return {
-    classroom: selectedClassroom,
-    dayTotals,
-    rows,
-    summary,
-  };
-}
-
-interface MonthlySavingsRow {
-  dailyAmounts: Record<string, number>;
-  studentCode: string;
-  studentId: string;
-  studentName: string;
-  totalBalance: number;
-  totalMonth: number;
-}
-
-interface MonthlySavingsGrid {
-  classroom: ClassroomRow | null;
-  dayTotals: Record<number, number>;
-  rows: MonthlySavingsRow[];
-  totalActiveSavingsStudents: number;
-  totalCumulativeBalance: number;
-  totalMonthSavings: number;
-  totalStudents: number;
-}
-
-function buildMonthlySavingsGrid({
-  savingsAccounts,
-  savingsTransactions,
-  classroomId,
-  classrooms,
-  dateFrom,
-  students,
-}: {
-  savingsAccounts: SavingsAccountRow[];
-  savingsTransactions: SavingsTransactionRow[];
-  classroomId: string;
-  classrooms: ClassroomRow[];
-  dateFrom: string;
-  students: StudentRow[];
-}): MonthlySavingsGrid {
-  const { days } = getReportMonthContext(dateFrom);
-  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null;
-  const selectedClassroomId = selectedClassroom?.id || classroomId;
-  const classroomStudents = students.filter((student) => !selectedClassroomId || student.classroom_id === selectedClassroomId);
-  const savingsAccountByStudent = new Map(savingsAccounts.map((account) => [account.student_id, account]));
-
-  const dayTotals: Record<number, number> = {};
-  let totalMonthSavings = 0;
-  let totalCumulativeBalance = 0;
-  let totalActiveSavingsStudents = 0;
-
-  const rows = classroomStudents.map((student) => {
-    const account = savingsAccountByStudent.get(student.id);
-    const totalBalance = Number(account?.balance || 0);
-    totalCumulativeBalance += totalBalance;
-
-    const studentTx = savingsTransactions.filter((tx) => tx.student_id === student.id);
-    const dailyAmounts: Record<string, number> = {};
-    let totalMonth = 0;
-
-    days.forEach((day) => {
-      const dayTxs = studentTx.filter((tx) => tx.transaction_date === day.dateKey);
-      const dayNet = dayTxs.reduce((sum, tx) => {
-        const amt = Number(tx.amount || 0);
-        if (tx.transaction_type === 'deposit') return sum + amt;
-        if (tx.transaction_type === 'withdrawal') return sum - amt;
-        return sum + amt;
-      }, 0);
-
-      if (dayNet !== 0) {
-        dailyAmounts[day.dateKey] = dayNet;
-        totalMonth += dayNet;
-        dayTotals[day.day] = (dayTotals[day.day] || 0) + dayNet;
-      }
-    });
-
-    if (totalMonth > 0) {
-      totalActiveSavingsStudents += 1;
-    }
-    totalMonthSavings += totalMonth;
-
-    return {
-      dailyAmounts,
-      studentCode: student.student_code || '-',
-      studentId: student.id,
-      studentName: `${student.first_name} ${student.last_name}`,
-      totalBalance,
-      totalMonth,
-    };
-  });
-
-  return {
-    classroom: selectedClassroom,
-    dayTotals,
-    rows,
-    totalActiveSavingsStudents,
-    totalCumulativeBalance,
-    totalMonthSavings,
-    totalStudents: classroomStudents.length,
-  };
-}
-
-function buildPrintableReportHtml({
-  attendanceGrid,
-  dateFrom,
-  teacherName,
-  schoolName,
-  workspaceName,
-  reportIdentity,
-}: {
-  attendanceGrid: MonthlyAttendanceGrid;
-  dateFrom: string;
-  teacherName: string;
-  schoolName: string;
-  workspaceName: string;
-  reportIdentity: SchoolReportIdentity;
-}) {
-  const { days, monthLabel } = getReportMonthContext(dateFrom);
-  const dayHeaders = days
-    .map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`)
-    .join('');
-
-  const studentRows = attendanceGrid.rows
-    .map((row, index) => {
-      const dayCells = days
-        .map((day) => {
-          const status = row.dailyStatuses[day.dateKey];
-          return `<td class="day ${day.isWeekend ? 'weekend' : ''}">${status ? escapeHtml(monthlyStatusAbbreviations[status]) : ''}</td>`;
-        })
-        .join('');
-
-      return `
-        <tr>
-          <td class="number">${index + 1}</td>
-          <td class="name">${escapeHtml(row.studentName)}</td>
-          ${dayCells}
-          <td class="sum present">${row.totals.present}</td>
-          <td class="sum late">${row.totals.late}</td>
-          <td class="sum leave">${row.totals.leave}</td>
-          <td class="sum absent">${row.totals.absent}</td>
-        </tr>
-      `;
-    })
-    .join('');
-
-  const totalCells = days
-    .map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${attendanceGrid.dayTotals[day.day] || ''}</td>`)
-    .join('');
-
-  const classroomName = attendanceGrid.classroom?.name || workspaceName || '-';
-  const academicYear = attendanceGrid.classroom?.academic_year || '2569';
-  const dateTo = days[days.length - 1]?.dateKey || dateFrom;
-  const documentCode = buildOfficialDocumentCode('CC-ATT', dateFrom, classroomName);
-
-  return `<!doctype html>
-    <html lang="th">
-      <head>
-        <meta charset="utf-8" />
-        <title>ClassCare 360 - รายงานเวลาเรียนรายเดือน</title>
-        <style>
-          ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: 'landscape' })}
-          .summary-grid {
-            display: grid;
-            gap: 2mm;
-            grid-template-columns: repeat(4, 1fr);
-            margin: 1.5mm 0 2mm;
-          }
-          .summary-card {
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 2mm;
-            padding: 1.2mm 2mm;
-            text-align: center;
-          }
-          .summary-card span { display: block; font-size: 8.5pt; font-weight: 700; color: #0f2742; }
-          .summary-card strong { color: #0891b2; display: block; font-size: 13pt; margin-top: .4mm; }
-          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
-          th, td {
-            border: 1px solid #cbd5e1;
-            font-size: 8.5pt;
-            height: 14px;
-            padding: 1px 1.5px;
-            text-align: center;
-            vertical-align: middle;
-            line-height: 1.1;
-          }
-          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-weight: 700; }
-          th.name, td.name { text-align: left; width: 40mm; padding-left: 2mm; }
-          th.number, td.number { width: 8mm; }
-          .day { width: auto; }
-          .weekend { background: #f1f5f9 !important; color: #94a3b8; }
-          .present { color: #047857; font-weight: 700; }
-          .late { color: #b45309; font-weight: 700; }
-          .leave { color: #0369a1; font-weight: 700; }
-          .absent { color: #be123c; font-weight: 700; }
-          .sum { background: #e6f7fb !important; width: 7.5mm; font-weight: 700; color: #0f2742 !important; }
-          .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
-          tfoot td { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
-        </style>
-      </head>
-      <body>
-        <main class="official-sheet">
-        ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: { ...reportIdentity, academicYear }, schoolName, subtitle: `ประจำเดือน${monthLabel}`, title: `รายงานเวลาเรียนระดับชั้น ${classroomName}` })}
-        <section class="summary-grid">
-          <div class="summary-card">
-            <span>มา</span>
-            <strong>${attendanceGrid.summary.present.toLocaleString('th-TH')}</strong>
-          </div>
-          <div class="summary-card">
-            <span>สาย</span>
-            <strong>${attendanceGrid.summary.late.toLocaleString('th-TH')}</strong>
-          </div>
-          <div class="summary-card">
-            <span>ลา</span>
-            <strong>${attendanceGrid.summary.leave.toLocaleString('th-TH')}</strong>
-          </div>
-          <div class="summary-card">
-            <span>ขาด</span>
-            <strong>${attendanceGrid.summary.absent.toLocaleString('th-TH')}</strong>
-          </div>
-        </section>
-        <table>
-          <thead>
-            <tr>
-              <th class="number">เลขที่</th>
-              <th class="name">ชื่อ-นามสกุล</th>
-              ${dayHeaders}
-              <th>มา</th>
-              <th>สาย</th>
-              <th>ลา</th>
-              <th>ขาด</th>
-            </tr>
-          </thead>
-          <tbody>${studentRows}</tbody>
-          <tfoot>
-            <tr>
-              <td></td>
-              <td class="name">รวม</td>
-              ${totalCells}
-              <td>${attendanceGrid.summary.present}</td>
-              <td>${attendanceGrid.summary.late}</td>
-              <td>${attendanceGrid.summary.leave}</td>
-              <td>${attendanceGrid.summary.absent}</td>
-            </tr>
-          </tfoot>
-        </table>
-        <div class="official-closing-block">
-          <div class="official-certification">หมายเหตุ: มา = เข้าเรียน, ส = สาย, ล = ลา, ข = ขาด · ขอรับรองว่าข้อมูลเวลาเรียนตรงกับรายการที่บันทึกในระบบ ณ วันตัดยอด</div>
-          ${buildOfficialSignaturesHtml([
-            { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
-            ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-            { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
-            { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-          ])}
-          ${buildOfficialFooterHtml({ confidential: true, documentCode })}
-        </div>
-        </main>
-      </body>
-    </html>`;
-}
-
-function buildPrintableSavingsReportHtml({
-  savingsGrid,
-  dateFrom,
-  teacherName,
-  schoolName,
-  workspaceName,
-  reportIdentity,
-}: {
-  savingsGrid: MonthlySavingsGrid;
-  dateFrom: string;
-  teacherName: string;
-  schoolName: string;
-  workspaceName: string;
-  reportIdentity: SchoolReportIdentity;
-}) {
-  const { days, monthLabel } = getReportMonthContext(dateFrom);
-  const dayHeaders = days
-    .map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`)
-    .join('');
-
-  const studentRows = savingsGrid.rows
-    .map((row, index) => {
-      const dayCells = days
-        .map((day) => {
-          const amt = row.dailyAmounts[day.dateKey];
-          return `<td class="day ${day.isWeekend ? 'weekend' : ''}">${amt ? amt : ''}</td>`;
-        })
-        .join('');
-
-      return `
-        <tr>
-          <td class="number">${index + 1}</td>
-          <td class="name">${escapeHtml(row.studentName)}</td>
-          ${dayCells}
-          <td class="sum month-total">${row.totalMonth ? row.totalMonth.toLocaleString('th-TH') : ''}</td>
-          <td class="sum balance-total">${row.totalBalance ? row.totalBalance.toLocaleString('th-TH') : ''}</td>
-        </tr>
-      `;
-    })
-    .join('');
-
-  const totalCells = days
-    .map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`)
-    .join('');
-
-  const classroomName = savingsGrid.classroom?.name || workspaceName || '-';
-  const academicYear = savingsGrid.classroom?.academic_year || '2569';
-  const dateTo = days[days.length - 1]?.dateKey || dateFrom;
-  const documentCode = buildOfficialDocumentCode('CC-SAV', dateFrom, classroomName);
-
-  return `<!doctype html>
-    <html lang="th">
-      <head>
-        <meta charset="utf-8" />
-        <title>ClassCare 360 - รายงานการบันทึกการออมเงิน</title>
-        <style>
-          ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: 'landscape' })}
-          .summary-grid {
-            display: grid;
-            gap: 2mm;
-            grid-template-columns: repeat(4, 1fr);
-            margin: 1.5mm 0 2mm;
-          }
-          .summary-card {
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 2mm;
-            padding: 1.2mm 2mm;
-            text-align: center;
-          }
-          .summary-card span { display: block; font-size: 8.5pt; font-weight: 700; color: #0f2742; }
-          .summary-card strong { color: #0891b2; display: block; font-size: 13pt; margin-top: .4mm; }
-          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
-          th, td {
-            border: 1px solid #cbd5e1;
-            font-size: 8.5pt;
-            height: 14px;
-            padding: 1px 1.5px;
-            text-align: center;
-            vertical-align: middle;
-            line-height: 1.1;
-          }
-          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-weight: 700; }
-          th.name, td.name { text-align: left; width: 40mm; padding-left: 2mm; }
-          th.number, td.number { width: 8mm; }
-          .day { width: auto; }
-          .weekend { background: #f1f5f9 !important; color: #94a3b8; }
-          .sum { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
-          .month-total { width: 16mm; }
-          .balance-total { width: 18mm; }
-          .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
-          tfoot td { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
-        </style>
-      </head>
-      <body>
-        <main class="official-sheet">
-        ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: { ...reportIdentity, academicYear }, schoolName, subtitle: `ประจำเดือน${monthLabel}`, title: `รายงานการออมเงินระดับชั้น ${classroomName}` })}
-        <section class="summary-grid">
-          <div class="summary-card">
-            <span>นักเรียนทั้งหมด</span>
-            <strong>${savingsGrid.totalStudents}</strong>
-          </div>
-          <div class="summary-card">
-            <span>มีการออมเดือนนี้</span>
-            <strong>${savingsGrid.totalActiveSavingsStudents}</strong>
-          </div>
-          <div class="summary-card">
-            <span>ยอดรวมเดือนนี้</span>
-            <strong>${savingsGrid.totalMonthSavings.toLocaleString('th-TH')}</strong>
-          </div>
-          <div class="summary-card">
-            <span>ยอดสะสม/คงเหลือรวม</span>
-            <strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</strong>
-          </div>
-        </section>
-        <table>
-          <thead>
-            <tr>
-              <th class="number">เลขที่</th>
-              <th class="name">ชื่อ-นามสกุล</th>
-              ${dayHeaders}
-              <th>รวม</th>
-              <th>ยอดสะสม/คงเหลือ</th>
-            </tr>
-          </thead>
-          <tbody>${studentRows}</tbody>
-          <tfoot>
-            <tr>
-              <td></td>
-              <td class="name">รวม</td>
-              ${totalCells}
-              <td>${savingsGrid.totalMonthSavings.toLocaleString('th-TH')}</td>
-              <td>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
-            </tr>
-          </tfoot>
-        </table>
-        <div class="official-closing-block">
-          <div class="official-certification">ขอรับรองว่ารายการฝาก ถอน และยอดคงเหลือในรายงานฉบับนี้ตรงกับข้อมูลที่บันทึกในระบบ ณ วันตัดยอด</div>
-          ${buildOfficialSignaturesHtml([
-            { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
-            ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-            { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานการเงินหรือวิชาการ' },
-            { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-          ])}
-          ${buildOfficialFooterHtml({ confidential: true, documentCode })}
-        </div>
-        </main>
-      </body>
-    </html>`;
-}
-
-interface PrintableTableReportOptions {
-  columns: string[];
-  confidential?: boolean;
-  dateFrom: string;
-  dateTo: string;
-  documentPrefix?: string;
-  reportIdentity: SchoolReportIdentity;
-  rows: Array<Array<number | string | null | undefined>>;
-  schoolName: string;
-  subtitle: string;
-  teacherName: string;
-  title: string;
-  workspaceName: string;
-}
-
-function buildPrintableTableReportHtml({
-  columns,
-  confidential = true,
-  dateFrom,
-  dateTo,
-  documentPrefix = 'CC-RPT',
-  reportIdentity,
-  rows,
-  schoolName,
-  subtitle,
-  teacherName,
-  title,
-  workspaceName,
-}: PrintableTableReportOptions) {
-  const documentCode = buildOfficialDocumentCode(documentPrefix, dateFrom, workspaceName);
-  const tableRows = rows.length > 0
-    ? rows.map((row, index) => `<tr><td class="official-center">${index + 1}</td>${row.map((cell) => `<td>${escapeHtml(String(cell ?? '-'))}</td>`).join('')}</tr>`).join('')
-    : `<tr><td class="official-center" colspan="${columns.length + 1}">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</td></tr>`;
-
-  return `<!doctype html>
-    <html lang="th">
-      <head>
-        <meta charset="utf-8" />
-        <title>${escapeHtml(title)}</title>
-        <style>
-          ${buildOfficialReportCss({ dense: true, marginMm: 8, orientation: 'landscape' })}
-          .official-table th:first-child, .official-table td:first-child { width: 9mm; }
-        </style>
-      </head>
-      <body>
-        <main class="official-sheet">
-        ${buildOfficialHeaderHtml({ classroomName: workspaceName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle, title })}
-        <table class="official-table">
-          <thead><tr><th>ที่</th>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
-          <tbody>${tableRows}</tbody>
-        </table>
-        <div class="official-closing-block">
-          <div class="official-certification">ขอรับรองว่าข้อมูลในรายงานฉบับนี้ตรวจสอบจากข้อมูลที่บันทึกในระบบตามช่วงเวลาที่ระบุ และถูกต้องตามข้อมูลที่มีอยู่ ณ วันตัดยอด</div>
-          ${buildOfficialSignaturesHtml([
-            { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน / ครูประจำชั้น' },
-            ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-            { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
-            { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-          ])}
-          ${buildOfficialFooterHtml({ confidential, documentCode })}
-        </div>
-        </main>
-      </body>
-    </html>`;
-}
-
 function asReportRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function reportText(value: unknown) {
   return String(value ?? '').trim();
+}
+
+function getStudentPrefix(student: StudentRow): string {
+  const meta = asReportRecord(student.metadata);
+  const explicitPrefix = reportText(meta.prefix || meta.title);
+  if (explicitPrefix) return explicitPrefix;
+  if (student.gender === 'male') return 'เด็กชาย';
+  if (student.gender === 'female') return 'เด็กหญิง';
+  return '';
+}
+
+function getStudentFullName(student: StudentRow, includePrefix = true): string {
+  const prefix = includePrefix ? getStudentPrefix(student) : '';
+  return `${prefix}${student.first_name} ${student.last_name}`.trim();
 }
 
 function formatDmcPerson(value: unknown) {
@@ -1081,34 +727,43 @@ function getRegisterFamilyLines(student: StudentRow, guardians: StudentGuardianR
   const metadata = student.metadata || {};
   const father = formatDmcPerson(metadata.dmc_father);
   const mother = formatDmcPerson(metadata.dmc_mother);
-  const guardian = guardians.find((item) => item.student_id === student.id && item.is_primary)
-    || guardians.find((item) => item.student_id === student.id);
+  const guardian =
+    guardians.find((item) => item.student_id === student.id && item.is_primary) ||
+    guardians.find((item) => item.student_id === student.id);
   const lines = [
     father !== '-' ? `บิดา: ${father}` : '',
     mother !== '-' ? `มารดา: ${mother}` : '',
-    guardian ? `ผู้ปกครอง: ${guardian.display_name}${guardian.relation ? ` (${guardian.relation})` : ''}${guardian.phone ? ` โทร. ${guardian.phone}` : ''}` : '',
+    guardian
+      ? `ผู้ปกครอง: ${guardian.display_name}${guardian.relation ? ` (${guardian.relation})` : ''}${guardian.phone ? ` โทร. ${guardian.phone}` : ''}`
+      : '',
   ].filter(Boolean);
   return lines.length > 0 ? lines : ['-'];
 }
 
+function getStudentLatestWeightHeight(student: StudentRow, healthRows: StudentRegisterHealthRow[]) {
+  const latest = healthRows.find((row) => row.studentId === student.id && (row.weightKg !== null || row.heightCm !== null));
+  const flags = asReportRecord(student.health_flags);
+  const meta = asReportRecord(student.metadata);
+  const weightRaw = latest?.weightKg ?? flags.weight_kg ?? meta.weight_kg ?? null;
+  const heightRaw = latest?.heightCm ?? flags.height_cm ?? meta.height_cm ?? null;
+  const weight = weightRaw !== null && weightRaw !== '' && !Number.isNaN(Number(weightRaw)) ? Number(weightRaw) : null;
+  const height = heightRaw !== null && heightRaw !== '' && !Number.isNaN(Number(heightRaw)) ? Number(heightRaw) : null;
+  const bmi =
+    weight && height && height > 0
+      ? round(weight / ((height / 100) * (height / 100)))
+      : null;
+  return { bmi, height, recordDate: latest?.recordDate || null, weight };
+}
+
 function getRegisterHealthText(student: StudentRow, healthRows: StudentRegisterHealthRow[]) {
-  const latest = healthRows.find((row) => row.studentId === student.id);
-  const flags = student.health_flags || {};
-  const weight = latest?.weightKg ?? flags.weight_kg ?? null;
-  const height = latest?.heightCm ?? flags.height_cm ?? null;
+  const { weight, height, bmi } = getStudentLatestWeightHeight(student, healthRows);
   const values = [
-    weight ? `น้ำหนัก ${weight} กก.` : '',
-    height ? `ส่วนสูง ${height} ซม.` : '',
+    weight ? `นน. ${weight} กก.` : '',
+    height ? `สส. ${height} ซม.` : '',
+    bmi ? `BMI ${bmi}` : '',
   ].filter(Boolean);
   return values.join(' / ') || '-';
 }
-
-const registerFieldLabels: Record<RegisterOptionalField, string> = {
-  address: 'ที่อยู่ตามทะเบียน',
-  citizenId: 'เลขประจำตัวประชาชน',
-  family: 'บิดา มารดา หรือผู้ปกครอง / เบอร์ติดต่อ',
-  health: 'น้ำหนัก / ส่วนสูง',
-};
 
 function getRegisterFieldValue(
   student: StudentRow,
@@ -1117,10 +772,768 @@ function getRegisterFieldValue(
   healthRows: StudentRegisterHealthRow[],
   revealCitizenIds: boolean,
 ) {
-  if (field === 'citizenId') return maskThaiCitizenId(student.metadata?.dmc_id_card, revealCitizenIds);
+  if (field === 'citizenId') {
+    const rawId = student.metadata?.dmc_id_card || student.metadata?.citizen_id || student.metadata?.national_id;
+    return maskThaiCitizenId(rawId, revealCitizenIds);
+  }
   if (field === 'health') return getRegisterHealthText(student, healthRows);
   if (field === 'address') return formatRegisterAddress(student);
   return getRegisterFamilyLines(student, guardians).join(' | ');
+}
+
+function toMonthlySummaryStatus(status: AttendanceStatus | null): 'absent' | 'late' | 'leave' | 'present' | null {
+  if (!status) return null;
+  if (status === 'present' || status === 'activity') return 'present';
+  if (status === 'late') return 'late';
+  if (status === 'leave' || status === 'sick') return 'leave';
+  return 'absent';
+}
+
+// Priority when multiple sessions happen on the same date:
+const statusPriority: Record<AttendanceStatus, number> = {
+  absent: 6,
+  sick: 5,
+  leave: 4,
+  late: 3,
+  present: 2,
+  activity: 1,
+};
+
+interface MonthlyAttendanceRow {
+  attendancePercent: number;
+  dailyStatuses: Record<string, AttendanceStatus | null>;
+  monthlyCounts: Record<string, { absent: number; late: number; leave: number; present: number; total: number }>;
+  student: StudentRow;
+  studentCode: string;
+  studentName: string;
+  totals: Record<'absent' | 'late' | 'leave' | 'present', number>;
+}
+
+interface MonthlyAttendanceGrid {
+  classroom: ClassroomRow | null;
+  dayTotals: Record<number, number>;
+  monthBuckets: MonthBucket[];
+  monthTotals: Record<string, number>;
+  rows: MonthlyAttendanceRow[];
+  summary: Record<'absent' | 'late' | 'leave' | 'present', number>;
+  totalRecordedDays: number;
+}
+
+function buildAttendanceGrid({
+  attendanceRecords,
+  attendanceSessions,
+  classroom,
+  dateFrom,
+  dateTo,
+  periodLabel,
+  sessionKind,
+  subjectName,
+  students,
+}: {
+  attendanceRecords: AttendanceRecordRow[];
+  attendanceSessions: AttendanceSessionRow[];
+  classroom: ClassroomRow | null;
+  dateFrom: string;
+  dateTo: string;
+  periodLabel?: string;
+  sessionKind: 'daily' | 'subject';
+  subjectName?: string;
+  students: StudentRow[];
+}): MonthlyAttendanceGrid {
+  const { days } = getReportMonthContext(dateFrom);
+  const monthBuckets = getMonthsBetween(dateFrom, dateTo);
+  const selectedClassroomId = classroom?.id || '';
+
+  // Filter matching sessions across the full dateFrom..dateTo range
+  const matchingSessions = attendanceSessions
+    .filter((session) => !selectedClassroomId || session.classroom_id === selectedClassroomId)
+    .filter((session) => session.attendance_date >= dateFrom && session.attendance_date <= dateTo)
+    .filter((session) => {
+      const isLegacyHomeroom = session.subject_name === 'โฮมรูม';
+      return sessionKind === 'subject'
+        ? Boolean(session.subject_name) && !isLegacyHomeroom
+        : !session.subject_name || isLegacyHomeroom || sessionKind === 'daily';
+    })
+    .filter((session) => !subjectName || session.subject_name === subjectName)
+    .filter((session) => !periodLabel || session.period_label === periodLabel);
+
+  // Group sessions by date (solving the multiple-sessions-per-day overwrite bug!)
+  const sessionsByDate = new Map<string, AttendanceSessionRow[]>();
+  matchingSessions.forEach((session) => {
+    const list = sessionsByDate.get(session.attendance_date) || [];
+    list.push(session);
+    sessionsByDate.set(session.attendance_date, list);
+  });
+
+  const recordsBySessionStudent = new Map(
+    attendanceRecords.map((record) => [`${record.session_id}:${record.student_id}`, record]),
+  );
+
+  const summary: MonthlyAttendanceGrid['summary'] = {
+    present: 0,
+    late: 0,
+    leave: 0,
+    absent: 0,
+  };
+  const dayTotals: Record<number, number> = {};
+  const monthTotals: Record<string, number> = {};
+  const recordedDateSet = new Set<string>();
+
+  const allDatesInRange = Array.from(sessionsByDate.keys()).sort();
+
+  const rows: MonthlyAttendanceRow[] = students.map((student) => {
+    const dailyStatuses: Record<string, AttendanceStatus | null> = {};
+    const monthlyCounts: MonthlyAttendanceRow['monthlyCounts'] = {};
+    monthBuckets.forEach((mb) => {
+      monthlyCounts[mb.key] = { absent: 0, late: 0, leave: 0, present: 0, total: 0 };
+    });
+
+    const totals: MonthlyAttendanceRow['totals'] = {
+      present: 0,
+      late: 0,
+      leave: 0,
+      absent: 0,
+    };
+
+    // Evaluate every date that has a session in dateFrom..dateTo
+    allDatesInRange.forEach((dateKey) => {
+      const dateSessions = sessionsByDate.get(dateKey) || [];
+      let chosenStatus: AttendanceStatus | null = null;
+
+      // Prefer homeroom/daily session if in daily mode, otherwise highest priority status
+      for (const sess of dateSessions) {
+        const rec = recordsBySessionStudent.get(`${sess.id}:${student.id}`);
+        if (!rec?.status) continue;
+        if (sessionKind === 'daily' && (!sess.subject_name || sess.subject_name === 'โฮมรูม')) {
+          chosenStatus = rec.status;
+          break;
+        }
+        if (!chosenStatus || statusPriority[rec.status] > statusPriority[chosenStatus]) {
+          chosenStatus = rec.status;
+        }
+      }
+
+      if (chosenStatus) {
+        recordedDateSet.add(dateKey);
+        dailyStatuses[dateKey] = chosenStatus;
+        const summaryStatus = toMonthlySummaryStatus(chosenStatus);
+        if (summaryStatus) {
+          totals[summaryStatus] += 1;
+          summary[summaryStatus] += 1;
+
+          const monthKey = dateKey.slice(0, 7);
+          if (monthlyCounts[monthKey]) {
+            monthlyCounts[monthKey][summaryStatus] += 1;
+            monthlyCounts[monthKey].total += 1;
+            monthTotals[monthKey] = (monthTotals[monthKey] || 0) + 1;
+          }
+        }
+      }
+    });
+
+    // Populate dayTotals for the 1..31 monthly view
+    days.forEach((day) => {
+      const st = dailyStatuses[day.dateKey] || null;
+      if (st) {
+        dayTotals[day.day] = (dayTotals[day.day] || 0) + 1;
+      }
+    });
+
+    const totalStudentDays = totals.present + totals.late + totals.leave + totals.absent;
+    const attendedDays = totals.present + totals.late;
+    const attendancePercent = totalStudentDays > 0 ? round((attendedDays / totalStudentDays) * 100) : 100;
+
+    return {
+      attendancePercent,
+      dailyStatuses,
+      monthlyCounts,
+      student,
+      studentCode: student.student_code || '-',
+      studentName: getStudentFullName(student),
+      totals,
+    };
+  });
+
+  return {
+    classroom,
+    dayTotals,
+    monthBuckets,
+    monthTotals,
+    rows,
+    summary,
+    totalRecordedDays: recordedDateSet.size,
+  };
+}
+
+interface MonthlySavingsRow {
+  dailyAmounts: Record<string, number>;
+  depositsInPeriod: number;
+  monthlyNet: Record<string, number>;
+  student: StudentRow;
+  studentCode: string;
+  studentId: string;
+  studentName: string;
+  totalBalance: number;
+  totalPeriodNet: number;
+  transactionCount: number;
+  withdrawalsInPeriod: number;
+}
+
+interface MonthlySavingsGrid {
+  classroom: ClassroomRow | null;
+  dayTotals: Record<number, number>;
+  monthBuckets: MonthBucket[];
+  monthTotals: Record<string, number>;
+  rows: MonthlySavingsRow[];
+  totalActiveSavingsStudents: number;
+  totalCumulativeBalance: number;
+  totalPeriodDeposits: number;
+  totalPeriodNet: number;
+  totalPeriodWithdrawals: number;
+  totalStudents: number;
+}
+
+function buildSavingsGrid({
+  savingsAccounts,
+  savingsTransactions,
+  classroom,
+  dateFrom,
+  dateTo,
+  students,
+}: {
+  savingsAccounts: SavingsAccountRow[];
+  savingsTransactions: SavingsTransactionRow[];
+  classroom: ClassroomRow | null;
+  dateFrom: string;
+  dateTo: string;
+  students: StudentRow[];
+}): MonthlySavingsGrid {
+  const { days } = getReportMonthContext(dateFrom);
+  const monthBuckets = getMonthsBetween(dateFrom, dateTo);
+  const savingsAccountByStudent = new Map(savingsAccounts.map((account) => [account.student_id, account]));
+
+  const dayTotals: Record<number, number> = {};
+  const monthTotals: Record<string, number> = {};
+  let totalPeriodNet = 0;
+  let totalPeriodDeposits = 0;
+  let totalPeriodWithdrawals = 0;
+  let totalCumulativeBalance = 0;
+  let totalActiveSavingsStudents = 0;
+
+  const rows: MonthlySavingsRow[] = students.map((student) => {
+    const account = savingsAccountByStudent.get(student.id);
+    const studentTxs = savingsTransactions.filter(
+      (tx) => tx.student_id === student.id && tx.transaction_date >= dateFrom && tx.transaction_date <= dateTo,
+    );
+
+    const dailyAmounts: Record<string, number> = {};
+    const monthlyNet: Record<string, number> = {};
+    monthBuckets.forEach((mb) => {
+      monthlyNet[mb.key] = 0;
+    });
+
+    let depositsInPeriod = 0;
+    let withdrawalsInPeriod = 0;
+    let rowNet = 0;
+
+    studentTxs.forEach((tx) => {
+      const amt = Number(tx.amount || 0);
+      const delta = tx.transaction_type === 'withdrawal' ? -amt : amt;
+      if (tx.transaction_type === 'deposit') depositsInPeriod += amt;
+      else if (tx.transaction_type === 'withdrawal') withdrawalsInPeriod += amt;
+      else if (delta > 0) depositsInPeriod += delta;
+
+      rowNet += delta;
+      dailyAmounts[tx.transaction_date] = (dailyAmounts[tx.transaction_date] || 0) + delta;
+
+      const monthKey = tx.transaction_date.slice(0, 7);
+      if (monthlyNet[monthKey] !== undefined) {
+        monthlyNet[monthKey] += delta;
+        monthTotals[monthKey] = (monthTotals[monthKey] || 0) + delta;
+      }
+    });
+
+    days.forEach((day) => {
+      const val = dailyAmounts[day.dateKey];
+      if (val) {
+        dayTotals[day.day] = (dayTotals[day.day] || 0) + val;
+      }
+    });
+
+    const totalBalance = account !== undefined ? Number(account.balance || 0) : Math.max(0, rowNet);
+    totalCumulativeBalance += totalBalance;
+    totalPeriodNet += rowNet;
+    totalPeriodDeposits += depositsInPeriod;
+    totalPeriodWithdrawals += withdrawalsInPeriod;
+
+    if (rowNet > 0 || totalBalance > 0) {
+      totalActiveSavingsStudents += 1;
+    }
+
+    return {
+      dailyAmounts,
+      depositsInPeriod,
+      monthlyNet,
+      student,
+      studentCode: student.student_code || '-',
+      studentId: student.id,
+      studentName: getStudentFullName(student),
+      totalBalance,
+      totalPeriodNet: rowNet,
+      transactionCount: studentTxs.length,
+      withdrawalsInPeriod,
+    };
+  });
+
+  return {
+    classroom,
+    dayTotals,
+    monthBuckets,
+    monthTotals,
+    rows,
+    totalActiveSavingsStudents,
+    totalCumulativeBalance,
+    totalPeriodDeposits,
+    totalPeriodNet,
+    totalPeriodWithdrawals,
+    totalStudents: students.length,
+  };
+}
+
+function buildSignaturesList(reportIdentity: SchoolReportIdentity, teacherName: string, thirdRole = 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ') {
+  return [
+    { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
+    ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ครูที่ปรึกษาร่วม' }] : []),
+    { name: reportIdentity.academicHeadName, role: thirdRole },
+    { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
+  ];
+}
+
+function buildPrintableAttendanceHtml({
+  attendanceGrid,
+  dateFrom,
+  dateTo,
+  orientation,
+  periodMode,
+  reportIdentity,
+  schoolName,
+  subtitleOverride,
+  teacherName,
+  titleOverride,
+  workspaceName,
+}: {
+  attendanceGrid: MonthlyAttendanceGrid;
+  dateFrom: string;
+  dateTo: string;
+  orientation: OfficialReportOrientation;
+  periodMode: ReportPeriod;
+  reportIdentity: SchoolReportIdentity;
+  schoolName: string;
+  subtitleOverride?: string;
+  teacherName: string;
+  titleOverride?: string;
+  workspaceName: string;
+}) {
+  const { days, monthLabel } = getReportMonthContext(dateFrom);
+  const classroomName = attendanceGrid.classroom?.name || workspaceName || '-';
+  const academicYear = attendanceGrid.classroom?.academic_year || reportIdentity.academicYear || '2569';
+  const documentCode = buildOfficialDocumentCode('CC-ATT', dateFrom, classroomName);
+  const isMultiMonth = periodMode !== 'month' && attendanceGrid.monthBuckets.length > 1;
+
+  const theadHtml = isMultiMonth
+    ? `<tr>
+        <th class="number">ที่</th>
+        <th class="code">รหัส</th>
+        <th class="name">ชื่อ - นามสกุล</th>
+        ${attendanceGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}<br/><small>(มา/รวม)</small></th>`).join('')}
+        <th class="sum">มา</th>
+        <th class="sum">สาย</th>
+        <th class="sum">ลา/ป่วย</th>
+        <th class="sum">ขาด</th>
+        <th class="sum">ร้อยละ</th>
+      </tr>`
+    : `<tr>
+        <th class="number">ที่</th>
+        <th class="name">ชื่อ - นามสกุล</th>
+        ${days.map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`).join('')}
+        <th class="sum">มา</th>
+        <th class="sum">สาย</th>
+        <th class="sum">ลา</th>
+        <th class="sum">ขาด</th>
+        <th class="sum">%</th>
+      </tr>`;
+
+  const tbodyHtml =
+    attendanceGrid.rows.length > 0
+      ? attendanceGrid.rows
+          .map((row, index) => {
+            if (isMultiMonth) {
+              const monthCells = attendanceGrid.monthBuckets
+                .map((mb) => {
+                  const mc = row.monthlyCounts[mb.key] || { absent: 0, late: 0, leave: 0, present: 0, total: 0 };
+                  const attended = mc.present + mc.late;
+                  return `<td class="day">${mc.total > 0 ? `${attended}/${mc.total}` : '-'}</td>`;
+                })
+                .join('');
+              return `<tr>
+                <td class="number">${index + 1}</td>
+                <td class="code">${escapeHtml(row.studentCode)}</td>
+                <td class="name">${escapeHtml(row.studentName)}</td>
+                ${monthCells}
+                <td class="sum present">${row.totals.present}</td>
+                <td class="sum late">${row.totals.late}</td>
+                <td class="sum leave">${row.totals.leave}</td>
+                <td class="sum absent">${row.totals.absent}</td>
+                <td class="sum">${row.attendancePercent}%</td>
+              </tr>`;
+            }
+
+            const dayCells = days
+              .map((day) => {
+                const status = row.dailyStatuses[day.dateKey];
+                return `<td class="day ${day.isWeekend ? 'weekend' : ''}">${status ? escapeHtml(monthlyStatusAbbreviations[status]) : ''}</td>`;
+              })
+              .join('');
+
+            return `<tr>
+              <td class="number">${index + 1}</td>
+              <td class="name">${escapeHtml(row.studentName)}</td>
+              ${dayCells}
+              <td class="sum present">${row.totals.present}</td>
+              <td class="sum late">${row.totals.late}</td>
+              <td class="sum leave">${row.totals.leave}</td>
+              <td class="sum absent">${row.totals.absent}</td>
+              <td class="sum">${row.attendancePercent}%</td>
+            </tr>`;
+          })
+          .join('')
+      : `<tr><td colspan="${isMultiMonth ? attendanceGrid.monthBuckets.length + 8 : days.length + 7}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
+
+  const tfootHtml = isMultiMonth
+    ? `<tr>
+        <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">รวมบันทึกทั้งหมด (ครั้ง)</td>
+        ${attendanceGrid.monthBuckets.map((mb) => `<td class="total">${attendanceGrid.monthTotals[mb.key] || '-'}</td>`).join('')}
+        <td class="total">${attendanceGrid.summary.present}</td>
+        <td class="total">${attendanceGrid.summary.late}</td>
+        <td class="total">${attendanceGrid.summary.leave}</td>
+        <td class="total">${attendanceGrid.summary.absent}</td>
+        <td class="total">-</td>
+      </tr>`
+    : `<tr>
+        <td></td>
+        <td class="name">รวมผู้เรียนที่มีบันทึก</td>
+        ${days.map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${attendanceGrid.dayTotals[day.day] || ''}</td>`).join('')}
+        <td class="total">${attendanceGrid.summary.present}</td>
+        <td class="total">${attendanceGrid.summary.late}</td>
+        <td class="total">${attendanceGrid.summary.leave}</td>
+        <td class="total">${attendanceGrid.summary.absent}</td>
+        <td class="total">-</td>
+      </tr>`;
+
+  return `<!doctype html>
+    <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>ClassCare 360 - รายงานเวลาเรียน</title>
+        <style>
+          ${buildOfficialReportCss({ dense: true, marginMm: orientation === 'portrait' ? 10 : 8, orientation })}
+          .summary-grid { display: grid; gap: 2mm; grid-template-columns: repeat(4, 1fr); margin: 1.5mm 0 2mm; }
+          .summary-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2mm; padding: 1.2mm 2mm; text-align: center; }
+          .summary-card span { display: block; font-size: 8.5pt; font-weight: 700; color: #0f2742; }
+          .summary-card strong { color: #0891b2; display: block; font-size: 13pt; margin-top: .4mm; }
+          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+          th, td { border: 1px solid #cbd5e1; font-size: ${isMultiMonth ? '9pt' : '8.25pt'}; height: 15px; padding: 1px 1.5px; text-align: center; vertical-align: middle; line-height: 1.1; }
+          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-weight: 700; }
+          th.name, td.name { text-align: left; width: ${isMultiMonth ? '46mm' : '42mm'}; padding-left: 2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          th.number, td.number { width: 8mm; }
+          th.code, td.code { width: 16mm; }
+          .day { width: auto; }
+          .weekend { background: #f1f5f9 !important; color: #94a3b8; }
+          .present { color: #047857; font-weight: 700; }
+          .late { color: #b45309; font-weight: 700; }
+          .leave { color: #0369a1; font-weight: 700; }
+          .absent { color: #be123c; font-weight: 700; }
+          .sum { background: #e6f7fb !important; width: ${isMultiMonth ? '13mm' : '8.5mm'}; font-weight: 700; color: #0f2742 !important; }
+          .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+        </style>
+      </head>
+      <body>
+        <main class="official-sheet">
+          ${buildOfficialHeaderHtml({
+            classroomName,
+            dateFrom,
+            dateTo,
+            documentCode,
+            identity: { ...reportIdentity, academicYear },
+            schoolName,
+            subtitle:
+              subtitleOverride ||
+              (isMultiMonth
+                ? `สรุปเวลาเรียนรวม (${formatThaiOfficialShortDate(dateFrom)} ถึง ${formatThaiOfficialShortDate(dateTo)})`
+                : `ประจำเดือน${monthLabel}`),
+            title: titleOverride || `บัญชีเวลาเรียนระดับชั้น ${classroomName}`,
+          })}
+          <section class="summary-grid">
+            <div class="summary-card"><span>มาเรียน (ครั้ง)</span><strong>${attendanceGrid.summary.present.toLocaleString('th-TH')}</strong></div>
+            <div class="summary-card"><span>มาสาย (ครั้ง)</span><strong>${attendanceGrid.summary.late.toLocaleString('th-TH')}</strong></div>
+            <div class="summary-card"><span>ลา / ป่วย (ครั้ง)</span><strong>${attendanceGrid.summary.leave.toLocaleString('th-TH')}</strong></div>
+            <div class="summary-card"><span>ขาดเรียน (ครั้ง)</span><strong>${attendanceGrid.summary.absent.toLocaleString('th-TH')}</strong></div>
+          </section>
+          <table>
+            <thead>${theadHtml}</thead>
+            <tbody>${tbodyHtml}</tbody>
+            <tfoot>${tfootHtml}</tfoot>
+          </table>
+          <div class="official-closing-block">
+            <div class="official-certification">หมายเหตุ: ✓ = มาเรียน, ส = สาย, ล = ลากิจ, ป = ลาป่วย, ข = ขาดเรียน, ก = กิจกรรม · ขอรับรองว่าข้อมูลเวลาเรียนถูกต้องตรงตามทะเบียนเช็คชื่อของสถานศึกษา</div>
+            ${buildOfficialSignaturesHtml(buildSignaturesList(reportIdentity, teacherName))}
+            ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+          </div>
+        </main>
+      </body>
+    </html>`;
+}
+
+function buildPrintableSavingsReportHtml({
+  dateFrom,
+  dateTo,
+  orientation,
+  periodMode,
+  reportIdentity,
+  savingsGrid,
+  schoolName,
+  teacherName,
+  workspaceName,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  orientation: OfficialReportOrientation;
+  periodMode: ReportPeriod;
+  reportIdentity: SchoolReportIdentity;
+  savingsGrid: MonthlySavingsGrid;
+  schoolName: string;
+  teacherName: string;
+  workspaceName: string;
+}) {
+  const { days, monthLabel } = getReportMonthContext(dateFrom);
+  const classroomName = savingsGrid.classroom?.name || workspaceName || '-';
+  const academicYear = savingsGrid.classroom?.academic_year || reportIdentity.academicYear || '2569';
+  const documentCode = buildOfficialDocumentCode('CC-SAV', dateFrom, classroomName);
+  const isMultiMonth = periodMode !== 'month' && savingsGrid.monthBuckets.length > 1;
+
+  const theadHtml = isMultiMonth
+    ? `<tr>
+        <th class="number">ที่</th>
+        <th class="code">รหัส</th>
+        <th class="name">ชื่อ - นามสกุล</th>
+        ${savingsGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}</th>`).join('')}
+        <th class="sum month-total">ฝากรวม</th>
+        <th class="sum month-total">ถอนรวม</th>
+        <th class="sum balance-total">ยอดสะสมคงเหลือ</th>
+      </tr>`
+    : `<tr>
+        <th class="number">ที่</th>
+        <th class="name">ชื่อ - นามสกุล</th>
+        ${days.map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`).join('')}
+        <th class="sum month-total">ออมเดือนนี้</th>
+        <th class="sum balance-total">ยอดสะสมคงเหลือ</th>
+      </tr>`;
+
+  const tbodyHtml =
+    savingsGrid.rows.length > 0
+      ? savingsGrid.rows
+          .map((row, index) => {
+            if (isMultiMonth) {
+              const monthCells = savingsGrid.monthBuckets
+                .map((mb) => {
+                  const net = row.monthlyNet[mb.key] || 0;
+                  return `<td class="day">${net !== 0 ? net.toLocaleString('th-TH') : '-'}</td>`;
+                })
+                .join('');
+              return `<tr>
+                <td class="number">${index + 1}</td>
+                <td class="code">${escapeHtml(row.studentCode)}</td>
+                <td class="name">${escapeHtml(row.studentName)}</td>
+                ${monthCells}
+                <td class="sum month-total">${row.depositsInPeriod.toLocaleString('th-TH')}</td>
+                <td class="sum month-total">${row.withdrawalsInPeriod.toLocaleString('th-TH')}</td>
+                <td class="sum balance-total">${row.totalBalance.toLocaleString('th-TH')}</td>
+              </tr>`;
+            }
+
+            const dayCells = days
+              .map((day) => {
+                const amt = row.dailyAmounts[day.dateKey];
+                return `<td class="day ${day.isWeekend ? 'weekend' : ''}">${amt ? amt : ''}</td>`;
+              })
+              .join('');
+
+            return `<tr>
+              <td class="number">${index + 1}</td>
+              <td class="name">${escapeHtml(row.studentName)}</td>
+              ${dayCells}
+              <td class="sum month-total">${row.totalPeriodNet ? row.totalPeriodNet.toLocaleString('th-TH') : '0'}</td>
+              <td class="sum balance-total">${row.totalBalance.toLocaleString('th-TH')}</td>
+            </tr>`;
+          })
+          .join('')
+      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length + 6 : days.length + 4}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
+
+  const tfootHtml = isMultiMonth
+    ? `<tr>
+        <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">รวมทั้งสิ้น (บาท)</td>
+        ${savingsGrid.monthBuckets.map((mb) => `<td class="total">${savingsGrid.monthTotals[mb.key] ? savingsGrid.monthTotals[mb.key].toLocaleString('th-TH') : '-'}</td>`).join('')}
+        <td class="total">${savingsGrid.totalPeriodDeposits.toLocaleString('th-TH')}</td>
+        <td class="total">${savingsGrid.totalPeriodWithdrawals.toLocaleString('th-TH')}</td>
+        <td class="total">${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
+      </tr>`
+    : `<tr>
+        <td></td>
+        <td class="name">รวมทั้งสิ้น (บาท)</td>
+        ${days.map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`).join('')}
+        <td class="total">${savingsGrid.totalPeriodNet.toLocaleString('th-TH')}</td>
+        <td class="total">${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
+      </tr>`;
+
+  return `<!doctype html>
+    <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>ClassCare 360 - รายงานการออมเงิน</title>
+        <style>
+          ${buildOfficialReportCss({ dense: true, marginMm: orientation === 'portrait' ? 10 : 8, orientation })}
+          .summary-grid { display: grid; gap: 2mm; grid-template-columns: repeat(4, 1fr); margin: 1.5mm 0 2mm; }
+          .summary-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 2mm; padding: 1.2mm 2mm; text-align: center; }
+          .summary-card span { display: block; font-size: 8.5pt; font-weight: 700; color: #0f2742; }
+          .summary-card strong { color: #0891b2; display: block; font-size: 13pt; margin-top: .4mm; }
+          table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+          th, td { border: 1px solid #cbd5e1; font-size: ${isMultiMonth ? '9pt' : '8.25pt'}; height: 15px; padding: 1px 1.5px; text-align: center; vertical-align: middle; line-height: 1.1; }
+          th { background: #e6f7fb !important; border-top: .8mm solid #0f2742 !important; color: #0f2742 !important; font-weight: 700; }
+          th.name, td.name { text-align: left; width: ${isMultiMonth ? '46mm' : '42mm'}; padding-left: 2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          th.number, td.number { width: 8mm; }
+          th.code, td.code { width: 16mm; }
+          .day { width: auto; }
+          .weekend { background: #f1f5f9 !important; color: #94a3b8; }
+          .sum { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+          .month-total { width: 16mm; }
+          .balance-total { width: 20mm; }
+          .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+        </style>
+      </head>
+      <body>
+        <main class="official-sheet">
+          ${buildOfficialHeaderHtml({
+            classroomName,
+            dateFrom,
+            dateTo,
+            documentCode,
+            identity: { ...reportIdentity, academicYear },
+            schoolName,
+            subtitle: isMultiMonth
+              ? `สรุปรายการออมเงิน (${formatThaiOfficialShortDate(dateFrom)} ถึง ${formatThaiOfficialShortDate(dateTo)})`
+              : `ประจำเดือน${monthLabel}`,
+            title: `รายงานการออมเงินระดับชั้น ${classroomName}`,
+          })}
+          <section class="summary-grid">
+            <div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>
+            <div class="summary-card"><span>มีบัญชี/เคลื่อนไหว</span><strong>${savingsGrid.totalActiveSavingsStudents} คน</strong></div>
+            <div class="summary-card"><span>ออมสุทธิช่วงนี้</span><strong>${savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong></div>
+            <div class="summary-card"><span>ยอดสะสมคงเหลือรวม</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
+          </section>
+          <table>
+            <thead>${theadHtml}</thead>
+            <tbody>${tbodyHtml}</tbody>
+            <tfoot>${tfootHtml}</tfoot>
+          </table>
+          <div class="official-closing-block">
+            <div class="official-certification">ขอรับรองว่ารายการฝาก ถอน และยอดเงินออมสะสมคงเหลือในรายงานฉบับนี้ตรงกับสมุดคู่ฝากและฐานข้อมูลของสถานศึกษา ณ วันตัดยอด</div>
+            ${buildOfficialSignaturesHtml(buildSignaturesList(reportIdentity, teacherName, 'ผู้ตรวจสอบ / หัวหน้างานการเงินหรือวิชาการ'))}
+            ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+          </div>
+        </main>
+      </body>
+    </html>`;
+}
+
+interface PrintableTableReportOptions {
+  columns: string[];
+  confidential?: boolean;
+  dateFrom: string;
+  dateTo: string;
+  documentPrefix?: string;
+  kpiCards?: Array<{ label: string; value: string }>;
+  orientation?: OfficialReportOrientation;
+  reportIdentity: SchoolReportIdentity;
+  rows: Array<Array<number | string | null | undefined>>;
+  schoolName: string;
+  subtitle: string;
+  teacherName: string;
+  title: string;
+  workspaceName: string;
+}
+
+function buildPrintableTableReportHtml({
+  columns,
+  confidential = true,
+  dateFrom,
+  dateTo,
+  documentPrefix = 'CC-RPT',
+  kpiCards = [],
+  orientation = 'landscape',
+  reportIdentity,
+  rows,
+  schoolName,
+  subtitle,
+  teacherName,
+  title,
+  workspaceName,
+}: PrintableTableReportOptions) {
+  const documentCode = buildOfficialDocumentCode(documentPrefix, dateFrom, workspaceName);
+  const tableRows =
+    rows.length > 0
+      ? rows
+          .map(
+            (row, index) =>
+              `<tr><td class="official-center">${index + 1}</td>${row
+                .map((cell) => `<td>${escapeHtml(String(cell ?? '-'))}</td>`)
+                .join('')}</tr>`,
+          )
+          .join('')
+      : `<tr><td class="official-center" colspan="${columns.length + 1}" style="padding:6mm;">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</td></tr>`;
+
+  const kpiHtml =
+    kpiCards.length > 0
+      ? `<section class="official-kpi-grid">${kpiCards
+          .map((item) => `<div class="official-kpi"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`)
+          .join('')}</section>`
+      : '';
+
+  return `<!doctype html>
+    <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          ${buildOfficialReportCss({ dense: true, marginMm: orientation === 'portrait' ? 11 : 8, orientation })}
+          .official-table th:first-child, .official-table td:first-child { width: 9mm; }
+        </style>
+      </head>
+      <body>
+        <main class="official-sheet">
+          ${buildOfficialHeaderHtml({ classroomName: workspaceName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle, title })}
+          ${kpiHtml}
+          <table class="official-table">
+            <thead><tr><th>ที่</th>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+          <div class="official-closing-block">
+            <div class="official-certification">ขอรับรองว่าข้อมูลในรายงานฉบับนี้ตรวจสอบจากข้อมูลที่บันทึกในระบบตามช่วงเวลาที่ระบุ และถูกต้องตามข้อมูลที่มีอยู่ ณ วันตัดยอด</div>
+            ${buildOfficialSignaturesHtml(buildSignaturesList(reportIdentity, teacherName))}
+            ${buildOfficialFooterHtml({ confidential, documentCode })}
+          </div>
+        </main>
+      </body>
+    </html>`;
 }
 
 function buildPrintableStudentRegisterHtml({
@@ -1143,7 +1556,7 @@ function buildPrintableStudentRegisterHtml({
   fields: RegisterFieldSelection;
   guardians: StudentGuardianReportRow[];
   healthRows: StudentRegisterHealthRow[];
-  orientation: RegisterOrientation;
+  orientation: OfficialReportOrientation;
   reportIdentity: SchoolReportIdentity;
   revealCitizenIds: boolean;
   schoolName: string;
@@ -1151,56 +1564,106 @@ function buildPrintableStudentRegisterHtml({
   teacherName: string;
 }) {
   const documentCode = buildOfficialDocumentCode('CC-REG', dateFrom, classroomName);
-  const genderLabel = (gender: StudentRow['gender']) => gender === 'male' ? 'ชาย' : gender === 'female' ? 'หญิง' : gender === 'other' ? 'อื่น ๆ' : '-';
-  const studentPrefix = (gender: StudentRow['gender']) => gender === 'male' ? 'เด็กชาย' : gender === 'female' ? 'เด็กหญิง' : '';
+  const genderLabel = (gender: StudentRow['gender']) =>
+    gender === 'male' ? 'ชาย' : gender === 'female' ? 'หญิง' : gender === 'other' ? 'อื่น ๆ' : '-';
   const enabledFields = registerFieldOptions.filter((field) => fields[field.value]).map((field) => field.value);
-  const rows = students.map((student, index) => {
-    const studentName = `${studentPrefix(student.gender)}${student.first_name} ${student.last_name}`;
-    if (orientation === 'portrait') {
-      const details = enabledFields.length > 0
-        ? enabledFields.map((field) => `<div class="register-detail"><strong>${registerFieldLabels[field]}:</strong> ${escapeHtml(getRegisterFieldValue(student, field, guardians, healthRows, revealCitizenIds))}</div>`).join('')
-        : '<span class="register-muted">ไม่มีข้อมูลเพิ่มเติมที่เลือก</span>';
-      return `<tr><td class="official-center">${index + 1}</td><td class="official-center">${escapeHtml(student.student_code || '-')}</td><td><strong>${escapeHtml(studentName)}</strong><small class="register-student-meta">${genderLabel(student.gender)} · เกิด ${escapeHtml(formatThaiOfficialShortDate(student.birth_date))}</small></td><td>${details}</td><td></td></tr>`;
-    }
-    return `<tr><td class="official-center">${index + 1}</td><td class="official-center">${escapeHtml(student.student_code || '-')}</td><td><strong>${escapeHtml(studentName)}</strong><small class="register-student-meta">${genderLabel(student.gender)} · เกิด ${escapeHtml(formatThaiOfficialShortDate(student.birth_date))}</small></td>${enabledFields.map((field) => `<td>${escapeHtml(getRegisterFieldValue(student, field, guardians, healthRows, revealCitizenIds))}</td>`).join('')}<td></td></tr>`;
-  }).join('');
+
+  const rows = students
+    .map((student, index) => {
+      const studentName = getStudentFullName(student);
+      if (orientation === 'portrait') {
+        const details =
+          enabledFields.length > 0
+            ? enabledFields
+                .map(
+                  (field) =>
+                    `<div class="register-detail"><strong>${registerFieldLabels[field]}:</strong> ${escapeHtml(
+                      getRegisterFieldValue(student, field, guardians, healthRows, revealCitizenIds),
+                    )}</div>`,
+                )
+                .join('')
+            : '<span class="register-muted">สำหรับใช้เช็คชื่อ / ลงลายมือชื่อ</span>';
+        return `<tr>
+          <td class="official-center">${index + 1}</td>
+          <td class="official-center">${escapeHtml(student.student_code || '-')}</td>
+          <td>
+            <strong>${escapeHtml(studentName)}</strong>
+            <small class="register-student-meta">${genderLabel(student.gender)} · เกิด ${escapeHtml(formatThaiOfficialShortDate(student.birth_date))}</small>
+          </td>
+          <td>${details}</td>
+          <td></td>
+        </tr>`;
+      }
+      return `<tr>
+        <td class="official-center">${index + 1}</td>
+        <td class="official-center">${escapeHtml(student.student_code || '-')}</td>
+        <td>
+          <strong>${escapeHtml(studentName)}</strong>
+          <small class="register-student-meta">${genderLabel(student.gender)} · เกิด ${escapeHtml(formatThaiOfficialShortDate(student.birth_date))}</small>
+        </td>
+        ${enabledFields.map((field) => `<td>${escapeHtml(getRegisterFieldValue(student, field, guardians, healthRows, revealCitizenIds))}</td>`).join('')}
+        <td></td>
+      </tr>`;
+    })
+    .join('');
+
   const maleCount = students.filter((student) => student.gender === 'male').length;
   const femaleCount = students.filter((student) => student.gender === 'female').length;
 
   return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>ทะเบียนนักเรียน ${escapeHtml(classroomName)}</title><style>
-    ${buildOfficialReportCss({ dense: true, marginMm: orientation === 'portrait' ? 12 : 8, orientation })}
-    .official-header { grid-template-columns: 23mm 1fr 23mm; padding-bottom: 2mm; }
-    .official-title { font-size: 18pt; }
-    .official-school { font-size: 14pt; }
-    .official-subtitle { font-size: 11pt; }
-    .official-meta { font-size: 10pt; margin-bottom: 2mm; padding: 1.5mm 0; }
-    .register-summary { align-items: stretch; border: 1px solid #555; display: grid; font-size: 10.5pt; grid-template-columns: repeat(4, 1fr); margin: 2mm 0; }
+    ${buildOfficialReportCss({ dense: true, marginMm: orientation === 'portrait' ? 11 : 8, orientation })}
+    .register-summary { align-items: stretch; border: 1px solid #cbd5e1; border-radius: 2mm; background: #f8fafc; display: grid; font-size: 10pt; grid-template-columns: repeat(4, 1fr); margin: 2mm 0; }
     .register-summary span { padding: 1.2mm 2mm; text-align: center; }
-    .register-summary span + span { border-left: 1px solid #777; }
-    .register-summary strong { font-size: 12pt; }
-    .register-table th, .register-table td { font-size: ${orientation === 'portrait' ? '10.5pt' : '9.25pt'}; line-height: 1.08; padding: ${orientation === 'portrait' ? '1.2mm 1mm' : '.75mm .8mm'}; vertical-align: middle; }
-    .register-table thead { display: table-header-group; }
-    .register-table strong { font-weight: 700; }
-    .register-student-meta { color: #444; display: block; font-size: 8.75pt; font-weight: 400; margin-top: .3mm; }
-    .register-detail + .register-detail { border-top: .5px dotted #aaa; margin-top: .5mm; padding-top: .5mm; }
-    .register-muted { color: #666; }
-    .register-table tbody tr:nth-child(even) td { background: #f7f7f7; }
-    .official-certification { font-size: 9.75pt; margin-top: 1.5mm; padding: 1mm 2mm; }
-    .official-signatures { font-size: 10pt; margin-top: 4mm; }
-    .official-footer { font-size: 8pt; position: static; margin-top: 3mm; }
-    ${orientation === 'portrait' ? '.official-title { font-size: 17pt; } .official-school { font-size: 13.5pt; } .register-summary { font-size: 10pt; } .register-summary strong { font-size: 11.5pt; }' : ''}
+    .register-summary span + span { border-left: 1px solid #cbd5e1; }
+    .register-summary strong { font-size: 12pt; color: #0f2742; }
+    .register-table th, .register-table td { font-size: ${orientation === 'portrait' ? '10pt' : '9.25pt'}; line-height: 1.12; padding: ${orientation === 'portrait' ? '1.3mm 1.2mm' : '.85mm .9mm'}; vertical-align: middle; }
+    .register-student-meta { color: #475569; display: block; font-size: 8.5pt; font-weight: 400; margin-top: .3mm; }
+    .register-detail + .register-detail { border-top: .5px dotted #cbd5e1; margin-top: .5mm; padding-top: .5mm; }
+    .register-muted { color: #94a3b8; font-size: 8.5pt; }
   </style></head><body><main class="official-sheet">
-    ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle: `ทะเบียนนักเรียนประจำปีการศึกษา ${reportIdentity.academicYear || '-'}`, title: 'ทะเบียนนักเรียน' })}
-    <div class="register-summary"><span>นักเรียนทั้งหมด<br><strong>${students.length}</strong> คน</span><span>ชาย<br><strong>${maleCount}</strong> คน</span><span>หญิง<br><strong>${femaleCount}</strong> คน</span><span>ข้อมูล ณ<br><strong>${formatThaiOfficialShortDate(dateTo)}</strong></span></div>
-    <table class="official-table register-table"><colgroup>${orientation === 'portrait' ? '<col style="width:10mm"><col style="width:20mm"><col style="width:48mm"><col><col style="width:24mm">' : `<col style="width:8mm"><col style="width:18mm"><col style="width:48mm">${enabledFields.map(() => '<col>').join('')}<col style="width:24mm">`}</colgroup><thead><tr><th>ที่</th><th>เลขประจำตัว<br>นักเรียน</th><th>ชื่อ–สกุลนักเรียน</th>${orientation === 'portrait' ? '<th>รายละเอียดข้อมูลที่เลือก</th>' : enabledFields.map((field) => `<th>${registerFieldLabels[field]}</th>`).join('')}<th>หมายเหตุ</th></tr></thead><tbody>${rows || `<tr><td colspan="${orientation === 'portrait' ? 5 : enabledFields.length + 4}" class="official-center">ยังไม่มีข้อมูลนักเรียน</td></tr>`}</tbody></table>
+    ${buildOfficialHeaderHtml({
+      classroomName,
+      dateFrom,
+      dateTo,
+      documentCode,
+      identity: reportIdentity,
+      schoolName,
+      subtitle: `บัญชีรายชื่อและทะเบียนนักเรียนประจำปีการศึกษา ${reportIdentity.academicYear || '-'}`,
+      title: 'ทะเบียนรายชื่อนักเรียน',
+    })}
+    <div class="register-summary">
+      <span>นักเรียนทั้งหมด<br><strong>${students.length}</strong> คน</span>
+      <span>ชาย<br><strong>${maleCount}</strong> คน</span>
+      <span>หญิง<br><strong>${femaleCount}</strong> คน</span>
+      <span>ข้อมูล ณ<br><strong>${formatThaiOfficialShortDate(dateTo)}</strong></span>
+    </div>
+    <table class="official-table register-table">
+      <colgroup>${
+        orientation === 'portrait'
+          ? '<col style="width:10mm"><col style="width:20mm"><col style="width:52mm"><col><col style="width:28mm">'
+          : `<col style="width:8mm"><col style="width:18mm"><col style="width:50mm">${enabledFields.map(() => '<col>').join('')}<col style="width:26mm">`
+      }</colgroup>
+      <thead>
+        <tr>
+          <th>ที่</th>
+          <th>รหัสประจำตัว</th>
+          <th>ชื่อ – นามสกุล</th>
+          ${
+            orientation === 'portrait'
+              ? `<th>${enabledFields.length > 0 ? 'ข้อมูลทะเบียนที่เลือก' : 'รายการ / บันทึก'}</th>`
+              : enabledFields.map((field) => `<th>${registerFieldLabels[field]}</th>`).join('')
+          }
+          <th>ลายมือชื่อ / หมายเหตุ</th>
+        </tr>
+      </thead>
+      <tbody>${
+        rows ||
+        `<tr><td colspan="${orientation === 'portrait' ? 5 : enabledFields.length + 4}" class="official-center" style="padding:6mm;">ยังไม่มีข้อมูลนักเรียน</td></tr>`
+      }</tbody>
+    </table>
     <div class="official-closing-block">
-      <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · รูปแบบ A4 ${orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · ${fields.citizenId ? (revealCitizenIds ? 'แสดงเลขประจำตัวประชาชนเต็มตามสิทธิ์ผู้พิมพ์' : 'ปกปิดเลขประจำตัวประชาชน') : 'ไม่ได้เลือกแสดงเลขประจำตัวประชาชน'}</div>
-      ${buildOfficialSignaturesHtml([
-        { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำ / ครูประจำชั้น' },
-        ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
-        { name: reportIdentity.registrarName || reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน' },
-        { name: reportIdentity.directorName, role: 'ผู้รับรอง / ผู้อำนวยการโรงเรียน' },
-      ])}
+      <div class="official-certification">ขอรับรองว่ารายชื่อนักเรียนข้างต้นตรงกับทะเบียนนักเรียนของสถานศึกษา ณ วันที่ระบุ · รูปแบบ A4 ${orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</div>
+      ${buildOfficialSignaturesHtml(buildSignaturesList(reportIdentity, teacherName, 'ผู้ตรวจสอบ / นายทะเบียนโรงเรียน'))}
       ${buildOfficialFooterHtml({ confidential: true, documentCode })}
     </div>
   </main></body></html>`;
@@ -1209,10 +1672,12 @@ function buildPrintableStudentRegisterHtml({
 interface ExecutiveReportMetrics {
   attendanceRate: number;
   behaviorFollowUps: number;
+  classroomCount: number;
   healthCompletionRate: number;
   healthFollowUps: number;
   savingsTotal: number;
   scoreAverage: number;
+  scopeLabel: string;
   studentCount: number;
 }
 
@@ -1221,6 +1686,7 @@ function buildPrintableExecutiveReportHtml({
   dateFrom,
   dateTo,
   metrics,
+  orientation,
   reportIdentity,
   schoolName,
   teacherName,
@@ -1229,55 +1695,236 @@ function buildPrintableExecutiveReportHtml({
   dateFrom: string;
   dateTo: string;
   metrics: ExecutiveReportMetrics;
+  orientation: OfficialReportOrientation;
   reportIdentity: SchoolReportIdentity;
   schoolName: string;
   teacherName: string;
 }) {
   const documentCode = buildOfficialDocumentCode('CC-EXE', dateFrom, classroomName);
-  const status = (value: number, target: number) => value >= target ? 'เป็นไปตามเป้าหมาย' : value >= target - 10 ? 'ควรเฝ้าระวัง' : 'ต้องเร่งติดตาม';
+  const status = (value: number, target: number) =>
+    value >= target ? 'เป็นไปตามเป้าหมาย' : value >= target - 10 ? 'ควรเฝ้าระวัง' : 'ต้องเร่งติดตาม';
   const executiveRows = [
-    ['เวลาเรียน', `${metrics.attendanceRate}%`, 'ไม่น้อยกว่า 90%', status(metrics.attendanceRate, 90), metrics.attendanceRate < 90 ? 'ติดตามนักเรียนขาดเรียนและประสานผู้ปกครอง' : 'รักษาระดับและติดตามรายบุคคล'],
-    ['ผลการเรียน', `${metrics.scoreAverage}%`, 'ไม่น้อยกว่า 70%', status(metrics.scoreAverage, 70), metrics.scoreAverage < 70 ? 'จัดกิจกรรมสอนเสริมรายวิชาที่ต่ำกว่าเกณฑ์' : 'ติดตามชุดคะแนนที่ยังกรอกไม่ครบ'],
-    ['สุขภาพและกิจวัตร', `${metrics.healthCompletionRate}%`, 'ไม่น้อยกว่า 90%', status(metrics.healthCompletionRate, 90), `มีนักเรียนต้องติดตามสุขอนามัย ${metrics.healthFollowUps} คน`],
-    ['พฤติกรรม/การดูแล', `${metrics.behaviorFollowUps} เคส`, 'ปิดเคสตามกำหนด', metrics.behaviorFollowUps === 0 ? 'เป็นไปตามเป้าหมาย' : 'ควรเฝ้าระวัง', 'มอบหมายครูประจำชั้นติดตามและบันทึกผลดำเนินงาน'],
-    ['การออม', `${metrics.savingsTotal.toLocaleString('th-TH')} บาท`, 'รายงานครบถ้วน', 'ข้อมูลประกอบ', 'ตรวจสอบยอดกับบัญชีรายบุคคลก่อนรับรอง'],
+    [
+      '1. เวลาเรียนและการมาเรียน',
+      `${metrics.attendanceRate}%`,
+      'ไม่น้อยกว่า 90%',
+      status(metrics.attendanceRate, 90),
+      metrics.attendanceRate < 90 ? 'ติดตามนักเรียนขาดเรียนและประสานผู้ปกครองรายบุคคล' : 'รักษาระดับการมาเรียนและติดตามต่อเนื่อง',
+    ],
+    [
+      '2. ผลสัมฤทธิ์ทางการเรียน',
+      `${metrics.scoreAverage}%`,
+      'ไม่น้อยกว่า 70%',
+      status(metrics.scoreAverage, 70),
+      metrics.scoreAverage < 70 ? 'จัดกิจกรรมสอนเสริมและซ่อมเสริมงานค้างรายวิชา' : 'ติดตามชุดคะแนนต่อเนื่องตามแผนการวัดผล',
+    ],
+    [
+      '3. สุขภาพและกิจวัตรประจำวัน',
+      `${metrics.healthCompletionRate}%`,
+      'ไม่น้อยกว่า 90%',
+      status(metrics.healthCompletionRate, 90),
+      `มีนักเรียนต้องติดตามสุขอนามัย/โภชนาการ ${metrics.healthFollowUps} คน`,
+    ],
+    [
+      '4. พฤติกรรมและระบบดูแลช่วยเหลือ',
+      `${metrics.behaviorFollowUps} เคส`,
+      'ดูแลครบ 100%',
+      metrics.behaviorFollowUps === 0 ? 'เป็นไปตามเป้าหมาย' : 'กำลังติดตามดูแล',
+      'ครูประจำชั้นติดตามดูแลและบันทึกผลในระบบ',
+    ],
+    [
+      '5. การส่งเสริมการออมทรัพย์',
+      `${metrics.savingsTotal.toLocaleString('th-TH')} บาท`,
+      'บัญชีโปร่งใสครบถ้วน',
+      'ดำเนินการต่อเนื่อง',
+      'ตรวจสอบยอดเงินออมคงเหลือตรงกับสมุดคู่ฝากนักเรียน',
+    ],
   ];
-  const proposedAction = [
-    metrics.attendanceRate < 90 ? 'เร่งติดตามนักเรียนที่มีเวลาเรียนต่ำกว่าเกณฑ์' : '',
-    metrics.scoreAverage < 70 ? 'จัดกิจกรรมสอนเสริมและติดตามผลสัมฤทธิ์' : '',
-    metrics.healthFollowUps > 0 ? `ติดตามสุขอนามัยนักเรียน ${metrics.healthFollowUps} คน` : '',
-    metrics.behaviorFollowUps > 0 ? `ทบทวนแผนช่วยเหลือนักเรียน ${metrics.behaviorFollowUps} เคส` : '',
-  ].filter(Boolean).join(' · ') || 'ผลดำเนินงานโดยรวมเป็นไปตามเป้าหมาย ให้ดำเนินงานตามแผนและติดตามต่อเนื่อง';
+
+  const proposedAction =
+    [
+      metrics.attendanceRate < 90 ? 'เร่งติดตามนักเรียนที่มีเวลาเรียนต่ำกว่าเกณฑ์' : '',
+      metrics.scoreAverage < 70 ? 'จัดกิจกรรมสอนเสริมและติดตามผลสัมฤทธิ์' : '',
+      metrics.healthFollowUps > 0 ? `ติดตามสุขอนามัยนักเรียน ${metrics.healthFollowUps} คน` : '',
+      metrics.behaviorFollowUps > 0 ? `ทบทวนแผนช่วยเหลือนักเรียน ${metrics.behaviorFollowUps} เคส` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'ผลการดำเนินงานโดยรวมเป็นไปตามเป้าหมาย เห็นควรดำเนินการตามแผนและติดตามอย่างต่อเนื่อง';
 
   return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานสรุปผู้บริหาร</title><style>
-    ${buildOfficialReportCss({ dense: false, marginMm: 14, orientation: 'portrait' })}
-    .official-table th:nth-child(1) { width: 27mm; }
-    .official-table th:nth-child(2) { width: 25mm; }
-    .official-table th:nth-child(3) { width: 28mm; }
-    .official-table th:nth-child(4) { width: 31mm; }
+    ${buildOfficialReportCss({ dense: false, marginMm: orientation === 'portrait' ? 12 : 9, orientation })}
+    .official-table th:nth-child(1) { width: 38mm; }
+    .official-table th:nth-child(2) { width: 24mm; }
+    .official-table th:nth-child(3) { width: 26mm; }
+    .official-table th:nth-child(4) { width: 28mm; }
   </style></head><body><main class="official-sheet">
-    ${buildOfficialHeaderHtml({ classroomName, dateFrom, dateTo, documentCode, identity: reportIdentity, schoolName, subtitle: 'รายงานผลดำเนินงานจากข้อมูลในระบบ ClassCare 360', title: 'รายงานสรุปผลการดำเนินงานสำหรับผู้บริหาร' })}
+    ${buildOfficialHeaderHtml({
+      classroomName: metrics.scopeLabel,
+      dateFrom,
+      dateTo,
+      documentCode,
+      identity: reportIdentity,
+      schoolName,
+      subtitle: `ขอบเขตข้อมูล: ${metrics.scopeLabel} (${metrics.classroomCount} ห้องเรียน · นักเรียน ${metrics.studentCount} คน)`,
+      title: 'รายงานสรุปผลการดำเนินงานสำหรับผู้บริหาร',
+    })}
     <section class="official-kpi-grid">
-      <div class="official-kpi"><span>นักเรียนทั้งหมด</span><strong>${metrics.studentCount} คน</strong></div>
+      <div class="official-kpi"><span>นักเรียนในขอบเขต</span><strong>${metrics.studentCount} คน</strong></div>
       <div class="official-kpi"><span>อัตรามาเรียน</span><strong>${metrics.attendanceRate}%</strong></div>
-      <div class="official-kpi"><span>คะแนนเฉลี่ย</span><strong>${metrics.scoreAverage}%</strong></div>
-      <div class="official-kpi"><span>ต้องติดตาม</span><strong>${metrics.behaviorFollowUps + metrics.healthFollowUps} รายการ</strong></div>
+      <div class="official-kpi"><span>คะแนนเฉลี่ยรวม</span><strong>${metrics.scoreAverage}%</strong></div>
+      <div class="official-kpi"><span>รายการต้องติดตาม</span><strong>${metrics.behaviorFollowUps + metrics.healthFollowUps} รายการ</strong></div>
     </section>
-    <h2 class="official-section-title">1. สรุปผลตามภารกิจ</h2>
-    <table class="official-table"><thead><tr><th>ด้าน</th><th>ผลช่วงนี้</th><th>เกณฑ์กำกับ</th><th>สถานะ</th><th>สาระสำคัญ/แนวทางดำเนินงาน</th></tr></thead><tbody>${executiveRows.map((row) => `<tr>${row.map((cell, index) => `<td class="${index > 0 && index < 4 ? 'official-center' : ''}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <h2 class="official-section-title">2. ประเด็นเสนอเพื่อพิจารณาและข้อสั่งการ</h2>
-    <div class="official-decision">${escapeHtml(proposedAction)}<br /><br />ข้อสั่งการผู้บริหาร ........................................................................................................................................................................</div>
+    <h2 class="official-section-title">1. สรุปผลการดำเนินงานตามภารกิจหลัก</h2>
+    <table class="official-table">
+      <thead><tr><th>ด้านการดำเนินงาน</th><th>ผลดำเนินงาน</th><th>เกณฑ์มาตรฐาน</th><th>สถานะ</th><th>แนวทางดำเนินงาน / ข้อเสนอแนะ</th></tr></thead>
+      <tbody>${executiveRows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map((cell, index) => `<td class="${index > 0 && index < 4 ? 'official-center' : ''}">${escapeHtml(cell)}</td>`)
+              .join('')}</tr>`,
+        )
+        .join('')}</tbody>
+    </table>
+    <h2 class="official-section-title">2. ข้อเสนอเพื่อโปรดพิจารณาและข้อสั่งการของผู้บริหาร</h2>
+    <div class="official-decision">
+      <strong>สรุปข้อเสนอ:</strong> ${escapeHtml(proposedAction)}<br /><br />
+      <strong>ความเห็น / ข้อสั่งการผู้อำนวยการโรงเรียน:</strong><br />
+      ................................................................................................................................................................................................................<br />
+      ................................................................................................................................................................................................................
+    </div>
     <div class="official-closing-block">
-      <div class="official-certification">รายงานฉบับนี้ประมวลผลจากข้อมูลเวลาเรียน คะแนน สุขภาพ พฤติกรรม และการออมที่บันทึกใน workspace เดียวกัน ณ วันตัดยอด</div>
+      <div class="official-certification">รายงานฉบับนี้ประมวลผลจากข้อมูลจริงในระบบสารสนเทศ ClassCare 360 ณ วันตัดยอด</div>
       ${buildOfficialSignaturesHtml([
         { name: reportIdentity.teacherName || teacherName, role: 'ผู้จัดทำรายงาน' },
-        ...(reportIdentity.coAdvisorName?.trim() ? [{ name: reportIdentity.coAdvisorName, role: 'ที่ปรึกษาร่วม' }] : []),
         { name: reportIdentity.academicHeadName, role: 'ผู้ตรวจสอบ / หัวหน้างานวิชาการ' },
-        { name: reportIdentity.directorName, role: 'ทราบ / อนุมัติ' },
+        { name: reportIdentity.directorName, role: 'ผู้อำนวยการโรงเรียน (ผู้รับรอง/สั่งการ)' },
       ])}
       ${buildOfficialFooterHtml({ confidential: true, documentCode })}
     </div>
   </main></body></html>`;
+}
+
+interface IndividualStudentReportBundle {
+  attendance: { absent: number; late: number; leave: number; percent: number; present: number; total: number };
+  behaviors: BehaviorRecordRow[];
+  guardianText: string;
+  health: { attentionText: string; bmi: number | null; brushingText: string; height: number | null; lunchText: string; milkText: string; weight: number | null };
+  homeVisit: HomeVisitReportRow | null;
+  savings: { balance: number; deposits: number; txCount: number; withdrawals: number };
+  student: StudentRow;
+  subjectRows: Array<{ earned: number; grade: number | string; max: number; missing: number; percent: number; subject: string }>;
+  totalGpa: string;
+}
+
+function buildPrintableIndividualStudentHtml({
+  bundles,
+  classroomName,
+  dateFrom,
+  dateTo,
+  orientation,
+  reportIdentity,
+  schoolName,
+  teacherName,
+}: {
+  bundles: IndividualStudentReportBundle[];
+  classroomName: string;
+  dateFrom: string;
+  dateTo: string;
+  orientation: OfficialReportOrientation;
+  reportIdentity: SchoolReportIdentity;
+  schoolName: string;
+  teacherName: string;
+}) {
+  const pagesHtml = bundles
+    .map((b, pageIdx) => {
+      const studentName = getStudentFullName(b.student);
+      const documentCode = buildOfficialDocumentCode('CC-IND', dateFrom, b.student.student_code || String(pageIdx + 1));
+      const subjectRowsHtml =
+        b.subjectRows.length > 0
+          ? b.subjectRows
+              .map(
+                (sub, sIdx) => `<tr>
+                  <td class="official-center">${sIdx + 1}</td>
+                  <td><strong>${escapeHtml(sub.subject)}</strong></td>
+                  <td class="official-center">${sub.earned} / ${sub.max}</td>
+                  <td class="official-center">${sub.percent}%</td>
+                  <td class="official-center"><strong>${escapeHtml(String(sub.grade))}</strong></td>
+                  <td class="official-center">${sub.missing > 0 ? `ค้าง ${sub.missing} งาน` : 'ครบ'}</td>
+                </tr>`,
+              )
+              .join('')
+          : `<tr><td colspan="6" class="official-center">ยังไม่มีรายการประเมินคะแนนในช่วงเวลานี้</td></tr>`;
+
+      const behaviorSummary =
+        b.behaviors.length > 0
+          ? b.behaviors
+              .slice(0, 4)
+              .map((rec) => `${formatThaiOfficialShortDate(rec.behavior_date)}: ${rec.category} (${rec.description})`)
+              .join(' · ')
+          : 'ประพฤติตนเรียบร้อยตามระเบียบของโรงเรียน ไม่พบเคสต้องติดตามพิเศษ';
+
+      return `<main class="official-sheet" style="${pageIdx > 0 ? 'page-break-before: always;' : ''}">
+        ${buildOfficialHeaderHtml({
+          classroomName,
+          dateFrom,
+          dateTo,
+          documentCode,
+          identity: reportIdentity,
+          schoolName,
+          subtitle: `ใบรายงานผลการพัฒนาคุณภาพผู้เรียนรายบุคคล (สำหรับผู้ปกครอง) · ชั้น ${classroomName}`,
+          title: 'รายงานผลการเรียนและพัฒนาการรายบุคคล',
+        })}
+        <section style="border:1px solid #cbd5e1;border-radius:2mm;background:#f8fafc;padding:2mm 3mm;margin-bottom:2mm;font-size:10pt;display:grid;grid-template-columns:1fr 1fr;gap:1mm 6mm;">
+          <div><strong>ชื่อ - นามสกุล:</strong> ${escapeHtml(studentName)} (${escapeHtml(b.student.nickname || '-')})</div>
+          <div><strong>เลขประจำตัวนักเรียน:</strong> ${escapeHtml(b.student.student_code || '-')} · <strong>ชั้น:</strong> ${escapeHtml(classroomName)}</div>
+          <div><strong>ข้อมูลสุขภาพล่าสุด:</strong> น้ำหนัก ${b.health.weight ?? '-'} กก. · ส่วนสูง ${b.health.height ?? '-'} ซม. · BMI ${b.health.bmi ?? '-'}</div>
+          <div><strong>ผู้ปกครอง:</strong> ${escapeHtml(b.guardianText)}</div>
+        </section>
+
+        <section class="official-kpi-grid">
+          <div class="official-kpi"><span>อัตราเวลาเรียน</span><strong>${b.attendance.percent}%</strong><span style="font-size:8pt;color:#475569;">มา ${b.attendance.present} · สาย ${b.attendance.late} · ลา ${b.attendance.leave} · ขาด ${b.attendance.absent}</span></div>
+          <div class="official-kpi"><span>เกรดเฉลี่ยสะสม</span><strong>${escapeHtml(b.totalGpa)}</strong><span style="font-size:8pt;color:#475569;">${b.subjectRows.length} รายวิชาที่ประเมิน</span></div>
+          <div class="official-kpi"><span>เงินออมสะสมคงเหลือ</span><strong>${b.savings.balance.toLocaleString('th-TH')} ฿</strong><span style="font-size:8pt;color:#475569;">ฝาก ${b.savings.deposits.toLocaleString('th-TH')} · ถอน ${b.savings.withdrawals.toLocaleString('th-TH')}</span></div>
+          <div class="official-kpi"><span>สุขภาพและกิจวัตร</span><strong>${escapeHtml(b.health.attentionText === 'ปกติ' ? 'ปกติครบถ้วน' : 'มีจุดติดตาม')}</strong><span style="font-size:8pt;color:#475569;">แปรงฟัน ${b.health.brushingText} · ดื่มนม ${b.health.milkText}</span></div>
+        </section>
+
+        <h2 class="official-section-title" style="font-size:11.5pt;margin:1.5mm 0 1mm;">1. สรุปผลสัมฤทธิ์ทางการเรียนรายวิชา</h2>
+        <table class="official-table">
+          <colgroup><col style="width:10mm"><col><col style="width:28mm"><col style="width:22mm"><col style="width:22mm"><col style="width:26mm"></colgroup>
+          <thead>
+            <tr><th>ที่</th><th>รายวิชา</th><th>คะแนนที่ได้/เต็ม</th><th>ร้อยละ</th><th>ระดับผลการเรียน</th><th>การส่งงาน</th></tr>
+          </thead>
+          <tbody>${subjectRowsHtml}</tbody>
+        </table>
+
+        <h2 class="official-section-title" style="font-size:11.5pt;margin:2mm 0 1mm;">2. สรุปพฤติกรรม สุขอนามัย และการดูแลช่วยเหลือนักเรียน</h2>
+        <table class="official-table">
+          <colgroup><col style="width:42mm"><col></colgroup>
+          <tbody>
+            <tr><td><strong>สุขอนามัยและกิจวัตร</strong></td><td>แปรงฟัน ${escapeHtml(b.health.brushingText)} ครั้ง · ดื่มนม ${escapeHtml(b.health.milkText)} ครั้ง · อาหารกลางวัน ${escapeHtml(b.health.lunchText)} ครั้ง · ผลตรวจสุขอนามัย: ${escapeHtml(b.health.attentionText)}</td></tr>
+            <tr><td><strong>พฤติกรรมและการดูแล</strong></td><td>${escapeHtml(behaviorSummary)}</td></tr>
+            <tr><td><strong>การเยี่ยมบ้าน / กสศ.</strong></td><td>${b.homeVisit ? `ดำเนินการแล้ว (${b.homeVisit.completion_percent || 100}%) เมื่อ ${formatThaiOfficialShortDate(b.homeVisit.visited_at)}` : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้านประจำภาคเรียน'}</td></tr>
+            <tr><td><strong>ความเห็นครูประจำชั้น</strong></td><td>นักเรียนมีความตั้งใจในการเรียนและร่วมกิจกรรมของชั้นเรียนด้วยดี ผู้ปกครองสามารถตรวจสอบและลงนามรับทราบผลการพัฒนาได้ด้านล่าง</td></tr>
+          </tbody>
+        </table>
+
+        <div class="official-closing-block">
+          <div class="official-certification">เอกสารฉบับนี้ออกโดยระบบสารสนเทศ ClassCare 360 เพื่อแจ้งผลการพัฒนาคุณภาพผู้เรียนรายบุคคลให้ผู้ปกครองรับทราบ</div>
+          ${buildOfficialSignaturesHtml([
+            { name: reportIdentity.teacherName || teacherName, role: 'ครูประจำชั้น / ผู้รายงาน' },
+            { name: reportIdentity.directorName, role: 'ผู้อำนวยการโรงเรียน' },
+            { name: '', role: 'ผู้ปกครองนักเรียน (ผู้รับทราบ)' },
+          ])}
+          ${buildOfficialFooterHtml({ confidential: true, documentCode })}
+        </div>
+      </main>`;
+    })
+    .join('');
+
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>ใบรายงานผลรายบุคคล</title><style>
+    ${buildOfficialReportCss({ dense: true, marginMm: 10, orientation })}
+  </style></head><body>${pagesHtml}</body></html>`;
 }
 
 interface ViewerReportSummaryData {
@@ -1344,24 +1991,32 @@ function ViewerReportSummary({ session }: ReportsPageProps) {
       setLoading(false);
     }
     void loadSummary();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [dateFrom, dateTo, demoMode, session.workspace]);
 
-  const cards = summary ? [
-    { label: 'นักเรียนในขอบเขต', value: summary.student_count.toLocaleString('th-TH'), detail: `${summary.classroom_count} ห้องเรียน` },
-    { label: 'มาเรียน', value: `${Number(summary.attendance.present_rate).toLocaleString('th-TH')}%`, detail: `${summary.attendance.present + summary.attendance.late}/${summary.attendance.total} รายการ` },
-    { label: 'คะแนนเฉลี่ย', value: `${Number(summary.scores.average_percent).toLocaleString('th-TH')}%`, detail: `${summary.scores.assessment_count} แบบประเมิน` },
-    { label: 'เงินออมรวม', value: `${Number(summary.savings.total_balance).toLocaleString('th-TH')} บาท`, detail: `${summary.savings.account_count} บัญชี` },
-  ] : [];
+  const cards = summary
+    ? [
+        { label: 'นักเรียนในขอบเขต', value: summary.student_count.toLocaleString('th-TH'), detail: `${summary.classroom_count} ห้องเรียน` },
+        { label: 'มาเรียน', value: `${Number(summary.attendance.present_rate).toLocaleString('th-TH')}%`, detail: `${summary.attendance.present + summary.attendance.late}/${summary.attendance.total} รายการ` },
+        { label: 'คะแนนเฉลี่ย', value: `${Number(summary.scores.average_percent).toLocaleString('th-TH')}%`, detail: `${summary.scores.assessment_count} แบบประเมิน` },
+        { label: 'เงินออมรวม', value: `${Number(summary.savings.total_balance).toLocaleString('th-TH')} บาท`, detail: `${summary.savings.account_count} บัญชี` },
+      ]
+    : [];
 
   return (
     <main className="app-page space-y-5">
       <section className="nexus-card overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.25fr_0.75fr]">
           <div className="bg-slate-950 p-5 text-white sm:p-7">
-            <span className="inline-flex items-center gap-2 rounded-full bg-lime-100 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-900"><ShieldCheck size={16} aria-hidden="true" /> Viewer Report</span>
-            <h1 className="mt-4 text-4xl font-black tracking-tight !text-white sm:text-5xl">รายงานสรุปสำหรับผู้บริหาร</h1>
-            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 !text-slate-300">แสดงเฉพาะข้อมูลรวมของห้องเรียนที่ได้รับสิทธิ์ ไม่เปิดรายชื่อนักเรียน เลขประจำตัว หรือรายละเอียดสุขภาพรายบุคคล</p>
+            <span className="inline-flex items-center gap-2 rounded-full bg-lime-100 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-lime-900">
+              <ShieldCheck size={16} aria-hidden="true" /> Viewer Report
+            </span>
+            <h1 className="mt-4 text-3xl font-black tracking-tight !text-white sm:text-5xl">รายงานสรุปสำหรับผู้บริหาร</h1>
+            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 !text-slate-300">
+              แสดงเฉพาะข้อมูลรวมของห้องเรียนที่ได้รับสิทธิ์ ไม่เปิดรายชื่อนักเรียน เลขประจำตัว หรือรายละเอียดสุขภาพรายบุคคล
+            </p>
           </div>
           <div className="bg-slate-950 p-5 text-white sm:p-7">
             <p className="text-sm font-black text-cyan-200">{session.workspace?.schoolName || 'โรงเรียน'}</p>
@@ -1373,26 +2028,94 @@ function ViewerReportSummary({ session }: ReportsPageProps) {
 
       <section className="app-panel-pad">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="grid gap-2 text-sm font-black text-slate-700">ตั้งแต่วันที่<ThaiDatePicker onValueChange={setDateFrom} value={dateFrom} /></label>
-          <label className="grid gap-2 text-sm font-black text-slate-700">ถึงวันที่<ThaiDatePicker onValueChange={setDateTo} value={dateTo} /></label>
+          <label className="grid gap-2 text-sm font-black text-slate-700">
+            ตั้งแต่วันที่
+            <ThaiDatePicker onValueChange={setDateFrom} value={dateFrom} />
+          </label>
+          <label className="grid gap-2 text-sm font-black text-slate-700">
+            ถึงวันที่
+            <ThaiDatePicker onValueChange={setDateTo} value={dateTo} />
+          </label>
         </div>
       </section>
 
       {loading ? <section className="app-panel-pad text-sm font-bold text-slate-600">กำลังรวบรวมรายงานที่ได้รับสิทธิ์…</section> : null}
-      {notice ? <div className="flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800"><AlertTriangle className="shrink-0" size={18} aria-hidden="true" />{notice}</div> : null}
+      {notice ? (
+        <div className="flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+          <AlertTriangle className="shrink-0" size={18} aria-hidden="true" />
+          {notice}
+        </div>
+      ) : null}
       {summary ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {cards.map((card) => <article className="app-panel-pad" key={card.label}><p className="text-xs font-black text-slate-500">{card.label}</p><p className="mt-2 text-3xl font-black text-slate-950">{card.value}</p><p className="mt-2 text-xs font-bold text-slate-500">{card.detail}</p></article>)}
+            {cards.map((card) => (
+              <article className="app-panel-pad" key={card.label}>
+                <p className="text-xs font-black text-slate-500">{card.label}</p>
+                <p className="mt-2 text-3xl font-black text-slate-950">{card.value}</p>
+                <p className="mt-2 text-xs font-bold text-slate-500">{card.detail}</p>
+              </article>
+            ))}
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
-            <article className="app-panel-pad"><h2 className="text-xl font-black">เวลาเรียน</h2><div className="mt-4 grid grid-cols-3 gap-2 text-center">{[['ขาด', summary.attendance.absent], ['สาย', summary.attendance.late], ['ลา/ป่วย', summary.attendance.leave + summary.attendance.sick]].map(([label, value]) => <div className="rounded-2xl bg-slate-50 p-3" key={label}><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div></article>
-            <article className="app-panel-pad"><h2 className="text-xl font-black">การดูแลนักเรียน</h2><div className="mt-4 grid grid-cols-3 gap-2 text-center">{[['พฤติกรรม', summary.behavior.record_count], ['สุขภาพ', summary.health.record_count], ['เยี่ยมบ้านแล้ว', summary.home_visits.completed]].map(([label, value]) => <div className="rounded-2xl bg-slate-50 p-3" key={label}><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div></article>
+            <article className="app-panel-pad">
+              <h2 className="text-xl font-black">เวลาเรียน</h2>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                {[
+                  ['ขาด', summary.attendance.absent],
+                  ['สาย', summary.attendance.late],
+                  ['ลา/ป่วย', summary.attendance.leave + summary.attendance.sick],
+                ].map(([label, value]) => (
+                  <div className="rounded-2xl bg-slate-50 p-3" key={label}>
+                    <p className="text-xs font-bold text-slate-500">{label}</p>
+                    <p className="mt-1 text-2xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+            <article className="app-panel-pad">
+              <h2 className="text-xl font-black">การดูแลนักเรียน</h2>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                {[
+                  ['พฤติกรรม', summary.behavior.record_count],
+                  ['สุขภาพ', summary.health.record_count],
+                  ['เยี่ยมบ้านแล้ว', summary.home_visits.completed],
+                ].map(([label, value]) => (
+                  <div className="rounded-2xl bg-slate-50 p-3" key={label}>
+                    <p className="text-xs font-bold text-slate-500">{label}</p>
+                    <p className="mt-1 text-2xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
           </section>
         </>
       ) : null}
     </main>
   );
+}
+
+function findBestDefaultClassroomId(
+  classrooms: ClassroomRow[],
+  workspaceClassroomName?: string | null,
+  workspaceName?: string | null,
+): string {
+  if (classrooms.length === 0) return '';
+  const hint = String(workspaceClassroomName || workspaceName || '').trim();
+  if (hint) {
+    const exact = classrooms.find((c) => c.name.trim() === hint);
+    if (exact) return exact.id;
+    // Match grade pattern e.g. ป.5 or ม.1
+    const gradeMatch = hint.match(/(ป\.\s*\d+|ม\.\s*\d+|ประถมศึกษาปีที่\s*\d+|มัธยมศึกษาปีที่\s*\d+)/);
+    if (gradeMatch) {
+      const token = gradeMatch[1].replace(/\s+/g, '');
+      const matched = classrooms.find((c) => c.name.replace(/\s+/g, '').includes(token));
+      if (matched) return matched.id;
+    }
+    const partial = classrooms.find((c) => hint.includes(c.name) || c.name.includes(hint));
+    if (partial) return partial.id;
+  }
+  return classrooms[0].id;
 }
 
 function TeacherReportsPage({ session }: ReportsPageProps) {
@@ -1404,6 +2127,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   const reportPeriodParam = searchParams.get('reportPeriod');
   const initialReportView: ReportView = isReportView(reportViewParam) ? reportViewParam : 'attendance';
   const initialReportPeriod: ReportPeriod = isReportPeriod(reportPeriodParam) ? reportPeriodParam : 'month';
+
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
   const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSessionRow[]>(demoMode ? demoSessions : []);
@@ -1415,41 +2139,63 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   const [behaviorRecords, setBehaviorRecords] = useState<BehaviorRecordRow[]>(demoMode ? demoBehaviorRecords : []);
   const [homeVisits, setHomeVisits] = useState<HomeVisitReportRow[]>(demoMode ? demoHomeVisits : []);
   const [healthRecords, setHealthRecords] = useState<StudentHealthRecordRow[]>(demoMode ? demoHealthRecords : []);
+  const [allGrowthRecords, setAllGrowthRecords] = useState<StudentHealthRecordRow[]>(demoMode ? demoHealthRecords.filter((r) => r.record_type === 'growth') : []);
   const [guardians, setGuardians] = useState<StudentGuardianReportRow[]>(demoMode ? demoGuardians : []);
+
   const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
   const [reportView, setReportView] = useState<ReportView>(initialReportView);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(initialReportPeriod);
   const [reportMonth, setReportMonth] = useState(getTodayDate().slice(0, 7));
   const [selectedTerm, setSelectedTerm] = useState<TermKey>('term1');
-  const [termRanges, setTermRanges] = useState<Record<TermKey, { end: string; start: string }>>({
-    term1: { end: '2026-10-10', start: '2026-05-16' },
-    term2: { end: '2027-03-31', start: '2026-11-01' },
-  });
-  const [reportIdentity, setReportIdentity] = useState<SchoolReportIdentity>(() => loadSchoolReportIdentity(session.workspace?.id));
+  const [termRanges, setTermRanges] = useState<ReportTermRanges>(() =>
+    loadReportTermRanges(session.workspace?.id, session.workspace?.academicYear),
+  );
+  const [reportIdentity, setReportIdentity] = useState<SchoolReportIdentity>(() =>
+    loadSchoolReportIdentity(session.workspace?.id),
+  );
+
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [behaviorStudentFilter, setBehaviorStudentFilter] = useState<string>('all');
+  const [executiveScope, setExecutiveScope] = useState<ExecutiveScope>('classroom');
   const [isOfficialDocsOpen, setIsOfficialDocsOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState(getTodayDate());
-  const [dateTo, setDateTo] = useState(getTodayDate());
+
+  const initialMonthRange = getMonthDateRange(getTodayDate().slice(0, 7));
+  const [dateFrom, setDateFrom] = useState(initialMonthRange.from);
+  const [dateTo, setDateTo] = useState(initialMonthRange.to);
   const [query, setQuery] = useState('');
   const [selectedSubjectName, setSelectedSubjectName] = useState('');
   const [selectedPeriodLabel, setSelectedPeriodLabel] = useState('');
-  const [registerOrientation, setRegisterOrientation] = useState<RegisterOrientation>('portrait');
+  const [pageOrientation, setPageOrientation] = useState<OfficialReportOrientation>(
+    () => reportViews.find((v) => v.value === initialReportView)?.defaultOrientation || 'landscape',
+  );
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'a4',
+  );
   const [registerFields, setRegisterFields] = useState<RegisterFieldSelection>({
     address: false,
     citizenId: false,
-    family: false,
-    health: false,
+    family: true,
+    health: true,
   });
   const [revealCitizenIds, setRevealCitizenIds] = useState(false);
-  const [coreMetrics, setCoreMetrics] = useState<CoreReportMetrics>(emptyCoreMetrics);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อออกรายงานจาก Supabase จริง',
   );
 
+  // Sync orientation default when switching reportView
+  useEffect(() => {
+    const cfg = reportViews.find((item) => item.value === reportView);
+    if (cfg) {
+      setPageOrientation(cfg.defaultOrientation);
+    }
+  }, [reportView]);
+
+  // Load workspace identity and saved term ranges from Supabase
   useEffect(() => {
     let mounted = true;
-    async function loadWorkspaceIdentity() {
+    async function loadWorkspaceIdentityAndRanges() {
       if (!supabase || !session.workspace || demoMode) return;
       const { data, error } = await supabase
         .from('workspaces')
@@ -1457,8 +2203,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         .eq('id', session.workspace.id)
         .maybeSingle();
       if (!mounted || error || !data) return;
-      const settings = (data.settings || {}) as { classroom_name?: string; report_identity?: Partial<SchoolReportIdentity> };
-      const identity = {
+      const settings = (data.settings || {}) as {
+        classroom_name?: string;
+        report_identity?: Partial<SchoolReportIdentity>;
+        report_term_ranges?: Partial<ReportTermRanges>;
+      };
+      const identity: SchoolReportIdentity = {
         ...loadSchoolReportIdentity(session.workspace.id),
         ...(settings.report_identity || {}),
         academicYear: data.academic_year || session.workspace.academicYear,
@@ -1467,9 +2217,26 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       };
       setReportIdentity(identity);
       saveSchoolReportIdentity(identity, session.workspace.id);
+
+      if (settings.report_term_ranges?.term1 && settings.report_term_ranges?.term2) {
+        const loadedRanges: ReportTermRanges = {
+          term1: {
+            start: settings.report_term_ranges.term1.start || termRanges.term1.start,
+            end: settings.report_term_ranges.term1.end || termRanges.term1.end,
+          },
+          term2: {
+            start: settings.report_term_ranges.term2.start || termRanges.term2.start,
+            end: settings.report_term_ranges.term2.end || termRanges.term2.end,
+          },
+        };
+        setTermRanges(loadedRanges);
+        saveReportTermRanges(loadedRanges, session.workspace.id);
+      }
     }
-    void loadWorkspaceIdentity();
-    return () => { mounted = false; };
+    void loadWorkspaceIdentityAndRanges();
+    return () => {
+      mounted = false;
+    };
   }, [demoMode, session.workspace]);
 
   useEffect(() => {
@@ -1493,6 +2260,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     navigate(`/app/dashboard?${params.toString()}`, { replace: false });
   }
 
+  // Update dateFrom & dateTo whenever reportPeriod, reportMonth, selectedTerm, or termRanges change
   useEffect(() => {
     if (reportPeriod === 'month') {
       const range = getMonthDateRange(reportMonth);
@@ -1507,12 +2275,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       return;
     }
 
-    const academicYear = classrooms.find((classroom) => classroom.id === classroomId)?.academic_year || session.workspace?.academicYear;
+    const academicYear =
+      classrooms.find((classroom) => classroom.id === classroomId)?.academic_year || session.workspace?.academicYear;
     const startYear = academicYearToGregorianStart(academicYear);
     setDateFrom(`${startYear}-05-01`);
     setDateTo(`${startYear + 1}-04-30`);
   }, [classroomId, classrooms, reportMonth, reportPeriod, selectedTerm, session.workspace?.academicYear, termRanges]);
 
+  // Fetch data from Supabase
   useEffect(() => {
     let isMounted = true;
 
@@ -1529,29 +2299,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         setBehaviorRecords(demoBehaviorRecords);
         setHomeVisits(demoHomeVisits);
         setHealthRecords(demoHealthRecords);
+        setAllGrowthRecords(demoHealthRecords.filter((r) => r.record_type === 'growth'));
         setGuardians(demoGuardians);
-        setCoreMetrics({
-          attendance: {
-            presentRate: 67,
-            riskCount: 2,
-            total: demoRecords.length,
-          },
-          behavior: {
-            followUps: 1,
-            positiveCount: demoBehaviorRecords.filter((record) => record.tone === 'positive').length,
-            totalPoints: demoBehaviorRecords.reduce((sum, record) => sum + Number(record.points || 0), 0),
-          },
-          savings: {
-            accountCount: demoSavingsAccounts.length,
-            totalBalance: demoSavingsAccounts.reduce((sum, account) => sum + Number(account.balance || 0), 0),
-          },
-          scores: {
-            assessmentCount: demoScoreAssessments.length,
-            averagePercent: 80,
-            belowHalfCount: 0,
-          },
-        });
-        setClassroomId(demoClassrooms[0].id);
+        setClassroomId((curr) => curr || demoClassrooms[0].id);
         setIsLoading(false);
         return;
       }
@@ -1580,7 +2330,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .eq('workspace_id', session.workspace.id)
           .gte('attendance_date', dateFrom)
           .lte('attendance_date', dateTo)
-          .order('attendance_date', { ascending: false }),
+          .order('attendance_date', { ascending: false })
+          .limit(3000),
       ]);
 
       if (!isMounted) return;
@@ -1600,17 +2351,16 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .from('attendance_records')
           .select('session_id,student_id,status,note')
           .eq('workspace_id', session.workspace.id)
-          .in('session_id', sessionIds);
+          .in('session_id', sessionIds)
+          .limit(10000);
 
         if (!isMounted) return;
 
         if (recordError) {
           setNotice(recordError.message);
-          setIsLoading(false);
-          return;
+        } else {
+          nextRecords = (recordRows || []) as AttendanceRecordRow[];
         }
-
-        nextRecords = (recordRows || []) as AttendanceRecordRow[];
       }
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
@@ -1619,9 +2369,13 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       setAttendanceSessions(nextSessions);
       setAttendanceRecords(nextRecords);
       setClassroomId((current) =>
-        current && nextClassrooms.some((classroom) => classroom.id === current) ? current : nextClassrooms[0]?.id || '',
+        current && nextClassrooms.some((classroom) => classroom.id === current)
+          ? current
+          : findBestDefaultClassroomId(nextClassrooms, session.workspace?.classroomName, session.workspace?.name),
       );
 
+      // Note: score_assessments and growth records are loaded for the workspace so that
+      // assessments created earlier in the semester or growth measured at term start never disappear!
       const [
         { data: assessmentRows, error: assessmentError },
         { data: accountRows, error: accountError },
@@ -1629,21 +2383,20 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         { data: behaviorRows, error: behaviorError },
         { data: homeVisitRows, error: homeVisitError },
         { data: healthRows, error: healthError },
+        { data: latestGrowthRows },
         { data: guardianRows, error: guardianError },
       ] = await Promise.all([
         supabase
           .from('score_assessments')
           .select('id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status')
           .eq('workspace_id', session.workspace.id)
-          .gte('assessment_date', dateFrom)
-          .lte('assessment_date', dateTo)
           .order('assessment_date', { ascending: false })
           .limit(1000),
         supabase
           .from('savings_accounts')
           .select('id,student_id,balance,status')
           .eq('workspace_id', session.workspace.id)
-          .limit(1000),
+          .limit(2000),
         supabase
           .from('savings_transactions')
           .select('id,student_id,transaction_type,amount,transaction_date,note,created_at')
@@ -1651,7 +2404,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .gte('transaction_date', dateFrom)
           .lte('transaction_date', dateTo)
           .order('transaction_date', { ascending: false })
-          .limit(1000),
+          .limit(3000),
         supabase
           .from('behavior_records')
           .select('id,student_id,tone,category,description,points,follow_up_status,behavior_date,created_at')
@@ -1659,12 +2412,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .gte('behavior_date', dateFrom)
           .lte('behavior_date', dateTo)
           .order('behavior_date', { ascending: false })
-          .limit(1000),
+          .limit(2000),
         supabase
           .from('student_home_visits')
           .select('id,student_id,academic_year,term,status,completion_percent,visited_at')
           .eq('workspace_id', session.workspace.id)
-          .limit(1000),
+          .limit(2000),
         supabase
           .from('student_health_records')
           .select('id,student_id,record_date,record_type,status,weight_kg,height_cm,bmi,inspection_results,note')
@@ -1672,7 +2425,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .gte('record_date', dateFrom)
           .lte('record_date', dateTo)
           .order('record_date', { ascending: false })
-          .limit(3000),
+          .limit(5000),
+        supabase
+          .from('student_health_records')
+          .select('id,student_id,record_date,record_type,status,weight_kg,height_cm,bmi,inspection_results,note')
+          .eq('workspace_id', session.workspace.id)
+          .eq('record_type', 'growth')
+          .order('record_date', { ascending: false })
+          .limit(2000),
         supabase
           .from('student_guardians')
           .select('student_id,display_name,relation,phone,is_primary')
@@ -1680,6 +2440,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .order('is_primary', { ascending: false })
           .limit(3000),
       ]);
+
+      if (!isMounted) return;
 
       if (assessmentError || accountError || transactionError || behaviorError || homeVisitError || healthError || guardianError) {
         setNotice(
@@ -1703,7 +2465,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .from('score_entries')
           .select('id,assessment_id,student_id,score,note')
           .eq('workspace_id', session.workspace.id)
-          .in('assessment_id', nextAssessmentIds);
+          .in('assessment_id', nextAssessmentIds)
+          .limit(10000);
 
         if (!isMounted) return;
 
@@ -1714,53 +2477,15 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         }
       }
 
-      const nextSavingsAccounts = (accountRows || []) as SavingsAccountRow[];
-      const nextSavingsTransactions = (transactionRows || []) as SavingsTransactionRow[];
-      const nextBehaviorRecords = (behaviorRows || []) as BehaviorRecordRow[];
-      const nextHomeVisits = (homeVisitRows || []) as HomeVisitReportRow[];
-      const nextHealthRecords = (healthRows || []) as StudentHealthRecordRow[];
-      const nextGuardians = (guardianRows || []) as StudentGuardianReportRow[];
       setScoreAssessments(nextAssessments);
       setScoreEntries(nextScoreEntries);
-      setSavingsAccounts(nextSavingsAccounts);
-      setSavingsTransactions(nextSavingsTransactions);
-      setBehaviorRecords(nextBehaviorRecords);
-      setHomeVisits(nextHomeVisits);
-      setHealthRecords(nextHealthRecords);
-      setGuardians(nextGuardians);
-
-      const scorePercents = nextScoreEntries
-        .map((row) => {
-          const assessment = nextAssessments.find((item) => item.id === row.assessment_id);
-          const maxScore = Number(assessment?.max_score || 0);
-          const score = Number(row.score || 0);
-          return maxScore > 0 ? (score / maxScore) * 100 : null;
-        })
-        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-      const presentCount = nextRecords.filter((record) => record.status === 'present').length;
-      const riskCount = nextRecords.filter((record) => ['absent', 'late', 'leave', 'sick'].includes(record.status)).length;
-
-      setCoreMetrics({
-        attendance: {
-          presentRate: nextRecords.length > 0 ? Math.round((presentCount / nextRecords.length) * 100) : 0,
-          riskCount,
-          total: nextRecords.length,
-        },
-        behavior: {
-          followUps: nextBehaviorRecords.filter((row) => row.follow_up_status && !['none', 'resolved'].includes(row.follow_up_status)).length,
-          positiveCount: nextBehaviorRecords.filter((row) => row.tone === 'positive').length,
-          totalPoints: nextBehaviorRecords.reduce((sum, row) => sum + Number(row.points || 0), 0),
-        },
-        savings: {
-          accountCount: nextSavingsAccounts.filter((row) => row.status === 'active').length,
-          totalBalance: round(nextSavingsAccounts.reduce((sum, row) => sum + Number(row.balance || 0), 0)),
-        },
-        scores: {
-          assessmentCount: nextAssessments.length,
-          averagePercent: scorePercents.length > 0 ? round(scorePercents.reduce((sum, value) => sum + value, 0) / scorePercents.length) : 0,
-          belowHalfCount: scorePercents.filter((value) => value < 50).length,
-        },
-      });
+      setSavingsAccounts((accountRows || []) as SavingsAccountRow[]);
+      setSavingsTransactions((transactionRows || []) as SavingsTransactionRow[]);
+      setBehaviorRecords((behaviorRows || []) as BehaviorRecordRow[]);
+      setHomeVisits((homeVisitRows || []) as HomeVisitReportRow[]);
+      setHealthRecords((healthRows || []) as StudentHealthRecordRow[]);
+      setAllGrowthRecords((latestGrowthRows || []) as StudentHealthRecordRow[]);
+      setGuardians((guardianRows || []) as StudentGuardianReportRow[]);
       setIsLoading(false);
     }
 
@@ -1771,158 +2496,169 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     };
   }, [dateFrom, dateTo, demoMode, session.workspace]);
 
-  const reportRows = useMemo(() => {
-    const rows = buildReportRows(classrooms, students, attendanceSessions, attendanceRecords);
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return rows.filter((row) => {
-      const targetClassroom = classrooms.find((item) => item.id === classroomId) || classrooms[0];
-      if (targetClassroom && row.classroomName !== targetClassroom.name) return false;
-      if (!normalizedQuery) return true;
-
-      return [row.studentCode, row.studentName, row.status, statusLabels[row.status], row.note]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalizedQuery);
-    });
-  }, [attendanceRecords, attendanceSessions, classroomId, classrooms, query, students]);
-
-  const summary = useMemo(
-    () =>
-      statusOrder.map((status) => ({
-        count: reportRows.filter((row) => row.status === status).length,
-        label: statusLabels[status],
-        status,
-      })),
-    [reportRows],
-  );
-
-  const subjectOptions = useMemo(
-    () => Array.from(new Set(attendanceSessions.map((item) => item.subject_name).filter((item): item is string => Boolean(item) && item !== 'โฮมรูม'))).sort(),
-    [attendanceSessions],
-  );
-  const periodOptions = useMemo(
-    () => Array.from(new Set(attendanceSessions.map((item) => item.period_label).filter(Boolean))).sort(),
-    [attendanceSessions],
-  );
-  const subjectReportRows = useMemo(
-    () =>
-      reportRows.filter(
-        (row) =>
-          (!selectedSubjectName || row.subjectName === selectedSubjectName) &&
-          (!selectedPeriodLabel || row.periodLabel === selectedPeriodLabel),
-      ),
-    [reportRows, selectedPeriodLabel, selectedSubjectName],
-  );
-  const subjectAttendanceGrid = useMemo(
-    () =>
-      buildMonthlyAttendanceGrid({
-        attendanceRecords,
-        attendanceSessions,
-        classroomId,
-        classrooms,
-        dateFrom,
-        periodLabel: selectedPeriodLabel,
-        sessionKind: 'subject',
-        students,
-        subjectName: selectedSubjectName,
-      }),
-    [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, selectedPeriodLabel, selectedSubjectName, students],
-  );
-  useEffect(() => {
-    if (reportView !== 'subject-attendance') return;
-    if (!selectedSubjectName && subjectOptions[0]) setSelectedSubjectName(subjectOptions[0]);
-    if (!selectedPeriodLabel && periodOptions[0]) setSelectedPeriodLabel(periodOptions[0]);
-  }, [periodOptions, reportView, selectedPeriodLabel, selectedSubjectName, subjectOptions]);
-
-  const monthlyAttendanceGrid = useMemo(
-    () =>
-      buildMonthlyAttendanceGrid({
-        attendanceRecords,
-        attendanceSessions,
-        classroomId,
-        classrooms,
-        dateFrom,
-        sessionKind: 'daily',
-        students,
-      }),
-    [attendanceRecords, attendanceSessions, classroomId, classrooms, dateFrom, students],
-  );
-  const activeAttendanceGrid = reportView === 'subject-attendance' ? subjectAttendanceGrid : monthlyAttendanceGrid;
-
-  const monthlySavingsGrid = useMemo(
-    () =>
-      buildMonthlySavingsGrid({
-        classroomId,
-        classrooms,
-        dateFrom,
-        savingsAccounts,
-        savingsTransactions,
-        students,
-      }),
-    [classroomId, classrooms, dateFrom, savingsAccounts, savingsTransactions, students],
-  );
-
-  const monthContext = useMemo(() => getReportMonthContext(dateFrom), [dateFrom]);
-
   const selectedClassroom = useMemo(
     () => classrooms.find((classroom) => classroom.id === classroomId) || classrooms[0] || null,
     [classroomId, classrooms],
   );
-  const classroomStudents = useMemo(
+
+  const allClassroomStudents = useMemo(
     () => students.filter((student) => !selectedClassroom || student.classroom_id === selectedClassroom.id),
     [selectedClassroom, students],
   );
-  const selectedStudent = useMemo(
-    () => students.find((student) => student.id === selectedStudentId) || classroomStudents[0] || students[0] || null,
-    [classroomStudents, selectedStudentId, students],
+
+  // Filtered students by search query (`query` works across EVERY report view!)
+  const classroomStudents = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allClassroomStudents;
+    return allClassroomStudents.filter((s) =>
+      [s.student_code, s.first_name, s.last_name, s.nickname, getStudentFullName(s)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [allClassroomStudents, query]);
+
+  const classroomStudentIds = useMemo(
+    () => new Set(classroomStudents.map((student) => student.id)),
+    [classroomStudents],
   );
-  const classroomStudentIds = useMemo(() => new Set(classroomStudents.map((student) => student.id)), [classroomStudents]);
+  const allClassroomStudentIds = useMemo(
+    () => new Set(allClassroomStudents.map((student) => student.id)),
+    [allClassroomStudents],
+  );
   const studentById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
   const savingsAccountByStudent = useMemo(
     () => new Map(savingsAccounts.map((account) => [account.student_id, account])),
     [savingsAccounts],
   );
-  const classroomSavingsTransactions = useMemo(
-    () => savingsTransactions.filter((transaction) => classroomStudentIds.has(transaction.student_id)),
-    [classroomStudentIds, savingsTransactions],
-  );
-  const savingsReportRows = useMemo(
-    () =>
-      classroomStudents.map((student) => {
-        const account = savingsAccountByStudent.get(student.id);
-        const transactions = classroomSavingsTransactions.filter((transaction) => transaction.student_id === student.id);
-        const deposits = transactions
-          .filter((transaction) => transaction.transaction_type === 'deposit')
-          .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
-        const withdrawals = transactions
-          .filter((transaction) => transaction.transaction_type === 'withdrawal')
-          .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 
-        return {
-          balance: Number(account?.balance || 0),
-          deposits,
-          latestDate: transactions[0]?.transaction_date || '-',
-          student,
-          transactionCount: transactions.length,
-          withdrawals,
-        };
-      }),
-    [classroomSavingsTransactions, classroomStudents, savingsAccountByStudent],
-  );
-  const classroomScoreAssessments = useMemo(
+  const selectedStudent = useMemo(
     () =>
-      scoreAssessments.filter(
-        (assessment) =>
-          (!selectedClassroom || assessment.classroom_id === selectedClassroom.id) &&
-          assessment.status !== 'archived',
-      ),
-    [scoreAssessments, selectedClassroom],
+      allClassroomStudents.find((student) => student.id === selectedStudentId) ||
+      allClassroomStudents[0] ||
+      students[0] ||
+      null,
+    [allClassroomStudents, selectedStudentId, students],
   );
+
+  useEffect(() => {
+    if (!selectedStudentId && allClassroomStudents[0]) {
+      setSelectedStudentId(allClassroomStudents[0].id);
+      return;
+    }
+    if (selectedStudentId && !allClassroomStudents.some((student) => student.id === selectedStudentId)) {
+      setSelectedStudentId(allClassroomStudents[0]?.id || '');
+    }
+  }, [allClassroomStudents, selectedStudentId]);
+
+  const subjectOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          attendanceSessions
+            .filter((s) => !selectedClassroom || s.classroom_id === selectedClassroom.id)
+            .map((item) => item.subject_name)
+            .filter((item): item is string => Boolean(item) && item !== 'โฮมรูม'),
+        ),
+      ).sort(),
+    [attendanceSessions, selectedClassroom],
+  );
+
+  const periodOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          attendanceSessions
+            .filter((s) => !selectedClassroom || s.classroom_id === selectedClassroom.id)
+            .map((item) => item.period_label)
+            .filter(Boolean),
+        ),
+      ).sort(),
+    [attendanceSessions, selectedClassroom],
+  );
+
+  // Classroom score assessments: include all active assessments for this classroom
+  const classroomScoreAssessments = useMemo(() => {
+    const roomAssessments = scoreAssessments.filter(
+      (assessment) =>
+        (!selectedClassroom || assessment.classroom_id === selectedClassroom.id) &&
+        assessment.status !== 'archived',
+    );
+    const inDateRange = roomAssessments.filter(
+      (a) => a.assessment_date >= dateFrom && a.assessment_date <= dateTo,
+    );
+    // If the teacher is in 'month' mode and didn't create assessments in this exact calendar month,
+    // fall back to all classroom assessments so the score report is never blank!
+    return inDateRange.length > 0 ? inDateRange : roomAssessments;
+  }, [dateFrom, dateTo, scoreAssessments, selectedClassroom]);
+
   const scoreSubjectOptions = useMemo(
     () => Array.from(new Set(classroomScoreAssessments.map((item) => item.subject_name).filter(Boolean))).sort(),
-    [classroomScoreAssessments]
+    [classroomScoreAssessments],
   );
+
+  // Automatically select first subject when switching to subject-attendance or subject-scores
+  useEffect(() => {
+    if (reportView === 'subject-attendance') {
+      if (!selectedSubjectName || !subjectOptions.includes(selectedSubjectName)) {
+        setSelectedSubjectName(subjectOptions[0] || '');
+      }
+      if (selectedPeriodLabel && !periodOptions.includes(selectedPeriodLabel)) {
+        setSelectedPeriodLabel('');
+      }
+    } else if (reportView === 'subject-scores') {
+      if (!selectedSubjectName || !scoreSubjectOptions.includes(selectedSubjectName)) {
+        setSelectedSubjectName(scoreSubjectOptions[0] || '');
+      }
+    }
+  }, [periodOptions, reportView, scoreSubjectOptions, selectedPeriodLabel, selectedSubjectName, subjectOptions]);
+
+  const dailyAttendanceGrid = useMemo(
+    () =>
+      buildAttendanceGrid({
+        attendanceRecords,
+        attendanceSessions,
+        classroom: selectedClassroom,
+        dateFrom,
+        dateTo,
+        sessionKind: 'daily',
+        students: classroomStudents,
+      }),
+    [attendanceRecords, attendanceSessions, classroomStudents, dateFrom, dateTo, selectedClassroom],
+  );
+
+  const subjectAttendanceGrid = useMemo(
+    () =>
+      buildAttendanceGrid({
+        attendanceRecords,
+        attendanceSessions,
+        classroom: selectedClassroom,
+        dateFrom,
+        dateTo,
+        periodLabel: selectedPeriodLabel || undefined,
+        sessionKind: 'subject',
+        students: classroomStudents,
+        subjectName: selectedSubjectName || undefined,
+      }),
+    [attendanceRecords, attendanceSessions, classroomStudents, dateFrom, dateTo, selectedClassroom, selectedPeriodLabel, selectedSubjectName],
+  );
+
+  const activeAttendanceGrid = reportView === 'subject-attendance' ? subjectAttendanceGrid : dailyAttendanceGrid;
+
+  const savingsGrid = useMemo(
+    () =>
+      buildSavingsGrid({
+        classroom: selectedClassroom,
+        dateFrom,
+        dateTo,
+        savingsAccounts,
+        savingsTransactions,
+        students: classroomStudents,
+      }),
+    [classroomStudents, dateFrom, dateTo, savingsAccounts, savingsTransactions, selectedClassroom],
+  );
+
   const scoreEntriesByAssessment = useMemo(() => {
     const map = new Map<string, ScoreEntryRow[]>();
     scoreEntries.forEach((entry) => {
@@ -1932,11 +2668,16 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     });
     return map;
   }, [scoreEntries]);
+
   const scoreAssessmentRows = useMemo(
     () =>
       classroomScoreAssessments.map((assessment) => {
-        const entries = (scoreEntriesByAssessment.get(assessment.id) || []).filter((entry) => classroomStudentIds.has(entry.student_id));
-        const enteredEntries = entries.filter((entry) => entry.score !== null && entry.score !== undefined);
+        const entries = (scoreEntriesByAssessment.get(assessment.id) || []).filter((entry) =>
+          allClassroomStudentIds.has(entry.student_id),
+        );
+        const enteredEntries = entries.filter(
+          (entry) => entry.score !== null && entry.score !== undefined && !Number.isNaN(Number(entry.score)),
+        );
         const maxScore = Number(assessment.max_score || 0);
         const averageScore =
           enteredEntries.length > 0
@@ -1948,351 +2689,539 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           averagePercent: maxScore > 0 ? round((averageScore / maxScore) * 100) : 0,
           averageScore: round(averageScore),
           enteredCount: enteredEntries.length,
-          missingCount: Math.max(classroomStudents.length - enteredEntries.length, 0),
+          missingCount: Math.max(allClassroomStudents.length - enteredEntries.length, 0),
         };
       }),
-    [classroomScoreAssessments, classroomStudentIds, classroomStudents.length, scoreEntriesByAssessment],
+    [allClassroomStudentIds, allClassroomStudents.length, classroomScoreAssessments, scoreEntriesByAssessment],
   );
-  const scoreSubjectRows = useMemo(() => {
-    const map = new Map<string, { assessmentCount: number; averagePercent: number; enteredCount: number; subject: string }>();
-    scoreAssessmentRows.forEach((row) => {
-      const current = map.get(row.assessment.subject_name) || {
-        assessmentCount: 0,
-        averagePercent: 0,
-        enteredCount: 0,
-        subject: row.assessment.subject_name,
-      };
-      current.assessmentCount += 1;
-      current.enteredCount += row.enteredCount;
-      current.averagePercent += row.averagePercent;
-      map.set(row.assessment.subject_name, current);
-    });
 
-    return Array.from(map.values()).map((row) => ({
-      ...row,
-      averagePercent: row.assessmentCount > 0 ? round(row.averagePercent / row.assessmentCount) : 0,
-    }));
-  }, [scoreAssessmentRows]);
-  const behaviorReportRows = useMemo(
-    () => behaviorRecords.filter((record) => classroomStudentIds.has(record.student_id)),
-    [behaviorRecords, classroomStudentIds],
-  );
+  // Student cross-subject gradebook matrix for `scores` view
+  const studentCrossSubjectRows = useMemo(() => {
+    return classroomStudents.map((student) => {
+      const bySubject: Record<string, { earned: number; grade: number | string; max: number; missing: number; percent: number }> = {};
+      let totalMissing = 0;
+
+      scoreSubjectOptions.forEach((subject) => {
+        const subAssessments = classroomScoreAssessments.filter((a) => a.subject_name === subject);
+        let earned = 0;
+        let max = 0;
+        let hasScore = false;
+        let missing = 0;
+
+        subAssessments.forEach((asm) => {
+          const entry = (scoreEntriesByAssessment.get(asm.id) || []).find((e) => e.student_id === student.id);
+          const val = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+          if (!Number.isNaN(val)) {
+            earned += val;
+            max += Number(asm.max_score || 0);
+            hasScore = true;
+          } else {
+            missing += 1;
+            totalMissing += 1;
+          }
+        });
+
+        const pct = hasScore && max > 0 ? Math.min(100, round((earned / max) * 100)) : 0;
+        const grade = hasScore && max > 0 ? calculateOBECGrade(pct).grade : '-';
+        bySubject[subject] = { earned: round(earned), grade, max: round(max), missing, percent: pct };
+      });
+
+      const numericGrades = Object.values(bySubject)
+        .map((s) => s.grade)
+        .filter((g): g is number => typeof g === 'number');
+      const gpa =
+        numericGrades.length > 0
+          ? (numericGrades.reduce((sum, g) => sum + g, 0) / numericGrades.length).toFixed(2)
+          : '-';
+
+      return {
+        bySubject,
+        gpa,
+        student,
+        studentCode: student.student_code || '-',
+        studentName: getStudentFullName(student),
+        totalMissing,
+      };
+    });
+  }, [classroomScoreAssessments, classroomStudents, scoreEntriesByAssessment, scoreSubjectOptions]);
+
   const classroomHealthRecords = useMemo(
     () => healthRecords.filter((record) => classroomStudentIds.has(record.student_id)),
     [classroomStudentIds, healthRecords],
   );
-  const healthSummaryRows = useMemo(
-    () => classroomStudents.map((student) => {
-      const records = classroomHealthRecords.filter((record) => record.student_id === student.id);
-      const summarizeRoutine = (recordType: HealthRecordType) => {
-        const routineRecords = records.filter((record) => record.record_type === recordType);
-        return {
-          completed: routineRecords.filter((record) => record.status === 'completed').length,
-          total: routineRecords.filter((record) => record.status !== 'exempt' && record.status !== 'not_checked').length,
-        };
-      };
-      const latestGrowth = records.find((record) => record.record_type === 'growth') || null;
-      const latestHygiene = records.find((record) => record.record_type === 'hygiene') || null;
-      const attentionItems = Object.entries(latestHygiene?.inspection_results || {})
-        .filter(([, status]) => status === 'attention')
-        .map(([key]) => ({ hair: 'ผม', nails: 'เล็บ', skin: 'ผิวหนัง', teeth: 'ฟัน', uniform: 'เครื่องแต่งกาย', ears: 'หู', eyes: 'ตา' })[key] || key);
 
-      return {
-        attentionItems,
-        brushing: summarizeRoutine('toothbrushing'),
-        latestGrowth,
-        latestHygiene,
-        lunch: summarizeRoutine('lunch'),
-        milk: summarizeRoutine('milk'),
-        student,
-      };
-    }),
-    [classroomHealthRecords, classroomStudents],
+  const healthSummaryRows = useMemo(
+    () =>
+      classroomStudents.map((student) => {
+        const records = classroomHealthRecords.filter((record) => record.student_id === student.id);
+        const summarizeRoutine = (recordType: HealthRecordType) => {
+          const routineRecords = records.filter((record) => record.record_type === recordType);
+          return {
+            completed: routineRecords.filter((record) => record.status === 'completed').length,
+            total: routineRecords.filter((record) => record.status !== 'exempt' && record.status !== 'not_checked').length,
+          };
+        };
+
+        // Fallback to allGrowthRecords (from any month) or student.health_flags so weight/height never disappears!
+        const latestGrowthInPeriod = records.find(
+          (record) => record.record_type === 'growth' && (record.weight_kg !== null || record.height_cm !== null),
+        );
+        const latestGrowthOverall =
+          latestGrowthInPeriod ||
+          allGrowthRecords.find(
+            (record) => record.student_id === student.id && (record.weight_kg !== null || record.height_cm !== null),
+          ) ||
+          null;
+
+        const flags = asReportRecord(student.health_flags);
+        const weightVal = latestGrowthOverall?.weight_kg ?? (flags.weight_kg as number | string | undefined) ?? null;
+        const heightVal = latestGrowthOverall?.height_cm ?? (flags.height_cm as number | string | undefined) ?? null;
+        const weightNum = weightVal !== null && weightVal !== '' && !Number.isNaN(Number(weightVal)) ? Number(weightVal) : null;
+        const heightNum = heightVal !== null && heightVal !== '' && !Number.isNaN(Number(heightVal)) ? Number(heightVal) : null;
+        const computedBmi =
+          latestGrowthOverall?.bmi !== null && latestGrowthOverall?.bmi !== undefined && !Number.isNaN(Number(latestGrowthOverall.bmi))
+            ? round(Number(latestGrowthOverall.bmi))
+            : weightNum && heightNum && heightNum > 0
+              ? round(weightNum / ((heightNum / 100) * (heightNum / 100)))
+              : null;
+
+        const latestHygiene = records.find((record) => record.record_type === 'hygiene') || null;
+        const attentionItems = Object.entries(latestHygiene?.inspection_results || {})
+          .filter(([, status]) => status === 'attention')
+          .map(
+            ([key]) =>
+              ({ hair: 'ผม', nails: 'เล็บ', skin: 'ผิวหนัง', teeth: 'ฟัน', uniform: 'เครื่องแต่งกาย', ears: 'หู', eyes: 'ตา' })[
+                key
+              ] || key,
+          );
+
+        return {
+          attentionItems,
+          bmi: computedBmi,
+          brushing: summarizeRoutine('toothbrushing'),
+          heightCm: heightNum,
+          latestGrowthDate: latestGrowthOverall?.record_date || null,
+          latestHygiene,
+          lunch: summarizeRoutine('lunch'),
+          milk: summarizeRoutine('milk'),
+          student,
+          weightKg: weightNum,
+        };
+      }),
+    [allGrowthRecords, classroomHealthRecords, classroomStudents],
   );
+
   const registerHealthRows = useMemo<StudentRegisterHealthRow[]>(
-    () => healthSummaryRows.map((row) => ({
-      heightCm: row.latestGrowth?.height_cm ?? null,
-      recordDate: row.latestGrowth?.record_date ?? null,
-      studentId: row.student.id,
-      weightKg: row.latestGrowth?.weight_kg ?? null,
-    })),
+    () =>
+      healthSummaryRows.map((row) => ({
+        heightCm: row.heightCm,
+        recordDate: row.latestGrowthDate,
+        studentId: row.student.id,
+        weightKg: row.weightKg,
+      })),
     [healthSummaryRows],
   );
+
   const classroomGuardians = useMemo(
-    () => guardians.filter((guardian) => classroomStudentIds.has(guardian.student_id)),
-    [classroomStudentIds, guardians],
+    () => guardians.filter((guardian) => allClassroomStudentIds.has(guardian.student_id)),
+    [allClassroomStudentIds, guardians],
   );
+
   const activeRegisterFields = useMemo(
     () => registerFieldOptions.filter((field) => registerFields[field.value]).map((field) => field.value),
     [registerFields],
   );
-  const executiveMetrics = useMemo<ExecutiveReportMetrics>(() => {
-    const routineRecords = classroomHealthRecords.filter((record) => ['toothbrushing', 'milk', 'lunch'].includes(record.record_type));
+
+  const behaviorReportRows = useMemo(
+    () =>
+      behaviorRecords
+        .filter((record) => classroomStudentIds.has(record.student_id))
+        .filter((record) => behaviorStudentFilter === 'all' || record.student_id === behaviorStudentFilter),
+    [behaviorRecords, behaviorStudentFilter, classroomStudentIds],
+  );
+
+  // Consistent Classroom KPI Metrics (for top cards and executive summary)
+  const classroomKpiMetrics = useMemo(() => {
+    const totalAtt =
+      dailyAttendanceGrid.summary.present +
+      dailyAttendanceGrid.summary.late +
+      dailyAttendanceGrid.summary.leave +
+      dailyAttendanceGrid.summary.absent;
+    const attended = dailyAttendanceGrid.summary.present + dailyAttendanceGrid.summary.late;
+    const presentRate = totalAtt > 0 ? round((attended / totalAtt) * 100) : 100;
+    const riskCount = dailyAttendanceGrid.rows.filter((r) => r.attendancePercent < 80).length;
+
+    const avgScore =
+      scoreAssessmentRows.length > 0
+        ? round(scoreAssessmentRows.reduce((sum, r) => sum + r.averagePercent, 0) / scoreAssessmentRows.length)
+        : 0;
+
+    const routineRecords = classroomHealthRecords.filter((record) =>
+      ['toothbrushing', 'milk', 'lunch'].includes(record.record_type),
+    );
     const routineCount = routineRecords.filter((record) => record.status !== 'exempt' && record.status !== 'not_checked').length;
     const completedCount = routineRecords.filter((record) => record.status === 'completed').length;
+    const healthCompletionRate = routineCount > 0 ? round((completedCount / routineCount) * 100) : 100;
+    const healthFollowUps = healthSummaryRows.filter(
+      (row) => row.attentionItems.length > 0 || row.latestHygiene?.status === 'attention',
+    ).length;
+
+    const roomBehaviors = behaviorRecords.filter((r) => allClassroomStudentIds.has(r.student_id));
+    const behaviorFollowUps = roomBehaviors.filter(
+      (r) => r.follow_up_status && !['none', 'resolved'].includes(r.follow_up_status),
+    ).length;
+    const positiveBehaviors = roomBehaviors.filter((r) => r.tone === 'positive').length;
+    const behaviorPoints = roomBehaviors.reduce((sum, r) => sum + Number(r.points || 0), 0);
+
     return {
-      attendanceRate: coreMetrics.attendance.presentRate,
-      behaviorFollowUps: coreMetrics.behavior.followUps,
-      healthCompletionRate: routineCount > 0 ? round((completedCount / routineCount) * 100) : 0,
-      healthFollowUps: healthSummaryRows.filter((row) => row.attentionItems.length > 0 || row.latestHygiene?.status === 'attention').length,
-      savingsTotal: coreMetrics.savings.totalBalance,
-      scoreAverage: coreMetrics.scores.averagePercent,
-      studentCount: classroomStudents.length,
+      attendance: { presentRate, riskCount, total: totalAtt },
+      behavior: { followUps: behaviorFollowUps, positiveCount: positiveBehaviors, totalPoints: behaviorPoints },
+      health: { completionRate: healthCompletionRate, followUps: healthFollowUps },
+      savings: {
+        activeCount: savingsGrid.totalActiveSavingsStudents,
+        periodNet: savingsGrid.totalPeriodNet,
+        totalBalance: savingsGrid.totalCumulativeBalance,
+      },
+      scores: {
+        assessmentCount: scoreAssessmentRows.length,
+        averagePercent: avgScore,
+      },
     };
-  }, [classroomHealthRecords, classroomStudents.length, coreMetrics, healthSummaryRows]);
-  const selectedStudentAttendanceRecords = useMemo(
-    () => (selectedStudent ? attendanceRecords.filter((record) => record.student_id === selectedStudent.id) : []),
-    [attendanceRecords, selectedStudent],
-  );
-  const selectedStudentScoreEntries = useMemo(() => {
-    if (!selectedStudent) return [];
-    const assessmentById = new Map(classroomScoreAssessments.map((assessment) => [assessment.id, assessment]));
-    return scoreEntries
-      .filter((entry) => entry.student_id === selectedStudent.id && assessmentById.has(entry.assessment_id))
-      .map((entry) => ({ assessment: assessmentById.get(entry.assessment_id), entry }));
-  }, [classroomScoreAssessments, scoreEntries, selectedStudent]);
-  const selectedStudentSavingsTransactions = useMemo(
-    () => (selectedStudent ? classroomSavingsTransactions.filter((transaction) => transaction.student_id === selectedStudent.id) : []),
-    [classroomSavingsTransactions, selectedStudent],
-  );
-  const selectedStudentBehaviorRecords = useMemo(
-    () => (selectedStudent ? behaviorReportRows.filter((record) => record.student_id === selectedStudent.id) : []),
-    [behaviorReportRows, selectedStudent],
-  );
-  const selectedHomeVisit = useMemo(
-    () => (selectedStudent ? homeVisits.find((visit) => visit.student_id === selectedStudent.id && visit.status !== 'archived') || null : null),
-    [homeVisits, selectedStudent],
-  );
-  const selectedStudentScoreAverage = useMemo(() => {
-    const percents = selectedStudentScoreEntries
-      .map(({ assessment, entry }) => {
-        const maxScore = Number(assessment?.max_score || 0);
-        return maxScore > 0 && entry.score !== null && entry.score !== undefined ? (Number(entry.score || 0) / maxScore) * 100 : null;
+  }, [
+    allClassroomStudentIds,
+    behaviorRecords,
+    classroomHealthRecords,
+    dailyAttendanceGrid,
+    healthSummaryRows,
+    savingsGrid,
+    scoreAssessmentRows,
+  ]);
+
+  const executiveMetrics = useMemo<ExecutiveReportMetrics>(() => {
+    if (executiveScope === 'classroom') {
+      return {
+        attendanceRate: classroomKpiMetrics.attendance.presentRate,
+        behaviorFollowUps: classroomKpiMetrics.behavior.followUps,
+        classroomCount: 1,
+        healthCompletionRate: classroomKpiMetrics.health.completionRate,
+        healthFollowUps: classroomKpiMetrics.health.followUps,
+        savingsTotal: classroomKpiMetrics.savings.totalBalance,
+        scoreAverage: classroomKpiMetrics.scores.averagePercent,
+        scopeLabel: `ชั้น ${selectedClassroom?.name || '-'}`,
+        studentCount: allClassroomStudents.length,
+      };
+    }
+
+    // Whole-school scope
+    const totalAtt = attendanceRecords.length;
+    const presentAtt = attendanceRecords.filter((r) => r.status === 'present' || r.status === 'late' || r.status === 'activity').length;
+    const schoolAttRate = totalAtt > 0 ? round((presentAtt / totalAtt) * 100) : 100;
+
+    const assessmentMap = new Map(scoreAssessments.map((a) => [a.id, Number(a.max_score || 0)]));
+    const validScorePcts = scoreEntries
+      .map((e) => {
+        const max = assessmentMap.get(e.assessment_id) || 0;
+        const val = e.score !== null && e.score !== undefined ? Number(e.score) : NaN;
+        return max > 0 && !Number.isNaN(val) ? (val / max) * 100 : null;
       })
-      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-    return percents.length > 0 ? round(percents.reduce((sum, value) => sum + value, 0) / percents.length) : 0;
-  }, [selectedStudentScoreEntries]);
+      .filter((v): v is number => v !== null);
+    const schoolScoreAvg =
+      validScorePcts.length > 0 ? round(validScorePcts.reduce((s, v) => s + v, 0) / validScorePcts.length) : 0;
+
+    const routineRecords = healthRecords.filter((record) => ['toothbrushing', 'milk', 'lunch'].includes(record.record_type));
+    const routineCount = routineRecords.filter((record) => record.status !== 'exempt' && record.status !== 'not_checked').length;
+    const completedCount = routineRecords.filter((record) => record.status === 'completed').length;
+    const schoolHealthRate = routineCount > 0 ? round((completedCount / routineCount) * 100) : 100;
+    const schoolHealthFollowUps = new Set(
+      healthRecords.filter((r) => r.status === 'attention').map((r) => r.student_id),
+    ).size;
+
+    const schoolBehaviorFollowUps = behaviorRecords.filter(
+      (r) => r.follow_up_status && !['none', 'resolved'].includes(r.follow_up_status),
+    ).length;
+    const schoolSavingsTotal = round(savingsAccounts.reduce((sum, a) => sum + Number(a.balance || 0), 0));
+
+    return {
+      attendanceRate: schoolAttRate,
+      behaviorFollowUps: schoolBehaviorFollowUps,
+      classroomCount: Math.max(1, classrooms.length),
+      healthCompletionRate: schoolHealthRate,
+      healthFollowUps: schoolHealthFollowUps,
+      savingsTotal: schoolSavingsTotal,
+      scoreAverage: schoolScoreAvg,
+      scopeLabel: `รวมทุกห้องเรียน (${session.workspace?.schoolName || 'ทั้งโรงเรียน'})`,
+      studentCount: students.length,
+    };
+  }, [
+    allClassroomStudents.length,
+    attendanceRecords,
+    behaviorRecords,
+    classroomKpiMetrics,
+    classrooms.length,
+    executiveScope,
+    healthRecords,
+    savingsAccounts,
+    scoreAssessments,
+    scoreEntries,
+    selectedClassroom?.name,
+    session.workspace?.schoolName,
+    students.length,
+  ]);
+
+  // Build Individual Student Report bundle for any student in the classroom
+  const buildStudentBundle = useMemo(() => {
+    return (student: StudentRow): IndividualStudentReportBundle => {
+      const attRow = dailyAttendanceGrid.rows.find((r) => r.student.id === student.id);
+      const attendance = attRow
+        ? {
+            absent: attRow.totals.absent,
+            late: attRow.totals.late,
+            leave: attRow.totals.leave,
+            percent: attRow.attendancePercent,
+            present: attRow.totals.present,
+            total: attRow.totals.present + attRow.totals.late + attRow.totals.leave + attRow.totals.absent,
+          }
+        : { absent: 0, late: 0, leave: 0, percent: 100, present: 0, total: 0 };
+
+      const crossRow = studentCrossSubjectRows.find((r) => r.student.id === student.id);
+      const subjectRows = scoreSubjectOptions.map((subject) => {
+        const subData = crossRow?.bySubject[subject] || { earned: 0, grade: '-', max: 0, missing: 0, percent: 0 };
+        return {
+          earned: subData.earned,
+          grade: subData.grade,
+          max: subData.max,
+          missing: subData.missing,
+          percent: subData.percent,
+          subject,
+        };
+      });
+
+      const savRow = savingsGrid.rows.find((r) => r.student.id === student.id);
+      const savings = {
+        balance: savRow?.totalBalance ?? Number(savingsAccountByStudent.get(student.id)?.balance || 0),
+        deposits: savRow?.depositsInPeriod ?? 0,
+        txCount: savRow?.transactionCount ?? 0,
+        withdrawals: savRow?.withdrawalsInPeriod ?? 0,
+      };
+
+      const hRow = healthSummaryRows.find((r) => r.student.id === student.id);
+      const health = {
+        attentionText: hRow && hRow.attentionItems.length > 0 ? `ต้องดูแล: ${hRow.attentionItems.join(', ')}` : 'ปกติ',
+        bmi: hRow?.bmi ?? null,
+        brushingText: hRow ? `${hRow.brushing.completed}/${hRow.brushing.total}` : '0/0',
+        height: hRow?.heightCm ?? null,
+        lunchText: hRow ? `${hRow.lunch.completed}/${hRow.lunch.total}` : '0/0',
+        milkText: hRow ? `${hRow.milk.completed}/${hRow.milk.total}` : '0/0',
+        weight: hRow?.weightKg ?? null,
+      };
+
+      const studentBehaviors = behaviorRecords.filter((r) => r.student_id === student.id);
+      const homeVisit = homeVisits.find((v) => v.student_id === student.id && v.status !== 'archived') || null;
+      const guardianText = getRegisterFamilyLines(student, classroomGuardians).join(' · ');
+
+      return {
+        attendance,
+        behaviors: studentBehaviors,
+        guardianText,
+        health,
+        homeVisit,
+        savings,
+        student,
+        subjectRows,
+        totalGpa: crossRow?.gpa || '-',
+      };
+    };
+  }, [
+    behaviorRecords,
+    classroomGuardians,
+    dailyAttendanceGrid.rows,
+    healthSummaryRows,
+    homeVisits,
+    savingsAccountByStudent,
+    savingsGrid.rows,
+    scoreSubjectOptions,
+    studentCrossSubjectRows,
+  ]);
+
+  const selectedStudentBundle = useMemo(
+    () => (selectedStudent ? buildStudentBundle(selectedStudent) : null),
+    [buildStudentBundle, selectedStudent],
+  );
+
   const activeReportConfig = reportViews.find((item) => item.value === reportView) || reportViews[0];
-  const periodLabel = reportPeriods.find((item) => item.value === reportPeriod)?.label || 'เดือน';
-  const activeReportRowCount =
-    reportView === 'attendance'
-      ? reportRows.length
-      : reportView === 'subject-attendance'
-        ? subjectReportRows.length
-      : reportView === 'savings'
-        ? classroomSavingsTransactions.length
-        : reportView === 'scores'
-          ? scoreAssessmentRows.length
-        : reportView === 'subject-scores'
-          ? selectedSubjectName ? classroomStudents.length : 0
-          : reportView === 'health'
-            ? classroomHealthRecords.length
-          : reportView === 'student-register'
-            ? classroomStudents.length
-          : reportView === 'executive'
-            ? classroomStudents.length
-          : reportView === 'behavior'
-            ? behaviorReportRows.length
-            : reportView === 'individual' && selectedStudent
-              ? 1
-              : 0;
-  const exportableAttendance =
-    ((reportView === 'attendance' && monthlyAttendanceGrid.rows.length > 0) ||
-      (reportView === 'subject-attendance' && activeAttendanceGrid.rows.length > 0)) ||
-    (reportView === 'savings' && monthlySavingsGrid.rows.length > 0) ||
-    (reportView === 'subject-scores' && selectedSubjectName && classroomStudents.length > 0);
-  const printableReport = reportView !== 'settings' && activeReportRowCount > 0;
-  const readinessItems = [
-    { label: 'ตั้งค่าห้วงเวลาเทอม', ready: Boolean(termRanges.term1.start && termRanges.term1.end && termRanges.term2.start && termRanges.term2.end) },
-    { label: 'เลือกห้อง/ช่วงข้อมูล', ready: Boolean(classroomId && dateFrom && dateTo) },
-    { label: 'มีรายชื่อนักเรียนในห้อง', ready: classroomStudents.length > 0 },
-    { label: 'มีข้อมูลรายงานช่วงนี้', ready: activeReportRowCount > 0 || reportView === 'settings' },
-  ];
+  const periodLabel = reportPeriods.find((item) => item.value === reportPeriod)?.label || 'รายเดือน';
+  const monthContext = useMemo(() => getReportMonthContext(dateFrom), [dateFrom]);
+  const isMultiMonthMode = reportPeriod !== 'month' && activeAttendanceGrid.monthBuckets.length > 1;
+  const printableReport = reportView !== 'settings';
 
-  useEffect(() => {
-    if (!selectedStudentId && students[0]) {
-      setSelectedStudentId(students[0].id);
-      return;
-    }
-    if (selectedStudentId && !students.some((student) => student.id === selectedStudentId)) {
-      setSelectedStudentId(students[0]?.id || '');
-    }
-  }, [selectedStudentId, students]);
-
-  function buildActiveReportHtml() {
+  function buildActiveReportHtml(batchAllStudents = false) {
+    const academicYear = selectedClassroom?.academic_year || reportIdentity.academicYear || '2569';
+    const syncedIdentity: SchoolReportIdentity = {
+      ...reportIdentity,
+      academicYear,
+    };
     const common = {
       dateFrom,
       dateTo,
-      reportIdentity,
-      schoolName: session.workspace?.schoolName || 'Demo Workspace',
-      teacherName: session.profile.displayName,
-      workspaceName: selectedClassroom?.name || session.workspace?.name || 'Demo Workspace',
+      orientation: pageOrientation,
+      reportIdentity: syncedIdentity,
+      schoolName: syncedIdentity.schoolName || session.workspace?.schoolName || 'โรงเรียน',
+      teacherName: syncedIdentity.teacherName || session.profile.displayName,
+      workspaceName: selectedClassroom?.name || session.workspace?.classroomName || session.workspace?.name || 'ห้องเรียน',
     };
 
     if (reportView === 'savings') {
       return buildPrintableSavingsReportHtml({
         dateFrom,
-        savingsGrid: monthlySavingsGrid,
+        dateTo,
+        orientation: pageOrientation,
+        periodMode: reportPeriod,
+        reportIdentity: syncedIdentity,
+        savingsGrid,
         schoolName: common.schoolName,
         teacherName: common.teacherName,
         workspaceName: common.workspaceName,
-        reportIdentity,
       });
     }
 
     if (reportView === 'attendance') {
-      return buildPrintableReportHtml({
-        attendanceGrid: activeAttendanceGrid,
+      return buildPrintableAttendanceHtml({
+        attendanceGrid: dailyAttendanceGrid,
         dateFrom,
+        dateTo,
+        orientation: pageOrientation,
+        periodMode: reportPeriod,
+        reportIdentity: syncedIdentity,
         schoolName: common.schoolName,
         teacherName: common.teacherName,
         workspaceName: common.workspaceName,
-        reportIdentity,
       });
     }
 
     if (reportView === 'subject-attendance') {
-      // Build one attendance grid per subject — each gets its own page
-      const gridHtmlParts = subjectOptions.map((subject, index) => {
-        const subjectGrid = buildMonthlyAttendanceGrid({
-          attendanceRecords,
-          attendanceSessions,
-          classroomId,
-          classrooms,
-          dateFrom,
-          sessionKind: 'subject',
-          subjectName: subject,
-          students,
-        });
-        const html = buildPrintableReportHtml({
-          attendanceGrid: subjectGrid,
-          dateFrom,
-          schoolName: common.schoolName,
-          teacherName: common.teacherName,
-          workspaceName: `${common.workspaceName} · ${subject}`,
-          reportIdentity,
-        });
-        // Extract body content for all-in-one HTML
-        const bodyMatch = html.match(/<body>([\s\S]*?)<\/body>/);
-        const styleMatch = index === 0 ? html.match(/<style>([\s\S]*?)<\/style>/) : null;
-        return { body: bodyMatch?.[1] ?? html, style: styleMatch?.[1] ?? '' };
+      return buildPrintableAttendanceHtml({
+        attendanceGrid: subjectAttendanceGrid,
+        dateFrom,
+        dateTo,
+        orientation: pageOrientation,
+        periodMode: reportPeriod,
+        reportIdentity: syncedIdentity,
+        schoolName: common.schoolName,
+        subtitleOverride: `วิชา: ${selectedSubjectName || 'ทุกรายวิชา'} · คาบ: ${selectedPeriodLabel || 'ทุกคาบ'}`,
+        teacherName: common.teacherName,
+        titleOverride: `รายงานเวลาเรียนรายวิชา (${selectedSubjectName || 'รวมวิชา'}) ชั้น ${common.workspaceName}`,
+        workspaceName: common.workspaceName,
       });
-
-      if (gridHtmlParts.length === 0) {
-        return buildPrintableReportHtml({
-          attendanceGrid: activeAttendanceGrid,
-          dateFrom,
-          schoolName: common.schoolName,
-          teacherName: common.teacherName,
-          workspaceName: common.workspaceName,
-          reportIdentity,
-        });
-      }
-
-      // Combine all subjects into single printable HTML with page breaks
-      const combinedStyle = gridHtmlParts[0].style;
-      const combinedBody = gridHtmlParts
-        .map((part, i) => `<div style="${i > 0 ? 'page-break-before:always;' : ''}">${part.body}</div>`)
-        .join('');
-
-      return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานเวลาเรียนรายวิชา</title><style>${combinedStyle}</style></head><body>${combinedBody}</body></html>`;
     }
 
     if (reportView === 'scores') {
-      // Build the summary table HTML
-      const summaryHtml = buildPrintableTableReportHtml({
+      const cols = ['รหัส', 'ชื่อ - นามสกุล', ...scoreSubjectOptions.map((s) => `${s} (% / เกรด)`), 'เกรดเฉลี่ย (GPA)', 'งานค้าง'];
+      const rows = studentCrossSubjectRows.map((row) => [
+        row.studentCode,
+        row.studentName,
+        ...scoreSubjectOptions.map((sub) => {
+          const sd = row.bySubject[sub];
+          return sd && sd.max > 0 ? `${sd.percent}% (${sd.grade})` : '-';
+        }),
+        row.gpa,
+        row.totalMissing > 0 ? `${row.totalMissing} งาน` : 'ครบ',
+      ]);
+
+      return buildPrintableTableReportHtml({
         ...common,
-        columns: ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'],
+        columns: cols,
         documentPrefix: 'CC-SCO',
-        rows: scoreAssessmentRows.map((row) => [
-          formatThaiOfficialDate(row.assessment.assessment_date),
-          row.assessment.subject_name,
-          row.assessment.title,
-          scoreCategoryLabels[row.assessment.category],
-          row.assessment.max_score,
-          row.averageScore,
-          `${row.averagePercent}%`,
-          row.enteredCount,
-          row.missingCount,
-        ]),
-        subtitle: `${periodLabel} | สรุป ${scoreAssessmentRows.length} ชุดคะแนน`,
-        title: 'รายงานสรุปคะแนนประจำชั้น',
+        kpiCards: [
+          { label: 'นักเรียนในห้อง', value: `${classroomStudents.length} คน` },
+          { label: 'จำนวนรายวิชา', value: `${scoreSubjectOptions.length} วิชา` },
+          { label: 'จำนวนชุดคะแนน', value: `${scoreAssessmentRows.length} ชุด` },
+          { label: 'คะแนนเฉลี่ยรวม', value: `${classroomKpiMetrics.scores.averagePercent}%` },
+        ],
+        rows,
+        subtitle: `ตารางสรุปผลสัมฤทธิ์ทางการเรียนรวมทุกวิชา (${scoreSubjectOptions.length} รายวิชา · ${scoreAssessmentRows.length} ชุดคะแนน)`,
+        title: `รายงานสรุปคะแนนรวมทุกวิชา ชั้น ${common.workspaceName}`,
+      });
+    }
+
+    if (reportView === 'subject-scores') {
+      const assessments = classroomScoreAssessments.filter((a) => !selectedSubjectName || a.subject_name === selectedSubjectName);
+      const totalMaxScore = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
+      const cols = [
+        'รหัส',
+        'ชื่อ - นามสกุล',
+        ...assessments.map((a) => `${a.title} (${a.max_score})`),
+        `รวม (${totalMaxScore})`,
+        'ร้อยละ',
+        'เกรด',
+        'งานค้าง',
+      ];
+      const rows = classroomStudents.map((student) => {
+        let totalScore = 0;
+        let missingCount = 0;
+        const scoreCells = assessments.map((a) => {
+          const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+          const val = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+          if (!Number.isNaN(val)) {
+            totalScore += val;
+            return val;
+          }
+          missingCount += 1;
+          return '-';
+        });
+        const pct = totalMaxScore > 0 ? Math.min(100, round((totalScore / totalMaxScore) * 100)) : 0;
+        const grade = assessments.length > 0 && missingCount < assessments.length && totalMaxScore > 0 ? calculateOBECGrade(pct).grade : '-';
+        return [
+          student.student_code || '-',
+          getStudentFullName(student),
+          ...scoreCells,
+          round(totalScore),
+          `${pct}%`,
+          grade,
+          missingCount > 0 ? `${missingCount} ช่อง` : 'ครบ',
+        ];
       });
 
-      if (scoreAssessmentRows.length === 0) return summaryHtml;
-
-      // Extract style from summary HTML (use only once)
-      const summaryStyleMatch = summaryHtml.match(/<style>([\s\S]*?)<\/style>/);
-      const sharedStyle = summaryStyleMatch?.[1] ?? '';
-      const summaryBodyMatch = summaryHtml.match(/<body>([\s\S]*?)<\/body>/);
-      const summaryBody = summaryBodyMatch?.[1] ?? summaryHtml;
-
-      // Build per-assessment student breakdown pages
-      const detailPages = scoreAssessmentRows.map((row) => {
-        const assessmentEntries = (scoreEntriesByAssessment.get(row.assessment.id) || [])
-          .filter((e) => classroomStudentIds.has(e.student_id));
-        const entryByStudent = new Map(assessmentEntries.map((e) => [e.student_id, e]));
-        const studentTableRows = classroomStudents.map((student, idx) => {
-          const entry = entryByStudent.get(student.id);
-          const scoreVal = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-          const maxScore = Number(row.assessment.max_score || 0);
-          const pct = scoreVal !== null && maxScore > 0 ? `${round((scoreVal / maxScore) * 100)}%` : '-';
-          return `<tr>
-            <td style="text-align:center;width:8mm">${idx + 1}</td>
-            <td style="text-align:center;width:22mm">${escapeHtml(student.student_code || '-')}</td>
-            <td>${escapeHtml(`${student.first_name} ${student.last_name}`)}</td>
-            <td style="text-align:center;width:16mm;font-weight:700;color:${scoreVal === null ? '#94a3b8' : scoreVal >= maxScore * 0.5 ? '#065f46' : '#be123c'}">${scoreVal !== null ? scoreVal : '-'}</td>
-            <td style="text-align:center;width:14mm">${pct}</td>
-            <td style="width:36mm">${escapeHtml(entry?.note || '-')}</td>
-          </tr>`;
-        }).join('');
-        return `<div style="page-break-before:always;">
-          <div style="font-family:'TH Sarabun New',Tahoma,sans-serif;padding:8mm 12mm;">
-            <div style="border-bottom:2px solid #0ea5e9;padding-bottom:4mm;margin-bottom:4mm;">
-              <div style="font-size:14pt;font-weight:900">${escapeHtml(common.workspaceName)}</div>
-              <div style="font-size:11pt;font-weight:700">ตารางคะแนน: ${escapeHtml(row.assessment.title)}</div>
-              <div style="font-size:9pt;color:#475569">วิชา: ${escapeHtml(row.assessment.subject_name)} · ประเภท: ${escapeHtml(scoreCategoryLabels[row.assessment.category])} · คะแนนเต็ม: ${row.assessment.max_score} · วันที่: ${formatThaiOfficialDate(row.assessment.assessment_date)}</div>
-              <div style="font-size:9pt;color:#475569">กรอกแล้ว ${row.enteredCount} คน · เฉลี่ย ${row.averageScore} คะแนน (${row.averagePercent}%)</div>
-            </div>
-            <table style="border-collapse:collapse;width:100%;font-size:9pt">
-              <thead>
-                <tr style="background:#e0f2fe">
-                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">ที่</th>
-                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">รหัส</th>
-                  <th style="border:1px solid #334155;padding:2mm 3mm;text-align:left">ชื่อ-สกุล</th>
-                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">คะแนน</th>
-                  <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">%</th>
-                  <th style="border:1px solid #334155;padding:2mm 2mm;text-align:left">หมายเหตุ</th>
-                </tr>
-              </thead>
-              <tbody>${studentTableRows}</tbody>
-            </table>
-          </div>
-        </div>`;
-      }).join('');
-
-      return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานคะแนนประจำชั้น</title><style>${sharedStyle}td,th{border:1px solid #334155;padding:1mm 2mm;font-size:9pt}</style></head><body><div>${summaryBody}</div>${detailPages}</body></html>`;
+      return buildPrintableTableReportHtml({
+        ...common,
+        columns: cols,
+        documentPrefix: 'CC-SSC',
+        kpiCards: [
+          { label: 'รายวิชา', value: selectedSubjectName || 'ทั้งหมด' },
+          { label: 'จำนวนชุดคะแนน', value: `${assessments.length} ชุด` },
+          { label: 'คะแนนเต็มรวม', value: `${totalMaxScore} คะแนน` },
+          { label: 'นักเรียนทั้งหมด', value: `${classroomStudents.length} คน` },
+        ],
+        rows,
+        subtitle: `รายวิชา: ${selectedSubjectName || '-'} · คะแนนเต็มรวม ${totalMaxScore} คะแนน`,
+        title: `ตารางคะแนนเก็บและงานค้างรายวิชา ${selectedSubjectName || ''}`,
+      });
     }
 
     if (reportView === 'health') {
       return buildPrintableTableReportHtml({
         ...common,
-        columns: ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'],
+        columns: ['รหัส', 'ชื่อ - นามสกุล', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'ตรวจสุขอนามัย', 'จุดต้องติดตาม'],
         documentPrefix: 'CC-HLT',
+        kpiCards: [
+          { label: 'นักเรียนทั้งหมด', value: `${healthSummaryRows.length} คน` },
+          { label: 'วัดน้ำหนัก/ส่วนสูงแล้ว', value: `${healthSummaryRows.filter((r) => r.weightKg && r.heightCm).length} คน` },
+          { label: 'ทำกิจวัตรสำเร็จ', value: `${classroomKpiMetrics.health.completionRate}%` },
+          { label: 'ต้องติดตามสุขอนามัย', value: `${classroomKpiMetrics.health.followUps} คน` },
+        ],
         rows: healthSummaryRows.map((row) => [
           row.student.student_code || '-',
-          `${row.student.first_name} ${row.student.last_name}`,
+          getStudentFullName(row.student),
+          row.weightKg ? `${row.weightKg} กก.` : '-',
+          row.heightCm ? `${row.heightCm} ซม.` : '-',
+          row.bmi ?? '-',
           `${row.brushing.completed}/${row.brushing.total}`,
           `${row.milk.completed}/${row.milk.total}`,
           `${row.lunch.completed}/${row.lunch.total}`,
-          row.latestGrowth?.weight_kg ? `${row.latestGrowth.weight_kg} กก.` : '-',
-          row.latestGrowth?.height_cm ? `${row.latestGrowth.height_cm} ซม.` : '-',
-          row.latestGrowth?.bmi ?? '-',
-          formatThaiOfficialDate(row.latestHygiene?.record_date),
-          row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
+          formatThaiOfficialShortDate(row.latestHygiene?.record_date),
+          row.attentionItems.join(', ') || row.latestHygiene?.note || 'ปกติ',
         ]),
-        subtitle: `${periodLabel} | กิจวัตรที่ทำสำเร็จ/จำนวนครั้งที่บันทึก`,
-        title: 'รายงานสุขภาพและกิจวัตรนักเรียน',
+        subtitle: `${periodLabel} · ข้อมูลการเจริญเติบโตและกิจวัตรประจำวันของนักเรียน`,
+        title: `รายงานสุขภาพและกิจวัตรนักเรียน ชั้น ${common.workspaceName}`,
       });
     }
 
@@ -2304,8 +3233,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         fields: registerFields,
         guardians: classroomGuardians,
         healthRows: registerHealthRows,
-        orientation: registerOrientation,
-        reportIdentity,
+        orientation: pageOrientation,
+        reportIdentity: syncedIdentity,
         revealCitizenIds,
         schoolName: common.schoolName,
         students: classroomStudents,
@@ -2319,7 +3248,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         dateFrom,
         dateTo,
         metrics: executiveMetrics,
-        reportIdentity,
+        orientation: pageOrientation,
+        reportIdentity: syncedIdentity,
         schoolName: common.schoolName,
         teacherName: common.teacherName,
       });
@@ -2328,100 +3258,54 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     if (reportView === 'behavior') {
       return buildPrintableTableReportHtml({
         ...common,
-        columns: ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'],
+        columns: ['วันที่', 'รหัส', 'ชื่อ - นามสกุล', 'ประเภท', 'หมวดหมู่', 'คะแนน', 'สถานะติดตาม', 'รายละเอียดการดูแล'],
         documentPrefix: 'CC-BHV',
+        kpiCards: [
+          { label: 'บันทึกในช่วงนี้', value: `${behaviorReportRows.length} รายการ` },
+          { label: 'ชื่นชม/เชิงบวก', value: `${classroomKpiMetrics.behavior.positiveCount} รายการ` },
+          { label: 'เคสต้องติดตาม', value: `${classroomKpiMetrics.behavior.followUps} เคส` },
+          { label: 'คะแนนพฤติกรรมสุทธิ', value: `${classroomKpiMetrics.behavior.totalPoints} คะแนน` },
+        ],
         rows: behaviorReportRows.map((row) => {
           const student = studentById.get(row.student_id);
           return [
-            formatThaiOfficialDate(row.behavior_date),
+            formatThaiOfficialShortDate(row.behavior_date),
             student?.student_code || '-',
-            student ? `${student.first_name} ${student.last_name}` : '-',
+            student ? getStudentFullName(student) : '-',
             toneLabels[row.tone],
             row.category,
-            row.points,
+            Number(row.points) > 0 ? `+${row.points}` : row.points,
             followUpLabels[row.follow_up_status],
             row.description,
           ];
         }),
-        subtitle: `${periodLabel} | คะแนนรวม ${coreMetrics.behavior.totalPoints} | ต้องติดตาม ${coreMetrics.behavior.followUps} รายการ`,
-        title: 'รายงานพฤติกรรมและเคสดูแลนักเรียน',
+        subtitle: `${periodLabel} · ${behaviorStudentFilter === 'all' ? 'นักเรียนทุกคนในห้อง' : 'เฉพาะรายบุคคลที่เลือก'}`,
+        title: `รายงานพฤติกรรมและเคสดูแลนักเรียน ชั้น ${common.workspaceName}`,
       });
     }
 
-    if (reportView === 'subject-scores') {
-      const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
-      const totalMaxScore = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
-      
-      const rowsHtml = classroomStudents.map((student, idx) => {
-        let totalScore = 0;
-        let missingCount = 0;
-        
-        const scoreColsHtml = assessments.map((a) => {
-          const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
-          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-          if (score !== null) {
-            totalScore += score;
-          } else {
-            missingCount += 1;
-          }
-          return `<td style="text-align:center;width:12mm">${score !== null ? score : '-'}</td>`;
-        }).join('');
-        
-        return `<tr style="page-break-inside:avoid;">
-          <td style="text-align:center;width:8mm">${idx + 1}</td>
-          <td style="text-align:center;width:18mm">${escapeHtml(student.student_code || '-')}</td>
-          <td>${escapeHtml(`${student.first_name} ${student.last_name}`)}</td>
-          ${scoreColsHtml}
-          <td style="text-align:center;width:15mm;font-weight:700">${totalScore}</td>
-          <td style="text-align:center;width:15mm;color:#be123c">${missingCount > 0 ? missingCount : '-'}</td>
-        </tr>`;
-      }).join('');
-      
-      const headerColsHtml = assessments.map((a) => `<th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">${escapeHtml(a.title)}<br/>(${a.max_score})</th>`).join('');
+    // Individual Student Report (Single student or Batch all students in classroom!)
+    const targetBundles = batchAllStudents
+      ? classroomStudents.map((st) => buildStudentBundle(st))
+      : selectedStudentBundle
+        ? [selectedStudentBundle]
+        : [];
 
-      return `<!doctype html><html lang="th"><head><meta charset="utf-8" /><title>รายงานคะแนนรายวิชา</title><style>body{margin:0;color:#0f172a;}td,th{border:1px solid #334155;padding:1.5mm 1mm;font-size:10pt}table{width:100%;border-collapse:collapse;}</style></head><body>
-        <div style="font-family:'TH Sarabun New',Tahoma,sans-serif;padding:8mm 12mm;">
-          <div style="border-bottom:2px solid #0ea5e9;padding-bottom:4mm;margin-bottom:4mm;display:flex;justify-content:space-between;align-items:flex-end;">
-            <div>
-              <div style="font-size:16pt;font-weight:900">${escapeHtml(common.workspaceName)}</div>
-              <div style="font-size:12pt;font-weight:700">ตารางคะแนนรวมและงานค้างแยกรายวิชา</div>
-              <div style="font-size:10pt;color:#475569">วิชา: ${escapeHtml(selectedSubjectName || '-')} &middot; คะแนนเต็มรวม: ${totalMaxScore}</div>
-            </div>
-          </div>
-          <table>
-            <thead style="display:table-header-group">
-              <tr style="background:#e0f2fe;page-break-inside:avoid;">
-                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">ที่</th>
-                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">รหัส</th>
-                <th style="border:1px solid #334155;padding:2mm 3mm;text-align:left">ชื่อ-สกุล</th>
-                ${headerColsHtml}
-                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">รวม<br/>(${totalMaxScore})</th>
-                <th style="border:1px solid #334155;padding:2mm 1mm;text-align:center">ค้าง</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        </div>
-      </body></html>`;
-    }
-
-    return buildPrintableTableReportHtml({
-      ...common,
-      columns: ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'],
-      documentPrefix: 'CC-IND',
-      rows: selectedStudent
-        ? [
-            ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
-            ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${formatThaiOfficialDate(dateFrom)} ถึง ${formatThaiOfficialDate(dateTo)}`],
-            ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
-            ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
-            ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
-            ['เยี่ยมบ้าน กสศ.01', `${selectedHomeVisit?.completion_percent || 0}%`, selectedHomeVisit?.status || 'ยังไม่มีข้อมูล'],
-          ]
-        : [],
-      subtitle: `${periodLabel} | ${selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}`,
-      title: 'รายงานสรุปรายบุคคล',
+    return buildPrintableIndividualStudentHtml({
+      bundles: targetBundles,
+      classroomName: common.workspaceName,
+      dateFrom,
+      dateTo,
+      orientation: pageOrientation,
+      reportIdentity: syncedIdentity,
+      schoolName: common.schoolName,
+      teacherName: common.teacherName,
     });
+  }
+
+  async function printReport(batchAllStudents = false) {
+    const html = buildActiveReportHtml(batchAllStudents);
+    await printHtmlStringAsDocument(html);
   }
 
   function exportCsv() {
@@ -2429,99 +3313,108 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     let lines: string[][] = [];
 
     if (reportView === 'subject-scores') {
-      const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
-      headers = ['ที่', 'รหัส', 'นักเรียน', ...assessments.map((a) => a.title), 'รวมคะแนน', 'งานค้าง'];
+      const assessments = classroomScoreAssessments.filter((a) => !selectedSubjectName || a.subject_name === selectedSubjectName);
+      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', ...assessments.map((a) => `${a.title} (${a.max_score})`), 'รวมคะแนน', 'เกรด', 'งานค้าง'];
+      const totalMax = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
       lines = classroomStudents.map((student, idx) => {
         let totalScore = 0;
         let missingCount = 0;
         const scoreCols = assessments.map((a) => {
           const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
-          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-          if (score !== null) {
+          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+          if (!Number.isNaN(score)) {
             totalScore += score;
-          } else {
-            missingCount += 1;
+            return String(score);
           }
-          return score !== null ? String(score) : '-';
+          missingCount += 1;
+          return '-';
         });
-        return [String(idx + 1), student.student_code || '-', `${student.first_name} ${student.last_name}`, ...scoreCols, String(totalScore), String(missingCount)];
+        const pct = totalMax > 0 ? Math.min(100, round((totalScore / totalMax) * 100)) : 0;
+        const grade = totalMax > 0 && missingCount < assessments.length ? String(calculateOBECGrade(pct).grade) : '-';
+        return [String(idx + 1), student.student_code || '-', getStudentFullName(student), ...scoreCols, String(round(totalScore)), grade, String(missingCount)];
       });
     } else if (reportView === 'attendance' || reportView === 'subject-attendance') {
-      headers = ['วันที่', 'ช่วงเวลา', 'ห้องเรียน', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ', 'แหล่งข้อมูล'];
-      lines = (reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) => [
-        row.date,
-        row.periodLabel,
-        row.classroomName,
+      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'มาเรียน', 'สาย', 'ลา/ป่วย', 'ขาดเรียน', 'ร้อยละเวลาเรียน'];
+      lines = activeAttendanceGrid.rows.map((row, idx) => [
+        String(idx + 1),
         row.studentCode,
         row.studentName,
-        statusLabels[row.status],
-        row.note,
-        'พิมพ์จากระบบ ClassCare 360',
+        String(row.totals.present),
+        String(row.totals.late),
+        String(row.totals.leave),
+        String(row.totals.absent),
+        `${row.attendancePercent}%`,
       ]);
     } else if (reportView === 'savings') {
-      headers = ['รหัส', 'นักเรียน', 'รายการฝาก', 'รายการถอน', 'จำนวนครั้งที่ทำรายการ', 'ยอดเงินคงเหลือ', 'ทำรายการล่าสุด'];
-      lines = savingsReportRows.map((row) => [
-        row.student.student_code || '-',
-        `${row.student.first_name} ${row.student.last_name}`,
-        String(row.deposits),
-        String(row.withdrawals),
-        String(row.transactionCount),
-        String(row.balance),
-        row.latestDate,
+      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
+      lines = savingsGrid.rows.map((row, idx) => [
+        String(idx + 1),
+        row.studentCode,
+        row.studentName,
+        String(row.depositsInPeriod),
+        String(row.withdrawalsInPeriod),
+        String(row.totalPeriodNet),
+        String(row.totalBalance),
       ]);
     } else if (reportView === 'scores') {
-      headers = ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'];
-      lines = scoreAssessmentRows.map((row) => [
-        row.assessment.assessment_date,
-        row.assessment.subject_name,
-        row.assessment.title,
-        scoreCategoryLabels[row.assessment.category],
-        String(row.assessment.max_score),
-        String(row.averageScore),
-        `${row.averagePercent}%`,
-        String(row.enteredCount),
-        String(row.missingCount),
+      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', ...scoreSubjectOptions, 'เกรดเฉลี่ย (GPA)', 'งานค้างรวม'];
+      lines = studentCrossSubjectRows.map((row, idx) => [
+        String(idx + 1),
+        row.studentCode,
+        row.studentName,
+        ...scoreSubjectOptions.map((sub) => {
+          const sd = row.bySubject[sub];
+          return sd && sd.max > 0 ? `${sd.percent}% (เกรด ${sd.grade})` : '-';
+        }),
+        row.gpa,
+        String(row.totalMissing),
       ]);
     } else if (reportView === 'health') {
-      headers = ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'];
-      lines = healthSummaryRows.map((row) => [
+      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'น้ำหนัก (กก.)', 'ส่วนสูง (ซม.)', 'BMI', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'จุดต้องติดตาม'];
+      lines = healthSummaryRows.map((row, idx) => [
+        String(idx + 1),
         row.student.student_code || '-',
-        `${row.student.first_name} ${row.student.last_name}`,
+        getStudentFullName(row.student),
+        row.weightKg ? String(row.weightKg) : '-',
+        row.heightCm ? String(row.heightCm) : '-',
+        String(row.bmi ?? '-'),
         `${row.brushing.completed}/${row.brushing.total}`,
         `${row.milk.completed}/${row.milk.total}`,
         `${row.lunch.completed}/${row.lunch.total}`,
-        row.latestGrowth?.weight_kg ? `${row.latestGrowth.weight_kg} กก.` : '-',
-        row.latestGrowth?.height_cm ? `${row.latestGrowth.height_cm} ซม.` : '-',
-        String(row.latestGrowth?.bmi ?? '-'),
-        row.latestHygiene?.record_date || '-',
-        row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
+        row.attentionItems.join(', ') || row.latestHygiene?.note || 'ปกติ',
       ]);
     } else if (reportView === 'student-register') {
-      headers = ['รหัส', 'ชื่อ-สกุล', ...activeRegisterFields.map(f => registerFieldLabels[f])];
-      lines = classroomStudents.map((student) => [
+      headers = ['ที่', 'รหัสประจำตัว', 'ชื่อ-นามสกุล', ...activeRegisterFields.map((f) => registerFieldLabels[f])];
+      lines = classroomStudents.map((student, idx) => [
+        String(idx + 1),
         student.student_code || '-',
-        `${student.first_name} ${student.last_name}`,
-        ...activeRegisterFields.map((field) => getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)),
+        getStudentFullName(student),
+        ...activeRegisterFields.map((field) =>
+          getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds),
+        ),
       ]);
     } else if (reportView === 'executive') {
-      headers = ['อัตรามาเรียน', 'คะแนนเฉลี่ย', 'สุขภาพ (สำเร็จ)', 'สุขภาพ (ติดตาม)', 'พฤติกรรม (ติดตาม)', 'เงินออม', 'นักเรียนทั้งหมด'];
-      lines = [[
-        `${executiveMetrics.attendanceRate}%`,
-        `${executiveMetrics.scoreAverage}%`,
-        `${executiveMetrics.healthCompletionRate}%`,
-        String(executiveMetrics.healthFollowUps),
-        String(executiveMetrics.behaviorFollowUps),
-        String(executiveMetrics.savingsTotal),
-        String(executiveMetrics.studentCount),
-      ]];
+      headers = ['ขอบเขต', 'นักเรียนทั้งหมด', 'อัตรามาเรียน', 'คะแนนเฉลี่ย', 'สุขภาพสำเร็จ', 'สุขภาพต้องติดตาม', 'พฤติกรรมต้องติดตาม', 'เงินออมสะสมรวม'];
+      lines = [
+        [
+          executiveMetrics.scopeLabel,
+          String(executiveMetrics.studentCount),
+          `${executiveMetrics.attendanceRate}%`,
+          `${executiveMetrics.scoreAverage}%`,
+          `${executiveMetrics.healthCompletionRate}%`,
+          String(executiveMetrics.healthFollowUps),
+          String(executiveMetrics.behaviorFollowUps),
+          String(executiveMetrics.savingsTotal),
+        ],
+      ];
     } else if (reportView === 'behavior') {
-      headers = ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'];
+      headers = ['วันที่', 'รหัส', 'ชื่อ-นามสกุล', 'ประเภท', 'หมวดหมู่', 'คะแนน', 'การติดตาม', 'รายละเอียด'];
       lines = behaviorReportRows.map((row) => {
         const student = studentById.get(row.student_id);
         return [
           row.behavior_date,
           student?.student_code || '-',
-          student ? `${student.first_name} ${student.last_name}` : '-',
+          student ? getStudentFullName(student) : '-',
           toneLabels[row.tone],
           row.category,
           String(row.points),
@@ -2529,221 +3422,187 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           row.description,
         ];
       });
-    } else if (reportView === 'individual') {
-      headers = ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'];
-      lines = selectedStudent ? [
-        ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
-        ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${dateFrom} ถึง ${dateTo}`],
-        ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
-        ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
-        ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
-        ['เยี่ยมบ้าน กสศ.01', `${selectedHomeVisit?.completion_percent || 0}%`, selectedHomeVisit?.status || 'ยังไม่มีข้อมูล'],
-      ] : [];
+    } else if (reportView === 'individual' && selectedStudentBundle) {
+      headers = ['รายวิชา', 'คะแนนที่ได้', 'คะแนนเต็ม', 'ร้อยละ', 'เกรด', 'งานค้าง'];
+      lines = selectedStudentBundle.subjectRows.map((sub) => [
+        sub.subject,
+        String(sub.earned),
+        String(sub.max),
+        `${sub.percent}%`,
+        String(sub.grade),
+        String(sub.missing),
+      ]);
     }
 
-    const csvContent = [headers.map(escapeCsv).join(','), ...lines.map(row => row.map(escapeCsv).join(','))].join('\n');
-    downloadBlob(`classcare-${reportView}-${dateFrom}-${dateTo}.csv`, new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8' }));
+    const csvContent = [headers.map(escapeCsv).join(','), ...lines.map((row) => row.map(escapeCsv).join(','))].join('\n');
+    downloadBlob(
+      `classcare-${reportView}-${dateFrom}-${dateTo}.csv`,
+      new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8' }),
+    );
   }
 
   async function exportExcel() {
-    let headers: string[] = [];
-    let lines: string[][] = [];
     const sheets: ExcelSheetConfig[] = [];
 
     if (reportView === 'subject-scores') {
-      const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
-      headers = ['ที่', 'รหัส', 'นักเรียน', ...assessments.map((a) => a.title), 'รวมคะแนน', 'งานค้าง'];
-      lines = classroomStudents.map((student, idx) => {
+      const assessments = classroomScoreAssessments.filter((a) => !selectedSubjectName || a.subject_name === selectedSubjectName);
+      const totalMax = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
+      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', ...assessments.map((a) => `${a.title} (${a.max_score})`), `รวม (${totalMax})`, 'ร้อยละ', 'เกรด', 'งานค้าง'];
+      const lines = classroomStudents.map((student, idx) => {
         let totalScore = 0;
         let missingCount = 0;
         const scoreCols = assessments.map((a) => {
           const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
-          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-          if (score !== null) {
+          const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+          if (!Number.isNaN(score)) {
             totalScore += score;
-          } else {
-            missingCount += 1;
+            return String(score);
           }
-          return score !== null ? String(score) : '-';
+          missingCount += 1;
+          return '-';
         });
-        return [String(idx + 1), student.student_code || '-', `${student.first_name} ${student.last_name}`, ...scoreCols, String(totalScore), String(missingCount)];
+        const pct = totalMax > 0 ? Math.min(100, round((totalScore / totalMax) * 100)) : 0;
+        const grade = totalMax > 0 && missingCount < assessments.length ? String(calculateOBECGrade(pct).grade) : '-';
+        return [String(idx + 1), student.student_code || '-', getStudentFullName(student), ...scoreCols, String(round(totalScore)), `${pct}%`, grade, String(missingCount)];
       });
       sheets.push({
-        sheetName: selectedSubjectName || 'คะแนนวิชา',
-        title: 'รายงานคะแนนรายวิชา',
-        subtitle: `${periodLabel} | วิชา ${selectedSubjectName || ''}`,
-        documentCode: buildOfficialDocumentCode('CC-SSC', dateFrom, selectedSubjectName),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-SSC', dateFrom, selectedSubjectName),
         rows: lines,
+        sheetName: selectedSubjectName || 'คะแนนรายวิชา',
+        subtitle: `${periodLabel} | วิชา ${selectedSubjectName || 'ทั้งหมด'}`,
+        title: `ตารางคะแนนและงานค้างรายวิชา ${selectedSubjectName || ''}`,
       });
-    } else if (reportView === 'attendance') {
-      headers = ['วันที่', 'ช่วงเวลา', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ'];
-      lines = reportRows.map((row) => [
-        row.date,
-        row.periodLabel,
+    } else if (reportView === 'attendance' || reportView === 'subject-attendance') {
+      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'มาเรียน', 'สาย', 'ลา/ป่วย', 'ขาดเรียน', 'ร้อยละเวลาเรียน'];
+      const lines = activeAttendanceGrid.rows.map((row, idx) => [
+        String(idx + 1),
         row.studentCode,
         row.studentName,
-        statusLabels[row.status],
-        row.note,
+        String(row.totals.present),
+        String(row.totals.late),
+        String(row.totals.leave),
+        String(row.totals.absent),
+        `${row.attendancePercent}%`,
       ]);
       sheets.push({
-        sheetName: 'เวลาเรียน',
-        title: 'รายงานเวลาเรียน',
-        subtitle: `${periodLabel}`,
-        documentCode: buildOfficialDocumentCode('CC-ATT', dateFrom),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-ATT', dateFrom, selectedClassroom?.name),
         rows: lines,
-      });
-    } else if (reportView === 'subject-attendance') {
-      headers = ['วันที่', 'รหัส', 'นักเรียน', 'สถานะ', 'หมายเหตุ'];
-      subjectOptions.forEach((subject) => {
-        const rows = subjectReportRows.filter((r) => r.subjectName === subject).map((row) => [
-          row.date,
-          row.studentCode,
-          row.studentName,
-          statusLabels[row.status],
-          row.note,
-        ]);
-        sheets.push({
-          sheetName: subject,
-          title: 'รายงานเวลาเรียนรายวิชา',
-          subtitle: `${periodLabel} | วิชา ${subject}`,
-          documentCode: buildOfficialDocumentCode('CC-SAT', dateFrom, subject),
-          columns: headers,
-          rows: rows,
-        });
+        sheetName: 'สรุปเวลาเรียน',
+        subtitle: `${periodLabel} (${dateFrom} ถึง ${dateTo})`,
+        title: `รายงานเวลาเรียน ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'savings') {
-      headers = ['รหัส', 'นักเรียน', 'รายการฝาก', 'รายการถอน', 'จำนวนครั้งที่ทำรายการ', 'ยอดเงินคงเหลือ', 'ทำรายการล่าสุด'];
-      lines = savingsReportRows.map((row) => [
-        row.student.student_code || '-',
-        `${row.student.first_name} ${row.student.last_name}`,
-        String(row.deposits),
-        String(row.withdrawals),
-        String(row.transactionCount),
-        String(row.balance),
-        row.latestDate,
+      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
+      const lines = savingsGrid.rows.map((row, idx) => [
+        String(idx + 1),
+        row.studentCode,
+        row.studentName,
+        String(row.depositsInPeriod),
+        String(row.withdrawalsInPeriod),
+        String(row.totalPeriodNet),
+        String(row.totalBalance),
       ]);
       sheets.push({
-        sheetName: 'เงินออม',
-        title: 'รายงานสรุปเงินออม',
-        subtitle: `${periodLabel}`,
-        documentCode: buildOfficialDocumentCode('CC-SAV', dateFrom),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-SAV', dateFrom, selectedClassroom?.name),
         rows: lines,
+        sheetName: 'เงินออมนักเรียน',
+        subtitle: `${periodLabel} (${dateFrom} ถึง ${dateTo})`,
+        title: `รายงานการออมเงินนักเรียน ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'scores') {
-      headers = ['วันที่', 'รายวิชา', 'รายการประเมิน', 'ประเภท', 'เต็ม', 'เฉลี่ย', 'เฉลี่ย %', 'กรอกแล้ว', 'ยังว่าง'];
-      lines = scoreAssessmentRows.map((row) => [
-        row.assessment.assessment_date,
-        row.assessment.subject_name,
-        row.assessment.title,
-        scoreCategoryLabels[row.assessment.category],
-        String(row.assessment.max_score),
-        String(row.averageScore),
-        `${row.averagePercent}%`,
-        String(row.enteredCount),
-        String(row.missingCount),
+      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', ...scoreSubjectOptions, 'เกรดเฉลี่ย (GPA)', 'งานค้างรวม'];
+      const lines = studentCrossSubjectRows.map((row, idx) => [
+        String(idx + 1),
+        row.studentCode,
+        row.studentName,
+        ...scoreSubjectOptions.map((sub) => {
+          const sd = row.bySubject[sub];
+          return sd && sd.max > 0 ? `${sd.percent}% (เกรด ${sd.grade})` : '-';
+        }),
+        row.gpa,
+        String(row.totalMissing),
       ]);
       sheets.push({
-        sheetName: 'สรุปคะแนน',
-        title: 'รายงานสรุปคะแนนประจำชั้น',
-        subtitle: `${periodLabel} | สรุป ${scoreAssessmentRows.length} ชุดคะแนน`,
-        documentCode: buildOfficialDocumentCode('CC-SCO', dateFrom),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-SCO', dateFrom, selectedClassroom?.name),
         rows: lines,
-      });
-      // Add one detail sheet per assessment
-      scoreAssessmentRows.forEach((row) => {
-        const assessmentEntries = (scoreEntriesByAssessment.get(row.assessment.id) || []).filter((e) => classroomStudentIds.has(e.student_id));
-        const entryByStudent = new Map(assessmentEntries.map((e) => [e.student_id, e]));
-        const detailLines = classroomStudents.map((student, idx) => {
-          const entry = entryByStudent.get(student.id);
-          const scoreVal = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-          const maxScore = Number(row.assessment.max_score || 0);
-          const pct = scoreVal !== null && maxScore > 0 ? `${round((scoreVal / maxScore) * 100)}%` : '-';
-          return [
-            String(idx + 1),
-            student.student_code || '-',
-            `${student.first_name} ${student.last_name}`,
-            scoreVal !== null ? String(scoreVal) : '-',
-            pct,
-            entry?.note || '-'
-          ];
-        });
-        sheets.push({
-          sheetName: row.assessment.title,
-          title: `ตารางคะแนน: ${row.assessment.title}`,
-          subtitle: `วิชา: ${row.assessment.subject_name} · ประเภท: ${scoreCategoryLabels[row.assessment.category]} · คะแนนเต็ม: ${row.assessment.max_score}`,
-          documentCode: buildOfficialDocumentCode('CC-SCO-DET', dateFrom, row.assessment.title),
-          columns: ['ที่', 'รหัส', 'ชื่อ-สกุล', 'คะแนน', '%', 'หมายเหตุ'],
-          rows: detailLines,
-        });
+        sheetName: 'สรุปคะแนนรวมทุกวิชา',
+        subtitle: `${scoreSubjectOptions.length} รายวิชา | ${scoreAssessmentRows.length} ชุดคะแนน`,
+        title: `ตารางสรุปคะแนนรวมทุกวิชา ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'health') {
-      headers = ['รหัส', 'ชื่อ-สกุล', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'น้ำหนัก', 'ส่วนสูง', 'BMI', 'ตรวจสุขภาพล่าสุด', 'จุดติดตาม'];
-      lines = healthSummaryRows.map((row) => [
+      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'น้ำหนัก (กก.)', 'ส่วนสูง (ซม.)', 'BMI', 'แปรงฟัน', 'ดื่มนม', 'อาหารกลางวัน', 'จุดต้องติดตาม'];
+      const lines = healthSummaryRows.map((row, idx) => [
+        String(idx + 1),
         row.student.student_code || '-',
-        `${row.student.first_name} ${row.student.last_name}`,
+        getStudentFullName(row.student),
+        row.weightKg ? String(row.weightKg) : '-',
+        row.heightCm ? String(row.heightCm) : '-',
+        String(row.bmi ?? '-'),
         `${row.brushing.completed}/${row.brushing.total}`,
         `${row.milk.completed}/${row.milk.total}`,
         `${row.lunch.completed}/${row.lunch.total}`,
-        row.latestGrowth?.weight_kg ? String(row.latestGrowth.weight_kg) : '-',
-        row.latestGrowth?.height_cm ? String(row.latestGrowth.height_cm) : '-',
-        String(row.latestGrowth?.bmi ?? '-'),
-        row.latestHygiene?.record_date || '-',
-        row.attentionItems.join(', ') || row.latestHygiene?.note || '-',
+        row.attentionItems.join(', ') || row.latestHygiene?.note || 'ปกติ',
       ]);
       sheets.push({
-        sheetName: 'สุขภาพ',
-        title: 'รายงานสุขภาพและกิจวัตรนักเรียน',
-        subtitle: `${periodLabel} | กิจวัตรที่ทำสำเร็จ/จำนวนครั้งที่บันทึก`,
-        documentCode: buildOfficialDocumentCode('CC-HLT', dateFrom),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-HLT', dateFrom, selectedClassroom?.name),
         rows: lines,
+        sheetName: 'สุขภาพและกิจวัตร',
+        subtitle: `${periodLabel}`,
+        title: `รายงานสุขภาพและกิจวัตรนักเรียน ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'student-register') {
-      headers = ['รหัส', 'ชื่อ-สกุล', ...activeRegisterFields.map(f => registerFieldLabels[f])];
-      lines = classroomStudents.map((student) => [
+      const headers = ['ที่', 'รหัสประจำตัว', 'ชื่อ-นามสกุล', ...activeRegisterFields.map((f) => registerFieldLabels[f])];
+      const lines = classroomStudents.map((student, idx) => [
+        String(idx + 1),
         student.student_code || '-',
-        `${student.first_name} ${student.last_name}`,
-        ...activeRegisterFields.map((field) => getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)),
+        getStudentFullName(student),
+        ...activeRegisterFields.map((field) =>
+          getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds),
+        ),
       ]);
       sheets.push({
-        sheetName: 'ทะเบียนรายชื่อ',
-        title: 'ทะเบียนรายชื่อนักเรียน',
-        subtitle: `${activeRegisterFields.length} ฟิลด์ข้อมูล`,
-        documentCode: buildOfficialDocumentCode('CC-REG', dateFrom),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-REG', dateFrom, selectedClassroom?.name),
         rows: lines,
+        sheetName: 'ทะเบียนรายชื่อ',
+        subtitle: `นักเรียนทั้งหมด ${classroomStudents.length} คน`,
+        title: `ทะเบียนรายชื่อนักเรียน ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'executive') {
-      headers = ['อัตรามาเรียน', 'คะแนนเฉลี่ย', 'สุขภาพ (สำเร็จ)', 'สุขภาพ (ติดตาม)', 'พฤติกรรม (ติดตาม)', 'เงินออม', 'นักเรียนทั้งหมด'];
-      lines = [[
-        `${executiveMetrics.attendanceRate}%`,
-        `${executiveMetrics.scoreAverage}%`,
-        `${executiveMetrics.healthCompletionRate}%`,
-        String(executiveMetrics.healthFollowUps),
-        String(executiveMetrics.behaviorFollowUps),
-        String(executiveMetrics.savingsTotal),
-        String(executiveMetrics.studentCount),
-      ]];
+      const headers = ['ขอบเขต', 'นักเรียนทั้งหมด', 'อัตรามาเรียน', 'คะแนนเฉลี่ย', 'สุขภาพสำเร็จ', 'สุขภาพต้องติดตาม', 'พฤติกรรมต้องติดตาม', 'เงินออมสะสมรวม'];
+      const lines = [
+        [
+          executiveMetrics.scopeLabel,
+          String(executiveMetrics.studentCount),
+          `${executiveMetrics.attendanceRate}%`,
+          `${executiveMetrics.scoreAverage}%`,
+          `${executiveMetrics.healthCompletionRate}%`,
+          String(executiveMetrics.healthFollowUps),
+          String(executiveMetrics.behaviorFollowUps),
+          String(executiveMetrics.savingsTotal),
+        ],
+      ];
       sheets.push({
-        sheetName: 'สรุปผู้บริหาร',
-        title: 'รายงานสรุปสำหรับผู้บริหาร',
-        subtitle: `${periodLabel}`,
-        documentCode: buildOfficialDocumentCode('CC-EXC', dateFrom),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-EXE', dateFrom),
         rows: lines,
+        sheetName: 'สรุปผู้บริหาร',
+        subtitle: executiveMetrics.scopeLabel,
+        title: 'รายงานสรุปสำหรับผู้บริหาร',
       });
     } else if (reportView === 'behavior') {
-      headers = ['วันที่', 'รหัส', 'นักเรียน', 'ประเภท', 'หมวด', 'คะแนน', 'การติดตาม', 'รายละเอียด'];
-      lines = behaviorReportRows.map((row) => {
+      const headers = ['วันที่', 'รหัส', 'ชื่อ-นามสกุล', 'ประเภท', 'หมวดหมู่', 'คะแนน', 'การติดตาม', 'รายละเอียด'];
+      const lines = behaviorReportRows.map((row) => {
         const student = studentById.get(row.student_id);
         return [
           row.behavior_date,
           student?.student_code || '-',
-          student ? `${student.first_name} ${student.last_name}` : '-',
+          student ? getStudentFullName(student) : '-',
           toneLabels[row.tone],
           row.category,
           String(row.points),
@@ -2752,30 +3611,31 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         ];
       });
       sheets.push({
+        columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-BHV', dateFrom, selectedClassroom?.name),
+        rows: lines,
         sheetName: 'พฤติกรรม',
-        title: 'รายงานพฤติกรรมและเคสดูแลนักเรียน',
-        subtitle: `${periodLabel} | คะแนนรวม ${coreMetrics.behavior.totalPoints} | ต้องติดตาม ${coreMetrics.behavior.followUps} รายการ`,
-        documentCode: buildOfficialDocumentCode('CC-BHV', dateFrom),
-        columns: headers,
-        rows: lines,
+        subtitle: `${periodLabel}`,
+        title: `รายงานพฤติกรรมและเคสดูแล ชั้น ${selectedClassroom?.name || '-'}`,
       });
-    } else if (reportView === 'individual') {
-      headers = ['หัวข้อ', 'ผลสรุป', 'รายละเอียด'];
-      lines = selectedStudent ? [
-        ['นักเรียน', `${selectedStudent.first_name} ${selectedStudent.last_name}`, `รหัส ${selectedStudent.student_code || '-'}`],
-        ['เวลาเรียน', `${selectedStudentAttendanceRecords.length} รายการ`, `ช่วง ${dateFrom} ถึง ${dateTo}`],
-        ['คะแนนเฉลี่ย', `${selectedStudentScoreAverage}%`, `${selectedStudentScoreEntries.length} รายการคะแนน`],
-        ['เงินออม', `${formatBaht(Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0))} บาท`, `${selectedStudentSavingsTransactions.length} รายการในช่วงนี้`],
-        ['พฤติกรรม/เคสดูแล', `${selectedStudentBehaviorRecords.length} รายการ`, `ต้องติดตาม ${selectedStudentBehaviorRecords.filter((row) => !['none', 'resolved'].includes(row.follow_up_status)).length} รายการ`],
-        ['เยี่ยมบ้าน กสศ.01', `${selectedHomeVisit?.completion_percent || 0}%`, selectedHomeVisit?.status || 'ยังไม่มีข้อมูล'],
-      ] : [];
+    } else if (reportView === 'individual' && selectedStudentBundle) {
+      const headers = ['ที่', 'รายวิชา', 'คะแนนที่ได้', 'คะแนนเต็ม', 'ร้อยละ', 'เกรด', 'งานค้าง'];
+      const lines = selectedStudentBundle.subjectRows.map((sub, idx) => [
+        String(idx + 1),
+        sub.subject,
+        String(sub.earned),
+        String(sub.max),
+        `${sub.percent}%`,
+        String(sub.grade),
+        String(sub.missing),
+      ]);
       sheets.push({
-        sheetName: 'รายบุคคล',
-        title: 'รายงานสรุปรายบุคคล',
-        subtitle: `${periodLabel} | ${selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}`,
-        documentCode: buildOfficialDocumentCode('CC-IND', dateFrom, selectedStudent?.id),
         columns: headers,
+        documentCode: buildOfficialDocumentCode('CC-IND', dateFrom, selectedStudentBundle.student.student_code),
         rows: lines,
+        sheetName: 'ผลรายบุคคล',
+        subtitle: `${getStudentFullName(selectedStudentBundle.student)} · GPA ${selectedStudentBundle.totalGpa}`,
+        title: 'รายงานผลการเรียนรายบุคคล',
       });
     }
 
@@ -2783,179 +3643,59 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
 
     try {
       const buffer = await generateExcelReportBuffer({
-        schoolName: session.workspace?.schoolName || 'Demo Workspace',
-        classroomName: selectedClassroom?.name || session.workspace?.name || 'Demo Workspace',
+        academicYear: selectedClassroom?.academic_year || reportIdentity.academicYear,
+        classroomName: selectedClassroom?.name || session.workspace?.name || 'ห้องเรียน',
         dateFrom,
         dateTo,
-        academicYear: reportIdentity.academicYear,
         identity: reportIdentity,
+        schoolName: reportIdentity.schoolName || session.workspace?.schoolName || 'โรงเรียน',
+        sheets,
         signatures: [
           { name: reportIdentity.teacherName || session.profile.displayName, role: 'ครูประจำชั้น' },
           { name: reportIdentity.academicHeadName || null, role: 'หัวหน้างานวิชาการ' },
           { name: reportIdentity.directorName || null, role: 'ผู้อำนวยการโรงเรียน' },
         ],
-        sheets,
       });
       downloadExcelBuffer(buffer, `classcare-${reportView}-${dateFrom}-${dateTo}.xlsx`);
     } catch (err) {
       console.error('Failed to export Excel:', err);
-      alert('เกิดข้อผิดพลาดในการสร้างไฟล์ Excel กรุณาลองใหม่อีกครั้ง');
+      setNotice('เกิดข้อผิดพลาดในการสร้างไฟล์ Excel กรุณาลองใหม่อีกครั้ง');
     }
   }
 
-  function exportJsonPackage() {
-    const activeRows =
-      reportView === 'attendance' || reportView === 'subject-attendance'
-        ? (reportView === 'subject-attendance' ? subjectReportRows : reportRows).map((row) => ({ ...row, statusLabel: statusLabels[row.status] }))
-        : reportView === 'savings'
-          ? savingsReportRows.map((row) => ({
-              balance: row.balance,
-              deposits: row.deposits,
-              latestDate: row.latestDate,
-              studentCode: row.student.student_code,
-              studentName: `${row.student.first_name} ${row.student.last_name}`,
-              transactionCount: row.transactionCount,
-              withdrawals: row.withdrawals,
-            }))
-          : reportView === 'scores'
-            ? scoreAssessmentRows.map((row) => ({
-                assessmentDate: row.assessment.assessment_date,
-                averagePercent: row.averagePercent,
-                averageScore: row.averageScore,
-                category: row.assessment.category,
-                categoryLabel: scoreCategoryLabels[row.assessment.category],
-                enteredCount: row.enteredCount,
-                missingCount: row.missingCount,
-                subjectName: row.assessment.subject_name,
-                title: row.assessment.title,
-              }))
-            : reportView === 'subject-scores'
-              ? classroomStudents.map((student) => {
-                  const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
-                  let totalScore = 0;
-                  let missingCount = 0;
-                  const scoreCols = Object.fromEntries(
-                    assessments.map((a) => {
-                      const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
-                      const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-                      if (score !== null) {
-                        totalScore += score;
-                      } else {
-                        missingCount += 1;
-                      }
-                      return [a.title, score];
-                    })
-                  );
-                  return {
-                    missingCount,
-                    studentCode: student.student_code,
-                    studentName: `${student.first_name} ${student.last_name}`,
-                    totalScore,
-                    ...scoreCols,
-                  };
-                })
-            : reportView === 'health'
-              ? healthSummaryRows.map((row) => ({
-                  bmi: row.latestGrowth?.bmi ?? null,
-                  brushingCompleted: row.brushing.completed,
-                  brushingRecorded: row.brushing.total,
-                  heightCm: row.latestGrowth?.height_cm ?? null,
-                  hygieneAttentionItems: row.attentionItems,
-                  hygieneDate: row.latestHygiene?.record_date ?? null,
-                  lunchCompleted: row.lunch.completed,
-                  lunchRecorded: row.lunch.total,
-                  milkCompleted: row.milk.completed,
-                  milkRecorded: row.milk.total,
-                  studentCode: row.student.student_code,
-                  studentName: `${row.student.first_name} ${row.student.last_name}`,
-                  weightKg: row.latestGrowth?.weight_kg ?? null,
-                }))
-            : reportView === 'student-register'
-              ? classroomStudents.map((student) => ({
-                  fields: Object.fromEntries(activeRegisterFields.map((field) => [field, getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)])),
-                  studentCode: student.student_code,
-                  studentName: `${student.first_name} ${student.last_name}`,
-                }))
-            : reportView === 'executive'
-              ? [executiveMetrics]
-            : reportView === 'behavior'
-              ? behaviorReportRows.map((row) => {
-                  const student = studentById.get(row.student_id);
-                  return {
-                    behaviorDate: row.behavior_date,
-                    category: row.category,
-                    description: row.description,
-                    followUp: followUpLabels[row.follow_up_status],
-                    points: row.points,
-                    studentCode: student?.student_code || null,
-                    studentName: student ? `${student.first_name} ${student.last_name}` : null,
-                    tone: toneLabels[row.tone],
-                  };
-                })
-              : reportView === 'individual' && selectedStudent
-                ? [
-                    {
-                      attendanceRecords: selectedStudentAttendanceRecords.length,
-                      behaviorRecords: selectedStudentBehaviorRecords.length,
-                      homeVisitCompletion: selectedHomeVisit?.completion_percent || 0,
-                      savingsBalance: Number(savingsAccountByStudent.get(selectedStudent.id)?.balance || 0),
-                      savingsTransactions: selectedStudentSavingsTransactions.length,
-                      scoreAverage: selectedStudentScoreAverage,
-                      studentCode: selectedStudent.student_code,
-                      studentName: `${selectedStudent.first_name} ${selectedStudent.last_name}`,
-                    },
-                  ]
-                : [];
-    const payload = {
-      createdAt: new Date().toISOString(),
-      source: 'ClassCare 360',
-      filters: {
-        classroomId,
-        dateFrom,
-        dateTo,
-        query,
-        registerFields,
-        registerOrientation,
-        reportPeriod,
-        reportView,
-        selectedPeriodLabel,
-        selectedSubjectName,
-      },
-      reportType: reportView,
-      coreMetrics,
-      rows: activeRows,
-      schoolName: session.workspace?.schoolName || 'Demo Workspace',
-      summary,
-      termRanges,
-      timezone: 'Asia/Bangkok',
-      workspaceId: session.workspace?.id || 'demo-workspace',
-    };
+  const saveReportIdentitySettings = async () => {
+    setIsSavingSettings(true);
+    setNotice(null);
+    try {
+      saveSchoolReportIdentity(reportIdentity, session.workspace?.id);
+      saveReportTermRanges(termRanges, session.workspace?.id);
 
-    downloadBlob(
-      `classcare-${reportView}-package-${dateFrom}-${dateTo}.json`,
-      new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' }),
-    );
-  }
-
-  function printReport() {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      setNotice('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต popup แล้วลองอีกครั้ง');
-      return;
+      if (!demoMode && isSupabaseReady && supabase && session.workspace?.id) {
+        const { data: currentWs } = await supabase
+          .from('workspaces')
+          .select('settings')
+          .eq('id', session.workspace.id)
+          .maybeSingle();
+        const currentSettings = (currentWs?.settings as Record<string, unknown>) || {};
+        const { error } = await supabase
+          .from('workspaces')
+          .update({
+            school_name: reportIdentity.schoolName || session.workspace.schoolName,
+            settings: {
+              ...currentSettings,
+              report_identity: reportIdentity,
+              report_term_ranges: termRanges,
+            },
+          })
+          .eq('id', session.workspace.id);
+        if (error) throw error;
+      }
+      setNotice('บันทึกตั้งค่าผู้ลงนาม ตราโรงเรียน และวันเปิด-ปิดภาคเรียนเรียบร้อยแล้ว');
+    } catch (err) {
+      setNotice(`บันทึกตั้งค่าลงฐานข้อมูลไม่สำเร็จ (บันทึกในเครื่องแล้ว): ${String(err)}`);
+    } finally {
+      setIsSavingSettings(false);
     }
-
-    const html = buildActiveReportHtml();
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    window.setTimeout(() => printWindow.print(), 350);
-  }
-
-  const saveReportIdentitySettings = () => {
-    saveSchoolReportIdentity(reportIdentity, session.workspace?.id);
-    setNotice('บันทึกตั้งค่าผู้ลงนามในรายงานแล้ว');
   };
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2965,220 +3705,214 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     try {
       const compressedDataUrl = await compressImageFile(file);
       setReportIdentity((current) => ({ ...current, schoolLogoDataUrl: compressedDataUrl }));
+      setNotice('อัปโหลดตราโรงเรียนเรียบร้อยแล้ว กรุณากด "บันทึกการตั้งค่าทั้งหมด" ด้านล่าง');
     } catch (error) {
       setNotice(`อัปโหลดโลโก้ไม่สำเร็จ: ${String(error)}`);
     }
   };
 
+  const activeCategoryKey = activeReportConfig.category;
+  const currentStudentIdx = allClassroomStudents.findIndex((s) => s.id === selectedStudent?.id);
+
   return (
-    <main className="report-v2 app-page">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <main className="report-v2 app-page pb-24 md:pb-10">
+      {/* 1. Header & Main Quick Print Actions */}
+      <div className="flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="nexus-kicker">
-            <FileSpreadsheet size={18} aria-hidden="true" />
-            Report Center
+          <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-teal-800 ring-1 ring-teal-500/20">
+            <FileSpreadsheet size={15} aria-hidden="true" />
+            ศูนย์ออกรายงานมาตรฐาน A4 & สมุด ปพ.
           </div>
-          <h1 className="app-page-title">
-            ศูนย์รายงานโรงเรียน
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+            รายงานโรงเรียนและเอกสารวิชาการ
           </h1>
-          <p className="mt-3 max-w-4xl text-sm font-bold leading-7 text-slate-600">
-            {session.workspace?.schoolName || 'Demo Workspace'} | เลือกรายงานหลัก แยกช่วงเดือน/เทอม/ปีการศึกษา และเตรียม export จากข้อมูลจริงใน workspace เดียวกัน
+          <p className="mt-1 text-xs font-bold text-slate-600 sm:text-sm">
+            {reportIdentity.schoolName || session.workspace?.schoolName || 'โรงเรียน'} · ชั้น{' '}
+            <span className="font-black text-teal-700">{selectedClassroom?.name || '-'}</span> · เลือกแบบรายงานแล้วสั่งพิมพ์ลงกระดาษ A4 หรือดูบนมือถือได้ทันที
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 px-4 text-sm font-black text-white shadow-md shadow-indigo-500/20 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 text-sm font-black text-white shadow-md shadow-indigo-500/20 transition hover:-translate-y-0.5 active:scale-95"
             onClick={() => setIsOfficialDocsOpen(true)}
             type="button"
           >
-            <FileSpreadsheet size={17} aria-hidden="true" />
-            พิมพ์ ปพ.๕ / ปพ.๖ / ใบรับรอง
+            <Award size={18} aria-hidden="true" />
+            <span>สมุด ปพ.5 / ปพ.6 / ใบรับรอง</span>
           </button>
-          <button
-            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!printableReport}
-            onClick={printReport}
-            type="button"
-          >
-            <Printer size={17} aria-hidden="true" />
-            PDF/พิมพ์
-          </button>
-          <button
-            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!printableReport}
-            onClick={exportCsv}
-            type="button"
-          >
-            <Download size={17} aria-hidden="true" />
-            CSV
-          </button>
-          <button
-            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!printableReport}
-            onClick={exportExcel}
-            type="button"
-          >
-            <Download size={17} aria-hidden="true" />
-            Excel
-          </button>
-          <button
-            className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!printableReport}
-            onClick={exportJsonPackage}
-            type="button"
-          >
-            <Download size={17} aria-hidden="true" />
-            JSON
-          </button>
+
+          {printableReport ? (
+            <>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95"
+                onClick={() => void printReport(false)}
+                type="button"
+              >
+                <Printer size={18} aria-hidden="true" />
+                <span>พิมพ์กระดาษ A4 / PDF</span>
+              </button>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                onClick={() => void exportExcel()}
+                type="button"
+              >
+                <Download size={16} aria-hidden="true" />
+                <span>Excel</span>
+              </button>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:bg-slate-50"
+                onClick={exportCsv}
+                type="button"
+              >
+                <Download size={15} aria-hidden="true" />
+                <span>CSV</span>
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
-      {/* 🏛️ One-Click Official Academic Documents (ปพ.) Hub Banner */}
-      <div className="mt-5 rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-indigo-500/10 via-sky-500/5 to-cyan-500/10 p-3.5 sm:p-4.5 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-indigo-600 text-white shadow-xs">
-              <FileSpreadsheet size={16} />
-            </span>
-            <div>
-              <p className="text-sm font-black text-slate-900">ศูนย์เอกสารราชการ ปพ. และแบบพิมพ์มาตรฐาน สพฐ. (ด่วน 1 คลิก)</p>
-              <p className="text-xs font-bold text-slate-500">สำหรับคุณครูที่ต้องการพิมพ์ ปพ.5, ปพ.6 หรือแบบรายงานส่งฝ่ายวิชาการ</p>
-            </div>
-          </div>
+      {/* 2. Step 1: 4 Simple Category Cards + Clear Sub-Report Selector (No Duplicate Menus!) */}
+      <section className="mt-4 rounded-3xl border border-slate-200/90 bg-white p-3.5 shadow-xs sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-black uppercase tracking-wider text-slate-500">
+            ขั้นที่ 1 · เลือกหมวดและประเภทรายงานที่ต้องการ
+          </p>
           <button
             type="button"
-            onClick={() => setIsOfficialDocsOpen(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white hover:bg-indigo-700 active:scale-95 transition shadow-xs"
+            onClick={() => updateReportSearch({ reportView: 'settings' })}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+              reportView === 'settings'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
           >
-            <span>เปิดคลังเอกสาร ปพ. ทั้งหมด</span>
-            <span className="text-indigo-200">→</span>
+            <Settings size={14} />
+            ตั้งค่าตราโรงเรียน / ผู้ลงนาม
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <button
-            type="button"
-            onClick={() => setIsOfficialDocsOpen(true)}
-            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
-          >
-            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
-              📘 ปพ.5 (สมุดประเมิน)
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">
-              ผลการพัฒนาคุณภาพผู้เรียน รวมคะแนนและเกรด
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsOfficialDocsOpen(true)}
-            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
-          >
-            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
-              📗 ปพ.6 (รายงานผล/สมุดพก)
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">
-              รายงานผลพัฒนาการรายบุคคล แจกผู้ปกครอง
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateReportSearch({ reportView: 'attendance' })}
-            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
-          >
-            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
-              📙 บัญชีเวลาเรียนประจำเดือน
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">
-              สรุป มา-ขาด-ลา ร้อยละเวลาเรียน ส่งประจำเดือน
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateReportSearch({ reportView: 'student-register' })}
-            className="group flex flex-col items-start rounded-xl border border-white/90 bg-white/95 p-3 text-left transition hover:border-indigo-400 hover:bg-white hover:shadow-xs"
-          >
-            <span className="font-black text-xs text-indigo-950 group-hover:text-indigo-600 flex items-center gap-1.5">
-              📋 บัญชีรายชื่อนักเรียน A4
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 mt-1">
-              ใบเซ็นชื่อ / ลงลายมือชื่อรับเงิน / เช็กชื่อหน้าห้อง
-            </span>
-          </button>
+        {/* 4 Category Groups */}
+        <div className="mt-2.5 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {reportCategories.map((cat) => {
+            const isActiveCat = activeCategoryKey === cat.key;
+            const firstViewInCat = reportViews.find((v) => v.category === cat.key)?.value || 'attendance';
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => updateReportSearch({ reportView: firstViewInCat })}
+                className={`flex flex-col items-start rounded-2xl border p-3 text-left transition ${
+                  isActiveCat
+                    ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-500/20'
+                    : 'border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-white'
+                }`}
+              >
+                <span className="text-sm font-black text-slate-950">
+                  {cat.icon} {cat.title}
+                </span>
+                <span className="mt-1 text-[11px] font-bold leading-4 text-slate-500">{cat.description}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      <nav aria-label="ประเภทรายงาน" className="mt-5 flex gap-2 overflow-x-auto pb-2 snap-x scrollbar-hide">
-        {reportViews.map((item) => {
-          const icons: Record<string, string> = {
-            'attendance': '📅',
-            'subject-attendance': '📖',
-            'savings': '🐷',
-            'scores': '🎯',
-            'subject-scores': '📊',
-            'health': '🏥',
-            'student-register': '📋',
-            'executive': '👔',
-            'individual': '👤',
-            'behavior': '💬',
-            'settings': '⚙️',
-          };
-          const isActive = reportView === item.value;
-          return (
+        {/* Sub-reports inside the selected category (plus quick all-pill view) */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+          {reportViews
+            .filter((item) => item.category === activeCategoryKey)
+            .map((item) => {
+              const isActive = reportView === item.value;
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => updateReportSearch({ reportView: item.value })}
+                  className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black transition ${
+                    isActive
+                      ? 'border-slate-950 bg-slate-950 text-white shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:bg-teal-50/40'
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+
+          {activeCategoryKey === 'academic_scores' ? (
             <button
-              key={item.value}
               type="button"
-              title={item.description}
-              onClick={() => updateReportSearch({ reportView: item.value })}
-              className={`group flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm transition-all duration-200 snap-start ${
-                isActive
-                  ? 'border-cyan-500 bg-cyan-50 shadow-sm ring-1 ring-cyan-500/20'
-                  : 'border-slate-200 bg-white hover:border-cyan-300 hover:bg-slate-50'
-              }`}
+              onClick={() => setIsOfficialDocsOpen(true)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-black text-indigo-900 transition hover:bg-indigo-100"
             >
-              <span className={`text-lg transition-transform duration-200 ${isActive ? 'scale-110 drop-shadow-sm' : 'group-hover:scale-110'}`}>
-                {icons[item.value] || '📄'}
-              </span>
-              <strong className={`font-black ${isActive ? 'text-cyan-800' : 'text-slate-600 group-hover:text-cyan-700'}`}>
-                {item.label}
-              </strong>
+              <span>📘</span>
+              <span>เปิดสมุด ปพ.5 / ปพ.6 / ใบรับรอง สพฐ.</span>
             </button>
-          );
-        })}
-      </nav>
-
-      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { detail: `${coreMetrics.attendance.riskCount} รายการต้องติดตาม`, label: 'เวลาเรียน', value: `${coreMetrics.attendance.presentRate}%` },
-          { detail: `${coreMetrics.scores.assessmentCount} ชุดคะแนน | ต่ำกว่า 50% ${coreMetrics.scores.belowHalfCount}`, label: 'คะแนนเฉลี่ย', value: `${coreMetrics.scores.averagePercent}%` },
-          { detail: `${coreMetrics.savings.accountCount} บัญชี active`, label: 'เงินออมรวม', value: coreMetrics.savings.totalBalance.toLocaleString('th-TH') },
-          { detail: `ติดตามต่อ ${coreMetrics.behavior.followUps} | เชิงบวก ${coreMetrics.behavior.positiveCount}`, label: 'พฤติกรรม', value: coreMetrics.behavior.totalPoints.toLocaleString('th-TH') },
-        ].map((item) => (
-          <article className="nexus-card p-4 transition hover:-translate-y-1" key={item.label}>
-            <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-            <p className="mt-2 text-3xl font-black text-slate-950">{item.value}</p>
-            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{item.detail}</p>
-          </article>
-        ))}
+          ) : null}
+        </div>
       </section>
 
-      <section className="app-workbench">
-        <aside className="grid gap-4">
-          <section className="nexus-card p-4 sm:p-5">
-            <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
-              <CalendarRange size={16} className="text-amber-600" aria-hidden="true" />
-              ตัวกรองรายงาน
+      {/* 3. Step 2: Simple 1-Bar Filter & Paper Orientation Controls */}
+      {reportView !== 'settings' ? (
+        <section className="mt-4 rounded-3xl border border-slate-200/90 bg-white p-3.5 shadow-xs sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-500">
+              ขั้นที่ 2 · เลือกห้องเรียน ช่วงเวลา และรูปแบบการแสดงผล
+            </p>
+            {/* View Mode Toggle: A4 Paper vs Mobile Easy Read */}
+            <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setDisplayMode('a4')}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+                  displayMode === 'a4' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText size={14} />
+                <span>กระดาษ A4 (พร้อมพิมพ์)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode('mobile')}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+                  displayMode === 'mobile' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Smartphone size={14} />
+                <span>มุมมองมือถือ (อ่านง่าย)</span>
+              </button>
             </div>
+          </div>
 
-            <div className="mt-4 grid gap-3">
-              <div className="grid grid-cols-3 gap-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Classroom Selector */}
+            <label className="grid gap-1.5 text-xs font-black text-slate-700">
+              <span>1. ห้องเรียน</span>
+              <select
+                className="nexus-field h-11 rounded-2xl px-3 text-sm font-black text-slate-900"
+                onChange={(event) => setClassroomId(event.target.value)}
+                value={classroomId}
+              >
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    ชั้น {classroom.name} {classroom.academic_year ? `(ปีการศึกษา ${classroom.academic_year})` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Period Mode Selector */}
+            <div className="grid gap-1.5 text-xs font-black text-slate-700">
+              <span>2. ช่วงเวลารายงาน</span>
+              <div className="grid grid-cols-3 gap-1.5">
                 {reportPeriods.map((period) => (
                   <button
-                    className={`h-11 rounded-2xl px-3 text-sm font-black transition ${
-                      reportPeriod === period.value ? 'bg-slate-950 text-white shadow-lg' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950'
+                    className={`h-11 rounded-2xl px-2 text-xs font-black transition ${
+                      reportPeriod === period.value
+                        ? 'bg-slate-950 text-white shadow-xs'
+                        : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                     }`}
                     key={period.value}
                     onClick={() => updateReportSearch({ reportPeriod: period.value })}
@@ -3188,919 +3922,1594 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                   </button>
                 ))}
               </div>
+            </div>
 
-              {reportPeriod === 'month' ? (
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  เดือนรายงาน
-                  <ThaiDatePicker className="h-11 px-3" mode="month" onValueChange={setReportMonth} value={reportMonth} />
-                </label>
-              ) : null}
-
-              {reportView === 'subject-attendance' ? (
-                <div className="grid gap-3 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-3">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    รายวิชา
-                    <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectName(event.target.value)} value={selectedSubjectName}>
-                      {subjectOptions.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
-                    </select>
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    คาบเรียน
-                    <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedPeriodLabel(event.target.value)} value={selectedPeriodLabel}>
-                      {periodOptions.map((period) => <option key={period} value={period}>{period}</option>)}
-                    </select>
-                  </label>
+            {/* Dynamic Month or Term Selector */}
+            {reportPeriod === 'month' ? (
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                <span>3. เลือกเดือน</span>
+                <ThaiDatePicker className="h-11 px-3" mode="month" onValueChange={setReportMonth} value={reportMonth} />
+              </label>
+            ) : reportPeriod === 'term' ? (
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                <span>3. เลือกภาคเรียน</span>
+                <select
+                  className="nexus-field h-11 rounded-2xl px-3 text-sm font-black text-slate-900"
+                  onChange={(event) => setSelectedTerm(event.target.value as TermKey)}
+                  value={selectedTerm}
+                >
+                  <option value="term1">ภาคเรียนที่ 1 ({termRanges.term1.start} ถึง {termRanges.term1.end})</option>
+                  <option value="term2">ภาคเรียนที่ 2 ({termRanges.term2.start} ถึง {termRanges.term2.end})</option>
+                </select>
+              </label>
+            ) : (
+              <div className="grid gap-1.5 text-xs font-black text-slate-700">
+                <span>3. ปีการศึกษา</span>
+                <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700">
+                  พ.ค. – เม.ย. ({formatThaiOfficialShortDate(dateFrom)} ถึง {formatThaiOfficialShortDate(dateTo)})
                 </div>
-              ) : null}
-              {reportView === 'subject-scores' ? (
-                <div className="grid gap-3 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-3 mt-3">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    เลือกวิชาที่ต้องการดูคะแนน
-                    <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedSubjectName(event.target.value)} value={selectedSubjectName}>
-                      <option value="">-- กรุณาเลือกวิชา --</option>
-                      {scoreSubjectOptions.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
-                    </select>
-                  </label>
+              </div>
+            )}
+
+            {/* Paper Orientation + Search */}
+            <div className="grid gap-1.5 text-xs font-black text-slate-700">
+              <span>4. แนวกระดาษ A4 & ค้นหาชื่อ</span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPageOrientation((prev) => (prev === 'portrait' ? 'landscape' : 'portrait'))}
+                  className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-2xl border border-teal-200 bg-teal-50 px-3 text-xs font-black text-teal-900 hover:bg-teal-100"
+                  title="สลับแนวกระดาษ A4 แนวตั้ง / แนวนอน"
+                >
+                  <span>📄 A4 {pageOrientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</span>
+                </button>
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  <input
+                    className="nexus-field h-11 w-full rounded-2xl pl-8 pr-2.5 text-xs font-bold"
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="ค้นหาชื่อ/รหัส..."
+                    value={query}
+                  />
                 </div>
-              ) : null}
+              </div>
+            </div>
+          </div>
 
-              {reportView === 'student-register' ? (
-                <section className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
-                  <div>
-                    <p className="text-sm font-black text-slate-950">รูปแบบกระดาษ A4</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="แนวกระดาษทะเบียนนักเรียน">
-                      {([
-                        ['portrait', 'แนวตั้ง', 'บัญชีรายชื่อแบบกระชับ'],
-                        ['landscape', 'แนวนอน', 'ตารางรายละเอียดหลายช่อง'],
-                      ] as const).map(([value, label, description]) => (
-                        <button
-                          aria-pressed={registerOrientation === value}
-                          className={`rounded-2xl border px-3 py-3 text-left transition ${registerOrientation === value ? 'border-cyan-500 bg-cyan-50 text-cyan-950 shadow-sm' : 'border-slate-200 bg-white text-slate-700'}`}
-                          key={value}
-                          onClick={() => setRegisterOrientation(value)}
-                          type="button"
-                        >
-                          <strong className="block text-sm">{label}</strong>
-                          <small className="mt-1 block text-[11px] font-bold opacity-75">{description}</small>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-black text-slate-950">ข้อมูลที่ต้องการแสดง</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">เลขประจำตัวนักเรียนและชื่อ–สกุลจะแสดงเสมอ</p>
-                    <div className="mt-2 grid gap-2">
-                      {registerFieldOptions.map((field) => (
-                        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3" key={field.value}>
-                          <input
-                            checked={registerFields[field.value]}
-                            className="mt-1 h-4 w-4"
-                            onChange={(event) => setRegisterFields((current) => ({ ...current, [field.value]: event.target.checked }))}
-                            type="checkbox"
-                          />
-                          <span><strong className="block text-sm text-slate-900">{field.label}</strong><small className="mt-0.5 block text-[11px] font-bold text-slate-500">{field.description}</small></span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {registerFields.citizenId ? (
-                    <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-sm font-bold text-slate-700">
-                      <input
-                        checked={revealCitizenIds}
-                        className="mt-1 h-4 w-4"
-                        onChange={(event) => setRevealCitizenIds(event.target.checked)}
-                        type="checkbox"
-                      />
-                      <span>แสดงเลขบัตรประชาชนเต็ม <small className="mt-1 block font-bold text-amber-700">ค่าเริ่มต้นปกปิดเพื่อคุ้มครองข้อมูลส่วนบุคคล</small></span>
-                    </label>
-                  ) : null}
-                </section>
-              ) : null}
-
-              {reportPeriod === 'term' ? (
-                <div className="grid gap-3 rounded-3xl border border-amber-200 bg-amber-50/60 p-3">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ภาคเรียน
-                    <select
-                      className="nexus-field h-11 px-3"
-                      onChange={(event) => setSelectedTerm(event.target.value as TermKey)}
-                      value={selectedTerm}
-                    >
-                      <option value="term1">ภาคเรียนที่ 1</option>
-                      <option value="term2">ภาคเรียนที่ 2</option>
-                    </select>
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-2 text-sm font-black text-slate-700">
-                      เริ่มเทอม
-                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], start: value } }))} value={termRanges[selectedTerm].start} />
-                    </label>
-                    <label className="grid gap-2 text-sm font-black text-slate-700">
-                      สิ้นสุดเทอม
-                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [selectedTerm]: { ...current[selectedTerm], end: value } }))} value={termRanges[selectedTerm].end} />
-                    </label>
-                  </div>
-                </div>
-              ) : null}
-
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ห้องเรียน
-                <select className="nexus-field h-11 px-3" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
-                  {classrooms.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
-                      {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+          {/* Contextual Sub-filters for Specific Report Views */}
+          {reportView === 'subject-attendance' ? (
+            <div className="mt-3 grid gap-3 rounded-2xl border border-cyan-200 bg-cyan-50/50 p-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-xs font-black text-slate-700">
+                <span>เลือกรายวิชา</span>
+                <select
+                  className="nexus-field h-10 rounded-xl bg-white px-3 text-sm font-black"
+                  onChange={(event) => setSelectedSubjectName(event.target.value)}
+                  value={selectedSubjectName}
+                >
+                  <option value="">ทุกรายวิชา</option>
+                  {subjectOptions.map((subject) => (
+                    <option key={subject} value={subject}>
+                      {subject}
                     </option>
                   ))}
                 </select>
               </label>
-
-              {reportView === 'individual' || reportView === 'behavior' ? (
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  นักเรียน
-                  <select className="nexus-field h-11 px-3" onChange={(event) => setSelectedStudentId(event.target.value)} value={selectedStudent?.id || ''}>
-                    {classroomStudents.map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {student.student_code || '-'} {student.first_name} {student.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  จากวันที่
-                  <ThaiDatePicker className="h-11 px-3" onValueChange={setDateFrom} value={dateFrom} />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ถึงวันที่
-                  <ThaiDatePicker className="h-11 px-3" onValueChange={setDateTo} value={dateTo} />
-                </label>
-              </div>
-
-              <label className="relative block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
-                <input className="nexus-field h-11 w-full pl-10 pr-3" onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อ รหัส สถานะ" value={query} />
+              <label className="grid gap-1 text-xs font-black text-slate-700">
+                <span>เลือกคาบเรียน</span>
+                <select
+                  className="nexus-field h-10 rounded-xl bg-white px-3 text-sm font-black"
+                  onChange={(event) => setSelectedPeriodLabel(event.target.value)}
+                  value={selectedPeriodLabel}
+                >
+                  <option value="">ทุกคาบเรียน</option>
+                  {periodOptions.map((period) => (
+                    <option key={period} value={period}>
+                      {period}
+                    </option>
+                  ))}
+                </select>
               </label>
-            </div>
-          </section>
-
-          <section className="nexus-card p-4 sm:p-5">
-            <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
-              <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
-              Report readiness
-            </div>
-            <div className="mt-4 grid gap-2">
-              {readinessItems.map((item) => (
-                <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2 text-sm font-bold" key={item.label}>
-                  <span className="text-slate-600">{item.label}</span>
-                  <span className={`rounded-full px-2 py-1 text-xs font-black ${item.ready ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                    {item.ready ? 'พร้อม' : 'ต้องตั้งค่า'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </aside>
-
-        <section className="nexus-card p-4 sm:p-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm font-black text-teal-700">
-          {activeReportConfig.label}{reportView === 'subject-scores' ? '' : ` / ${periodLabel}`}
-        </p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                {activeReportConfig.description}
-              </h2>
-              <p className="mt-2 text-sm font-bold text-slate-500">
-                {selectedClassroom?.name || '-'} | {dateFrom} ถึง {dateTo}
-              </p>
-            </div>
-            <p className="text-xs font-bold text-slate-500">ระบบสารสนเทศ ClassCare 360</p>
-          </div>
-
-          {reportView === 'attendance' || reportView === 'subject-attendance' ? (
-            <>
-              {/* Dark Mode Monthly Attendance Grid (Reference Image #1) */}
-              <div className="mt-5 rounded-3xl border border-slate-800 bg-[#080d1a] p-4 text-white shadow-2xl md:p-6">
-                <div className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-xl font-black text-white">
-                      {reportView === 'subject-attendance'
-                        ? `รายงานเวลาเรียน ${selectedSubjectName || 'รายวิชา'} / ${selectedPeriodLabel || 'คาบเรียน'}`
-                        : `รายงานเวลาเรียนระดับชั้น ${selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'} ประจำเดือน ${dateFrom.slice(0, 7)}`}
-                    </h2>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
-                      {session.workspace?.schoolName || 'โรงเรียนบ้านโคกสูง'} · ช่วงวันที่ {dateFrom} ถึง {dateTo}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-900/60 bg-[#0e1d20] px-3 py-1.5 text-xs font-black text-[#4ade80]">
-                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#0a3525] text-sm font-black text-[#4ade80]">
-                        {activeAttendanceGrid.summary.present}
-                      </span>
-                      มา
-                    </div>
-                    <div className="flex items-center gap-2 rounded-2xl border border-amber-900/60 bg-[#271d0e] px-3 py-1.5 text-xs font-black text-[#facc15]">
-                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#452e0a] text-sm font-black text-[#facc15]">
-                        {activeAttendanceGrid.summary.late}
-                      </span>
-                      สาย
-                    </div>
-                    <div className="flex items-center gap-2 rounded-2xl border border-sky-900/60 bg-[#0f2136] px-3 py-1.5 text-xs font-black text-[#38bdf8]">
-                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#0b3356] text-sm font-black text-[#38bdf8]">
-                        {activeAttendanceGrid.summary.leave}
-                      </span>
-                      ลา
-                    </div>
-                    <div className="flex items-center gap-2 rounded-2xl border border-rose-900/60 bg-[#2e0f19] px-3 py-1.5 text-xs font-black text-[#f87171]">
-                      <span className="grid h-7 w-7 place-items-center rounded-xl bg-[#4c1021] text-sm font-black text-[#f87171]">
-                        {activeAttendanceGrid.summary.absent}
-                      </span>
-                      ขาด
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-800 text-slate-400">
-                        <th className="w-10 px-2 py-3 text-center">เลขที่</th>
-                        <th className="w-48 px-3 py-3 text-left">ชื่อ-สกุล</th>
-                        {monthContext.days.map((day) => (
-                          <th
-                            className={`w-8 px-1 py-3 text-center ${day.isWeekend ? 'bg-slate-900/60 text-slate-600' : ''}`}
-                            key={day.day}
-                          >
-                            {day.day}
-                          </th>
-                        ))}
-                        <th className="w-10 px-1 py-3 text-center font-black text-emerald-400">มา</th>
-                        <th className="w-10 px-1 py-3 text-center font-black text-amber-400">สาย</th>
-                        <th className="w-10 px-1 py-3 text-center font-black text-sky-400">ลา</th>
-                        <th className="w-10 px-1 py-3 text-center font-black text-rose-400">ขาด</th>
-                        <th className="w-16 px-2 py-3 text-center font-black text-slate-300">รวมบันทึก</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-bold">
-                      {activeAttendanceGrid.rows.map((row, index) => (
-                        <tr className="transition hover:bg-slate-800/40" key={row.studentCode + index}>
-                          <td className="px-2 py-2.5 text-center font-bold text-slate-400">{index + 1}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-200">{row.studentName}</td>
-                          {monthContext.days.map((day) => {
-                            const status = row.dailyStatuses[day.dateKey];
-                            return (
-                              <td
-                                className={`px-0.5 py-1 text-center ${day.isWeekend ? 'bg-slate-900/40' : ''}`}
-                                key={day.dateKey}
-                              >
-                                {status === 'present' || status === 'activity' ? (
-                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#0e3a29] text-[10px] font-black text-[#4ade80] ring-1 ring-emerald-500/30">
-                                    มา
-                                  </span>
-                                ) : status === 'late' ? (
-                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#3a280c] text-[10px] font-black text-[#facc15] ring-1 ring-amber-500/30">
-                                    สาย
-                                  </span>
-                                ) : status === 'leave' || status === 'sick' ? (
-                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#0d2a45] text-[10px] font-black text-[#38bdf8] ring-1 ring-sky-500/30">
-                                    ลา
-                                  </span>
-                                ) : status === 'absent' ? (
-                                  <span className="inline-flex h-6 w-7 items-center justify-center rounded-lg bg-[#450d1b] text-[10px] font-black text-[#f87171] ring-1 ring-rose-500/30">
-                                    ขาด
-                                  </span>
-                                ) : null}
-                              </td>
-                            );
-                          })}
-                          <td className="px-1 py-2.5 text-center font-black text-emerald-400">{row.totals.present}</td>
-                          <td className="px-1 py-2.5 text-center font-black text-amber-400">{row.totals.late}</td>
-                          <td className="px-1 py-2.5 text-center font-black text-sky-400">{row.totals.leave}</td>
-                          <td className="px-1 py-2.5 text-center font-black text-rose-400">{row.totals.absent}</td>
-                          <td className="px-2 py-2.5 text-center font-black text-slate-200">
-                            {row.totals.present + row.totals.late + row.totals.leave + row.totals.absent}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {!isLoading && monthlyAttendanceGrid.rows.length === 0 ? (
-                <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีข้อมูลเวลาเรียนตามช่วงวันที่และตัวกรองนี้
-                </div>
-              ) : null}
-            </>
-          ) : null}
-
-          {reportView === 'savings' ? (
-            <>
-              {/* Dark Mode Monthly Savings Grid (Reference Image #3 & #4) */}
-              <div className="mt-5 rounded-3xl border border-slate-800 bg-[#080d1a] p-4 text-white shadow-2xl md:p-6">
-                <div className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-xl font-black text-white">
-                      รายงานการบันทึกการออมเงินระดับชั้น {selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'}
-                    </h2>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
-                      {session.workspace?.schoolName || 'โรงเรียนบ้านโคกสูง'} · ภาคเรียนที่ 1 ปีการศึกษา {selectedClassroom?.academic_year || '2569'} · เดือน{monthContext.monthLabel}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 rounded-2xl border border-cyan-900/60 bg-[#0c2b35] px-3 py-1.5 text-xs font-black text-[#22d3ee]">
-                      <span className="text-[11px] font-bold text-slate-400">นักเรียน</span>
-                      <span className="text-sm font-black text-[#22d3ee]">{monthlySavingsGrid.totalStudents}</span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-2xl border border-cyan-900/60 bg-[#0c2b35] px-3 py-1.5 text-xs font-black text-[#22d3ee]">
-                      <span className="text-[11px] font-bold text-slate-400">ออมแล้ว</span>
-                      <span className="text-sm font-black text-[#22d3ee]">{monthlySavingsGrid.totalActiveSavingsStudents}</span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-2xl border border-cyan-900/60 bg-[#0c2b35] px-3 py-1.5 text-xs font-black text-[#22d3ee]">
-                      <span className="text-[11px] font-bold text-slate-400">ยอดรวม</span>
-                      <span className="text-sm font-black text-[#22d3ee]">{monthlySavingsGrid.totalMonthSavings.toLocaleString('th-TH')}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-800 text-slate-400">
-                        <th className="w-10 px-2 py-3 text-center">เลขที่</th>
-                        <th className="w-48 px-3 py-3 text-left">ชื่อ-สกุล</th>
-                        {monthContext.days.map((day) => (
-                          <th
-                            className={`w-8 px-1 py-3 text-center ${day.isWeekend ? 'bg-slate-900/60 text-slate-600' : ''}`}
-                            key={day.day}
-                          >
-                            {day.day}
-                          </th>
-                        ))}
-                        <th className="w-24 px-3 py-3 text-right font-black text-cyan-400">รวมเดือนนี้</th>
-                        <th className="w-28 px-3 py-3 text-right font-black text-emerald-400">ยอดสะสม/คงเหลือ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-bold">
-                      {monthlySavingsGrid.rows.map((row, index) => (
-                        <tr className="transition hover:bg-slate-800/40" key={row.studentId + index}>
-                          <td className="px-2 py-2.5 text-center font-bold text-slate-400">{index + 1}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 font-black text-slate-200">{row.studentName}</td>
-                          {monthContext.days.map((day) => {
-                            const amt = row.dailyAmounts[day.dateKey];
-                            return (
-                              <td
-                                className={`px-0.5 py-1 text-center font-bold ${day.isWeekend ? 'bg-slate-900/40 text-slate-700' : 'text-slate-300'}`}
-                                key={day.dateKey}
-                              >
-                                {amt ? amt : ''}
-                              </td>
-                            );
-                          })}
-                          <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-[#22d3ee]">
-                            {row.totalMonth ? row.totalMonth.toLocaleString('th-TH') : '0'}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5 text-right font-black text-emerald-400">
-                            {row.totalBalance ? row.totalBalance.toLocaleString('th-TH') : '0'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {!isLoading && monthlySavingsGrid.rows.length === 0 ? (
-                <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีรายการฝาก/ถอนในช่วงเวลานี้
-                </div>
-              ) : null}
-            </>
-          ) : null}
-
-          {reportView === 'student-register' ? (
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  { label: 'นักเรียนทั้งหมด', value: classroomStudents.length, detail: selectedClassroom?.name || '-' },
-                  { label: 'ชาย', value: classroomStudents.filter((student) => student.gender === 'male').length, detail: 'ตามข้อมูลทะเบียน' },
-                  { label: 'หญิง', value: classroomStudents.filter((student) => student.gender === 'female').length, detail: 'ตามข้อมูลทะเบียน' },
-                ].map((item) => (
-                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
-                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-                    <p className="mt-2 text-4xl font-black text-slate-950">{item.value}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p>
-                  </article>
-                ))}
-              </div>
-              <div className="rounded-3xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                  <div><p className="font-black text-slate-950">ตัวอย่างข้อมูลก่อนพิมพ์</p><p className="text-xs font-bold text-slate-500">A4 {registerOrientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'} · เลือกข้อมูลเพิ่มเติม {activeRegisterFields.length} รายการ</p></div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white">รหัสนักเรียน</span>
-                    <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-black text-white">ชื่อ–สกุล</span>
-                    {activeRegisterFields.map((field) => <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-black text-cyan-800" key={field}>{registerFieldLabels[field]}</span>)}
-                  </div>
-                </div>
-                <div className="mt-3 overflow-x-auto">
-                  <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
-                    <thead className="bg-slate-50"><tr className="text-xs font-black uppercase text-slate-500"><th className="px-3 py-3">ที่</th><th className="px-3 py-3">เลขประจำตัวนักเรียน</th><th className="px-3 py-3">ชื่อ–สกุลนักเรียน</th><th className="px-3 py-3">รายละเอียดที่เลือก</th><th className="px-3 py-3">หมายเหตุ</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {classroomStudents.map((student, index) => (
-                        <tr key={student.id}>
-                          <td className="px-3 py-3 text-center font-bold text-slate-500">{index + 1}</td>
-                          <td className="px-3 py-3 font-black">{student.student_code || '-'}</td>
-                          <td className="px-3 py-3"><p className="font-black text-slate-950">{student.first_name} {student.last_name}</p><p className="text-xs font-bold text-slate-500">{student.gender === 'male' ? 'ชาย' : student.gender === 'female' ? 'หญิง' : '-'} · {formatThaiOfficialShortDate(student.birth_date)}</p></td>
-                          <td className="px-3 py-3">
-                            {activeRegisterFields.length > 0 ? activeRegisterFields.map((field) => <p className="text-xs font-bold text-slate-700" key={field}><span className="text-slate-400">{registerFieldLabels[field]}:</span> {getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, false)}</p>) : <span className="text-xs font-bold text-slate-400">บัญชีรายชื่อพื้นฐาน</span>}
-                          </td>
-                          <td className="px-3 py-3 text-slate-400">—</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {reportView === 'executive' ? (
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: 'นักเรียน', value: `${executiveMetrics.studentCount} คน`, detail: selectedClassroom?.name || '-' },
-                  { label: 'อัตรามาเรียน', value: `${executiveMetrics.attendanceRate}%`, detail: 'เกณฑ์กำกับ 90%' },
-                  { label: 'คะแนนเฉลี่ย', value: `${executiveMetrics.scoreAverage}%`, detail: 'เกณฑ์กำกับ 70%' },
-                  { label: 'ต้องติดตาม', value: `${executiveMetrics.behaviorFollowUps + executiveMetrics.healthFollowUps}`, detail: 'เคสดูแลและสุขอนามัย' },
-                ].map((item) => <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}><p className="text-xs font-black uppercase text-slate-400">{item.label}</p><p className="mt-2 text-3xl font-black text-slate-950">{item.value}</p><p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p></article>)}
-              </div>
-              <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                <h3 className="text-lg font-black text-slate-950">สาระสำคัญสำหรับผู้บริหาร</h3>
-                <div className="mt-3 grid gap-2">
-                  {[
-                    ['เวลาเรียน', `${executiveMetrics.attendanceRate}%`, executiveMetrics.attendanceRate >= 90 ? 'เป็นไปตามเป้าหมาย' : 'ต้องเร่งติดตาม'],
-                    ['ผลการเรียน', `${executiveMetrics.scoreAverage}%`, executiveMetrics.scoreAverage >= 70 ? 'เป็นไปตามเป้าหมาย' : 'ควรจัดสอนเสริม'],
-                    ['สุขภาพและกิจวัตร', `${executiveMetrics.healthCompletionRate}%`, `ติดตามสุขอนามัย ${executiveMetrics.healthFollowUps} คน`],
-                    ['พฤติกรรม/การดูแล', `${executiveMetrics.behaviorFollowUps} เคส`, 'ติดตามและบันทึกผลดำเนินงาน'],
-                    ['การออม', `${executiveMetrics.savingsTotal.toLocaleString('th-TH')} บาท`, 'ข้อมูลประกอบการบริหารชั้นเรียน'],
-                  ].map(([label, value, detail]) => <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 sm:grid-cols-[180px_110px_1fr]" key={label}><strong className="text-slate-950">{label}</strong><span className="font-black text-cyan-700">{value}</span><span className="font-bold text-slate-600">{detail}</span></div>)}
-                </div>
-              </article>
-            </div>
-          ) : null}
-
-          {reportView === 'health' ? (
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: 'นักเรียนในรายงาน', value: healthSummaryRows.length, detail: `${classroomHealthRecords.length} บันทึกในช่วงนี้` },
-                  { label: 'แปรงฟันสำเร็จ', value: healthSummaryRows.reduce((sum, row) => sum + row.brushing.completed, 0), detail: 'จำนวนครั้งที่ทำสำเร็จ' },
-                  { label: 'ดื่มนมสำเร็จ', value: healthSummaryRows.reduce((sum, row) => sum + row.milk.completed, 0), detail: 'จำนวนครั้งที่ทำสำเร็จ' },
-                  { label: 'ต้องติดตามสุขอนามัย', value: healthSummaryRows.filter((row) => row.attentionItems.length > 0).length, detail: 'นักเรียนที่มีจุดต้องติดตามล่าสุด' },
-                ].map((item) => (
-                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
-                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-                    <p className="mt-2 text-4xl font-black text-slate-950">{item.value.toLocaleString('th-TH')}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p>
-                  </article>
-                ))}
-              </div>
-
-              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
-                <table className="min-w-[1060px] divide-y divide-slate-100 text-left text-sm">
-                  <thead className="bg-slate-50">
-                    <tr className="text-xs font-black uppercase text-slate-500">
-                      <th className="px-3 py-3">นักเรียน</th>
-                      <th className="px-3 py-3 text-center">แปรงฟัน</th>
-                      <th className="px-3 py-3 text-center">ดื่มนม</th>
-                      <th className="px-3 py-3 text-center">อาหารกลางวัน</th>
-                      <th className="px-3 py-3 text-right">น้ำหนัก</th>
-                      <th className="px-3 py-3 text-right">ส่วนสูง</th>
-                      <th className="px-3 py-3 text-right">BMI</th>
-                      <th className="px-3 py-3">ตรวจล่าสุด</th>
-                      <th className="px-3 py-3">จุดติดตาม</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {healthSummaryRows.map((row) => (
-                      <tr className="hover:bg-emerald-50/40" key={row.student.id}>
-                        <td className="px-3 py-3"><p className="font-black text-slate-950">{row.student.first_name} {row.student.last_name}</p><p className="text-xs font-bold text-slate-500">{row.student.student_code || '-'}</p></td>
-                        <td className="px-3 py-3 text-center font-black text-cyan-700">{row.brushing.completed}/{row.brushing.total}</td>
-                        <td className="px-3 py-3 text-center font-black text-cyan-700">{row.milk.completed}/{row.milk.total}</td>
-                        <td className="px-3 py-3 text-center font-black text-cyan-700">{row.lunch.completed}/{row.lunch.total}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-700">{row.latestGrowth?.weight_kg ?? '-'}{row.latestGrowth?.weight_kg ? ' กก.' : ''}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-700">{row.latestGrowth?.height_cm ?? '-'}{row.latestGrowth?.height_cm ? ' ซม.' : ''}</td>
-                        <td className="px-3 py-3 text-right font-black text-emerald-700">{row.latestGrowth?.bmi ?? '-'}</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{row.latestHygiene?.record_date || '-'}</td>
-                        <td className="px-3 py-3 font-bold text-slate-600">{row.attentionItems.join(', ') || row.latestHygiene?.note || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {!isLoading && classroomHealthRecords.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">ยังไม่มีบันทึกสุขภาพหรือกิจวัตรในช่วงเวลาที่เลือก</div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {reportView === 'scores' ? (
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 lg:grid-cols-3">
-              <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-black uppercase text-slate-400">ชุดคะแนน</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{scoreAssessmentRows.length}</p>
-                <p className="mt-1 text-sm font-bold text-slate-600">ชุดในห้อง/ช่วงนี้</p>
-              </article>
-              <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-black uppercase text-slate-400">เฉลี่ย</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">
-                  {scoreAssessmentRows.length > 0 ? round(scoreAssessmentRows.reduce((sum, row) => sum + row.averagePercent, 0) / scoreAssessmentRows.length) : 0}%
-                </p>
-                <p className="mt-1 text-sm font-bold text-slate-600">รวมชุดคะแนนที่มีคะแนนแล้ว</p>
-              </article>
-              <article className="rounded-3xl border border-rose-200 bg-rose-50 p-4">
-                <p className="text-xs font-black uppercase text-rose-700">ยังไม่กรอก</p>
-                <p className="mt-2 text-4xl font-black text-slate-950">{scoreAssessmentRows.reduce((sum, row) => sum + row.missingCount, 0)}</p>
-                <p className="mt-1 text-sm font-bold text-slate-600">ช่องคะแนนที่ยังว่าง</p>
-              </article>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-2">
-                <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-lg font-black text-slate-950">สรุปรายวิชา</h3>
-                  <div className="mt-3 grid gap-2">
-                    {scoreSubjectRows.map((row) => (
-                      <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2" key={row.subject}>
-                        <div>
-                          <p className="font-black text-slate-950">{row.subject}</p>
-                          <p className="text-xs font-bold text-slate-500">{row.assessmentCount} ชุด | กรอกแล้ว {row.enteredCount}</p>
-                        </div>
-                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">{row.averagePercent}%</span>
-                      </div>
-                    ))}
-                    {scoreSubjectRows.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีชุดคะแนนในช่วงนี้</p> : null}
-                  </div>
-                </article>
-
-                <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-lg font-black text-slate-950">ชุดคะแนนล่าสุด</h3>
-                  <div className="mt-3 grid gap-2">
-                    {scoreAssessmentRows.slice(0, 6).map((row) => (
-                      <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2" key={row.assessment.id}>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-black text-slate-950">{row.assessment.title}</p>
-                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{scoreCategoryLabels[row.assessment.category]}</span>
-                        </div>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          {row.assessment.subject_name} | เฉลี่ย {row.averageScore}/{row.assessment.max_score} | ยังไม่กรอก {row.missingCount}
-                        </p>
-                      </div>
-                    ))}
-                    {scoreAssessmentRows.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีชุดคะแนนในช่วงนี้</p> : null}
-                  </div>
-                </article>
-              </div>
             </div>
           ) : null}
 
           {reportView === 'subject-scores' ? (
-            <div className="mt-5 grid gap-4">
-              {!selectedSubjectName ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">กรุณาเลือกวิชาที่ต้องการดูคะแนนจากตัวกรองด้านบน</div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/50 p-3">
+              <span className="text-xs font-black text-slate-700">เลือกรายวิชาที่ต้องการดูตารางคะแนน:</span>
+              {scoreSubjectOptions.length > 0 ? (
+                scoreSubjectOptions.map((sub) => (
+                  <button
+                    key={sub}
+                    type="button"
+                    onClick={() => setSelectedSubjectName(sub)}
+                    className={`rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                      selectedSubjectName === sub
+                        ? 'bg-cyan-700 text-white shadow-xs'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {sub}
+                  </button>
+                ))
               ) : (
-                <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                        <th className="px-4 py-3 font-black text-slate-700 w-12 text-center">ที่</th>
-                        <th className="px-4 py-3 font-black text-slate-700 w-24 text-center">รหัส</th>
-                        <th className="px-4 py-3 font-black text-slate-700">ชื่อ-สกุล</th>
-                        {classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName).map((a) => (
-                          <th key={a.id} className="px-4 py-3 font-black text-slate-700 text-center whitespace-nowrap">
-                            {a.title} ({a.max_score})
-                          </th>
-                        ))}
-                        <th className="px-4 py-3 font-black text-slate-900 text-center border-l border-slate-200">รวมคะแนน</th>
-                        <th className="px-4 py-3 font-black text-rose-700 text-center">งานค้าง</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {classroomStudents.map((student, idx) => {
-                        const assessments = classroomScoreAssessments.filter((a) => a.subject_name === selectedSubjectName);
-                        let totalScore = 0;
-                        let missingCount = 0;
-                        
-                        return (
-                          <tr key={student.id} className="transition hover:bg-slate-50">
-                            <td className="px-4 py-3 text-center font-bold text-slate-500">{idx + 1}</td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-500">{student.student_code || '-'}</td>
-                            <td className="px-4 py-3 font-bold text-slate-700">{student.first_name} {student.last_name}</td>
-                            {assessments.map((a) => {
-                              const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
-                              const score = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
-                              if (score !== null) {
-                                totalScore += score;
-                              } else {
-                                missingCount += 1;
-                              }
-                              return (
-                                <td key={a.id} className="px-4 py-3 text-center font-bold text-slate-600">
-                                  {score !== null ? score : <span className="text-rose-400">-</span>}
-                                </td>
-                              );
-                            })}
-                            <td className="px-4 py-3 text-center font-black text-cyan-700 border-l border-slate-200">{totalScore}</td>
-                            <td className="px-4 py-3 text-center font-bold text-rose-600">{missingCount > 0 ? missingCount : '-'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {classroomStudents.length === 0 ? (
-                    <div className="p-4 text-center text-sm font-bold text-slate-500">ไม่มีรายชื่อนักเรียนในห้องนี้</div>
-                  ) : null}
-                </div>
+                <span className="text-xs font-bold text-slate-500">ยังไม่มีชุดคะแนนในห้องนี้</span>
               )}
             </div>
           ) : null}
 
           {reportView === 'individual' ? (
-            <div className="mt-5 grid gap-4">
-              <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-black text-teal-700">Student Report</p>
-                <h3 className="mt-1 text-2xl font-black text-slate-950">
-                  {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}
-                </h3>
-                <p className="mt-2 text-sm font-bold text-slate-500">{selectedStudent?.student_code || '-'} | {selectedClassroom?.name || '-'}</p>
-              </article>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { detail: 'บันทึกเวลาเรียน', label: 'เวลาเรียน', value: selectedStudentAttendanceRecords.length },
-                  { detail: 'คะแนนเฉลี่ย', label: 'คะแนน', value: `${selectedStudentScoreAverage}%` },
-                  { detail: 'ยอดคงเหลือ', label: 'เงินออม', value: `${formatBaht(Number(selectedStudent ? savingsAccountByStudent.get(selectedStudent.id)?.balance || 0 : 0))} ฿` },
-                  { detail: 'แบบเยี่ยมบ้าน', label: 'กสศ.01', value: `${selectedHomeVisit?.completion_percent || 0}%` },
-                ].map((item) => (
-                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
-                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-                    <p className="mt-2 text-2xl font-black text-slate-950">{item.value}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{item.detail}</p>
-                  </article>
-                ))}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black text-indigo-950">เลือกนักเรียนรายบุคคล:</span>
+                <button
+                  type="button"
+                  disabled={currentStudentIdx <= 0}
+                  onClick={() => {
+                    if (currentStudentIdx > 0) setSelectedStudentId(allClassroomStudents[currentStudentIdx - 1].id);
+                  }}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <select
+                  className="nexus-field h-9 rounded-xl bg-white px-3 text-sm font-black text-slate-900"
+                  onChange={(event) => setSelectedStudentId(event.target.value)}
+                  value={selectedStudent?.id || ''}
+                >
+                  {allClassroomStudents.map((student, idx) => (
+                    <option key={student.id} value={student.id}>
+                      เลขที่ {idx + 1} · {student.student_code || '-'} {getStudentFullName(student)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={currentStudentIdx < 0 || currentStudentIdx >= allClassroomStudents.length - 1}
+                  onClick={() => {
+                    if (currentStudentIdx >= 0 && currentStudentIdx < allClassroomStudents.length - 1) {
+                      setSelectedStudentId(allClassroomStudents[currentStudentIdx + 1].id);
+                    }
+                  }}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-lg font-black text-slate-950">เคสดูแลล่าสุด</h3>
-                  <div className="mt-3 grid gap-2">
-                    {selectedStudentBehaviorRecords.slice(0, 5).map((record) => (
-                      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2" key={record.id}>
-                        <p className="font-black text-slate-950">{record.category}</p>
-                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{record.behavior_date} | {toneLabels[record.tone]} | {followUpLabels[record.follow_up_status]}</p>
-                      </div>
-                    ))}
-                    {selectedStudentBehaviorRecords.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีเคสดูแลในช่วงนี้</p> : null}
-                  </div>
-                </article>
-
-                <article className="rounded-3xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-lg font-black text-slate-950">เงินออมล่าสุด</h3>
-                  <div className="mt-3 grid gap-2">
-                    {selectedStudentSavingsTransactions.slice(0, 5).map((transaction) => (
-                      <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2" key={transaction.id}>
-                        <div>
-                          <p className="font-black text-slate-950">{savingsTransactionLabels[transaction.transaction_type]} {formatBaht(Number(transaction.amount || 0))} ฿</p>
-                          <p className="text-xs font-bold text-slate-500">{transaction.transaction_date}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {selectedStudentSavingsTransactions.length === 0 ? <p className="nexus-muted-box p-3 text-sm font-bold text-slate-600">ยังไม่มีรายการเงินออมในช่วงนี้</p> : null}
-                  </div>
-                </article>
-              </div>
+              <button
+                type="button"
+                onClick={() => void printReport(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-indigo-700"
+              >
+                <Printer size={14} />
+                <span>พิมพ์ครบทุกคนในห้อง ({allClassroomStudents.length} แผ่น A4)</span>
+              </button>
             </div>
           ) : null}
 
           {reportView === 'behavior' ? (
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[
-                  { label: 'เคสติดตาม', value: coreMetrics.behavior.followUps },
-                  { label: 'เชิงบวก', value: coreMetrics.behavior.positiveCount },
-                  { label: 'คะแนนพฤติกรรม', value: coreMetrics.behavior.totalPoints },
-                ].map((item) => (
-                  <article className="rounded-3xl border border-slate-200 bg-white p-4" key={item.label}>
-                    <p className="text-xs font-black uppercase text-slate-400">{item.label}</p>
-                    <p className="mt-2 text-4xl font-black text-slate-950">{item.value.toLocaleString('th-TH')}</p>
-                  </article>
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/50 p-3">
+              <span className="text-xs font-black text-slate-700">กรองรายชื่อนักเรียน:</span>
+              <select
+                className="nexus-field h-9 rounded-xl bg-white px-3 text-xs font-black"
+                onChange={(event) => setBehaviorStudentFilter(event.target.value)}
+                value={behaviorStudentFilter}
+              >
+                <option value="all">แสดงนักเรียนทุกคนในห้อง ({allClassroomStudents.length} คน)</option>
+                {allClassroomStudents.map((st, idx) => (
+                  <option key={st.id} value={st.id}>
+                    เลขที่ {idx + 1} · {st.student_code || '-'} {getStudentFullName(st)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {reportView === 'student-register' ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-black text-slate-700">ข้อมูลที่ต้องการแสดงในตาราง A4:</span>
+                {registerFieldOptions.map((field) => (
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700" key={field.value}>
+                    <input
+                      checked={registerFields[field.value]}
+                      className="h-4 w-4 accent-teal-600"
+                      onChange={(event) =>
+                        setRegisterFields((current) => ({ ...current, [field.value]: event.target.checked }))
+                      }
+                      type="checkbox"
+                    />
+                    <span>{field.label}</span>
+                  </label>
                 ))}
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-100 text-left">
-                  <thead>
-                    <tr className="text-xs font-black uppercase text-slate-500">
-                      <th className="px-3 py-3">วันที่</th>
-                      <th className="px-3 py-3">นักเรียน</th>
-                      <th className="px-3 py-3">ประเภท</th>
-                      <th className="px-3 py-3">ติดตาม</th>
-                      <th className="px-3 py-3">บันทึก</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {behaviorReportRows.map((record) => {
-                      const student = studentById.get(record.student_id);
-
-                      return (
-                        <tr className="hover:bg-amber-50/50" key={record.id}>
-                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{record.behavior_date}</td>
-                          <td className="px-3 py-3">
-                            <p className="font-black text-slate-950">{student ? `${student.first_name} ${student.last_name}` : '-'}</p>
-                            <p className="text-xs font-bold text-slate-500">{student?.student_code || '-'}</p>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3">
-                            <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">{toneLabels[record.tone]}</span>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{followUpLabels[record.follow_up_status]}</td>
-                          <td className="min-w-56 px-3 py-3 font-bold text-slate-600">{record.category}: {record.description}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {!isLoading && behaviorReportRows.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีบันทึกพฤติกรรมหรือเคสดูแลในช่วงนี้
-                </div>
+              {registerFields.citizenId ? (
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900">
+                  <input
+                    checked={revealCitizenIds}
+                    className="h-4 w-4 accent-amber-600"
+                    onChange={(event) => setRevealCitizenIds(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>แสดงเลขบัตร 13 หลักเต็ม</span>
+                </label>
               ) : null}
             </div>
           ) : null}
 
-          {reportView === 'settings' ? (
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {(['term1', 'term2'] as TermKey[]).map((term) => (
-                <article className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4" key={term}>
-                  <h3 className="text-lg font-black text-slate-950">{term === 'term1' ? 'ภาคเรียนที่ 1' : 'ภาคเรียนที่ 2'}</h3>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-2 text-sm font-black text-slate-700">
-                      เริ่ม
-                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], start: value } }))} value={termRanges[term].start} />
-                    </label>
-                    <label className="grid gap-2 text-sm font-black text-slate-700">
-                      สิ้นสุด
-                      <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setTermRanges((current) => ({ ...current, [term]: { ...current[term], end: value } }))} value={termRanges[term].end} />
-                    </label>
-                  </div>
-                </article>
-              ))}
-              <article className="rounded-3xl border border-slate-200 bg-white p-4 lg:col-span-2">
-                <h3 className="text-lg font-black text-slate-950">ตั้งค่าผู้ลงนามในรายงาน</h3>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ชื่อครูประจำชั้น
-                    <input
-                      className="nexus-field h-11 px-3"
-                      onChange={(event) => setReportIdentity((current) => ({ ...current, teacherName: event.target.value }))}
-                      placeholder="ชื่อครูประจำชั้น"
-                      value={reportIdentity.teacherName}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ชื่อผู้อำนวยการโรงเรียน
-                    <input
-                      className="nexus-field h-11 px-3"
-                      onChange={(event) => setReportIdentity((current) => ({ ...current, directorName: event.target.value }))}
-                      placeholder="ชื่อผู้อำนวยการ"
-                      value={reportIdentity.directorName}
-                    />
-                  </label>
-                  {/* Co-advisor field - shows full row spanning both columns */}
-                  <div className="sm:col-span-2">
-                    {reportIdentity.coAdvisorName !== undefined && (reportIdentity.coAdvisorName.length > 0) ? (
-                      <label className="grid gap-2 text-sm font-black text-slate-700">
-                        <span className="flex items-center gap-2">
-                          ที่ปรึกษาร่วม
-                          <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-bold text-cyan-700">ไม่บังคับ</span>
-                          <button
-                            type="button"
-                            onClick={() => setReportIdentity((current) => ({ ...current, coAdvisorName: '' }))}
-                            className="ml-auto text-[11px] font-bold text-slate-400 hover:text-rose-500 transition"
-                          >
-                            ✕ ลบออก
-                          </button>
-                        </span>
-                        <input
-                          className="nexus-field h-11 px-3"
-                          onChange={(event) => setReportIdentity((current) => ({ ...current, coAdvisorName: event.target.value }))}
-                          placeholder="ชื่อ-สกุล ที่ปรึกษาร่วม (จะแสดงในรายงานเมื่อกรอก)"
-                          value={reportIdentity.coAdvisorName}
-                          autoFocus
-                        />
-                        <p className="text-[11px] font-bold text-slate-400">💡 หากไม่กรอก จะไม่แสดงในรายงาน</p>
-                      </label>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setReportIdentity((current) => ({ ...current, coAdvisorName: ' ' }))}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-700"
-                      >
-                        <span className="text-base leading-none">➕</span>
-                        เพิ่มที่ปรึกษาร่วม <span className="text-[11px] font-bold opacity-60">(ไม่บังคับ)</span>
-                      </button>
-                    )}
-                  </div>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ชื่อหัวหน้าวิชาการ
-                    <input
-                      className="nexus-field h-11 px-3"
-                      onChange={(event) => setReportIdentity((current) => ({ ...current, academicHeadName: event.target.value }))}
-                      placeholder="ชื่อผู้ตรวจตาราง/รายงาน"
-                      value={reportIdentity.academicHeadName}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    ชื่อนายทะเบียนโรงเรียน
-                    <input
-                      className="nexus-field h-11 px-3"
-                      onChange={(event) => setReportIdentity((current) => ({ ...current, registrarName: event.target.value }))}
-                      placeholder="ชื่อผู้รับรองทะเบียนนักเรียน"
-                      value={reportIdentity.registrarName}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    โลโก้โรงเรียน
-                    <div className="flex gap-2">
-                      <input
-                        accept="image/*"
-                        className="hidden"
-                        id="logo-upload"
-                        onChange={handleLogoUpload}
-                        type="file"
-                      />
-                      <label
-                        className="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                        htmlFor="logo-upload"
-                      >
-                        <ImagePlus size={16} aria-hidden="true" />
-                        อัปโหลด
-                      </label>
-                      {reportIdentity.schoolLogoDataUrl && (
-                        <button
-                          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-600 transition hover:bg-rose-100"
-                          onClick={() => setReportIdentity((current) => ({ ...current, schoolLogoDataUrl: '' }))}
-                          type="button"
-                        >
-                          <Trash2 size={16} aria-hidden="true" />
-                          ลบ
-                        </button>
-                      )}
-                    </div>
-                    {reportIdentity.schoolLogoDataUrl && (
-                      <div className="mt-2 flex items-center gap-3">
-                        <img
-                          alt="School Logo"
-                          className="h-12 w-12 rounded-full border border-slate-200 object-cover"
-                          src={reportIdentity.schoolLogoDataUrl}
-                        />
-                        <span className="text-xs font-bold text-slate-600">โลโก้ถูกตั้งค่าแล้ว</span>
-                      </div>
-                    )}
-                  </label>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <button
-                    className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black"
-                    onClick={saveReportIdentitySettings}
-                    type="button"
-                  >
-                    <Save size={16} aria-hidden="true" />
-                    บันทึกตั้งค่า
-                  </button>
-                </div>
-              </article>
+          {reportView === 'executive' ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <span className="text-xs font-black text-slate-700">ขอบเขตการสรุปผลผู้บริหาร:</span>
+              <button
+                type="button"
+                onClick={() => setExecutiveScope('classroom')}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                  executiveScope === 'classroom' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                }`}
+              >
+                เฉพาะห้องเรียนที่เลือก ({selectedClassroom?.name || '-'})
+              </button>
+              <button
+                type="button"
+                onClick={() => setExecutiveScope('school')}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-black transition ${
+                  executiveScope === 'school' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                }`}
+              >
+                รวมทุกห้องเรียนทั้งโรงเรียน ({classrooms.length} ห้อง)
+              </button>
             </div>
           ) : null}
         </section>
-      </section>
+      ) : null}
+
+      {/* 4. Quick Classroom Summary Strip */}
+      {reportView !== 'settings' ? (
+        <section className="mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          {[
+            {
+              detail: `นักเรียน ${allClassroomStudents.length} คน · ต่ำกว่าเกณฑ์ ${classroomKpiMetrics.attendance.riskCount} คน`,
+              label: `เวลาเรียน (${selectedClassroom?.name || '-'})`,
+              value: `${classroomKpiMetrics.attendance.presentRate}%`,
+            },
+            {
+              detail: `${classroomKpiMetrics.scores.assessmentCount} ชุดคะแนน · ${scoreSubjectOptions.length} รายวิชา`,
+              label: 'คะแนนเฉลี่ยห้อง',
+              value: `${classroomKpiMetrics.scores.averagePercent}%`,
+            },
+            {
+              detail: `เคลื่อนไหว/มีบัญชี ${classroomKpiMetrics.savings.activeCount} คน`,
+              label: 'เงินออมสะสมรวม',
+              value: `${classroomKpiMetrics.savings.totalBalance.toLocaleString('th-TH')} ฿`,
+            },
+            {
+              detail: `ดูแลพฤติกรรม ${classroomKpiMetrics.behavior.followUps} · สุขอนามัย ${classroomKpiMetrics.health.followUps}`,
+              label: 'รายการต้องติดตาม',
+              value: `${classroomKpiMetrics.behavior.followUps + classroomKpiMetrics.health.followUps} รายการ`,
+            },
+          ].map((item) => (
+            <article className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-2xs" key={item.label}>
+              <p className="text-[11px] font-black text-slate-500">{item.label}</p>
+              <p className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">{item.value}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-500">{item.detail}</p>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
+      {/* 5. Main Report Content: Either Settings OR A4 Paper Sheet Preview / Mobile Friendly View */}
+      {reportView === 'settings' ? (
+        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+          {(['term1', 'term2'] as TermKey[]).map((term) => (
+            <article className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5" key={term}>
+              <h3 className="text-lg font-black text-slate-950">
+                {term === 'term1' ? '📅 กำหนดการภาคเรียนที่ 1' : '📅 กำหนดการภาคเรียนที่ 2'}
+              </h3>
+              <p className="mt-1 text-xs font-bold text-slate-600">
+                ใช้สำหรับคำนวณช่วงวันที่อัตโนมัติเมื่อเลือกดูรายงานแบบ &ldquo;รายเทอม&rdquo;
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                  วันเปิดภาคเรียน
+                  <ThaiDatePicker
+                    className="h-11 px-3"
+                    onValueChange={(value) =>
+                      setTermRanges((current) => ({ ...current, [term]: { ...current[term], start: value } }))
+                    }
+                    value={termRanges[term].start}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                  วันปิดภาคเรียน
+                  <ThaiDatePicker
+                    className="h-11 px-3"
+                    onValueChange={(value) =>
+                      setTermRanges((current) => ({ ...current, [term]: { ...current[term], end: value } }))
+                    }
+                    value={termRanges[term].end}
+                  />
+                </label>
+              </div>
+            </article>
+          ))}
+
+          <article className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 lg:col-span-2">
+            <h3 className="text-xl font-black text-slate-950">🏛️ ตั้งค่าหัวกระดาษราชการ ตราโรงเรียน และผู้ลงนาม</h3>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              ข้อมูลชุดนี้จะแสดงบนหัวกระดาษ A4 และช่องลายเซ็นด้านล่างของรายงานทุกฉบับโดยอัตโนมัติ
+            </p>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ชื่อสถานศึกษา / โรงเรียน
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, schoolName: event.target.value }))}
+                  placeholder="เช่น โรงเรียนบ้านโคกสูง"
+                  value={reportIdentity.schoolName}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ปีการศึกษา (พ.ศ.)
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, academicYear: event.target.value }))}
+                  placeholder="เช่น 2569"
+                  value={reportIdentity.academicYear}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ชื่อครูประจำชั้น (ผู้จัดทำรายงาน)
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, teacherName: event.target.value }))}
+                  placeholder="เช่น นายสมชาย ใจดี"
+                  value={reportIdentity.teacherName}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ชื่อครูที่ปรึกษาร่วม (ถ้ามี)
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, coAdvisorName: event.target.value }))}
+                  placeholder="เว้นว่างไว้หากมีครูประจำชั้นคนเดียว"
+                  value={reportIdentity.coAdvisorName || ''}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ชื่อหัวหน้างานวิชาการ (ผู้ตรวจสอบ)
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, academicHeadName: event.target.value }))}
+                  placeholder="ชื่อหัวหน้างานวิชาการ"
+                  value={reportIdentity.academicHeadName}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ชื่อนายทะเบียนโรงเรียน
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, registrarName: event.target.value }))}
+                  placeholder="ชื่อนายทะเบียนโรงเรียน"
+                  value={reportIdentity.registrarName}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                ชื่อผู้อำนวยการโรงเรียน (ผู้รับรอง)
+                <input
+                  className="nexus-field h-11 px-3 text-sm font-bold"
+                  onChange={(event) => setReportIdentity((current) => ({ ...current, directorName: event.target.value }))}
+                  placeholder="ชื่อผู้อำนวยการโรงเรียน"
+                  value={reportIdentity.directorName}
+                />
+              </label>
+
+              <div className="grid gap-1.5 text-xs font-black text-slate-700">
+                <span>ตราประจำโรงเรียน (แสดงมุมซ้ายบนของกระดาษ A4)</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input accept="image/*" className="hidden" id="logo-upload" onChange={handleLogoUpload} type="file" />
+                  <label
+                    className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                    htmlFor="logo-upload"
+                  >
+                    <ImagePlus size={16} aria-hidden="true" />
+                    อัปโหลดรูปตราโรงเรียน
+                  </label>
+                  {reportIdentity.schoolLogoDataUrl ? (
+                    <>
+                      <img
+                        alt="School Logo"
+                        className="h-11 w-11 rounded-full border border-slate-200 object-contain bg-white p-0.5"
+                        src={reportIdentity.schoolLogoDataUrl}
+                      />
+                      <button
+                        className="inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-600 transition hover:bg-rose-100"
+                        onClick={() => setReportIdentity((current) => ({ ...current, schoolLogoDataUrl: '' }))}
+                        type="button"
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                        ลบ
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-6 text-sm font-black text-white shadow-sm hover:bg-teal-700 disabled:opacity-60"
+                disabled={isSavingSettings}
+                onClick={() => void saveReportIdentitySettings()}
+                type="button"
+              >
+                <Save size={16} aria-hidden="true" />
+                {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าทั้งหมด'}
+              </button>
+            </div>
+          </article>
+        </section>
+      ) : (
+        <section className="mt-4">
+          {/* Paper Top Action Bar */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-100/80 px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{activeReportConfig.icon}</span>
+              <div>
+                <h2 className="text-sm font-black text-slate-950">{activeReportConfig.label}</h2>
+                <p className="text-[11px] font-bold text-slate-500">
+                  {displayMode === 'a4'
+                    ? `มุมมองกระดาษ A4 ${pageOrientation === 'portrait' ? 'แนวตั้ง (210 × 297 มม.)' : 'แนวนอน (297 × 210 มม.)'} · พร้อมพิมพ์ทันที`
+                    : 'มุมมองการ์ดสำหรับสมาร์ตโฟน อ่านง่ายไม่ต้องเลื่อนซ้าย-ขวา'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void printReport(false)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-emerald-700"
+              >
+                <Printer size={14} />
+                <span>สั่งพิมพ์ A4 / PDF</span>
+              </button>
+            </div>
+          </div>
+
+          {/* MODE A: Smartphone Easy-Read Card View */}
+          {displayMode === 'mobile' ? (
+            <div className="grid gap-3">
+              {(reportView === 'attendance' || reportView === 'subject-attendance') &&
+                activeAttendanceGrid.rows.map((row, idx) => (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={row.student.id}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-slate-950">
+                          {idx + 1}. {row.studentName}
+                        </p>
+                        <p className="text-xs font-bold text-slate-500">รหัสประจำตัว: {row.studentCode}</p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-black ${
+                          row.attendancePercent >= 80 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                        }`}
+                      >
+                        มาเรียน {row.attendancePercent}%
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs font-black">
+                      <div className="rounded-xl bg-emerald-50 p-2 text-emerald-800">
+                        <span className="block text-[10px] text-emerald-600">มา</span>
+                        {row.totals.present}
+                      </div>
+                      <div className="rounded-xl bg-amber-50 p-2 text-amber-800">
+                        <span className="block text-[10px] text-amber-600">สาย</span>
+                        {row.totals.late}
+                      </div>
+                      <div className="rounded-xl bg-sky-50 p-2 text-sky-800">
+                        <span className="block text-[10px] text-sky-600">ลา/ป่วย</span>
+                        {row.totals.leave}
+                      </div>
+                      <div className="rounded-xl bg-rose-50 p-2 text-rose-800">
+                        <span className="block text-[10px] text-rose-600">ขาด</span>
+                        {row.totals.absent}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+              {reportView === 'savings' &&
+                savingsGrid.rows.map((row, idx) => (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={row.studentId}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-slate-950">
+                          {idx + 1}. {row.studentName}
+                        </p>
+                        <p className="text-xs font-bold text-slate-500">รหัส: {row.studentCode}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-[10px] font-bold text-slate-400">ยอดสะสมคงเหลือ</span>
+                        <strong className="text-base font-black text-emerald-700">{row.totalBalance.toLocaleString('th-TH')} ฿</strong>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+                      <div className="rounded-xl bg-slate-50 p-2">
+                        <span className="block text-[10px] text-slate-500">ฝากช่วงนี้</span>
+                        <strong className="text-teal-700">+{row.depositsInPeriod.toLocaleString('th-TH')}</strong>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-2">
+                        <span className="block text-[10px] text-slate-500">ถอนช่วงนี้</span>
+                        <strong className="text-rose-600">-{row.withdrawalsInPeriod.toLocaleString('th-TH')}</strong>
+                      </div>
+                      <div className="rounded-xl bg-cyan-50 p-2">
+                        <span className="block text-[10px] text-cyan-700">สุทธิช่วงนี้</span>
+                        <strong className="text-cyan-900">{row.totalPeriodNet.toLocaleString('th-TH')} ฿</strong>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+              {reportView === 'scores' &&
+                studentCrossSubjectRows.map((row, idx) => (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={row.student.id}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-slate-950">
+                          {idx + 1}. {row.studentName}
+                        </p>
+                        <p className="text-xs font-bold text-slate-500">รหัส: {row.studentCode}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-black text-indigo-800">
+                          GPA {row.gpa}
+                        </span>
+                        {row.totalMissing > 0 ? (
+                          <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700">
+                            ค้าง {row.totalMissing}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-xs">
+                      {scoreSubjectOptions.map((sub) => {
+                        const sd = row.bySubject[sub];
+                        return (
+                          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 font-bold" key={sub}>
+                            <span className="truncate text-slate-700">{sub}</span>
+                            <span className="font-black text-teal-800">
+                              {sd && sd.max > 0 ? `${sd.percent}% (เกรด ${sd.grade})` : '-'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </article>
+                ))}
+
+              {reportView === 'subject-scores' &&
+                classroomStudents.map((student, idx) => {
+                  const assessments = classroomScoreAssessments.filter(
+                    (a) => !selectedSubjectName || a.subject_name === selectedSubjectName,
+                  );
+                  const totalMax = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
+                  let totalEarned = 0;
+                  let missing = 0;
+                  assessments.forEach((a) => {
+                    const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+                    const val = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+                    if (!Number.isNaN(val)) totalEarned += val;
+                    else missing += 1;
+                  });
+                  const pct = totalMax > 0 ? Math.min(100, round((totalEarned / totalMax) * 100)) : 0;
+                  const grade = totalMax > 0 && missing < assessments.length ? calculateOBECGrade(pct).grade : '-';
+
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={student.id}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-black text-slate-950">
+                          {idx + 1}. {getStudentFullName(student)}
+                        </p>
+                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-800">
+                          รวม {round(totalEarned)}/{totalMax} ({pct}% · เกรด {grade})
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                        {assessments.map((a) => {
+                          const entry = (scoreEntriesByAssessment.get(a.id) || []).find((e) => e.student_id === student.id);
+                          const val = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : null;
+                          return (
+                            <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 font-bold" key={a.id}>
+                              <span className="truncate text-slate-600">{a.title}</span>
+                              <span className={val !== null ? 'font-black text-slate-900' : 'font-black text-rose-600'}>
+                                {val !== null ? `${val}/${a.max_score}` : 'ค้างส่ง'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </article>
+                  );
+                })}
+
+              {reportView === 'health' &&
+                healthSummaryRows.map((row, idx) => (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={row.student.id}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-black text-slate-950">
+                        {idx + 1}. {getStudentFullName(row.student)}
+                      </p>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-800">
+                        BMI {row.bmi ?? '-'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs font-bold text-slate-600">
+                      น้ำหนัก {row.weightKg ?? '-'} กก. · ส่วนสูง {row.heightCm ?? '-'} ซม.
+                    </p>
+                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-xs font-bold">
+                      <div className="rounded-xl bg-slate-50 p-1.5">แปรงฟัน {row.brushing.completed}/{row.brushing.total}</div>
+                      <div className="rounded-xl bg-slate-50 p-1.5">ดื่มนม {row.milk.completed}/{row.milk.total}</div>
+                      <div className="rounded-xl bg-slate-50 p-1.5">อาหาร {row.lunch.completed}/{row.lunch.total}</div>
+                    </div>
+                  </article>
+                ))}
+
+              {reportView === 'student-register' &&
+                classroomStudents.map((student, idx) => (
+                  <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={student.id}>
+                    <p className="text-sm font-black text-slate-950">
+                      {idx + 1}. {getStudentFullName(student)} ({student.student_code || '-'})
+                    </p>
+                    <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
+                      {activeRegisterFields.map((field) => (
+                        <p key={field}>
+                          <span className="text-slate-400">{registerFieldLabels[field]}: </span>
+                          {getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)}
+                        </p>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+
+              {reportView === 'behavior' &&
+                (behaviorReportRows.length > 0 ? (
+                  behaviorReportRows.map((row) => {
+                    const st = studentById.get(row.student_id);
+                    return (
+                      <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs" key={row.id}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-black text-slate-950">{st ? getStudentFullName(st) : '-'}</p>
+                          <span className="rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-black text-cyan-800">
+                            {toneLabels[row.tone]} ({Number(row.points) > 0 ? `+${row.points}` : row.points})
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs font-bold text-slate-700">
+                          {row.category}: {row.description}
+                        </p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-400">
+                          {formatThaiOfficialShortDate(row.behavior_date)} · {followUpLabels[row.follow_up_status]}
+                        </p>
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500">
+                    ไม่พบบันทึกพฤติกรรมที่ต้องติดตามในช่วงเวลานี้
+                  </div>
+                ))}
+
+              {(reportView === 'individual' || reportView === 'executive') && (
+                <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-center text-xs font-black text-teal-900">
+                  กำลังแสดงผลใบรายงานมาตรฐาน A4 ย่อส่วนพอดีหน้าจอมือถือด้านล่าง
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* MODE B: Live A4 Official Paper Preview (Always rendered for A4 mode, and also for Individual/Executive on mobile) */}
+          {(displayMode === 'a4' || reportView === 'individual' || reportView === 'executive') ? (
+            <div className="overflow-x-auto rounded-3xl border border-slate-300 bg-slate-200/80 p-2.5 shadow-inner sm:p-6">
+              <div
+                className={`mx-auto bg-white text-slate-900 shadow-xl ring-1 ring-slate-300 transition-all ${
+                  pageOrientation === 'landscape'
+                    ? 'min-w-[820px] max-w-[1120px] p-5 sm:p-8'
+                    : 'min-w-[640px] max-w-[820px] p-5 sm:p-8'
+                }`}
+                style={{ fontFamily: "'TH Sarabun New', 'Sarabun', sans-serif" }}
+              >
+                {/* Official A4 Sheet Header */}
+                <header className="grid grid-cols-[64px_1fr_64px] items-center border-b-2 border-cyan-700 pb-3 text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-white">
+                    {reportIdentity.schoolLogoDataUrl ? (
+                      <img alt="ตราโรงเรียน" className="h-full w-full object-contain" src={reportIdentity.schoolLogoDataUrl} />
+                    ) : (
+                      <span className="text-[10px] font-black leading-tight text-slate-500">
+                        ตรา
+                        <br />
+                        โรงเรียน
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-950 sm:text-2xl">{activeReportConfig.label}</h3>
+                    <p className="text-sm font-black text-cyan-900">
+                      {reportIdentity.schoolName || session.workspace?.schoolName || 'โรงเรียน'}
+                    </p>
+                    <p className="text-xs font-bold text-slate-600">
+                      ชั้น {selectedClassroom?.name || '-'} · ปีการศึกษา {selectedClassroom?.academic_year || reportIdentity.academicYear || '2569'} · ช่วงข้อมูล{' '}
+                      {formatThaiOfficialShortDate(dateFrom)} ถึง {formatThaiOfficialShortDate(dateTo)}
+                    </p>
+                  </div>
+                  <div className="text-right text-[10px] font-black text-slate-400">A4</div>
+                </header>
+
+                {/* Sheet Body by Report View */}
+                <div className="mt-4">
+                  {/* 1 & 2: Attendance & Subject Attendance on A4 */}
+                  {(reportView === 'attendance' || reportView === 'subject-attendance') && (
+                    <div>
+                      <div className="mb-3 grid grid-cols-4 gap-2 text-center text-xs">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">มาเรียน (ครั้ง)</span>
+                          <strong className="text-base font-black text-emerald-700">{activeAttendanceGrid.summary.present}</strong>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">มาสาย (ครั้ง)</span>
+                          <strong className="text-base font-black text-amber-700">{activeAttendanceGrid.summary.late}</strong>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">ลา / ป่วย (ครั้ง)</span>
+                          <strong className="text-base font-black text-sky-700">{activeAttendanceGrid.summary.leave}</strong>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">ขาดเรียน (ครั้ง)</span>
+                          <strong className="text-base font-black text-rose-700">{activeAttendanceGrid.summary.absent}</strong>
+                        </div>
+                      </div>
+
+                      {isMultiMonthMode ? (
+                        <table className="w-full border-collapse border border-slate-300 text-xs">
+                          <thead>
+                            <tr className="bg-cyan-50 text-slate-900">
+                              <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
+                              <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
+                              <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
+                              {activeAttendanceGrid.monthBuckets.map((mb) => (
+                                <th className="border border-slate-300 px-1 py-2 text-center" key={mb.key}>
+                                  {mb.shortLabel}
+                                  <span className="block text-[9px] font-normal text-slate-500">(มา/รวม)</span>
+                                </th>
+                              ))}
+                              <th className="border border-slate-300 bg-emerald-50 px-1.5 py-2 text-center text-emerald-800">มา</th>
+                              <th className="border border-slate-300 bg-amber-50 px-1.5 py-2 text-center text-amber-800">สาย</th>
+                              <th className="border border-slate-300 bg-sky-50 px-1.5 py-2 text-center text-sky-800">ลา</th>
+                              <th className="border border-slate-300 bg-rose-50 px-1.5 py-2 text-center text-rose-800">ขาด</th>
+                              <th className="border border-slate-300 bg-cyan-100 px-1.5 py-2 text-center font-black">%</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeAttendanceGrid.rows.map((row, idx) => (
+                              <tr className="even:bg-slate-50/70" key={row.student.id}>
+                                <td className="border border-slate-300 px-1 py-1.5 text-center">{idx + 1}</td>
+                                <td className="border border-slate-300 px-1.5 py-1.5 text-center font-bold">{row.studentCode}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 font-bold">{row.studentName}</td>
+                                {activeAttendanceGrid.monthBuckets.map((mb) => {
+                                  const mc = row.monthlyCounts[mb.key] || { absent: 0, late: 0, leave: 0, present: 0, total: 0 };
+                                  const att = mc.present + mc.late;
+                                  return (
+                                    <td className="border border-slate-300 px-1 py-1.5 text-center font-bold" key={mb.key}>
+                                      {mc.total > 0 ? `${att}/${mc.total}` : '-'}
+                                    </td>
+                                  );
+                                })}
+                                <td className="border border-slate-300 px-1 py-1.5 text-center font-black text-emerald-700">{row.totals.present}</td>
+                                <td className="border border-slate-300 px-1 py-1.5 text-center font-black text-amber-700">{row.totals.late}</td>
+                                <td className="border border-slate-300 px-1 py-1.5 text-center font-black text-sky-700">{row.totals.leave}</td>
+                                <td className="border border-slate-300 px-1 py-1.5 text-center font-black text-rose-700">{row.totals.absent}</td>
+                                <td className="border border-slate-300 bg-cyan-50/50 px-1.5 py-1.5 text-center font-black">{row.attendancePercent}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                          <thead>
+                            <tr className="bg-cyan-50 text-slate-900">
+                              <th className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
+                              <th className="border border-slate-300 px-2 py-1.5 text-left w-44">ชื่อ - นามสกุล</th>
+                              {monthContext.days.map((day) => (
+                                <th
+                                  className={`border border-slate-300 px-0.5 py-1.5 text-center ${
+                                    day.isWeekend ? 'bg-slate-200/70 text-slate-500' : ''
+                                  }`}
+                                  key={day.day}
+                                >
+                                  {day.day}
+                                </th>
+                              ))}
+                              <th className="border border-slate-300 bg-emerald-50 px-1 py-1.5 text-center">มา</th>
+                              <th className="border border-slate-300 bg-amber-50 px-1 py-1.5 text-center">สาย</th>
+                              <th className="border border-slate-300 bg-sky-50 px-1 py-1.5 text-center">ลา</th>
+                              <th className="border border-slate-300 bg-rose-50 px-1 py-1.5 text-center">ขาด</th>
+                              <th className="border border-slate-300 bg-cyan-100 px-1 py-1.5 text-center">%</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeAttendanceGrid.rows.map((row, idx) => (
+                              <tr className="even:bg-slate-50/70" key={row.student.id}>
+                                <td className="border border-slate-300 px-1 py-1 text-center">{idx + 1}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-bold whitespace-nowrap">{row.studentName}</td>
+                                {monthContext.days.map((day) => {
+                                  const st = row.dailyStatuses[day.dateKey];
+                                  return (
+                                    <td
+                                      className={`border border-slate-300 px-0.5 py-1 text-center font-black ${
+                                        day.isWeekend ? 'bg-slate-100 text-slate-400' : ''
+                                      } ${
+                                        st === 'present' || st === 'activity'
+                                          ? 'text-emerald-700'
+                                          : st === 'late'
+                                            ? 'text-amber-700'
+                                            : st === 'leave' || st === 'sick'
+                                              ? 'text-sky-700'
+                                              : st === 'absent'
+                                                ? 'text-rose-700'
+                                                : ''
+                                      }`}
+                                      key={day.dateKey}
+                                    >
+                                      {st ? monthlyStatusAbbreviations[st] : ''}
+                                    </td>
+                                  );
+                                })}
+                                <td className="border border-slate-300 px-1 py-1 text-center font-black text-emerald-700">{row.totals.present}</td>
+                                <td className="border border-slate-300 px-1 py-1 text-center font-black text-amber-700">{row.totals.late}</td>
+                                <td className="border border-slate-300 px-1 py-1 text-center font-black text-sky-700">{row.totals.leave}</td>
+                                <td className="border border-slate-300 px-1 py-1 text-center font-black text-rose-700">{row.totals.absent}</td>
+                                <td className="border border-slate-300 bg-cyan-50/40 px-1 py-1 text-center font-black">{row.attendancePercent}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 3: Savings on A4 */}
+                  {reportView === 'savings' && (
+                    <div>
+                      <div className="mb-3 grid grid-cols-4 gap-2 text-center text-xs">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
+                          <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">มีบัญชี/ออมเงิน</span>
+                          <strong className="text-base font-black text-cyan-700">{savingsGrid.totalActiveSavingsStudents} คน</strong>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">ออมสุทธิช่วงนี้</span>
+                          <strong className="text-base font-black text-teal-700">{savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">ยอดสะสมคงเหลือรวม</span>
+                          <strong className="text-base font-black text-emerald-700">{savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong>
+                        </div>
+                      </div>
+
+                      {isMultiMonthMode ? (
+                        <table className="w-full border-collapse border border-slate-300 text-xs">
+                          <thead>
+                            <tr className="bg-cyan-50 text-slate-900">
+                              <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
+                              <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
+                              <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
+                              {savingsGrid.monthBuckets.map((mb) => (
+                                <th className="border border-slate-300 px-1 py-2 text-center" key={mb.key}>
+                                  {mb.shortLabel}
+                                </th>
+                              ))}
+                              <th className="border border-slate-300 bg-teal-50 px-2 py-2 text-right">ฝากรวม</th>
+                              <th className="border border-slate-300 bg-rose-50 px-2 py-2 text-right">ถอนรวม</th>
+                              <th className="border border-slate-300 bg-emerald-100 px-2 py-2 text-right font-black">ยอดสะสมคงเหลือ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {savingsGrid.rows.map((row, idx) => (
+                              <tr className="even:bg-slate-50/70" key={row.studentId}>
+                                <td className="border border-slate-300 px-1 py-1.5 text-center">{idx + 1}</td>
+                                <td className="border border-slate-300 px-1.5 py-1.5 text-center font-bold">{row.studentCode}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 font-bold">{row.studentName}</td>
+                                {savingsGrid.monthBuckets.map((mb) => {
+                                  const net = row.monthlyNet[mb.key] || 0;
+                                  return (
+                                    <td className="border border-slate-300 px-1 py-1.5 text-center font-bold" key={mb.key}>
+                                      {net !== 0 ? net.toLocaleString('th-TH') : '-'}
+                                    </td>
+                                  );
+                                })}
+                                <td className="border border-slate-300 px-2 py-1.5 text-right font-bold text-teal-700">
+                                  {row.depositsInPeriod.toLocaleString('th-TH')}
+                                </td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-right font-bold text-rose-700">
+                                  {row.withdrawalsInPeriod.toLocaleString('th-TH')}
+                                </td>
+                                <td className="border border-slate-300 bg-emerald-50/50 px-2 py-1.5 text-right font-black text-emerald-800">
+                                  {row.totalBalance.toLocaleString('th-TH')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                          <thead>
+                            <tr className="bg-cyan-50 text-slate-900">
+                              <th className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
+                              <th className="border border-slate-300 px-2 py-1.5 text-left w-44">ชื่อ - นามสกุล</th>
+                              {monthContext.days.map((day) => (
+                                <th
+                                  className={`border border-slate-300 px-0.5 py-1.5 text-center ${
+                                    day.isWeekend ? 'bg-slate-200/70 text-slate-500' : ''
+                                  }`}
+                                  key={day.day}
+                                >
+                                  {day.day}
+                                </th>
+                              ))}
+                              <th className="border border-slate-300 bg-cyan-100 px-2 py-1.5 text-right">รวมเดือนนี้</th>
+                              <th className="border border-slate-300 bg-emerald-100 px-2 py-1.5 text-right">ยอดสะสมคงเหลือ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {savingsGrid.rows.map((row, idx) => (
+                              <tr className="even:bg-slate-50/70" key={row.studentId}>
+                                <td className="border border-slate-300 px-1 py-1 text-center">{idx + 1}</td>
+                                <td className="border border-slate-300 px-2 py-1 font-bold whitespace-nowrap">{row.studentName}</td>
+                                {monthContext.days.map((day) => {
+                                  const amt = row.dailyAmounts[day.dateKey];
+                                  return (
+                                    <td
+                                      className={`border border-slate-300 px-0.5 py-1 text-center font-bold ${
+                                        day.isWeekend ? 'bg-slate-100 text-slate-400' : 'text-teal-800'
+                                      }`}
+                                      key={day.dateKey}
+                                    >
+                                      {amt ? amt : ''}
+                                    </td>
+                                  );
+                                })}
+                                <td className="border border-slate-300 bg-cyan-50/40 px-2 py-1 text-right font-black text-cyan-900">
+                                  {row.totalPeriodNet.toLocaleString('th-TH')}
+                                </td>
+                                <td className="border border-slate-300 bg-emerald-50/50 px-2 py-1 text-right font-black text-emerald-800">
+                                  {row.totalBalance.toLocaleString('th-TH')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 4: Classroom All-Subjects Scores on A4 */}
+                  {reportView === 'scores' && (
+                    <div>
+                      <table className="w-full border-collapse border border-slate-300 text-xs">
+                        <thead>
+                          <tr className="bg-cyan-50 text-slate-900">
+                            <th className="border border-slate-300 px-2 py-2 text-center w-10">ที่</th>
+                            <th className="border border-slate-300 px-2 py-2 text-center w-20">รหัส</th>
+                            <th className="border border-slate-300 px-3 py-2 text-left">ชื่อ - นามสกุล</th>
+                            {scoreSubjectOptions.map((sub) => (
+                              <th className="border border-slate-300 px-2 py-2 text-center" key={sub}>
+                                {sub}
+                                <span className="block text-[10px] font-normal text-slate-500">(% / เกรด)</span>
+                              </th>
+                            ))}
+                            <th className="border border-slate-300 bg-cyan-100 px-2 py-2 text-center font-black w-20">GPA</th>
+                            <th className="border border-slate-300 bg-rose-50 px-2 py-2 text-center font-black w-20">งานค้าง</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentCrossSubjectRows.map((row, idx) => (
+                            <tr className="even:bg-slate-50/70" key={row.student.id}>
+                              <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                              <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">{row.studentCode}</td>
+                              <td className="border border-slate-300 px-3 py-1.5 font-bold">{row.studentName}</td>
+                              {scoreSubjectOptions.map((sub) => {
+                                const sd = row.bySubject[sub];
+                                return (
+                                  <td className="border border-slate-300 px-2 py-1.5 text-center font-bold" key={sub}>
+                                    {sd && sd.max > 0 ? `${sd.percent}% (${sd.grade})` : '-'}
+                                  </td>
+                                );
+                              })}
+                              <td className="border border-slate-300 bg-cyan-50/40 px-2 py-1.5 text-center font-black text-cyan-900">
+                                {row.gpa}
+                              </td>
+                              <td className="border border-slate-300 px-2 py-1.5 text-center font-bold text-rose-700">
+                                {row.totalMissing > 0 ? `${row.totalMissing} งาน` : 'ครบ'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {scoreAssessmentRows.length > 0 ? (
+                        <div className="mt-4">
+                          <h4 className="mb-1.5 text-xs font-black text-slate-700">
+                            สรุปชุดการประเมินทั้งหมด ({scoreAssessmentRows.length} รายการ)
+                          </h4>
+                          <table className="w-full border-collapse border border-slate-300 text-xs">
+                            <thead>
+                              <tr className="bg-slate-100 text-slate-800">
+                                <th className="border border-slate-300 px-2 py-1.5 text-center w-10">ที่</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-left">รายวิชา</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-left">ชื่อรายการประเมิน</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-center">ประเภท</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-center">คะแนนเต็ม</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-center">เฉลี่ย</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-center">กรอกแล้ว</th>
+                                <th className="border border-slate-300 px-2 py-1.5 text-center">ค้างส่ง</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {scoreAssessmentRows.map((row, idx) => (
+                                <tr className="even:bg-slate-50" key={row.assessment.id}>
+                                  <td className="border border-slate-300 px-2 py-1 text-center">{idx + 1}</td>
+                                  <td className="border border-slate-300 px-2 py-1 font-bold">{row.assessment.subject_name}</td>
+                                  <td className="border border-slate-300 px-2 py-1">{row.assessment.title}</td>
+                                  <td className="border border-slate-300 px-2 py-1 text-center">{scoreCategoryLabels[row.assessment.category]}</td>
+                                  <td className="border border-slate-300 px-2 py-1 text-center font-bold">{row.assessment.max_score}</td>
+                                  <td className="border border-slate-300 px-2 py-1 text-center font-bold text-teal-800">
+                                    {row.averageScore} ({row.averagePercent}%)
+                                  </td>
+                                  <td className="border border-slate-300 px-2 py-1 text-center">{row.enteredCount} คน</td>
+                                  <td className="border border-slate-300 px-2 py-1 text-center font-bold text-rose-600">{row.missingCount} คน</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* 5: Subject Scores on A4 */}
+                  {reportView === 'subject-scores' && (
+                    <div>
+                      {(() => {
+                        const assessments = classroomScoreAssessments.filter(
+                          (a) => !selectedSubjectName || a.subject_name === selectedSubjectName,
+                        );
+                        const totalMax = assessments.reduce((sum, a) => sum + Number(a.max_score || 0), 0);
+                        return (
+                          <table className="w-full border-collapse border border-slate-300 text-xs">
+                            <thead>
+                              <tr className="bg-cyan-50 text-slate-900">
+                                <th className="border border-slate-300 px-2 py-2 text-center w-10">ที่</th>
+                                <th className="border border-slate-300 px-2 py-2 text-center w-20">รหัส</th>
+                                <th className="border border-slate-300 px-3 py-2 text-left">ชื่อ - นามสกุล</th>
+                                {assessments.map((a) => (
+                                  <th className="border border-slate-300 px-2 py-2 text-center" key={a.id}>
+                                    {a.title}
+                                    <span className="block text-[10px] font-normal text-slate-500">({a.max_score})</span>
+                                  </th>
+                                ))}
+                                <th className="border border-slate-300 bg-cyan-100 px-2 py-2 text-center font-black">
+                                  รวม ({totalMax})
+                                </th>
+                                <th className="border border-slate-300 bg-cyan-100 px-2 py-2 text-center font-black">ร้อยละ</th>
+                                <th className="border border-slate-300 bg-emerald-100 px-2 py-2 text-center font-black">เกรด</th>
+                                <th className="border border-slate-300 bg-rose-50 px-2 py-2 text-center font-black">งานค้าง</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {classroomStudents.map((student, idx) => {
+                                let totalScore = 0;
+                                let missingCount = 0;
+                                return (
+                                  <tr className="even:bg-slate-50/70" key={student.id}>
+                                    <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                                    <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">{student.student_code || '-'}</td>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-bold">{getStudentFullName(student)}</td>
+                                    {assessments.map((a) => {
+                                      const entry = (scoreEntriesByAssessment.get(a.id) || []).find(
+                                        (e) => e.student_id === student.id,
+                                      );
+                                      const val = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+                                      if (!Number.isNaN(val)) {
+                                        totalScore += val;
+                                      } else {
+                                        missingCount += 1;
+                                      }
+                                      return (
+                                        <td className="border border-slate-300 px-2 py-1.5 text-center font-bold" key={a.id}>
+                                          {!Number.isNaN(val) ? val : <span className="text-rose-500">-</span>}
+                                        </td>
+                                      );
+                                    })}
+                                    {(() => {
+                                      const pct = totalMax > 0 ? Math.min(100, round((totalScore / totalMax) * 100)) : 0;
+                                      const grade =
+                                        assessments.length > 0 && missingCount < assessments.length && totalMax > 0
+                                          ? calculateOBECGrade(pct).grade
+                                          : '-';
+                                      return (
+                                        <>
+                                          <td className="border border-slate-300 bg-cyan-50/40 px-2 py-1.5 text-center font-black">
+                                            {round(totalScore)}
+                                          </td>
+                                          <td className="border border-slate-300 bg-cyan-50/40 px-2 py-1.5 text-center font-bold">
+                                            {pct}%
+                                          </td>
+                                          <td className="border border-slate-300 bg-emerald-50/50 px-2 py-1.5 text-center font-black text-emerald-800">
+                                            {grade}
+                                          </td>
+                                          <td className="border border-slate-300 px-2 py-1.5 text-center font-bold text-rose-700">
+                                            {missingCount > 0 ? `${missingCount} ช่อง` : 'ครบ'}
+                                          </td>
+                                        </>
+                                      );
+                                    })()}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* 6: Individual Student Report on A4 */}
+                  {reportView === 'individual' && selectedStudentBundle && (
+                    <div className="space-y-3 text-xs">
+                      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3">
+                        <div>
+                          <strong>ชื่อ - นามสกุล:</strong> {getStudentFullName(selectedStudentBundle.student)} (
+                          {selectedStudentBundle.student.nickname || '-'})
+                        </div>
+                        <div>
+                          <strong>เลขประจำตัว:</strong> {selectedStudentBundle.student.student_code || '-'} · <strong>ชั้น:</strong>{' '}
+                          {selectedClassroom?.name || '-'}
+                        </div>
+                        <div>
+                          <strong>สุขภาพ:</strong> น้ำหนัก {selectedStudentBundle.health.weight ?? '-'} กก. · ส่วนสูง{' '}
+                          {selectedStudentBundle.health.height ?? '-'} ซม. · BMI {selectedStudentBundle.health.bmi ?? '-'}
+                        </div>
+                        <div>
+                          <strong>ผู้ปกครอง:</strong> {selectedStudentBundle.guardianText}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="rounded-xl border border-slate-300 bg-white p-2">
+                          <span className="block text-[11px] font-bold text-slate-500">เวลาเรียน</span>
+                          <strong className="text-lg font-black text-emerald-700">{selectedStudentBundle.attendance.percent}%</strong>
+                          <span className="block text-[10px] text-slate-500">
+                            มา {selectedStudentBundle.attendance.present} · สาย {selectedStudentBundle.attendance.late} · ลา{' '}
+                            {selectedStudentBundle.attendance.leave} · ขาด {selectedStudentBundle.attendance.absent}
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-slate-300 bg-white p-2">
+                          <span className="block text-[11px] font-bold text-slate-500">เกรดเฉลี่ย (GPA)</span>
+                          <strong className="text-lg font-black text-indigo-700">{selectedStudentBundle.totalGpa}</strong>
+                          <span className="block text-[10px] text-slate-500">{selectedStudentBundle.subjectRows.length} รายวิชา</span>
+                        </div>
+                        <div className="rounded-xl border border-slate-300 bg-white p-2">
+                          <span className="block text-[11px] font-bold text-slate-500">เงินออมสะสม</span>
+                          <strong className="text-lg font-black text-teal-700">
+                            {selectedStudentBundle.savings.balance.toLocaleString('th-TH')} ฿
+                          </strong>
+                          <span className="block text-[10px] text-slate-500">
+                            ฝาก {selectedStudentBundle.savings.deposits.toLocaleString('th-TH')} · ถอน{' '}
+                            {selectedStudentBundle.savings.withdrawals.toLocaleString('th-TH')}
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-slate-300 bg-white p-2">
+                          <span className="block text-[11px] font-bold text-slate-500">สุขอนามัย/กิจวัตร</span>
+                          <strong className="text-sm font-black text-slate-900">{selectedStudentBundle.health.attentionText}</strong>
+                          <span className="block text-[10px] text-slate-500">
+                            แปรงฟัน {selectedStudentBundle.health.brushingText} · ดื่มนม {selectedStudentBundle.health.milkText}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h4 className="font-black text-slate-900">1. ตารางผลการเรียนรายวิชา</h4>
+                      <table className="w-full border-collapse border border-slate-300 text-xs">
+                        <thead>
+                          <tr className="bg-cyan-50 text-slate-900">
+                            <th className="border border-slate-300 px-2 py-1.5 text-center w-10">ที่</th>
+                            <th className="border border-slate-300 px-3 py-1.5 text-left">รายวิชา</th>
+                            <th className="border border-slate-300 px-2 py-1.5 text-center">คะแนนที่ได้ / เต็ม</th>
+                            <th className="border border-slate-300 px-2 py-1.5 text-center">ร้อยละ</th>
+                            <th className="border border-slate-300 px-2 py-1.5 text-center">เกรด</th>
+                            <th className="border border-slate-300 px-2 py-1.5 text-center">การส่งงาน</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedStudentBundle.subjectRows.length > 0 ? (
+                            selectedStudentBundle.subjectRows.map((sub, idx) => (
+                              <tr className="even:bg-slate-50" key={sub.subject}>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                                <td className="border border-slate-300 px-3 py-1.5 font-bold">{sub.subject}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center">
+                                  {sub.earned} / {sub.max}
+                                </td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">{sub.percent}%</td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-emerald-800">{sub.grade}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center">
+                                  {sub.missing > 0 ? `ค้าง ${sub.missing} งาน` : 'ครบ'}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td className="border border-slate-300 py-4 text-center text-slate-500" colSpan={6}>
+                                ยังไม่มีรายการประเมินคะแนน
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+
+                      <h4 className="font-black text-slate-900">2. การดูแลพฤติกรรมและการเยี่ยมบ้าน</h4>
+                      <div className="rounded-xl border border-slate-300 p-3 space-y-1">
+                        <p>
+                          <strong>พฤติกรรมและการดูแล:</strong>{' '}
+                          {selectedStudentBundle.behaviors.length > 0
+                            ? selectedStudentBundle.behaviors.map((b) => `${b.category} (${b.description})`).join(' · ')
+                            : 'ประพฤติตนเรียบร้อยตามระเบียบของสถานศึกษา'}
+                        </p>
+                        <p>
+                          <strong>สถานะการเยี่ยมบ้าน:</strong>{' '}
+                          {selectedStudentBundle.homeVisit
+                            ? `ดำเนินการแล้ว (${selectedStudentBundle.homeVisit.completion_percent || 100}%)`
+                            : 'อยู่ระหว่างดำเนินการตามแผนเยี่ยมบ้าน'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 7: Student Register on A4 */}
+                  {reportView === 'student-register' && (
+                    <table className="w-full border-collapse border border-slate-300 text-xs">
+                      <thead>
+                        <tr className="bg-cyan-50 text-slate-900">
+                          <th className="border border-slate-300 px-2 py-2 text-center w-10">ที่</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center w-24">รหัสประจำตัว</th>
+                          <th className="border border-slate-300 px-3 py-2 text-left">ชื่อ – นามสกุลนักเรียน</th>
+                          {pageOrientation === 'portrait' ? (
+                            <th className="border border-slate-300 px-3 py-2 text-left">รายละเอียดข้อมูลทะเบียนที่เลือก</th>
+                          ) : (
+                            activeRegisterFields.map((field) => (
+                              <th className="border border-slate-300 px-2 py-2 text-left" key={field}>
+                                {registerFieldLabels[field]}
+                              </th>
+                            ))
+                          )}
+                          <th className="border border-slate-300 px-3 py-2 text-center w-32">ลายมือชื่อ / หมายเหตุ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {classroomStudents.map((student, index) => (
+                          <tr className="even:bg-slate-50/70" key={student.id}>
+                            <td className="border border-slate-300 px-2 py-2 text-center">{index + 1}</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center font-bold">{student.student_code || '-'}</td>
+                            <td className="border border-slate-300 px-3 py-2">
+                              <p className="font-black text-slate-950">{getStudentFullName(student)}</p>
+                              <p className="text-[10px] font-bold text-slate-500">
+                                {student.gender === 'male' ? 'ชาย' : student.gender === 'female' ? 'หญิง' : '-'} · เกิด{' '}
+                                {formatThaiOfficialShortDate(student.birth_date)}
+                              </p>
+                            </td>
+                            {pageOrientation === 'portrait' ? (
+                              <td className="border border-slate-300 px-3 py-2">
+                                {activeRegisterFields.length > 0 ? (
+                                  activeRegisterFields.map((field) => (
+                                    <p className="text-xs font-bold text-slate-700" key={field}>
+                                      <span className="text-slate-500">{registerFieldLabels[field]}: </span>
+                                      {getRegisterFieldValue(
+                                        student,
+                                        field,
+                                        classroomGuardians,
+                                        registerHealthRows,
+                                        revealCitizenIds,
+                                      )}
+                                    </p>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-slate-400">สำหรับใช้เช็คชื่อ / เซ็นชื่อ</span>
+                                )}
+                              </td>
+                            ) : (
+                              activeRegisterFields.map((field) => (
+                                <td className="border border-slate-300 px-2 py-2 text-xs font-bold" key={field}>
+                                  {getRegisterFieldValue(student, field, classroomGuardians, registerHealthRows, revealCitizenIds)}
+                                </td>
+                              ))
+                            )}
+                            <td className="border border-slate-300 px-2 py-2"></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* 8: Health on A4 */}
+                  {reportView === 'health' && (
+                    <table className="w-full border-collapse border border-slate-300 text-xs">
+                      <thead>
+                        <tr className="bg-cyan-50 text-slate-900">
+                          <th className="border border-slate-300 px-2 py-2 text-center w-10">ที่</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center w-20">รหัส</th>
+                          <th className="border border-slate-300 px-3 py-2 text-left">ชื่อ - นามสกุล</th>
+                          <th className="border border-slate-300 px-2 py-2 text-right">น้ำหนัก</th>
+                          <th className="border border-slate-300 px-2 py-2 text-right">ส่วนสูง</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">BMI</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">แปรงฟัน</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">ดื่มนม</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">อาหารกลางวัน</th>
+                          <th className="border border-slate-300 px-2 py-2 text-left">ผลตรวจสุขอนามัย</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {healthSummaryRows.map((row, idx) => (
+                          <tr className="even:bg-slate-50/70" key={row.student.id}>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">{row.student.student_code || '-'}</td>
+                            <td className="border border-slate-300 px-3 py-1.5 font-bold">{getStudentFullName(row.student)}</td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-right font-bold">
+                              {row.weightKg ? `${row.weightKg} กก.` : '-'}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-right font-bold">
+                              {row.heightCm ? `${row.heightCm} ซม.` : '-'}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-emerald-700">
+                              {row.bmi ?? '-'}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">
+                              {row.brushing.completed}/{row.brushing.total}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">
+                              {row.milk.completed}/{row.milk.total}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">
+                              {row.lunch.completed}/{row.lunch.total}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 font-bold text-slate-700">
+                              {row.attentionItems.length > 0
+                                ? `ติดตาม: ${row.attentionItems.join(', ')}`
+                                : row.latestHygiene?.note || 'ปกติ'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* 9: Behavior on A4 */}
+                  {reportView === 'behavior' && (
+                    <table className="w-full border-collapse border border-slate-300 text-xs">
+                      <thead>
+                        <tr className="bg-cyan-50 text-slate-900">
+                          <th className="border border-slate-300 px-2 py-2 text-center w-10">ที่</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center w-24">วันที่</th>
+                          <th className="border border-slate-300 px-3 py-2 text-left">ชื่อ - นามสกุลนักเรียน</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">ประเภท</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">คะแนน</th>
+                          <th className="border border-slate-300 px-2 py-2 text-center">การติดตาม</th>
+                          <th className="border border-slate-300 px-3 py-2 text-left">หมวดหมู่และรายละเอียด</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {behaviorReportRows.length > 0 ? (
+                          behaviorReportRows.map((record, idx) => {
+                            const student = studentById.get(record.student_id);
+                            return (
+                              <tr className="even:bg-slate-50/70" key={record.id}>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center">{formatThaiOfficialShortDate(record.behavior_date)}</td>
+                                <td className="border border-slate-300 px-3 py-1.5 font-bold">{student ? getStudentFullName(student) : '-'}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center font-bold">{toneLabels[record.tone]}</td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center font-black">
+                                  {Number(record.points) > 0 ? `+${record.points}` : record.points}
+                                </td>
+                                <td className="border border-slate-300 px-2 py-1.5 text-center">{followUpLabels[record.follow_up_status]}</td>
+                                <td className="border border-slate-300 px-3 py-1.5">
+                                  <strong>{record.category}:</strong> {record.description}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td className="border border-slate-300 py-6 text-center font-bold text-slate-500" colSpan={7}>
+                              ไม่พบบันทึกพฤติกรรมหรือเคสดูแลในช่วงเวลาที่เลือก
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* 10: Executive Summary on A4 */}
+                  {reportView === 'executive' && (
+                    <div className="space-y-4 text-xs">
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="rounded-xl border border-slate-300 bg-slate-50 p-2.5">
+                          <span className="block text-[11px] font-bold text-slate-500">ขอบเขตนักเรียน</span>
+                          <strong className="text-lg font-black text-slate-950">{executiveMetrics.studentCount} คน</strong>
+                          <span className="block text-[10px] text-slate-500">{executiveMetrics.scopeLabel}</span>
+                        </div>
+                        <div className="rounded-xl border border-slate-300 bg-slate-50 p-2.5">
+                          <span className="block text-[11px] font-bold text-slate-500">อัตราการมาเรียน</span>
+                          <strong className="text-lg font-black text-emerald-700">{executiveMetrics.attendanceRate}%</strong>
+                          <span className="block text-[10px] text-slate-500">เกณฑ์มาตรฐาน ≥ 90%</span>
+                        </div>
+                        <div className="rounded-xl border border-slate-300 bg-slate-50 p-2.5">
+                          <span className="block text-[11px] font-bold text-slate-500">คะแนนเฉลี่ยรวม</span>
+                          <strong className="text-lg font-black text-cyan-800">{executiveMetrics.scoreAverage}%</strong>
+                          <span className="block text-[10px] text-slate-500">เกณฑ์มาตรฐาน ≥ 70%</span>
+                        </div>
+                        <div className="rounded-xl border border-slate-300 bg-slate-50 p-2.5">
+                          <span className="block text-[11px] font-bold text-slate-500">รายการต้องติดตาม</span>
+                          <strong className="text-lg font-black text-amber-700">
+                            {executiveMetrics.behaviorFollowUps + executiveMetrics.healthFollowUps} รายการ
+                          </strong>
+                          <span className="block text-[10px] text-slate-500">พฤติกรรมและสุขอนามัย</span>
+                        </div>
+                      </div>
+
+                      <table className="w-full border-collapse border border-slate-300 text-xs">
+                        <thead>
+                          <tr className="bg-cyan-50 text-slate-900">
+                            <th className="border border-slate-300 px-3 py-2 text-left">ด้านการดำเนินงาน</th>
+                            <th className="border border-slate-300 px-2 py-2 text-center w-28">ผลดำเนินงาน</th>
+                            <th className="border border-slate-300 px-2 py-2 text-center w-28">เกณฑ์กำกับ</th>
+                            <th className="border border-slate-300 px-3 py-2 text-left">สาระสำคัญ / แนวทางดำเนินงาน</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="border border-slate-300 px-3 py-2 font-bold">1. เวลาเรียนและการมาเรียน</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center font-black">{executiveMetrics.attendanceRate}%</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center">ไม่น้อยกว่า 90%</td>
+                            <td className="border border-slate-300 px-3 py-2">
+                              {executiveMetrics.attendanceRate >= 90
+                                ? 'เป็นไปตามเป้าหมาย ติดตามต่อเนื่อง'
+                                : 'ติดตามนักเรียนที่ขาดเรียนและประสานผู้ปกครอง'}
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50/70">
+                            <td className="border border-slate-300 px-3 py-2 font-bold">2. ผลสัมฤทธิ์ทางการเรียน</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center font-black">{executiveMetrics.scoreAverage}%</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center">ไม่น้อยกว่า 70%</td>
+                            <td className="border border-slate-300 px-3 py-2">
+                              {executiveMetrics.scoreAverage >= 70
+                                ? 'เป็นไปตามเป้าหมาย'
+                                : 'จัดกิจกรรมสอนเสริมและติดตามงานค้างรายวิชา'}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="border border-slate-300 px-3 py-2 font-bold">3. สุขภาพและกิจวัตรประจำวัน</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center font-black">{executiveMetrics.healthCompletionRate}%</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center">ไม่น้อยกว่า 90%</td>
+                            <td className="border border-slate-300 px-3 py-2">
+                              มีนักเรียนต้องติดตามสุขอนามัย/โภชนาการ {executiveMetrics.healthFollowUps} คน
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50/70">
+                            <td className="border border-slate-300 px-3 py-2 font-bold">4. พฤติกรรมและระบบดูแลช่วยเหลือ</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center font-black">{executiveMetrics.behaviorFollowUps} เคส</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center">ดูแลครบ 100%</td>
+                            <td className="border border-slate-300 px-3 py-2">ครูประจำชั้นติดตามดูแลและบันทึกผลดำเนินงาน</td>
+                          </tr>
+                          <tr>
+                            <td className="border border-slate-300 px-3 py-2 font-bold">5. การออมทรัพย์นักเรียน</td>
+                            <td className="border border-slate-300 px-2 py-2 text-center font-black">
+                              {executiveMetrics.savingsTotal.toLocaleString('th-TH')} บาท
+                            </td>
+                            <td className="border border-slate-300 px-2 py-2 text-center">บัญชีถูกต้องครบถ้วน</td>
+                            <td className="border border-slate-300 px-3 py-2">ตรวจสอบยอดเงินออมคงเหลือตรงกับสมุดคู่ฝาก</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      <div className="rounded-xl border border-slate-300 p-3">
+                        <p className="font-black text-slate-900">ความเห็น / ข้อสั่งการของผู้บริหารสถานศึกษา:</p>
+                        <p className="mt-3 text-slate-400">
+                          ..........................................................................................................................................................................................
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Official A4 Sheet Signatures Footer */}
+                <footer className="mt-6 border-t border-slate-300 pt-4">
+                  <div className="grid grid-cols-3 gap-4 text-center text-xs">
+                    <div>
+                      <p>ลงชื่อ ................................................</p>
+                      <p className="mt-1 font-bold">({reportIdentity.teacherName || session.profile.displayName || '............................................'})</p>
+                      <p className="text-[11px] text-slate-600">ครูประจำชั้น / ผู้จัดทำ</p>
+                    </div>
+                    <div>
+                      <p>ลงชื่อ ................................................</p>
+                      <p className="mt-1 font-bold">({reportIdentity.academicHeadName || '............................................'})</p>
+                      <p className="text-[11px] text-slate-600">
+                        {reportView === 'student-register' ? 'นายทะเบียน / ผู้ตรวจสอบ' : 'หัวหน้างานวิชาการ / ผู้ตรวจสอบ'}
+                      </p>
+                    </div>
+                    <div>
+                      <p>ลงชื่อ ................................................</p>
+                      <p className="mt-1 font-bold">({reportIdentity.directorName || '............................................'})</p>
+                      <p className="text-[11px] text-slate-600">
+                        {reportView === 'individual' ? 'ผู้ปกครอง / ผู้อำนวยการโรงเรียน' : 'ผู้อำนวยการโรงเรียน / ผู้รับรอง'}
+                      </p>
+                    </div>
+                  </div>
+                </footer>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {isLoading ? (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-600">
+          กำลังโหลดและประมวลผลข้อมูลรายงานล่าสุด...
+        </div>
+      ) : null}
 
       {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
+        <div className="mt-4 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-xs">
           <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
           <p>{notice}</p>
         </div>
       ) : null}
 
+      {/* Sticky Smartphone Bottom Print/Export Bar */}
+      {printableReport ? (
+        <div className="fixed inset-x-0 bottom-16 z-30 flex items-center justify-between gap-2 border-t border-slate-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur-md md:hidden">
+          <button
+            type="button"
+            onClick={() => setDisplayMode((m) => (m === 'a4' ? 'mobile' : 'a4'))}
+            className="inline-flex h-11 items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 px-3 text-xs font-black text-slate-800"
+          >
+            {displayMode === 'a4' ? <Smartphone size={15} /> : <FileText size={15} />}
+            <span>{displayMode === 'a4' ? 'ดูแบบมือถือ' : 'ดูแบบกระดาษ A4'}</span>
+          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void exportExcel()}
+              className="inline-flex h-11 items-center gap-1 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"
+            >
+              <Download size={14} />
+              <span>Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void printReport(false)}
+              className="inline-flex h-11 items-center gap-1.5 rounded-2xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm"
+            >
+              <Printer size={15} />
+              <span>พิมพ์ A4 / PDF</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <OfficialAcademicDocumentsModal
-        academicYear={selectedClassroom?.academic_year || '2569'}
+        academicYear={selectedClassroom?.academic_year || reportIdentity.academicYear || '2569'}
         currentClassroomId={classroomId}
         currentClassroomName={selectedClassroom?.name}
         isOpen={isOfficialDocsOpen}
@@ -4109,9 +5518,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         term={selectedTerm === 'term1' ? '1' : '2'}
       />
 
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-        ระบบสารสนเทศ ClassCare 360
-      </footer>
+      <footer className="mt-6 text-center text-xs font-bold text-slate-500">ระบบสารสนเทศ ClassCare 360</footer>
     </main>
   );
 }

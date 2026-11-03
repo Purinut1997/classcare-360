@@ -10,6 +10,80 @@ export interface PrintDocumentOptions {
   pageMarginMm?: number;
 }
 
+/**
+ * Print a complete standalone HTML string via a hidden iframe (popup-blocker proof on mobile & desktop).
+ */
+export function printHtmlStringAsDocument(html: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.visibility = 'hidden';
+      document.body.appendChild(iframe);
+
+      const frameDoc = iframe.contentWindow?.document;
+      if (!frameDoc) {
+        iframe.remove();
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.open();
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+          setTimeout(() => win.print(), 300);
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+        return;
+      }
+
+      frameDoc.open();
+      frameDoc.write(html);
+      frameDoc.close();
+
+      let printed = false;
+      const triggerPrint = () => {
+        if (printed) return;
+        printed = true;
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch {
+            window.print();
+          }
+        }, 300);
+      };
+
+      if (iframe.contentWindow) {
+        iframe.contentWindow.addEventListener('load', triggerPrint);
+      }
+      setTimeout(triggerPrint, 650);
+
+      const cleanup = () => {
+        try {
+          iframe.remove();
+        } catch {}
+        resolve(true);
+      };
+
+      if (iframe.contentWindow) {
+        iframe.contentWindow.onafterprint = cleanup;
+      }
+      setTimeout(cleanup, 60000);
+    } catch (err) {
+      console.error('printHtmlStringAsDocument failed:', err);
+      resolve(false);
+    }
+  });
+}
+
 export function printElementAsDocument(
   container: HTMLElement | null,
   options: PrintDocumentOptions,

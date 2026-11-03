@@ -188,6 +188,44 @@ export function saveScheduleSettings(settings: ScheduleSettings, workspaceId?: s
   writeStorageJson(getWorkspaceStorageKey(scheduleStorageKey, workspaceId), settings);
 }
 
+export interface ReportTermRanges {
+  term1: { start: string; end: string };
+  term2: { start: string; end: string };
+}
+
+const reportTermRangesStorageKey = 'classcare.school.report.term_ranges.v1';
+
+export function getDefaultReportTermRanges(academicYear?: string | null): ReportTermRanges {
+  const numericYear = Number(String(academicYear || '').replace(/\D/g, ''));
+  const startGregorian = numericYear > 2400 ? numericYear - 543 : numericYear || new Date().getFullYear();
+  return {
+    term1: { start: `${startGregorian}-05-16`, end: `${startGregorian}-10-10` },
+    term2: { start: `${startGregorian}-11-01`, end: `${startGregorian + 1}-03-31` },
+  };
+}
+
+export function loadReportTermRanges(workspaceId?: string | null, academicYear?: string | null): ReportTermRanges {
+  const fallback = getDefaultReportTermRanges(academicYear);
+  const stored = readStorageJson<ReportTermRanges>(
+    getWorkspaceStorageKey(reportTermRangesStorageKey, workspaceId),
+    fallback,
+  );
+  return {
+    term1: {
+      start: stored?.term1?.start || fallback.term1.start,
+      end: stored?.term1?.end || fallback.term1.end,
+    },
+    term2: {
+      start: stored?.term2?.start || fallback.term2.start,
+      end: stored?.term2?.end || fallback.term2.end,
+    },
+  };
+}
+
+export function saveReportTermRanges(ranges: ReportTermRanges, workspaceId?: string | null) {
+  writeStorageJson(getWorkspaceStorageKey(reportTermRangesStorageKey, workspaceId), ranges);
+}
+
 export function loadSchoolReportIdentity(workspaceId?: string | null): SchoolReportIdentity {
   return readStorageJson<SchoolReportIdentity>(
     getWorkspaceStorageKey(reportIdentityStorageKey, workspaceId),

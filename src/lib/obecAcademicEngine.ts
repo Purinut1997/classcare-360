@@ -386,12 +386,13 @@ export async function fetchRealAcademicDataForClassroom(
     const stData = rawStData;
     const studentIds = stData.map((s: any) => s.id);
 
-    // 2. ดึง Assessments, Attendance Sessions & Records, Health และ Desirable records จริง
+    // 2. ดึง Assessments, Attendance Sessions & Records, Health, Guardians และ Desirable records จริง
     const [
       { data: assessmentsData },
       { data: sessionsData },
       { data: healthData },
       { data: traitsData },
+      { data: guardiansData },
     ] = await Promise.all([
       supabaseClient
         .from('score_assessments')
@@ -400,7 +401,7 @@ export async function fetchRealAcademicDataForClassroom(
         .eq('workspace_id', workspaceId),
       supabaseClient
         .from('attendance_sessions')
-        .select('id, attendance_date, period_label')
+        .select('id, attendance_date, period_label, subject_name')
         .eq('classroom_id', classroomId)
         .eq('workspace_id', workspaceId),
       supabaseClient
@@ -414,7 +415,15 @@ export async function fetchRealAcademicDataForClassroom(
         .select('student_id, trait_1, trait_2, trait_3, trait_4, trait_5, trait_6, trait_7, trait_8, trait_summary, reading_summary')
         .in('student_id', studentIds)
         .eq('workspace_id', workspaceId),
+      supabaseClient
+        .from('student_guardians')
+        .select('student_id, display_name, relation, phone, is_primary')
+        .in('student_id', studentIds)
+        .eq('workspace_id', workspaceId)
+        .order('is_primary', { ascending: false }),
     ]);
+
+    const sessionById = new Map<string, any>((sessionsData || []).map((s: any) => [s.id, s]));
 
     // ดึง attendance_records โดยอ้างอิงผ่าน session_id
     const sessionIds = (sessionsData || []).map((s: any) => s.id);
@@ -435,33 +444,121 @@ export async function fetchRealAcademicDataForClassroom(
       const { data: entries } = await supabaseClient
         .from('score_entries')
         .select('assessment_id, student_id, score')
+        .eq('workspace_id', workspaceId)
         .in('assessment_id', assessmentIds);
       if (entries) scoreEntries = entries;
     }
+
+    const formatMetaPerson = (personObj: any) => {
+      if (!personObj || typeof personObj !== 'object') return '';
+      return [personObj.prefix, personObj.first_name, personObj.last_name]
+        .map((v) => String(v ?? '').trim())
+        .filter(Boolean)
+        .join(' ');
+    };
+
+    const formatMetaAddress = (studentObj: any) => {
+      const meta = studentObj?.metadata && typeof studentObj.metadata === 'object' ? studentObj.metadata : {};
+      const addr = meta.dmc_address && typeof meta.dmc_address === 'object' ? meta.dmc_address : {};
+      const parts = [
+        addr.house_no ? `บ้านเลขที่ ${String(addr.house_no).trim()}` : '',
+        addr.village_no ? `หมู่ ${String(addr.village_no).trim()}` : '',
+        addr.road_or_soi ? String(addr.road_or_soi).trim() : '',
+        addr.subdistrict ? `ต.${String(addr.subdistrict).trim()}` : '',
+        addr.district ? `อ.${String(addr.district).trim()}` : '',
+        addr.province ? `จ.${String(addr.province).trim()}` : '',
+      ].filter(Boolean);
+      return parts.join(' ') || String(meta.address || meta.current_address || studentObj.address || '').trim();
+    };
 
     // 3. ประกอบผลลัพธ์ของนักเรียนแต่ละคนจาก "ข้อมูลจริง"
     const studentReports: Record<string, OBECStudentFullReport> = {};
     const classSummaryScores: RealClassroomAcademicPayload['classSummaryScores'] = [];
 
+    const obecMonths = [
+      { name: 'พฤษภาคม', monthNum: 5, defaultDays: 12 },
+      { name: 'มิถุนายน', monthNum: 6, defaultDays: 20 },
+      { name: 'กรกฎาคม', monthNum: 7, defaultDays: 21 },
+      { name: 'สิงหาคม', monthNum: 8, defaultDays: 20 },
+      { name: 'กันยายน', monthNum: 9, defaultDays: 21 },
+      { name: 'ตุลาคม', monthNum: 10, defaultDays: 10 },
+      { name: 'พฤศจิกายน', monthNum: 11, defaultDays: 21 },
+      { name: 'ธันวาคม', monthNum: 12, defaultDays: 19 },
+      { name: 'มกราคม', monthNum: 1, defaultDays: 20 },
+      { name: 'กุมภาพันธ์', monthNum: 2, defaultDays: 19 },
+      { name: 'มีนาคม', monthNum: 3, defaultDays: 17 },
+      { name: 'เมษายน', monthNum: 4, defaultDays: 0 },
+    ];
+
     for (let idx = 0; idx < stData.length; idx++) {
       const student = stData[idx];
       const sid = student.id;
+      const meta = student?.metadata && typeof student.metadata === 'object' ? student.metadata : {};
+      const healthFlags = student?.health_flags && typeof student.health_flags === 'object' ? student.health_flags : {};
 
-      // ก. ข้อมูลสุขภาพจริง
-      const studentHealth = healthData?.find((h: any) => h.student_id === sid);
-      const weight = studentHealth?.weight_kg ?? student.weight ?? 35;
-      const height = studentHealth?.height_cm ?? student.height ?? 140;
-      const nutrition = evaluateNutrition(Number(weight), Number(height));
+      // ก. ข้อมูลสุขภาพจริง (เช็กจากตาราง student_health_records ที่ทั้งสองค่าไม่เป็น null ก่อน แล้วค่อย fallback ไปที่ health_flags)
+      const studentHealth = healthData?.find((h: any) => h.student_id === sid && (h.weight_kg !== null || h.height_cm !== null));
+      const weight = Number(studentHealth?.weight_kg ?? healthFlags.weight_kg ?? student.weight ?? 35);
+      const height = Number(studentHealth?.height_cm ?? healthFlags.height_cm ?? student.height ?? 140);
+      const nutrition = evaluateNutrition(weight, height);
 
-      // ข. ข้อมูลเวลาเรียนจริงจาก attendance_records
+      // ข. ข้อมูลเวลาเรียนจริงจาก attendance_records (กรองซ้ำรายวันเพื่อให้ 1 วัน = 1 สถานะหลัก)
       const studentAtts = attendanceData?.filter((a: any) => a.student_id === sid) || [];
-      const totalRecorded = studentAtts.length;
-      const presentCount = studentAtts.filter((a: any) => a.status === 'present' || a.status === 'late').length;
-      const sickCount = studentAtts.filter((a: any) => a.status === 'leave' || a.status === 'sick').length;
-      const absentCount = studentAtts.filter((a: any) => a.status === 'absent').length;
+      const dailyStatusByDate = new Map<string, string>();
+      studentAtts.forEach((rec: any) => {
+        const sess = sessionById.get(rec.session_id);
+        const dateStr = sess?.attendance_date;
+        if (!dateStr) return;
+        const existing = dailyStatusByDate.get(dateStr);
+        // ให้ลำดับความสำคัญ: เช็คชื่อรายวัน/โฮมรูม หรือหากยังไม่มีในวันนั้น
+        if (!existing || !sess.subject_name || sess.subject_name === 'โฮมรูม') {
+          dailyStatusByDate.set(dateStr, rec.status);
+        }
+      });
 
+      const dailyEntries = Array.from(dailyStatusByDate.entries());
+      const totalRecorded = dailyEntries.length;
+      const presentCount = dailyEntries.filter(([, st]) => st === 'present' || st === 'late' || st === 'activity').length;
       const baseAttRate = totalRecorded > 0 ? (presentCount / totalRecorded) * 100 : 100;
-      const monthlyAttendance = generateOBECMonthlyAttendance(Math.round(baseAttRate));
+
+      // สร้างตารางเวลาเรียน 12 เดือนจากข้อมูลจริงในแต่ละเดือน (ถ้าเดือนไหนมีการเช็คชื่อจริง ใช้ข้อมูลจริงทันที)
+      const monthlyAttendance: OBECMonthlyAttendance[] = obecMonths.map((m, mIdx) => {
+        const monthEntries = dailyEntries.filter(([dateKey]) => {
+          const monthPart = Number(dateKey.split('-')[1]);
+          return monthPart === m.monthNum;
+        });
+
+        if (monthEntries.length > 0) {
+          const pDays = monthEntries.filter(([, st]) => st === 'present' || st === 'late' || st === 'activity').length;
+          const sDays = monthEntries.filter(([, st]) => st === 'sick').length;
+          const bDays = monthEntries.filter(([, st]) => st === 'leave').length;
+          const aDays = monthEntries.filter(([, st]) => st === 'absent').length;
+          return {
+            monthName: m.name,
+            monthIndex: mIdx + 1,
+            schoolDays: monthEntries.length,
+            presentDays: pDays,
+            sickDays: sDays,
+            businessDays: bDays,
+            absentDays: aDays,
+          };
+        }
+
+        if (totalRecorded > 0) {
+          return {
+            monthName: m.name,
+            monthIndex: mIdx + 1,
+            schoolDays: 0,
+            presentDays: 0,
+            sickDays: 0,
+            businessDays: 0,
+            absentDays: 0,
+          };
+        }
+
+        // กรณีไม่มีข้อมูลเช็คชื่อเลยในระบบ ใช้ตารางมาตรฐาน
+        return generateOBECMonthlyAttendance(100)[mIdx];
+      });
 
       // ค. คะแนนและเกรดจริงแต่ละรายวิชา
       const studentSubjectScores: Record<string, { score100: number; grade: number | string }> = {};
@@ -480,9 +577,10 @@ export async function fetchRealAcademicDataForClassroom(
           let totalMax = 0;
           matchedAssessments.forEach((asm: any) => {
             const entry = scoreEntries.find((e: any) => e.assessment_id === asm.id && e.student_id === sid);
-            if (entry && typeof entry.score === 'number') {
-              totalEarned += entry.score;
-              totalMax += asm.max_score || 100;
+            const numericScore = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
+            if (!Number.isNaN(numericScore)) {
+              totalEarned += numericScore;
+              totalMax += Number(asm.max_score || 100);
               hasRealScore = true;
             }
           });
@@ -528,22 +626,33 @@ export async function fetchRealAcademicDataForClassroom(
         { id: 8, title: 'มีจิตสาธารณะ', score: studentTrait?.trait_8 ?? 3 },
       ];
 
+      // จ. ข้อมูลผู้ปกครองและครอบครัวจริงจาก metadata และ student_guardians
+      const studentGuardian =
+        guardiansData?.find((g: any) => g.student_id === sid && g.is_primary) ||
+        guardiansData?.find((g: any) => g.student_id === sid);
+      const fatherFullName = formatMetaPerson(meta.dmc_father) || String(meta.father_name || student.father_name || '').trim();
+      const motherFullName = formatMetaPerson(meta.dmc_mother) || String(meta.mother_name || student.mother_name || '').trim();
+      const parentFullName = String(studentGuardian?.display_name || meta.parent_name || student.parent_name || fatherFullName || motherFullName || '').trim();
+      const parentRel = String(studentGuardian?.relation || meta.parent_relation || student.parent_relation || 'ผู้ปกครอง').trim();
+      const fullAddress = formatMetaAddress(student);
+      const studentPrefix = String(student.prefix || meta.prefix || (student.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย')).trim();
+
       // จัดทำ Full Report สำหรับ ปพ.๖
       const fullReport: OBECStudentFullReport = {
         studentId: student.id,
         studentCode: student.student_code || String(2400 + idx + 1),
         rollNumber: idx + 1,
-        prefix: student.prefix || (student.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย'),
+        prefix: studentPrefix,
         firstName: student.first_name,
         lastName: student.last_name,
-        fullName: `${student.prefix || (student.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย')}${student.first_name} ${student.last_name}`,
+        fullName: `${studentPrefix}${student.first_name} ${student.last_name}`,
         gender: student.gender === 'female' ? 'หญิง' : 'ชาย',
         birthDate: student.birth_date || '',
-        address: student.address || '',
-        fatherName: student.father_name || '',
-        motherName: student.mother_name || '',
-        parentName: student.parent_name || student.father_name || '',
-        parentRelation: student.parent_relation || 'ผู้ปกครอง',
+        address: fullAddress,
+        fatherName: fatherFullName,
+        motherName: motherFullName,
+        parentName: parentFullName,
+        parentRelation: parentRel,
 
         gradeLevel,
         roomName,
@@ -556,8 +665,8 @@ export async function fetchRealAcademicDataForClassroom(
         gpa,
 
         monthlyAttendance,
-        totalSchoolDays: Math.max(200, totalRecorded),
-        totalPresentDays: totalRecorded > 0 ? presentCount : 0,
+        totalSchoolDays: totalRecorded > 0 ? totalRecorded : 200,
+        totalPresentDays: totalRecorded > 0 ? presentCount : 200,
         attendancePercentage: Number(baseAttRate.toFixed(1)),
 
         health: nutrition,
@@ -599,7 +708,7 @@ export async function fetchRealAcademicDataForClassroom(
                 ? `อนุมัติให้เลื่อนชั้นไปเรียนชั้น ${gradeLevel.includes('ม.') ? 'มัธยมศึกษาปีที่ถัดไป' : 'ประถมศึกษาปีที่ถัดไป'}`
                 : 'รอตัดสินผลการเรียน / ซ่อมเสริม')
             : 'รอการบันทึกคะแนนประเมิน',
-          decisionDate: '31 มีนาคม 2568',
+          decisionDate: `31 มีนาคม ${academicYear || '2569'}`,
         },
       };
 
@@ -616,20 +725,32 @@ export async function fetchRealAcademicDataForClassroom(
       });
     }
 
-    const mappedStudents = stData.map((st: any) => ({
-      id: st.id,
-      student_code: st.student_code,
-      prefix: st.prefix,
-      first_name: st.first_name,
-      last_name: st.last_name,
-      gender: st.gender,
-      birthdate: st.birth_date,
-      address: st.address,
-      father_name: st.father_name,
-      mother_name: st.mother_name,
-      parent_name: st.parent_name,
-      parent_relation: st.parent_relation,
-    }));
+    const mappedStudents = stData.map((st: any) => {
+      const meta = st?.metadata && typeof st.metadata === 'object' ? st.metadata : {};
+      const healthFlags = st?.health_flags && typeof st.health_flags === 'object' ? st.health_flags : {};
+      const stHealth = healthData?.find((h: any) => h.student_id === st.id && (h.weight_kg !== null || h.height_cm !== null));
+      const stGuardian =
+        guardiansData?.find((g: any) => g.student_id === st.id && g.is_primary) ||
+        guardiansData?.find((g: any) => g.student_id === st.id);
+      const fatherFullName = formatMetaPerson(meta.dmc_father) || String(meta.father_name || st.father_name || '').trim();
+      const motherFullName = formatMetaPerson(meta.dmc_mother) || String(meta.mother_name || st.mother_name || '').trim();
+      return {
+        id: st.id,
+        student_code: st.student_code,
+        prefix: st.prefix || meta.prefix || (st.gender === 'female' ? 'เด็กหญิง' : 'เด็กชาย'),
+        first_name: st.first_name,
+        last_name: st.last_name,
+        gender: st.gender,
+        birthdate: st.birth_date,
+        address: formatMetaAddress(st),
+        father_name: fatherFullName,
+        mother_name: motherFullName,
+        parent_name: String(stGuardian?.display_name || meta.parent_name || st.parent_name || fatherFullName || motherFullName || '').trim(),
+        parent_relation: String(stGuardian?.relation || meta.parent_relation || st.parent_relation || 'ผู้ปกครอง').trim(),
+        weight: Number(stHealth?.weight_kg ?? healthFlags.weight_kg ?? st.weight ?? 35),
+        height: Number(stHealth?.height_cm ?? healthFlags.height_cm ?? st.height ?? 140),
+      };
+    });
 
     return {
       students: mappedStudents,

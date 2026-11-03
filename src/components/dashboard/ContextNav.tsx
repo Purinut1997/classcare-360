@@ -26,25 +26,12 @@ const contextNav: Record<string, Array<{ label: string; param: string; value: st
     { label: 'กรอกคะแนน', param: 'scoreView', value: 'entry' },
     { label: 'สมุดรวม', param: 'scoreView', value: 'gradebook' },
   ],
-  reports: [
-    { label: 'เวลาเรียน', param: 'reportView', value: 'attendance' },
-    { label: 'รายวิชา', param: 'reportView', value: 'subject-attendance' },
-    { label: 'เงินออม', param: 'reportView', value: 'savings' },
-    { label: 'คะแนนห้อง', param: 'reportView', value: 'scores' },
-    { label: 'สุขภาพ', param: 'reportView', value: 'health' },
-    { label: 'ทะเบียน', param: 'reportView', value: 'student-register' },
-    { label: 'ผู้บริหาร', param: 'reportView', value: 'executive' },
-    { label: 'รายบุคคล', param: 'reportView', value: 'individual' },
-    { label: 'พฤติกรรม', param: 'reportView', value: 'behavior' },
-    { label: 'ตั้งค่ารายงาน', param: 'reportView', value: 'settings' },
-  ],
 };
 
 const defaults: Record<string, string> = {
   students: 'roster',
   schedule: 'table',
   scores: 'entry',
-  reports: 'attendance',
 };
 
 export function ContextNav({ activeView }: ContextNavProps) {
