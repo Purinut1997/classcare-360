@@ -729,7 +729,7 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
     <div className="space-y-6 pb-28 font-['Itim',sans-serif]">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-2xl transition-all">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-2xl transition-all">
           <Sparkles className="h-4 w-4 text-amber-400" />
           <span>{toastMessage}</span>
         </div>

@@ -3549,7 +3549,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
       {/* 4. Sticky Floating Save Bar (Triggered when there are unsaved edits in Entry or Excel Grid) */}
       {scoreView === 'excel' && unsavedGridCount > 0 ? (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3 text-white shadow-2xl animate-fade-in ring-1 ring-white/15">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl bg-slate-950 px-4 sm:px-5 py-2.5 sm:py-3 text-white shadow-2xl animate-fade-in ring-1 ring-white/15 max-w-[94vw] sm:max-w-none flex-wrap sm:flex-nowrap justify-between">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-500 text-xs font-black text-white">
               {unsavedGridCount}
@@ -3598,7 +3598,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       ) : null}
 
       {scoreView === 'entry' && unsavedCount > 0 && selectedAssessment ? (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3 text-white shadow-2xl animate-fade-in ring-1 ring-white/15">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl bg-slate-950 px-4 sm:px-5 py-2.5 sm:py-3 text-white shadow-2xl animate-fade-in ring-1 ring-white/15 max-w-[94vw] sm:max-w-none flex-wrap sm:flex-nowrap justify-between">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-cyan-500 text-xs font-black text-white">
               {unsavedCount}

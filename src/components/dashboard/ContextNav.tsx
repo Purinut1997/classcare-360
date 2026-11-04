@@ -21,17 +21,18 @@ const contextNav: Record<string, Array<{ label: string; param: string; value: st
     { label: 'ตั้งค่าคาบและวิชา', param: 'scheduleView', value: 'settings' },
   ],
   scores: [
-    { label: 'ภาพรวม', param: 'scoreView', value: 'overview' },
-    { label: 'สร้างชุดคะแนน', param: 'scoreView', value: 'setup' },
+    { label: 'ตาราง Excel', param: 'scoreView', value: 'excel' },
     { label: 'กรอกคะแนน', param: 'scoreView', value: 'entry' },
-    { label: 'สมุดรวม', param: 'scoreView', value: 'gradebook' },
+    { label: 'สมุดรวม & ตัดเกรด', param: 'scoreView', value: 'gradebook' },
+    { label: 'สร้างชุดคะแนน', param: 'scoreView', value: 'setup' },
+    { label: 'ภาพรวม', param: 'scoreView', value: 'overview' },
   ],
 };
 
 const defaults: Record<string, string> = {
   students: 'roster',
   schedule: 'table',
-  scores: 'entry',
+  scores: 'excel',
 };
 
 export function ContextNav({ activeView }: ContextNavProps) {

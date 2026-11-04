@@ -6,5 +6,8 @@ dist/
 *.log
 tmp/
 
+.DS_Store
+widget_sync_data.json
+
 # Superpowers
 .superpowers/

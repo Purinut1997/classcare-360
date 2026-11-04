@@ -4273,7 +4273,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       {validPreviewRows.length > 0 && activeMainTab === 'import' && (
         <aside
           aria-label="แถบดำเนินการนำเข้าด่วน"
-          className="fixed bottom-4 left-3 right-3 sm:left-6 sm:right-6 z-40 max-w-4xl mx-auto rounded-3xl bg-slate-950/95 text-white backdrop-blur-md p-3.5 sm:p-4 shadow-2xl border border-slate-700/80 ring-1 ring-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-4 left-3 right-3 sm:left-6 sm:right-6 z-40 max-w-4xl mx-auto rounded-3xl bg-slate-950/95 text-white backdrop-blur-md p-3.5 sm:p-4 shadow-2xl border border-slate-700/80 ring-1 ring-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 text-white shadow-md">

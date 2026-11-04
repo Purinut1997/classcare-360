@@ -2255,7 +2255,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           },
           riskLevel: 'low',
         });
-        setNotice('เพิ่มนักเรียนสำเร็จ ข้อมูลถูกบังคับด้วย workspace_id และ RLS');
+        setNotice('เพิ่มนักเรียนสำเร็จ ข้อมูลเชื่อมต่อกับห้องเรียนและระบบความปลอดภัยเรียบร้อย');
       }
 
       resetStudentForm(targetClassroomId);
@@ -4121,7 +4121,115 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
           )}
 
-          <div className="mt-4 overflow-x-auto">
+          {/* Mobile Card List (หน้าจอสมาร์ตโฟน: แสดงแบบการ์ด อ่านง่าย สัมผัสง่าย ไม่ล้นจอ) */}
+          <div className="mt-4 grid gap-3 sm:hidden">
+            {filteredStudents.map((student) => {
+              const classroom = classrooms.find((item) => item.id === student.classroom_id);
+              const isSelected = selectedStudent?.id === student.id;
+
+              return (
+                <div
+                  key={student.id}
+                  className={`rounded-2xl border p-3.5 transition-all shadow-sm ${
+                    isSelected
+                      ? 'border-sky-300 bg-sky-50/90 ring-2 ring-sky-200'
+                      : 'border-slate-200/80 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedStudentIds.has(student.id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSelectedStudentIds((current) => {
+                            const next = new Set(current);
+                            if (checked) {
+                              next.add(student.id);
+                            } else {
+                              next.delete(student.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                        aria-label={`เลือก ${student.first_name} ${student.last_name}`}
+                      />
+                      <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-700">
+                        รหัส: {student.student_code || '-'}
+                      </span>
+                    </div>
+                    <span className="rounded-full bg-cyan-50 px-2.5 py-0.5 text-[11px] font-black text-cyan-700 ring-1 ring-cyan-100">
+                      {statusLabels[student.status]}
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentId(student.id)}
+                      className="text-left flex-1"
+                    >
+                      <h4 className="text-base font-black text-slate-900 leading-tight">
+                        {student.first_name} {student.last_name}
+                      </h4>
+                      <p className="mt-0.5 text-xs font-bold text-slate-500">
+                        {student.nickname ? `ชื่อเล่น: ${student.nickname}` : 'ยังไม่มีชื่อเล่น'}
+                      </p>
+                    </button>
+                    {classroom?.name && (
+                      <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shrink-0">
+                        {classroom.name}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-100">
+                      {getCareLabel(student.care_flags)}
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!canWriteRoster}
+                        onClick={() => startEditStudent(student)}
+                        type="button"
+                        title="แก้ไขนักเรียน"
+                        aria-label="แก้ไขข้อมูลนักเรียน"
+                      >
+                        <Edit3 size={15} aria-hidden="true" />
+                      </button>
+                      <button
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-100 bg-white text-rose-600 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!canWriteRoster}
+                        onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
+                        type="button"
+                        title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บถาวร'}
+                        aria-label="เปลี่ยนสถานะเก็บถาวร"
+                      >
+                        <Archive size={15} aria-hidden="true" />
+                      </button>
+                      <button
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
+                        onClick={() => void deleteStudentPermanently(student)}
+                        type="button"
+                        title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
+                        aria-label="ลบถาวร"
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (หน้าจอแท็บเล็ต/คอมพิวเตอร์) */}
+          <div className="mt-4 hidden sm:block overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-left">
               <thead>
                 <tr className="text-xs font-black uppercase text-slate-500">
