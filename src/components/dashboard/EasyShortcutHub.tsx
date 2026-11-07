@@ -36,7 +36,7 @@ export type ShortcutCategory = 'classroom-admin' | 'academic' | 'care' | 'tools'
 export const SHORTCUT_CATEGORIES = [
   {
     key: 'classroom-admin' as const,
-    label: 'ธุรการชั้นเรียน',
+    label: 'งานประจำวันในห้องเรียน',
     icon: '📁',
     badge: '⭐ 6 ภารกิจหลักครูประจำชั้น',
     desc: 'รวม 6 ภารกิจหลักของครูประจำชั้นไว้ในที่เดียว: ทะเบียน เช็กชื่อ สุขภาพ เวร เงินออม และสรุปรายวัน',
@@ -106,8 +106,8 @@ export const SHORTCUT_CATEGORIES = [
     key: 'admin' as const,
     label: 'ตั้งค่าโรงเรียน & ระบบ',
     icon: '⚙️',
-    badge: '4 เมนูหลัก',
-    desc: 'ศูนย์จัดการโรงเรียน ปิดชั้นและคลังปีการศึกษา นำเข้า & ส่งออกข้อมูล DMC และสำรองข้อมูล & กู้คืน',
+    badge: '5 เมนูหลัก',
+    desc: 'ตั้งค่าโรงเรียน จัดการปีการศึกษา ล็อกงวด นำเข้า/ส่งออก และสำรองข้อมูล',
     theme: {
       frameBg: 'bg-gradient-to-br from-slate-100/90 via-slate-50/50 to-slate-100/25',
       frameBorder: 'border-2 border-slate-300/90 shadow-sm shadow-slate-500/5',
@@ -173,7 +173,7 @@ export function EasyShortcutHub({
       // =========================================================================
       {
         id: 'students',
-        title: 'รายชื่อและทะเบียนนักเรียน (students)',
+        title: 'รายชื่อและทะเบียนนักเรียน',
         subtitle: 'ดูข้อมูลนักเรียนรายคน รูปถ่าย เบอร์โทร',
         description: 'ค้นหาประวัตินักเรียน, ข้อมูลติดต่อผู้ปกครอง, สถิติการมาเรียน และคะแนนรายบุคคลครบในจุดเดียว',
         keywords: ['นักเรียน', 'รายชื่อ', 'ประวัติ', 'รูปถ่าย', 'เบอร์โทร', 'ที่อยู่', 'ผู้ปกครอง', 'student', 'students'],
@@ -193,7 +193,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'attendance',
-        title: 'เช็กชื่อและสถิติเวลาเรียน (teacher-work)',
+        title: 'เช็กชื่อและสถิติเวลาเรียน',
         subtitle: 'บันทึก มา สาย ลา ขาด ประจำวัน',
         description: 'เช็กเวลาเรียนเช้าหรือรายวิชา บันทึกเหตุผลการลา ส่งต่อยอดเข้าสถิติอัตโนมัติ',
         keywords: ['เช็กชื่อ', 'เวลาเรียน', 'เข้าแถว', 'มาเรียน', 'สาย', 'ลา', 'ขาด', 'teacher-work', 'attendance'],
@@ -213,7 +213,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'student-health',
-        title: 'สุขภาพและกิจวัตรประจำวัน (student-health)',
+        title: 'สุขภาพและกิจวัตรประจำวัน',
         subtitle: 'ชั่งน้ำหนัก-ส่วนสูง, แปรงฟัน, ดื่มนม',
         description: 'บันทึกการแปรงฟัน ดื่มนม ชั่งน้ำหนัก-ส่วนสูงตามเกณฑ์กรมอนามัย และข้อมูลสุขภาพนักเรียน',
         keywords: ['สุขภาพ', 'แปรงฟัน', 'นม', 'ดื่มนม', 'น้ำหนัก', 'ส่วนสูง', 'bmi', 'student-health', 'health'],
@@ -233,7 +233,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'classroom-operations',
-        title: 'ตารางเวรทำความสะอาด & กิจวัตร (classroom-operations)',
+        title: 'ตารางเวรทำความสะอาดและกิจวัตร',
         subtitle: 'เวรทำความสะอาดห้องเรียน และเช็กความพร้อม',
         description: 'จัดตารางเวร เช็กการปฏิบัติหน้าที่เวรประจำวัน และดูแลความสะอาดเรียบร้อยของห้องเรียน',
         keywords: ['เวร', 'เวรประจำวัน', 'ทำความสะอาด', 'จิตพิสัย', 'เวรห้อง', 'classroom-operations'],
@@ -251,7 +251,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'savings',
-        title: 'สมุดเงินออมนักเรียน (savings)',
+        title: 'สมุดเงินออมนักเรียน',
         subtitle: 'ฝาก-ถอนเงินออม ประจำวัน/สัปดาห์',
         description: 'บันทึกยอดเงินฝากรายวัน ออกใบเสร็จยอดเงิน และดูยอดเงินรวมทั้งห้อง',
         keywords: ['เงินออม', 'ออมเงิน', 'ฝากเงิน', 'ถอนเงิน', 'ธนาคาร', 'เงิน', 'savings'],
@@ -271,7 +271,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'daily-brief',
-        title: 'สรุปบันทึกประจำวันครู (Daily Brief) (daily-brief)',
+        title: 'สรุปบันทึกประจำวันครู',
         subtitle: 'สรุปเด็กขาด ข้อมูลสำคัญใน 1 หน้ากระดาษ',
         description: 'รวมยอดนักเรียน มา ลา ขาด บันทึกประจำวัน และกิจกรรมสำคัญสำหรับส่งรายงานครูเวรหรือฝ่ายบริหาร',
         keywords: ['สรุป', 'daily brief', 'รายงานประจำวัน', 'สรุปเช้า', 'ยอดมาเรียน', 'ส่งผอ', 'daily-brief'],
@@ -293,7 +293,7 @@ export function EasyShortcutHub({
       // =========================================================================
       {
         id: 'schedule',
-        title: 'ตารางสอน / ตารางเรียน (schedule)',
+        title: 'ตารางสอน / ตารางเรียน',
         subtitle: 'ดูตารางสอนประจำสัปดาห์ คาบเรียนวันนี้',
         description: 'ดูว่าวันนี้มีสอนวิชาอะไร คาบไหน ห้องไหน และจัดตารางเรียนของห้อง',
         keywords: ['ตารางสอน', 'ตารางเรียน', 'คาบเรียน', 'สอน', 'วิชา', 'schedule'],
@@ -311,7 +311,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'scores',
-        title: 'สมุดคะแนน & ตัดเกรด (scores)',
+        title: 'สมุดคะแนนและตัดเกรด',
         subtitle: 'กรอกคะแนนเก็บ กลางภาค ปลายภาค',
         description: 'หน้าตารางคะแนนแบบ Excel ใช้งานคุ้นเคย รองรับการคำนวณเกรดและตัดเกรดอัตโนมัติ',
         keywords: ['คะแนน', 'กรอกคะแนน', 'สมุดคะแนน', 'เกรด', 'สอบ', 'scores'],
@@ -331,7 +331,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'omr-scanner',
-        title: 'ตรวจข้อสอบ OMR (omr-scanner)',
+        title: 'ตรวจข้อสอบ OMR',
         subtitle: 'ตรวจกระดาษคำตอบผ่านกล้อง ออกแบบข้อสอบ & ตัดเกรด',
         description: 'สแกนตรวจกระดาษคำตอบด้วยกล้องมือถือ/เว็บแคม นับคะแนนอัตโนมัติ ออกแบบชุดข้อสอบพร้อม QR Code',
         keywords: ['omr', 'ข้อสอบ', 'ตรวจข้อสอบ', 'กระดาษคำตอบ', 'สแกน', 'omr-scanner'],
@@ -351,7 +351,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'academic-hub',
-        title: 'ศูนย์วิชาการ & เอกสาร ปพ. (academic-hub)',
+        title: 'ศูนย์วิชาการและเอกสาร ปพ.',
         subtitle: 'ออกเอกสาร ปพ.5, ปพ.6, ใบเกรด',
         description: 'พิมพ์ ปพ.5 สมุดประเมินผลการเรียน, ปพ.6 รายงานประจำตัวนักเรียน และส่งออก PDF ครบชุด',
         keywords: ['ปพ', 'ปพ.5', 'ปพ.6', 'ทะเบียน', 'วิชาการ', 'ใบเกรด', 'academic-hub'],
@@ -371,7 +371,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'reports',
-        title: 'พิมพ์รายงาน & สมุด ปพ. (reports)',
+        title: 'พิมพ์รายงาน',
         subtitle: 'ออกรายงานสถิติเวลาเรียน และแบบสรุป',
         description: 'สร้างรายงานสรุปรายเดือน รายเทอม ทั้งรูปแบบตารางและกราฟ ส่งออกเป็น Excel / PDF ได้ทันที',
         keywords: ['รายงาน', 'สถิติ', 'สรุปเวลาเรียน', 'พิมพ์รายงาน', 'reports'],
@@ -393,7 +393,7 @@ export function EasyShortcutHub({
       // =========================================================================
       {
         id: 'behavior',
-        title: 'บันทึกพฤติกรรม & ความดี (behavior)',
+        title: 'บันทึกพฤติกรรมและความดี',
         subtitle: 'บวกแต้มความดี และตักเตือนพฤติกรรม',
         description: 'สะสมแต้มคะแนนพฤติกรรม บันทึกความมีวินัย จิตอาสา และเตือนพฤติกรรมที่ไม่เหมาะสม',
         keywords: ['พฤติกรรม', 'ความดี', 'ตัดแต้ม', 'บวกแต้ม', 'คะแนนพฤติกรรม', 'behavior'],
@@ -411,7 +411,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'desirable-characteristics',
-        title: 'ประเมินคุณลักษณะ 8 ประการ (desirable-characteristics)',
+        title: 'ประเมินคุณลักษณะ 8 ประการ',
         subtitle: 'เกณฑ์การประเมินมาตรฐาน สพฐ.',
         description: 'ประเมิน 8 ข้อ (รักชาติ, ซื่อสัตย์, ใฝ่เรียนรู้ ฯลฯ) ตัดเกรด ดีเยี่ยม, ดี, ผ่าน เพื่อส่ง ปพ.',
         keywords: ['คุณลักษณะ', '8 ประการ', 'สพฐ', 'ประเมินคุณลักษณะ', 'desirable-characteristics'],
@@ -429,7 +429,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'automation',
-        title: 'แจ้งเตือนเด็กเสี่ยงขาด/ตก (automation)',
+        title: 'ติดตามนักเรียนที่ควรดูแล',
         subtitle: 'Automation & Early Warning',
         description: 'ตรวจจับเด็กที่ขาดเรียนเกินเกณฑ์, คะแนนต่ำกว่าเป้า หรือยังไม่ส่งงาน พร้อมแนะนำแนวทางแก้ไข',
         keywords: ['เสี่ยง', 'เตือน', 'ขาดบ่อย', 'งานค้าง', 'automation', 'warning'],
@@ -453,7 +453,7 @@ export function EasyShortcutHub({
       // =========================================================================
       {
         id: 'randomizer',
-        title: 'วงล้อสุ่มนักเรียน & จัดกลุ่ม (randomizer)',
+        title: 'สุ่มนักเรียนและจัดกลุ่ม',
         subtitle: 'สุ่มนักเรียนตอบคำถาม จัดกลุ่มกิจกรรม',
         description: 'สุ่มตอบคำถามในคาบเรียนแบบมีแอนิเมชันเสียงตื่นเต้น และแบ่งกลุ่มทำงานอัตโนมัติ',
         keywords: ['สุ่ม', 'วงล้อ', 'สุ่มชื่อ', 'สุ่มเลขที่', 'ตอบคำถาม', 'จัดกลุ่ม', 'randomizer'],
@@ -473,7 +473,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'school-calendar',
-        title: 'ปฏิทินโรงเรียน (school-calendar)',
+        title: 'ปฏิทินโรงเรียน',
         subtitle: 'ดูวันหยุดราชการ วันสอบ และกิจกรรม',
         description: 'ปฏิทินรวมกิจกรรมของโรงเรียน วันเปิด-ปิดภาคเรียน กำหนดการสอบ และวันหยุดพิเศษ',
         keywords: ['ปฏิทิน', 'วันหยุด', 'กิจกรรม', 'วันสอบ', 'school-calendar', 'calendar'],
@@ -495,7 +495,7 @@ export function EasyShortcutHub({
       // =========================================================================
       {
         id: 'workspace-settings',
-        title: 'ศูนย์จัดการโรงเรียน (workspace-settings)',
+        title: 'ตั้งค่าโรงเรียนและห้องเรียน',
         subtitle: 'ตั้งชื่อห้อง, เพิ่มครูร่วม, เชิญสมาชิก',
         description: 'จัดการข้อมูลห้องเรียน กำหนดครูประจำชั้น เชิญครูผู้สอนร่วม และอนุมัติคำขอเข้าร่วม',
         keywords: ['ตั้งค่า', 'ห้องเรียน', 'ครูประจำชั้น', 'เชิญครู', 'workspace-settings'],
@@ -513,7 +513,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'academic-year',
-        title: 'ปิดชั้นและคลังปีการศึกษา (academic-year)',
+        title: 'จัดการปีการศึกษา',
         subtitle: 'คลังเก็บข้อมูลปีเก่า และขึ้นปีการศึกษาใหม่',
         description: 'เลื่อนชั้นนักเรียนขึ้นระดับถัดไป จัดเก็บข้อมูลประวัติของปีที่ผ่านมา และเปิดเทอมใหม่',
         keywords: ['เลื่อนชั้น', 'ปิดเทอม', 'ปีการศึกษา', 'จบการศึกษา', 'academic-year'],
@@ -530,8 +530,26 @@ export function EasyShortcutHub({
         },
       },
       {
+        id: 'period-locks',
+        title: 'ล็อกงวดข้อมูล',
+        subtitle: 'ป้องกันการแก้ไขข้อมูลหลังปิดงวด',
+        description: 'ตรวจสอบและจัดการช่วงเวลาที่ปิดแก้ไขข้อมูลไว้',
+        keywords: ['ล็อกงวด', 'ปิดงวด', 'period locks', 'งวดข้อมูล'],
+        icon: CalendarRange,
+        path: '/app/dashboard?view=period-locks',
+        category: 'admin',
+        accentColor: {
+          bg: 'from-amber-500/10 via-white to-orange-500/5',
+          text: 'text-amber-800',
+          border: 'border-amber-200/80',
+          hoverBorder: 'hover:border-amber-400',
+          ring: 'focus:ring-amber-400',
+          iconBg: 'bg-amber-600 text-white shadow-amber-600/30',
+        },
+      },
+      {
         id: 'import-export',
-        title: 'นำเข้า & ส่งออกข้อมูล DMC (import-export)',
+        title: 'นำเข้าและส่งออกข้อมูล',
         subtitle: 'อัปโหลด Excel รายชื่อเด็ก และส่งออกข้อมูล',
         description: 'นำเข้ารายชื่อนักเรียนใหม่จากไฟล์ Excel หรือระบบจัดเก็บข้อมูลนักเรียน (DMC)',
         keywords: ['นำเข้า', 'ส่งออก', 'อัปโหลด', 'excel', 'dmc', 'import-export'],
@@ -549,7 +567,7 @@ export function EasyShortcutHub({
       },
       {
         id: 'data-safety',
-        title: 'สำรองข้อมูล & กู้คืน (data-safety)',
+        title: 'สำรองข้อมูลและกู้คืน',
         subtitle: 'สำรองฐานข้อมูล กู้คืน และความปลอดภัย',
         description: 'สำรองฐานข้อมูลของโรงเรียน ตรวจสอบความสมบูรณ์ของข้อมูล และกู้คืนย้อนหลังได้ทุกเมื่อ',
         keywords: ['สำรองข้อมูล', 'กู้คืน', 'ความปลอดภัย', 'backup', 'data-safety'],
@@ -610,13 +628,9 @@ export function EasyShortcutHub({
 
   const quickFilterTags = [
     { label: '🟢 เช็กชื่อเช้า', query: 'เช็กชื่อ' },
-    { label: '📷 ตรวจข้อสอบ OMR', query: 'ข้อสอบ' },
     { label: '🔵 กรอกคะแนน', query: 'คะแนน' },
     { label: '🪥 สุขภาพ/แปรงฟัน', query: 'สุขภาพ' },
-    { label: '🪙 บันทึกเงินออม', query: 'เงินออม' },
     { label: '🎓 ออก ปพ.5 / ปพ.6', query: 'ปพ' },
-    { label: '🎲 วงล้อสุ่มชื่อ', query: 'สุ่ม' },
-    { label: '🧹 ตรวจเวรห้อง', query: 'เวร' },
   ];
 
   // Helper render card
@@ -739,15 +753,11 @@ export function EasyShortcutHub({
 
       {/* ⭐ 5 เมนูยอดนิยมที่ต้องใช้บ่อยที่สุด (Cute Pastel Sticky Notes) */}
       {!searchQuery && activeCategory === 'all' && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-              <span className="text-lg">📌</span>
-              <span>5 เมนูยอดนิยมที่ต้องใช้บ่อยที่สุด</span>
-            </h3>
-            <span className="text-xs font-bold text-slate-500">แตะโน้ตเพื่อเข้าใช้งานทันที</span>
-          </div>
-
+        <details className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <summary className="cursor-pointer list-none rounded-xl px-2 py-1 text-sm font-black text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
+            เมนูที่ใช้บ่อย 5 อย่าง <span className="ml-1 text-xs font-semibold text-slate-500">กดเพื่อแสดงหรือซ่อน</span>
+          </summary>
+        <section className="mt-4 space-y-3">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {/* Card 1: เช็กเวลาเรียน (Mint Green Sticky Note) */}
             <Link
@@ -908,6 +918,7 @@ export function EasyShortcutHub({
             </Link>
           </div>
         </section>
+        </details>
       )}
 
       {/* 🏷️ Category Filter Tabs */}

@@ -32,7 +32,7 @@ interface MobileCategoryConfig {
 const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
   {
     key: 'classroom-admin',
-    label: 'ธุรการชั้นเรียน',
+    label: 'งานประจำวันในห้องเรียน',
     icon: '📁',
     badge: '⭐ 6 ภารกิจหลัก',
     itemKeys: [
@@ -118,10 +118,11 @@ const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
     key: 'admin',
     label: 'ตั้งค่าโรงเรียน & ระบบ',
     icon: '⚙️',
-    badge: '4 เมนู',
+    badge: '5 เมนู',
     itemKeys: [
       'workspace-settings',
       'academic-year',
+      'period-locks',
       'import-export',
       'data-safety',
     ],

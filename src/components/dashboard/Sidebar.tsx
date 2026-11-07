@@ -40,16 +40,18 @@ const coreDirectItemKeys = [
 
 const sidebarSections: SidebarSectionConfig[] = [
   {
-    key: 'daily-routine',
-    label: 'กิจวัตร & หน้าที่ประจำวัน',
+    key: 'classroom-admin',
+    label: 'งานประจำวันในห้องเรียน',
     icon: ClipboardList,
     // Keep the first screen calm for new teachers; the active group opens automatically.
     defaultOpen: false,
     itemKeys: [
-      'teacher-work',          // 1. เช็กชื่อและสถิติเวลาเรียน
-      'classroom-operations',  // 2. ตารางเวรทำความสะอาด
-      'student-health',        // 3. สุขภาพและกิจวัตรประจำวัน
-      'daily-brief',           // 4. สรุปบันทึกประจำวันครู
+      'students',              // รายชื่อและทะเบียนนักเรียน
+      'teacher-work',          // เช็กชื่อและสถิติเวลาเรียน
+      'classroom-operations',  // ตารางเวรทำความสะอาด
+      'student-health',        // สุขภาพและกิจวัตรประจำวัน
+      'savings',               // สมุดเงินออม
+      'daily-brief',           // สรุปบันทึกประจำวัน
     ],
   },
   {
@@ -67,14 +69,12 @@ const sidebarSections: SidebarSectionConfig[] = [
   },
   {
     key: 'student-care',
-    label: 'ข้อมูลนักเรียน & ดูแลช่วยเหลือ',
+    label: 'ดูแลช่วยเหลือนักเรียน',
     icon: Heart,
     defaultOpen: false,
     itemKeys: [
-      'students',              // ทะเบียนและประวัตินักเรียน
       'behavior',              // พฤติกรรม & บันทึกความดี
       'desirable-characteristics', // ประเมินคุณลักษณะ 8 ประการ
-      'savings',               // สมุดเงินออมนักเรียน
       'automation',            // แจ้งเตือนเด็กเสี่ยง (ขาด/ตก)
     ],
   },

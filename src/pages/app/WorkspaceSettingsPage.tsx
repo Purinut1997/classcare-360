@@ -1090,11 +1090,11 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             <div>
               <div className="workspace-settings-eyebrow inline-flex items-center gap-2 text-xs font-black">
                 <School size={15} aria-hidden="true" />
-                Workspace Settings
+                จัดการโรงเรียน
               </div>
               <h1 className="mt-3 text-3xl font-black sm:text-4xl">ตั้งค่าโรงเรียนและห้องเรียน</h1>
               <p className="mt-3 max-w-3xl text-sm font-bold leading-6 text-slate-300">
-                จัดข้อมูลพื้นฐานของ workspace ให้พร้อมก่อนใช้งาน Student 360, รายงาน, import/export และระบบผู้ปกครอง
+                จัดข้อมูลโรงเรียน ห้องเรียน ครู และสิทธิ์การใช้งานให้พร้อมในที่เดียว
               </p>
             </div>
             <button
@@ -1102,7 +1102,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               onClick={exportSettingsSnapshot}
               type="button"
             >
-              Export settings
+              ดาวน์โหลดข้อมูลตั้งค่า
               <Download size={17} aria-hidden="true" />
             </button>
           </div>
@@ -1123,18 +1123,18 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </div>
       </section>
 
-      <section className="nexus-card mt-5 p-4 sm:p-5" aria-label="โควตาแพ็กเกจ Workspace">
+      <section className="nexus-card mt-5 p-4 sm:p-5" aria-label="ขีดจำกัดแพ็กเกจโรงเรียน">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-black text-cyan-700">Workspace quota</p>
+            <p className="text-sm font-black text-cyan-700">ขีดจำกัดแพ็กเกจ</p>
             <h2 className="mt-1 text-xl font-black text-slate-950">{planLabels[effectivePlanCode]}</h2>
           </div>
           <p className="text-xs font-bold text-slate-500">เมื่อ Trial/VIP หมดอายุ ข้อมูลเดิมยังอยู่และระบบจะกลับเป็น Free อัตโนมัติ</p>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {[
-            { label: 'ห้อง active', used: activeClassrooms.length, limit: workspaceLimits.activeClassrooms },
-            { label: 'นักเรียน active', used: activeStudentCount, limit: workspaceLimits.activeStudents },
+            { label: 'ห้องเรียน', used: activeClassrooms.length, limit: workspaceLimits.activeClassrooms },
+            { label: 'นักเรียน', used: activeStudentCount, limit: workspaceLimits.activeStudents },
             { label: 'ผู้ร่วมงาน + คำเชิญ', used: collaboratorCount, limit: workspaceLimits.collaborators },
           ].map((quota) => {
             const ratio = Math.min((quota.used / Math.max(quota.limit, 1)) * 100, 100);
@@ -1158,15 +1158,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           <div>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <ShieldCheck size={17} aria-hidden="true" />
-              Owner Workspace Control Center
+              สำหรับผู้ดูแลโรงเรียน
             </div>
             <h2 className="mt-2 text-2xl font-black text-slate-950">ศูนย์จัดการโรงเรียน</h2>
             <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-500">
-              รวมงานของเจ้าของ workspace ไว้ในหน้าเดียว: อนุมัติครู จัดสิทธิ์ ห้องเรียน ตั้งค่าโรงเรียน สำรองข้อมูล และเตรียมเลื่อนชั้นปีถัดไป
+              รวมงานดูแลระบบไว้ในหน้าเดียว: อนุมัติครู จัดสิทธิ์ ตั้งค่าห้องเรียน สำรองข้อมูล และเตรียมปีการศึกษาถัดไป
             </p>
           </div>
           <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
-            เจ้าของ workspace ใช้งานห้องเรียนได้ด้วย
+            ผู้ดูแลยังใช้งานห้องเรียนได้ตามปกติ
           </span>
         </div>
 

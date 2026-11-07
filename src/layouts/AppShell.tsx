@@ -10,7 +10,7 @@ import { SupportChat } from '../components/support/SupportChat';
 import type { AppNavItem } from '../routes/appRoutes';
 import type { AppSessionContext } from '../types/core';
 
-// Ensure the guide automatically pops up on initial system load/login
+// Keep onboarding available on demand so it never blocks a teacher's first task.
 let hasAutoPoppedInCurrentSession = false;
 
 interface AppShellProps {
@@ -26,7 +26,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
     if (!hasAutoPoppedInCurrentSession) {
       hasAutoPoppedInCurrentSession = true;
       const pref = window.localStorage.getItem('classcare_guide_auto_popup');
-      return pref !== 'false';
+      return pref === 'true';
     }
     return false;
   });

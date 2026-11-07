@@ -188,8 +188,9 @@ function getTodayDate() {
   return getBangkokDate();
 }
 
-function createDefaultMarks(students: StudentRow[]) {
-  return Object.fromEntries(students.map((student) => [student.id, 'present' as AttendanceStatus]));
+function createDefaultMarks(students: StudentRow[]): Record<string, AttendanceStatus | undefined> {
+  // A student stays unmarked until the teacher confirms their status.
+  return Object.fromEntries(students.map((student) => [student.id, undefined]));
 }
 
 function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentRow[], preferredClassroomId?: string) {
@@ -221,7 +222,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [periodLabel, setPeriodLabel] = useState('เช้า');
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
   const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule(session.workspace?.id));
-  const [marks, setMarks] = useState<Record<string, AttendanceStatus>>(() => createDefaultMarks(demoMode ? demoStudents : []));
+  const [marks, setMarks] = useState<Record<string, AttendanceStatus | undefined>>(() => createDefaultMarks(demoMode ? demoStudents : []));
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -293,6 +294,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       })),
     [classroomStudents, marks],
   );
+  const unmarkedCount = classroomStudents.filter((student) => !marks[student.id]).length;
 
   const alertStudents = useMemo(
     () =>
@@ -321,11 +323,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const isSaved = records.length > 0;
   const hasUnsavedChanges = useMemo(
     () =>
-      !isSaved ||
+      (classroomStudents.some((student) => Boolean(marks[student.id])) && !isSaved) ||
       classroomStudents.some((student) => {
         const saved = savedStatusByStudent[student.id];
         return (
-          (marks[student.id] || 'present') !== (saved?.status || 'present') ||
+          marks[student.id] !== saved?.status ||
           (notes[student.id] || '').trim() !== (saved?.note || '').trim()
         );
       }),
@@ -627,6 +629,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
   async function handleSaveRecords() {
     if (classroomStudents.length === 0) return;
+    if (unmarkedCount > 0) {
+      setNotice(`ยังไม่ได้ตรวจ ${unmarkedCount} คน กรุณาแตะรายชื่อหรือเลือก “มาทุกคน” หลังตรวจแล้ว`);
+      return;
+    }
 
     setIsSubmitting(true);
     setNotice(null);
@@ -757,7 +763,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
     const approvalRows = targets.map((guardian) => {
       const student = alertStudents.find((item) => item.id === guardian.student_id);
-      const status = student ? marks[student.id] : 'present';
+      const status = (student ? marks[student.id] : undefined) || 'present';
       const studentName = student ? `${student.first_name} ${student.last_name}` : 'นักเรียน';
       const note = student ? notes[student.id]?.trim() : '';
       return {
@@ -851,7 +857,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
       longPressTriggered.current = false;
       return;
     }
-    const current = marks[studentId] || 'present';
+    const current = marks[studentId];
+    if (!current) {
+      setMarks((prev) => ({ ...prev, [studentId]: 'present' }));
+      return;
+    }
     const currentIndex = TAP_CYCLE.indexOf(current);
     const nextStatus = currentIndex === -1 ? 'absent' : TAP_CYCLE[(currentIndex + 1) % TAP_CYCLE.length];
     setMarks((prev) => ({ ...prev, [studentId]: nextStatus }));
@@ -900,7 +910,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               {thaiDateLabel} · {mode === 'homeroom' ? (periodLabel === 'เช้า' ? 'ช่วงเช้า' : periodLabel) : `${subjectName} (${periodLabel})`}
             </p>
             <p className="mt-1 text-sm sm:text-base font-medium text-[#292524]">
-              แตะโน้ตเพื่อเปลี่ยนสถานะ หรือกด ✏️ เพื่อดูรายละเอียด/ใส่หมายเหตุ
+              แตะรายชื่อเพื่อเริ่มเช็กชื่อ · แตะซ้ำเพื่อเปลี่ยนสถานะ · กด ✏️ เพื่อเลือกสถานะเพิ่มเติม
             </p>
           </div>
 
@@ -936,6 +946,29 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         </header>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[#e2d5c3] bg-white/70 p-2">
+          <span className="px-2 text-xs font-bold text-slate-600">กำลังเช็กชื่อแบบ:</span>
+          {(['homeroom', 'subject'] as AttendanceMode[]).map((attendanceMode) => {
+            const Icon = modeCopy[attendanceMode].icon;
+            const selected = mode === attendanceMode;
+            return (
+              <button
+                key={attendanceMode}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setMode(attendanceMode)}
+                className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${selected ? 'border-teal-500 bg-teal-50 text-teal-900 ring-1 ring-teal-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Icon size={16} />
+                {attendanceMode === 'homeroom' ? 'เช็กชื่อประจำวัน' : 'เช็กชื่อรายวิชา'}
+              </button>
+            );
+          })}
+          {mode === 'subject' && (
+            <span className="text-xs font-semibold text-slate-600">เลือกชื่อวิชาและคาบใน “ตั้งค่าเพิ่มเติม”</span>
+          )}
+        </div>
+
         {/* Holiday Banner if today affects calendar */}
         {isHolidayBlocked && calendarPolicy && (
           <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-300 bg-rose-50 p-3 text-xs sm:text-sm text-rose-900 font-bold">
@@ -965,7 +998,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             className="inline-flex items-center gap-1.5 rounded-xl border border-lime-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
           >
             <Check size={14} className="text-[#1b3e04] stroke-[3]" />
-            <span>มาทุกคน</span>
+            <span>ตั้งทุกคนเป็น “มา”</span>
           </button>
           <button
             type="button"
@@ -1055,13 +1088,13 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4.5 pt-2">
             {classroomStudents.map((student, idx) => {
               const rollNumber = idx + 1;
-              const mark = marks[student.id] || 'present';
-              const tone = postItTone[mark] || postItTone.present;
+              const mark = marks[student.id];
+              const tone = mark ? postItTone[mark] : { bg: 'bg-white border border-dashed border-slate-300', shadow: 'shadow-sm', text: 'text-slate-500' };
               const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
               const isPresent = mark === 'present';
               const displayName = isPresent
                 ? student.nickname || student.first_name
-                : statusLabels[mark];
+                : mark ? statusLabels[mark] : 'ยังไม่เช็ก';
               const hasNote = Boolean(notes[student.id]?.trim());
 
               return (
@@ -1084,7 +1117,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     setSheetStudentId(student.id);
                   }}
                   className={`group relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
-                  title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${statusLabels[mark]}) — แตะเพื่อเปลี่ยนสถานะ หรือกด ✏️ เพื่อดูรายละเอียด`}
+                  title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${mark ? statusLabels[mark] : 'ยังไม่เช็ก'}) — แตะเพื่อเลือกสถานะ`}
                 >
                   {/* Frosted Tape on top of note */}
                   <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
@@ -1158,6 +1191,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
           {/* Summary Text: มา 27 ขาด 1 ลา 1 สาย 1 */}
           <div className="flex items-center justify-center gap-3 sm:gap-4 text-base sm:text-lg font-bold text-[#1c1917]">
             <span>
+              ยังไม่เช็ก <b className="text-slate-600">{unmarkedCount}</b>
+            </span>
+            <span>
               มา <b className="text-[#1b3e04]">{summary.find((s) => s.value === 'present')?.count || 0}</b>
             </span>
             <span>
@@ -1180,13 +1216,13 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <button
             type="button"
             onClick={() => void handleSaveRecords()}
-            disabled={isSubmitting || isHolidayBlocked}
+            disabled={isSubmitting || isHolidayBlocked || unmarkedCount > 0}
             className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
               <span>กำลังบันทึก...</span>
             ) : (
-              <span>{hasUnsavedChanges ? `บันทึก ✓ (${classroomStudents.length} คน)` : 'บันทึกเรียบร้อย ✓'}</span>
+              <span>{unmarkedCount > 0 ? `ตรวจอีก ${unmarkedCount} คน` : hasUnsavedChanges ? `บันทึก ✓ (${classroomStudents.length} คน)` : 'บันทึกเรียบร้อย ✓'}</span>
             )}
           </button>
         </div>
@@ -1216,7 +1252,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
               {/* Header with Post-it Number & Name */}
               <div className="flex items-center gap-3">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-bold shadow-xs ${postItTone[marks[sheetStudent.id] || 'present'].bg} ${postItTone[marks[sheetStudent.id] || 'present'].text}`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-bold shadow-xs ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].bg : 'border border-dashed border-slate-300 bg-white'} ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].text : 'text-slate-500'}`}>
                   {sheetStudentIndex + 1}
                 </div>
                 <div>
@@ -1239,7 +1275,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               {/* 6 Status Options */}
               <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-2.5">
                 {statusOptions.map((opt) => {
-                  const isSelected = (marks[sheetStudent.id] || 'present') === opt.value;
+                  const isSelected = marks[sheetStudent.id] === opt.value;
                   const tone = postItTone[opt.value];
                   return (
                     <button
@@ -1353,45 +1389,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   setIsMoreOpen(false);
                 }}
               />
-            </div>
-
-            {/* Mode Selector */}
-            <div className="mt-4 grid gap-1.5">
-              <label className="text-xs font-bold text-slate-700">🎯 รูปแบบการเช็คชื่อ:</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('homeroom');
-                    setPeriodLabel('เช้า');
-                    setSubjectName(modeCopy.homeroom.subject);
-                  }}
-                  className={`rounded-xl border p-2.5 text-left text-xs font-bold transition ${
-                    mode === 'homeroom' ? 'border-teal-400 bg-teal-50 text-teal-900 ring-1 ring-teal-300' : 'border-slate-200 bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Home size={15} />
-                    <span>ครูที่ปรึกษา (โฮมรูม)</span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('subject');
-                    setPeriodLabel('คาบ 1');
-                    setSubjectName(modeCopy.subject.subject);
-                  }}
-                  className={`rounded-xl border p-2.5 text-left text-xs font-bold transition ${
-                    mode === 'subject' ? 'border-teal-400 bg-teal-50 text-teal-900 ring-1 ring-teal-300' : 'border-slate-200 bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <BookOpen size={15} />
-                    <span>ครูประจำวิชา</span>
-                  </div>
-                </button>
-              </div>
             </div>
 
             {/* Period & Subject Inputs if in Subject mode */}

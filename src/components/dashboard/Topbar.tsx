@@ -56,14 +56,14 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         <Link
           className="app-workspace-switcher"
           to={withDemoContext('/app/select-workspace', location.search)}
-          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือก Workspace'}
+          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือกโรงเรียนหรือห้องเรียน'}
         >
           {workspaceSummary}
         </Link>
       ) : (
         <div
           className="app-workspace-switcher cursor-default"
-          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'Workspace หลัก'}
+          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'พื้นที่ทำงานหลัก'}
         >
           {workspaceSummary}
         </div>
