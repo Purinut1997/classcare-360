@@ -59,9 +59,10 @@ export function SuperadminBackupCenter() {
     setNotice(null);
     const { data, error: invokeError } = await supabase.functions.invoke('system-backup-control', { body: { action: 'status' } });
     if (invokeError) {
-      setError(invokeError.message.includes('404') || invokeError.message.includes('not found')
-        ? 'ยังไม่ได้ deploy Edge Function system-backup-control หรือยังไม่ได้ตั้งค่า secret สำหรับ Management API'
-        : invokeError.message);
+      const message = invokeError.message.toLowerCase();
+      setError(message.includes('404') || message.includes('not found') || message.includes('failed to send a request')
+        ? 'ยังเชื่อมต่อ Edge Function system-backup-control ไม่ได้ ตรวจพบว่า endpoint ยังไม่พร้อมใช้งาน ให้ deploy Function ใน Supabase ก่อน แล้วตั้งค่า SUPABASE_PROJECT_REF และ SUPABASE_ACCESS_TOKEN ใน Edge Function Secrets'
+        : `เรียก Edge Function ไม่สำเร็จ: ${invokeError.message}`);
       setIsLoading(false);
       return;
     }
@@ -249,8 +250,11 @@ export function SuperadminBackupCenter() {
       ) : null}
 
       <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-5 text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <span className="inline-flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-600" /> restore requests are restricted to Superadmin and recorded in Edge Function logs</span>
-        <a className="inline-flex items-center gap-1 font-black text-sky-800 hover:underline" href="https://supabase.com/dashboard" rel="noreferrer" target="_blank">เปิด Supabase Dashboard <ExternalLink size={13} /></a>
+        <div>
+          <span className="inline-flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-600" /> restore requests are restricted to Superadmin and recorded in Edge Function logs</span>
+          <p className="mt-2">หมายเหตุ: Supabase Free ไม่มี daily database backup อัตโนมัติ หากใช้ Free ต้องมีระบบส่งออก backup ไปเก็บภายนอกหรืออัปเกรดแพ็กเกจที่รองรับ</p>
+        </div>
+        <a className="inline-flex shrink-0 items-center gap-1 font-black text-sky-800 hover:underline" href="https://supabase.com/dashboard" rel="noreferrer" target="_blank">เปิด Supabase Dashboard <ExternalLink size={13} /></a>
       </div>
     </section>
   );
