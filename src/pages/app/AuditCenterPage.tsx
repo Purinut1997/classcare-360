@@ -73,6 +73,7 @@ const demoAuditLogs: AuditLogRow[] = [
 ];
 
 const actionLabels: Record<string, string> = {
+  'attendance.records.saved': 'บันทึกเวลาเรียน',
   'student.created': 'เพิ่มข้อมูลนักเรียน',
   'student.updated': 'แก้ไขข้อมูลนักเรียน',
   'student.status_changed': 'เปลี่ยนสถานะนักเรียน',
@@ -117,26 +118,38 @@ function formatDateTime(value: string) {
 }
 
 function getAuditSummary(log: AuditLogRow) {
+  const attendanceStatusLabels: Record<string, string> = {
+    absent: 'ขาด',
+    activity: 'กิจกรรม',
+    late: 'สาย',
+    leave: 'ลา',
+    present: 'มา',
+    sick: 'ป่วย',
+  };
   const parts = [
-    typeof log.metadata.student_id === 'string' ? `student: ${log.metadata.student_id}` : null,
-    typeof log.metadata.status === 'string' ? `status: ${log.metadata.status}` : null,
-    typeof log.metadata.to_status === 'string' ? `to: ${log.metadata.to_status}` : null,
-    typeof log.metadata.risk_level === 'string' ? `risk: ${log.metadata.risk_level}` : null,
-    typeof log.metadata.completion_percent === 'number' ? `complete: ${log.metadata.completion_percent}%` : null,
-    typeof log.metadata.photo_status === 'string' ? `photo: ${log.metadata.photo_status}` : null,
-    typeof log.metadata.transaction_type === 'string' ? `type: ${log.metadata.transaction_type}` : null,
-    typeof log.metadata.amount === 'number' ? `amount: ${log.metadata.amount}` : null,
-    typeof log.metadata.subject_name === 'string' ? `subject: ${log.metadata.subject_name}` : null,
-    typeof log.metadata.percent_complete === 'number' ? `scores: ${log.metadata.percent_complete}%` : null,
-    typeof log.metadata.tone === 'string' ? `tone: ${log.metadata.tone}` : null,
-    typeof log.metadata.mode === 'string' ? `mode: ${log.metadata.mode}` : null,
-    typeof log.metadata.participant_count === 'number' ? `participants: ${log.metadata.participant_count}` : null,
-    typeof log.metadata.total_rows === 'number' ? `rows: ${log.metadata.total_rows}` : null,
-    typeof log.metadata.valid_rows === 'number' ? `valid: ${log.metadata.valid_rows}` : null,
-    typeof log.metadata.portal_invitations === 'number' ? `invites: ${log.metadata.portal_invitations}` : null,
-    typeof log.metadata.schema_version === 'string' ? `schema: ${log.metadata.schema_version}` : null,
-    typeof log.metadata.academic_year === 'string' ? `year: ${log.metadata.academic_year}` : null,
-    typeof log.metadata.classroom_name === 'string' ? `classroom: ${log.metadata.classroom_name}` : null,
+    typeof log.metadata.attendance_date === 'string' ? `วันที่ ${log.metadata.attendance_date}` : null,
+    typeof log.metadata.classroom_name === 'string' ? `ห้อง ${log.metadata.classroom_name}` : null,
+    typeof log.metadata.period_label === 'string' ? `ช่วง ${log.metadata.period_label}` : null,
+    typeof log.metadata.subject_name === 'string' && log.metadata.subject_name ? `วิชา ${log.metadata.subject_name}` : null,
+    typeof log.metadata.student_count === 'number' ? `นักเรียน ${log.metadata.student_count} คน` : null,
+    typeof log.metadata.present_count === 'number' ? `มา ${log.metadata.present_count}` : null,
+    typeof log.metadata.absent_count === 'number' ? `ขาด ${log.metadata.absent_count}` : null,
+    typeof log.metadata.late_count === 'number' ? `สาย ${log.metadata.late_count}` : null,
+    typeof log.metadata.leave_count === 'number' ? `ลา ${log.metadata.leave_count}` : null,
+    typeof log.metadata.status === 'string' ? `สถานะ ${attendanceStatusLabels[log.metadata.status] || log.metadata.status}` : null,
+    typeof log.metadata.to_status === 'string' ? `เปลี่ยนเป็น ${attendanceStatusLabels[log.metadata.to_status] || log.metadata.to_status}` : null,
+    typeof log.metadata.risk_level === 'string' ? `ระดับความเสี่ยง ${log.metadata.risk_level}` : null,
+    typeof log.metadata.completion_percent === 'number' ? `ครบ ${log.metadata.completion_percent}%` : null,
+    typeof log.metadata.photo_status === 'string' ? `รูปภาพ ${log.metadata.photo_status}` : null,
+    typeof log.metadata.transaction_type === 'string' ? `ประเภทรายการ ${log.metadata.transaction_type}` : null,
+    typeof log.metadata.amount === 'number' ? `จำนวนเงิน ${log.metadata.amount}` : null,
+    typeof log.metadata.percent_complete === 'number' ? `คะแนนครบ ${log.metadata.percent_complete}%` : null,
+    typeof log.metadata.tone === 'string' ? `ประเภท ${log.metadata.tone}` : null,
+    typeof log.metadata.participant_count === 'number' ? `ผู้เข้าร่วม ${log.metadata.participant_count} คน` : null,
+    typeof log.metadata.total_rows === 'number' ? `ทั้งหมด ${log.metadata.total_rows} แถว` : null,
+    typeof log.metadata.valid_rows === 'number' ? `ผ่าน ${log.metadata.valid_rows} แถว` : null,
+    typeof log.metadata.portal_invitations === 'number' ? `คำเชิญ ${log.metadata.portal_invitations} รายการ` : null,
+    typeof log.metadata.academic_year === 'string' ? `ปีการศึกษา ${log.metadata.academic_year}` : null,
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(' | ') : log.entity_table || 'student_360';
@@ -268,11 +281,11 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-black text-cyan-100 ring-1 ring-cyan-200/20">
                 <History size={15} aria-hidden="true" />
-                Audit Center
+                บันทึกย้อนหลัง
               </div>
               <h1 className="mt-4 text-3xl font-black sm:text-4xl">ประวัติการใช้งานระบบ</h1>
               <p className="mt-3 max-w-3xl text-sm font-bold leading-6 text-slate-300">
-                ค้นหา กรอง และส่งออก audit log ของ workspace สำหรับตรวจย้อนหลังหลังแก้ข้อมูลนักเรียน เคสดูแล และแบบเยี่ยมบ้าน
+                ค้นหาและกรองรายการสำคัญ เช่น การเช็กชื่อ คะแนน ข้อมูลนักเรียน และการสำรองข้อมูล
               </p>
             </div>
             <button
@@ -281,7 +294,7 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
               onClick={exportCsv}
               type="button"
             >
-              Export CSV
+              ดาวน์โหลดรายงาน
               <Download size={17} aria-hidden="true" />
             </button>
           </div>
@@ -311,13 +324,13 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
               <input
                 className="nexus-field h-11 w-full pl-10 pr-3"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="action, table, id, metadata"
+            placeholder="ค้นหาห้อง วันที่ หรือประเภทงาน"
                 value={query}
               />
             </span>
           </label>
           <label className="grid gap-2 text-sm font-black text-slate-700">
-            Action
+            ประเภทงาน
             <select
               className="nexus-field h-11 px-3"
               onChange={(event) => setActionFilter(event.target.value)}
@@ -332,7 +345,7 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
             </select>
           </label>
           <label className="grid gap-2 text-sm font-black text-slate-700">
-            Risk
+            ระดับความสำคัญ
             <select
               className="nexus-field h-11 px-3"
               onChange={(event) => setRiskFilter(event.target.value as AuditRiskFilter)}

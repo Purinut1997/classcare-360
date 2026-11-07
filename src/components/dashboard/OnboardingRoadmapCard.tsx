@@ -33,6 +33,7 @@ interface OnboardingRoadmapCardProps {
   hasAttendanceRecorded?: boolean;
   hasScoresRecorded?: boolean;
   onOpenGuide?: () => void;
+  startCollapsed?: boolean;
 }
 
 const STORAGE_KEY_HIDE = 'classcare_hide_onboarding_roadmap';
@@ -45,10 +46,11 @@ export function OnboardingRoadmapCard({
   hasAttendanceRecorded = false,
   hasScoresRecorded = false,
   onOpenGuide,
+  startCollapsed = false,
 }: OnboardingRoadmapCardProps) {
   const [isDismissed, setIsDismissed] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY_HIDE) === 'true';
+      return localStorage.getItem(STORAGE_KEY_HIDE) === 'true' || startCollapsed;
     } catch {
       return false;
     }

@@ -1513,15 +1513,60 @@ export function DashboardPage({ session }: DashboardPageProps) {
       </div>
 
       {dashboardViewMode === 'shortcuts' ? (
-        <div className="mt-5">
-          <EasyShortcutHub
-            analyticsData={analyticsData}
-            classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
-            isHomeroom={isSelectedClassroomHomeroom}
-            onSwitchToAnalytics={() => handleSetDashboardViewMode('analytics')}
-            session={session}
-          />
-        </div>
+        <section aria-label="งานประจำวันของห้องนี้" className="mt-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-base font-black text-slate-950">งานประจำวันของห้องนี้</h2>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">เลือกงานเพื่อเปิดหน้าบันทึกหรือดูสถานะล่าสุด</p>
+            </div>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">{dynamicTodayTasks.length} งาน</span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {dynamicTodayTasks.slice(0, 4).map((task) => {
+              const Icon = task.icon;
+              return (
+                <Link
+                  key={task.label}
+                  to={task.path}
+                  className="flex min-h-[82px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 transition hover:border-teal-300 hover:bg-teal-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-teal-700 shadow-sm">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-900">{task.label}</span>
+                    <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{task.detail}</span>
+                  </span>
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-black ${task.tone}`}>{task.status}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {dashboardViewMode === 'shortcuts' ? (
+        <>
+          <div className="mt-5">
+            <OnboardingRoadmapCard
+              session={session}
+              classroomsCount={classrooms.length}
+              studentsCount={Number(stats[0]?.value || 0)}
+              hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
+              hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
+              startCollapsed
+            />
+          </div>
+          <div className="mt-5">
+            <EasyShortcutHub
+              analyticsData={analyticsData}
+              classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
+              isHomeroom={isSelectedClassroomHomeroom}
+              onSwitchToAnalytics={() => handleSetDashboardViewMode('analytics')}
+              session={session}
+            />
+          </div>
+        </>
       ) : (
         <>
 
@@ -2275,17 +2320,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
         onDeleteEmptyClassroom={handleDeleteEmptyClassroom}
         healthMetrics={healthReportMetrics}
       />
-
-      {/* 🚀 Onboarding Roadmap — เริ่มต้นใช้งาน ClassCare 360 (อยู่ล่างสุดเพื่อไม่บังข้อมูลงานประจำวัน) */}
-      <div className="mt-5">
-        <OnboardingRoadmapCard
-          session={session}
-          classroomsCount={classrooms.length}
-          studentsCount={Number(stats[0]?.value || 0)}
-          hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
-          hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
-        />
-      </div>
 
       {/* ✨ AI Feature Showcase — ค้นพบฟีเจอร์ AI ทั้งหมด */}
       <div className="mt-5">

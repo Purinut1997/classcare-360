@@ -21,6 +21,7 @@ import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
+import { writeAuditLog } from '../../lib/auditLog';
 import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
@@ -713,6 +714,23 @@ export function AttendancePage({ session }: AttendancePageProps) {
     }
 
     setRecords((data || []) as AttendanceRecordRow[]);
+    await writeAuditLog(session, {
+      action: 'attendance.records.saved',
+      entityId: activeSession.id,
+      entityTable: 'attendance_sessions',
+      metadata: {
+        absent_count: summary.find((item) => item.value === 'absent')?.count || 0,
+        attendance_date: activeSession.attendance_date,
+        classroom_name: selectedClassroom?.name || '',
+        late_count: summary.find((item) => item.value === 'late')?.count || 0,
+        leave_count: summary.find((item) => item.value === 'leave')?.count || 0,
+        period_label: activeSession.period_label,
+        present_count: summary.find((item) => item.value === 'present')?.count || 0,
+        student_count: payload.length,
+        subject_name: activeSession.subject_name || '',
+      },
+      source: 'attendance_page',
+    });
     feedback.endOperation(operationId);
     feedback.success({
       title: 'บันทึกเช็คชื่อแล้ว 🐾',

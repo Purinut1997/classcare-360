@@ -5,6 +5,7 @@ import { MobileNav } from '../components/dashboard/MobileNav';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { Topbar } from '../components/dashboard/Topbar';
 import { GlobalBroadcastBanner } from '../components/system/GlobalBroadcastBanner';
+import { NetworkStatusBanner } from '../components/system/NetworkStatusBanner';
 import { SetupGuideModal } from '../components/guide/SetupGuideModal';
 import { SupportChat } from '../components/support/SupportChat';
 import type { AppNavItem } from '../routes/appRoutes';
@@ -69,6 +70,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
       <div className="app-shell-main">
         <div className="no-print print:hidden">
           <GlobalBroadcastBanner />
+          <NetworkStatusBanner />
           <Topbar
             activeLabel={activeLabel}
             navItems={navItems}
