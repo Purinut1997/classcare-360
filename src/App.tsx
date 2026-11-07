@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } 
 import { getInitialRouteForSession, getPostAuthRouteForSession, getRouteGuardPreview, withDemoContext } from './lib/auth';
 import { appEnv } from './lib/env';
 import { canUseModule, getEntitlementSummary } from './lib/entitlements';
-import { canManageWorkspace, roleLabels } from './lib/roles';
+import { canManageWorkspace, hasWorkspaceCapability, roleLabels, type WorkspaceCapabilityKey } from './lib/roles';
 import { useAppSession } from './lib/session';
 import { isSupabaseReady } from './lib/supabaseClient';
 import { NexusAuroraLoader } from './components/system/NexusAuroraLoader';
@@ -205,6 +205,25 @@ const workspaceSelectionRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner',
 const classroomUserRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member'];
 const reportViewerRoles: WorkspaceRole[] = ['superadmin', 'teacher_owner', 'teacher_member', 'viewer'];
 
+const navCapability: Partial<Record<string, WorkspaceCapabilityKey>> = {
+  students: 'students.write',
+  'teacher-work': 'attendance.write',
+  'student-health': 'student_care.write',
+  scores: 'scores.write',
+  savings: 'savings.write',
+  behavior: 'behavior.write',
+  'desirable-characteristics': 'behavior.write',
+  'import-export': 'data.bulk',
+  'data-safety': 'recovery.restore',
+  'workspace-settings': 'workspace.manage',
+  'academic-year': 'workspace.manage',
+};
+
+function hasNavCapability(session: AppSessionContext, key: string) {
+  const capability = navCapability[key];
+  return !capability || hasWorkspaceCapability(session, capability);
+}
+
 function getAppShellNavItems(session: AppSessionContext | null, currentSearch = '') {
   if (!session) return appNavItems.filter((item) => item.key === 'overview');
 
@@ -223,6 +242,7 @@ function getAppShellNavItems(session: AppSessionContext | null, currentSearch = 
   }
   const visibleItems = appNavItems
     .filter((item) => allowedKeys.has(item.key))
+    .filter((item) => hasNavCapability(session, item.key))
     .map((item) => ({ ...item, path: withDemoContext(item.path, currentSearch) }));
 
   return session.profile.role === 'superadmin'
@@ -278,6 +298,19 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   const initialRoute = getInitialRouteForSession(session);
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
   const activeModuleEnabled = canUseModule(session.subscription, activeNavItem.moduleKey);
+
+  if (!hasNavCapability(session, activeNavItem.key)) {
+    return (
+      <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+        <main className="app-page">
+          <section className="mx-auto max-w-2xl rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
+            <h1 className="text-xl font-black text-slate-950">ยังไม่ได้รับสิทธิ์เข้าเมนูนี้</h1>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">ให้เจ้าของโรงเรียนตรวจสิทธิ์ของคุณในศูนย์จัดการโรงเรียน แล้วลองเข้าใหม่</p>
+          </section>
+        </main>
+      </AppShell>
+    );
+  }
 
   const topbarBadges = ['Phase 2 Foundation', appEnv.timezone, roleLabels[session.profile.role], canManageCurrentWorkspace ? 'จัดการ workspace ได้' : 'ดูตามสิทธิ์'];
 

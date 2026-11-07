@@ -792,12 +792,23 @@ function downloadText(filename: string, content: string, mimeType: string) {
 function isWorkspaceBackupPackage(value: unknown): value is WorkspaceBackupPackage {
   if (!value || typeof value !== 'object') return false;
   const packageValue = value as Partial<WorkspaceBackupPackage>;
+  const data = packageValue.data as Partial<WorkspaceBackupPackage['data']> | undefined;
+  const rowCounts = packageValue.rowCounts as Record<string, unknown> | undefined;
+  const workspace = packageValue.workspace as Partial<WorkspaceBackupPackage['workspace']> | undefined;
   return (
     packageValue.app === 'ClassCare 360' &&
     packageValue.schemaVersion === 'classcare-workspace-backup-v1' &&
-    Boolean(packageValue.data) &&
-    Array.isArray(packageValue.data?.classrooms) &&
-    Array.isArray(packageValue.data?.students)
+    typeof packageValue.exportedAt === 'string' && !Number.isNaN(Date.parse(packageValue.exportedAt)) &&
+    Array.isArray(packageValue.restoreNotes) &&
+    Boolean(data) &&
+    Array.isArray(data?.classrooms) &&
+    Array.isArray(data?.students) &&
+    Array.isArray(data?.previewRows) &&
+    Array.isArray(data?.guardianPreviewRows) &&
+    Boolean(rowCounts) &&
+    ['classrooms', 'students', 'previewRows', 'guardianPreviewRows'].every((key) => Number.isInteger(rowCounts?.[key]) && Number(rowCounts?.[key]) >= 0) &&
+    Boolean(workspace) &&
+    (workspace?.id === null || typeof workspace?.id === 'string')
   );
 }
 
@@ -2119,7 +2130,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       },
       exportedAt: new Date().toISOString(),
       restoreNotes: [
-        'ไฟล์นี้เป็น backup package สำหรับ preview/restore แบบตรวจซ้ำก่อน import',
+        'ไฟล์นี้เก็บรายชื่อห้องเรียน/นักเรียนและรายการนำเข้าที่กำลัง preview เท่านั้น ไม่ใช่สำเนาฐานข้อมูลทั้ง workspace',
+        'คะแนน เวลาเรียน สุขภาพ เคสดูแล การตั้งค่า และไฟล์แนบไม่ได้รวมอยู่ใน package นี้',
         'การ restore ควรนำเข้าเป็น preview ก่อนเสมอ และตรวจ duplicate/error ก่อนบันทึกจริง',
         'ไฟล์นี้ไม่รวมรูปภาพหรือสลิปใน storage bucket ให้สำรอง bucket แยกต่างหาก',
       ],
@@ -3855,7 +3867,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
           {/* Backup Package Preview & History */}
           <div className="nexus-card p-4 sm:p-5">
-            <p className="text-sm font-black text-cyan-700">Backup Package Preview & ประวัติการสำรอง</p>
+            <p className="text-sm font-black text-cyan-700">ไฟล์สำรองรายชื่อ · ทดสอบก่อนนำเข้า · ประวัติการสำรอง</p>
 
             {backupPackagePreview ? (
               <div className="mt-4 rounded-3xl bg-white/85 p-4 ring-1 ring-cyan-100">

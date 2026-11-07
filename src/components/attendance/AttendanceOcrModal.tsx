@@ -161,6 +161,7 @@ export function AttendanceOcrModal({
   const absentCount = editableStudents.filter((s) => s.status === 'absent').length;
   const lateCount = editableStudents.filter((s) => s.status === 'late').length;
   const leaveCount = editableStudents.filter((s) => s.status === 'leave' || s.status === 'sick').length;
+  const needsReviewCount = editableStudents.filter((student) => student.confidence === 'low').length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-150">
@@ -308,6 +309,15 @@ export function AttendanceOcrModal({
           {/* Review Stage */}
           {parsedResult && (
             <div className="space-y-4">
+              {needsReviewCount > 0 ? (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950" role="status">
+                  ยังมี {needsReviewCount} รายการที่ AI ไม่มั่นใจหรืออ่านไม่พบ ต้องเลือกสถานะให้ครบก่อนนำเข้า
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900" role="status">
+                  ตรวจครบแล้ว ระบบยังรอคุณครูกดบันทึกเช็กชื่อในหน้าถัดไป
+                </div>
+              )}
               {/* Summary stat cards */}
               <div className="grid grid-cols-4 gap-2">
                 <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-center">
@@ -426,8 +436,10 @@ export function AttendanceOcrModal({
             </button>
           ) : (
             <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-teal-700"
+              className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={handleConfirm}
+              disabled={needsReviewCount > 0}
+              title={needsReviewCount > 0 ? 'ตรวจรายการที่มีป้าย “ตรวจสอบ” ให้ครบก่อน' : undefined}
               type="button"
             >
               <Check size={16} />

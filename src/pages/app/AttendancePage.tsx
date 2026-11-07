@@ -194,6 +194,12 @@ function createDefaultMarks(students: StudentRow[]): Record<string, AttendanceSt
   return Object.fromEntries(students.map((student) => [student.id, undefined]));
 }
 
+function hasCompleteAttendanceSnapshot(records: AttendanceRecordRow[], students: StudentRow[], sessionId: string) {
+  if (students.length === 0 || records.length !== students.length) return false;
+  const recordIds = new Set(records.filter((record) => record.session_id === sessionId).map((record) => record.student_id));
+  return students.every((student) => recordIds.has(student.id));
+}
+
 function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentRow[], preferredClassroomId?: string) {
   const classroomIds = new Set(classrooms.map((classroom) => classroom.id));
   const preferredHasStudents = students.some((student) => student.classroom_id === preferredClassroomId);
@@ -217,6 +223,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
   const [attendanceSession, setAttendanceSession] = useState<AttendanceSessionRow | null>(null);
   const [records, setRecords] = useState<AttendanceRecordRow[]>([]);
+  const [savedAttendanceUndo, setSavedAttendanceUndo] = useState<{ records: AttendanceRecordRow[]; sessionId: string } | null>(null);
   const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
   const [attendanceDate, setAttendanceDate] = useState(getTodayDate());
   const [editSessionDate, setEditSessionDate] = useState('');
@@ -224,6 +231,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
   const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule(session.workspace?.id));
   const [marks, setMarks] = useState<Record<string, AttendanceStatus | undefined>>(() => createDefaultMarks(demoMode ? demoStudents : []));
+  const [undoMarks, setUndoMarks] = useState<Record<string, AttendanceStatus | undefined> | null>(null);
   const attendanceDraftKey = useMemo(
     () => `classcare:attendance-draft:${session.workspace?.id || 'demo'}:${classroomId}:${attendanceDate}:${mode}:${periodLabel}:${subjectName}`,
     [attendanceDate, classroomId, mode, periodLabel, session.workspace?.id, subjectName],
@@ -239,6 +247,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
 
   function updateMarks(updater: (previous: Record<string, AttendanceStatus | undefined>) => Record<string, AttendanceStatus | undefined>) {
+    setUndoMarks(marks);
     setMarks((previous) => {
       const next = updater(previous);
       try {
@@ -249,6 +258,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
       } catch { /* Storage may be unavailable; attendance remains editable in memory. */ }
       return next;
     });
+  }
+
+  function undoLastMarkChange() {
+    if (!undoMarks) return;
+    setMarks(undoMarks);
+    try {
+      const safeMarks = Object.fromEntries(Object.entries(undoMarks).filter((entry): entry is [string, AttendanceStatus] =>
+        ['present', 'absent', 'late', 'leave', 'sick', 'activity'].includes(entry[1] || ''),
+      ));
+      window.sessionStorage.setItem(attendanceDraftKey, JSON.stringify({ savedAt: Date.now(), marks: safeMarks }));
+    } catch { /* Keep the in-memory undo even if storage is unavailable. */ }
+    setUndoMarks(null);
+    setNotice('ย้อนการแก้ไขล่าสุดแล้ว ยังไม่ได้บันทึกลงระบบ');
   }
 
   const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
@@ -469,6 +491,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setMarks(nextMarks);
     setNotes(Object.fromEntries(records.map((record) => [record.student_id, record.note || ''])));
   }, [attendanceDraftKey, classroomId, records, students]);
+
+  useEffect(() => {
+    setUndoMarks(null);
+    setSavedAttendanceUndo(null);
+  }, [attendanceDraftKey]);
 
   useEffect(() => {
     setScheduleOptions(getAttendanceOptionsFromSchedule(session.workspace?.id));
@@ -717,7 +744,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
           student_id: record.student_id,
         })),
       );
+      setSavedAttendanceUndo(hasCompleteAttendanceSnapshot(records, classroomStudents, activeSession.id)
+        ? { records: [...records], sessionId: activeSession.id }
+        : null);
       try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
+      setUndoMarks(null);
       feedback.endOperation(operationId);
       feedback.success({
         title: 'บันทึกเช็คชื่อแล้ว 🐾',
@@ -750,7 +781,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
     }
 
     setRecords((data || []) as AttendanceRecordRow[]);
+    setSavedAttendanceUndo(hasCompleteAttendanceSnapshot(records, classroomStudents, activeSession.id)
+      ? { records: [...records], sessionId: activeSession.id }
+      : null);
     try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
+    setUndoMarks(null);
     await writeAuditLog(session, {
       action: 'attendance.records.saved',
       entityId: activeSession.id,
@@ -774,6 +809,51 @@ export function AttendancePage({ session }: AttendancePageProps) {
       message: `บันทึกสถานะนักเรียนครบ ${data?.length || 0} คน`,
       details: successDetails,
     });
+    setIsSubmitting(false);
+  }
+
+  async function undoLastSavedAttendance() {
+    if (!savedAttendanceUndo || savedAttendanceUndo.sessionId !== attendanceSession?.id || isSubmitting) return;
+    const confirmed = window.confirm('ย้อนผลเช็กชื่อที่เพิ่งบันทึกกลับไปเป็นชุดก่อนหน้าใช่ไหม? ระบบจะบันทึกการย้อนกลับไว้ในประวัติ audit');
+    if (!confirmed) return;
+    setIsSubmitting(true);
+    const priorRecords = savedAttendanceUndo.records;
+    if (!supabase || !session.workspace || isDemoSession(session)) {
+      setRecords(priorRecords);
+      setSavedAttendanceUndo(null);
+      setNotice('ย้อนผลเช็กชื่อกลับไปเป็นชุดก่อนหน้าแล้ว (โหมดตัวอย่าง)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const restorePayload = priorRecords.map((record) => ({
+      workspace_id: session.workspace!.id,
+      session_id: savedAttendanceUndo.sessionId,
+      student_id: record.student_id,
+      status: record.status,
+      note: record.note || null,
+      checked_by: session.profile.id,
+      checked_at: new Date().toISOString(),
+    }));
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .upsert(restorePayload, { onConflict: 'session_id,student_id' })
+      .select('id,session_id,student_id,status,note');
+    if (error) {
+      setNotice(`ย้อนผลเช็กชื่อไม่สำเร็จ: ${error.message}`);
+      setIsSubmitting(false);
+      return;
+    }
+    setRecords((data || []) as AttendanceRecordRow[]);
+    await writeAuditLog(session, {
+      action: 'attendance.records.undo',
+      entityId: savedAttendanceUndo.sessionId,
+      entityTable: 'attendance_sessions',
+      metadata: { restored_record_count: restorePayload.length },
+      source: 'attendance_page',
+    });
+    setSavedAttendanceUndo(null);
+    setNotice('ย้อนผลเช็กชื่อเป็นชุดก่อนหน้าแล้ว');
     setIsSubmitting(false);
   }
 
@@ -1267,12 +1347,24 @@ export function AttendancePage({ session }: AttendancePageProps) {
             )}
           </div>
 
+          <div className="mt-2.5 flex gap-2">
+          {undoMarks ? (
+            <button
+              type="button"
+              onClick={undoLastMarkChange}
+              disabled={isSubmitting}
+              className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              title="ย้อนการเปลี่ยนสถานะล่าสุดที่ยังไม่ได้บันทึก"
+            >
+              ↶ ย้อนกลับ
+            </button>
+          ) : null}
           {/* Big Charcoal Button with Golden Shadow */}
           <button
             type="button"
             onClick={() => void handleSaveRecords()}
             disabled={isSubmitting || isHolidayBlocked || unmarkedCount > 0}
-            className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+            className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
               <span>กำลังบันทึก...</span>
@@ -1280,6 +1372,17 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <span>{unmarkedCount > 0 ? `ตรวจอีก ${unmarkedCount} คน` : hasUnsavedChanges ? `บันทึก ✓ (${classroomStudents.length} คน)` : 'บันทึกเรียบร้อย ✓'}</span>
             )}
           </button>
+          </div>
+          {savedAttendanceUndo && savedAttendanceUndo.sessionId === attendanceSession?.id ? (
+            <button
+              type="button"
+              onClick={() => void undoLastSavedAttendance()}
+              disabled={isSubmitting}
+              className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 text-xs font-black text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+            >
+              ↶ ย้อนผลเช็กชื่อที่บันทึกล่าสุด
+            </button>
+          ) : null}
         </div>
       )}
 
