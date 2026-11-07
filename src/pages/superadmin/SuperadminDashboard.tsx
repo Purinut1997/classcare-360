@@ -29,6 +29,7 @@ import {
   Info,
   Sparkles,
   Wrench,
+  Database,
 } from 'lucide-react';
 
 import { buildPromptPayPayload, dataUrlToFile, promptPayPayloadToPngDataUrl } from '../../lib/promptpay';
@@ -37,6 +38,7 @@ import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { clearSystemBroadcast, getSystemBroadcast, saveSystemBroadcast, type BroadcastSeverity, type SystemBroadcast } from '../../lib/systemBroadcast';
 import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 import { VipAccessManager } from './VipAccessManager';
+import { SuperadminBackupCenter } from './SuperadminBackupCenter';
 
 type PaymentStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'expired';
 type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'suspended' | 'cancelled' | 'refunded';
@@ -66,7 +68,7 @@ function getRoleOperationSetupNotice(actionLabel: string, detail?: string) {
 
 type SuperadminCategory = 'management' | 'business' | 'operations';
 
-type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'support' | 'broadcast' | 'health' | 'audit';
+type SuperadminSection = 'overview' | 'workspaces' | 'users' | 'billing' | 'support' | 'broadcast' | 'health' | 'backup' | 'audit';
 
 interface ControlCenterSectionConfig {
   body: string;
@@ -138,6 +140,14 @@ const controlCenterSections: ControlCenterSectionConfig[] = [
     icon: Activity,
     key: 'health',
     label: 'System Health',
+  },
+  {
+    body: 'ตรวจ daily backups ของ Supabase และส่งคำขอกู้คืนฐานข้อมูลทั้งโปรเจกต์เมื่อเปิดใช้ PITR',
+    category: 'operations',
+    categoryLabel: 'เสถียรภาพ & สื่อสาร',
+    icon: Database,
+    key: 'backup',
+    label: 'Backup & Rollback',
   },
   {
     body: 'ดูประวัติใครลบ/แก้สิทธิ์อะไร และดาวน์โหลด debug pack',
@@ -2907,6 +2917,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           ) : null}
         </section>
         ) : null}
+
+        {activeSection === 'backup' ? <div className="mt-5"><SuperadminBackupCenter /></div> : null}
 
         <footer className="mt-6 text-center text-xs font-bold text-slate-500">
           Created by MIKPURINUT

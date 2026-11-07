@@ -1,5 +1,18 @@
 # Supabase Edge Functions
 
+## System backup and PITR control
+
+`system-backup-control` exposes backup status and a guarded Point-in-Time restore action to the Superadmin dashboard. It calls the Supabase Management API from the Edge Function; the Management API token must never be placed in frontend environment variables.
+
+Before deploying this function:
+
+1. Deploy the Edge Function to the Supabase project used by ClassCare 360.
+2. Add `SUPABASE_PROJECT_REF` and a fine-grained `SUPABASE_ACCESS_TOKEN` as Edge Function secrets. Grant the token only the backup read/write permissions required by the Management API. `SUPABASE_URL` and `SUPABASE_ANON_KEY` are supplied to Supabase Edge Functions.
+3. Open Superadmin → **Backup & Rollback** → **ตรวจสถานะล่าสุด** to confirm that the Management API returns backup status.
+4. For PITR restores, first enable PITR in the Supabase Dashboard and verify its recovery window. PITR may have a separate recurring charge. This application does not enable or purchase PITR automatically.
+
+Supabase daily database backups are plan-dependent and do not include objects stored through the Storage API. Restoring the production database can discard later writes and cause downtime. For a daily-backup restore when PITR is disabled, use the Supabase Dashboard. Use the in-app restore only for an incident that warrants a whole-project rollback. Each request requires Superadmin authentication, an incident reason, an exact confirmation phrase, and a second browser confirmation. The Edge Function writes structured request/result events to its provider logs; database audit rows themselves may be reverted by a point-in-time database restore.
+
 โฟลเดอร์นี้เก็บ server-side workflow ที่ห้ามทำจาก frontend โดยตรง
 
 ## approve-payment-request
