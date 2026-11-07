@@ -121,7 +121,7 @@ const controlCenterSections: ControlCenterSectionConfig[] = [
     categoryLabel: 'การเงิน & ซัพพอร์ต',
     icon: MessageSquare,
     key: 'support',
-    label: 'Support Inbox',
+    label: 'กล่องรับเรื่อง',
   },
 
   // ⚙️ หมวดความปลอดภัย & เสถียรภาพ
@@ -139,7 +139,7 @@ const controlCenterSections: ControlCenterSectionConfig[] = [
     categoryLabel: 'เสถียรภาพ & สื่อสาร',
     icon: Activity,
     key: 'health',
-    label: 'System Health',
+    label: 'ตรวจสุขภาพระบบ',
   },
   {
     body: 'ตรวจ daily backups ของ Supabase และส่งคำขอกู้คืนฐานข้อมูลทั้งโปรเจกต์เมื่อเปิดใช้ PITR',
@@ -147,15 +147,15 @@ const controlCenterSections: ControlCenterSectionConfig[] = [
     categoryLabel: 'เสถียรภาพ & สื่อสาร',
     icon: Database,
     key: 'backup',
-    label: 'Backup & Rollback',
+    label: 'สำรองและกู้คืน',
   },
   {
-    body: 'ดูประวัติใครลบ/แก้สิทธิ์อะไร และดาวน์โหลด debug pack',
+    body: 'เปิดประวัติการตรวจสอบและติดตามการเปลี่ยนแปลงสำคัญของระบบ',
     category: 'operations',
     categoryLabel: 'เสถียรภาพ & สื่อสาร',
     icon: FileUp,
     key: 'audit',
-    label: 'Audit & กู้คืน',
+    label: 'ประวัติการตรวจสอบ',
   },
 ];
 
@@ -1526,7 +1526,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700"
                 to="/app/dashboard?view=setup"
               >
-                System Readiness
+                ความพร้อมระบบ
               </Link>
               <Link
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700"
@@ -1548,37 +1548,61 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </div>
         </header>
 
-        <nav aria-label="เมนูย่อย Superadmin" className="sticky top-2 z-20 mt-4 overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-sm backdrop-blur">
-          <div className="flex min-w-max items-center gap-1">
-            {controlCenterSections.map((section, idx) => {
-              const Icon = section.icon;
-              const isSelected = activeSection === section.key;
-              const badgeCount = section.key === 'billing' && pendingPaymentCount > 0 ? pendingPaymentCount : null;
-              const isNewGroup = idx > 0 && controlCenterSections[idx - 1].category !== section.category;
+        <nav aria-label="เมนูย่อย Superadmin" className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-black text-slate-900">เมนูศูนย์ควบคุม</h2>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">เลือกงานที่ต้องการจากหมวดด้านล่าง</p>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600" aria-live="polite">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-600" />
+              กำลังดู: {controlCenterSections.find((section) => section.key === activeSection)?.label ?? 'ภาพรวมระบบ'}
+            </span>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {(['management', 'business', 'operations'] as const).map((category) => {
+              const sections = controlCenterSections.filter((section) => section.category === category);
+              const categoryLabel = sections[0]?.categoryLabel ?? '';
 
               return (
-                <div className="flex items-center" key={section.key}>
-                  {isNewGroup ? <div className="mx-2 h-6 w-px bg-slate-200" /> : null}
-                  <button
-                    aria-current={isSelected ? 'page' : undefined}
-                    className={`inline-flex h-10 items-center gap-2 rounded-xl px-3.5 text-xs font-black transition-all ${
-                      isSelected
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}
-                    onClick={() => openSection(section.key)}
-                    title={section.body}
-                    type="button"
-                  >
-                    <Icon className={isSelected ? 'text-cyan-300' : 'text-slate-400'} size={15} aria-hidden="true" />
-                    <span>{section.label}</span>
-                    {badgeCount !== null ? (
-                      <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">
-                        {badgeCount}
-                      </span>
-                    ) : null}
-                  </button>
-                </div>
+                <section aria-label={categoryLabel} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3" key={category}>
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <h3 className="text-[11px] font-black uppercase tracking-wide text-slate-500">{categoryLabel}</h3>
+                    <span className="text-[10px] font-bold text-slate-400">{sections.length} เมนู</span>
+                  </div>
+                  <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                    {sections.map((section) => {
+                      const Icon = section.icon;
+                      const isSelected = activeSection === section.key;
+                      const badgeCount = section.key === 'billing' && pendingPaymentCount > 0 ? pendingPaymentCount : null;
+
+                      return (
+                        <button
+                          aria-current={isSelected ? 'page' : undefined}
+                          className={`group flex min-h-11 min-w-0 items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+                            isSelected
+                              ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                              : 'border-transparent bg-white text-slate-700 hover:border-cyan-200 hover:bg-cyan-50/70 hover:text-slate-950'
+                          }`}
+                          key={section.key}
+                          onClick={() => openSection(section.key)}
+                          title={section.body}
+                          type="button"
+                        >
+                          <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${isSelected ? 'bg-white/10 text-cyan-200' : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-cyan-700'}`}>
+                            <Icon size={16} aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-xs font-extrabold">{section.label}</span>
+                          {badgeCount !== null ? (
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${isSelected ? 'bg-rose-400 text-white' : 'bg-rose-100 text-rose-700'}`}>
+                              {badgeCount}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
               );
             })}
           </div>
@@ -2023,22 +2047,22 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
         {activeSection === 'users' ? (
         <>
-        <section className="mt-5 grid gap-5">
-          <div className="nexus-card p-4 sm:p-5">
+        <div className="mt-5 grid gap-5 xl:grid-cols-2">
+          <section className="nexus-card p-4 sm:p-5">
             <div className="nexus-kicker">
               <UserPlus size={18} aria-hidden="true" />
-              Admin Lifetime VIP
+              จัดการสิทธิ์ผู้ดูแล
             </div>
-            <h2 className="mt-4 text-2xl font-black text-slate-950">กำหนดผู้ดูแลจากผู้ใช้ในระบบ</h2>
+            <h2 className="mt-3 text-xl font-black text-slate-950">เพิ่มผู้ดูแลระบบ</h2>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              เลือกบัญชีที่สมัคร ClassCare แล้ว ระบบจะแสดงชื่อและอีเมลให้ตรวจสอบก่อนกำหนดสิทธิ์
+              เลือกบัญชีที่สมัคร ClassCare แล้วตรวจสอบชื่อและอีเมลก่อนกำหนดระดับสิทธิ์
             </p>
 
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
+            <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(150px,0.55fr)]">
+              <label className="grid min-w-0 gap-2 text-sm font-black text-slate-700">
                 ผู้ใช้ ClassCare
                 <select
-                  className="h-12 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   onChange={(event) => setAdminProfileId(event.target.value)}
                   value={adminProfileId}
                 >
@@ -2053,7 +2077,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               <label className="grid gap-2 text-sm font-black text-slate-700">
                 ระดับสิทธิ์
                 <select
-                  className="h-12 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   onChange={(event) => setAdminLevel(event.target.value as AdminLevel)}
                   value={adminLevel}
                 >
@@ -2062,7 +2086,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </select>
               </label>
               <button
-                className="blue-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
+                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black md:col-span-2"
                 onClick={() => void grantAdminAccess()}
                 type="button"
               >
@@ -2072,34 +2096,39 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
             </div>
 
             {adminNotice ? (
-              <div className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 p-3 text-sm font-bold leading-6 text-cyan-900">
+              <div className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 p-3 text-sm font-bold leading-6 text-cyan-900" role="status">
                 {adminNotice}
               </div>
             ) : null}
 
-            <div className="mt-5 rounded-3xl border border-amber-100 bg-amber-50/40 p-4">
-              <div className="flex items-center gap-2 text-sm font-black text-amber-800">
+          </section>
+
+          <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
+              <div className="flex items-center gap-2 text-sm font-black text-amber-900">
                 <KeyRound size={17} aria-hidden="true" />
-                User Recovery
+                กู้คืนบัญชีผู้ใช้
               </div>
               <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                ใช้ส่งอีเมลรีเซ็ตรหัสผ่านให้ผู้ใช้ที่เข้าไม่ได้ โดยไม่ต้องรู้รหัสเดิมของผู้ใช้
+                ส่งลิงก์ตั้งรหัสผ่านใหม่ หรือคืนสถานะบัญชีที่ถูกระงับ โดยไม่ต้องทราบรหัสผ่านเดิม
               </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <input
-                  className="h-11 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-bold text-slate-950 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
-                  onChange={(event) => setRecoveryEmail(event.target.value)}
-                  placeholder="user@example.com"
-                  type="email"
-                  value={recoveryEmail}
-                />
+              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label className="grid min-w-0 gap-1.5 text-xs font-black text-slate-700">
+                  อีเมลบัญชีผู้ใช้
+                  <input
+                    className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                    onChange={(event) => setRecoveryEmail(event.target.value)}
+                    placeholder="name@example.com"
+                    type="email"
+                    value={recoveryEmail}
+                  />
+                </label>
                 <button
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5"
                   onClick={() => void sendPasswordResetEmail()}
                   type="button"
                 >
                   <KeyRound size={16} aria-hidden="true" />
-                  ส่ง reset
+                  ส่งลิงก์ตั้งรหัสใหม่
                 </button>
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -2110,7 +2139,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   type="button"
                 >
                   <CheckCircle2 size={16} aria-hidden="true" />
-                  Restore active
+                  คืนสถานะบัญชี
                 </button>
                 <button
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -2119,7 +2148,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   type="button"
                 >
                   <XCircle size={16} aria-hidden="true" />
-                  Suspend account
+                  ระงับบัญชี
                 </button>
               </div>
               {recoveryNotice ? (
@@ -2127,15 +2156,16 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   {recoveryNotice}
                 </div>
               ) : null}
-            </div>
-          </div>
+          </section>
 
-          <div className="nexus-card p-4 sm:p-5">
+        </div>
+
+        <section className="mt-5 nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="nexus-kicker">
                   <Users size={18} aria-hidden="true" />
-                  Admin List
+                  รายชื่อผู้ดูแล
                 </div>
                 <h2 className="mt-4 text-2xl font-black text-slate-950">ผู้ดูแลระบบ {adminRows.length} คน</h2>
               </div>
@@ -2157,7 +2187,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                           ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
                           : 'bg-slate-100 text-slate-500 ring-slate-200'
                       }`}>
-                        {admin.isActive ? 'active' : 'inactive'}
+                        {admin.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
                       </span>
                     </div>
                     <p className="mt-2 truncate text-base font-black text-slate-950">{admin.email}</p>
@@ -2172,7 +2202,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                       type="button"
                     >
                       <KeyRound size={16} aria-hidden="true" />
-                      Reset
+                      ส่งลิงก์ตั้งรหัสใหม่
                     </button>
                   <button
                     className={`inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 ${
@@ -2196,8 +2226,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </div>
               ) : null}
             </div>
-          </div>
-        </section>
+          </section>
 
         <section className="mt-5 nexus-card p-4 sm:p-5">
           <div className="nexus-kicker">
@@ -2217,7 +2246,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-cyan-700">{role.status}</p>
                   </div>
                   <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
-                    mapped
+                    กำหนดสิทธิ์แล้ว
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -2575,7 +2604,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         {activeSection === 'support' ? <SuperadminSupportInbox /> : null}
 
         {activeSection === 'broadcast' ? (
-          <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+          <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
             <div className="nexus-card p-5 sm:p-6">
               <div className="flex items-center gap-3">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700">

@@ -156,7 +156,7 @@ export function SuperadminSupportInbox() {
   }
   return (
     <section className="mt-5 space-y-4">
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4">
         {[
           {
             label: "รอรับเรื่อง",
@@ -201,8 +201,8 @@ export function SuperadminSupportInbox() {
           {notice}
         </div>
       ) : null}
-      <div className="nexus-card grid min-h-[650px] overflow-hidden lg:grid-cols-[330px_minmax(380px,1fr)_300px]">
-        <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r">
+      <div className="nexus-card grid min-h-[650px] overflow-hidden xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(260px,300px)_minmax(400px,1fr)_280px]">
+        <aside className="min-w-0 border-b border-slate-200 xl:border-b-0 xl:border-r">
           <div className="space-y-3 border-b border-slate-200 p-4">
             <h2 className="flex items-center gap-2 font-black">
               <Inbox size={18} /> กล่องรับเรื่อง
@@ -258,7 +258,7 @@ export function SuperadminSupportInbox() {
             ))}
           </div>
         </aside>
-        <main className="flex min-h-[560px] flex-col border-b border-slate-200 lg:border-b-0 lg:border-r">
+        <main className="flex min-h-[560px] min-w-0 flex-col border-b border-slate-200 xl:border-b-0 2xl:border-r">
           {selected ? (
             <>
               <header className="border-b border-slate-200 p-4">

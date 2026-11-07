@@ -451,7 +451,7 @@ export function VipAccessManager() {
       </div>
 
       {/* Grid of Settings + Generator + Direct Grant */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
         {/* Box 1: Trial Days */}
         <form className="nexus-muted-box flex flex-col justify-between p-4" onSubmit={saveTrialDays}>
           <div>
