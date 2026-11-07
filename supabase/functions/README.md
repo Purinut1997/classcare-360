@@ -1,5 +1,15 @@
 # Supabase Edge Functions
 
+## Encrypted R2 backup control
+
+The `r2-backup-control` function lists encrypted backup object metadata from a private Cloudflare R2 bucket and lets an authenticated Superadmin dispatch the protected GitHub recovery workflow. It never returns backup contents or asks the browser to handle cloud credentials.
+
+Deploy with GitHub Actions → **Deploy R2 backup control function** after setting `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` in repository secrets/variables. Configure function secrets as described in [the R2 backup runbook](../../docs/07-offsite-backup-r2.md). Recovery runs restore into a separate Supabase recovery project, not production.
+
+## `system-backup-control` (Supabase-managed backup status)
+
+This older function queries the Supabase Management API and can request PITR restoration. It is not used by the R2 off-site backup workflow. Supabase plan availability and PITR billing still apply; do not enable paid PITR without the project owner's explicit decision.
+
 ## System backup and PITR control
 
 `system-backup-control` exposes backup status, a guarded daily-backup schedule control, and a guarded Point-in-Time restore action to the Superadmin dashboard. It calls the Supabase Management API from the Edge Function; the Management API token must never be placed in frontend environment variables.

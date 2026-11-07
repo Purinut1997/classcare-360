@@ -1,0 +1,109 @@
+name: Restore off-site backup to recovery project
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_key:
+        description: Exact encrypted backup key shown in Superadmin Backup & Rollback
+        required: true
+        type: string
+      confirmation:
+        description: Type RESTORE TO RECOVERY PROJECT to continue
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: classcare-r2-restore
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Restore into isolated recovery project
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: backup-recovery
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_RECOVERY_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_RECOVERY_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_RECOVERY_SERVICE_ROLE_KEY }}
+      SOURCE_PROJECT_REF: ${{ vars.SUPABASE_SOURCE_PROJECT_REF }}
+      RECOVERY_PROJECT_REF: ${{ vars.SUPABASE_RECOVERY_PROJECT_REF }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+
+      - name: Install restore tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age awscli postgresql-client
+
+      - name: Validate target and confirmation
+        env:
+          BACKUP_KEY: ${{ inputs.backup_key }}
+          RESTORE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          [[ "$BACKUP_KEY" =~ ^backups/[0-9]{8}T[0-9]{6}Z/classcare-backup\.tar\.gz\.age$ ]] || { echo 'Backup key format is invalid'; exit 1; }
+          [[ "$RESTORE_CONFIRMATION" == 'RESTORE TO RECOVERY PROJECT' ]] || { echo 'Confirmation phrase did not match'; exit 1; }
+          [[ -n "$SOURCE_PROJECT_REF" && -n "$RECOVERY_PROJECT_REF" ]] || { echo 'Set source and recovery project refs as repository variables'; exit 1; }
+          [[ "$SOURCE_PROJECT_REF" != "$RECOVERY_PROJECT_REF" ]] || { echo 'Recovery project must be different from production'; exit 1; }
+          [[ "$SUPABASE_DB_URL" != *"${SOURCE_PROJECT_REF}"* ]] || { echo 'Recovery database URL points to the source project'; exit 1; }
+          : "${SUPABASE_URL:?Set SUPABASE_RECOVERY_URL}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Set SUPABASE_RECOVERY_SERVICE_ROLE_KEY}"
+
+      - name: Download and verify encrypted archive
+        env:
+          BACKUP_KEY: ${{ inputs.backup_key }}
+        run: |
+          set -euo pipefail
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          encrypted="$RUNNER_TEMP/classcare-backup.tar.gz.age"
+          aws s3 cp "s3://${R2_BUCKET}/${BACKUP_KEY}" "$encrypted" --endpoint-url "$endpoint"
+          aws s3 cp "s3://${R2_BUCKET}/${BACKUP_KEY}.sha256" "$encrypted.sha256" --endpoint-url "$endpoint"
+          expected="$(cat "$encrypted.sha256")"
+          actual="$(sha256sum "$encrypted" | cut -d ' ' -f 1)"
+          [[ "$expected" == "$actual" ]] || { echo 'Encrypted backup checksum mismatch'; exit 1; }
+
+      - name: Decrypt and verify snapshot contents
+        run: |
+          set -euo pipefail
+          key_file="$RUNNER_TEMP/backup-age-key.txt"
+          umask 077
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$key_file"
+          age --decrypt --identity "$key_file" --output "$RUNNER_TEMP/classcare-backup.tar.gz" "$RUNNER_TEMP/classcare-backup.tar.gz.age"
+          mkdir -m 700 "$RUNNER_TEMP/classcare-restore"
+          tar -xzf "$RUNNER_TEMP/classcare-backup.tar.gz" -C "$RUNNER_TEMP/classcare-restore"
+          (cd "$RUNNER_TEMP/classcare-restore" && sha256sum -c SHA256SUMS)
+          rm -f "$key_file"
+
+      - name: Restore database into recovery project
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" \
+            --single-transaction \
+            --variable ON_ERROR_STOP=1 \
+            --file "$RUNNER_TEMP/classcare-restore/roles.sql" \
+            --file "$RUNNER_TEMP/classcare-restore/schema.sql" \
+            --command 'SET session_replication_role = replica' \
+            --file "$RUNNER_TEMP/classcare-restore/data.sql"
+
+      - name: Restore Storage objects into recovery project
+        run: node scripts/restore-supabase-storage.mjs "$RUNNER_TEMP/classcare-restore/storage"

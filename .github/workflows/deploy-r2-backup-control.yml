@@ -1,0 +1,31 @@
+name: Deploy R2 backup control function
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Superadmin backup API
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+
+      - name: Deploy Edge Function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_ACCESS_TOKEN:?Set GitHub secret SUPABASE_ACCESS_TOKEN}"
+          : "${SUPABASE_PROJECT_REF:?Set repository variable SUPABASE_PROJECT_REF}"
+          supabase functions deploy r2-backup-control --project-ref "$SUPABASE_PROJECT_REF"

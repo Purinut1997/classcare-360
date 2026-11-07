@@ -1,0 +1,85 @@
+name: Encrypted off-site database backup
+
+on:
+  schedule:
+    - cron: '17 19 * * *' # 02:17 Asia/Bangkok
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: classcare-r2-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Snapshot Supabase to private R2
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+
+      - name: Install backup tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age awscli
+
+      - name: Create, encrypt, and upload snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_DB_URL:?Set GitHub secret SUPABASE_DB_URL (use the Supabase session pooler URL)}"
+          : "${SUPABASE_URL:?Set GitHub secret SUPABASE_URL}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Set GitHub secret SUPABASE_SERVICE_ROLE_KEY}"
+          : "${R2_ACCOUNT_ID:?Set GitHub secret R2_ACCOUNT_ID}"
+          : "${R2_BUCKET:?Set GitHub secret R2_BUCKET}"
+          : "${R2_ACCESS_KEY_ID:?Set bucket-scoped R2 credentials}"
+          : "${R2_SECRET_ACCESS_KEY:?Set bucket-scoped R2 credentials}"
+          : "${BACKUP_AGE_RECIPIENT:?Set BACKUP_AGE_RECIPIENT to the public age key}"
+
+          backup_id="$(date -u +%Y%m%dT%H%M%SZ)"
+          work_dir="$RUNNER_TEMP/classcare-backup-$backup_id"
+          archive="$RUNNER_TEMP/classcare-$backup_id.tar.gz"
+          encrypted="$archive.age"
+          mkdir -m 700 -p "$work_dir"
+
+          supabase db dump --remote="$SUPABASE_DB_URL" -f "$work_dir/roles.sql" --role-only
+          supabase db dump --remote="$SUPABASE_DB_URL" -f "$work_dir/schema.sql"
+          supabase db dump --remote="$SUPABASE_DB_URL" -f "$work_dir/data.sql" --data-only --use-copy -x "storage.buckets_vectors" -x "storage.vector_indexes"
+
+          node scripts/backup-supabase-storage.mjs "$work_dir/storage"
+          printf '{"backup_id":"%s","created_at":"%s","database_files":["roles.sql","schema.sql","data.sql"],"storage_manifest":"storage/storage-manifest.json"}\n' \
+            "$backup_id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$work_dir/manifest.json"
+          (cd "$work_dir" && sha256sum roles.sql schema.sql data.sql manifest.json storage/storage-manifest.json > SHA256SUMS)
+          tar -czf "$archive" -C "$work_dir" .
+          age --encrypt --recipient "$BACKUP_AGE_RECIPIENT" --output "$encrypted" "$archive"
+          sha256sum "$encrypted" | cut -d ' ' -f 1 > "$encrypted.sha256"
+
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          prefix="backups/${backup_id}"
+          aws s3 cp "$encrypted" "s3://${R2_BUCKET}/${prefix}/classcare-backup.tar.gz.age" --endpoint-url "$endpoint"
+          aws s3 cp "$encrypted.sha256" "s3://${R2_BUCKET}/${prefix}/classcare-backup.tar.gz.age.sha256" --endpoint-url "$endpoint"
+
+          node scripts/prune-r2-backups.mjs "$endpoint" "$R2_BUCKET" backups/ 30
+          rm -rf "$work_dir" "$archive" "$encrypted" "$encrypted.sha256"
