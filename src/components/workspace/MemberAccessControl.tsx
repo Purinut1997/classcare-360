@@ -20,22 +20,39 @@ interface MemberAccess {
   status: string;
 }
 
-const capabilities = [
-  ['students.write', 'เพิ่มและแก้ไขรายชื่อนักเรียน'],
-  ['attendance.write', 'บันทึกเวลาเรียน'],
-  ['scores.write', 'บันทึกคะแนน'],
-  ['behavior.write', 'บันทึกพฤติกรรม'],
-  ['student_care.write', 'จัดการเคสดูแล'],
-  ['home_visits.write', 'บันทึกเยี่ยมบ้าน'],
-  ['savings.write', 'จัดการเงินออม'],
-  ['duty.manage', 'จัดการตารางเวร'],
-  ['daily_brief.write', 'เขียนสรุปประจำวัน'],
-  ['reports.export', 'ส่งออกรายงาน'],
-  ['communications.prepare', 'เตรียมข้อความผู้ปกครอง'],
-  ['communications.approve', 'อนุมัติและส่งข้อความ'],
-  ['automation.manage', 'จัดการกฎอัตโนมัติ'],
-  ['data.bulk', 'ทำรายการแบบชุด'],
-  ['recovery.restore', 'กู้คืนข้อมูล'],
+const capabilityGroups = [
+  {
+    label: 'งานห้องเรียนและข้อมูลนักเรียน',
+    items: [
+      ['students.write', 'เพิ่มและแก้ไขรายชื่อนักเรียน'],
+      ['attendance.write', 'บันทึกเวลาเรียน'],
+      ['scores.write', 'บันทึกคะแนน'],
+      ['behavior.write', 'บันทึกพฤติกรรม'],
+      ['student_care.write', 'จัดการเคสดูแล'],
+      ['home_visits.write', 'บันทึกเยี่ยมบ้าน'],
+      ['savings.write', 'จัดการเงินออม'],
+      ['duty.manage', 'จัดการตารางเวร'],
+      ['daily_brief.write', 'เขียนสรุปประจำวัน'],
+    ],
+  },
+  {
+    label: 'รายงานและผู้ปกครอง',
+    items: [
+      ['reports.export', 'ส่งออกรายงาน'],
+      ['communications.prepare', 'เตรียมข้อความผู้ปกครอง'],
+      ['communications.approve', 'อนุมัติและส่งข้อความ'],
+    ],
+  },
+  {
+    label: 'จัดการระบบ',
+    items: [
+      ['automation.manage', 'จัดการกฎอัตโนมัติ'],
+      ['members.manage', 'จัดการสมาชิกและสิทธิ์'],
+      ['workspace.manage', 'แก้ไขตั้งค่าโรงเรียน'],
+      ['data.bulk', 'นำเข้าและแก้ไขข้อมูลหลายรายการ'],
+      ['recovery.restore', 'กู้คืนข้อมูล'],
+    ],
+  },
 ] as const;
 
 export function MemberAccessControl({
@@ -116,6 +133,9 @@ export function MemberAccessControl({
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
             สิทธิ์เจ้าของ Workspace ถูกป้องกันไว้ ครูจะทำงานได้เฉพาะความสามารถและห้องที่ได้รับมอบหมาย
           </p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+            เลือกเฉพาะงานที่ครูคนนั้นต้องทำ สิทธิ์กู้คืน นำเข้า และอนุมัติข้อความควรให้เฉพาะผู้รับผิดชอบ
+          </p>
         </div>
       </div>
 
@@ -143,20 +163,27 @@ export function MemberAccessControl({
               </label>
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {capabilities.map(([key, label]) => (
-                <label className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700" key={key}>
-                  <input
-                    checked={Boolean(member.permissions[key])}
-                    className="h-4 w-4 accent-cyan-600"
-                    onChange={(event) => updateMember(member.profile_id, (current) => ({
-                      ...current,
-                      permissions: { ...current.permissions, [key]: event.target.checked },
-                    }))}
-                    type="checkbox"
-                  />
-                  {label}
-                </label>
+            <div className="mt-4 space-y-4">
+              {capabilityGroups.map((group) => (
+                <fieldset className="rounded-2xl border border-slate-200 p-3" key={group.label}>
+                  <legend className="px-1 text-xs font-black text-slate-600">{group.label}</legend>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.items.map(([key, label]) => (
+                      <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700" key={key}>
+                        <input
+                          checked={Boolean(member.permissions[key])}
+                          className="h-4 w-4 accent-cyan-600"
+                          onChange={(event) => updateMember(member.profile_id, (current) => ({
+                            ...current,
+                            permissions: { ...current.permissions, [key]: event.target.checked },
+                          }))}
+                          type="checkbox"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
               ))}
             </div>
 

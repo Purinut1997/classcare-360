@@ -17,10 +17,12 @@ import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoad
 import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
 import { DailyStatsSummary } from '../../components/dashboard/DailyStatsSummary';
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
+import { MenuUsageInsights } from '../../components/dashboard/MenuUsageInsights';
 import { DashboardMiniCalendar } from '../../components/dashboard/DashboardMiniCalendar';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
+import { appNavItems } from '../../routes/appRoutes';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -1557,6 +1559,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
               startCollapsed
             />
           </div>
+          <MenuUsageInsights navItems={appNavItems} session={session} />
           <div className="mt-5">
             <EasyShortcutHub
               analyticsData={analyticsData}

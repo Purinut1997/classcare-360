@@ -224,6 +224,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
   const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule(session.workspace?.id));
   const [marks, setMarks] = useState<Record<string, AttendanceStatus | undefined>>(() => createDefaultMarks(demoMode ? demoStudents : []));
+  const attendanceDraftKey = useMemo(
+    () => `classcare:attendance-draft:${session.workspace?.id || 'demo'}:${classroomId}:${attendanceDate}:${mode}:${periodLabel}:${subjectName}`,
+    [attendanceDate, classroomId, mode, periodLabel, session.workspace?.id, subjectName],
+  );
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -233,6 +237,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
   );
   const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+
+  function updateMarks(updater: (previous: Record<string, AttendanceStatus | undefined>) => Record<string, AttendanceStatus | undefined>) {
+    setMarks((previous) => {
+      const next = updater(previous);
+      try {
+        const safeMarks = Object.fromEntries(Object.entries(next).filter((entry): entry is [string, AttendanceStatus] =>
+          ['present', 'absent', 'late', 'leave', 'sick', 'activity'].includes(entry[1] || ''),
+        ));
+        window.sessionStorage.setItem(attendanceDraftKey, JSON.stringify({ savedAt: Date.now(), marks: safeMarks }));
+      } catch { /* Storage may be unavailable; attendance remains editable in memory. */ }
+      return next;
+    });
+  }
 
   const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
 
@@ -431,9 +448,27 @@ export function AttendancePage({ session }: AttendancePageProps) {
       nextMarks[record.student_id] = record.status;
     }
 
+    if (records.length === 0) {
+      try {
+        const rawDraft = window.sessionStorage.getItem(attendanceDraftKey);
+        const draft = rawDraft ? JSON.parse(rawDraft) as { savedAt?: number; marks?: Record<string, AttendanceStatus> } : null;
+        const validStatuses = new Set<AttendanceStatus>(['present', 'absent', 'late', 'leave', 'sick', 'activity']);
+        const draftIsFresh = draft?.savedAt && Date.now() - draft.savedAt < 8 * 60 * 60 * 1000;
+        if (draftIsFresh && draft?.marks) {
+          const studentIds = new Set(nextStudents.map((student) => student.id));
+          Object.entries(draft.marks).forEach(([studentId, status]) => {
+            if (studentIds.has(studentId) && validStatuses.has(status)) nextMarks[studentId] = status;
+          });
+          setNotice('กู้คืนร่างเช็กชื่อจากแท็บนี้แล้ว ตรวจรายชื่อและกดบันทึกเมื่อพร้อม');
+        } else if (rawDraft) {
+          window.sessionStorage.removeItem(attendanceDraftKey);
+        }
+      } catch { /* Ignore invalid or unavailable local draft data. */ }
+    }
+
     setMarks(nextMarks);
     setNotes(Object.fromEntries(records.map((record) => [record.student_id, record.note || ''])));
-  }, [classroomId, records, students]);
+  }, [attendanceDraftKey, classroomId, records, students]);
 
   useEffect(() => {
     setScheduleOptions(getAttendanceOptionsFromSchedule(session.workspace?.id));
@@ -682,6 +717,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           student_id: record.student_id,
         })),
       );
+      try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
       feedback.endOperation(operationId);
       feedback.success({
         title: 'บันทึกเช็คชื่อแล้ว 🐾',
@@ -714,6 +750,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     }
 
     setRecords((data || []) as AttendanceRecordRow[]);
+    try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
     await writeAuditLog(session, {
       action: 'attendance.records.saved',
       entityId: activeSession.id,
@@ -816,7 +853,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   function markAll(status: AttendanceStatus) {
-    setMarks(Object.fromEntries(classroomStudents.map((student) => [student.id, status])));
+    updateMarks(() => Object.fromEntries(classroomStudents.map((student) => [student.id, status])));
   }
 
   function handleApplyQuickRollNumbers() {
@@ -845,7 +882,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       }
     });
 
-    setMarks(updatedMarks);
+    updateMarks(() => updatedMarks);
     setQuickRollInput('');
     setIsQuickRollOpen(false);
     const statusLabel = statusLabels[quickRollStatus] || quickRollStatus;
@@ -853,7 +890,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   function handleApplyAttendanceOcr(recordsToApply: Record<string, { status: AttendanceStatus; note?: string | null }>) {
-    setMarks((prev) => {
+    updateMarks((prev) => {
       const next = { ...prev };
       Object.entries(recordsToApply).forEach(([stdId, rec]) => {
         next[stdId] = rec.status;
@@ -877,12 +914,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
     }
     const current = marks[studentId];
     if (!current) {
-      setMarks((prev) => ({ ...prev, [studentId]: 'present' }));
+      updateMarks((prev) => ({ ...prev, [studentId]: 'present' }));
       return;
     }
     const currentIndex = TAP_CYCLE.indexOf(current);
     const nextStatus = currentIndex === -1 ? 'absent' : TAP_CYCLE[(currentIndex + 1) % TAP_CYCLE.length];
-    setMarks((prev) => ({ ...prev, [studentId]: nextStatus }));
+    updateMarks((prev) => ({ ...prev, [studentId]: nextStatus }));
   }
 
   function handlePointerDown(studentId: string) {
@@ -1300,7 +1337,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                       key={opt.value}
                       type="button"
                       onClick={() => {
-                        setMarks((prev) => ({ ...prev, [sheetStudent.id]: opt.value }));
+                        updateMarks((prev) => ({ ...prev, [sheetStudent.id]: opt.value }));
                       }}
                       className={`flex h-12 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
                         isSelected

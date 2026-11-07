@@ -8,6 +8,7 @@ import { GlobalBroadcastBanner } from '../components/system/GlobalBroadcastBanne
 import { NetworkStatusBanner } from '../components/system/NetworkStatusBanner';
 import { SetupGuideModal } from '../components/guide/SetupGuideModal';
 import { SupportChat } from '../components/support/SupportChat';
+import { recordMenuUsageFromNavigation } from '../lib/menuUsage';
 import type { AppNavItem } from '../routes/appRoutes';
 import type { AppSessionContext } from '../types/core';
 
@@ -53,7 +54,10 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
   }, []);
 
   return (
-    <div className="app-shell theme-light">
+    <div
+      className="app-shell theme-light"
+      onClickCapture={(event) => recordMenuUsageFromNavigation(event.nativeEvent, session, navItems)}
+    >
       <div className="app-ambient-background no-print print:hidden" aria-hidden="true">
         <span className="app-ambient-orb app-ambient-orb-one" />
         <span className="app-ambient-orb app-ambient-orb-two" />
