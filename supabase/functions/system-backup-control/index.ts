@@ -34,6 +34,20 @@ async function fetchManagedBackups(projectRef: string, accessToken: string) {
   };
 }
 
+async function requestBackupSchedule(projectRef: string, accessToken: string, scheduleFor?: string) {
+  const response = await fetch(`https://api.supabase.com/v1/projects/${encodeURIComponent(projectRef)}/database/backups/schedule`, {
+    ...(scheduleFor ? { body: JSON.stringify({ schedule_for: scheduleFor }), method: 'PATCH' } : { method: 'GET' }),
+    headers: { Authorization: `Bearer ${accessToken}`, ...(scheduleFor ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(`backup_schedule_request_failed_${response.status}`);
+    Object.assign(error, { status: response.status });
+    throw error;
+  }
+  return data as { schedule_for?: string; updated_at?: string };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
@@ -76,16 +90,42 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const backupStatus = await fetchManagedBackups(projectRef, accessToken);
     if (body.action === 'status') {
+      const backupStatus = await fetchManagedBackups(projectRef, accessToken);
+      let schedule: { schedule_for?: string; updated_at?: string } | null = null;
+      let scheduleAvailable = true;
+      try {
+        schedule = await requestBackupSchedule(projectRef, accessToken);
+      } catch (error) {
+        const status = Number((error as { status?: number }).status);
+        if (status === 402 || status === 403 || status === 404) scheduleAvailable = false;
+        else throw error;
+      }
       return jsonResponse({
         backups: backupStatus.backups || [],
         physical_backup_data: backupStatus.physical_backup_data || null,
         pitr_enabled: Boolean(backupStatus.pitr_enabled),
         region: backupStatus.region || null,
         walg_enabled: Boolean(backupStatus.walg_enabled),
+        schedule,
+        schedule_available: scheduleAvailable,
       });
     }
+
+    if (body.action === 'update-schedule') {
+      const scheduleFor = typeof body.scheduleFor === 'string' ? body.scheduleFor : '';
+      if (!/^([01]\d|2[0-3]):[0-5]\d:00$/.test(scheduleFor)) return jsonResponse({ error: 'invalid_backup_time' }, 400);
+      if (body.confirmation !== 'UPDATE BACKUP SCHEDULE') return jsonResponse({ error: 'confirmation_required' }, 400);
+      const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+      if (reason.length < 10 || reason.length > 300) return jsonResponse({ error: 'reason_must_be_10_to_300_characters' }, 400);
+      const requestId = crypto.randomUUID();
+      console.warn(JSON.stringify({ action: 'daily_backup_schedule_change_requested', actor_profile_id: user.id, reason, schedule_for: scheduleFor, request_id: requestId, project_ref: projectRef, requested_at: new Date().toISOString() }));
+      const schedule = await requestBackupSchedule(projectRef, accessToken, scheduleFor);
+      console.warn(JSON.stringify({ action: 'daily_backup_schedule_change_accepted', actor_profile_id: user.id, schedule_for: schedule.schedule_for || scheduleFor, request_id: requestId }));
+      return jsonResponse({ updated: true, request_id: requestId, schedule }, 200);
+    }
+
+    const backupStatus = await fetchManagedBackups(projectRef, accessToken);
 
     if (body.action !== 'restore-pitr') return jsonResponse({ error: 'unsupported_action' }, 400);
     if (!backupStatus.pitr_enabled) return jsonResponse({ error: 'pitr_not_enabled_use_supabase_dashboard_for_daily_restore' }, 409);

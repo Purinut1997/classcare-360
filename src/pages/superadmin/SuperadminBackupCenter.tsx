@@ -19,6 +19,8 @@ interface BackupStatus {
   pitr_enabled: boolean;
   region?: string;
   walg_enabled?: boolean;
+  schedule?: { schedule_for?: string; updated_at?: string } | null;
+  schedule_available?: boolean;
 }
 
 function formatDate(value?: string | number | null) {
@@ -42,6 +44,10 @@ export function SuperadminBackupCenter() {
   const [recoveryTime, setRecoveryTime] = useState('');
   const [reason, setReason] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [backupTime, setBackupTime] = useState('04:00');
+  const [scheduleReason, setScheduleReason] = useState('');
+  const [scheduleConfirmation, setScheduleConfirmation] = useState('');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   const loadBackupStatus = useCallback(async () => {
     if (!supabase) {
@@ -65,6 +71,7 @@ export function SuperadminBackupCenter() {
       return;
     }
     setStatus(data as BackupStatus);
+    if (data?.schedule?.schedule_for) setBackupTime(String(data.schedule.schedule_for).slice(0, 5));
     setIsLoading(false);
   }, []);
 
@@ -104,6 +111,27 @@ export function SuperadminBackupCenter() {
     setIsRestoring(false);
   }
 
+  async function updateBackupSchedule() {
+    if (!supabase || !status?.schedule_available || scheduleConfirmation !== 'เปลี่ยนเวลาสำรองข้อมูล' || scheduleReason.trim().length < 10) return;
+    const approved = window.confirm(`ยืนยันเปลี่ยนเวลาสำรองฐานข้อมูลรายวันเป็น ${backupTime} น. (เวลา UTC)? มีผลในรอบสำรองถัดไป และเปลี่ยนได้ไม่เกิน 3 ครั้งใน 24 ชั่วโมง`);
+    if (!approved) return;
+    setIsSavingSchedule(true);
+    setError(null);
+    setNotice(null);
+    const { data, error: invokeError } = await supabase.functions.invoke('system-backup-control', {
+      body: { action: 'update-schedule', scheduleFor: `${backupTime}:00`, reason: scheduleReason.trim(), confirmation: 'UPDATE BACKUP SCHEDULE' },
+    });
+    if (invokeError || data?.error) {
+      setError(String(data?.error || invokeError?.message || 'เปลี่ยนเวลาสำรองข้อมูลไม่สำเร็จ'));
+    } else {
+      setStatus((current) => current ? { ...current, schedule: data.schedule } : current);
+      setNotice(`อัปเดตเวลาสำรองข้อมูลเป็น ${backupTime} น. (UTC) แล้ว`);
+      setScheduleConfirmation('');
+      setScheduleReason('');
+    }
+    setIsSavingSchedule(false);
+  }
+
   const orderedBackups = [...(status?.backups || [])].sort((a, b) => Date.parse(b.inserted_at || '') - Date.parse(a.inserted_at || ''));
 
   return (
@@ -137,6 +165,38 @@ export function SuperadminBackupCenter() {
             <p className="mt-1 text-sm font-black leading-5 text-slate-900">{formatDate(status?.physical_backup_data?.earliest_physical_backup_date_unix)} – {formatDate(status?.physical_backup_data?.latest_physical_backup_date_unix)}</p>
           </div>
         </div>
+
+        {status ? (
+          <div className="mt-5 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-black text-indigo-950">ตั้งเวลาสำรองรายวัน</p>
+                {status.schedule_available ? (
+                  <p className="mt-1 text-sm font-semibold text-indigo-900">เวลาปัจจุบัน {status.schedule?.schedule_for || 'ยังไม่ได้ระบุ'} UTC {status.schedule?.updated_at ? `· ปรับล่าสุด ${formatDate(status.schedule.updated_at)}` : ''}</p>
+                ) : (
+                  <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-indigo-900">แพ็กเกจนี้อ่านหรือปรับเวลา backup ผ่าน API ไม่ได้ ฟีเจอร์ตั้งเวลาในเว็บรองรับเฉพาะ Supabase Enterprise; Pro และ Team ยังสำรองอัตโนมัติทุกวันตามเวลาที่ Supabase กำหนด</p>
+                )}
+              </div>
+              {status.schedule_available ? <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-800">เปลี่ยนได้สูงสุด 3 ครั้ง / 24 ชม.</span> : null}
+            </div>
+            {status.schedule_available ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-[170px_1fr]">
+                <label className="text-xs font-black text-indigo-950">เวลา (UTC)
+                  <input className="nexus-field mt-1 h-11 w-full px-3 text-sm" onChange={(event) => setBackupTime(event.target.value)} type="time" value={backupTime} />
+                </label>
+                <label className="text-xs font-black text-indigo-950">เหตุผลในการเปลี่ยนเวลา
+                  <input className="nexus-field mt-1 h-11 w-full px-3 text-sm" maxLength={300} onChange={(event) => setScheduleReason(event.target.value)} placeholder="เช่น ย้ายรอบสำรองออกจากช่วงใช้งานสูงสุด" value={scheduleReason} />
+                </label>
+                <label className="text-xs font-black text-indigo-950 md:col-span-2">พิมพ์ “เปลี่ยนเวลาสำรองข้อมูล” เพื่อยืนยัน
+                  <input className="nexus-field mt-1 h-11 w-full px-3 text-sm" onChange={(event) => setScheduleConfirmation(event.target.value)} value={scheduleConfirmation} />
+                </label>
+                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-4 text-sm font-black text-white disabled:opacity-40 md:col-span-2 md:justify-self-start" disabled={isSavingSchedule || scheduleReason.trim().length < 10 || scheduleConfirmation !== 'เปลี่ยนเวลาสำรองข้อมูล'} onClick={() => void updateBackupSchedule()} type="button">
+                  <Clock3 size={16} /> {isSavingSchedule ? 'กำลังอัปเดต…' : 'บันทึกเวลาสำรองข้อมูล'}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {error ? <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-800" role="alert">{error}</p> : null}
         {notice ? <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800" role="status">{notice}</p> : null}
