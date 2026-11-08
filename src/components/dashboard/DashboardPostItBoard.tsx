@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowRight, CalendarCheck2, Check, ClipboardList, Sparkles, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CalendarCheck2, Check, ClipboardList, Sparkles, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react';
 
 import { ContextLink as Link } from '../navigation/ContextLink';
 import type { DashboardStatItem } from '../../data/dashboard';
@@ -13,6 +13,7 @@ export interface DashboardPostItTask {
 }
 
 interface DashboardPostItBoardProps {
+  attendanceTrendDelta: number | null;
   classroomControl: ReactNode;
   classroomName: string;
   dateLabel: string;
@@ -37,6 +38,7 @@ const taskThemes = [
 ];
 
 export function DashboardPostItBoard({
+  attendanceTrendDelta,
   classroomControl,
   classroomName,
   dateLabel,
@@ -78,6 +80,12 @@ export function DashboardPostItBoard({
             <span className="rounded-xl border border-stone-200 bg-[#fffaf1] px-3 py-2">{schoolName || 'โรงเรียน'}</span>
             <span className="rounded-xl border border-stone-200 bg-[#fffaf1] px-3 py-2">{dateLabel}</span>
             <span className="rounded-xl border border-stone-200 bg-[#fffaf1] px-3 py-2">ห้อง {classroomName}</span>
+            {attendanceTrendDelta !== null ? (
+              <span className={`inline-flex items-center gap-1 rounded-xl border px-3 py-2 ${attendanceTrendDelta >= 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+                {attendanceTrendDelta >= 0 ? <TrendingUp size={14} aria-hidden="true" /> : <TrendingDown size={14} aria-hidden="true" />}
+                {attendanceTrendDelta >= 0 ? '+' : ''}{attendanceTrendDelta}% การมาเรียน
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">

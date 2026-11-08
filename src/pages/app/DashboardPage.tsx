@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Cake, Calendar, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, List, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, TrendingDown, TrendingUp, UserPlus, Utensils } from 'lucide-react';
+import { ArrowRight, Cake, Calendar, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartHandshake, List, MessageSquarePlus, Scale, School, ShieldCheck, Sparkles, UserPlus, Utensils } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
@@ -17,6 +17,7 @@ import { SystemReportsDashboard } from '../../components/dashboard/SystemReports
 import { TeacherSchedulePreview } from '../../components/dashboard/TeacherSchedulePreview';
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
 import { MenuUsageInsights } from '../../components/dashboard/MenuUsageInsights';
+import { DashboardPostItBoard } from '../../components/dashboard/DashboardPostItBoard';
 import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
@@ -1240,108 +1241,57 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
   return (
     <main className="app-page dashboard-premium">
-      {/* Friendly Hero Banner & Classroom Header */}
-      <div className="relative overflow-hidden flex flex-col gap-4 rounded-[30px] border-2 border-[#e6dcce] bg-[#fbf7ee] p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 xl:p-8">
-        {/* Cute Tape Sticker */}
-        <span className="absolute -top-1.5 left-12 w-14 h-3.5 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[-2deg] pointer-events-none" />
-
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl animate-bounce">☀️</span>
-            <h1 className="text-xl font-black tracking-tight text-[#1c1917] sm:text-2xl xl:text-4xl">
-              สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'} 🎒
-            </h1>
-          </div>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-bold text-stone-600">
-            <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
-            <span>·</span>
-            <span className={isSelectedClassroomHomeroom ? 'font-black text-amber-800' : 'text-stone-800'}>
-              {isSelectedClassroomHomeroom ? '⭐ ห้องที่ปรึกษา: ' : 'ห้องเรียน: '}
-              {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
-            </span>
-            <span>·</span>
-            <span>{formatThaiRecordDate(getBangkokDate())}</span>
-            {isSelectedClassroomHomeroom && (
-              <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 shadow-2xs">
-                คุณเป็นครูที่ปรึกษา
-              </span>
-            )}
-            {attendanceTrendDelta !== null && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black shadow-2xs ${
-                  attendanceTrendDelta >= 0
-                    ? 'border border-emerald-300 bg-emerald-100 text-emerald-900'
-                    : 'border border-rose-300 bg-rose-100 text-rose-900'
-                }`}
-                title="เปรียบเทียบอัตราการมาเรียน 3 วันล่าสุด กับ 3 วันก่อนหน้า"
+      <DashboardPostItBoard
+        attendanceTrendDelta={attendanceTrendDelta}
+        classroomControl={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {myAdvisoryClassroom && selectedClassroomId !== myAdvisoryClassroom.id ? (
+              <button
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/90 px-3 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2"
+                onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
+                title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
+                type="button"
               >
-                {attendanceTrendDelta >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                {attendanceTrendDelta >= 0 ? '+' : ''}{attendanceTrendDelta}% สัปดาห์นี้
-              </span>
-            )}
-          </p>
-        </div>
+                ⭐ กลับห้องที่ปรึกษา ({myAdvisoryClassroom.name})
+              </button>
+            ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Quick switch to advisory classroom if currently looking at another room */}
-          {myAdvisoryClassroom && selectedClassroomId !== myAdvisoryClassroom.id && (
-            <button
-              type="button"
-              onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
-              className="flex items-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-amber-100/90 px-3.5 py-2 text-xs font-black text-amber-900 shadow-xs transition-all hover:bg-amber-200 active:scale-95"
-              title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
-            >
-              <span>⭐ กลับไปห้องที่ปรึกษา ({myAdvisoryClassroom.name})</span>
-            </button>
-          )}
-
-          {/* Classroom Selector Dropdown */}
-          {classrooms.length > 0 ? (
-            <div className="relative inline-block text-left">
-              <div
-                className={`flex items-center gap-2 rounded-2xl border-2 p-2 px-3.5 shadow-xs transition-all ${
-                  isSelectedClassroomHomeroom
-                    ? 'border-amber-300 bg-amber-50/90 text-amber-950'
-                    : 'border-[#cbd5e1] bg-white text-slate-800'
+            {classrooms.length > 0 ? (
+              <label
+                className={`inline-flex min-h-10 max-w-full items-center gap-2 rounded-xl border bg-white px-3 text-left shadow-sm ${
+                  isSelectedClassroomHomeroom ? 'border-amber-300 text-amber-950' : 'border-slate-200 text-slate-800'
                 }`}
               >
-                {isSelectedClassroomHomeroom ? (
-                  <span className="text-sm">⭐</span>
-                ) : (
-                  <School className="text-teal-700" size={17} aria-hidden="true" />
-                )}
-                <span className="text-xs font-black text-slate-500">
-                  {isSelectedClassroomHomeroom ? 'ห้องที่ปรึกษา:' : 'เลือกห้อง:'}
-                </span>
+                {isSelectedClassroomHomeroom ? <span aria-hidden="true">⭐</span> : <School className="text-teal-700" size={16} aria-hidden="true" />}
+                <span className="sr-only">เลือกห้องเรียน</span>
                 <select
-                  className="cursor-pointer bg-transparent pr-4 text-sm font-black text-slate-900 focus:outline-none"
+                  aria-label="เลือกห้องเรียนสำหรับหน้าแรก"
+                  className="min-w-0 max-w-[13rem] cursor-pointer bg-transparent text-sm font-black text-slate-900 outline-none"
+                  onChange={(event) => setSelectedClassroomId(event.target.value)}
                   value={selectedClassroomId}
-                  onChange={(e) => setSelectedClassroomId(e.target.value)}
                 >
-                  {classrooms.map((c) => {
-                    const isHome = isClassroomHomeroom(c);
+                  {classrooms.map((classroom) => {
+                    const isHomeroom = isClassroomHomeroom(classroom);
                     return (
-                      <option key={c.id} value={c.id}>
-                        {isHome ? '⭐ [ห้องที่ปรึกษา] ' : '📚 '}
-                        {c.name} ({c.academic_year || '2569'})
+                      <option key={classroom.id} value={classroom.id}>
+                        {isHomeroom ? '⭐ ' : '📚 '}{classroom.name} ({classroom.academic_year || '2569'})
                       </option>
                     );
                   })}
                 </select>
-                <ChevronDown className="pointer-events-none -ml-4 text-slate-400" size={16} />
-              </div>
-            </div>
-          ) : null}
-
-          <Link
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white px-5 text-sm font-black shadow-md shadow-emerald-700/20 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
-            to="/app/dashboard?view=teacher-work"
-          >
-            <CalendarClock size={18} aria-hidden="true" />
-            เช็กเวลาเรียน
-          </Link>
-        </div>
-      </div>
+                <ChevronDown className="pointer-events-none text-slate-400" size={16} aria-hidden="true" />
+              </label>
+            ) : null}
+          </div>
+        }
+        classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
+        dateLabel={formatThaiRecordDate(getBangkokDate())}
+        displayName={session.profile.displayName || 'คุณครู'}
+        isHomeroom={isSelectedClassroomHomeroom}
+        schoolName={session.workspace?.schoolName || 'โรงเรียน'}
+        stats={stats}
+        tasks={dynamicTodayTasks}
+      />
 
       {/* 🔔 HOMEPAGE CALENDAR NOTIFICATION & REMINDER BANNER (Always visible in both modes!) */}
       {(() => {
