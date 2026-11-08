@@ -181,14 +181,14 @@ export function OnboardingRoadmapCard({
   // Compact collapsed state if dismissed
   if (isDismissed) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 backdrop-blur-sm transition-all hover:border-cyan-500/40">
+      <div className="relative flex flex-wrap items-center justify-between gap-2 overflow-hidden rounded-[22px] border-2 border-teal-100 bg-gradient-to-r from-[#effbf5] via-[#fffdf8] to-[#f0f8ff] px-4 py-3 shadow-sm transition-all hover:border-teal-200">
         <div className="flex items-center gap-2.5">
-          <span className="text-base">🚀</span>
-          <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+          <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-teal-100">🚀</span>
+          <span className="text-xs font-black text-slate-800">
             ก้าวแรกสู่ ClassCare 360
           </span>
-          <span className="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
-          <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-black text-cyan-700 dark:text-cyan-300">
+          <span className="hidden sm:inline text-teal-300">·</span>
+          <span className="rounded-full border border-teal-200 bg-white/90 px-2.5 py-1 text-[11px] font-black text-teal-800 shadow-xs">
             ความคืบหน้า: {completedCount}/{totalSteps} ({progressPercent}%)
           </span>
         </div>
@@ -197,16 +197,16 @@ export function OnboardingRoadmapCard({
           <button
             type="button"
             onClick={handleRestore}
-            className="text-xs font-black text-cyan-700 hover:text-cyan-800 dark:text-cyan-400 dark:hover:text-cyan-300 hover:underline"
+            className="rounded-xl px-2.5 py-1.5 text-xs font-black text-teal-800 transition hover:bg-white/80 hover:text-teal-950"
           >
             แสดงการ์ดแนะนำ ↗
           </button>
           <button
             type="button"
             onClick={handleStartTour}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-black text-cyan-700 dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-300 hover:bg-cyan-500/20"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-white/85 px-2.5 py-1.5 text-xs font-black text-sky-800 transition hover:bg-sky-50"
           >
-            <Compass size={13} className="animate-spin duration-3000 text-cyan-600 dark:text-cyan-400" />
+            <Compass size={13} className="text-sky-600" />
             <span className="hidden sm:inline">ทัวร์นำทาง</span>
           </button>
         </div>

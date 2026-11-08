@@ -78,10 +78,11 @@ export function MenuUsageInsights({ navItems, session }: { navItems: AppNavItem[
   }
 
   return (
-    <section aria-label="สถิติการใช้เมนู" className="mt-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5">
+    <section aria-label="สถิติการใช้เมนู" className="relative mt-4 overflow-hidden rounded-[26px] border-2 border-sky-100 bg-gradient-to-br from-white via-[#fcfeff] to-[#f0f8ff] p-4 shadow-sm sm:p-5">
+      <span aria-hidden="true" className="pointer-events-none absolute -right-7 -top-7 h-24 w-24 rounded-full border-[12px] border-sky-100/60" />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 text-sky-800 shadow-sm ring-1 ring-sky-200/70">
             {canViewWorkspaceTotals ? <BarChart3 size={19} aria-hidden="true" /> : <LockKeyhole size={19} aria-hidden="true" />}
           </span>
           <div>
@@ -93,7 +94,7 @@ export function MenuUsageInsights({ navItems, session }: { navItems: AppNavItem[
             </p>
           </div>
         </div>
-        <label className="inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">
+        <label className="inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-2xl border border-sky-200 bg-white/90 px-3 py-2 text-xs font-black text-slate-700 shadow-xs transition hover:border-teal-300 hover:bg-teal-50/70">
           <input
             checked={isEnabled}
             className="h-4 w-4 accent-teal-600"
@@ -105,14 +106,14 @@ export function MenuUsageInsights({ navItems, session }: { navItems: AppNavItem[
       </div>
 
       {canViewWorkspaceTotals ? (
-        <div className="mt-4 rounded-2xl bg-slate-50 p-3">
+        <div className="mt-4 rounded-2xl border border-sky-100 bg-white/75 p-3">
           {isLoading ? (
             <p className="text-xs font-bold text-slate-500">กำลังโหลดสถิติ…</p>
           ) : topMenus.length ? (
             <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
               {topMenus.map((item, index) => (
-                <li className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs" key={item.key}>
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-violet-50 font-black text-violet-700">{index + 1}</span>
+                <li className="flex items-center gap-2 rounded-xl border border-sky-100/80 bg-gradient-to-r from-white to-sky-50/70 px-3 py-2 text-xs shadow-xs" key={item.key}>
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-teal-100 font-black text-teal-800">{index + 1}</span>
                   <span className="min-w-0 flex-1 truncate font-bold text-slate-700">{item.label}</span>
                   <span className="shrink-0 font-black text-slate-950">{item.count}</span>
                 </li>
