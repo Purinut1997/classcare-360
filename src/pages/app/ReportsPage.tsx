@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
@@ -2498,6 +2499,13 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     if (isReportPeriod(nextPeriod)) setReportPeriod(nextPeriod);
   }, [searchParams]);
 
+  useEffect(() => {
+    const requestedClassroomId = searchParams.get('classroomId');
+    if (requestedClassroomId && classrooms.some((classroom) => classroom.id === requestedClassroomId)) {
+      setClassroomId(requestedClassroomId);
+    }
+  }, [classrooms, searchParams]);
+
   function updateReportSearch(next: Partial<{ reportPeriod: ReportPeriod; reportView: ReportView }>) {
     const params = new URLSearchParams(location.search);
     if (next.reportView) {
@@ -4100,6 +4108,15 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {reportView === 'savings' ? (
+            <Link
+              to={`/app/dashboard?view=savings${classroomId ? `&classroomId=${encodeURIComponent(classroomId)}` : ''}`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900 transition hover:bg-amber-100"
+            >
+              <Wallet size={17} aria-hidden="true" /> กลับไปสมุดเงินออม
+            </Link>
+          ) : null}
+
           <button
             className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 text-sm font-black text-white shadow-md shadow-indigo-500/20 transition hover:-translate-y-0.5 active:scale-95"
             onClick={() => setIsOfficialDocsOpen(true)}

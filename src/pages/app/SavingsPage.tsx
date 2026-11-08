@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -29,6 +30,7 @@ import {
 import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { getBangkokDate } from '../../lib/date';
 import { formatThaiOfficialDate, buildOfficialReportCss, escapeOfficialHtml } from '../../lib/officialReport';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -186,6 +188,8 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 
 export function SavingsPage({ session }: SavingsPageProps) {
   const demoMode = isDemoSession(session);
+  const location = useLocation();
+  const requestedClassroomId = useMemo(() => new URLSearchParams(location.search).get('classroomId'), [location.search]);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
   const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
   const [accounts, setAccounts] = useState<SavingsAccountRow[]>(demoMode ? demoAccounts : []);
@@ -236,6 +240,12 @@ export function SavingsPage({ session }: SavingsPageProps) {
     }
     return classrooms;
   }, [classrooms, scopeFilter, teacherScope]);
+
+  useEffect(() => {
+    if (requestedClassroomId && displayClassrooms.some((classroom) => classroom.id === requestedClassroomId)) {
+      setClassroomId(requestedClassroomId);
+    }
+  }, [displayClassrooms, requestedClassroomId]);
 
   const classroomStudents = useMemo(
     () => students.filter((student) => student.classroom_id === classroomId),
@@ -1150,6 +1160,13 @@ export function SavingsPage({ session }: SavingsPageProps) {
               <ListFilter size={15} />
               <span>สมุดบัญชีละเอียด 📋</span>
             </button>
+            <Link
+              to={`/app/dashboard?view=reports&reportView=savings${classroomId ? `&classroomId=${encodeURIComponent(classroomId)}` : ''}`}
+              className="flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold text-teal-800 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            >
+              <FileSpreadsheet size={15} aria-hidden="true" />
+              <span>รายงานเงินออม</span>
+            </Link>
           </div>
 
           {/* Classroom Selector */}
