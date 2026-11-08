@@ -1243,14 +1243,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
   return (
     <main className="app-page dashboard-premium">
       {/* Friendly Hero Banner & Classroom Header */}
-      <div className="relative overflow-hidden flex flex-col gap-4 rounded-3xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="relative overflow-hidden flex flex-col gap-4 rounded-[30px] border-2 border-[#e6dcce] bg-[#fbf7ee] p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 xl:p-8">
         {/* Cute Tape Sticker */}
         <span className="absolute -top-1.5 left-12 w-14 h-3.5 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[-2deg] pointer-events-none" />
 
         <div>
           <div className="flex items-center gap-2">
             <span className="text-2xl animate-bounce">☀️</span>
-            <h1 className="text-xl font-black tracking-tight text-[#1c1917] sm:text-2xl">
+            <h1 className="text-xl font-black tracking-tight text-[#1c1917] sm:text-2xl xl:text-4xl">
               สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'} 🎒
             </h1>
           </div>
@@ -1411,56 +1411,30 @@ export function DashboardPage({ session }: DashboardPageProps) {
         }
 
         if (upcomingSlice.length > 0) {
+          const featuredEvent = upcomingSlice[0];
+          const featuredConfig = eventTypeConfig[featuredEvent.type] || eventTypeConfig.custom;
+          const featuredDate = new Date(`${featuredEvent.date}T00:00:00`);
+          const daysFromNow = Math.round((featuredDate.getTime() - Date.now()) / 86_400_000);
+          const featuredDateLabel = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }).format(featuredDate);
           return (
-            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="mt-5 rounded-3xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl bg-rose-50 text-rose-600 text-base shadow-2xs">
-                    <CalendarDays size={19} />
-                  </span>
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">แจ้งเตือนกำหนดการ</span>
-                    <h4 className="text-sm font-black text-slate-900 leading-tight">กิจกรรม & วันสำคัญเร็วๆ นี้</h4>
+            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="relative mt-5 overflow-hidden rounded-[28px] border-2 border-amber-300 bg-gradient-to-r from-[#fff3c4] via-[#fff9e7] to-[#fff2dc] p-4 shadow-sm sm:p-5">
+              <span aria-hidden="true" className="absolute -top-1 left-[22%] h-4 w-14 -rotate-2 border border-amber-200 bg-white/80 shadow-xs" />
+              <span aria-hidden="true" className="pointer-events-none absolute -bottom-8 right-10 text-7xl opacity-[0.08]">🏫</span>
+              <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-[22px] bg-amber-500 text-2xl text-white shadow-md shadow-amber-700/15">🔔</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-amber-600 px-2.5 py-1 text-[10px] font-black text-white">แจ้งเตือนกำหนดการ 📌</span>
+                      <span className={`rounded-full border border-white/80 bg-white/80 px-2.5 py-1 text-[10px] font-black ${featuredConfig.badge}`}>{featuredConfig.icon} {featuredConfig.label}</span>
+                      <span className="rounded-full border border-sky-200 bg-sky-100 px-2.5 py-1 text-[10px] font-black text-sky-800">{daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`}</span>
+                    </div>
+                    <h3 className="mt-1 text-base font-black text-slate-950 sm:text-xl">{featuredEvent.title}</h3>
+                    <p className="mt-0.5 text-xs font-bold text-slate-600">{featuredDateLabel}{upcomingSlice.length > 1 ? ` · มีกำหนดการถัดไปอีก ${upcomingSlice.length - 1} รายการ` : ' · กิจกรรมของโรงเรียนที่กำลังจะถึง'}</p>
                   </div>
                 </div>
-
-                {/* Event Pills */}
-                <div className="flex flex-wrap items-center gap-2 flex-1">
-                  {upcomingSlice.map((ev) => {
-                    const conf = eventTypeConfig[ev.type] || eventTypeConfig.custom;
-                    const evDate = new Date(`${ev.date}T00:00:00`);
-                    const daysFromNow = Math.round((evDate.getTime() - Date.now()) / 86_400_000);
-                    const countdown = daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`;
-                    const dateFormatted = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(evDate);
-
-                    return (
-                      <div
-                        key={ev.id}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-1.5 transition hover:bg-slate-100 hover:border-slate-300"
-                      >
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                          daysFromNow <= 1 ? 'bg-rose-500 text-white' : daysFromNow <= 3 ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {countdown}
-                        </span>
-                        <span className="text-xs font-black text-slate-800 truncate max-w-[150px] sm:max-w-[200px]" title={ev.title}>
-                          <span className="mr-1">{conf.icon}</span>
-                          {ev.title}
-                        </span>
-                        <span className="text-[10.5px] font-bold text-slate-400">
-                          ({dateFormatted})
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <Link
-                  to="/app/dashboard?view=school-calendar"
-                  className="inline-flex items-center gap-1 text-xs font-black text-cyan-700 hover:text-cyan-900 hover:underline shrink-0 self-end lg:self-center"
-                >
-                  <span>ดูปฏิทินทั้งหมด</span>
-                  <ArrowRight size={13} />
+                <Link to="/app/dashboard?view=school-calendar" className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start rounded-2xl bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 sm:self-center sm:px-5 sm:text-sm">
+                  เปิดปฏิทินโรงเรียน <ArrowRight size={15} />
                 </Link>
               </div>
             </section>
@@ -1515,7 +1489,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       </div>
 
       {dashboardViewMode === 'shortcuts' ? (
-        <section aria-label="งานประจำวันของห้องนี้" className="relative mt-4 overflow-hidden rounded-[28px] border-2 border-[#e8dfd2] bg-[#fffdf8] p-4 shadow-sm sm:p-5">
+        <section aria-label="งานประจำวันของห้องนี้" className="relative mt-4 overflow-hidden rounded-[30px] border-2 border-[#e8dfd2] bg-[#fffdf8] p-4 shadow-sm sm:p-5 xl:p-6" style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0, transparent 39px, rgb(148 163 184 / 0.10) 40px, transparent 41px)', backgroundPosition: '0 18px' }}>
           <span aria-hidden="true" className="absolute -top-1 left-[18%] h-4 w-14 rotate-[-3deg] border border-amber-200/80 bg-white/85 shadow-sm" />
           <span aria-hidden="true" className="absolute -top-1 right-[16%] h-4 w-14 rotate-[2deg] border border-sky-200/80 bg-white/85 shadow-sm" />
           <div className="flex flex-wrap items-center justify-between gap-3">
