@@ -1515,31 +1515,46 @@ export function DashboardPage({ session }: DashboardPageProps) {
       </div>
 
       {dashboardViewMode === 'shortcuts' ? (
-        <section aria-label="งานประจำวันของห้องนี้" className="mt-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-black text-slate-950">งานประจำวันของห้องนี้</h2>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">เลือกงานเพื่อเปิดหน้าบันทึกหรือดูสถานะล่าสุด</p>
+        <section aria-label="งานประจำวันของห้องนี้" className="relative mt-4 overflow-hidden rounded-[28px] border-2 border-[#e8dfd2] bg-[#fffdf8] p-4 shadow-sm sm:p-5">
+          <span aria-hidden="true" className="absolute -top-1 left-[18%] h-4 w-14 rotate-[-3deg] border border-amber-200/80 bg-white/85 shadow-sm" />
+          <span aria-hidden="true" className="absolute -top-1 right-[16%] h-4 w-14 rotate-[2deg] border border-sky-200/80 bg-white/85 shadow-sm" />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-xl shadow-sm ring-1 ring-amber-200">📒</span>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-700">TODAY · ห้องเรียนของเรา</p>
+                <h2 className="mt-0.5 text-base font-black text-slate-950 sm:text-lg">งานประจำวันของห้องนี้</h2>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">เลือกการ์ดเพื่อเริ่มทำงานหรือดูสถานะล่าสุด</p>
+              </div>
             </div>
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">{dynamicTodayTasks.length} งาน</span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">{dynamicTodayTasks.length} งานวันนี้ ✨</span>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {dynamicTodayTasks.slice(0, 4).map((task) => {
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+            {dynamicTodayTasks.slice(0, 4).map((task, index) => {
               const Icon = task.icon;
+              const cardTone = [
+                'border-emerald-200 bg-[#e9fbef] hover:border-emerald-300 hover:bg-emerald-50',
+                'border-sky-200 bg-[#edf8ff] hover:border-sky-300 hover:bg-sky-50',
+                'border-violet-200 bg-[#f4efff] hover:border-violet-300 hover:bg-violet-50',
+                'border-amber-200 bg-[#fff8d9] hover:border-amber-300 hover:bg-amber-50',
+              ][index % 4];
+              const iconTone = ['bg-emerald-600', 'bg-sky-600', 'bg-violet-600', 'bg-amber-500'][index % 4];
               return (
                 <Link
                   key={task.label}
                   to={task.path}
-                  className="flex min-h-[82px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 transition hover:border-teal-300 hover:bg-teal-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className={`group relative flex min-h-[96px] items-center gap-3 rounded-[22px] border p-3.5 shadow-[0_3px_0_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${cardTone}`}
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-teal-700 shadow-sm">
+                  <span aria-hidden="true" className="absolute -top-1 left-1/2 h-3 w-10 -translate-x-1/2 rotate-1 border border-white/80 bg-white/75 shadow-xs" />
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-md transition group-hover:rotate-[-4deg] group-hover:scale-105 ${iconTone}`}>
                     <Icon size={18} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-black text-slate-900">{task.label}</span>
                     <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{task.detail}</span>
                   </span>
-                  <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-black ${task.tone}`}>{task.status}</span>
+                  <span className={`shrink-0 rounded-full border border-white/80 bg-white/80 px-2 py-1 text-[11px] font-black shadow-xs ${task.tone}`}>{task.status}</span>
+                  <ArrowRight aria-hidden="true" className="shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-700" size={15} />
                 </Link>
               );
             })}
