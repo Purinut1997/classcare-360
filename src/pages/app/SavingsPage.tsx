@@ -33,6 +33,7 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { getBangkokDate } from '../../lib/date';
 import { formatThaiOfficialDate, buildOfficialReportCss, escapeOfficialHtml } from '../../lib/officialReport';
+import { createQuickDepositDraft, getNextQuickDepositDraft } from '../../lib/savingsDrafts';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getClassroomScopeBadge, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
@@ -214,7 +215,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
   // Cute Post-it Board states
   const [viewMode, setViewMode] = useState<'board' | 'ledger'>('board');
   const [draftDeposits, setDraftDeposits] = useState<Record<string, number>>({});
-  const [selectedPresetAmount, setSelectedPresetAmount] = useState<number>(20);
+  const [quickDepositAmountInput, setQuickDepositAmountInput] = useState('20');
   const [sheetStudent, setSheetStudent] = useState<StudentRow | null>(null);
   const [correctionTransaction, setCorrectionTransaction] = useState<SavingsTransactionRow | null>(null);
   const [correctionForm, setCorrectionForm] = useState({ amount: '', date: getTodayDate(), reason: '', studentId: '', type: 'deposit' as 'deposit' | 'withdrawal' });
@@ -258,6 +259,32 @@ export function SavingsPage({ session }: SavingsPageProps) {
     () => students.filter((student) => student.classroom_id === classroomId),
     [classroomId, students],
   );
+
+  const selectedPresetAmount = Number(quickDepositAmountInput);
+  const isQuickDepositAmountValid = Number.isFinite(selectedPresetAmount) && selectedPresetAmount > 0;
+  const quickDepositAmountLabel = isQuickDepositAmountValid ? formatBaht(selectedPresetAmount) : '—';
+
+  function selectQuickDepositAmount(amount: number) {
+    setQuickDepositAmountInput(String(amount));
+  }
+
+  function updateQuickDepositForStudent(studentId: string) {
+    if (!isQuickDepositAmountValid) {
+      setNotice('กรุณากรอกยอดออมต่อคนให้มากกว่า 0 บาท');
+      return;
+    }
+
+    setDraftDeposits((current) => getNextQuickDepositDraft(current, studentId, selectedPresetAmount));
+  }
+
+  function applyQuickDepositToClassroom() {
+    if (!isQuickDepositAmountValid) {
+      setNotice('กรุณากรอกยอดออมต่อคนให้มากกว่า 0 บาท');
+      return;
+    }
+
+    setDraftDeposits(createQuickDepositDraft(classroomStudents.map((student) => student.id), selectedPresetAmount));
+  }
 
   const accountByStudent = useMemo(() => new Map(accounts.map((account) => [account.student_id, account])), [accounts]);
 
@@ -1284,11 +1311,11 @@ export function SavingsPage({ session }: SavingsPageProps) {
             <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-bold text-[#57534e]">เลือกยอดฝาก:</span>
-                {[10, 20, 50, 100].map((amt) => (
+                {[5, 10, 20, 50, 100].map((amt) => (
                   <button
                     key={amt}
                     type="button"
-                    onClick={() => setSelectedPresetAmount(amt)}
+                    onClick={() => selectQuickDepositAmount(amt)}
                     className={`h-8 px-2.5 rounded-xl text-xs font-bold transition active:scale-95 shadow-2xs ${
                       selectedPresetAmount === amt
                         ? 'bg-[#332f2b] text-white ring-2 ring-amber-400'
@@ -1299,19 +1326,29 @@ export function SavingsPage({ session }: SavingsPageProps) {
                   </button>
                 ))}
 
+                <label className="flex h-8 items-center gap-1 rounded-xl border border-amber-300 bg-amber-50/70 px-2 text-xs font-bold text-[#713f12] shadow-2xs focus-within:ring-2 focus-within:ring-amber-400">
+                  <span className="whitespace-nowrap">ยอดต่อคน</span>
+                  <input
+                    aria-label="กำหนดยอดออมต่อคน"
+                    className="w-14 bg-transparent text-center font-black text-[#3f3a36] outline-none"
+                    inputMode="decimal"
+                    min="0.01"
+                    onChange={(event) => setQuickDepositAmountInput(event.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={quickDepositAmountInput}
+                  />
+                  <span>฿</span>
+                </label>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    const next: Record<string, number> = {};
-                    classroomStudents.forEach((s) => {
-                      next[s.id] = selectedPresetAmount;
-                    });
-                    setDraftDeposits(next);
-                  }}
-                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border border-lime-400 bg-white text-xs font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
+                  disabled={!isQuickDepositAmountValid}
+                  onClick={applyQuickDepositToClassroom}
+                  className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border border-lime-400 bg-white text-xs font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Coins size={13} className="text-[#1b3e04]" />
-                  <span>+{selectedPresetAmount} ฿ ทุกคน</span>
+                  <span>+{quickDepositAmountLabel} ฿ ทุกคน</span>
                 </button>
 
                 {Object.keys(draftDeposits).length > 0 && (
@@ -1346,7 +1383,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
             </div>
 
             <p className="mt-1 text-xs sm:text-sm font-medium text-[#57534e]">
-              แตะโน้ตเพื่อเพิ่มยอดฝาก +{selectedPresetAmount} ฿ (แตะซ้ำเพื่อเพิ่ม หรือวนกลับเป็น 0) หรือกด ✏️ เพื่อดูรายละเอียด/ถอนเงิน
+              กำหนดยอดต่อคน แล้วแตะโน้ตนักเรียนที่ออมยอดเดียวกันได้หลายคน หรือกด “ทุกคน” เพื่อใส่ทั้งห้อง · แตะซ้ำเพื่อเพิ่ม 1 เท่า แล้วแตะอีกครั้งเพื่อล้าง
             </p>
 
             {/* Post-it Notes Grid */}
@@ -1369,31 +1406,15 @@ export function SavingsPage({ session }: SavingsPageProps) {
                     key={student.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => {
-                      setDraftDeposits((prev) => {
-                        const cur = prev[student.id] || 0;
-                        if (cur === 0) return { ...prev, [student.id]: selectedPresetAmount };
-                        if (cur === selectedPresetAmount) return { ...prev, [student.id]: selectedPresetAmount * 2 };
-                        const next = { ...prev };
-                        delete next[student.id];
-                        return next;
-                      });
-                    }}
+                    onClick={() => updateQuickDepositForStudent(student.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        setDraftDeposits((prev) => {
-                          const cur = prev[student.id] || 0;
-                          if (cur === 0) return { ...prev, [student.id]: selectedPresetAmount };
-                          if (cur === selectedPresetAmount) return { ...prev, [student.id]: selectedPresetAmount * 2 };
-                          const next = { ...prev };
-                          delete next[student.id];
-                          return next;
-                        });
+                        updateQuickDepositForStudent(student.id);
                       }
                     }}
                     className={`group relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[74px] sm:min-h-[82px] transition-all select-none active:scale-95 cursor-pointer ${bgClass} ${rotation} hover:scale-105 hover:z-10`}
-                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (ยอดปัจจุบัน ${formatBaht(currentBalance)} ฿) — แตะเพื่อเพิ่มยอดฝาก +${selectedPresetAmount} ฿`}
+                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (ยอดปัจจุบัน ${formatBaht(currentBalance)} ฿) — แตะเพื่อเพิ่มยอดฝาก +${quickDepositAmountLabel} ฿`}
                   >
                     {/* Frosted Tape */}
                     <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
@@ -1406,7 +1427,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                         e.stopPropagation();
                         setSheetStudent(student);
                         setSheetForm({
-                          amount: String(draft > 0 ? draft : selectedPresetAmount),
+                          amount: String(draft > 0 ? draft : isQuickDepositAmountValid ? selectedPresetAmount : ''),
                           note: '',
                           transactionType: 'deposit',
                         });
@@ -1954,7 +1975,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
               {/* Amount Quick Presets */}
               <div className="flex items-center gap-1.5">
-                {[10, 20, 50, 100].map((amt) => (
+                {[5, 10, 20, 50, 100].map((amt) => (
                   <button
                     key={amt}
                     type="button"
