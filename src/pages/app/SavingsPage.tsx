@@ -82,6 +82,7 @@ interface SavingsTransactionRow {
   transaction_date: string;
   transaction_type: SavingsTransactionType;
   workspace_id: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 const demoClassrooms: ClassroomRow[] = [{ academic_year: '2569', id: 'demo-classroom', name: 'ป.5/2' }];
@@ -215,6 +216,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
   const [draftDeposits, setDraftDeposits] = useState<Record<string, number>>({});
   const [selectedPresetAmount, setSelectedPresetAmount] = useState<number>(20);
   const [sheetStudent, setSheetStudent] = useState<StudentRow | null>(null);
+  const [correctionTransaction, setCorrectionTransaction] = useState<SavingsTransactionRow | null>(null);
+  const [correctionForm, setCorrectionForm] = useState({ amount: '', date: getTodayDate(), reason: '', studentId: '', type: 'deposit' as 'deposit' | 'withdrawal' });
   const [sheetForm, setSheetForm] = useState({
     amount: '20',
     note: '',
@@ -240,6 +243,10 @@ export function SavingsPage({ session }: SavingsPageProps) {
     }
     return classrooms;
   }, [classrooms, scopeFilter, teacherScope]);
+  const correctionEligibleStudents = useMemo(
+    () => students.filter((student) => displayClassrooms.some((classroom) => classroom.id === student.classroom_id)),
+    [displayClassrooms, students],
+  );
 
   useEffect(() => {
     if (requestedClassroomId && displayClassrooms.some((classroom) => classroom.id === requestedClassroomId)) {
@@ -345,7 +352,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
           .eq('workspace_id', session.workspace.id),
         supabase
           .from('savings_transactions')
-          .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at')
+          .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false })
           .limit(120),
@@ -516,6 +523,85 @@ export function SavingsPage({ session }: SavingsPageProps) {
     setTransactions((current) => [transaction, ...current]);
     setNotice('บันทึกเงินออมแล้ว');
     setIsSubmitting(false);
+  }
+
+  async function handleCorrectSavingsTransaction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!correctionTransaction || !session.workspace) return;
+    const amount = Number(correctionForm.amount);
+    const replacementStudent = students.find((student) => student.id === correctionForm.studentId);
+    if (!replacementStudent || !Number.isFinite(amount) || amount <= 0 || !correctionForm.reason.trim()) {
+      setNotice('กรุณาตรวจนักเรียน จำนวนเงิน และเหตุผลการแก้ไข');
+      return;
+    }
+    setIsSubmitting(true);
+    setNotice(null);
+
+    try {
+      let original: SavingsTransactionRow;
+      let reversal: SavingsTransactionRow;
+      let replacement: SavingsTransactionRow;
+      let sourceBalance = 0;
+      let targetBalance = 0;
+
+      if (!supabase || isDemoSession(session)) {
+        const sourceAccount = accountByStudent.get(correctionTransaction.student_id);
+        const targetAccount = accountByStudent.get(replacementStudent.id);
+        const originalSigned = correctionTransaction.transaction_type === 'withdrawal' ? -correctionTransaction.amount : correctionTransaction.amount;
+        const reversalSigned = -originalSigned;
+        const replacementSigned = correctionForm.type === 'withdrawal' ? -amount : amount;
+        sourceBalance = (sourceAccount?.balance || 0) + reversalSigned;
+        targetBalance = (targetAccount?.balance || 0) + replacementSigned;
+        if (sourceBalance < 0 || targetBalance < 0) throw new Error('ยอดของนักเรียนเดิมถูกใช้ไปแล้ว จึงย้อนรายการให้ยอดติดลบไม่ได้ กรุณาตรวจสอบก่อนแก้ไข');
+        const now = new Date().toISOString();
+        const reversalType = correctionTransaction.transaction_type === 'withdrawal' ? 'deposit' : 'withdrawal';
+        reversal = { ...correctionTransaction, account_id: sourceAccount?.id || null, amount: correctionTransaction.amount, created_at: now, id: `demo-reversal-${Date.now()}`, note: `ย้อนรายการเดิม: ${correctionForm.reason.trim()}`, recorded_by: session.profile.id, transaction_type: reversalType, metadata: { correction_of: correctionTransaction.id, correction_role: 'reversal' } };
+        replacement = { ...correctionTransaction, account_id: targetAccount?.id || `demo-account-${replacementStudent.id}`, amount, created_at: now, id: `demo-replacement-${Date.now()}`, note: `รายการที่แก้ไขแทน: ${correctionForm.reason.trim()}`, recorded_by: session.profile.id, student_id: replacementStudent.id, transaction_date: correctionForm.date, transaction_type: correctionForm.type, metadata: { correction_of: correctionTransaction.id, correction_role: 'replacement' } };
+        original = { ...correctionTransaction, metadata: { ...(correctionTransaction.metadata || {}), correction_id: replacement.id, correction_reversal_id: reversal.id, correction_reason: correctionForm.reason.trim() } };
+      } else {
+        const { data, error } = await supabase.rpc('correct_savings_transaction', {
+          target_workspace_id: session.workspace.id,
+          target_transaction_id: correctionTransaction.id,
+          replacement_student_id: replacementStudent.id,
+          replacement_amount: amount,
+          replacement_date: correctionForm.date,
+          replacement_type: correctionForm.type,
+          correction_reason: correctionForm.reason.trim(),
+        });
+        if (error) {
+          const messages: Record<string, string> = {
+            savings_correction_source_balance_insufficient: 'ยอดเงินของนักเรียนเดิมถูกใช้ไปแล้ว จึงย้อนรายการให้ยอดติดลบไม่ได้ กรุณาตรวจสอบก่อนแก้ไข',
+            savings_transaction_already_corrected: 'รายการนี้ถูกแก้ไขไปแล้ว ดูรายการที่เชื่อมโยงในประวัติได้เลย',
+            savings_correction_not_allowed: 'บัญชีนี้ไม่มีสิทธิ์แก้รายการเงินออม',
+          };
+          throw new Error(Object.entries(messages).find(([key]) => error.message.includes(key))?.[1] || error.message);
+        }
+        const result = data as { original: SavingsTransactionRow; reversal: SavingsTransactionRow; replacement: SavingsTransactionRow; source_balance: number; target_balance: number };
+        original = result.original;
+        reversal = result.reversal;
+        replacement = result.replacement;
+        sourceBalance = Number(result.source_balance || 0);
+        targetBalance = Number(result.target_balance || 0);
+      }
+
+      setTransactions((current) => [reversal, replacement, ...current.map((transaction) => transaction.id === original.id ? original : transaction)]);
+      setAccounts((current) => {
+        const next = [...current];
+        const sourceIndex = next.findIndex((account) => account.student_id === correctionTransaction.student_id);
+        if (sourceIndex >= 0) next[sourceIndex] = { ...next[sourceIndex], balance: sourceBalance };
+        const targetIndex = next.findIndex((account) => account.student_id === replacementStudent.id);
+        if (targetIndex >= 0) next[targetIndex] = { ...next[targetIndex], balance: targetBalance };
+        else next.push({ balance: targetBalance, id: replacement.account_id || `saving-account-${replacementStudent.id}`, status: 'active', student_id: replacementStudent.id });
+        return next;
+      });
+      setCorrectionTransaction(null);
+      setCorrectionForm({ amount: '', date: getTodayDate(), reason: '', studentId: '', type: 'deposit' });
+      setNotice('แก้รายการสำเร็จ ระบบเก็บรายการเดิมและบันทึกประวัติการย้อน/รายการใหม่ไว้แล้ว');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : `แก้รายการไม่สำเร็จ: ${String(error)}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function handleSaveDailySavings() {
@@ -1688,9 +1774,31 @@ export function SavingsPage({ session }: SavingsPageProps) {
                             </p>
                           </div>
                         </div>
-                        <span className="text-[11px] font-bold text-[#78716c]">
-                          {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <span className="text-[11px] font-bold text-[#78716c]">
+                            {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
+                          </span>
+                          {transaction.metadata?.correction_id ? (
+                            <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-800">แก้ไขแล้ว</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCorrectionTransaction(transaction);
+                                setCorrectionForm({
+                                  amount: String(transaction.amount),
+                                  date: transaction.transaction_date,
+                                  reason: '',
+                                  studentId: transaction.student_id,
+                                  type: transaction.transaction_type === 'withdrawal' ? 'withdrawal' : 'deposit',
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[10px] font-black text-violet-800 transition hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                            >
+                              <Pencil size={11} aria-hidden="true" /> แก้รายการ
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1702,6 +1810,54 @@ export function SavingsPage({ session }: SavingsPageProps) {
                 </div>
               </div>
             </section>
+          </div>
+        )}
+
+        {correctionTransaction && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs" role="presentation">
+            <form onSubmit={(event) => void handleCorrectSavingsTransaction(event)} className="w-full max-w-xl overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="savings-correction-title">
+              <header className="flex items-start justify-between gap-3 border-b border-violet-100 bg-violet-50/70 p-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">SAFE LEDGER CORRECTION</p>
+                  <h2 id="savings-correction-title" className="mt-1 text-lg font-black text-slate-950">แก้รายการเงินออม</h2>
+                  <p className="mt-1 text-xs font-semibold text-slate-600">ระบบจะเก็บรายการเดิม แล้วบันทึกรายการย้อนและรายการที่ถูกต้องไว้ในประวัติ</p>
+                </div>
+                <button type="button" onClick={() => setCorrectionTransaction(null)} className="rounded-xl p-2 text-slate-500 hover:bg-white" aria-label="ปิดหน้าต่างแก้รายการ"><X size={18} /></button>
+              </header>
+              <div className="grid gap-3 p-5">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <p className="font-black text-slate-800">รายการเดิม: {correctionTransaction.transaction_type === 'withdrawal' ? 'ถอน' : correctionTransaction.transaction_type === 'adjustment' ? 'ปรับยอด' : 'ฝาก'} {formatBaht(correctionTransaction.amount)} บาท</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{students.find((student) => student.id === correctionTransaction.student_id)?.first_name || 'นักเรียน'} · {correctionTransaction.transaction_date} · {correctionTransaction.note || 'ไม่มีหมายเหตุ'}</p>
+                </div>
+                <label className="grid gap-1 text-xs font-bold text-slate-700">นักเรียนที่ถูกต้อง
+                  <select required value={correctionForm.studentId} onChange={(event) => setCorrectionForm((current) => ({ ...current, studentId: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold">
+                    {correctionEligibleStudents.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name}{student.nickname ? ` (${student.nickname})` : ''}</option>)}
+                  </select>
+                  {teacherScope.hasHomeroom && scopeFilter === 'homeroom' ? <span className="font-medium text-slate-500">ต้องแก้ไปยังห้องอื่น? เลือก “ทุกห้อง” ที่ตัวกรองห้องก่อน</span> : null}
+                </label>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="grid gap-1 text-xs font-bold text-slate-700">ประเภท
+                    <select value={correctionForm.type} onChange={(event) => setCorrectionForm((current) => ({ ...current, type: event.target.value as 'deposit' | 'withdrawal' }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold">
+                      <option value="deposit">ฝากเงิน</option><option value="withdrawal">ถอนเงิน</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-bold text-slate-700">จำนวนเงิน (บาท)
+                    <input required type="number" min="0.01" step="0.01" value={correctionForm.amount} onChange={(event) => setCorrectionForm((current) => ({ ...current, amount: event.target.value }))} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold" />
+                  </label>
+                  <label className="grid gap-1 text-xs font-bold text-slate-700">วันที่รายการ
+                    <input required type="date" value={correctionForm.date} onChange={(event) => setCorrectionForm((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold" />
+                  </label>
+                </div>
+                <label className="grid gap-1 text-xs font-bold text-slate-700">เหตุผลที่แก้ไข
+                  <textarea required maxLength={300} value={correctionForm.reason} onChange={(event) => setCorrectionForm((current) => ({ ...current, reason: event.target.value }))} placeholder="เช่น บันทึกผิดคน / จำนวนเงินจริง 10 บาท" className="min-h-20 rounded-xl border border-slate-200 p-3 text-sm font-medium" />
+                </label>
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-semibold leading-5 text-amber-900">ถ้ายอดของนักเรียนเดิมถูกถอนหรือใช้ไปแล้วจนการย้อนทำให้ยอดติดลบ ระบบจะไม่ทำรายการ และให้ตรวจสอบกับผู้ดูแลก่อน</p>
+              </div>
+              <footer className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4">
+                <button type="button" onClick={() => setCorrectionTransaction(null)} disabled={isSubmitting} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-white">ยกเลิก</button>
+                <button type="submit" disabled={isSubmitting || correctionEligibleStudents.length === 0} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-violet-800 disabled:opacity-50">{isSubmitting ? 'กำลังบันทึก…' : 'ตรวจและบันทึกการแก้ไข'}</button>
+              </footer>
+            </form>
           </div>
         )}
 
