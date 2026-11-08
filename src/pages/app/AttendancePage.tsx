@@ -189,6 +189,13 @@ function getTodayDate() {
   return getBangkokDate();
 }
 
+function getAttendanceErrorMessage(message: string) {
+  if (message.includes('period_locked')) {
+    return 'งวดเช็กชื่อของวันที่นี้ถูกล็อกแล้ว กรุณาให้ผู้ดูแลปลดล็อกงวดก่อนบันทึกย้อนหลัง';
+  }
+  return message;
+}
+
 function createDefaultMarks(students: StudentRow[]): Record<string, AttendanceStatus | undefined> {
   // A student stays unmarked until the teacher confirms their status.
   return Object.fromEntries(students.map((student) => [student.id, undefined]));
@@ -626,7 +633,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       .single();
 
     if (error) {
-      setNotice(error.message);
+      setNotice(getAttendanceErrorMessage(error.message));
       return null;
     }
 
@@ -669,9 +676,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
       .select('id,classroom_id,attendance_date,period_label,subject_name,status')
       .single();
     if (error) {
-      setNotice(error.message);
+      setNotice(getAttendanceErrorMessage(error.message));
       feedback.endOperation(operationId);
-      feedback.error({ title: 'แก้ไขวันที่ไม่สำเร็จ', message: error.message });
+      feedback.error({ title: 'แก้ไขวันที่ไม่สำเร็จ', message: getAttendanceErrorMessage(error.message) });
       setIsSubmitting(false);
       return;
     }
@@ -765,11 +772,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
       .select('id,session_id,student_id,status,note');
 
     if (error) {
-      setNotice(error.message);
+      setNotice(getAttendanceErrorMessage(error.message));
       feedback.endOperation(operationId);
       feedback.error({
         title: 'บันทึกเช็คชื่อไม่สำเร็จ',
-        message: error.message,
+        message: getAttendanceErrorMessage(error.message),
         details: [
           { label: 'วันที่', value: activeSession.attendance_date },
           { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
@@ -1037,7 +1044,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
-                <span>เช็คชื่อวันนี้</span>
+                <span>เช็คชื่อ{isToday ? 'วันนี้' : 'ย้อนหลัง'}</span>
                 <span className="text-xl sm:text-2xl">📌</span>
               </h1>
             </div>
@@ -1049,7 +1056,22 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* Keep the date control visible so missed days are easy to record later. */}
+            <div className={`rounded-xl border px-2.5 py-1.5 shadow-xs ${isToday ? 'border-sky-200 bg-sky-50/80' : 'border-amber-300 bg-amber-50'}`}>
+              <span className="mb-0.5 block text-[10px] font-black text-slate-500">วันที่เช็กชื่อ</span>
+              <div className="flex items-center gap-1.5">
+                <ThaiDatePicker
+                  className="h-8 min-w-36 bg-white px-2.5 text-xs"
+                  value={attendanceDate}
+                  max={getTodayDate()}
+                  onValueChange={setAttendanceDate}
+                />
+                <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${isToday ? 'bg-sky-100 text-sky-800' : 'bg-amber-200 text-amber-950'}`}>
+                  {isToday ? 'วันนี้' : 'ย้อนหลัง'}
+                </span>
+              </div>
+            </div>
             {/* Classroom Selector */}
             <div className="relative inline-flex items-center rotate-[1.5deg] shadow-xs">
               <select
@@ -1108,7 +1130,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
         {isHolidayBlocked && calendarPolicy && (
           <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-300 bg-rose-50 p-3 text-xs sm:text-sm text-rose-900 font-bold">
             <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-            <span>วันนี้เป็นวันหยุดตามปฏิทิน: {calendarPolicy.title} (ระบบงดบันทึกเวลาเรียน)</span>
+            <span>วันที่เลือกเป็นวันหยุดตามปฏิทิน: {calendarPolicy.title} (ระบบงดบันทึกเวลาเรียน)</span>
           </div>
         )}
 
@@ -1536,19 +1558,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <span>⚙️ การตั้งค่า & เครื่องมือเพิ่มเติม</span>
             </h3>
 
-            {/* Date Selector */}
-            <div className="mt-4 grid gap-1.5">
-              <label className="text-xs font-bold text-slate-700">📅 เปลี่ยนวันที่เช็คชื่อ:</label>
-              <ThaiDatePicker
-                className="h-10 px-3 text-xs"
-                value={attendanceDate}
-                onValueChange={(val) => {
-                  setAttendanceDate(val);
-                  setIsMoreOpen(false);
-                }}
-              />
-            </div>
-
             {/* Period & Subject Inputs if in Subject mode */}
             {mode === 'subject' && (
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1578,11 +1587,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
             {/* Correct existing session date */}
             {attendanceSession && (
               <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
-                <label className="text-xs font-bold text-slate-700 block mb-1">แก้ไขวันที่บันทึกย้อนหลัง:</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">ย้ายวันที่ของรายการที่บันทึกแล้ว:</label>
                 <div className="flex items-center gap-2">
                   <ThaiDatePicker
                     className="h-9 flex-1 bg-white px-2.5 text-xs"
                     value={editSessionDate || attendanceSession.attendance_date}
+                      max={getTodayDate()}
                     onValueChange={setEditSessionDate}
                   />
                   <button
