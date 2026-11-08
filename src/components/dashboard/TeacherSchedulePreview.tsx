@@ -78,20 +78,32 @@ export function TeacherSchedulePreview({
             {day === currentDay ? <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white ${selectedDay === day ? 'bg-amber-300' : 'bg-amber-500'}`} title="วันนี้" /> : null}
           </button>
         ))}
-        <span className="ml-auto hidden shrink-0 items-center gap-1 self-center text-[11px] font-semibold text-slate-400 sm:inline-flex"><Clock3 size={13} /> {lessons.length} จาก {totalPeriodCount} คาบ</span>
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1 self-center text-[11px] font-semibold text-slate-400"><Clock3 size={13} /> {lessons.length} จาก {totalPeriodCount} คาบ</span>
       </div>
 
       {lessons.length > 0 ? (
-        <ol className="grid gap-2 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-4">
+        <ol className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
           {lessons.map((lesson) => (
-            <li key={`${selectedDay}-${lesson.index}`} className="flex min-h-[88px] items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50/50 p-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-sm font-black text-sky-800 shadow-sm ring-1 ring-sky-100">{lesson.index}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-black text-slate-900">{lesson.subject}</span>
-                <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-bold text-slate-500">
-                  {lesson.start}–{lesson.end}{lesson.classroom ? ` · ${lesson.classroom}` : ''}
+            <li key={`${selectedDay}-${lesson.index}`} className="group overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-white px-4 py-3">
+                <span className="inline-flex items-center gap-2 rounded-xl bg-sky-700 px-3 py-1.5 text-xs font-black text-white shadow-sm">
+                  <CalendarDays size={14} aria-hidden="true" /> คาบที่ {lesson.index}
                 </span>
-              </span>
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-black tabular-nums text-slate-700 ring-1 ring-slate-200">
+                  <Clock3 size={13} className="text-sky-700" aria-hidden="true" /> {lesson.start}–{lesson.end}
+                </span>
+              </div>
+              <div className="px-4 pb-3 pt-3.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">วิชา</p>
+                <p className="mt-0.5 truncate text-base font-black leading-snug text-slate-950" title={lesson.subject}>{lesson.subject}</p>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-dashed border-slate-200 pt-2.5">
+                  <span className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-black text-amber-900 ring-1 ring-amber-100">
+                    <School size={14} className="shrink-0 text-amber-700" aria-hidden="true" />
+                    <span className="truncate">ชั้น {lesson.classroom || 'ไม่ระบุชั้น'}</span>
+                  </span>
+                  {lesson.subjectCode ? <span className="shrink-0 text-[10px] font-bold text-slate-400">รหัส {lesson.subjectCode}</span> : null}
+                </div>
+              </div>
             </li>
           ))}
         </ol>
