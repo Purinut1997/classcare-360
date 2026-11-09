@@ -59,7 +59,7 @@ create policy "Workspace members can view omr exam templates"
       exists (
         select 1 from public.workspace_memberships wm
         where wm.workspace_id = omr_exam_templates.workspace_id
-          and wm.user_id = auth.uid()
+          and wm.profile_id = auth.uid()
           and wm.status = 'active'
       )
       and (
@@ -80,7 +80,7 @@ create policy "Workspace members can insert omr exam templates"
     exists (
       select 1 from public.workspace_memberships wm
       where wm.workspace_id = omr_exam_templates.workspace_id
-        and wm.user_id = auth.uid()
+        and wm.profile_id = auth.uid()
         and wm.status = 'active'
     )
     or public.is_superadmin()

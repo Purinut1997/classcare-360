@@ -137,8 +137,8 @@ supabase/functions/dispatch-notification/index.ts
 - บันทึก `audit_logs` action `notification.dispatched`
 - รองรับ channel:
   - `in_app`: สร้าง notification และ log สถานะ `queued`
-  - `telegram`: ส่งผ่าน Telegram Bot API เมื่อมี `TELEGRAM_BOT_TOKEN` และ `telegramChatId`
-  - `line`: ส่งผ่าน LINE Messaging API เมื่อมี `LINE_CHANNEL_ACCESS_TOKEN` และ `lineUserId`
+  - `telegram`: ขณะนี้ยังไม่ส่งจริง ระบบจะรอการจับคู่บัญชีปลายทางกับผู้รับแบบยืนยันตัวตนก่อน
+  - `line`: ขณะนี้ยังไม่ส่งจริง รอการจับคู่บัญชีปลายทางกับผู้รับแบบยืนยันตัวตนเช่นเดียวกับ Telegram
 
 Environment ที่ต้องมีใน Supabase Functions:
 
@@ -172,7 +172,6 @@ supabase functions deploy dispatch-notification
   "body": "ข้อความแจ้งเตือน",
   "privacyLevel": "normal",
   "channels": ["in_app", "telegram"],
-  "telegramChatId": "123456789",
   "data": {
     "source_ui": "notifications_page"
   }
@@ -182,5 +181,5 @@ supabase functions deploy dispatch-notification
 ข้อควรระวัง:
 
 - ห้ามใส่ `TELEGRAM_BOT_TOKEN`, `LINE_CHANNEL_ACCESS_TOKEN` หรือ `SUPABASE_SERVICE_ROLE_KEY` ใน frontend
-- `telegramChatId` และ `lineUserId` เป็นข้อมูลผู้รับ ควรมาจาก consent/setting ที่ตรวจสิทธิ์แล้ว
+- ห้ามส่งข้อความโดยรับ Telegram chat ID หรือ LINE user ID จาก payload ของ browser; ต้องอ่านปลายทางที่จับคู่และยืนยันกับ `workspace_id + profile_id` จากฝั่ง server เท่านั้น
 - ก่อนเปิด production ต้องทดสอบ log, audit, rate limit, retry และกรณี provider ตอบ error

@@ -61,6 +61,12 @@ const defaultNotificationPreferences: TeacherNotificationPreferences = {
   summaryOnly: true,
 };
 
+function isMissingNotificationPreferencesTable(error: { code?: string; message?: string } | null | undefined) {
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || /teacher_notification_preferences.*(not found|does not exist|schema cache)/i.test(error?.message || '');
+}
+
 function mergeNotificationPreferences(value: unknown): TeacherNotificationPreferences {
   if (!value || typeof value !== 'object') return defaultNotificationPreferences;
   const incoming = value as Partial<TeacherNotificationPreferences>;
@@ -281,7 +287,14 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         supabase.from('classrooms').select('id,name,grade_level,academic_year,homeroom_teacher_profile_id,status').eq('workspace_id', workspaceId).eq('status', 'active').order('name'),
       ]);
       if (!isMounted) return;
-      if (!error && data?.preferences) setPreferences(mergeNotificationPreferences(data.preferences));
+      if (!error && data?.preferences) {
+        setPreferences(mergeNotificationPreferences(data.preferences));
+      } else if (isMissingNotificationPreferencesTable(error)) {
+        try {
+          const raw = window.localStorage.getItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`);
+          if (isMounted && raw) setPreferences(mergeNotificationPreferences(JSON.parse(raw)));
+        } catch { /* Use defaults when no local preferences exist. */ }
+      }
       if (classroomsResult.data) {
         const scope = getTeacherClassroomScope(session, classroomsResult.data as NotificationClassroom[]);
         setPreferenceClassrooms([...scope.homeroomClassrooms, ...scope.teachingClassrooms]);
@@ -310,7 +323,16 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       preferences,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'workspace_id,profile_id' });
-    setNotice(error ? `บันทึกไม่สำเร็จ: ${error.message}` : 'บันทึกตัวเลือกการรายงานของคุณครูแล้ว');
+    if (isMissingNotificationPreferencesTable(error)) {
+      try {
+        window.localStorage.setItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`, JSON.stringify(preferences));
+        setNotice('บันทึกในอุปกรณ์นี้แล้ว การบันทึกข้ามอุปกรณ์จะใช้ได้หลังอัปเดตฐานข้อมูล');
+      } catch {
+        setNotice('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
+      }
+    } else {
+      setNotice(error ? `บันทึกไม่สำเร็จ: ${error.message}` : 'บันทึกตัวเลือกการรายงานของคุณครูแล้ว');
+    }
     setIsSavingPreferences(false);
   }
 
@@ -1238,7 +1260,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
               <h3 className="text-base font-black text-slate-950">Telegram Bot Integration</h3>
             </div>
             <p className="mt-2 text-xs font-bold leading-6 text-slate-600">
-              แจ้งเตือนด่วนผ่าน Telegram Chat ID สำหรับครูผู้สอนและฝ่ายบริหารโรงเรียน ปลอดภัยและไม่เสียค่าใช้จ่าย
+              รับสรุปส่วนตัวผ่านบัญชี Telegram ที่ครูเจ้าของบัญชีเชื่อมไว้ โดยระบบจะไม่ใช้ Chat ID ที่ส่งมาจากหน้าเว็บโดยตรง
             </p>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
               <p className="text-xs font-black text-slate-700">สถานะปัจจุบัน:</p>
@@ -1256,7 +1278,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             <div>
               <p className="text-xs font-black uppercase tracking-wide text-cyan-700">ตั้งค่ารายงานส่วนตัว</p>
               <h2 className="mt-1 text-xl font-black text-slate-950">เลือกเรื่องที่อยากให้แจ้ง และเวลาที่สะดวก</h2>
-              <p className="mt-1 text-sm font-bold text-slate-600">การตั้งค่านี้บันทึกแยกตามบัญชีครูและโรงเรียนของคุณ</p>
+              <p className="mt-1 text-sm font-bold text-slate-600">การตั้งค่านี้เป็นของบัญชีคุณในโรงเรียนที่เลือก ครูคนอื่นมีค่าตั้งค่าของตนเอง</p>
             </div>
             <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
               <input
@@ -1265,8 +1287,14 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                 onChange={(event) => updatePreferences((current) => ({ ...current, telegramEnabled: event.target.checked }))}
                 type="checkbox"
               />
-              <span><span className="block text-sm font-black text-slate-900">ต้องการรับผ่าน Telegram</span><span className="block text-xs font-bold text-slate-500">เปิดไว้เป็นตัวเลือกสำหรับบัญชีนี้</span></span>
+              <span><span className="block text-sm font-black text-slate-900">ต้องการรับผ่าน Telegram</span><span className="block text-xs font-bold text-slate-500">เป็นตัวเลือกของบัญชีนี้ จะเริ่มส่งหลังเชื่อมบัญชีอย่างปลอดภัย</span></span>
             </label>
+          </div>
+
+          <div className="nexus-card grid gap-3 border border-sky-100 bg-sky-50/50 p-4 sm:grid-cols-3">
+            <div><p className="text-xs font-black text-sky-900">การตั้งค่าของคุณ</p><p className="mt-1 text-xs font-bold leading-5 text-slate-600">หมวดรายงานและเวลารับแจ้งเตือนแยกตามบัญชีและโรงเรียน</p></div>
+            <div><p className="text-xs font-black text-sky-900">ข้อมูลโรงเรียน</p><p className="mt-1 text-xs font-bold leading-5 text-slate-600">ข้อมูลนักเรียนใช้ร่วมกันตามสิทธิ์และขอบเขตห้องเรียน</p></div>
+            <div><p className="text-xs font-black text-sky-900">กุญแจ Telegram</p><p className="mt-1 text-xs font-bold leading-5 text-slate-600">เก็บฝั่งระบบเท่านั้น ส่วนบัญชีรับข้อความต้องจับคู่กับผู้ใช้ก่อนส่ง</p></div>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">

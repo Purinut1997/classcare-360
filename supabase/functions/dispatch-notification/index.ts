@@ -7,11 +7,9 @@ interface DispatchNotificationPayload {
   body?: string;
   channels?: NotificationChannel[];
   data?: Record<string, unknown>;
-  lineUserId?: string;
   privacyLevel?: PrivacyLevel;
   profileId?: string;
   queueId?: string;
-  telegramChatId?: string;
   title?: string;
   type?: string;
   workspaceId?: string;
@@ -60,10 +58,6 @@ function requireEnv(name: string) {
   return value;
 }
 
-function optionalEnv(name: string) {
-  return Deno.env.get(name) || null;
-}
-
 function normalizeChannels(channels: NotificationChannel[] | undefined): NotificationChannel[] {
   const validChannels = new Set<NotificationChannel>(['in_app', 'telegram', 'line']);
   const normalized = (channels?.length ? channels : ['in_app'])
@@ -73,93 +67,13 @@ function normalizeChannels(channels: NotificationChannel[] | undefined): Notific
   return normalized.length > 0 ? normalized : ['in_app'];
 }
 
-function buildMessage(title: string, body: string) {
-  return `${title}\n\n${body}`;
-}
-
-async function sendTelegramMessage(chatId: string | undefined, title: string, body: string): Promise<DispatchResult> {
-  const token = optionalEnv('TELEGRAM_BOT_TOKEN');
-
-  if (!token) {
-    return { channel: 'telegram', errorMessage: 'TELEGRAM_BOT_TOKEN is not configured', status: 'skipped' };
-  }
-
-  if (!chatId) {
-    return { channel: 'telegram', errorMessage: 'telegramChatId is required', status: 'skipped' };
-  }
-
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    body: JSON.stringify({
-      chat_id: chatId,
-      disable_web_page_preview: true,
-      text: buildMessage(title, body),
-    }),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  });
-  const metadata = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-
-  if (!response.ok) {
-    return {
-      channel: 'telegram',
-      errorMessage: typeof metadata.description === 'string' ? metadata.description : `Telegram HTTP ${response.status}`,
-      responseMetadata: metadata,
-      status: 'failed',
-    };
-  }
-
-  const result = metadata.result && typeof metadata.result === 'object' ? metadata.result as Record<string, unknown> : {};
+async function skipUnlinkedChannel(channel: 'telegram' | 'line'): Promise<DispatchResult> {
+  // A destination must come from a verified, profile-scoped link on the server.
+  // Never send private school/student data to an ID supplied by a browser.
   return {
-    channel: 'telegram',
-    providerMessageId: result.message_id ? String(result.message_id) : undefined,
-    responseMetadata: metadata,
-    status: 'sent',
-  };
-}
-
-async function sendLineMessage(lineUserId: string | undefined, title: string, body: string): Promise<DispatchResult> {
-  const token = optionalEnv('LINE_CHANNEL_ACCESS_TOKEN');
-
-  if (!token) {
-    return { channel: 'line', errorMessage: 'LINE_CHANNEL_ACCESS_TOKEN is not configured', status: 'skipped' };
-  }
-
-  if (!lineUserId) {
-    return { channel: 'line', errorMessage: 'lineUserId is required', status: 'skipped' };
-  }
-
-  const response = await fetch('https://api.line.me/v2/bot/message/push', {
-    body: JSON.stringify({
-      messages: [
-        {
-          text: buildMessage(title, body),
-          type: 'text',
-        },
-      ],
-      to: lineUserId,
-    }),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    method: 'POST',
-  });
-  const text = await response.text();
-  const metadata = text ? { response: text } : {};
-
-  if (!response.ok) {
-    return {
-      channel: 'line',
-      errorMessage: `LINE HTTP ${response.status}`,
-      responseMetadata: metadata,
-      status: 'failed',
-    };
-  }
-
-  return {
-    channel: 'line',
-    responseMetadata: metadata,
-    status: 'sent',
+    channel,
+    errorMessage: `${channel} delivery requires a verified account link for this recipient`,
+    status: 'skipped',
   };
 }
 
@@ -370,11 +284,11 @@ Deno.serve(async (request) => {
       }
 
       if (channel === 'telegram') {
-        dispatchResults.push(await sendTelegramMessage(payload.telegramChatId, title, body));
+        dispatchResults.push(await skipUnlinkedChannel('telegram'));
       }
 
       if (channel === 'line') {
-        dispatchResults.push(await sendLineMessage(payload.lineUserId, title, body));
+        dispatchResults.push(await skipUnlinkedChannel('line'));
       }
     }
 

@@ -38,7 +38,7 @@ create policy "Workspace members can view teacher exams"
     exists (
       select 1 from public.workspace_memberships wm
       where wm.workspace_id = teacher_exams.workspace_id
-        and wm.user_id = auth.uid()
+        and wm.profile_id = auth.uid()
         and wm.status = 'active'
     )
     or public.is_superadmin()
@@ -52,7 +52,7 @@ create policy "Workspace members can insert teacher exams"
     exists (
       select 1 from public.workspace_memberships wm
       where wm.workspace_id = teacher_exams.workspace_id
-        and wm.user_id = auth.uid()
+        and wm.profile_id = auth.uid()
         and wm.status = 'active'
     )
     or public.is_superadmin()
