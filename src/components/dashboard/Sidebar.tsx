@@ -12,7 +12,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { ContextLink as Link } from '../navigation/ContextLink';
+import { AppNavigationLink as Link } from '../navigation/ContextLink';
 
 import type { AppNavItem } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
@@ -201,6 +201,7 @@ export function Sidebar({
                 className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                 key={item.key}
                 onClick={onClose}
+                externalUrl={item.externalUrl}
                 to={item.path}
               >
                 <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -249,6 +250,7 @@ export function Sidebar({
                       className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                       key={item.key}
                       onClick={onClose}
+                      externalUrl={item.externalUrl}
                       to={item.path}
                     >
                       <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -281,6 +283,7 @@ export function Sidebar({
                     className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                     key={item.key}
                     onClick={onClose}
+                    externalUrl={item.externalUrl}
                     to={item.path}
                   >
                     <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -308,6 +311,7 @@ export function Sidebar({
                   className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
                   key={item.key}
                   onClick={onClose}
+                  externalUrl={item.externalUrl}
                   to={item.path}
                 >
                   <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>

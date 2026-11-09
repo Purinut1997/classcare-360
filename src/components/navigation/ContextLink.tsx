@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, MouseEventHandler, ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { withDemoContext } from '../../lib/auth';
@@ -14,4 +14,25 @@ export function ContextLink({ to, ...props }: LinkProps) {
   const contextualTo = typeof to === 'string' && to.startsWith('/') ? withDemoContext(to, search) : to;
 
   return <Link {...props} to={contextualTo} />;
+}
+
+interface AppNavigationLinkProps {
+  children: ReactNode;
+  className?: string;
+  externalUrl?: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
+  title?: string;
+  to: string;
+}
+
+export function AppNavigationLink({ children, className, externalUrl, onClick, title, to }: AppNavigationLinkProps) {
+  if (externalUrl) {
+    return (
+      <a className={className} href={externalUrl} onClick={onClick} rel="noopener noreferrer" target="_blank" title={title}>
+        {children}
+      </a>
+    );
+  }
+
+  return <ContextLink className={className} onClick={onClick} title={title} to={to}>{children}</ContextLink>;
 }

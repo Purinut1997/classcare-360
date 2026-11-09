@@ -23,7 +23,14 @@ import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
 import { writeAuditLog } from '../../lib/auditLog';
-import { getAttendanceOptionsFromSchedule } from '../../lib/scheduleSettings';
+import {
+  buildSchedulePeriods,
+  loadScheduleSettings,
+  loadSchoolReportIdentity,
+  makeScheduleCellKey,
+  type DayName,
+  type ScheduleSettings,
+} from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
@@ -85,6 +92,13 @@ interface CalendarAttendancePolicy {
 const demoClassrooms: ClassroomRow[] = DEMO_PRIMARY_CLASSROOMS;
 
 const demoStudents: StudentRow[] = DEMO_PRIMARY_STUDENTS;
+
+const thaiWeekdays: DayName[] = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+
+function getScheduleDay(date: string): DayName {
+  const weekday = new Date(`${date}T12:00:00`).getDay();
+  return thaiWeekdays[weekday] || 'จันทร์';
+}
 
 const statusOptions: Array<{ label: string; tone: string; value: AttendanceStatus }> = [
   { label: 'มา', tone: 'bg-teal-50 text-teal-700 ring-teal-100', value: 'present' },
@@ -237,7 +251,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [editSessionDate, setEditSessionDate] = useState('');
   const [periodLabel, setPeriodLabel] = useState('เช้า');
   const [subjectName, setSubjectName] = useState(modeCopy.homeroom.subject);
-  const [scheduleOptions, setScheduleOptions] = useState(() => getAttendanceOptionsFromSchedule(session.workspace?.id));
+  const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>(() =>
+    loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id),
+  );
   const [marks, setMarks] = useState<Record<string, AttendanceStatus | undefined>>(() => createDefaultMarks(demoMode ? demoStudents : []));
   const [undoMarks, setUndoMarks] = useState<Record<string, AttendanceStatus | undefined> | null>(null);
   const attendanceDraftKey = useMemo(
@@ -282,6 +298,33 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
+
+  const scheduledLessons = useMemo(() => {
+    const day = getScheduleDay(attendanceDate);
+    const periods = buildSchedulePeriods(scheduleSettings);
+    const teacherName = loadSchoolReportIdentity(session.workspace?.id).teacherName?.trim();
+    const currentTeacher = (teacherName || session.profile.displayName || '').trim().toLocaleLowerCase('th');
+
+    return periods.flatMap((period) => {
+      const cell = scheduleSettings.cells[makeScheduleCellKey(day, period.index)];
+      if (!cell?.subject?.trim()) return [];
+      if (selectedClassroom?.name && cell.classroom?.trim() && cell.classroom.trim() !== selectedClassroom.name) return [];
+      const subjectTeacher = scheduleSettings.subjects.find((subject) => subject.name === cell.subject)?.teacherName?.trim();
+      if (subjectTeacher && currentTeacher && subjectTeacher.toLocaleLowerCase('th') !== currentTeacher) return [];
+      return [{ ...period, subject: cell.subject.trim() }];
+    });
+  }, [attendanceDate, scheduleSettings, selectedClassroom?.name, session.profile.displayName, session.workspace?.classroomName, session.workspace?.id]);
+
+  const scheduledSubjectOptions = useMemo(
+    () => Array.from(new Set(scheduledLessons.map((lesson) => lesson.subject))),
+    [scheduledLessons],
+  );
+  const attendancePeriodOptions = useMemo(() => {
+    const periods = buildSchedulePeriods(scheduleSettings);
+    const selectedLessons = scheduledLessons.filter((lesson) => lesson.subject === subjectName);
+    const source = scheduledLessons.length > 0 ? selectedLessons : periods.map((period) => ({ ...period, subject: '' }));
+    return Array.from(new Map(source.map((period) => [period.label, period])).values());
+  }, [scheduleSettings, scheduledLessons, subjectName]);
 
   const classroomStudents = useMemo(() => {
     const rawClassroomStudents = students.filter((student) => student.classroom_id === classroomId);
@@ -507,10 +550,44 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }, [attendanceDraftKey]);
 
   useEffect(() => {
-    setScheduleOptions(getAttendanceOptionsFromSchedule(session.workspace?.id));
+    setScheduleSettings(loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id));
+  }, [session.workspace?.classroomName, session.workspace?.id]);
+
+  useEffect(() => {
     setSubjectName(modeCopy[mode].subject);
     setPeriodLabel(mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
-  }, [mode, session.workspace?.id]);
+  }, [mode]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSharedSchedule() {
+      if (!supabase || !session.workspace || demoMode) return;
+      const { data, error } = await supabase
+        .from('workspace_schedule_settings')
+        .select('settings')
+        .eq('workspace_id', session.workspace.id)
+        .maybeSingle();
+      if (!isMounted || error || !data?.settings || typeof data.settings !== 'object') return;
+
+      const local = loadScheduleSettings(session.workspace.classroomName, session.workspace.id);
+      const shared = data.settings as Partial<ScheduleSettings>;
+      setScheduleSettings({ ...local, ...shared, cells: shared.cells || local.cells, subjects: shared.subjects || local.subjects });
+    }
+
+    void loadSharedSchedule();
+    return () => { isMounted = false; };
+  }, [demoMode, session.workspace]);
+
+  useEffect(() => {
+    if (mode !== 'subject' || scheduledSubjectOptions.length === 0) return;
+    if (!scheduledSubjectOptions.includes(subjectName)) setSubjectName(scheduledSubjectOptions[0]);
+  }, [mode, scheduledSubjectOptions, subjectName]);
+
+  useEffect(() => {
+    if (mode !== 'subject' || attendancePeriodOptions.length === 0) return;
+    if (!attendancePeriodOptions.some((period) => period.label === periodLabel)) setPeriodLabel(attendancePeriodOptions[0].label);
+  }, [attendancePeriodOptions, mode, periodLabel]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1134,8 +1211,8 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   onChange={(event) => setSubjectName(event.target.value)}
                   className="max-w-44 cursor-pointer bg-transparent text-sm font-black text-slate-900 outline-none"
                 >
-                  {!scheduleOptions.subjectOptions.includes(subjectName) && <option value={subjectName}>{subjectName}</option>}
-                  {scheduleOptions.subjectOptions.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+                  {!scheduledSubjectOptions.includes(subjectName) && <option value={subjectName}>{subjectName}</option>}
+                  {(scheduledSubjectOptions.length ? scheduledSubjectOptions : scheduleSettings.subjectOptions).map((subject) => <option key={subject} value={subject}>{subject}</option>)}
                 </select>
               </label>
               <label className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs font-bold text-slate-700">
@@ -1147,10 +1224,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   onChange={(event) => setPeriodLabel(event.target.value)}
                   className="max-w-56 cursor-pointer bg-transparent text-sm font-black text-slate-900 outline-none"
                 >
-                  {!scheduleOptions.periodOptions.includes(periodLabel) && <option value={periodLabel}>{periodLabel}</option>}
-                  {scheduleOptions.periodOptions.map((period) => <option key={period} value={period}>{period}</option>)}
+                  {!attendancePeriodOptions.some((period) => period.label === periodLabel) && <option value={periodLabel}>{periodLabel}</option>}
+                  {attendancePeriodOptions.map((period) => (
+                    <option key={period.index} value={period.label}>{period.label} ({period.start}-{period.end})</option>
+                  ))}
                 </select>
               </label>
+              {scheduledLessons.length > 0 && (
+                <span className="text-xs font-semibold text-teal-700">คาบและวิชาจากตารางสอนวัน{getScheduleDay(attendanceDate)}ของห้องนี้</span>
+              )}
             </div>
           )}
           <Link

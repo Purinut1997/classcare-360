@@ -118,7 +118,11 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
   }, [demoMode, normalizedQuery, session?.workspace?.classroomName, session?.workspace?.id]);
 
   function closeSearch() { setIsOpen(false); setQuery(''); }
-  function openMenu(path: string) { navigate(withDemoContext(path, location.search)); closeSearch(); }
+function openMenu(item: AppNavItem) {
+    if (item.externalUrl) window.open(item.externalUrl, '_blank', 'noopener,noreferrer');
+    else navigate(withDemoContext(item.path, location.search));
+    closeSearch();
+  }
   function openStudent(student: SearchStudent) { navigate(withDemoContext(`/app/dashboard?view=students&studentView=roster&studentId=${encodeURIComponent(student.id)}`, location.search)); closeSearch(); }
   function openClassroom(classroom: SearchClassroom) { navigate(withDemoContext(`/app/dashboard?view=students&studentView=roster&classroomId=${encodeURIComponent(classroom.id)}`, location.search)); closeSearch(); }
   const hasWorkspaceResults = studentResults.length > 0 || classroomResults.length > 0;
@@ -132,7 +136,7 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
       </label>
       {isOpen ? <div className="app-global-search-panel" role="listbox">
         <div className="app-global-search-hint"><span>{normalizedQuery ? 'ผลการค้นหา' : 'ไปยังส่วนต่าง ๆ อย่างรวดเร็ว'}</span><span>Esc เพื่อปิด</span></div>
-        {menuResults.length > 0 ? <section aria-label="เมนูระบบ"><p className="app-global-search-section-title">เมนูและรายงาน</p>{menuResults.map((item) => { const Icon = item.icon; return <button className="app-global-search-result" key={item.key} onClick={() => openMenu(item.path)} type="button"><span className="app-global-search-result-icon"><Icon size={16} /></span><span className="min-w-0 flex-1 text-left"><strong>{item.label}</strong><small>เปิดหน้า{item.label}</small></span><ChevronRight size={16} aria-hidden="true" /></button>; })}</section> : null}
+        {menuResults.length > 0 ? <section aria-label="เมนูระบบ"><p className="app-global-search-section-title">เมนูและรายงาน</p>{menuResults.map((item) => { const Icon = item.icon; return <button className="app-global-search-result" key={item.key} onClick={() => openMenu(item)} type="button"><span className="app-global-search-result-icon"><Icon size={16} /></span><span className="min-w-0 flex-1 text-left"><strong>{item.label}</strong><small>{item.externalUrl ? 'เปิดเว็บเกมคณิตศาสตร์' : `เปิดหน้า${item.label}`}</small></span><ChevronRight size={16} aria-hidden="true" /></button>; })}</section> : null}
         {normalizedQuery.length >= 2 ? <>
           {isLoading ? <p className="app-global-search-loading"><NexusAuroraInline label="กำลังค้นหาใน workspace นี้" /></p> : null}
           {studentResults.length > 0 ? <section aria-label="นักเรียน"><p className="app-global-search-section-title">นักเรียน</p>{studentResults.map((student) => <button className="app-global-search-result" key={student.id} onClick={() => openStudent(student)} type="button"><span className="app-global-search-result-icon"><Users size={16} /></span><span className="min-w-0 flex-1 text-left"><strong>{`${student.first_name} ${student.last_name}`}</strong><small>{[student.student_code, student.nickname].filter(Boolean).join(' · ') || 'เปิดข้อมูลนักเรียน'}</small></span><ChevronRight size={16} aria-hidden="true" /></button>)}</section> : null}

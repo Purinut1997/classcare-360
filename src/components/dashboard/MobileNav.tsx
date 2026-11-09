@@ -8,7 +8,7 @@ import {
   X,
   Home,
 } from 'lucide-react';
-import { ContextLink as Link } from '../navigation/ContextLink';
+import { AppNavigationLink as Link } from '../navigation/ContextLink';
 import { CuteCareyAvatar, type MascotAvatarType } from '../support/CuteCareyAvatar';
 import type { AppNavItem } from '../../routes/appRoutes';
 
@@ -463,6 +463,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                       return (
                         <Link
                           key={item.key}
+                          externalUrl={item.externalUrl}
                           to={item.path}
                           onClick={() => setIsAllMenusOpen(false)}
                           className={`flex items-center gap-2 rounded-xl border p-2 text-left transition active:scale-98 ${
@@ -502,6 +503,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                     return (
                       <Link
                         key={item.key}
+                        externalUrl={item.externalUrl}
                         to={item.path}
                         onClick={() => setIsAllMenusOpen(false)}
                         className={`flex flex-1 items-center justify-center gap-2 rounded-xl border p-2 text-left transition ${

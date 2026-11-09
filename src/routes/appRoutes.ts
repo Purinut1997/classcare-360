@@ -8,7 +8,10 @@ export interface AppNavItem {
   icon: LucideIcon;
   moduleKey: ModuleKey;
   path: string;
+  externalUrl?: string;
 }
+
+export const CLASSROOM_GAMES_URL = 'https://mikpurinut-math-game-library.pages.dev/classroom';
 
 export const appNavItems: AppNavItem[] = [
   {
@@ -111,10 +114,11 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'randomizer',
-    label: 'วงล้อสุ่มนักเรียน/จัดกลุ่ม',
+    label: 'เกมคณิตศาสตร์ในห้องเรียน',
     icon: Dice5,
     moduleKey: 'classroom_randomizer',
     path: '/app/dashboard?view=randomizer',
+    externalUrl: CLASSROOM_GAMES_URL,
   },
   {
     key: 'reports',

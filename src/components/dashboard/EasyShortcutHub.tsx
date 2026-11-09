@@ -27,7 +27,8 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { ContextLink as Link } from '../navigation/ContextLink';
+import { AppNavigationLink as Link } from '../navigation/ContextLink';
+import { CLASSROOM_GAMES_URL } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
 import type { ClassroomAnalyticsData } from './ClassroomAnalyticsCharts';
 
@@ -129,6 +130,7 @@ interface ShortcutItem {
   keywords: string[];
   icon: LucideIcon;
   path: string;
+  externalUrl?: string;
   badge?: string;
   badgeTone?: string;
   category: ShortcutCategory;
@@ -453,12 +455,13 @@ export function EasyShortcutHub({
       // =========================================================================
       {
         id: 'randomizer',
-        title: 'สุ่มนักเรียนและจัดกลุ่ม',
-        subtitle: 'สุ่มนักเรียนตอบคำถาม จัดกลุ่มกิจกรรม',
-        description: 'สุ่มตอบคำถามในคาบเรียนแบบมีแอนิเมชันเสียงตื่นเต้น และแบ่งกลุ่มทำงานอัตโนมัติ',
+        title: 'เกมคณิตศาสตร์ในห้องเรียน',
+        subtitle: 'เปิดคลังเกมและกิจกรรมสำหรับห้องเรียน',
+        description: 'รวมเกมคณิตศาสตร์สำหรับใช้สอนและทำกิจกรรมร่วมกับนักเรียน',
         keywords: ['สุ่ม', 'วงล้อ', 'สุ่มชื่อ', 'สุ่มเลขที่', 'ตอบคำถาม', 'จัดกลุ่ม', 'randomizer'],
         icon: Dice5,
         path: '/app/dashboard?view=randomizer',
+        externalUrl: CLASSROOM_GAMES_URL,
         badge: 'ช่วยสอนสนุกขึ้น',
         badgeTone: 'bg-rose-100 text-rose-800 border-rose-200',
         category: 'tools',
@@ -639,6 +642,7 @@ export function EasyShortcutHub({
     return (
       <Link
         key={item.id}
+        externalUrl={item.externalUrl}
         to={item.path}
         className={`group relative flex flex-col justify-between rounded-2xl sm:rounded-3xl border ${item.accentColor.border} ${item.accentColor.hoverBorder} bg-white/95 hover:bg-white p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]`}
       >
