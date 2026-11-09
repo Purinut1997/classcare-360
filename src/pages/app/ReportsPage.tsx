@@ -492,25 +492,25 @@ const reportCategories: Array<{
     description: 'เช็คชื่อรายเดือน/เทอม/ปี และสมุดเงินออม',
     icon: '📅',
     key: 'attendance_savings',
-    title: '1. เวลาเรียน & เงินออม',
+    title: 'เวลาเรียน & เงินออม',
   },
   {
     description: 'คะแนนรวมห้อง คะแนนรายวิชา และ ปพ.5/ปพ.6',
     icon: '📊',
     key: 'academic_scores',
-    title: '2. ผลการเรียน & ปพ.',
+    title: 'ผลการเรียน & ปพ.',
   },
   {
     description: 'ใบสรุปรายคน บัญชีรายชื่อ สุขภาพ พฤติกรรม',
     icon: '👤',
     key: 'student_care',
-    title: '3. นักเรียน & รายบุคคล',
+    title: 'นักเรียน & รายบุคคล',
   },
   {
     description: 'ใบสรุปเสนอผู้บริหาร และตั้งค่าหัวกระดาษ',
     icon: '🏛️',
     key: 'executive_settings',
-    title: '4. ผู้บริหาร & ตั้งค่า',
+    title: 'ผู้บริหาร & ตั้งค่า',
   },
 ];
 
@@ -4163,84 +4163,115 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         </div>
       </div>
 
-      {/* 2. Step 1: 4 Simple Category Cards + Clear Sub-Report Selector (No Duplicate Menus!) */}
-      <section className="mt-4 rounded-3xl border border-slate-200/90 bg-white p-3.5 shadow-xs sm:p-5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-black uppercase tracking-wider text-slate-500">
-            ขั้นที่ 1 · เลือกหมวดและประเภทรายงานที่ต้องการ
-          </p>
+      {/* 2. Guided report menu */}
+      <section className="mt-4 overflow-hidden rounded-3xl border border-[#e7dece] bg-gradient-to-br from-[#fffdf8] via-white to-[#f1fbf8] p-3.5 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-amber-100 text-2xl shadow-inner" aria-hidden="true">🧸</span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-900">เริ่มตรงนี้</span>
+                <span className="text-xs font-bold text-slate-500">เลือกหมวด แล้วเลือกรายงานที่ต้องการ</span>
+              </div>
+              <h2 className="mt-1 text-lg font-black text-slate-950 sm:text-xl">วันนี้อยากดูรายงานเรื่องไหน?</h2>
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => updateReportSearch({ reportView: 'settings' })}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
+            className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition ${
               reportView === 'settings'
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50'
             }`}
           >
-            <Settings size={14} />
-            ตั้งค่าตราโรงเรียน / ผู้ลงนาม
+            <Settings size={15} aria-hidden="true" /> ตั้งค่าหน้ารายงาน
           </button>
         </div>
 
-        {/* 4 Category Groups */}
-        <div className="mt-2.5 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="เลือกหมวดรายงาน">
           {reportCategories.map((cat) => {
             const isActiveCat = activeCategoryKey === cat.key;
-            const firstViewInCat = reportViews.find((v) => v.category === cat.key)?.value || 'attendance';
+            const firstViewInCat = reportViews.find((view) => view.category === cat.key)?.value || 'attendance';
             return (
               <button
                 key={cat.key}
                 type="button"
+                aria-pressed={isActiveCat}
                 onClick={() => updateReportSearch({ reportView: firstViewInCat })}
-                className={`flex flex-col items-start rounded-2xl border p-3 text-left transition ${
+                className={`group flex min-h-[86px] items-center gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
                   isActiveCat
-                    ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-500/20'
-                    : 'border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-white'
+                    ? 'border-teal-400 bg-teal-50 shadow-sm ring-2 ring-teal-200/70'
+                    : 'border-slate-200 bg-white/90 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-50/50'
                 }`}
               >
-                <span className="text-sm font-black text-slate-950">
-                  {cat.icon} {cat.title}
+                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-2xl transition ${isActiveCat ? 'bg-white shadow-sm' : 'bg-[#f6f2eb] group-hover:bg-white'}`} aria-hidden="true">{cat.icon}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black leading-5 text-slate-950">{cat.title}</span>
+                  <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-500">{cat.description}</span>
                 </span>
-                <span className="mt-1 text-[11px] font-bold leading-4 text-slate-500">{cat.description}</span>
+                {isActiveCat ? <CheckCircle2 size={18} className="shrink-0 text-teal-700" aria-label="หมวดที่เลือก" /> : null}
               </button>
             );
           })}
         </div>
 
-        {/* Sub-reports inside the selected category (plus quick all-pill view) */}
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-          {reportViews
-            .filter((item) => item.category === activeCategoryKey)
-            .map((item) => {
-              const isActive = reportView === item.value;
-              return (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => updateReportSearch({ reportView: item.value })}
-                  className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black transition ${
-                    isActive
-                      ? 'border-slate-950 bg-slate-950 text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:bg-teal-50/40'
-                  }`}
-                >
-                  <span>{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/80 p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">ขั้นต่อไป · เลือกรายงาน</p>
+              <h3 className="mt-0.5 text-sm font-black text-slate-900 sm:text-base">
+                {reportCategories.find((category) => category.key === activeCategoryKey)?.icon}{' '}
+                {reportCategories.find((category) => category.key === activeCategoryKey)?.title}
+              </h3>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-[11px] font-bold text-teal-800">
+              <CheckCircle2 size={14} aria-hidden="true" /> เลือกอยู่: {activeReportConfig.shortLabel}
+            </span>
+          </div>
 
-          {activeCategoryKey === 'academic_scores' ? (
-            <button
-              type="button"
-              onClick={() => setIsOfficialDocsOpen(true)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-black text-indigo-900 transition hover:bg-indigo-100"
-            >
-              <span>📘</span>
-              <span>เปิดสมุด ปพ.5 / ปพ.6 / ใบรับรอง สพฐ.</span>
-            </button>
-          ) : null}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {reportViews
+              .filter((item) => item.category === activeCategoryKey)
+              .map((item) => {
+                const isActive = reportView === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() => updateReportSearch({ reportView: item.value })}
+                    className={`flex min-h-[76px] items-start gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                      isActive
+                        ? 'border-teal-400 bg-teal-50 shadow-sm ring-2 ring-teal-200/60'
+                        : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/40'
+                    }`}
+                  >
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-xs" aria-hidden="true">{item.icon}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black leading-5 text-slate-900">{item.label}</span>
+                      <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-500">{item.description}</span>
+                    </span>
+                    {isActive ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-teal-700" aria-label="รายงานที่เลือก" /> : <ChevronRight size={16} className="mt-0.5 shrink-0 text-slate-300" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+
+            {activeCategoryKey === 'academic_scores' ? (
+              <button
+                type="button"
+                onClick={() => setIsOfficialDocsOpen(true)}
+                className="flex min-h-[76px] items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-3 text-left transition hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-xs" aria-hidden="true">📘</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black text-indigo-950">สมุด ปพ.5 / ปพ.6 / ใบรับรอง</span>
+                  <span className="mt-1 block text-[11px] font-semibold text-indigo-800">เปิดแบบฟอร์มทางการเพื่อกรอกและพิมพ์</span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-indigo-400" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
 
