@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Bell,
+  CalendarDays,
   CalendarCheck,
   KeyRound,
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
   Home,
   RefreshCw,
   Send,
+  Save,
   Settings2,
   ShieldAlert,
   Sparkles,
@@ -24,6 +26,7 @@ import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { getTeacherClassroomScope, type ScopedClassroom } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
 interface NotificationsPageProps {
@@ -35,10 +38,26 @@ type TelegramConnectionStatus = 'disconnected' | 'pending' | 'connected';
 
 interface TeacherNotificationPreferences {
   telegramEnabled: boolean;
+  morningDigest: { enabled: boolean; time: string; includeSchedule: boolean; includeCalendar: boolean; includeTasks: boolean };
+  attendance: { homeroomEnabled: boolean; subjectEnabled: boolean; homeroomClassroomIds: string[]; subjectClassroomIds: string[] };
+  calendar: { enabled: boolean; reminderTime: string };
+  afterSavings: boolean;
+  afterDailyBrief: boolean;
+  eveningDigest: { enabled: boolean; time: string };
+  summaryOnly: boolean;
 }
+
+interface NotificationClassroom extends ScopedClassroom {}
 
 const defaultNotificationPreferences: TeacherNotificationPreferences = {
   telegramEnabled: false,
+  morningDigest: { enabled: false, time: '06:00', includeSchedule: true, includeCalendar: true, includeTasks: false },
+  attendance: { homeroomEnabled: false, subjectEnabled: false, homeroomClassroomIds: [], subjectClassroomIds: [] },
+  calendar: { enabled: false, reminderTime: '06:00' },
+  afterSavings: false,
+  afterDailyBrief: false,
+  eveningDigest: { enabled: false, time: '16:30' },
+  summaryOnly: true,
 };
 
 function isMissingNotificationPreferencesTable(error: { code?: string; message?: string } | null | undefined) {
@@ -50,7 +69,14 @@ function isMissingNotificationPreferencesTable(error: { code?: string; message?:
 function mergeNotificationPreferences(value: unknown): TeacherNotificationPreferences {
   if (!value || typeof value !== 'object') return defaultNotificationPreferences;
   const incoming = value as Partial<TeacherNotificationPreferences>;
-  return { ...defaultNotificationPreferences, ...incoming };
+  return {
+    ...defaultNotificationPreferences,
+    ...incoming,
+    morningDigest: { ...defaultNotificationPreferences.morningDigest, ...(incoming.morningDigest || {}) },
+    attendance: { ...defaultNotificationPreferences.attendance, ...(incoming.attendance || {}) },
+    calendar: { ...defaultNotificationPreferences.calendar, ...(incoming.calendar || {}) },
+    eveningDigest: { ...defaultNotificationPreferences.eveningDigest, ...(incoming.eveningDigest || {}) },
+  };
 }
 
 interface NotificationRow {
@@ -208,6 +234,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   );
   const [notifications, setNotifications] = useState<NotificationRow[]>(demoNotifications);
   const [preferences, setPreferences] = useState<TeacherNotificationPreferences>(defaultNotificationPreferences);
+  const [preferenceClassrooms, setPreferenceClassrooms] = useState<NotificationClassroom[]>([]);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<TelegramConnectionStatus>('disconnected');
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   const [telegramToken, setTelegramToken] = useState('');
@@ -224,6 +252,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   const [pendingHomeVisits, setPendingHomeVisits] = useState<HomeVisitItem[]>(demoMode ? demoHomeVisits : []);
   const [totalStudentsCount, setTotalStudentsCount] = useState<number>(demoMode ? 35 : 0);
   const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
+  const preferenceClassroomScope = getTeacherClassroomScope(session, preferenceClassrooms);
 
   useEffect(() => {
     let isMounted = true;
@@ -235,15 +264,19 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         } catch { /* Use defaults if local demo settings are unavailable. */ }
         return;
       }
-      const { data, error } = await supabase.from('teacher_notification_preferences').select('preferences').eq('workspace_id', workspaceId).eq('profile_id', session.profile.id).maybeSingle();
+      const [{ data, error }, classroomsResult] = await Promise.all([
+        supabase.from('teacher_notification_preferences').select('preferences').eq('workspace_id', workspaceId).eq('profile_id', session.profile.id).maybeSingle(),
+        supabase.from('classrooms').select('id,name,grade_level,academic_year,homeroom_teacher_profile_id,status').eq('workspace_id', workspaceId).eq('status', 'active').order('name'),
+      ]);
       if (!isMounted) return;
       if (!error && data?.preferences) {
         setPreferences(mergeNotificationPreferences(data.preferences));
       } else if (isMissingNotificationPreferencesTable(error)) {
-        try {
-          const raw = window.localStorage.getItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`);
-          if (isMounted && raw) setPreferences(mergeNotificationPreferences(JSON.parse(raw)));
-        } catch { /* Use defaults when no local preferences exist. */ }
+        if (isMounted) setNotice('ยังโหลดการตั้งค่ารายงานไม่ได้ กรุณาอัปเดตฐานข้อมูลโรงเรียนก่อน แล้วลองใหม่');
+      }
+      if (classroomsResult.data) {
+        const scope = getTeacherClassroomScope(session, classroomsResult.data as NotificationClassroom[]);
+        setPreferenceClassrooms([...scope.homeroomClassrooms, ...scope.teachingClassrooms]);
       }
     }
     void loadPreferences();
@@ -251,6 +284,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   }, [demoMode, session, workspaceId]);
 
   async function savePreferences(nextPreferences = preferences) {
+    setIsSavingPreferences(true);
     setNotice(null);
     if (demoMode || !supabase || !workspaceId) {
       try {
@@ -259,24 +293,30 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       } catch {
         setNotice('บันทึกการตั้งค่าไม่สำเร็จ กรุณาลองอีกครั้ง');
       }
+      setIsSavingPreferences(false);
       return;
     }
-    const { error } = await supabase.from('teacher_notification_preferences').upsert({
-      workspace_id: workspaceId,
-      profile_id: session.profile.id,
-      preferences: nextPreferences,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'workspace_id,profile_id' });
-    if (isMissingNotificationPreferencesTable(error)) {
-      try {
-        window.localStorage.setItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`, JSON.stringify(nextPreferences));
-        setNotice('บันทึกในอุปกรณ์นี้แล้ว การบันทึกข้ามอุปกรณ์จะใช้ได้หลังอัปเดตฐานข้อมูล');
-      } catch {
-        setNotice('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
+    try {
+      const { error } = await supabase.from('teacher_notification_preferences').upsert({
+        workspace_id: workspaceId,
+        profile_id: session.profile.id,
+        preferences: nextPreferences,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'workspace_id,profile_id' });
+      if (isMissingNotificationPreferencesTable(error)) {
+        setNotice('ยังบันทึกการตั้งค่าไม่ได้ กรุณาอัปเดตฐานข้อมูลโรงเรียนก่อน แล้วลองใหม่');
+      } else {
+        setNotice(error ? `บันทึกไม่สำเร็จ: ${error.message}` : 'บันทึกตัวเลือกการรายงานของคุณครูแล้ว');
       }
-    } else {
-      setNotice(error ? `บันทึกไม่สำเร็จ: ${error.message}` : 'บันทึกตัวเลือกการรายงานของคุณครูแล้ว');
+    } catch (error) {
+      setNotice(`บันทึกไม่สำเร็จ: ${error instanceof Error ? error.message : 'กรุณาลองอีกครั้ง'}`);
+    } finally {
+      setIsSavingPreferences(false);
     }
+  }
+
+  function updatePreferences(update: (current: TeacherNotificationPreferences) => TeacherNotificationPreferences) {
+    setPreferences((current) => update(current));
   }
 
   const manageTelegram = useCallback(async (action: 'status' | 'start' | 'confirm' | 'disconnect' | 'test', values: { code?: string; token?: string } = {}) => {
@@ -1283,9 +1323,61 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             </div>
           </article>
 
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs font-semibold leading-5 text-amber-950">
-            <b>รายงานอัตโนมัติ:</b> หน้านี้จัดการการเชื่อมและทดสอบการส่งได้ ส่วนการตั้งเวลาและเหตุการณ์รายงานที่ยังไม่มีระบบส่งจริงจะไม่แสดงเป็นตัวเลือกในหน้านี้
-          </div>
+          <section className="space-y-4">
+            <div className="nexus-card flex flex-col gap-4 border border-cyan-100 bg-cyan-50/50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black text-cyan-800">ตั้งค่ารายงานส่วนตัว</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">เลือกเรื่องที่อยากให้แจ้งและเวลาที่สะดวก</h2>
+                <p className="mt-1 text-sm font-bold text-slate-600">การตั้งค่านี้เป็นของบัญชีคุณในโรงเรียนที่เลือก ครูคนอื่นมีค่าของตนเอง</p>
+              </div>
+              <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                <input checked={preferences.telegramEnabled} className="h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, telegramEnabled: event.target.checked }))} type="checkbox" />
+                <span><span className="block text-sm font-black text-slate-900">รับรายงานผ่าน Telegram</span><span className="block text-xs font-bold text-slate-500">ต้องเชื่อม Telegram ด้านบนก่อน</span></span>
+              </label>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <article className="nexus-card p-5">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={20} /></span>
+                  <div className="flex-1"><h3 className="font-black text-slate-950">รายงานตอนเช้า</h3><p className="mt-1 text-xs font-bold leading-5 text-slate-500">สรุปตารางสอน กิจกรรม และงานก่อนเริ่มวัน</p></div>
+                  <input aria-label="เปิดรายงานตอนเช้า" checked={preferences.morningDigest.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, enabled: event.target.checked } }))} type="checkbox" />
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-black text-slate-600">เวลาแจ้ง<input className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, time: event.target.value } }))} type="time" value={preferences.morningDigest.time} /></label>
+                  <div className="space-y-2 pt-1">{([['includeSchedule', 'ตารางสอนวันนี้'], ['includeCalendar', 'กิจกรรมและปฏิทิน'], ['includeTasks', 'งานที่ต้องติดตาม']] as const).map(([key, label]) => <label className="flex items-center gap-2 text-xs font-bold text-slate-700" key={key}><input checked={preferences.morningDigest[key]} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, [key]: event.target.checked } }))} type="checkbox" />{label}</label>)}</div>
+                </div>
+              </article>
+
+              <article className="nexus-card p-5">
+                <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-teal-100 text-teal-700"><CalendarCheck size={20} /></span><div><h3 className="font-black text-slate-950">หลังบันทึกเวลาเรียน</h3><p className="mt-1 text-xs font-bold leading-5 text-slate-500">แยกรายงานตามบทบาท ไม่รวมเช็คชื่อประจำชั้นกับรายคาบ</p></div></div>
+                <div className="mt-4 space-y-3">
+                  <label className="flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50/60 p-3"><input checked={preferences.attendance.homeroomEnabled} className="mt-0.5 h-4 w-4 accent-sky-600" onChange={(event) => updatePreferences((current) => ({ ...current, attendance: { ...current.attendance, homeroomEnabled: event.target.checked } }))} type="checkbox" /><span className="flex-1"><span className="block text-sm font-black text-slate-900">เช็คชื่อครูประจำชั้น</span><span className="block text-xs font-bold text-slate-500">รายงานของห้องที่คุณเป็นครูประจำชั้น{preferenceClassroomScope.homeroomClassrooms.length ? `: ${preferenceClassroomScope.homeroomClassrooms.map((room) => room.name).join(', ')}` : ' (ยังไม่มีห้องที่กำหนด)'}</span></span></label>
+                  <label className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 p-3"><input checked={preferences.attendance.subjectEnabled} className="mt-0.5 h-4 w-4 accent-violet-600" onChange={(event) => updatePreferences((current) => ({ ...current, attendance: { ...current.attendance, subjectEnabled: event.target.checked } }))} type="checkbox" /><span className="flex-1"><span className="block text-sm font-black text-slate-900">เช็คชื่อครูประจำวิชา (แยกตามคาบ)</span><span className="block text-xs font-bold text-slate-500">ยึดวิชา ห้อง และคาบตามตารางสอน{preferenceClassroomScope.teachingClassrooms.length ? `: ${preferenceClassroomScope.teachingClassrooms.map((room) => room.name).join(', ')}` : ''}</span></span></label>
+                </div>
+              </article>
+
+              <article className="nexus-card p-5">
+                <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-100 text-blue-700"><CalendarDays size={20} /></span><div className="flex-1"><h3 className="font-black text-slate-950">เตือนจากปฏิทิน</h3><p className="mt-1 text-xs font-bold text-slate-500">เตือนล่วงหน้า 1 วันตามวันที่ในปฏิทินโรงเรียน</p></div><input aria-label="เปิดการเตือนปฏิทิน" checked={preferences.calendar.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, enabled: event.target.checked } }))} type="checkbox" /></div>
+                <label className="mt-4 block text-xs font-black text-slate-600">เวลาเตือน<input className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, reminderTime: event.target.value } }))} type="time" value={preferences.calendar.reminderTime} /></label>
+              </article>
+
+              <article className="nexus-card p-5">
+                <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><CheckCircle2 size={20} /></span><div><h3 className="font-black text-slate-950">หลังบันทึกและสรุปวัน</h3><p className="mt-1 text-xs font-bold text-slate-500">เลือกเหตุการณ์ที่ต้องการรับสรุป</p></div></div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <label className="flex items-center gap-2 rounded-xl bg-emerald-50/70 p-3 text-xs font-bold text-slate-700"><input checked={preferences.afterSavings} className="h-4 w-4 accent-emerald-600" onChange={(event) => updatePreferences((current) => ({ ...current, afterSavings: event.target.checked }))} type="checkbox" />หลังบันทึกเงินออม</label>
+                  <label className="flex items-center gap-2 rounded-xl bg-cyan-50/70 p-3 text-xs font-bold text-slate-700"><input checked={preferences.afterDailyBrief} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, afterDailyBrief: event.target.checked }))} type="checkbox" />หลังบันทึกสรุปประจำวัน</label>
+                  <label className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-50/70 p-3 text-xs font-bold text-slate-700 sm:col-span-2"><input checked={preferences.eveningDigest.enabled} className="h-4 w-4 accent-amber-600" onChange={(event) => updatePreferences((current) => ({ ...current, eveningDigest: { ...current.eveningDigest, enabled: event.target.checked } }))} type="checkbox" />สรุปงานช่วงท้ายวัน เวลา<input aria-label="เวลาสรุปช่วงท้ายวัน" className="h-9 rounded-lg border border-slate-200 bg-white px-2 font-bold" onChange={(event) => updatePreferences((current) => ({ ...current, eveningDigest: { ...current.eveningDigest, time: event.target.value } }))} type="time" value={preferences.eveningDigest.time} /></label>
+                </div>
+              </article>
+            </div>
+
+            <div className="nexus-card flex flex-col gap-4 border border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex items-start gap-3 text-xs font-bold text-amber-900"><ShieldAlert className="mt-0.5 shrink-0 text-amber-700" size={19} /><span><span className="block text-sm font-black text-amber-950">ความเป็นส่วนตัว</span><span className="mt-1 flex items-center gap-2"><input checked={preferences.summaryOnly} className="h-4 w-4 accent-amber-700" onChange={(event) => updatePreferences((current) => ({ ...current, summaryOnly: event.target.checked }))} type="checkbox" />ส่งเฉพาะจำนวนและสรุป ไม่ส่งชื่อนักเรียนผ่าน Telegram</span></span></label>
+              <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-60" disabled={isSavingPreferences} onClick={() => void savePreferences()} type="button"><Save size={17} />{isSavingPreferences ? 'กำลังบันทึก…' : 'บันทึกการตั้งค่า'}</button>
+            </div>
+            <p className="rounded-2xl border border-slate-200 bg-white p-3 text-xs font-bold leading-5 text-slate-600">ค่าตั้งค่าแยกตามบัญชีครูและโรงเรียนที่เลือก การส่งตามเวลาเริ่มทำงานเมื่อระบบตั้งเวลาส่งของโรงเรียนถูกเปิดใช้งาน</p>
+          </section>
         </section>
       ) : null}
 

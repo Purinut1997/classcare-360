@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
 import { supabase } from "../../lib/supabaseClient";
+import { sendTeacherReport } from "../../lib/teacherNotificationReports";
 import { hasWorkspaceCapability } from "../../lib/roles";
 import type { AppSessionContext } from "../../types/core";
 
@@ -425,6 +426,13 @@ export function DailySchoolBriefPage({
         note: null,
         snapshot: payload,
         actor_profile_id: session.profile.id,
+      });
+      void sendTeacherReport({
+        body: `วันที่ ${saved.brief_date}\nสถานะ: ${statusLabels[status]}`,
+        eventId: `${saved.id}:${saved.updated_at}`,
+        kind: "daily_brief_saved",
+        session,
+        title: "บันทึกสรุปประจำวันแล้ว",
       });
       setNotice(
         status === "draft"

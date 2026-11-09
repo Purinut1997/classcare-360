@@ -36,6 +36,7 @@ import { getBangkokDate } from '../../lib/date';
 import { formatThaiOfficialDate, buildOfficialReportCss, escapeOfficialHtml } from '../../lib/officialReport';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getClassroomScopeBadge, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
+import { sendTeacherReport } from '../../lib/teacherNotificationReports';
 import type { AppSessionContext } from '../../types/core';
 
 interface SavingsPageProps {
@@ -525,6 +526,13 @@ export function SavingsPage({ session }: SavingsPageProps) {
       riskLevel: transaction.transaction_type === 'withdrawal' ? 'normal' : 'low',
       source: 'savings_center',
     });
+    void sendTeacherReport({
+      body: `บันทึกรายการ${transaction.transaction_type === 'withdrawal' ? 'ถอน' : 'ฝาก'}เงิน ${transaction.amount} บาท\nยอดคงเหลือ ${account.balance} บาท`,
+      eventId: transaction.id,
+      kind: 'savings_saved',
+      session,
+      title: 'บันทึกเงินออมแล้ว',
+    });
     setTransactions((current) => [transaction, ...current]);
     setNotice('บันทึกเงินออมแล้ว');
     setIsSubmitting(false);
@@ -831,6 +839,15 @@ export function SavingsPage({ session }: SavingsPageProps) {
         .single();
       if (transactionError) throw transactionError;
 
+      const savedTransaction = transactionData as SavingsTransactionRow;
+      void sendTeacherReport({
+        body: `บันทึกรายการ${savedTransaction.transaction_type === 'withdrawal' ? 'ถอน' : 'ฝาก'}เงิน ${savedTransaction.amount} บาท\nยอดคงเหลือ ${account.balance} บาท`,
+        eventId: savedTransaction.id,
+        kind: 'savings_saved',
+        session,
+        title: 'บันทึกเงินออมแล้ว',
+      });
+
       setAccounts((current) => {
         const idx = current.findIndex((a) => a.id === account.id);
         if (idx >= 0) {
@@ -840,7 +857,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
         }
         return [...current, account];
       });
-      setTransactions((current) => [transactionData as SavingsTransactionRow, ...current]);
+      setTransactions((current) => [savedTransaction, ...current]);
       setSheetStudent(null);
       setNotice(`บันทึก${sheetForm.transactionType === 'withdrawal' ? 'ถอนเงิน' : 'ฝากเงิน'}ให้น้อง${sheetStudent.nickname || sheetStudent.first_name}สำเร็จ`);
     } catch (err: unknown) {

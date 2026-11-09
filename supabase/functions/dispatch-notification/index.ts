@@ -7,6 +7,8 @@ interface DispatchNotificationPayload {
   body?: string;
   channels?: NotificationChannel[];
   data?: Record<string, unknown>;
+  eventId?: string;
+  personalReport?: boolean;
   privacyLevel?: PrivacyLevel;
   profileId?: string;
   queueId?: string;
@@ -105,6 +107,8 @@ async function sendLinkedTelegramMessage(
   profileId: string,
   title: string,
   body: string,
+  type: string,
+  personalReport = false,
 ): Promise<DispatchResult> {
   const { data: preference, error: preferenceError } = await serviceClient
     .from('teacher_notification_preferences')
@@ -112,8 +116,18 @@ async function sendLinkedTelegramMessage(
     .eq('workspace_id', workspaceId)
     .eq('profile_id', profileId)
     .maybeSingle();
-  if (preferenceError || (preference?.preferences as Record<string, unknown> | null)?.telegramEnabled !== true) {
+  const preferences = preference?.preferences as Record<string, unknown> | null;
+  if (preferenceError || preferences?.telegramEnabled !== true) {
     return { channel: 'telegram', errorMessage: 'Telegram report is not enabled for this teacher', status: 'skipped' };
+  }
+  if (personalReport) {
+    const attendance = preferences?.attendance as Record<string, unknown> | undefined;
+    const allowed = type === 'attendance_homeroom' ? attendance?.homeroomEnabled === true
+      : type === 'attendance_subject' ? attendance?.subjectEnabled === true
+      : type === 'savings_saved' ? preferences?.afterSavings === true
+      : type === 'daily_brief_saved' ? preferences?.afterDailyBrief === true
+      : false;
+    if (!allowed) return { channel: 'telegram', errorMessage: 'This report is disabled in the teacher settings', status: 'skipped' };
   }
 
   const { data: connection, error } = await serviceClient
@@ -175,6 +189,13 @@ Deno.serve(async (request) => {
     let privacyLevel = payload.privacyLevel || 'normal';
     let channels = normalizeChannels(payload.channels);
     const queueId = payload.queueId?.trim();
+    const personalReport = payload.personalReport === true;
+    const eventId = payload.eventId?.trim();
+    const personalReportTypes = new Set(['attendance_homeroom', 'attendance_subject', 'savings_saved', 'daily_brief_saved']);
+
+    if (personalReport && (!eventId || eventId.length > 180 || !personalReportTypes.has(type) || channels.length !== 1 || channels[0] !== 'telegram')) {
+      return jsonResponse({ error: 'Personal report payload is invalid' }, 400);
+    }
 
     if (!queueId && (!workspaceId || !profileId || !title || !body)) {
       return jsonResponse({ error: 'workspaceId, profileId, title, and body are required' }, 400);
@@ -226,6 +247,9 @@ Deno.serve(async (request) => {
     if (!workspaceId || !profileId || !title || !body) {
       return jsonResponse({ error: 'Resolved notification payload is incomplete' }, 400);
     }
+    if (personalReport && profileId !== user.id) {
+      return jsonResponse({ error: 'A personal report can only be sent to the signed-in teacher' }, 403);
+    }
 
     const { data: superadmin, error: superadminError } = await serviceClient
       .from('superadmin_profiles')
@@ -260,12 +284,38 @@ Deno.serve(async (request) => {
     );
 
     if (capabilityError) throw capabilityError;
-    if (!superadmin && canApproveCommunications !== true) {
+    if (!personalReport && !superadmin && canApproveCommunications !== true) {
       return jsonResponse({ error: 'Communications approval permission required' }, 403);
     }
 
-    if (!queueId && !superadmin && membership?.role !== 'teacher_owner') {
+    if (!personalReport && !queueId && !superadmin && membership?.role !== 'teacher_owner') {
       return jsonResponse({ error: 'Teacher members must send from an approved communication queue' }, 403);
+    }
+
+    if (personalReport) {
+      const { data: preferences, error: preferencesError } = await serviceClient
+        .from('teacher_notification_preferences')
+        .select('preferences')
+        .eq('workspace_id', workspaceId)
+        .eq('profile_id', user.id)
+        .maybeSingle();
+      if (preferencesError) throw preferencesError;
+      const settings = preferences?.preferences as Record<string, unknown> | undefined;
+      const attendance = settings?.attendance as Record<string, unknown> | undefined;
+      const enabled = settings?.telegramEnabled === true && (type === 'attendance_homeroom' ? attendance?.homeroomEnabled === true
+        : type === 'attendance_subject' ? attendance?.subjectEnabled === true
+        : type === 'savings_saved' ? settings?.afterSavings === true
+        : settings?.afterDailyBrief === true);
+      if (!enabled) return jsonResponse({ ok: true, dispatchResults: [{ channel: 'telegram', status: 'skipped', errorMessage: 'Report is disabled in teacher settings' }] });
+
+      const { error: markerError } = await serviceClient.from('teacher_notification_delivery_log').insert({
+        workspace_id: workspaceId,
+        profile_id: user.id,
+        delivery_key: `${type}:${eventId}`,
+        delivery_kind: type,
+      });
+      if (markerError?.code === '23505') return jsonResponse({ ok: true, duplicate: true, dispatchResults: [] });
+      if (markerError) throw markerError;
     }
 
     if (queueItem?.student_id && !superadmin) {
@@ -352,7 +402,7 @@ Deno.serve(async (request) => {
       }
 
       if (channel === 'telegram') {
-        dispatchResults.push(await sendLinkedTelegramMessage(serviceClient, workspaceId, profileId, title, body));
+        dispatchResults.push(await sendLinkedTelegramMessage(serviceClient, workspaceId, profileId, title, body, type, personalReport));
       }
 
       if (channel === 'line') {
@@ -376,6 +426,16 @@ Deno.serve(async (request) => {
     );
 
     if (logError) throw logError;
+
+    if (personalReport) {
+      const telegramResult = dispatchResults.find((result) => result.channel === 'telegram');
+      await serviceClient.from('teacher_notification_delivery_log').update({
+        status: telegramResult?.status === 'sent' ? 'sent' : telegramResult?.status === 'skipped' ? 'skipped' : 'failed',
+        error_message: telegramResult?.errorMessage || null,
+        provider_message_id: telegramResult?.providerMessageId || null,
+        completed_at: now,
+      }).eq('workspace_id', workspaceId).eq('profile_id', user.id).eq('delivery_key', `${type}:${eventId}`);
+    }
 
     await serviceClient.from('audit_logs').insert({
       action: 'notification.dispatched',

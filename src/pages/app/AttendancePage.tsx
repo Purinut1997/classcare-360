@@ -22,6 +22,7 @@ import { useSystemFeedback } from '../../components/system/SystemFeedback';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
+import { sendTeacherReport } from '../../lib/teacherNotificationReports';
 import { writeAuditLog } from '../../lib/auditLog';
 import {
   buildSchedulePeriods,
@@ -888,6 +889,20 @@ export function AttendancePage({ session }: AttendancePageProps) {
         subject_name: activeSession.subject_name || '',
       },
       source: 'attendance_page',
+    });
+    const isSubjectCheck = mode === 'subject';
+    const countSummary = summary.filter((item) => item.count > 0).map((item) => `${item.label} ${item.count} คน`).join(' · ');
+    void sendTeacherReport({
+      body: [
+        `ห้อง ${selectedClassroom?.name || '-'}`,
+        ...(isSubjectCheck ? [`วิชา ${activeSession.subject_name || '-'}`, activeSession.period_label] : ['เช็คชื่อประจำชั้น']),
+        activeSession.attendance_date,
+        countSummary || `บันทึกนักเรียน ${data?.length || 0} คน`,
+      ].join('\n'),
+      eventId: `${activeSession.id}:${Date.now()}`,
+      kind: isSubjectCheck ? 'attendance_subject' : 'attendance_homeroom',
+      session,
+      title: isSubjectCheck ? 'บันทึกเช็คชื่อรายวิชาแล้ว' : 'บันทึกเช็คชื่อประจำชั้นแล้ว',
     });
     feedback.endOperation(operationId);
     feedback.success({
