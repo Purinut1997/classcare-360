@@ -17,17 +17,17 @@
 
 - ตรวจพบตารางใน `public` จำนวน 68 ตาราง และตารางที่ตรวจมี RLS เปิดใช้งานพร้อม policy อย่างน้อยหนึ่งข้อ
 - migration ล่าสุดที่บันทึกในฐานข้อมูลจริงคือ `0064 runtime_logic_lint_repairs`
-- repository มี migration ถึง `0081 teacher_notification_preferences` จึงมี migration `0065–0081` อีก 17 ไฟล์ที่ยังไม่ปรากฏใน migration history ของฐานข้อมูลนี้
-- ด้วยเหตุนี้ หน้าตั้งค่ารายงานรายครูที่เขียนเรียก `teacher_notification_preferences` ยังไม่สามารถซิงก์ข้ามอุปกรณ์กับ production database ได้ จนกว่าจะใช้ migration ตามลำดับ ในชุดแก้ไขนี้เพิ่ม fallback แบบแยก `workspace + profile` ไว้ในอุปกรณ์ เมื่อพบชัดเจนว่าตารางยังไม่มี และแสดงข้อความว่าบันทึกเฉพาะเครื่อง
+- repository มี migration ถึง `0082_teacher_telegram_connections` แต่ migration history ของ production ที่ตรวจได้ก่อนหน้าอยู่ที่ `0064`; การเชื่อม Telegram และการซิงก์ค่าตั้งรายครูจึงยังต้องรอการตรวจและใช้ migrations ตามลำดับ
+- หน้าตั้งค่ารายงานรายครูบันทึกลง `teacher_notification_preferences` โดยแยก `(workspace_id, profile_id)` และมี fallback เฉพาะอุปกรณ์เมื่อพบว่าตารางยังไม่มี
 - ตารางบางกลุ่มไม่มี `workspace_id` แบบ `NOT NULL` โดยมีเหตุผลต่างกัน เช่น ข้อมูลบัญชี, catalog กลาง, ข้อมูลเรียกเก็บเงิน หรือข้อมูลระบบ จึงไม่ควรเพิ่ม `workspace_id` แบบเหมารวมโดยไม่วิเคราะห์ความหมายและข้อมูลเดิม
 
 ## ข้อมูลรายครูและ Telegram
 
 - migration `0081` ออกแบบค่ารายงานเป็น `(workspace_id, profile_id)` และอ้างสมาชิก Workspace แบบคู่ เป็นทิศทางที่ถูกต้องสำหรับค่าตั้งเฉพาะครูในแต่ละโรงเรียน
-- `TELEGRAM_BOT_TOKEN` เป็นกุญแจของบอตที่ระบบใช้ส่งข้อความ ควรเก็บเป็น secret ฝั่ง server/Edge Function ไม่เก็บใน browser หรือแถวข้อมูลของครู และโดยทั่วไปไม่ต้องให้ครูแต่ละคนส่ง token ของตัวเอง
-- สิ่งที่ต้องแยกต่อครูคือ **บัญชีปลายทางที่ครูยินยอมเชื่อม**, สถานะการเชื่อม, และตัวเลือกว่าจะรับข้อมูลหมวดใด โดยผูกกับ `workspace_id + profile_id`
-- โค้ดเดิมของ `dispatch-notification` รับปลายทางจาก payload โดยตรงทั้ง Telegram และ LINE จึงยังไม่มีหลักประกันว่าบัญชีปลายทางเป็นของผู้รับ `profileId` จริง ในชุดแก้ไขนี้ปิดการส่งออกทั้งสองช่องทางจนกว่าจะทำ pairing แบบยืนยันตัวตนและให้ฟังก์ชันฝั่ง server อ่านปลายทางจากข้อมูลที่ผูกกับผู้รับ
-- หน้า Notifications ระบุอยู่แล้วว่ายังไม่มีการจับคู่ Telegram และยังไม่เปิดระบบส่งอัตโนมัติ ข้อความนั้นตรงกับความสามารถปัจจุบัน
+- ผู้ใช้กรอก Bot Token ของบอตส่วนตัวจากหน้า Notifications; browser ส่งผ่าน HTTPS ไปยัง Edge Function เท่านั้น และฟังก์ชันเข้ารหัส AES-GCM ก่อนจัดเก็บใน `teacher_telegram_connections` แยก `(workspace_id, profile_id)`
+- การยืนยันใช้ deep link nonce เฉพาะบัญชีและรหัส 6 หลักที่หมดอายุใน 10 นาที พร้อมจำกัดการลองผิด 5 ครั้ง; `dispatch-notification` อ่านปลายทางจากข้อมูลฝั่ง server แทน payload
+- LINE ถูกเอาออกจากตัวเลือกหน้าแจ้งเตือนเพราะยังไม่มีระบบจับคู่บัญชีที่ปลอดภัย; backend จะบันทึกเป็น skipped หากมี payload เก่าร้องขอส่ง LINE
+- ความสามารถใหม่นี้อยู่ใน repository แต่ยังไม่เปิดใช้ production จนกว่า migrations `0065–0082` จะผ่านการทบทวน/ใช้งาน และ deploy Edge Functions พร้อมตั้ง `TELEGRAM_CONNECTION_ENCRYPTION_KEY`
 
 ### P1 — migration ที่ค้างมีชื่อคอลัมน์สมาชิกไม่ตรง schema
 
@@ -45,11 +45,11 @@ migration `0067` วาง `gemini_api_key` ใน `workspaces` และโค�
 
 **แนวทาง:** ทำรายการ migration ที่ยังไม่ใช้, ตรวจ SQL และผลกระทบต่อข้อมูล, สำรองฐานข้อมูล, ใช้ migration ตามลำดับในช่วงที่เฝ้าระวังได้ แล้วตรวจ policy/คอลัมน์/RPC หลังจบ ก่อน deploy โค้ดที่อ้าง schema ใหม่
 
-### P1 — Telegram ปลายทางยังไม่ผูกกับผู้ใช้ที่ยืนยันตัวตน
+### P1 — Telegram ต้อง deploy schema และ Edge Function ก่อนเปิดใช้ production
 
-การส่งด้วย chat ID ที่ผู้เรียกใส่มาเองอาจส่งข้อมูลไปยังปลายทางผิดบัญชีได้ แม้ผู้เรียกจะมีสิทธิ์ใน Workspace
+โค้ดสำหรับ pairing แยกบัญชีและยืนยันปลายทางแล้วใน branch ปัจจุบัน แต่ production ยังไม่มี migration `0082` หรือ secret ที่จำเป็น จึงยังใช้ไม่ได้กับเว็บจริง
 
-**แนวทาง:** เพิ่มการจับคู่ด้วยรหัสชั่วคราวหมดอายุและใช้ได้ครั้งเดียว, เก็บการเชื่อมปลายทางฝั่งฐานข้อมูลด้วย `workspace_id + profile_id`, ให้ Edge Function อ่านปลายทางจากฐานข้อมูลเท่านั้น, และให้ครูถอดการเชื่อม/เลือกหมวดรายงานของตนเองได้
+**แนวทาง:** ตรวจ migrations `0065–0082` และใช้ตามลำดับหลังสำรองข้อมูล, ตั้งคีย์เข้ารหัสใน Function Secrets, deploy `manage-telegram-account` และ `dispatch-notification`, แล้วทดลองเชื่อม/ส่งข้อความด้วยบัญชีครูทดสอบก่อนเปิดให้ครูทั้งหมด
 
 ### P2 — Foreign key เดี่ยวในข้อมูลหลายชุด
 
@@ -84,5 +84,6 @@ policy ปัจจุบันมีทั้งการอ่าน audit log
 - ยืนยันว่า production ยังไม่ได้บันทึก migration หลัง `0064` ใน migration history
 - แก้ชื่อคอลัมน์ที่ทำให้ migration `0068` และ `0076` ล้มเหลวใน repository แล้ว
 - เพิ่ม fallback ของค่ารายงานส่วนตัวแบบแยกบัญชี/โรงเรียน เมื่อ production ยังไม่มีตาราง migration `0081`; ข้อมูล fallback อยู่เฉพาะอุปกรณ์และไม่ถือว่า sync ข้ามเครื่อง
-- ยังไม่ได้แก้ schema production, เพิ่ม secret หรือ deploy function; Telegram/LINE จะยังไม่ส่งออกจนกว่าจะมีการจับคู่บัญชีผู้รับที่ยืนยันแล้ว
+- เพิ่มโค้ด pairing Telegram, token encryption, การตั้งค่าจากหน้าเว็บ และ migration `0082`; ยังไม่ได้แก้ schema production, เพิ่ม secret หรือ deploy function
+- เอาตัวเลือก LINE และแผงสถานะช่องทางที่ไม่ทำงานออกจากเมนูแจ้งเตือน; เหลือรายการงาน, Inbox และการตั้งค่าบัญชี Telegram
 - ขั้นถัดไปที่ปลอดภัยคือทบทวน migration `0065–0081` ทั้งชุดเทียบกับ schema production, สำรองข้อมูล และวางแผนแก้ constraint/RLS ก่อนนำ migrations ไปใช้จริง

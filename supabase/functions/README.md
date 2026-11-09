@@ -137,8 +137,8 @@ supabase/functions/dispatch-notification/index.ts
 - บันทึก `audit_logs` action `notification.dispatched`
 - รองรับ channel:
   - `in_app`: สร้าง notification และ log สถานะ `queued`
-  - `telegram`: ขณะนี้ยังไม่ส่งจริง ระบบจะรอการจับคู่บัญชีปลายทางกับผู้รับแบบยืนยันตัวตนก่อน
-  - `line`: ขณะนี้ยังไม่ส่งจริง รอการจับคู่บัญชีปลายทางกับผู้รับแบบยืนยันตัวตนเช่นเดียวกับ Telegram
+  - `telegram`: ส่งถึงบัญชี Telegram ที่ครูผู้รับเชื่อมและยืนยันไว้ โดยอ่าน token/ปลายทางจากตารางฝั่ง server และตรวจตัวเลือกของครู
+  - `line`: ปิดการส่งจริง และจะถูกบันทึกเป็น `skipped`; หน้าแจ้งเตือนไม่แสดง LINE ให้ตั้งค่า
 
 Environment ที่ต้องมีใน Supabase Functions:
 
@@ -151,15 +151,25 @@ SUPABASE_SERVICE_ROLE_KEY
 Environment เสริมสำหรับส่งออกนอกระบบ:
 
 ```text
-TELEGRAM_BOT_TOKEN
-LINE_CHANNEL_ACCESS_TOKEN
+TELEGRAM_CONNECTION_ENCRYPTION_KEY
 ```
+
+`TELEGRAM_CONNECTION_ENCRYPTION_KEY` ต้องเป็นคีย์สุ่ม 32 ไบต์ที่เข้ารหัส Base64 และตั้งเป็น Secret ของ Supabase Edge Functions เท่านั้น ห้ามใส่ใน Vite environment หรือส่งให้ browser
 
 Deploy:
 
 ```bash
 supabase functions deploy dispatch-notification
+supabase functions deploy manage-telegram-account
 ```
+
+## manage-telegram-account
+
+Path: `supabase/functions/manage-telegram-account/index.ts`
+
+ให้ครูเชื่อม Telegram ส่วนตัวในหน้าแจ้งเตือน: ตรวจ Bot Token กับ Telegram, สร้าง deep link ที่มี nonce เฉพาะบัญชี, ให้ครูกด Start, ส่งรหัสยืนยัน 6 หลัก และจำกัดการลองรหัสผิด 5 ครั้ง Token และ chat ID ถูกเข้ารหัส AES-GCM และอ่านได้จาก Edge Function เท่านั้น ครูแต่ละคนมีข้อมูลแยกตาม `(workspace_id, profile_id)`
+
+ก่อน deploy ต้องใช้ migrations ตามลำดับจนถึง `0082_teacher_telegram_connections.sql` และตั้ง secret `TELEGRAM_CONNECTION_ENCRYPTION_KEY` ใน Supabase Function Secrets จากนั้น deploy สอง functions ด้านบน การเชื่อมบัญชีไม่ทำงานหากบอตตั้ง webhook หรือใช้ร่วมกับระบบ polling อื่น
 
 ตัวอย่าง body:
 

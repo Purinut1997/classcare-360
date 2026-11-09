@@ -3,21 +3,18 @@ import {
   AlertTriangle,
   ArrowRight,
   Bell,
-  CalendarDays,
   CalendarCheck,
+  KeyRound,
   CheckCircle2,
   Clock3,
   ExternalLink,
   Filter,
   HeartPulse,
   Home,
-  MessageCircle,
   RefreshCw,
-  Save,
   Send,
   Settings2,
   ShieldAlert,
-  Smartphone,
   Sparkles,
   UserX,
   Users,
@@ -27,38 +24,21 @@ import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
-import { getTeacherClassroomScope, type ScopedClassroom } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 
 interface NotificationsPageProps {
   session: AppSessionContext;
 }
 
-type NotificationChannel = 'in_app' | 'telegram' | 'line';
-type NotificationFilter = 'all' | 'unread' | NotificationChannel;
+type NotificationFilter = 'all' | 'unread';
+type TelegramConnectionStatus = 'disconnected' | 'pending' | 'connected';
 
 interface TeacherNotificationPreferences {
   telegramEnabled: boolean;
-  morningDigest: { enabled: boolean; time: string; includeSchedule: boolean; includeCalendar: boolean; includeTasks: boolean };
-  attendance: { homeroomEnabled: boolean; subjectEnabled: boolean; homeroomClassroomIds: string[]; subjectClassroomIds: string[] };
-  calendar: { enabled: boolean; leadMinutes: number[]; notifyChanges: boolean };
-  afterSavings: boolean;
-  afterDailyBrief: boolean;
-  eveningDigest: { enabled: boolean; time: string };
-  summaryOnly: boolean;
 }
-
-interface NotificationClassroom extends ScopedClassroom {}
 
 const defaultNotificationPreferences: TeacherNotificationPreferences = {
   telegramEnabled: false,
-  morningDigest: { enabled: false, time: '06:00', includeSchedule: true, includeCalendar: true, includeTasks: false },
-  attendance: { homeroomEnabled: false, subjectEnabled: false, homeroomClassroomIds: [], subjectClassroomIds: [] },
-  calendar: { enabled: false, leadMinutes: [1440, 60], notifyChanges: true },
-  afterSavings: false,
-  afterDailyBrief: false,
-  eveningDigest: { enabled: false, time: '16:30' },
-  summaryOnly: true,
 };
 
 function isMissingNotificationPreferencesTable(error: { code?: string; message?: string } | null | undefined) {
@@ -70,14 +50,7 @@ function isMissingNotificationPreferencesTable(error: { code?: string; message?:
 function mergeNotificationPreferences(value: unknown): TeacherNotificationPreferences {
   if (!value || typeof value !== 'object') return defaultNotificationPreferences;
   const incoming = value as Partial<TeacherNotificationPreferences>;
-  return {
-    ...defaultNotificationPreferences,
-    ...incoming,
-    morningDigest: { ...defaultNotificationPreferences.morningDigest, ...(incoming.morningDigest || {}) },
-    attendance: { ...defaultNotificationPreferences.attendance, ...(incoming.attendance || {}) },
-    calendar: { ...defaultNotificationPreferences.calendar, ...(incoming.calendar || {}) },
-    eveningDigest: { ...defaultNotificationPreferences.eveningDigest, ...(incoming.eveningDigest || {}) },
-  };
+  return { ...defaultNotificationPreferences, ...incoming };
 }
 
 interface NotificationRow {
@@ -117,23 +90,11 @@ interface HomeVisitItem {
   studentName: string;
 }
 
-const channelLabels: Record<NotificationChannel, string> = {
-  in_app: 'In-App',
-  line: 'LINE',
-  telegram: 'Telegram',
-};
-
-const channelIcons: Record<NotificationChannel, typeof Bell> = {
-  in_app: Bell,
-  line: MessageCircle,
-  telegram: Send,
-};
-
 const demoNotifications: NotificationRow[] = [
   {
     body: 'มีนักเรียน 2 คนขาดเรียนช่วงเช้า (ด.ช. ธีรภัทร, ด.ญ. กานดา) ระบบเตรียมรายการสำหรับติดตามผู้ปกครองแล้ว',
     created_at: new Date().toISOString(),
-    data: { channels: ['in_app', 'line'], source: 'attendance' },
+    data: { channels: ['in_app'], source: 'attendance' },
     id: 'demo-notification-1',
     privacy_level: 'normal',
     profile_id: 'demo-teacher',
@@ -157,7 +118,7 @@ const demoNotifications: NotificationRow[] = [
   {
     body: 'คำเชิญ Parent Portal ถูกส่งออกรอบล่าสุดเรียบร้อยแล้ว มีผู้ปกครองเปิดใช้งานแล้ว 18 บัญชี',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    data: { channels: ['in_app', 'telegram'], source: 'portal_invitation' },
+    data: { channels: ['in_app'], source: 'portal_invitation' },
     id: 'demo-notification-3',
     privacy_level: 'normal',
     profile_id: 'demo-teacher',
@@ -212,18 +173,6 @@ const demoHomeVisits: HomeVisitItem[] = [
   { completionPercent: 0, id: 'demo-hv-3', studentName: 'ด.ช. ธีรภัทร ยอดเยี่ยม (เลขที่ 4)' },
 ];
 
-function normalizeChannels(data: Record<string, unknown>): NotificationChannel[] {
-  const rawChannels = data.channels;
-  const rawChannel = data.channel;
-  const channels = Array.isArray(rawChannels) ? rawChannels : rawChannel ? [rawChannel] : ['in_app'];
-
-  return channels
-    .filter((channel): channel is NotificationChannel =>
-      channel === 'in_app' || channel === 'telegram' || channel === 'line',
-    )
-    .filter((channel, index, list) => list.indexOf(channel) === index);
-}
-
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('th-TH', {
     dateStyle: 'medium',
@@ -249,8 +198,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   const demoMode = isDemoSession(session);
   const workspaceId = session.workspace?.id || '';
 
-  // Tabs: งานค้าง | กล่องข้อความ | ช่องทาง | ตั้งค่ารายงาน
-  const [activeTab, setActiveTab] = useState<'tasks' | 'inbox' | 'channels' | 'settings'>('tasks');
+  // Tabs: งานค้าง | กล่องข้อความ | ตั้งค่าการเชื่อม Telegram
+  const [activeTab, setActiveTab] = useState<'tasks' | 'inbox' | 'settings'>('tasks');
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isDispatching, setIsDispatching] = useState(false);
@@ -259,8 +208,12 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   );
   const [notifications, setNotifications] = useState<NotificationRow[]>(demoNotifications);
   const [preferences, setPreferences] = useState<TeacherNotificationPreferences>(defaultNotificationPreferences);
-  const [preferenceClassrooms, setPreferenceClassrooms] = useState<NotificationClassroom[]>([]);
-  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState<TelegramConnectionStatus>('disconnected');
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramCode, setTelegramCode] = useState('');
+  const [telegramBotUrl, setTelegramBotUrl] = useState<string | null>(null);
+  const [telegramBusy, setTelegramBusy] = useState(false);
 
   // Live Task States
   const [attendanceCheckedToday, setAttendanceCheckedToday] = useState<boolean>(true);
@@ -282,10 +235,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         } catch { /* Use defaults if local demo settings are unavailable. */ }
         return;
       }
-      const [{ data, error }, classroomsResult] = await Promise.all([
-        supabase.from('teacher_notification_preferences').select('preferences').eq('workspace_id', workspaceId).eq('profile_id', session.profile.id).maybeSingle(),
-        supabase.from('classrooms').select('id,name,grade_level,academic_year,homeroom_teacher_profile_id,status').eq('workspace_id', workspaceId).eq('status', 'active').order('name'),
-      ]);
+      const { data, error } = await supabase.from('teacher_notification_preferences').select('preferences').eq('workspace_id', workspaceId).eq('profile_id', session.profile.id).maybeSingle();
       if (!isMounted) return;
       if (!error && data?.preferences) {
         setPreferences(mergeNotificationPreferences(data.preferences));
@@ -295,37 +245,31 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           if (isMounted && raw) setPreferences(mergeNotificationPreferences(JSON.parse(raw)));
         } catch { /* Use defaults when no local preferences exist. */ }
       }
-      if (classroomsResult.data) {
-        const scope = getTeacherClassroomScope(session, classroomsResult.data as NotificationClassroom[]);
-        setPreferenceClassrooms([...scope.homeroomClassrooms, ...scope.teachingClassrooms]);
-      }
     }
     void loadPreferences();
     return () => { isMounted = false; };
   }, [demoMode, session, workspaceId]);
 
-  async function savePreferences() {
-    setIsSavingPreferences(true);
+  async function savePreferences(nextPreferences = preferences) {
     setNotice(null);
     if (demoMode || !supabase || !workspaceId) {
       try {
-        window.localStorage.setItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`, JSON.stringify(preferences));
+        window.localStorage.setItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`, JSON.stringify(nextPreferences));
         setNotice('บันทึกการตั้งค่าในเครื่องนี้แล้ว (โหมดตัวอย่าง)');
       } catch {
         setNotice('บันทึกการตั้งค่าไม่สำเร็จ กรุณาลองอีกครั้ง');
       }
-      setIsSavingPreferences(false);
       return;
     }
     const { error } = await supabase.from('teacher_notification_preferences').upsert({
       workspace_id: workspaceId,
       profile_id: session.profile.id,
-      preferences,
+      preferences: nextPreferences,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'workspace_id,profile_id' });
     if (isMissingNotificationPreferencesTable(error)) {
       try {
-        window.localStorage.setItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`, JSON.stringify(preferences));
+        window.localStorage.setItem(`classcare:notification-preferences:${workspaceId}:${session.profile.id}`, JSON.stringify(nextPreferences));
         setNotice('บันทึกในอุปกรณ์นี้แล้ว การบันทึกข้ามอุปกรณ์จะใช้ได้หลังอัปเดตฐานข้อมูล');
       } catch {
         setNotice('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');
@@ -333,11 +277,97 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     } else {
       setNotice(error ? `บันทึกไม่สำเร็จ: ${error.message}` : 'บันทึกตัวเลือกการรายงานของคุณครูแล้ว');
     }
-    setIsSavingPreferences(false);
   }
 
-  function updatePreferences(update: (current: TeacherNotificationPreferences) => TeacherNotificationPreferences) {
-    setPreferences((current) => update(current));
+  const manageTelegram = useCallback(async (action: 'status' | 'start' | 'confirm' | 'disconnect' | 'test', values: { code?: string; token?: string } = {}) => {
+    if (!supabase || !workspaceId || demoMode) {
+      setNotice('การเชื่อม Telegram ใช้ได้เมื่อเข้าสู่ระบบโรงเรียนที่เชื่อมฐานข้อมูลแล้ว');
+      return null;
+    }
+    const { data, error } = await supabase.functions.invoke('manage-telegram-account', {
+      body: { action, workspaceId, ...values },
+    });
+    const result = data as { botUrl?: string; botUsername?: string | null; error?: string; expiresAt?: string; status?: TelegramConnectionStatus | 'needs_start' | 'sent' } | null;
+    if (error || result?.error) {
+      const message = result?.error || error?.message || 'เชื่อม Telegram ไม่สำเร็จ';
+      setNotice(message.includes('teacher_telegram_connections') || message.includes('manage-telegram-account')
+        ? 'ระบบเชื่อม Telegram ยังอัปเดตไม่ครบ กรุณาลองอีกครั้งภายหลัง'
+        : message);
+      return null;
+    }
+    return result;
+  }, [demoMode, workspaceId]);
+
+  useEffect(() => {
+    let active = true;
+    if (demoMode || !supabase || !workspaceId) return;
+    void manageTelegram('status').then((result) => {
+      if (!active || !result) return;
+      if (result.status === 'connected' || result.status === 'pending' || result.status === 'disconnected') {
+        setTelegramStatus(result.status);
+      }
+      setTelegramBotUsername(result.botUsername || null);
+      setTelegramBotUrl(result.botUrl || null);
+    });
+    return () => { active = false; };
+  }, [demoMode, manageTelegram, workspaceId]);
+
+  async function startTelegramConnection() {
+    if (!telegramToken.trim()) {
+      setNotice('กรอก Bot Token ก่อนเชื่อมต่อ');
+      return;
+    }
+    setTelegramBusy(true);
+    const result = await manageTelegram('start', { token: telegramToken.trim() });
+    if (result?.status === 'needs_start') {
+      setTelegramBotUrl(result.botUrl || null);
+      setTelegramBotUsername(result.botUsername || null);
+      setNotice('เปิดบอตจากปุ่มด้านล่าง แล้วกด Start จากนั้นกลับมากด “ส่งรหัสยืนยัน”');
+    } else if (result?.status === 'pending') {
+      setTelegramStatus('pending');
+      setTelegramBotUrl(null);
+      setTelegramBotUsername(result.botUsername || null);
+      setTelegramToken('');
+      setTelegramCode('');
+      setNotice('ส่งรหัสยืนยันเข้า Telegram แล้ว รหัสใช้ได้ 10 นาที');
+    }
+    setTelegramBusy(false);
+  }
+
+  async function confirmTelegramConnection() {
+    setTelegramBusy(true);
+    const result = await manageTelegram('confirm', { code: telegramCode });
+    if (result?.status === 'connected') {
+      setTelegramStatus('connected');
+      setTelegramBotUsername(result.botUsername || null);
+      setTelegramCode('');
+      setNotice('เชื่อม Telegram สำเร็จแล้ว');
+    }
+    setTelegramBusy(false);
+  }
+
+  async function disconnectTelegram() {
+    setTelegramBusy(true);
+    const result = await manageTelegram('disconnect');
+    if (result?.status === 'disconnected') {
+      setTelegramStatus('disconnected');
+      setTelegramBotUsername(null);
+      setTelegramToken('');
+      setTelegramCode('');
+      setTelegramBotUrl(null);
+      const nextPreferences = { ...preferences, telegramEnabled: false };
+      setPreferences(nextPreferences);
+      await savePreferences(nextPreferences);
+      setNotice('ยกเลิกการเชื่อม Telegram และปิดการรับรายงานแล้ว');
+    }
+    setTelegramBusy(false);
+  }
+
+  async function sendTelegramTest() {
+    setTelegramBusy(true);
+    const result = await manageTelegram('test');
+    if (result?.status === 'sent') setNotice('ส่งข้อความทดสอบถึง Telegram ของคุณแล้ว');
+    setTelegramBusy(false);
   }
 
   const loadData = useCallback(async () => {
@@ -497,18 +527,12 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       notifications.filter((notification) => {
         if (filter === 'unread') return !notification.read_at;
         if (filter === 'all') return true;
-        return normalizeChannels(notification.data).includes(filter);
+        return true;
       }),
     [filter, notifications],
   );
 
   const unreadCount = notifications.filter((notification) => !notification.read_at).length;
-  const preferenceClassroomScope = getTeacherClassroomScope(session, preferenceClassrooms);
-  const channelCounts = (['in_app', 'telegram', 'line'] as NotificationChannel[]).map((channel) => ({
-    channel,
-    count: notifications.filter((notification) => normalizeChannels(notification.data).includes(channel)).length,
-  }));
-
   // Total Action Items count
   const totalTasksCount =
     (!attendanceCheckedToday ? 1 : 0) +
@@ -730,19 +754,6 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                 {unreadCount}
               </span>
             ) : null}
-          </button>
-
-          <button
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
-              activeTab === 'channels'
-                ? 'bg-slate-950 text-white shadow-md'
-                : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
-            }`}
-            onClick={() => setActiveTab('channels')}
-            type="button"
-          >
-            <Smartphone size={15} />
-            ช่องทางแจ้งเตือน (LINE / Telegram)
           </button>
 
           <button
@@ -1071,9 +1082,6 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                 {[
                   { key: 'all', label: 'ทั้งหมด' },
                   { key: 'unread', label: 'ยังไม่อ่าน' },
-                  { key: 'in_app', label: 'In-App' },
-                  { key: 'telegram', label: 'Telegram' },
-                  { key: 'line', label: 'LINE' },
                 ].map((item) => (
                   <button
                     className={`h-10 rounded-2xl px-3 text-xs font-black transition ${
@@ -1109,34 +1117,6 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
               </button>
             </div>
 
-            <div className="nexus-card p-4 sm:p-5">
-              <div className="flex items-center gap-2 text-sm font-black text-teal-700">
-                <Smartphone size={16} aria-hidden="true" />
-                Channel Readiness
-              </div>
-              <div className="mt-4 grid gap-3">
-                {channelCounts.map(({ channel, count }) => {
-                  const Icon = channelIcons[channel];
-
-                  return (
-                    <div className="nexus-muted-box flex items-center justify-between gap-3 p-3" key={channel}>
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700 shadow-sm">
-                          <Icon size={18} aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black text-slate-900">{channelLabels[channel]}</p>
-                          <p className="text-xs font-bold text-slate-500">{count} รายการใน inbox</p>
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-slate-600 ring-1 ring-slate-200">
-                        พร้อมใช้งาน
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           </aside>
 
           <section className="nexus-card p-4 sm:p-5">
@@ -1153,10 +1133,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             </div>
 
             <div className="mt-5 grid gap-3">
-              {filteredNotifications.map((notification) => {
-                const channels = normalizeChannels(notification.data);
-
-                return (
+              {filteredNotifications.map((notification) => (
                   <article
                     className={`rounded-3xl border p-4 transition ${
                       notification.read_at
@@ -1182,21 +1159,6 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                         </div>
                         <h3 className="mt-3 text-lg font-black leading-7 text-slate-950">{notification.title}</h3>
                         <p className="mt-2 text-sm font-bold leading-7 text-slate-600">{notification.body}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {channels.map((channel) => {
-                            const Icon = channelIcons[channel];
-
-                            return (
-                              <span
-                                className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-black text-slate-600 ring-1 ring-slate-200"
-                                key={channel}
-                              >
-                                <Icon size={13} aria-hidden="true" />
-                                {channelLabels[channel]}
-                              </span>
-                            );
-                          })}
-                        </div>
                       </div>
 
                       <div className="flex shrink-0 flex-col gap-2 lg:items-end">
@@ -1222,8 +1184,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                       </div>
                     </div>
                   </article>
-                );
-              })}
+              ))}
             </div>
 
             {filteredNotifications.length === 0 ? (
@@ -1235,134 +1196,96 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         </section>
       ) : null}
 
-      {/* TAB 3: CHANNELS READINESS */}
-      {activeTab === 'channels' ? (
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="nexus-card p-5">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="text-emerald-600" size={20} />
-              <h3 className="text-base font-black text-slate-950">LINE Notify & Official Account</h3>
-            </div>
-            <p className="mt-2 text-xs font-bold leading-6 text-slate-600">
-              รองรับการส่งข้อความแจ้งเตือนสรุปประจำวัน ขาดเรียน หรือเคสเร่งด่วนตรงเข้าสู่ LINE ของคุณครูหรือกลุ่มผู้ปกครอง
-            </p>
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-black text-slate-700">สถานะปัจจุบัน:</p>
-              <p className="mt-1 text-xs text-slate-500">
-                ยังไม่มีหน้าจอเชื่อมบัญชี LINE และระบบตั้งเวลาส่งอัตโนมัติ ต้องตั้งค่าการเชื่อมต่อก่อนเปิดใช้งานจริง
-              </p>
-            </div>
-          </div>
-
-          <div className="nexus-card p-5">
-            <div className="flex items-center gap-2">
-              <Send className="text-cyan-600" size={20} />
-              <h3 className="text-base font-black text-slate-950">Telegram Bot Integration</h3>
-            </div>
-            <p className="mt-2 text-xs font-bold leading-6 text-slate-600">
-              รับสรุปส่วนตัวผ่านบัญชี Telegram ที่ครูเจ้าของบัญชีเชื่อมไว้ โดยระบบจะไม่ใช้ Chat ID ที่ส่งมาจากหน้าเว็บโดยตรง
-            </p>
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-black text-slate-700">สถานะปัจจุบัน:</p>
-              <p className="mt-1 text-xs text-slate-500">
-                ยังไม่มีการจับคู่บัญชี Telegram ของครูและระบบตั้งเวลาส่งอัตโนมัติ ตัวเลือกในหน้าตั้งค่าจะถูกเก็บไว้ก่อน และยังไม่ส่งข้อความจริง
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {activeTab === 'settings' ? (
         <section className="mt-4 space-y-4">
-          <div className="nexus-card flex flex-col gap-4 border border-cyan-100 bg-gradient-to-r from-cyan-50/70 to-white p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-cyan-700">ตั้งค่ารายงานส่วนตัว</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">เลือกเรื่องที่อยากให้แจ้ง และเวลาที่สะดวก</h2>
-              <p className="mt-1 text-sm font-bold text-slate-600">การตั้งค่านี้เป็นของบัญชีคุณในโรงเรียนที่เลือก ครูคนอื่นมีค่าตั้งค่าของตนเอง</p>
+          <article className="nexus-card overflow-hidden border border-cyan-100">
+            <div className="flex flex-col gap-4 border-b border-cyan-100 bg-cyan-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-600 text-white"><Send size={20} /></span>
+                <div>
+                  <p className="text-xs font-black text-cyan-800">ตั้งค่าสำหรับบัญชีของคุณ</p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">เชื่อม Telegram เพื่อรับรายงาน</h2>
+                  <p className="mt-1 text-sm font-bold text-slate-600">ครูแต่ละคนเชื่อมบอตของตนเอง การเชื่อมนี้ไม่กระทบบัญชีครูคนอื่น</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-2 self-start rounded-full px-3 py-2 text-xs font-black ${telegramStatus === 'connected' ? 'bg-emerald-100 text-emerald-800' : telegramStatus === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>
+                <span className="h-2 w-2 rounded-full bg-current" />
+                {telegramStatus === 'connected' ? 'เชื่อมแล้ว' : telegramStatus === 'pending' ? 'รอยืนยันรหัส' : 'ยังไม่ได้เชื่อม'}
+              </span>
             </div>
-            <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-              <input
-                checked={preferences.telegramEnabled}
-                className="h-5 w-5 accent-cyan-600"
-                onChange={(event) => updatePreferences((current) => ({ ...current, telegramEnabled: event.target.checked }))}
-                type="checkbox"
-              />
-              <span><span className="block text-sm font-black text-slate-900">ต้องการรับผ่าน Telegram</span><span className="block text-xs font-bold text-slate-500">เป็นตัวเลือกของบัญชีนี้ จะเริ่มส่งหลังเชื่อมบัญชีอย่างปลอดภัย</span></span>
-            </label>
+
+            <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+              <div className="space-y-4">
+                {telegramStatus !== 'connected' ? (
+                  <>
+                    <label className="block text-sm font-black text-slate-800">
+                      Telegram Bot Token
+                      <input
+                        autoComplete="off"
+                        className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-sm font-semibold text-slate-900 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                        onChange={(event) => setTelegramToken(event.target.value)}
+                        placeholder="วาง token ที่ได้จาก BotFather"
+                        spellCheck={false}
+                        type="password"
+                        value={telegramToken}
+                      />
+                      <span className="mt-1 block text-xs font-medium leading-5 text-slate-500">ระบบจะส่ง token ไปเข้ารหัสบนเซิร์ฟเวอร์ และจะไม่แสดง token กลับในหน้านี้</span>
+                    </label>
+                    {telegramBotUrl ? (
+                      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                        <p className="text-sm font-black text-sky-950">ขั้นที่ 1: เริ่มคุยกับบอต</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">กดปุ่ม เปิด Telegram แล้วกด Start จากนั้นกลับมากดส่งรหัสยืนยัน</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <a className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-700 px-4 text-xs font-black text-white" href={telegramBotUrl} rel="noreferrer" target="_blank"><ExternalLink size={14} />เปิด Telegram</a>
+                          <button className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-xs font-black text-sky-800 ring-1 ring-sky-200 disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim()} onClick={() => void startTelegramConnection()} type="button"><RefreshCw size={14} />ส่งรหัสยืนยัน</button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {telegramStatus === 'pending' ? (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                        <label className="block text-sm font-black text-amber-950">ขั้นที่ 2: กรอกรหัส 6 หลักจาก Telegram
+                          <input autoComplete="one-time-code" className="mt-2 h-12 w-full rounded-xl border border-amber-200 bg-white px-4 text-center font-mono text-xl font-black tracking-[0.35em]" inputMode="numeric" maxLength={6} onChange={(event) => setTelegramCode(event.target.value.replace(/\D/g, '').slice(0, 6))} value={telegramCode} />
+                        </label>
+                        <button className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-black text-white disabled:opacity-50" disabled={telegramBusy || telegramCode.length !== 6} onClick={() => void confirmTelegramConnection()} type="button"><CheckCircle2 size={16} />ยืนยันการเชื่อม</button>
+                      </div>
+                    ) : null}
+                    {!telegramBotUrl && telegramStatus !== 'pending' ? (
+                      <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim()} onClick={() => void startTelegramConnection()} type="button"><KeyRound size={16} />{telegramBusy ? 'กำลังตรวจสอบ…' : 'ตรวจสอบ Token และเชื่อมบัญชี'}</button>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-black text-emerald-950">เชื่อมกับ @{telegramBotUsername || 'Telegram Bot'} แล้ว</p>
+                    <p className="mt-1 text-xs leading-5 text-emerald-800">token ถูกเก็บแบบเข้ารหัส และปลายทางถูกยืนยันจากบัญชี Telegram ที่รับรหัส</p>
+                    <label className="mt-4 flex items-start gap-3 rounded-xl bg-white p-3 text-sm font-bold text-slate-800 ring-1 ring-emerald-200">
+                      <input checked={preferences.telegramEnabled} className="mt-0.5 h-4 w-4 accent-emerald-600" onChange={(event) => {
+                        const nextPreferences = { ...preferences, telegramEnabled: event.target.checked };
+                        setPreferences(nextPreferences);
+                        void savePreferences(nextPreferences);
+                      }} type="checkbox" />
+                      <span>อนุญาตให้ส่งรายงานมาที่ Telegram นี้</span>
+                    </label>
+                    <button className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white disabled:opacity-50" disabled={telegramBusy} onClick={() => void sendTelegramTest()} type="button"><Send size={14} />ส่งข้อความทดสอบ</button>
+                    <button className="ml-2 mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-xs font-black text-rose-700 ring-1 ring-rose-200 disabled:opacity-50" disabled={telegramBusy} onClick={() => void disconnectTelegram()} type="button"><AlertTriangle size={14} />ยกเลิกการเชื่อม</button>
+                  </div>
+                )}
+              </div>
+
+              <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="font-black text-slate-900">วิธีเชื่อมแบบสั้น ๆ</h3>
+                <ol className="mt-3 space-y-3 text-xs font-semibold leading-5 text-slate-600">
+                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">1</span><span>สร้างบอตส่วนตัวกับ <b>BotFather</b> ใน Telegram แล้วคัดลอก token</span></li>
+                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">2</span><span>วาง token ในช่องนี้ แล้วกดตรวจสอบ</span></li>
+                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">3</span><span>เปิดบอต กด Start และกรอกรหัสที่บอตส่งให้ เพื่อยืนยันว่าเป็นบัญชีของคุณ</span></li>
+                </ol>
+                <p className="mt-4 rounded-xl bg-white p-3 text-[11px] font-semibold leading-5 text-slate-500 ring-1 ring-slate-200">แต่ละบัญชีเชื่อม token และ Telegram ของตนเอง ระบบไม่เก็บ token ไว้ในเบราว์เซอร์หรือแสดงให้ครูคนอื่นเห็น</p>
+              </aside>
+            </div>
+          </article>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs font-semibold leading-5 text-amber-950">
+            <b>รายงานอัตโนมัติ:</b> หน้านี้จัดการการเชื่อมและทดสอบการส่งได้ ส่วนการตั้งเวลาและเหตุการณ์รายงานที่ยังไม่มีระบบส่งจริงจะไม่แสดงเป็นตัวเลือกในหน้านี้
           </div>
-
-          <div className="nexus-card grid gap-3 border border-sky-100 bg-sky-50/50 p-4 sm:grid-cols-3">
-            <div><p className="text-xs font-black text-sky-900">การตั้งค่าของคุณ</p><p className="mt-1 text-xs font-bold leading-5 text-slate-600">หมวดรายงานและเวลารับแจ้งเตือนแยกตามบัญชีและโรงเรียน</p></div>
-            <div><p className="text-xs font-black text-sky-900">ข้อมูลโรงเรียน</p><p className="mt-1 text-xs font-bold leading-5 text-slate-600">ข้อมูลนักเรียนใช้ร่วมกันตามสิทธิ์และขอบเขตห้องเรียน</p></div>
-            <div><p className="text-xs font-black text-sky-900">กุญแจ Telegram</p><p className="mt-1 text-xs font-bold leading-5 text-slate-600">เก็บฝั่งระบบเท่านั้น ส่วนบัญชีรับข้อความต้องจับคู่กับผู้ใช้ก่อนส่ง</p></div>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <article className="nexus-card p-5">
-              <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={20} /></span>
-                <div className="flex-1">
-                  <h3 className="font-black text-slate-950">รายงานตอนเช้า</h3>
-                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">สรุปตารางสอน ปฏิทิน และงานที่ต้องทำก่อนเริ่มวัน</p>
-                </div>
-                <input aria-label="เปิดรายงานตอนเช้า" checked={preferences.morningDigest.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, enabled: event.target.checked } }))} type="checkbox" />
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-black text-slate-600">เวลาแจ้ง
-                  <input className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, time: event.target.value } }))} type="time" value={preferences.morningDigest.time} />
-                </label>
-                <div className="space-y-2 pt-1">
-                  {([
-                    ['includeSchedule', 'ตารางสอนวันนี้'],
-                    ['includeCalendar', 'กิจกรรมและปฏิทิน'],
-                    ['includeTasks', 'งานที่ต้องติดตาม'],
-                  ] as const).map(([key, label]) => <label className="flex items-center gap-2 text-xs font-bold text-slate-700" key={key}><input checked={preferences.morningDigest[key]} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, [key]: event.target.checked } }))} type="checkbox" />{label}</label>)}
-                </div>
-              </div>
-            </article>
-
-            <article className="nexus-card p-5">
-              <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-teal-100 text-teal-700"><CalendarCheck size={20} /></span>
-                <div className="flex-1"><h3 className="font-black text-slate-950">หลังบันทึกเวลาเรียน</h3><p className="mt-1 text-xs font-bold leading-5 text-slate-500">เลือกบทบาทแยกกัน ระบบจะยึดห้องและคาบจากสิทธิ์/ตารางสอนของคุณ</p></div>
-              </div>
-              <div className="mt-4 space-y-3">
-                <label className="flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50/60 p-3">
-                  <input checked={preferences.attendance.homeroomEnabled} className="mt-0.5 h-4 w-4 accent-sky-600" onChange={(event) => updatePreferences((current) => ({ ...current, attendance: { ...current.attendance, homeroomEnabled: event.target.checked } }))} type="checkbox" />
-                  <span className="flex-1"><span className="block text-sm font-black text-slate-900">เช็คชื่อครูประจำชั้น</span><span className="block text-xs font-bold text-slate-500">รายงานการเช็คชื่อประจำวันของห้องที่ดูแล</span>
-                    {preferenceClassroomScope.homeroomClassrooms.length ? <span className="mt-2 flex flex-wrap gap-1.5">{preferenceClassroomScope.homeroomClassrooms.map((room) => <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-sky-800 ring-1 ring-sky-200" key={room.id}>{room.name}</span>)}</span> : <span className="mt-2 block text-[11px] font-bold text-amber-700">ยังไม่พบห้องที่กำหนดให้คุณเป็นครูประจำชั้น</span>}
-                  </span>
-                </label>
-                <label className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 p-3">
-                  <input checked={preferences.attendance.subjectEnabled} className="mt-0.5 h-4 w-4 accent-violet-600" onChange={(event) => updatePreferences((current) => ({ ...current, attendance: { ...current.attendance, subjectEnabled: event.target.checked } }))} type="checkbox" />
-                  <span className="flex-1"><span className="block text-sm font-black text-slate-900">เช็คชื่อครูประจำวิชา (แยกตามคาบ)</span><span className="block text-xs font-bold text-slate-500">แต่ละรายงานผูกกับวิชาและคาบในตารางสอน ไม่รวมกับเช็คชื่อประจำชั้น</span>
-                    {preferenceClassroomScope.teachingClassrooms.length ? <span className="mt-2 flex flex-wrap gap-1.5">{preferenceClassroomScope.teachingClassrooms.map((room) => <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-violet-800 ring-1 ring-violet-200" key={room.id}>{room.name}</span>)}</span> : <span className="mt-2 block text-[11px] font-bold text-amber-700">ระบบจะใช้ห้องและคาบที่ผูกกับตารางสอนของคุณเมื่อมีการตั้งค่า</span>}
-                  </span>
-                </label>
-              </div>
-            </article>
-
-            <article className="nexus-card p-5">
-              <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-100 text-blue-700"><CalendarDays size={20} /></span><div className="flex-1"><h3 className="font-black text-slate-950">เตือนจากปฏิทิน</h3><p className="mt-1 text-xs font-bold text-slate-500">เตือนก่อนถึงกิจกรรม และแจ้งเมื่อมีการเปลี่ยนแปลง</p></div><input aria-label="เปิดการเตือนปฏิทิน" checked={preferences.calendar.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, enabled: event.target.checked } }))} type="checkbox" /></div>
-              <div className="mt-4 flex flex-wrap gap-2">{[[1440, '1 วันก่อน'], [60, '1 ชั่วโมงก่อน'], [0, 'เวลาเริ่ม']].map(([minutes, label]) => { const selected = preferences.calendar.leadMinutes.includes(Number(minutes)); return <button aria-pressed={selected} className={`rounded-full px-3 py-2 text-xs font-black ring-1 ${selected ? 'bg-cyan-50 text-cyan-800 ring-cyan-200' : 'bg-white text-slate-500 ring-slate-200'}`} key={minutes} onClick={() => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, leadMinutes: selected ? current.calendar.leadMinutes.filter((item) => item !== Number(minutes)) : [...current.calendar.leadMinutes, Number(minutes)].sort((a, b) => b - a) } }))} type="button">{label}</button>; })}</div>
-              <label className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-700"><input checked={preferences.calendar.notifyChanges} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, notifyChanges: event.target.checked } }))} type="checkbox" />แจ้งเมื่อมีการแก้ไขหรือลบกิจกรรม</label>
-            </article>
-
-            <article className="nexus-card p-5">
-              <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><CheckCircle2 size={20} /></span><div><h3 className="font-black text-slate-950">รายงานหลังบันทึกและสรุปวัน</h3><p className="mt-1 text-xs font-bold text-slate-500">เลือกเหตุการณ์ที่อยากได้รับข้อความสรุป</p></div></div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <label className="flex items-center gap-2 rounded-xl bg-emerald-50/70 p-3 text-xs font-bold text-slate-700"><input checked={preferences.afterSavings} className="h-4 w-4 accent-emerald-600" onChange={(event) => updatePreferences((current) => ({ ...current, afterSavings: event.target.checked }))} type="checkbox" />หลังบันทึกเงินออม</label>
-                <label className="flex items-center gap-2 rounded-xl bg-cyan-50/70 p-3 text-xs font-bold text-slate-700"><input checked={preferences.afterDailyBrief} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, afterDailyBrief: event.target.checked }))} type="checkbox" />หลังบันทึกสรุปประจำวัน</label>
-                <label className="flex items-center gap-2 rounded-xl bg-amber-50/70 p-3 text-xs font-bold text-slate-700 sm:col-span-2"><input checked={preferences.eveningDigest.enabled} className="h-4 w-4 accent-amber-600" onChange={(event) => updatePreferences((current) => ({ ...current, eveningDigest: { ...current.eveningDigest, enabled: event.target.checked } }))} type="checkbox" />สรุปงานช่วงท้ายวัน เวลา <input aria-label="เวลาสรุปช่วงท้ายวัน" className="h-9 rounded-lg border border-slate-200 bg-white px-2 font-bold" onChange={(event) => updatePreferences((current) => ({ ...current, eveningDigest: { ...current.eveningDigest, time: event.target.value } }))} type="time" value={preferences.eveningDigest.time} /></label>
-              </div>
-            </article>
-          </div>
-
-          <div className="nexus-card flex flex-col gap-4 border border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 shrink-0 text-amber-700" size={19} /><div><p className="text-sm font-black text-amber-950">ความเป็นส่วนตัว</p><label className="mt-1 flex items-center gap-2 text-xs font-bold text-amber-900"><input checked={preferences.summaryOnly} className="h-4 w-4 accent-amber-700" onChange={(event) => updatePreferences((current) => ({ ...current, summaryOnly: event.target.checked }))} type="checkbox" />ส่งเฉพาะจำนวนและสรุป ไม่ส่งชื่อนักเรียนผ่าน Telegram</label></div></div>
-            <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-60" disabled={isSavingPreferences} onClick={() => void savePreferences()} type="button"><Save size={17} />{isSavingPreferences ? 'กำลังบันทึก…' : 'บันทึกการตั้งค่า'}</button>
-          </div>
-          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-xs font-bold leading-5 text-slate-600">บันทึกแบบฟอร์มได้ทันที ส่วนการส่ง Telegram อัตโนมัติจะเริ่มได้เมื่อผู้ดูแลระบบเชื่อมบอตและเปิดระบบตั้งเวลาส่ง ซึ่งยังไม่ได้เปิดใช้งานในขณะนี้</p>
         </section>
       ) : null}
 
