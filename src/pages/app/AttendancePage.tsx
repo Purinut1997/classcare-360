@@ -9,6 +9,7 @@ import {
   Home,
   MoreHorizontal,
   Pencil,
+  Printer,
   Send,
   Smile,
   UserCheck,
@@ -383,6 +384,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
   const isHolidayBlocked = Boolean(calendarPolicy && !calendarPolicy.affects_attendance);
   const isToday = attendanceDate === getTodayDate();
+  const attendanceReportPath = `/app/dashboard?view=reports&reportView=attendance&reportPeriod=month&reportMonth=${attendanceDate.slice(0, 7)}&classroomId=${encodeURIComponent(classroomId)}`;
   const thaiDateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(
@@ -1122,8 +1124,43 @@ export function AttendancePage({ session }: AttendancePageProps) {
             );
           })}
           {mode === 'subject' && (
-            <span className="text-xs font-semibold text-slate-600">เลือกชื่อวิชาและคาบใน “ตั้งค่าเพิ่มเติม”</span>
+            <div className="flex flex-1 flex-wrap items-center gap-2 px-1">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-xs font-bold text-slate-700">
+                <BookOpen size={15} className="text-sky-700" aria-hidden="true" />
+                <span>วิชา</span>
+                <select
+                  aria-label="เลือกรายวิชา"
+                  value={subjectName}
+                  onChange={(event) => setSubjectName(event.target.value)}
+                  className="max-w-44 cursor-pointer bg-transparent text-sm font-black text-slate-900 outline-none"
+                >
+                  {!scheduleOptions.subjectOptions.includes(subjectName) && <option value={subjectName}>{subjectName}</option>}
+                  {scheduleOptions.subjectOptions.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+                </select>
+              </label>
+              <label className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs font-bold text-slate-700">
+                <span className="grid h-6 min-w-6 place-items-center rounded-lg bg-amber-200 px-1 text-amber-900">คาบ</span>
+                <span>เลือกคาบเรียน</span>
+                <select
+                  aria-label="เลือกคาบเรียน"
+                  value={periodLabel}
+                  onChange={(event) => setPeriodLabel(event.target.value)}
+                  className="max-w-56 cursor-pointer bg-transparent text-sm font-black text-slate-900 outline-none"
+                >
+                  {!scheduleOptions.periodOptions.includes(periodLabel) && <option value={periodLabel}>{periodLabel}</option>}
+                  {scheduleOptions.periodOptions.map((period) => <option key={period} value={period}>{period}</option>)}
+                </select>
+              </label>
+            </div>
           )}
+          <Link
+            to={attendanceReportPath}
+            title="เปิดรายงานเวลาเรียนของห้องและเดือนที่เลือก"
+            className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:border-teal-800 hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          >
+            <Printer size={16} aria-hidden="true" />
+            <span>ดูรายงานและพิมพ์</span>
+          </Link>
         </div>
 
         {/* Holiday Banner if today affects calendar */}
@@ -1557,32 +1594,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <span>⚙️ การตั้งค่า & เครื่องมือเพิ่มเติม</span>
             </h3>
-
-            {/* Period & Subject Inputs if in Subject mode */}
-            {mode === 'subject' && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">คาบเรียน:</label>
-                  <input
-                    type="text"
-                    className="h-9 w-full rounded-xl border border-slate-300 px-2.5 text-xs font-bold"
-                    placeholder="เช่น คาบ 1"
-                    value={periodLabel}
-                    onChange={(e) => setPeriodLabel(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">รายวิชา:</label>
-                  <input
-                    type="text"
-                    className="h-9 w-full rounded-xl border border-slate-300 px-2.5 text-xs font-bold"
-                    placeholder="เช่น คณิตศาสตร์"
-                    value={subjectName}
-                    onChange={(e) => setSubjectName(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
 
             {/* Correct existing session date */}
             {attendanceSession && (

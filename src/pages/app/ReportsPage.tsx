@@ -2355,8 +2355,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const reportViewParam = searchParams.get('reportView');
   const reportPeriodParam = searchParams.get('reportPeriod');
+  const reportMonthParam = searchParams.get('reportMonth');
   const initialReportView: ReportView = isReportView(reportViewParam) ? reportViewParam : 'attendance';
   const initialReportPeriod: ReportPeriod = isReportPeriod(reportPeriodParam) ? reportPeriodParam : 'month';
+  const initialReportMonth = reportMonthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(reportMonthParam)
+    ? reportMonthParam
+    : getTodayDate().slice(0, 7);
 
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
   const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
@@ -2375,7 +2379,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   const [classroomId, setClassroomId] = useState(demoMode ? demoClassrooms[0]?.id || '' : '');
   const [reportView, setReportView] = useState<ReportView>(initialReportView);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(initialReportPeriod);
-  const [reportMonth, setReportMonth] = useState(getTodayDate().slice(0, 7));
+  const [reportMonth, setReportMonth] = useState(initialReportMonth);
   const [selectedTerm, setSelectedTerm] = useState<TermKey>('term1');
   const [termRanges, setTermRanges] = useState<ReportTermRanges>(() =>
     loadReportTermRanges(session.workspace?.id, session.workspace?.academicYear),
@@ -2495,8 +2499,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   useEffect(() => {
     const nextView = searchParams.get('reportView');
     const nextPeriod = searchParams.get('reportPeriod');
+    const nextMonth = searchParams.get('reportMonth');
     if (isReportView(nextView)) setReportView(nextView);
     if (isReportPeriod(nextPeriod)) setReportPeriod(nextPeriod);
+    if (nextMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) setReportMonth(nextMonth);
   }, [searchParams]);
 
   useEffect(() => {
