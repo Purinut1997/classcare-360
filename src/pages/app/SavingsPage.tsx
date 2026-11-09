@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   TrendingDown,
   TrendingUp,
+  Undo2,
   Wallet,
   X,
 } from 'lucide-react';
@@ -218,6 +219,9 @@ export function SavingsPage({ session }: SavingsPageProps) {
   const [customPresetAmount, setCustomPresetAmount] = useState('20');
   const [sheetStudent, setSheetStudent] = useState<StudentRow | null>(null);
   const [correctionTransaction, setCorrectionTransaction] = useState<SavingsTransactionRow | null>(null);
+  const [isCancellingTransaction, setIsCancellingTransaction] = useState(false);
+  const [cancellationCode, setCancellationCode] = useState('');
+  const [cancellationCodeInput, setCancellationCodeInput] = useState('');
   const [correctionForm, setCorrectionForm] = useState({ amount: '', date: getTodayDate(), reason: '', studentId: '', type: 'deposit' as 'deposit' | 'withdrawal' });
   const [sheetForm, setSheetForm] = useState({
     amount: '20',
@@ -531,6 +535,10 @@ export function SavingsPage({ session }: SavingsPageProps) {
     if (!correctionTransaction || !session.workspace) return;
     const amount = Number(correctionForm.amount);
     const replacementStudent = students.find((student) => student.id === correctionForm.studentId);
+    if (isCancellingTransaction && cancellationCodeInput !== cancellationCode) {
+      setNotice('รหัสยืนยันไม่ถูกต้อง กรุณาตรวจรหัสแล้วลองอีกครั้ง');
+      return;
+    }
     if (!replacementStudent || !Number.isFinite(amount) || amount < 0 || amount > 9999999999.99 || !correctionForm.reason.trim()) {
       setNotice('กรุณาตรวจนักเรียน จำนวนเงิน และเหตุผลการแก้ไข');
       return;
@@ -604,9 +612,12 @@ export function SavingsPage({ session }: SavingsPageProps) {
         return next;
       });
       setCorrectionTransaction(null);
+      setIsCancellingTransaction(false);
+      setCancellationCode('');
+      setCancellationCodeInput('');
       setCorrectionForm({ amount: '', date: getTodayDate(), reason: '', studentId: '', type: 'deposit' });
       setNotice(amount === 0
-        ? 'ย้อนรายการสำเร็จ รายการเดิมยังอยู่ในประวัติ และปรับยอดบัญชีแล้ว'
+        ? (isCancellingTransaction ? 'ยกเลิกรายการสำเร็จ ยอดเงินถูกปรับแล้วและเก็บประวัติเดิมไว้' : 'ย้อนรายการสำเร็จ รายการเดิมยังอยู่ในประวัติ และปรับยอดบัญชีแล้ว')
         : 'แก้รายการสำเร็จ ระบบเก็บรายการเดิมและบันทึกประวัติการย้อน/รายการใหม่ไว้แล้ว');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : `แก้รายการไม่สำเร็จ: ${String(error)}`);
@@ -1814,25 +1825,45 @@ export function SavingsPage({ session }: SavingsPageProps) {
                           <span className="text-[11px] font-bold text-[#78716c]">
                             {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
                           </span>
-                          {transaction.metadata?.correction_id ? (
-                            <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-800">แก้ไขแล้ว</span>
+                          {transaction.metadata?.correction_id || transaction.metadata?.correction_of ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                              {transaction.metadata?.correction_role === 'reversal' ? 'รายการย้อนกลับ' : transaction.metadata?.correction_role === 'replacement' ? 'รายการแก้ไขแทน' : 'แก้ไขแล้ว'}
+                            </span>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCorrectionTransaction(transaction);
-                                setCorrectionForm({
-                                  amount: String(transaction.amount),
-                                  date: transaction.transaction_date,
-                                  reason: '',
-                                  studentId: transaction.student_id,
-                                  type: transaction.transaction_type === 'withdrawal' ? 'withdrawal' : 'deposit',
-                                });
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[10px] font-black text-violet-800 transition hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                            >
-                              <Pencil size={11} aria-hidden="true" /> แก้รายการ
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsCancellingTransaction(false);
+                                  setCorrectionTransaction(transaction);
+                                  setCorrectionForm({
+                                    amount: String(transaction.amount),
+                                    date: transaction.transaction_date,
+                                    reason: '',
+                                    studentId: transaction.student_id,
+                                    type: transaction.transaction_type === 'withdrawal' ? 'withdrawal' : 'deposit',
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[10px] font-black text-violet-800 transition hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                              >
+                                <Pencil size={11} aria-hidden="true" /> แก้รายการ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const randomValues = new Uint32Array(1);
+                                  window.crypto.getRandomValues(randomValues);
+                                  setCancellationCode(String(1000 + (randomValues[0] % 9000)));
+                                  setCancellationCodeInput('');
+                                  setIsCancellingTransaction(true);
+                                  setCorrectionTransaction(transaction);
+                                  setCorrectionForm({ amount: '0', date: transaction.transaction_date, reason: '', studentId: transaction.student_id, type: 'deposit' });
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[10px] font-bold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                              >
+                                <Undo2 size={11} aria-hidden="true" /> ยกเลิกรายการ
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1851,52 +1882,87 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
         {correctionTransaction && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs" role="presentation">
-            <form onSubmit={(event) => void handleCorrectSavingsTransaction(event)} className="w-full max-w-xl overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="savings-correction-title">
-              <header className="flex items-start justify-between gap-3 border-b border-violet-100 bg-violet-50/70 p-5">
+            <form onSubmit={(event) => void handleCorrectSavingsTransaction(event)} className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="savings-correction-title">
+              <header className={`flex items-start justify-between gap-3 border-b p-5 ${isCancellingTransaction ? 'border-rose-100 bg-rose-50/70' : 'border-slate-100 bg-slate-50'}`}>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">SAFE LEDGER CORRECTION</p>
-                  <h2 id="savings-correction-title" className="mt-1 text-lg font-black text-slate-950">แก้รายการเงินออม</h2>
-                <p className="mt-1 text-xs font-semibold text-slate-600">ระบบจะเก็บรายการเดิมและบันทึกการย้อนในประวัติ หากกำหนดยอดใหม่ ระบบจะเพิ่มรายการที่ถูกต้องให้ด้วย</p>
+                  <p className="text-[10px] font-bold tracking-wide text-slate-500">สมุดบัญชีเงินออม</p>
+                  <h2 id="savings-correction-title" className="mt-1 text-lg font-semibold text-slate-950">{isCancellingTransaction ? 'ยกเลิกรายการเงินออม' : 'แก้รายการเงินออม'}</h2>
+                  <p className="mt-1 text-xs font-medium text-slate-600">{isCancellingTransaction ? 'ระบบจะย้อนยอดและเก็บรายการเดิมไว้ในประวัติ' : 'ระบบจะเก็บรายการเดิมและบันทึกการย้อนในประวัติ หากกำหนดยอดใหม่ ระบบจะเพิ่มรายการที่ถูกต้องให้ด้วย'}</p>
                 </div>
-                <button type="button" onClick={() => setCorrectionTransaction(null)} className="rounded-xl p-2 text-slate-500 hover:bg-white" aria-label="ปิดหน้าต่างแก้รายการ"><X size={18} /></button>
+                <button type="button" onClick={() => { setCorrectionTransaction(null); setIsCancellingTransaction(false); }} className="rounded-xl p-2 text-slate-500 hover:bg-white" aria-label="ปิดหน้าต่างแก้รายการ"><X size={18} /></button>
               </header>
               <div className="grid gap-3 p-5">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
                   <p className="font-black text-slate-800">รายการเดิม: {correctionTransaction.transaction_type === 'withdrawal' ? 'ถอน' : correctionTransaction.transaction_type === 'adjustment' ? 'ปรับยอด' : 'ฝาก'} {formatBaht(correctionTransaction.amount)} บาท</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">{students.find((student) => student.id === correctionTransaction.student_id)?.first_name || 'นักเรียน'} · {correctionTransaction.transaction_date} · {correctionTransaction.note || 'ไม่มีหมายเหตุ'}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{students.find((student) => student.id === correctionTransaction.student_id)?.first_name || 'นักเรียน'} {students.find((student) => student.id === correctionTransaction.student_id)?.last_name || ''} · {correctionTransaction.transaction_date} · {correctionTransaction.note || 'ไม่มีหมายเหตุ'}</p>
                 </div>
-                <label className="grid gap-1 text-xs font-bold text-slate-700">นักเรียนที่ถูกต้อง
-                  <select required disabled={Number(correctionForm.amount) === 0} value={correctionForm.studentId} onChange={(event) => setCorrectionForm((current) => ({ ...current, studentId: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-500">
-                    {correctionEligibleStudents.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name}{student.nickname ? ` (${student.nickname})` : ''}</option>)}
-                  </select>
-                  {Number(correctionForm.amount) === 0 ? <span className="font-medium text-violet-700">ยอด 0 บาทจะย้อนรายการเดิมของนักเรียนคนนี้ โดยไม่สร้างรายการใหม่</span> : null}
-                  {teacherScope.hasHomeroom && scopeFilter === 'homeroom' ? <span className="font-medium text-slate-500">ต้องแก้ไปยังห้องอื่น? เลือก “ทุกห้อง” ที่ตัวกรองห้องก่อน</span> : null}
+                {isCancellingTransaction ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                    <p className="text-sm font-semibold text-rose-900">ตรวจให้แน่ใจก่อนยกเลิก</p>
+                    <p className="mt-1 text-xs leading-5 text-rose-800">ยอด {formatBaht(correctionTransaction.amount)} บาทจะถูกย้อนออกจากบัญชีนักเรียน ระบบจะเก็บรายการเดิมและเหตุผลไว้ตรวจสอบย้อนหลัง</p>
+                    {(() => {
+                      const currentBalance = accountByStudent.get(correctionTransaction.student_id)?.balance ?? 0;
+                      const nextBalance = currentBalance + (correctionTransaction.transaction_type === 'withdrawal' ? correctionTransaction.amount : -correctionTransaction.amount);
+                      return (
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-xl border border-rose-100 bg-white px-3 py-2">
+                            <span className="block text-slate-500">ยอดปัจจุบัน</span>
+                            <span className="mt-0.5 block font-semibold tabular-nums text-slate-900">{formatBaht(currentBalance)} บาท</span>
+                          </div>
+                          <div className="rounded-xl border border-rose-100 bg-white px-3 py-2">
+                            <span className="block text-slate-500">ยอดหลังยกเลิก</span>
+                            <span className={`mt-0.5 block font-semibold tabular-nums ${nextBalance < 0 ? 'text-rose-700' : 'text-slate-900'}`}>{formatBaht(nextBalance)} บาท</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-center">
+                        <span className="block text-[10px] font-medium text-slate-500">รหัสยืนยัน</span>
+                        <span className="font-mono text-xl font-bold tracking-[0.25em] text-slate-900">{cancellationCode}</span>
+                      </div>
+                      <label className="grid flex-1 gap-1 text-xs font-semibold text-slate-700">กรอกรหัส 4 หลัก
+                        <input required inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="one-time-code" value={cancellationCodeInput} onChange={(event) => setCancellationCodeInput(event.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="เช่น 4821" className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-center font-mono text-lg font-bold tracking-[0.25em]" />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+                {!isCancellingTransaction ? (
+                  <>
+                    <label className="grid gap-1 text-xs font-bold text-slate-700">นักเรียนที่ถูกต้อง
+                      <select required disabled={Number(correctionForm.amount) === 0} value={correctionForm.studentId} onChange={(event) => setCorrectionForm((current) => ({ ...current, studentId: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-500">
+                        {correctionEligibleStudents.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name}{student.nickname ? ` (${student.nickname})` : ''}</option>)}
+                      </select>
+                      {Number(correctionForm.amount) === 0 ? <span className="font-medium text-slate-600">ยอด 0 บาทจะย้อนรายการเดิมของนักเรียนคนนี้ โดยไม่สร้างรายการใหม่</span> : null}
+                      {teacherScope.hasHomeroom && scopeFilter === 'homeroom' ? <span className="font-medium text-slate-500">ต้องแก้ไปยังห้องอื่น? เลือก “ทุกห้อง” ที่ตัวกรองห้องก่อน</span> : null}
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <label className="grid gap-1 text-xs font-bold text-slate-700">ประเภท
+                        <select disabled={Number(correctionForm.amount) === 0} value={correctionForm.type} onChange={(event) => setCorrectionForm((current) => ({ ...current, type: event.target.value as 'deposit' | 'withdrawal' }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-500">
+                          <option value="deposit">ฝากเงิน</option><option value="withdrawal">ถอนเงิน</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-1 text-xs font-bold text-slate-700">จำนวนเงิน (บาท)
+                        <input required type="number" min="0" max="9999999999.99" step="0.01" value={correctionForm.amount} onChange={(event) => setCorrectionForm((current) => ({ ...current, amount: event.target.value }))} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold" />
+                      </label>
+                      <label className="grid gap-1 text-xs font-bold text-slate-700">วันที่รายการใหม่
+                        <input required disabled={Number(correctionForm.amount) === 0} type="date" value={correctionForm.date} onChange={(event) => setCorrectionForm((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-500" />
+                      </label>
+                    </div>
+                  </>
+                ) : null}
+                <label className="grid gap-1 text-xs font-bold text-slate-700">{isCancellingTransaction ? 'เหตุผลที่ยกเลิก' : 'เหตุผลที่แก้ไข'}
+                  <textarea required maxLength={300} value={correctionForm.reason} onChange={(event) => setCorrectionForm((current) => ({ ...current, reason: event.target.value }))} placeholder={isCancellingTransaction ? 'เช่น บันทึกฝากผิดคน' : 'เช่น บันทึกผิดคน / จำนวนเงินจริง 10 บาท'} className="min-h-20 rounded-xl border border-slate-200 p-3 text-sm font-medium" />
                 </label>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="grid gap-1 text-xs font-bold text-slate-700">ประเภท
-                    <select disabled={Number(correctionForm.amount) === 0} value={correctionForm.type} onChange={(event) => setCorrectionForm((current) => ({ ...current, type: event.target.value as 'deposit' | 'withdrawal' }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-500">
-                      <option value="deposit">ฝากเงิน</option><option value="withdrawal">ถอนเงิน</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs font-bold text-slate-700">จำนวนเงิน (บาท)
-                    <input required type="number" min="0" max="9999999999.99" step="0.01" value={correctionForm.amount} onChange={(event) => setCorrectionForm((current) => ({ ...current, amount: event.target.value }))} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold" />
-                  </label>
-                  <label className="grid gap-1 text-xs font-bold text-slate-700">วันที่รายการใหม่
-                    <input required disabled={Number(correctionForm.amount) === 0} type="date" value={correctionForm.date} onChange={(event) => setCorrectionForm((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-500" />
-                  </label>
-                </div>
-                <label className="grid gap-1 text-xs font-bold text-slate-700">เหตุผลที่แก้ไข
-                  <textarea required maxLength={300} value={correctionForm.reason} onChange={(event) => setCorrectionForm((current) => ({ ...current, reason: event.target.value }))} placeholder="เช่น บันทึกผิดคน / จำนวนเงินจริง 10 บาท" className="min-h-20 rounded-xl border border-slate-200 p-3 text-sm font-medium" />
-                </label>
-                {Number(correctionForm.amount) === 0 ? (
+                {!isCancellingTransaction && Number(correctionForm.amount) === 0 ? (
                   <p className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-[11px] font-semibold leading-5 text-violet-900">ยอด 0 บาทจะไม่สร้างธุรกรรมยอดศูนย์ แต่ระบบจะลงรายการย้อนธุรกรรมเดิมและเก็บเหตุผลไว้ หากเงินถูกใช้ไปแล้วจนยอดติดลบ ระบบจะไม่ทำรายการ</p>
-                ) : (
+                ) : !isCancellingTransaction ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-semibold leading-5 text-amber-900">ถ้ายอดของนักเรียนเดิมถูกถอนหรือใช้ไปแล้วจนการย้อนทำให้ยอดติดลบ ระบบจะไม่ทำรายการ และให้ตรวจสอบกับผู้ดูแลก่อน</p>
-                )}
+                ) : null}
               </div>
               <footer className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4">
-                <button type="button" onClick={() => setCorrectionTransaction(null)} disabled={isSubmitting} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-white">ยกเลิก</button>
-                <button type="submit" disabled={isSubmitting || correctionEligibleStudents.length === 0} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-violet-800 disabled:opacity-50">{isSubmitting ? 'กำลังบันทึก…' : Number(correctionForm.amount) === 0 ? 'ตรวจและย้อนรายการเดิม' : 'ตรวจและบันทึกการแก้ไข'}</button>
+                <button type="button" onClick={() => { setCorrectionTransaction(null); setIsCancellingTransaction(false); }} disabled={isSubmitting} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-white">กลับ</button>
+                <button type="submit" disabled={isSubmitting || correctionEligibleStudents.length === 0 || (isCancellingTransaction && cancellationCodeInput !== cancellationCode)} className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${isCancellingTransaction ? 'bg-rose-700 hover:bg-rose-800' : 'bg-slate-800 hover:bg-slate-900'}`}>{isSubmitting ? 'กำลังบันทึก…' : isCancellingTransaction ? 'ยืนยันยกเลิกรายการ' : Number(correctionForm.amount) === 0 ? 'ตรวจและย้อนรายการเดิม' : 'ตรวจและบันทึกการแก้ไข'}</button>
               </footer>
             </form>
           </div>
