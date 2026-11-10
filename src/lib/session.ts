@@ -184,8 +184,11 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
     .select('primary_workspace_id,last_active_workspace_id')
     .eq('profile_id', user.id)
     .maybeSingle<WorkspacePreferenceRow>();
-
-  if (preferenceError) throw preferenceError;
+  // Workspace preferences only remember the last selected workspace. They are
+  // not an access grant, so a missing/temporarily unreadable preference row
+  // must not block an existing user from signing in. Memberships below remain
+  // the source of truth for workspace access.
+  const resolvedWorkspacePreference = preferenceError ? null : workspacePreference;
 
   if (superadminProfile) {
     const { data: memberships, error: membershipError } = await supabase
@@ -201,13 +204,13 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
     const storedWorkspaceId = getStoredActiveWorkspaceId(user.id);
     let membership =
       memberships?.find((item) => item.workspace_id === storedWorkspaceId) ||
-      memberships?.find((item) => item.workspace_id === workspacePreference?.last_active_workspace_id) ||
-      memberships?.find((item) => item.workspace_id === workspacePreference?.primary_workspace_id) ||
+      memberships?.find((item) => item.workspace_id === resolvedWorkspacePreference?.last_active_workspace_id) ||
+      memberships?.find((item) => item.workspace_id === resolvedWorkspacePreference?.primary_workspace_id) ||
       memberships?.find((item) => item.workspaces) ||
       null;
 
     const requestedWorkspaceId =
-      storedWorkspaceId || workspacePreference?.last_active_workspace_id || workspacePreference?.primary_workspace_id;
+      storedWorkspaceId || resolvedWorkspacePreference?.last_active_workspace_id || resolvedWorkspacePreference?.primary_workspace_id;
     if (!membership && requestedWorkspaceId) {
       const { data: targetWorkspace, error: targetWorkspaceError } = await supabase
         .from('workspaces')
@@ -236,7 +239,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
         },
         workspace: null,
         subscription: lifetimeVipSubscription,
-        primaryWorkspaceId: workspacePreference?.primary_workspace_id || null,
+        primaryWorkspaceId: resolvedWorkspacePreference?.primary_workspace_id || null,
         workspaceCount: memberships?.length || 0,
       };
     }
@@ -256,7 +259,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
         classroomName: membership.workspaces.settings?.classroom_name || 'ยังไม่ได้ระบุห้องเรียน',
       },
       subscription: lifetimeVipSubscription,
-      primaryWorkspaceId: workspacePreference?.primary_workspace_id || membership.workspace_id,
+    primaryWorkspaceId: resolvedWorkspacePreference?.primary_workspace_id || membership.workspace_id,
       workspaceCount: memberships?.length || 0,
     };
   }
@@ -274,8 +277,8 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
   const storedWorkspaceId = getStoredActiveWorkspaceId(user.id);
   const membership =
     memberships?.find((item) => item.workspace_id === storedWorkspaceId) ||
-    memberships?.find((item) => item.workspace_id === workspacePreference?.last_active_workspace_id) ||
-    memberships?.find((item) => item.workspace_id === workspacePreference?.primary_workspace_id) ||
+    memberships?.find((item) => item.workspace_id === resolvedWorkspacePreference?.last_active_workspace_id) ||
+    memberships?.find((item) => item.workspace_id === resolvedWorkspacePreference?.primary_workspace_id) ||
     memberships?.find((item) => item.workspaces) ||
     null;
 
@@ -296,7 +299,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
               status: 'trial',
               endsAt: null,
             },
-      primaryWorkspaceId: workspacePreference?.primary_workspace_id || null,
+      primaryWorkspaceId: resolvedWorkspacePreference?.primary_workspace_id || null,
       workspaceCount: memberships?.length || 0,
     };
   }
@@ -334,7 +337,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
           endsAt: subscription.ends_at,
         }
       : defaultSubscription,
-    primaryWorkspaceId: workspacePreference?.primary_workspace_id || membership.workspace_id,
+    primaryWorkspaceId: resolvedWorkspacePreference?.primary_workspace_id || membership.workspace_id,
     workspaceCount: memberships?.length || 0,
   };
 }
