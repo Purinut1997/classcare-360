@@ -239,6 +239,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   const [telegramStatus, setTelegramStatus] = useState<TelegramConnectionStatus>('disconnected');
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   const [telegramToken, setTelegramToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   const [telegramCode, setTelegramCode] = useState('');
   const [telegramBotUrl, setTelegramBotUrl] = useState<string | null>(null);
   const [telegramBusy, setTelegramBusy] = useState(false);
@@ -319,7 +320,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     setPreferences((current) => update(current));
   }
 
-  const manageTelegram = useCallback(async (action: 'status' | 'start' | 'confirm' | 'disconnect' | 'test', values: { code?: string; token?: string } = {}) => {
+  const manageTelegram = useCallback(async (action: 'status' | 'connect' | 'start' | 'confirm' | 'disconnect' | 'test', values: { chatId?: string; code?: string; token?: string } = {}) => {
     if (!supabase || !workspaceId || demoMode) {
       setNotice('การเชื่อม Telegram ใช้ได้เมื่อเข้าสู่ระบบโรงเรียนที่เชื่อมฐานข้อมูลแล้ว');
       return null;
@@ -370,6 +371,30 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       setTelegramToken('');
       setTelegramCode('');
       setNotice('ส่งรหัสยืนยันเข้า Telegram แล้ว รหัสใช้ได้ 10 นาที');
+    }
+    setTelegramBusy(false);
+  }
+
+  async function connectTelegramWithChatId() {
+    const token = telegramToken.trim();
+    const chatId = telegramChatId.trim();
+    if (!token) {
+      setNotice('วาง Bot Token จาก BotFather ก่อนครับ');
+      return;
+    }
+    if (!/^-?\d{1,20}$/.test(chatId)) {
+      setNotice('กรอก Chat ID เป็นตัวเลข เช่น 123456789');
+      return;
+    }
+    setTelegramBusy(true);
+    const result = await manageTelegram('connect', { token, chatId });
+    if (result?.status === 'pending') {
+      setTelegramStatus('pending');
+      setTelegramBotUrl(null);
+      setTelegramBotUsername(result.botUsername || null);
+      setTelegramToken('');
+      setTelegramCode('');
+      setNotice('ส่งรหัสยืนยันไปยัง Chat ID แล้ว กรอกรหัสด้านล่างเพื่อเชื่อมให้เสร็จ');
     }
     setTelegramBusy(false);
   }
@@ -1269,12 +1294,17 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                         type="password"
                         value={telegramToken}
                       />
-                      <span className="mt-1 block text-xs font-medium leading-5 text-slate-500">ระบบจะส่ง token ไปเข้ารหัสบนเซิร์ฟเวอร์ และจะไม่แสดง token กลับในหน้านี้</span>
+                      <span className="mt-1 block text-xs font-medium leading-5 text-slate-500">วาง Token ที่ได้จาก BotFather ระบบจะเข้ารหัสและไม่แสดงซ้ำหลังบันทึก</span>
+                    </label>
+                    <label className="block text-sm font-black text-slate-800">
+                      Telegram Chat ID
+                      <input autoComplete="off" className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-sm font-semibold text-slate-900 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100" inputMode="numeric" onChange={(event) => setTelegramChatId(event.target.value.replace(/[^\d-]/g, ''))} placeholder="ตัวเลข Chat ID ของคุณ" spellCheck={false} value={telegramChatId} />
+                      <span className="mt-1 block text-xs font-medium leading-5 text-slate-500">เปิดบอตของคุณแล้วกด Start จากนั้นหา ID ได้จาก @userinfobot · อย่าส่ง Token ให้ผู้อื่น</span>
                     </label>
                     {telegramBotUrl ? (
                       <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-                        <p className="text-sm font-black text-sky-950">ขั้นที่ 1: เริ่มคุยกับบอต</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">กดปุ่ม เปิด Telegram แล้วกด Start จากนั้นกลับมากดส่งรหัสยืนยัน</p>
+                        <p className="text-sm font-black text-sky-950">เริ่มคุยกับบอตก่อน</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">กดเปิด Telegram แล้วกด Start จากนั้นกลับมากรอก Token และ Chat ID</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <a className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-700 px-4 text-xs font-black text-white" href={telegramBotUrl} rel="noreferrer" target="_blank"><ExternalLink size={14} />เปิด Telegram</a>
                           <button className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-xs font-black text-sky-800 ring-1 ring-sky-200 disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim()} onClick={() => void startTelegramConnection()} type="button"><RefreshCw size={14} />ส่งรหัสยืนยัน</button>
@@ -1290,7 +1320,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                       </div>
                     ) : null}
                     {!telegramBotUrl && telegramStatus !== 'pending' ? (
-                      <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim()} onClick={() => void startTelegramConnection()} type="button"><KeyRound size={16} />{telegramBusy ? 'กำลังตรวจสอบ…' : 'ตรวจสอบ Token และเชื่อมบัญชี'}</button>
+                      <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim() || !telegramChatId.trim()} onClick={() => void connectTelegramWithChatId()} type="button"><KeyRound size={16} />{telegramBusy ? 'กำลังตรวจสอบ…' : 'ตรวจสอบและส่งรหัสยืนยัน'}</button>
                     ) : null}
                   </>
                 ) : (
@@ -1314,11 +1344,11 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
               <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="font-black text-slate-900">วิธีเชื่อมแบบสั้น ๆ</h3>
                 <ol className="mt-3 space-y-3 text-xs font-semibold leading-5 text-slate-600">
-                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">1</span><span>สร้างบอตส่วนตัวกับ <b>BotFather</b> ใน Telegram แล้วคัดลอก token</span></li>
-                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">2</span><span>วาง token ในช่องนี้ แล้วกดตรวจสอบ</span></li>
-                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">3</span><span>เปิดบอต กด Start และกรอกรหัสที่บอตส่งให้ เพื่อยืนยันว่าเป็นบัญชีของคุณ</span></li>
+                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">1</span><span>สร้างบอตกับ <b>BotFather</b> แล้วเปิดแชตบอต กด <b>Start</b></span></li>
+                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">2</span><span>วาง <b>Bot Token</b> และ <b>Chat ID</b> ของคุณในช่องด้านซ้าย</span></li>
+                  <li className="flex gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-cyan-800 ring-1 ring-slate-200">3</span><span>กดส่งรหัส แล้วกรอกรหัส 6 หลักเพื่อยืนยันปลายทาง</span></li>
                 </ol>
-                <p className="mt-4 rounded-xl bg-white p-3 text-[11px] font-semibold leading-5 text-slate-500 ring-1 ring-slate-200">แต่ละบัญชีเชื่อม token และ Telegram ของตนเอง ระบบไม่เก็บ token ไว้ในเบราว์เซอร์หรือแสดงให้ครูคนอื่นเห็น</p>
+                <p className="mt-4 rounded-xl bg-white p-3 text-[11px] font-semibold leading-5 text-slate-500 ring-1 ring-slate-200">ระบบเข้ารหัส Token และแยกการเชื่อมตามบัญชีครู ห้ามส่ง Token ในแชตหรือให้ผู้อื่น</p>
               </aside>
             </div>
           </article>

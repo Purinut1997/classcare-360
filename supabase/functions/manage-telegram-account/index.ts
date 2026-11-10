@@ -1,9 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 
-type Action = 'status' | 'start' | 'confirm' | 'disconnect' | 'test';
+type Action = 'status' | 'connect' | 'start' | 'confirm' | 'disconnect' | 'test';
 
 interface Payload {
   action?: Action;
+  chatId?: string;
   code?: string;
   token?: string;
   workspaceId?: string;
@@ -102,7 +103,7 @@ Deno.serve(async (request) => {
     const payload = await request.json() as Payload;
     const action = payload.action;
     const workspaceId = payload.workspaceId?.trim();
-    if (!workspaceId || !['status', 'start', 'confirm', 'disconnect', 'test'].includes(action || '')) {
+    if (!workspaceId || !['status', 'connect', 'start', 'confirm', 'disconnect', 'test'].includes(action || '')) {
       return respond({ error: 'ข้อมูลคำขอไม่ครบ' }, 400);
     }
 
@@ -167,6 +168,44 @@ Deno.serve(async (request) => {
       }, { onConflict: 'workspace_id,profile_id' });
       if (error) throw error;
       return respond({ status: 'disconnected' });
+    }
+
+    if (action === 'connect') {
+      const token = payload.token?.trim();
+      const chatId = payload.chatId?.trim();
+      if (!token || token.length > 256) return respond({ error: 'กรุณากรอก Bot Token ให้ครบ' }, 400);
+      if (!chatId || !/^-?\d{1,20}$/.test(chatId)) return respond({ error: 'กรุณากรอก Chat ID ที่เป็นตัวเลข' }, 400);
+
+      const bot = await telegramRequest<{ id: number; username?: string }>(token, 'getMe');
+      if (!bot.username) return respond({ error: 'บอตนี้ไม่มีชื่อผู้ใช้ Telegram ที่ใช้เชื่อมบัญชี' }, 422);
+
+      const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+      const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+      try {
+        await telegramRequest(token, 'sendMessage', {
+          chat_id: chatId,
+          text: `รหัสยืนยัน ClassCare 360: ${code}\nรหัสใช้ได้ 10 นาที และใช้ได้ครั้งเดียว`,
+        });
+      } catch {
+        return respond({ error: 'ส่งรหัสไม่ได้ ตรวจว่า Chat ID ถูกต้องและได้กด Start ในแชตบอตแล้ว' }, 422);
+      }
+
+      const { error: saveError } = await serviceClient.from('teacher_telegram_connections').upsert({
+        workspace_id: workspaceId,
+        profile_id: user.id,
+        encrypted_bot_token: await encrypt(token),
+        encrypted_chat_id: await encrypt(chatId),
+        bot_username: bot.username,
+        status: 'pending',
+        verification_code_hash: await hashCode(code, user.id, workspaceId),
+        verification_expires_at: expiresAt,
+        start_nonce_hash: null,
+        encrypted_start_nonce: null,
+        verification_attempts: 0,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'workspace_id,profile_id' });
+      if (saveError) throw saveError;
+      return respond({ status: 'pending', botUsername: bot.username, expiresAt });
     }
 
     if (action === 'start') {
