@@ -330,7 +330,13 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     });
     const result = data as { botUrl?: string; botUsername?: string | null; error?: string; expiresAt?: string; status?: TelegramConnectionStatus | 'needs_start' | 'sent' } | null;
     if (error || result?.error) {
-      const message = result?.error || error?.message || 'เชื่อม Telegram ไม่สำเร็จ';
+      let message = result?.error || '';
+      const context = (error as { context?: unknown } | null)?.context;
+      if (!message && context instanceof Response) {
+        const responseBody = await context.clone().json().catch(() => null) as { error?: string } | null;
+        message = responseBody?.error || '';
+      }
+      message ||= error?.message || 'เชื่อม Telegram ไม่สำเร็จ';
       setNotice(message.includes('teacher_telegram_connections') || message.includes('manage-telegram-account')
         ? 'ระบบเชื่อม Telegram ยังอัปเดตไม่ครบ กรุณาลองอีกครั้งภายหลัง'
         : message);
@@ -1294,7 +1300,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                         type="password"
                         value={telegramToken}
                       />
-                      <span className="mt-1 block text-xs font-medium leading-5 text-slate-500">วาง Token ที่ได้จาก BotFather ระบบจะเข้ารหัสและไม่แสดงซ้ำหลังบันทึก</span>
+                      <span className="mt-1 block text-xs font-medium leading-5 text-slate-500">วาง Token จาก BotFather แล้วกดปุ่มบันทึกด้านล่าง ระบบจะเข้ารหัสให้</span>
                     </label>
                     <label className="block text-sm font-black text-slate-800">
                       Telegram Chat ID
@@ -1313,14 +1319,14 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                     ) : null}
                     {telegramStatus === 'pending' ? (
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                        <label className="block text-sm font-black text-amber-950">ขั้นที่ 2: กรอกรหัส 6 หลักจาก Telegram
+                        <label className="block text-sm font-black text-amber-950">ขั้นสุดท้าย: กรอกรหัส 6 หลักจาก Telegram
                           <input autoComplete="one-time-code" className="mt-2 h-12 w-full rounded-xl border border-amber-200 bg-white px-4 text-center font-mono text-xl font-black tracking-[0.35em]" inputMode="numeric" maxLength={6} onChange={(event) => setTelegramCode(event.target.value.replace(/\D/g, '').slice(0, 6))} value={telegramCode} />
                         </label>
-                        <button className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-black text-white disabled:opacity-50" disabled={telegramBusy || telegramCode.length !== 6} onClick={() => void confirmTelegramConnection()} type="button"><CheckCircle2 size={16} />ยืนยันการเชื่อม</button>
+                        <button className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-black text-white disabled:opacity-50" disabled={telegramBusy || telegramCode.length !== 6} onClick={() => void confirmTelegramConnection()} type="button"><CheckCircle2 size={16} />{telegramBusy ? 'กำลังบันทึก…' : 'ยืนยันรหัสและบันทึกการเชื่อมต่อ'}</button>
                       </div>
                     ) : null}
                     {!telegramBotUrl && telegramStatus !== 'pending' ? (
-                      <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim() || !telegramChatId.trim()} onClick={() => void connectTelegramWithChatId()} type="button"><KeyRound size={16} />{telegramBusy ? 'กำลังตรวจสอบ…' : 'ตรวจสอบและส่งรหัสยืนยัน'}</button>
+                      <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-50" disabled={telegramBusy || !telegramToken.trim() || !telegramChatId.trim()} onClick={() => void connectTelegramWithChatId()} type="button"><KeyRound size={16} />{telegramBusy ? 'กำลังตรวจสอบและบันทึก…' : 'บันทึก Token และส่งรหัสยืนยัน'}</button>
                     ) : null}
                   </>
                 ) : (
