@@ -306,7 +306,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300" />
 
             {/* Sheet Header */}
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold text-cyan-700">ClassCare 360</p>
                 <h3 className="text-lg font-bold leading-tight text-slate-950">
@@ -324,7 +324,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             </div>
 
             {/* Quick Search */}
-            <div className="relative mt-3">
+            <div className="relative mt-3 shrink-0">
               <Search
                 size={17}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
@@ -387,7 +387,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             </div>
 
             {/* Scrollable Categorized List */}
-            <div className="mt-1 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-4 pr-0.5">
+            <div className="mt-1 min-h-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 pr-0.5 touch-pan-y">
               {showOverviewItem && (
                 <Link
                   to={overviewItem.path}
