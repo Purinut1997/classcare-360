@@ -87,7 +87,15 @@ Deploy functions:
 supabase functions deploy approve-payment-request
 supabase functions deploy accept-portal-invitation
 supabase functions deploy dispatch-notification
+supabase functions deploy manage-telegram-account
 ```
+
+The per-teacher notification settings require migrations `0081`–`0083` and both notification functions. To apply these with the configured production project, use GitHub Actions → **Deploy notification backend** after adding the following repository settings:
+
+- Variable `SUPABASE_PROJECT_REF`
+- Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`, and `TELEGRAM_CONNECTION_ENCRYPTION_KEY`
+
+Use the same random 32-byte Base64 `TELEGRAM_CONNECTION_ENCRYPTION_KEY` for every deployment. Rotating it without re-encrypting stored connections will make existing Telegram links unreadable. The workflow applies pending migrations before deploying the functions.
 
 ตั้งค่า secrets ฝั่ง Supabase Functions:
 
@@ -99,6 +107,7 @@ supabase secrets set LINE_CHANNEL_SECRET=...
 supabase secrets set GOOGLE_DRIVE_CLIENT_ID=...
 supabase secrets set GOOGLE_DRIVE_CLIENT_SECRET=...
 supabase secrets set ENCRYPTION_KEY=...
+supabase secrets set TELEGRAM_CONNECTION_ENCRYPTION_KEY=...
 ```
 
 Secret ที่ยังไม่ใช้ใน function ปัจจุบันสามารถตั้งรอไว้ได้ แต่ห้าม commit ค่าจริงลง repo

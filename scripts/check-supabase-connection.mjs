@@ -94,6 +94,49 @@ async function assertTableShape(name, columns) {
   };
 }
 
+async function assertRestrictedTableExists(name, columns) {
+  const { error } = await supabase.from(name).select(columns).limit(1);
+  const missing = error?.code === '42P01' || error?.code === 'PGRST205'
+    || /could not find the table|does not exist/i.test(error?.message || '');
+
+  // Secret-bearing tables intentionally reject browser roles. A permission
+  // error proves the relation is present; only missing-relation errors fail.
+  return {
+    name,
+    ok: !missing,
+    reason: missing ? error.message : error?.message || 'visible',
+  };
+}
+
+async function assertFunctionExists(name) {
+  try {
+    const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    const missing = response.status === 404;
+    const crashed = response.status >= 500;
+    return {
+      name,
+      ok: !missing && !crashed,
+      reason: missing ? 'Edge Function endpoint returned 404'
+        : crashed ? `Edge Function returned HTTP ${response.status}`
+        : `endpoint responds with HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      name,
+      ok: false,
+      reason: error instanceof Error ? error.message : 'Unable to reach the Edge Function endpoint',
+    };
+  }
+}
+
 const { data, error } = await supabase.from('plans').select('code,name').limit(5);
 
 if (error) {
@@ -126,6 +169,15 @@ const dashboardSchemaChecks = await Promise.all([
   assertTableShape('score_entries', 'student_id,score,assessment_id'),
   assertTableShape('savings_accounts', 'student_id,balance,status'),
   assertTableShape('student_health_records', 'student_id,record_date,record_type,status,weight_kg,height_cm,bmi,inspection_results'),
+]);
+const notificationSchemaChecks = await Promise.all([
+  assertTableShape('teacher_notification_preferences', 'workspace_id,profile_id,preferences,updated_at'),
+  assertRestrictedTableExists('teacher_telegram_connections', 'workspace_id,profile_id,status'),
+  assertRestrictedTableExists('teacher_notification_delivery_log', 'workspace_id,profile_id,delivery_key,status'),
+]);
+const notificationFunctionChecks = await Promise.all([
+  assertFunctionExists('manage-telegram-account'),
+  assertFunctionExists('dispatch-notification'),
 ]);
 const workspaceMemberRpcChecks = await Promise.all([
   assertRpcExists('can_manage_workspace_members', { target_workspace_id: NIL_UUID }),
@@ -191,6 +243,8 @@ const publicReportRpcChecks = await Promise.all([
   }),
 ]);
 const failedDashboardChecks = dashboardSchemaChecks.filter((check) => !check.ok);
+const failedNotificationChecks = notificationSchemaChecks.filter((check) => !check.ok);
+const missingNotificationFunctions = notificationFunctionChecks.filter((check) => !check.ok);
 const missingWorkspaceMemberRpcs = workspaceMemberRpcChecks.filter((check) => !check.ok);
 const missingPublicReportRpcs = publicReportRpcChecks.filter((check) => !check.ok);
 const missingRosterSafetyChecks = rosterSafetyChecks.filter((check) => !check.ok);
@@ -206,9 +260,9 @@ if (missingDestructiveRpcs.length > 0) {
   process.exit(1);
 }
 
-if (failedDashboardChecks.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0 || missingRosterSafetyChecks.length > 0 || missingPermissionBoundaryChecks.length > 0) {
+if (failedDashboardChecks.length > 0 || failedNotificationChecks.length > 0 || missingNotificationFunctions.length > 0 || missingWorkspaceMemberRpcs.length > 0 || missingPublicReportRpcs.length > 0 || missingRosterSafetyChecks.length > 0 || missingPermissionBoundaryChecks.length > 0) {
   console.error('Supabase dashboard schema is incomplete:');
-  for (const check of [...failedDashboardChecks, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs, ...missingRosterSafetyChecks, ...missingPermissionBoundaryChecks]) {
+  for (const check of [...failedDashboardChecks, ...failedNotificationChecks, ...missingNotificationFunctions, ...missingWorkspaceMemberRpcs, ...missingPublicReportRpcs, ...missingRosterSafetyChecks, ...missingPermissionBoundaryChecks]) {
     console.error(`- ${check.name}: ${check.reason}`);
   }
   console.error('');
@@ -220,6 +274,8 @@ console.log('Supabase connection OK.');
 console.log(`Plans visible through anon key: ${data?.map((plan) => plan.code).join(', ') || 'none'}`);
 console.log(`Action RPCs visible: ${destructiveRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Dashboard tables visible: ${dashboardSchemaChecks.map((check) => check.name).join(', ')}`);
+console.log(`Notification schema visible: ${notificationSchemaChecks.map((check) => check.name).join(', ')}`);
+console.log(`Notification function endpoints responding: ${notificationFunctionChecks.map((check) => `${check.name} (${check.reason})`).join(', ')}`);
 console.log(`Workspace member RPCs visible: ${workspaceMemberRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Public report RPCs visible: ${publicReportRpcChecks.map((check) => check.name).join(', ')}`);
 console.log(`Roster safety layer visible: ${rosterSafetyChecks.map((check) => check.name).join(', ')}`);

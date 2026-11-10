@@ -70,12 +70,32 @@ const requiredMigrations = [
   '0062_internal_function_surface_hardening.sql',
   '0063_runtime_logic_repairs.sql',
   '0064_runtime_logic_lint_repairs.sql',
+  '0065_vip_operations_hardening.sql',
+  '0066_desirable_characteristics.sql',
+  '0067_ai_assistant_settings.sql',
+  '0068_teacher_exam_archives.sql',
+  '0069_academic_structure_and_subjects.sql',
+  '0070_student_competencies_and_activities.sql',
+  '0071_student_nutrition_growth.sql',
+  '0072_official_academic_documents.sql',
+  '0073_term_closing_and_promotion_audits.sql',
+  '0074_fix_student_deletion_cascade_and_rpc.sql',
+  '0075_robust_roster_purge_and_cascades.sql',
+  '0076_omr_exam_bank.sql',
+  '0077_restore_duty_system_permissions.sql',
+  '0078_workspace_menu_usage_aggregates.sql',
+  '0079_correct_savings_transaction.sql',
+  '0080_allow_zero_savings_correction.sql',
+  '0081_teacher_notification_preferences.sql',
+  '0082_teacher_telegram_connections.sql',
+  '0083_teacher_notification_delivery_log.sql',
 ];
 
 const requiredFunctions = [
   'accept-portal-invitation',
   'approve-payment-request',
   'dispatch-notification',
+  'manage-telegram-account',
 ];
 
 const requiredSqlTests = [
@@ -103,6 +123,9 @@ const serverOnlyEnv = [
   'GOOGLE_DRIVE_CLIENT_ID',
   'GOOGLE_DRIVE_CLIENT_SECRET',
   'ENCRYPTION_KEY',
+  'TELEGRAM_CONNECTION_ENCRYPTION_KEY',
+  'SUPABASE_ACCESS_TOKEN',
+  'SUPABASE_DB_PASSWORD',
 ];
 
 function commandExists(command) {
