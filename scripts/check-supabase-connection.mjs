@@ -137,11 +137,27 @@ async function assertFunctionExists(name) {
   }
 }
 
-const { data, error } = await supabase.from('plans').select('code,name').limit(5);
+let data;
+let error;
+
+try {
+  ({ data, error } = await supabase.from('plans').select('code,name').limit(5));
+} catch (connectionError) {
+  console.error('Unable to reach Supabase. No production checks were completed:');
+  console.error(connectionError instanceof Error ? connectionError.message : 'Network request failed');
+  process.exit(1);
+}
 
 if (error) {
+  const message = error.message || 'Unknown Supabase query error';
+  if (/fetch failed|failed to fetch|networkerror|econnrefused|enotfound|etimedout/i.test(message)) {
+    console.error('Unable to reach Supabase. No production checks were completed:');
+    console.error(message);
+    process.exit(1);
+  }
+
   console.error('Supabase responded, but the app query failed:');
-  console.error(error.message);
+  console.error(message);
   console.error('');
   console.error('If the message mentions a missing relation/table, run the SQL migrations and seed.sql first.');
   process.exit(1);
