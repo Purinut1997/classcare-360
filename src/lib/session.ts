@@ -139,6 +139,54 @@ function getPreferredRole(metadata: ProfileRow['metadata']): WorkspaceRole {
   return 'teacher_owner';
 }
 
+async function loadWorkspaceMemberships(profileId: string): Promise<MembershipRow[]> {
+  if (!supabase) return [];
+
+  const joinedResult = await supabase
+    .from('workspace_memberships')
+    .select('workspace_id,role,permissions,workspaces(id,name,school_name,academic_year,settings)')
+    .eq('profile_id', profileId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
+    .returns<MembershipRow[]>();
+
+  if (!joinedResult.error) return joinedResult.data || [];
+
+  // Older PostgREST schema caches can fail to resolve the embedded workspace
+  // relationship even while both tables and the user's membership are valid.
+  // Retry as two RLS-protected reads; this never grants access from a preference
+  // or a client-supplied workspace id.
+  const membershipResult = await supabase
+    .from('workspace_memberships')
+    .select('workspace_id,role,permissions')
+    .eq('profile_id', profileId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
+    .returns<Array<Omit<MembershipRow, 'workspaces'>>>();
+
+  if (membershipResult.error) throw membershipResult.error;
+  const memberships = membershipResult.data || [];
+  if (!memberships.length) return [];
+
+  const workspaceIds = [...new Set(memberships.map((membership) => membership.workspace_id))];
+  const workspacesResult = await supabase
+    .from('workspaces')
+    .select('id,name,school_name,academic_year,settings')
+    .in('id', workspaceIds)
+    .is('archived_at', null)
+    .returns<Array<NonNullable<MembershipRow['workspaces']>>>();
+
+  if (workspacesResult.error) throw workspacesResult.error;
+  const workspacesById = new Map(workspacesResult.data?.map((workspace) => [workspace.id, workspace]));
+
+  return memberships
+    .map((membership) => ({
+      ...membership,
+      workspaces: workspacesById.get(membership.workspace_id) || null,
+    }))
+    .filter((membership) => membership.workspaces);
+}
+
 async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
   if (!supabase) return null;
 
@@ -191,15 +239,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
   const resolvedWorkspacePreference = preferenceError ? null : workspacePreference;
 
   if (superadminProfile) {
-    const { data: memberships, error: membershipError } = await supabase
-      .from('workspace_memberships')
-      .select('workspace_id,role,permissions,workspaces(id,name,school_name,academic_year,settings)')
-      .eq('profile_id', user.id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: true })
-      .returns<MembershipRow[]>();
-
-    if (membershipError) throw membershipError;
+    const memberships = await loadWorkspaceMemberships(user.id);
 
     const storedWorkspaceId = getStoredActiveWorkspaceId(user.id);
     let membership =
@@ -264,15 +304,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
     };
   }
 
-  const { data: memberships, error: membershipError } = await supabase
-    .from('workspace_memberships')
-    .select('workspace_id,role,permissions,workspaces(id,name,school_name,academic_year,settings)')
-    .eq('profile_id', user.id)
-    .eq('status', 'active')
-    .order('created_at', { ascending: true })
-    .returns<MembershipRow[]>();
-
-  if (membershipError) throw membershipError;
+  const memberships = await loadWorkspaceMemberships(user.id);
 
   const storedWorkspaceId = getStoredActiveWorkspaceId(user.id);
   const membership =
@@ -315,7 +347,9 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
     .limit(1)
     .maybeSingle<SubscriptionRow>();
 
-  if (subscriptionError) throw subscriptionError;
+  // Subscription details only affect feature entitlements; they are not an
+  // authentication or workspace-access grant. Keep the account usable with the
+  // conservative free defaults if that optional lookup is temporarily failing.
 
   return {
     permissions: membership.permissions || {},
@@ -330,7 +364,7 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
       academicYear: membership.workspaces.academic_year || 'ยังไม่ได้ระบุปีการศึกษา',
       classroomName: membership.workspaces.settings?.classroom_name || 'ยังไม่ได้ระบุห้องเรียน',
     },
-    subscription: subscription?.plans
+    subscription: !subscriptionError && subscription?.plans
       ? {
           planCode: subscription.plans.code,
           status: subscription.status,
