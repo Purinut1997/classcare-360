@@ -99,7 +99,7 @@ export function DutyScheduleView({
     <div className="space-y-5">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-bold">นักเรียนทั้งหมด</span>
             <Users className="text-cyan-600" size={16} />
@@ -110,7 +110,7 @@ export function DutyScheduleView({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-bold">หน้าที่เวรสัปดาห์นี้</span>
             <ClipboardList className="text-blue-600" size={16} />
@@ -121,7 +121,7 @@ export function DutyScheduleView({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-bold">ความสมดุลของเวร</span>
             <Scale className="text-emerald-600" size={16} />
@@ -134,7 +134,7 @@ export function DutyScheduleView({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-bold">สถานะเวรวันนี้</span>
             <CheckCircle2 className="text-amber-600" size={16} />

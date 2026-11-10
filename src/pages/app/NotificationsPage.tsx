@@ -971,13 +971,13 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         <div>
           <div className="nexus-kicker">
             <Bell size={16} aria-hidden="true" />
-            Teacher Action & Notification Center
+            ศูนย์แจ้งเตือน
           </div>
-          <h1 className="mt-3 text-2xl font-black text-slate-950 sm:text-3xl">
-            ศูนย์แจ้งเตือนสำหรับครู เจ้าของห้อง และงานที่ต้องตามต่อ
+          <h1 className="mt-3 text-2xl font-bold leading-tight text-slate-950 sm:text-3xl">
+            แจ้งเตือนและงานที่ต้องติดตาม
           </h1>
-          <p className="mt-2 text-sm font-bold text-slate-600">
-            รวมงานค้างจริงที่ต้องติดตาม (เช็คชื่อ, เคสดูแล, เยี่ยมบ้าน) และกล่องข้อความแจ้งเตือนทั้งหมดของห้องเรียน
+          <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-600">
+            รวมงานค้าง ประวัติการบันทึก และการแจ้งเตือนของห้องเรียน
           </p>
         </div>
 
@@ -999,19 +999,21 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2">
+      <div className="mt-4 flex flex-col gap-2 border-b border-slate-200 pb-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid min-w-0 grid-cols-2 gap-2 pb-2 sm:flex sm:flex-1 sm:flex-wrap sm:pb-0" role="tablist" aria-label="หมวดการแจ้งเตือน">
           <button
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+            aria-selected={activeTab === 'tasks'}
+            role="tab"
+            className={`inline-flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:w-auto sm:shrink-0 sm:px-3.5 ${
               activeTab === 'tasks'
-                ? 'bg-slate-950 text-white shadow-md'
-                : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
+                ? 'bg-slate-900 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
             onClick={() => setActiveTab('tasks')}
             type="button"
           >
             <Sparkles size={15} />
-            งานที่ต้องตามต่อ
+            งานค้าง
             {totalTasksCount > 0 ? (
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
@@ -1024,10 +1026,12 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           </button>
 
           <button
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+            aria-selected={activeTab === 'activity'}
+            role="tab"
+            className={`inline-flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:w-auto sm:shrink-0 sm:px-3.5 ${
               activeTab === 'activity'
-                ? 'bg-slate-950 text-white shadow-md'
-                : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
+                ? 'bg-slate-900 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
             onClick={() => setActiveTab('activity')}
             type="button"
@@ -1040,16 +1044,18 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           </button>
 
           <button
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+            aria-selected={activeTab === 'inbox'}
+            role="tab"
+            className={`inline-flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:w-auto sm:shrink-0 sm:px-3.5 ${
               activeTab === 'inbox'
-                ? 'bg-slate-950 text-white shadow-md'
-                : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
+                ? 'bg-slate-900 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
             onClick={() => setActiveTab('inbox')}
             type="button"
           >
             <Bell size={15} />
-            กล่องแจ้งเตือน Inbox
+            กล่องแจ้งเตือน
             {unreadCount > 0 ? (
               <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-[10px] font-black text-white">
                 {unreadCount}
@@ -1058,21 +1064,23 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           </button>
 
           <button
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+            aria-selected={activeTab === 'settings'}
+            role="tab"
+            className={`inline-flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:w-auto sm:shrink-0 sm:px-3.5 ${
               activeTab === 'settings'
-                ? 'bg-slate-950 text-white shadow-md'
-                : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
+                ? 'bg-slate-900 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
             onClick={() => setActiveTab('settings')}
             type="button"
           >
             <Settings2 size={15} />
-            ตั้งค่ารายงานของฉัน
+            ตั้งค่ารายงาน
           </button>
         </div>
 
         <button
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+          className="inline-flex min-h-9 shrink-0 self-end items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:self-auto"
           disabled={isLoading || isLoadingTasks || isLoadingActivity}
           onClick={() => void loadData()}
           title="รีเฟรชข้อมูลล่าสุด"

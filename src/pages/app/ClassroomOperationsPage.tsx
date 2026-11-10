@@ -148,8 +148,8 @@ interface BehaviorPoint {
 const tabs: Array<{ icon: typeof CalendarCheck; key: TabKey; label: string }> =
   [
     { icon: CalendarCheck, key: "duty", label: "ตารางเวร" },
-    { icon: CheckCircle2, key: "inspection", label: "ตรวจผลรายวัน" },
-    { icon: Users, key: "tasks", label: "หน้าที่เวร" },
+    { icon: CheckCircle2, key: "inspection", label: "ตรวจเวร" },
+    { icon: Users, key: "tasks", label: "ตั้งค่าเวร" },
     { icon: LockKeyhole, key: "locks", label: "ล็อกข้อมูล" },
     { icon: GraduationCap, key: "rollover", label: "ปิดชั้น/เลื่อนชั้น" },
     { icon: Archive, key: "archive", label: "คลังย้อนหลัง" },
@@ -277,7 +277,7 @@ export function ClassroomOperationsPage({
     }
   };
 
-  const [weekStart, setWeekStart] = useState(mondayOf());
+  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date(`${getBangkokDate()}T12:00:00`)));
   const [tasks, setTasks] = useState<DutyTask[]>([]);
   const [assignments, setAssignments] = useState<DutyAssignment[]>([]);
   const [locks, setLocks] = useState<PeriodLock[]>([]);
@@ -311,7 +311,7 @@ export function ClassroomOperationsPage({
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [designerOpen, setDesignerOpen] = useState(false);
-  const [selectedDutyDate, setSelectedDutyDate] = useState(weekStart);
+  const [selectedDutyDate, setSelectedDutyDate] = useState(getBangkokDate());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printWeekStart, setPrintWeekStart] = useState(weekStart);
   const [dutyGeneratorOpen, setDutyGeneratorOpen] = useState(false);
@@ -406,6 +406,11 @@ export function ClassroomOperationsPage({
   const selectedDayAssignments = useMemo(
     () => roomAssignments.filter((assignment) => assignment.duty_date === selectedDutyDate),
     [roomAssignments, selectedDutyDate],
+  );
+  const todayDutyDate = getBangkokDate();
+  const todayDutyAssignments = useMemo(
+    () => assignments.filter((assignment) => classroomTaskIds.has(assignment.duty_task_id) && assignment.duty_date === todayDutyDate),
+    [assignments, classroomTaskIds, todayDutyDate],
   );
   const pointsByStudent = useMemo(() => {
     const totals = new Map<string, number>();
@@ -1695,12 +1700,30 @@ export function ClassroomOperationsPage({
     ? "ปีการศึกษาและควบคุมข้อมูล"
     : mode === "parent"
       ? "QR เชื่อมต่อผู้ปกครอง"
-      : "ตารางเวรทำความสะอาด & กิจวัตรประจำห้อง";
+      : "เวรประจำวันและกิจวัตรห้องเรียน";
   const pageDescription = isYearOrLock
     ? "ล็อกงวดข้อมูล (เวลาเรียน/คะแนน/เงินออม), เลื่อนชั้นเรียนข้ามปีการศึกษา และเรียกดูคลังข้อมูลย้อนหลัง"
     : mode === "parent"
       ? "สร้างรหัส QR และจัดการคำเชิญเชื่อมต่อระบบสำหรับผู้ปกครอง"
-      : "จัดเวรประจำวัน เกลี่ยภาระงานเท่าเทียม ตรวจเวรด่วน และบันทึกคะแนนจิตพิสัยอัตโนมัติ";
+      : "ดูว่าใครมีเวรวันนี้ ทำหน้าที่อะไร และเช็คความเรียบร้อยได้ทันที";
+  const tabNavigation = visibleTabs.length > 1 ? (
+    <nav className={`mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 ${visibleTabs.length >= 3 ? "grid-cols-3 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-2"}`}>
+      {visibleTabs.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            className={`flex min-h-12 items-center justify-center gap-1 border-b-2 px-1.5 py-2 text-xs font-semibold leading-tight transition sm:h-14 sm:gap-2 sm:px-3 sm:text-sm sm:font-bold ${tab === item.key ? "border-cyan-500 bg-cyan-50 text-cyan-800" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            type="button"
+          >
+            <Icon size={17} />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  ) : null;
 
   return (
     <main className="app-page">
@@ -1806,22 +1829,7 @@ export function ClassroomOperationsPage({
         /> : null}
       </section> : null}
 
-      {visibleTabs.length > 1 ? <nav className={`mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 ${visibleTabs.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-        {visibleTabs.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              className={`flex h-14 items-center justify-center gap-2 border-b-2 px-3 text-sm font-black transition ${tab === item.key ? "border-cyan-500 bg-cyan-50 text-cyan-800" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              type="button"
-            >
-              <Icon size={17} />
-              {item.label}
-            </button>
-          );
-        })}
-      </nav> : null}
+      {tab !== "duty" ? tabNavigation : null}
 
       {notice ? (
         <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-900">
@@ -1830,7 +1838,115 @@ export function ClassroomOperationsPage({
       ) : null}
 
       {tab === "duty" ? (
-        <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <>
+          <section aria-labelledby="today-duty-title" className="nexus-card mt-5 border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-rose-50/70 p-4 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200 sm:h-12 sm:w-12">
+                  <CalendarCheck size={21} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-cyan-800">เวรประจำวัน</p>
+                  <h2 className="mt-0.5 text-xl font-bold leading-tight text-slate-950 sm:text-2xl" id="today-duty-title">วันนี้ใครทำเวรบ้าง</h2>
+                  <p className="mt-1 text-sm font-medium text-slate-600">
+                    {new Intl.DateTimeFormat("th-TH", { dateStyle: "full" }).format(new Date(`${todayDutyDate}T12:00:00`))}
+                  </p>
+                </div>
+              </div>
+              <button
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-xl border border-cyan-200 bg-white/90 px-3 text-sm font-semibold text-cyan-900 transition hover:bg-cyan-50 sm:self-auto"
+                onClick={() => setTab("tasks")}
+                type="button"
+              >
+                <Pencil size={15} />
+                ตั้งค่าเวร
+              </button>
+            </div>
+
+            {todayDutyAssignments.length ? (
+              <>
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan-100 bg-white/80 px-4 py-3 text-sm">
+                  <span className="font-bold text-slate-800">งานวันนี้ {todayDutyAssignments.length} รายการ</span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-800 ring-1 ring-emerald-100">
+                    เช็คแล้ว {todayDutyAssignments.filter((item) => item.status !== "assigned").length}/{todayDutyAssignments.length}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                  {todayDutyAssignments.map((assignment, index) => {
+                    const task = tasks.find((item) => item.id === assignment.duty_task_id);
+                    const statusConf = DUTY_STATUS_CONFIG[assignment.status];
+                    const cardTones = ["border-cyan-100 bg-cyan-50/60", "border-amber-100 bg-amber-50/60", "border-violet-100 bg-violet-50/50", "border-rose-100 bg-rose-50/50", "border-emerald-100 bg-emerald-50/50"];
+                    return (
+                      <article className={`rounded-2xl border p-4 transition-colors ${cardTones[index % cardTones.length]}`} key={assignment.id}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-500">หน้าที่</p>
+                            <h3 className="mt-0.5 text-base font-bold leading-snug text-slate-900">{task?.name || "หน้าที่เวร"}</h3>
+                            <p className="mt-2 text-sm font-semibold text-slate-700">
+                              {fullName(studentMap.get(assignment.student_id))}
+                              {task?.location ? <span className="font-medium text-slate-500"> · {task.location}</span> : null}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 rounded-full border bg-white/80 px-2.5 py-1 text-xs font-semibold ${statusConf?.badgeClass || ""}`}>
+                            {statusConf?.label || assignment.status}
+                          </span>
+                        </div>
+                        {assignment.status === "assigned" ? (
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={busy || !canManageDuty}
+                              onClick={() => void recordDuty(assignment, "completed")}
+                              type="button"
+                            >
+                              <CheckCircle2 size={16} />
+                              เรียบร้อย
+                            </button>
+                            <button
+                              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white/80 px-3 text-sm font-semibold text-rose-800 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={busy || !canManageDuty}
+                              onClick={() => void recordDuty(assignment, "missed")}
+                              type="button"
+                            >
+                              ยังไม่เรียบร้อย
+                            </button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+                {todayDutyAssignments.some((item) => item.status === "assigned") ? (
+                  <button
+                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                    disabled={busy || !canManageDuty}
+                    onClick={() => void markAllDoneForDate(todayDutyDate)}
+                    type="button"
+                  >
+                    <Check size={17} />
+                    เช็คว่าทำครบแล้วทั้งห้อง
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <div className="mt-5 rounded-2xl border border-dashed border-amber-200 bg-amber-50/70 px-4 py-6 text-center">
+                <p className="text-sm font-semibold text-slate-800">วันนี้ยังไม่มีรายชื่อเวร</p>
+                <p className="mt-1 text-sm font-medium text-slate-600">จัดเวรให้นักเรียนได้จากเมนูตั้งค่าเวร</p>
+                <button
+                  className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-cyan-700 px-4 text-sm font-semibold text-white transition hover:bg-cyan-800"
+                  onClick={() => setTab("tasks")}
+                  type="button"
+                >
+                  <Users size={16} />
+                  จัดเวรให้นักเรียน
+                </button>
+              </div>
+            )}
+          </section>
+
+          {tabNavigation}
+
+          <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <DutyScheduleView
             assignments={roomAssignments}
             busy={busy}
@@ -1946,93 +2062,6 @@ export function ClassroomOperationsPage({
             </div>
           ) : null}
           <aside className="grid content-start gap-4">
-            <div className="nexus-card p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">ตรวจผลรายวัน</p>
-                  <h2 className="mt-0.5 text-lg font-black text-slate-950">
-                    {new Intl.DateTimeFormat("th-TH", { dateStyle: "long" }).format(new Date(`${selectedDutyDate}T12:00:00`))}
-                  </h2>
-                </div>
-                <button
-                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-black text-cyan-800 hover:bg-cyan-100"
-                  onClick={() => setInspectionModalOpen(true)}
-                  type="button"
-                >
-                  โหมดตรวจเต็มจอ
-                </button>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-center">
-                <Metric label="ทั้งหมด" value={`${selectedDayAssignments.length}`} />
-                <Metric label="ตรวจแล้ว" value={`${selectedDayAssignments.filter((item) => item.status !== "assigned").length}`} />
-                <Metric label="รอตรวจ" value={`${selectedDayAssignments.filter((item) => item.status === "assigned").length}`} />
-              </div>
-
-              {selectedDayAssignments.length > 0 && selectedDayAssignments.some((a) => a.status === "assigned") ? (
-                <button
-                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
-                  disabled={busy || !canManageDuty}
-                  onClick={() => void markAllDoneForDate(selectedDutyDate)}
-                  type="button"
-                >
-                  <CheckCircle2 size={14} />
-                  มาทำเวรครบทุกคน (1-Click)
-                </button>
-              ) : null}
-
-              <div className="mt-3 grid max-h-[500px] gap-2 overflow-y-auto pr-1">
-                {selectedDayAssignments.length ? selectedDayAssignments.map((assignment) => {
-                  const task = tasks.find((item) => item.id === assignment.duty_task_id);
-                  const statusConf = DUTY_STATUS_CONFIG[assignment.status];
-                  return (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs" key={assignment.id}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-slate-950">{task?.name || "หน้าที่เวร"}</p>
-                          <p className="mt-0.5 truncate text-xs font-bold text-slate-600">{fullName(studentMap.get(assignment.student_id))}</p>
-                        </div>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusConf?.badgeClass || ""}`}>
-                          {statusConf?.label || assignment.status}
-                        </span>
-                      </div>
-                      <div className="mt-2.5 flex items-center gap-1">
-                        <button
-                          className="flex-1 rounded-lg bg-emerald-50 py-1 text-xs font-black text-emerald-800 hover:bg-emerald-100"
-                          disabled={busy || !canManageDuty}
-                          onClick={() => void recordDuty(assignment, "completed")}
-                          type="button"
-                        >
-                          🟢 ทำแล้ว
-                        </button>
-                        <button
-                          className="flex-1 rounded-lg bg-rose-50 py-1 text-xs font-black text-rose-800 hover:bg-rose-100"
-                          disabled={busy || !canManageDuty}
-                          onClick={() => void recordDuty(assignment, "missed")}
-                          type="button"
-                        >
-                          🔴 ไม่ทำ
-                        </button>
-                        <button
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50"
-                          disabled={busy || !canManageDuty}
-                          onClick={() => setInspectionModalOpen(true)}
-                          title="ตัวเลือกเพิ่มเติม"
-                          type="button"
-                        >
-                          ...
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">
-                    วันนี้ยังไม่มีการมอบหมายเวร
-                  </div>
-                )}
-              </div>
-            </div>
-
             <details className="nexus-card group p-5">
               <summary className="cursor-pointer list-none text-base font-black text-slate-950">
                 สรุปคะแนนจิตพิสัยรายคน <span className="ml-2 text-xs text-cyan-700">เปิดดู ({roomStudents.length} คน)</span>
@@ -2074,7 +2103,8 @@ export function ClassroomOperationsPage({
             onToggle={toggleDutyTask}
             tasks={uniqueTasks}
           /> : null}
-        </section>
+          </section>
+        </>
       ) : null}
 
       {tab === "inspection" ? (
