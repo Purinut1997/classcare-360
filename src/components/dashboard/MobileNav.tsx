@@ -7,6 +7,14 @@ import {
   Sparkles,
   X,
   Home,
+  ChevronDown,
+  ClipboardCheck,
+  BookOpen,
+  Heart,
+  Wrench,
+  Settings2,
+  CircleHelp,
+  FolderOpen,
 } from 'lucide-react';
 import { AppNavigationLink as Link } from '../navigation/ContextLink';
 import { CuteCareyAvatar, type MascotAvatarType } from '../support/CuteCareyAvatar';
@@ -15,26 +23,18 @@ import type { AppNavItem } from '../../routes/appRoutes';
 interface MobileCategoryConfig {
   key: string;
   label: string;
-  icon: string;
-  badge: string;
+  shortLabel: string;
+  icon: typeof Home;
   itemKeys: string[];
-  theme: {
-    containerBg: string;
-    containerBorder: string;
-    iconBg: string;
-    badgeBg: string;
-    badgeText: string;
-    titleColor: string;
-    pillActive: string;
-  };
+  tone: string;
 }
 
 const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
   {
     key: 'classroom-admin',
     label: 'งานประจำวันในห้องเรียน',
-    icon: '📁',
-    badge: '⭐ 6 ภารกิจหลัก',
+    shortLabel: 'งานห้องเรียน',
+    icon: ClipboardCheck,
     itemKeys: [
       'students',
       'teacher-work',
@@ -42,22 +42,15 @@ const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
       'classroom-operations',
       'savings',
       'daily-brief',
+      'notifications',
     ],
-    theme: {
-      containerBg: 'bg-gradient-to-br from-emerald-50/70 via-teal-50/20 to-white',
-      containerBorder: 'border-emerald-300/80 shadow-2xs shadow-emerald-500/5',
-      iconBg: 'bg-emerald-600 text-white shadow-2xs shadow-emerald-600/30',
-      badgeBg: 'bg-emerald-100',
-      badgeText: 'text-emerald-800 border-emerald-300',
-      titleColor: 'text-emerald-950',
-      pillActive: 'bg-emerald-600 text-white ring-2 ring-emerald-600/25',
-    },
+    tone: 'teal',
   },
   {
     key: 'academic',
     label: 'งานวิชาการ & วัดผล',
-    icon: '📚',
-    badge: '5 เมนู',
+    shortLabel: 'วิชาการ',
+    icon: BookOpen,
     itemKeys: [
       'schedule',
       'scores',
@@ -65,78 +58,66 @@ const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
       'academic-hub',
       'reports',
     ],
-    theme: {
-      containerBg: 'bg-gradient-to-br from-sky-50/70 via-blue-50/20 to-white',
-      containerBorder: 'border-sky-300/80 shadow-2xs shadow-sky-500/5',
-      iconBg: 'bg-sky-600 text-white shadow-2xs shadow-sky-600/30',
-      badgeBg: 'bg-sky-100',
-      badgeText: 'text-sky-800 border-sky-300',
-      titleColor: 'text-sky-950',
-      pillActive: 'bg-sky-600 text-white ring-2 ring-sky-600/25',
-    },
+    tone: 'blue',
   },
   {
     key: 'care',
     label: 'ดูแลช่วยเหลือนักเรียน',
-    icon: '💖',
-    badge: '3 เมนู',
+    shortLabel: 'ดูแลนักเรียน',
+    icon: Heart,
     itemKeys: [
       'behavior',
       'desirable-characteristics',
       'automation',
+      'parent-access',
     ],
-    theme: {
-      containerBg: 'bg-gradient-to-br from-rose-50/70 via-pink-50/20 to-white',
-      containerBorder: 'border-rose-300/80 shadow-2xs shadow-rose-500/5',
-      iconBg: 'bg-rose-500 text-white shadow-2xs shadow-rose-500/30',
-      badgeBg: 'bg-rose-100',
-      badgeText: 'text-rose-800 border-rose-300',
-      titleColor: 'text-rose-950',
-      pillActive: 'bg-rose-600 text-white ring-2 ring-rose-600/25',
-    },
+    tone: 'rose',
   },
   {
     key: 'tools',
     label: 'เครื่องมือช่วยสอน',
-    icon: '🛠️',
-    badge: '2 เมนู',
+    shortLabel: 'เครื่องมือ',
+    icon: Wrench,
     itemKeys: [
       'randomizer',
       'school-calendar',
     ],
-    theme: {
-      containerBg: 'bg-gradient-to-br from-amber-50/70 via-yellow-50/20 to-white',
-      containerBorder: 'border-amber-300/80 shadow-2xs shadow-amber-500/5',
-      iconBg: 'bg-amber-500 text-white shadow-2xs shadow-amber-500/30',
-      badgeBg: 'bg-amber-100',
-      badgeText: 'text-amber-800 border-amber-300',
-      titleColor: 'text-amber-950',
-      pillActive: 'bg-amber-600 text-white ring-2 ring-amber-600/25',
-    },
+    tone: 'amber',
   },
   {
     key: 'admin',
     label: 'ตั้งค่าโรงเรียน & ระบบ',
-    icon: '⚙️',
-    badge: '5 เมนู',
+    shortLabel: 'ตั้งค่า',
+    icon: Settings2,
     itemKeys: [
       'workspace-settings',
       'academic-year',
       'period-locks',
       'import-export',
       'data-safety',
+      'setup',
+      'audit',
+      'superadmin-dashboard',
     ],
-    theme: {
-      containerBg: 'bg-gradient-to-br from-slate-100/90 via-slate-50/40 to-white',
-      containerBorder: 'border-slate-300/90 shadow-2xs shadow-slate-500/5',
-      iconBg: 'bg-slate-700 text-white shadow-2xs shadow-slate-700/30',
-      badgeBg: 'bg-slate-200',
-      badgeText: 'text-slate-800 border-slate-300',
-      titleColor: 'text-slate-900',
-      pillActive: 'bg-slate-800 text-white ring-2 ring-slate-800/25',
-    },
+    tone: 'slate',
+  },
+  {
+    key: 'support',
+    label: 'บัญชีและความช่วยเหลือ',
+    shortLabel: 'ช่วยเหลือ',
+    icon: CircleHelp,
+    itemKeys: ['help-center', 'package', 'workspace-switch'],
+    tone: 'slate',
   },
 ];
+
+const categoryToneStyles: Record<string, string> = {
+  teal: 'bg-teal-50 text-teal-700',
+  blue: 'bg-sky-50 text-sky-700',
+  rose: 'bg-rose-50 text-rose-700',
+  amber: 'bg-amber-50 text-amber-700',
+  slate: 'bg-slate-100 text-slate-600',
+};
 
 interface MobileNavProps {
   activeView: string;
@@ -149,6 +130,9 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
   const [isAllMenusOpen, setIsAllMenusOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'all' | string>('all');
+  const [expandedCategory, setExpandedCategory] = useState(() =>
+    MOBILE_CATEGORIES.find((category) => category.itemKeys.includes(activeView))?.key ?? 'classroom-admin',
+  );
 
   // Mascot avatar selection
   const [mascotType, setMascotType] = useState<MascotAvatarType>(() => {
@@ -157,20 +141,24 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
       if (saved && ['bear', 'cat', 'bunny', 'girl', 'shiba'].includes(saved)) {
         return saved;
       }
-    } catch {}
+    } catch {
+      // Keep the default mascot when browser storage is unavailable.
+    }
     return 'bear';
   });
 
   // Listen for AI chat state and unread count from SupportChat
   useEffect(() => {
-    const handleChatState = (e: any) => {
-      if (typeof e.detail?.isOpen === 'boolean') {
-        setIsChatOpen(e.detail.isOpen);
+    const handleChatState = (event: Event) => {
+      const detail = (event as CustomEvent<{ isOpen?: boolean }>).detail;
+      if (typeof detail?.isOpen === 'boolean') {
+        setIsChatOpen(detail.isOpen);
       }
     };
-    const handleUnread = (e: any) => {
-      if (typeof e.detail?.unreadCount === 'number') {
-        setUnreadCount(e.detail.unreadCount);
+    const handleUnread = (event: Event) => {
+      const detail = (event as CustomEvent<{ unreadCount?: number }>).detail;
+      if (typeof detail?.unreadCount === 'number') {
+        setUnreadCount(detail.unreadCount);
       }
     };
     const handleStorage = () => {
@@ -254,7 +242,20 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
   // Filtered categorized sections for Quick Launcher Sheet
   const categorizedSections = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return MOBILE_CATEGORIES.map((cat) => {
+    const categories = [...MOBILE_CATEGORIES];
+    const knownKeys = new Set(categories.flatMap((category) => category.itemKeys));
+    const ungroupedItems = navItems.filter((item) => item.key !== 'overview' && !knownKeys.has(item.key));
+    if (ungroupedItems.length > 0) {
+      categories.push({
+        key: 'other',
+        label: 'เมนูอื่น ๆ',
+        shortLabel: 'อื่น ๆ',
+        icon: FolderOpen,
+        itemKeys: ungroupedItems.map((item) => item.key),
+        tone: 'slate',
+      });
+    }
+    return categories.map((cat) => {
       if (selectedCategory !== 'all' && selectedCategory !== cat.key) {
         return null;
       }
@@ -287,22 +288,6 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
     );
   }, [selectedCategory, searchQuery, overviewItem]);
 
-  // Utility items (notifications, help)
-  const utilityItems = useMemo(() => {
-    if (selectedCategory !== 'all') return [];
-    const q = searchQuery.toLowerCase().trim();
-    return ['notifications', 'help-center']
-      .map((key) => navItems.find((item) => item.key === key))
-      .filter((item): item is AppNavItem => Boolean(item))
-      .filter((item) => {
-        if (!q) return true;
-        return (
-          item.label.toLowerCase().includes(q) ||
-          item.key.toLowerCase().includes(q)
-        );
-      });
-  }, [navItems, searchQuery, selectedCategory]);
-
   return (
     <>
       {/* ========================================================================= */}
@@ -310,30 +295,28 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
       {/* ========================================================================= */}
       {isAllMenusOpen ? (
         <div
-          className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200 lg:hidden"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-950/45 transition-opacity duration-200 lg:hidden"
           onClick={() => setIsAllMenusOpen(false)}
         >
           <div
-            className="relative max-h-[85dvh] w-full overflow-hidden rounded-t-[32px] border-t border-slate-200/90 bg-white/98 p-5 shadow-[0_-20px_50px_rgba(15,23,42,0.25)] backdrop-blur-2xl animate-in slide-in-from-bottom-6 duration-200 flex flex-col"
+            className="relative max-h-[88dvh] w-full overflow-hidden rounded-t-[28px] border border-slate-200 bg-white px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_36px_rgba(15,23,42,0.18)] animate-in slide-in-from-bottom-4 duration-200 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Sheet Handle */}
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300" />
 
             {/* Sheet Header */}
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-600">
-                  ClassCare 360 Mobile
-                </p>
-                <h3 className="text-lg font-black text-slate-950">
-                  ศูนย์รวมเมนูและงานครู
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-cyan-700">ClassCare 360</p>
+                <h3 className="text-lg font-bold leading-tight text-slate-950">
+                  เมนูและงานครู
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAllMenusOpen(false)}
-                className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-slate-100/80 text-slate-600 transition hover:bg-slate-200"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600"
                 aria-label="ปิดเมนู"
               >
                 <X size={18} />
@@ -343,120 +326,115 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             {/* Quick Search */}
             <div className="relative mt-3">
               <Search
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
               />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาเมนู (เช่น คะแนน, ปฏิทิน, ตารางสอน, ข้อสอบ)..."
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-9 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+                placeholder="ค้นหาเมนู เช่น เช็กชื่อ ตารางสอน คะแนน"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-cyan-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-700/15 transition-colors"
+                aria-label="ค้นหาเมนู"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 grid h-5 w-5 place-items-center rounded-full bg-slate-200 text-slate-600 text-[10px]"
+                  className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600"
+                  aria-label="ล้างคำค้น"
                 >
-                  ✕
+                  <X size={15} />
                 </button>
               )}
             </div>
 
             {/* Category Filter Tabs */}
-            <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1 shrink-0">
+            <div className="-mx-4 mt-3 flex shrink-0 items-center gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <button
                 type="button"
                 onClick={() => setSelectedCategory('all')}
-                className={`shrink-0 rounded-xl px-2.5 py-1 text-[11px] font-black transition active:scale-95 ${
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
                   selectedCategory === 'all'
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                🌟 ทุกหมวด
+                ทุกหมวด
               </button>
               {MOBILE_CATEGORIES.map((cat) => {
                 const isActive = selectedCategory === cat.key;
+                const CategoryIcon = cat.icon;
                 return (
                   <button
                     key={cat.key}
                     type="button"
-                    onClick={() => setSelectedCategory(cat.key)}
-                    className={`shrink-0 flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-black transition active:scale-95 ${
+                    onClick={() => {
+                      setSelectedCategory(cat.key);
+                      setExpandedCategory(cat.key);
+                    }}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
                       isActive
-                        ? cat.theme.pillActive
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        ? 'border-cyan-700 bg-cyan-50 text-cyan-950'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    <span>{cat.icon}</span>
-                    <span>{cat.label}</span>
+                    <CategoryIcon size={14} aria-hidden="true" />
+                    <span>{cat.shortLabel}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Scrollable Categorized List */}
-            <div className="mt-3.5 flex-1 overflow-y-auto pr-1 pb-6 space-y-3.5 max-h-[52dvh]">
-              {/* 🏠 1. Overview Hero Banner */}
+            <div className="mt-1 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-4 pr-0.5">
               {showOverviewItem && (
                 <Link
                   to={overviewItem.path}
                   onClick={() => setIsAllMenusOpen(false)}
-                  className={`flex items-center justify-between rounded-2xl border p-3 transition active:scale-98 ${
+                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
                     activeView === 'overview'
-                      ? 'border-cyan-500 bg-cyan-50/90 text-cyan-950 font-black ring-2 ring-cyan-500/20'
-                      : 'border-slate-200/90 bg-gradient-to-r from-slate-50 to-white hover:bg-slate-100 text-slate-800 shadow-2xs'
+                      ? 'border-cyan-700 bg-cyan-50 text-cyan-950'
+                      : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-                        activeView === 'overview'
-                          ? 'bg-cyan-600 text-white shadow-xs'
-                          : 'bg-slate-900 text-white shadow-2xs'
-                      }`}
-                    >
-                      <Home size={17} />
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${activeView === 'overview' ? 'bg-cyan-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                      <Home size={16} aria-hidden="true" />
                     </span>
-                    <div>
-                      <p className="text-xs font-black">ภาพรวม & ศูนย์รวมทางลัด</p>
-                      <p className="text-[10px] font-bold text-slate-400">Overview Dashboard & Shortcut Hub</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">ภาพรวมและทางลัด</p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-black text-cyan-700">
-                    {activeView === 'overview' ? '● กำลังเปิดอยู่' : 'เปิด →'}
-                  </span>
+                  {activeView === 'overview' ? <span className="shrink-0 text-xs font-semibold text-cyan-800">กำลังเปิด</span> : <ChevronDown size={16} className="-rotate-90 shrink-0 text-slate-400" aria-hidden="true" />}
                 </Link>
               )}
 
-              {/* 📁 2-6. Categorized Sections in Colored Container Frames */}
               {categorizedSections.map(({ category: cat, items }) => (
-                <div
-                  key={cat.key}
-                  className={`rounded-2xl border-2 ${cat.theme.containerBorder} ${cat.theme.containerBg} p-3 sm:p-3.5 transition-all`}
-                >
-                  {/* Category Header */}
-                  <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-black/5">
-                    <div className="flex items-center gap-2">
-                      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${cat.theme.iconBg} text-sm`}>
-                        {cat.icon}
-                      </span>
-                      <span className={`text-xs font-black ${cat.theme.titleColor}`}>
-                        {cat.label}
-                      </span>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${cat.theme.badgeBg} ${cat.theme.badgeText}`}>
-                        {cat.badge}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-500">
-                      {items.length} เมนู
-                    </span>
-                  </div>
-
-                  {/* 2-column menu grid inside frame */}
-                  <div className="grid grid-cols-2 gap-2">
+                <section key={cat.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  {(() => {
+                    const CategoryIcon = cat.icon;
+                    const isExpanded = expandedCategory === cat.key || selectedCategory === cat.key || Boolean(searchQuery.trim());
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCategory(isExpanded && selectedCategory === 'all' && !searchQuery.trim() ? '' : cat.key)}
+                          aria-expanded={isExpanded}
+                          aria-controls={`mobile-menu-${cat.key}`}
+                          className="flex min-h-12 w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-700"
+                        >
+                          <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${categoryToneStyles[cat.tone] ?? categoryToneStyles.slate}`}>
+                            <CategoryIcon size={16} aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-slate-800">{cat.label}</span>
+                            <span className="block text-[11px] text-slate-500">{items.length} เมนู</span>
+                          </span>
+                          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                        </button>
+                        {isExpanded && (
+                          <div id={`mobile-menu-${cat.key}`} className="grid grid-cols-1 gap-1 border-t border-slate-100 bg-slate-50/60 p-2">
                     {items.map((item) => {
                       const Icon = item.icon;
                       const isActive = item.key === activeView;
@@ -466,64 +444,40 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                           externalUrl={item.externalUrl}
                           to={item.path}
                           onClick={() => setIsAllMenusOpen(false)}
-                          className={`flex items-center gap-2 rounded-xl border p-2 text-left transition active:scale-98 ${
+                          className={`flex min-h-11 items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
                             isActive
-                              ? 'border-cyan-500 bg-white text-cyan-950 shadow-xs font-black ring-2 ring-cyan-500/20'
-                              : 'border-white/80 bg-white/95 hover:bg-white text-slate-800 shadow-2xs'
+                              ? 'border-cyan-700 bg-cyan-50 text-cyan-950'
+                              : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
                           }`}
                         >
                           <span
-                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
                               isActive
-                                ? 'bg-cyan-600 text-white shadow-2xs'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200/60'
+                                ? 'bg-cyan-700 text-white'
+                                : 'bg-slate-100 text-slate-600'
                             }`}
                           >
-                            <Icon size={15} />
+                            <Icon size={15} aria-hidden="true" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-black truncate leading-tight">{item.label}</p>
-                            <p className="text-[9px] font-bold text-slate-400 truncate mt-0.5">
-                              {isActive ? '● กำลังเปิดอยู่' : 'แตะเพื่อเปิด'}
-                            </p>
+                            <p className="truncate text-xs font-semibold leading-tight">{item.label}</p>
                           </div>
+                          {isActive ? <span className="shrink-0 text-[10px] font-semibold text-cyan-800">กำลังเปิด</span> : <ChevronDown size={14} className="-rotate-90 shrink-0 text-slate-400" aria-hidden="true" />}
                         </Link>
                       );
                     })}
                   </div>
-                </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </section>
               ))}
 
-              {/* Utility row at bottom */}
-              {utilityItems.length > 0 && (
-                <div className="flex items-center gap-2 pt-1">
-                  {utilityItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = item.key === activeView;
-                    return (
-                      <Link
-                        key={item.key}
-                        externalUrl={item.externalUrl}
-                        to={item.path}
-                        onClick={() => setIsAllMenusOpen(false)}
-                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl border p-2 text-left transition ${
-                          isActive
-                            ? 'border-cyan-500 bg-cyan-50 text-cyan-950 font-black'
-                            : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        <Icon size={14} />
-                        <span className="text-[11px] font-bold truncate">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
               {/* Empty state */}
-              {!showOverviewItem && categorizedSections.length === 0 && utilityItems.length === 0 && (
-                <div className="py-8 text-center text-xs font-bold text-slate-400">
-                  ไม่พบเมนูที่ค้นหา "{searchQuery}"
+              {!showOverviewItem && categorizedSections.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">
+                  ไม่พบเมนู “{searchQuery}”
                 </div>
               )}
             </div>
