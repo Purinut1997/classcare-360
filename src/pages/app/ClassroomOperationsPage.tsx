@@ -148,7 +148,6 @@ interface BehaviorPoint {
 const tabs: Array<{ icon: typeof CalendarCheck; key: TabKey; label: string }> =
   [
     { icon: CalendarCheck, key: "duty", label: "ตารางเวร" },
-    { icon: CheckCircle2, key: "inspection", label: "ตรวจเวร" },
     { icon: Users, key: "tasks", label: "ตั้งค่าเวร" },
     { icon: LockKeyhole, key: "locks", label: "ล็อกข้อมูล" },
     { icon: GraduationCap, key: "rollover", label: "ปิดชั้น/เลื่อนชั้น" },
@@ -412,6 +411,21 @@ export function ClassroomOperationsPage({
     () => assignments.filter((assignment) => classroomTaskIds.has(assignment.duty_task_id) && assignment.duty_date === todayDutyDate),
     [assignments, classroomTaskIds, todayDutyDate],
   );
+  const todayDutyGroups = useMemo(() => {
+    const groups = new Map<string, { task: DutyTask | undefined; assignments: DutyAssignment[] }>();
+    todayDutyAssignments.forEach((assignment) => {
+      const existing = groups.get(assignment.duty_task_id);
+      if (existing) existing.assignments.push(assignment);
+      else groups.set(assignment.duty_task_id, {
+        task: tasks.find((item) => item.id === assignment.duty_task_id),
+        assignments: [assignment],
+      });
+    });
+    const taskOrder = new Map(tasks.map((task, index) => [task.id, index]));
+    return [...groups.entries()]
+      .sort(([left], [right]) => (taskOrder.get(left) ?? Number.MAX_SAFE_INTEGER) - (taskOrder.get(right) ?? Number.MAX_SAFE_INTEGER))
+      .map(([taskId, group]) => ({ taskId, ...group }));
+  }, [tasks, todayDutyAssignments]);
   const pointsByStudent = useMemo(() => {
     const totals = new Map<string, number>();
     behaviorPoints.forEach((item) =>
@@ -1695,7 +1709,7 @@ export function ClassroomOperationsPage({
     ? tabs.filter((item) => item.key === "locks" || item.key === "rollover" || item.key === "archive")
     : mode === "parent"
       ? tabs.filter((item) => item.key === "parent-qr")
-      : tabs.filter((item) => item.key === "duty" || item.key === "inspection" || item.key === "tasks");
+      : tabs.filter((item) => item.key === "duty" || item.key === "tasks");
   const pageTitle = isYearOrLock
     ? "ปีการศึกษาและควบคุมข้อมูล"
     : mode === "parent"
@@ -1871,47 +1885,61 @@ export function ClassroomOperationsPage({
                     เช็คแล้ว {todayDutyAssignments.filter((item) => item.status !== "assigned").length}/{todayDutyAssignments.length}
                   </span>
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                  {todayDutyAssignments.map((assignment, index) => {
-                    const task = tasks.find((item) => item.id === assignment.duty_task_id);
-                    const statusConf = DUTY_STATUS_CONFIG[assignment.status];
-                    const cardTones = ["border-cyan-100 bg-cyan-50/60", "border-amber-100 bg-amber-50/60", "border-violet-100 bg-violet-50/50", "border-rose-100 bg-rose-50/50", "border-emerald-100 bg-emerald-50/50"];
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  {todayDutyGroups.map(({ taskId, task, assignments: dutyItems }, index) => {
+                    const cardTones = ["border-cyan-200 bg-cyan-50/70", "border-amber-200 bg-amber-50/70", "border-violet-200 bg-violet-50/60", "border-rose-200 bg-rose-50/60", "border-emerald-200 bg-emerald-50/60"];
                     return (
-                      <article className={`rounded-2xl border p-4 transition-colors ${cardTones[index % cardTones.length]}`} key={assignment.id}>
-                        <div className="flex items-start justify-between gap-3">
+                      <article className={`overflow-hidden rounded-2xl border ${cardTones[index % cardTones.length]}`} key={taskId}>
+                        <header className="flex items-center justify-between gap-3 border-b border-white/80 px-4 py-3">
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-slate-500">หน้าที่</p>
                             <h3 className="mt-0.5 text-base font-bold leading-snug text-slate-900">{task?.name || "หน้าที่เวร"}</h3>
-                            <p className="mt-2 text-sm font-semibold text-slate-700">
-                              {fullName(studentMap.get(assignment.student_id))}
-                              {task?.location ? <span className="font-medium text-slate-500"> · {task.location}</span> : null}
-                            </p>
                           </div>
-                          <span className={`shrink-0 rounded-full border bg-white/80 px-2.5 py-1 text-xs font-semibold ${statusConf?.badgeClass || ""}`}>
-                            {statusConf?.label || assignment.status}
+                          <span className="shrink-0 rounded-full border border-white bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                            {dutyItems.filter((item) => item.status !== "assigned").length}/{dutyItems.length} เช็คแล้ว
                           </span>
-                        </div>
-                        {assignment.status === "assigned" ? (
-                          <div className="mt-4 grid grid-cols-2 gap-2">
-                            <button
-                              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              disabled={busy || !canManageDuty}
-                              onClick={() => void recordDuty(assignment, "completed")}
-                              type="button"
-                            >
-                              <CheckCircle2 size={16} />
-                              เรียบร้อย
-                            </button>
-                            <button
-                              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white/80 px-3 text-sm font-semibold text-rose-800 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                              disabled={busy || !canManageDuty}
-                              onClick={() => void recordDuty(assignment, "missed")}
-                              type="button"
-                            >
-                              ยังไม่เรียบร้อย
-                            </button>
-                          </div>
-                        ) : null}
+                        </header>
+                        <ul className="divide-y divide-white/80 px-3">
+                          {dutyItems.map((assignment) => {
+                            const statusConf = DUTY_STATUS_CONFIG[assignment.status];
+                            return (
+                              <li className="flex flex-wrap items-center justify-between gap-2 py-3" key={assignment.id}>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800">{fullName(studentMap.get(assignment.student_id))}</p>
+                                  <p className="mt-0.5 text-xs font-medium text-slate-500">
+                                    {task?.location ? `${task.location} · ` : ""}{statusConf?.label || assignment.status}
+                                  </p>
+                                </div>
+                                {assignment.status === "assigned" ? (
+                                  <div className="flex shrink-0 gap-1.5">
+                                    <button
+                                      aria-label={`เช็คว่า ${fullName(studentMap.get(assignment.student_id))} ทำ${task?.name || "หน้าที่เวร"}เรียบร้อย`}
+                                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                      disabled={busy || !canManageDuty}
+                                      onClick={() => void recordDuty(assignment, "completed")}
+                                      type="button"
+                                    >
+                                      <CheckCircle2 size={14} />เรียบร้อย
+                                    </button>
+                                    <button
+                                      aria-label={`บันทึกว่า ${fullName(studentMap.get(assignment.student_id))} ยังไม่ทำ${task?.name || "หน้าที่เวร"}เรียบร้อย`}
+                                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-rose-200 bg-white/80 px-2.5 text-xs font-semibold text-rose-800 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                      disabled={busy || !canManageDuty}
+                                      onClick={() => void recordDuty(assignment, "missed")}
+                                      type="button"
+                                    >
+                                      ยังไม่เสร็จ
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`shrink-0 rounded-full border bg-white/80 px-2.5 py-1 text-xs font-semibold ${statusConf?.badgeClass || ""}`}>
+                                    {statusConf?.label || assignment.status}
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </article>
                     );
                   })}
