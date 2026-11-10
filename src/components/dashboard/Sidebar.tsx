@@ -207,13 +207,13 @@ export function Sidebar({
                 <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
                   <Icon size={16} aria-hidden="true" />
                 </div>
-                <span className="truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
+                <span className="min-w-0 flex-1 truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
                 {item.key === 'overview' && (
-                  <span className="ml-auto rounded-full bg-cyan-400/20 px-2 py-0.5 text-[9px] font-black text-cyan-200">
+                  <span className="shrink-0 rounded-full bg-cyan-400/20 px-2 py-0.5 text-[9px] font-black text-cyan-200">
                     HUB
                   </span>
                 )}
-                {!isActive && (
+                {!isActive && item.key !== 'overview' && (
                   <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                 )}
               </Link>
@@ -229,17 +229,17 @@ export function Sidebar({
           return (
             <details className="app-sidebar-section mt-2.5" key={section.key} open={isSectionOpen}>
               <summary className="app-sidebar-section-summary">
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                   {SectionIcon && (
                     <span className="app-sidebar-section-icon-badge">
                       <SectionIcon size={12} aria-hidden="true" />
                     </span>
                   )}
-                  <span className={`font-black ${section.key === 'classroom-admin' ? 'text-cyan-200' : ''}`}>
+                  <span className={`min-w-0 truncate font-black ${section.key === 'classroom-admin' ? 'text-cyan-200' : ''}`}>
                     {section.label}
                   </span>
                 </span>
-                <ChevronDown size={14} className="app-sidebar-chevron text-slate-400" aria-hidden="true" />
+                <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-slate-400" aria-hidden="true" />
               </summary>
               <div className="grid gap-1 py-1 pl-1">
                 {section.items.map((item) => {
@@ -318,9 +318,6 @@ export function Sidebar({
                     <Icon size={15} aria-hidden="true" />
                   </div>
                   <span className="truncate">{item.label}</span>
-                  {item.key === 'notifications' && (
-                    <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" aria-label="แจ้งเตือนใหม่" />
-                  )}
                   {!isActive && (
                     <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                   )}
@@ -380,7 +377,7 @@ export function Sidebar({
       </div>
 
       {/* 💻 Desktop Static Sidebar */}
-      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[236px]">
+      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[224px]">
         {content}
       </aside>
     </>

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Activity,
   ArrowRight,
+  Banknote,
   Bell,
   CalendarDays,
   CalendarCheck,
@@ -23,6 +25,7 @@ import {
 } from 'lucide-react';
 
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
+import { useLocation } from 'react-router-dom';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -35,6 +38,7 @@ interface NotificationsPageProps {
 
 type NotificationFilter = 'all' | 'unread';
 type TelegramConnectionStatus = 'disconnected' | 'pending' | 'connected';
+type NotificationTab = 'tasks' | 'inbox' | 'activity' | 'settings';
 
 interface TeacherNotificationPreferences {
   telegramEnabled: boolean;
@@ -90,6 +94,43 @@ interface NotificationRow {
   title: string;
   type: string;
   workspace_id: string | null;
+}
+
+interface ActivityLogRow {
+  action: string;
+  created_at: string;
+  entity_id: string | null;
+  id: string;
+  metadata: Record<string, unknown> | null;
+}
+
+interface ActivityFeedEntry extends ActivityLogRow {
+  details: string[];
+  moneyDirection?: 'deposit' | 'withdrawal';
+  amount?: number;
+  summary: string;
+  title: string;
+}
+
+interface AttendanceActivityRecord {
+  session_id: string;
+  status: string;
+  student: { first_name?: string; last_name?: string; student_code?: string } | null;
+}
+
+interface SavingsActivityTransaction {
+  amount: number;
+  id: string;
+  student_id: string;
+  student: { first_name?: string; last_name?: string; student_code?: string } | null;
+  transaction_type: string;
+}
+
+interface ActivityStudentDirectoryRow {
+  first_name?: string;
+  id: string;
+  last_name?: string;
+  student_code?: string;
 }
 
 interface CareCaseItem {
@@ -214,6 +255,98 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function activityStudentName(student: AttendanceActivityRecord['student']) {
+  if (!student) return 'ไม่พบชื่อนักเรียน';
+  const name = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+  return student.student_code ? `${name} (เลขที่ ${student.student_code})` : name || 'ไม่พบชื่อนักเรียน';
+}
+
+function buildActivityFeed(
+  logs: ActivityLogRow[],
+  attendanceRecords: AttendanceActivityRecord[],
+  savingsTransactions: SavingsActivityTransaction[],
+  studentDirectory: ActivityStudentDirectoryRow[],
+): ActivityFeedEntry[] {
+  const recordsBySession = new Map<string, AttendanceActivityRecord[]>();
+  attendanceRecords.forEach((record) => {
+    const current = recordsBySession.get(record.session_id) || [];
+    current.push(record);
+    recordsBySession.set(record.session_id, current);
+  });
+  const transactionsById = new Map(savingsTransactions.map((transaction) => [transaction.id, transaction]));
+  const studentsById = new Map(studentDirectory.map((student) => [student.id, student]));
+
+  return logs.map((log) => {
+    const metadata = log.metadata || {};
+    if (log.action === 'attendance.records.saved') {
+      const records = log.entity_id ? recordsBySession.get(log.entity_id) || [] : [];
+      const statusCounts = records.reduce<Record<string, number>>((counts, record) => {
+        counts[record.status] = (counts[record.status] || 0) + 1;
+        return counts;
+      }, {});
+      ['absent', 'late', 'leave', 'present', 'sick'].forEach((status) => {
+        const snapshotCount = metadata[`${status}_count`];
+        if (typeof snapshotCount === 'number') statusCounts[status] = snapshotCount;
+      });
+      const statusNames: Record<string, string> = { absent: 'ขาด', activity: 'กิจกรรม', late: 'สาย', leave: 'ลา', present: 'มา', sick: 'ป่วย' };
+      const countSummary = Object.entries(statusNames)
+        .filter(([key]) => (statusCounts[key] || 0) > 0)
+        .map(([key, label]) => `${label} ${statusCounts[key]} คน`);
+      const details = ['late', 'absent', 'leave', 'sick'].flatMap((status) => {
+        const snapshotIds = metadata[`${status}_student_ids`];
+        const names = Array.isArray(snapshotIds)
+          ? snapshotIds.map((id) => {
+            const student = studentsById.get(String(id));
+            return student ? activityStudentName(student) : 'ไม่พบชื่อ (ข้อมูลนักเรียนถูกนำออกแล้ว)';
+          })
+          : records.filter((record) => record.status === status).map((record) => activityStudentName(record.student));
+        return names.length ? [`${statusNames[status]}: ${names.join(', ')}`] : [];
+      });
+      const subjectName = String(metadata.subject_name || '');
+      const periodLabel = String(metadata.period_label || '');
+      return {
+        ...log,
+        details,
+        summary: `${Number(metadata.student_count ?? records.length)} รายการ${countSummary.length ? ` · ${countSummary.join(' · ')}` : ''}`,
+        title: subjectName ? `เช็กชื่อวิชา${subjectName}${periodLabel ? ` (${periodLabel})` : ''}` : `เช็กชื่อประจำชั้น${metadata.classroom_name ? ` · ${String(metadata.classroom_name)}` : ''}`,
+      };
+    }
+
+    if (log.action === 'attendance.records.undo') {
+      return {
+        ...log,
+        details: [],
+        summary: `ย้อนผลเช็กชื่อ ${Number(metadata.restored_record_count || 0)} รายการ`,
+        title: 'ย้อนผลการเช็กชื่อ',
+      };
+    }
+
+    if (log.action === 'savings_transaction.created') {
+      const transaction = log.entity_id ? transactionsById.get(log.entity_id) : undefined;
+      const amount = Number(transaction?.amount ?? metadata.amount ?? 0);
+      const action = transaction?.transaction_type === 'withdrawal' ? 'ถอน' : 'ฝาก';
+      return {
+        ...log,
+        details: transaction?.student ? [`นักเรียน: ${activityStudentName(transaction.student)}`] : [],
+        amount,
+        moneyDirection: transaction?.transaction_type === 'withdrawal' ? 'withdrawal' : 'deposit',
+        summary: `${action} ${amount.toLocaleString('th-TH')} บาท`,
+        title: 'บันทึกรายการเงินออม',
+      };
+    }
+
+    const transaction = log.entity_id ? transactionsById.get(log.entity_id) : undefined;
+    const oldAmount = Number(transaction?.amount || 0);
+    const newAmount = Number(metadata.replacement_amount || 0);
+    return {
+      ...log,
+      details: [String(metadata.correction_reason || 'มีการแก้ไขรายการเงินออม')],
+      summary: `แก้ไขยอด ${oldAmount.toLocaleString('th-TH')} → ${newAmount.toLocaleString('th-TH')} บาท`,
+      title: 'แก้ไขรายการเงินออม',
+    };
+  });
+}
+
 function getPrivacyClass(level: NotificationRow['privacy_level']) {
   if (level === 'sensitive') return 'bg-rose-50 text-rose-700 ring-rose-100';
   if (level === 'restricted') return 'bg-amber-50 text-amber-700 ring-amber-100';
@@ -221,11 +354,19 @@ function getPrivacyClass(level: NotificationRow['privacy_level']) {
 }
 
 export function NotificationsPage({ session }: NotificationsPageProps) {
+  const location = useLocation();
   const demoMode = isDemoSession(session);
   const workspaceId = session.workspace?.id || '';
 
   // Tabs: งานค้าง | กล่องข้อความ | ตั้งค่าการเชื่อม Telegram
-  const [activeTab, setActiveTab] = useState<'tasks' | 'inbox' | 'settings'>('tasks');
+  const [activeTab, setActiveTab] = useState<NotificationTab>(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    return tab === 'settings' || tab === 'activity' || tab === 'inbox' ? tab : 'tasks';
+  });
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    setActiveTab(tab === 'settings' || tab === 'activity' || tab === 'inbox' ? tab : 'tasks');
+  }, [location.search]);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isDispatching, setIsDispatching] = useState(false);
@@ -233,6 +374,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     isSupabaseReady ? null : 'โหมดตัวอย่าง: เชื่อมต่อข้อมูลจำลองเพื่อการสาธิตการทำงานจริง'
   );
   const [notifications, setNotifications] = useState<NotificationRow[]>(demoNotifications);
+  const [activityEntries, setActivityEntries] = useState<ActivityFeedEntry[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [preferences, setPreferences] = useState<TeacherNotificationPreferences>(defaultNotificationPreferences);
   const [preferenceClassrooms, setPreferenceClassrooms] = useState<NotificationClassroom[]>([]);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
@@ -444,19 +587,23 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   const loadData = useCallback(async () => {
     if (!supabase || !workspaceId || demoMode) {
       setNotifications(demoNotifications);
+      setActivityEntries([]);
       setCareCases(demoCareCases);
       setEarlyWarnings(demoEarlyWarnings);
       setPendingHomeVisits(demoHomeVisits);
       setIsLoading(false);
       setIsLoadingTasks(false);
+      setIsLoadingActivity(false);
       return;
     }
 
     setIsLoading(true);
     setIsLoadingTasks(true);
+    setIsLoadingActivity(true);
     setNotice(null);
 
     const todayStr = new Date().toISOString().slice(0, 10);
+    const activityFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     try {
       const [
@@ -466,6 +613,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         signalsRes,
         homeVisitsRes,
         studentsCountRes,
+        activityRes,
       ] = await Promise.all([
         supabase
           .from('notifications')
@@ -505,6 +653,15 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           .select('id', { count: 'exact', head: true })
           .eq('workspace_id', workspaceId)
           .eq('status', 'active'),
+        supabase
+          .from('audit_logs')
+          .select('id,action,entity_id,metadata,created_at')
+          .eq('workspace_id', workspaceId)
+          .eq('actor_profile_id', session.profile.id)
+          .in('action', ['attendance.records.saved', 'attendance.records.undo', 'savings_transaction.created', 'savings_transaction.corrected'])
+          .gte('created_at', activityFrom)
+          .order('created_at', { ascending: false })
+          .limit(120),
       ]);
 
       if (notifsRes.data) {
@@ -580,12 +737,60 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       if (studentsCountRes.count !== null) {
         setTotalStudentsCount(studentsCountRes.count);
       }
+
+      if (activityRes.error) {
+        setActivityEntries([]);
+        setNotice('ยังโหลดประวัติความเคลื่อนไหวไม่ได้ กรุณาลองรีเฟรชอีกครั้ง');
+      } else {
+        const logs = (activityRes.data || []) as ActivityLogRow[];
+        const sessionIds = [...new Set(logs
+          .filter((log) => log.action === 'attendance.records.saved' && log.entity_id)
+          .map((log) => log.entity_id as string))];
+        const transactionIds = [...new Set(logs.flatMap((log) => {
+          if (log.action !== 'savings_transaction.created' && log.action !== 'savings_transaction.corrected') return [];
+          const correctionId = log.metadata?.correction_id;
+          return [log.entity_id, typeof correctionId === 'string' ? correctionId : null].filter((id): id is string => Boolean(id));
+        }))];
+        const attendanceStudentIds = [...new Set(logs.flatMap((log) => {
+          if (log.action !== 'attendance.records.saved') return [];
+          return ['late_student_ids', 'absent_student_ids', 'leave_student_ids', 'sick_student_ids']
+            .flatMap((key) => Array.isArray(log.metadata?.[key]) ? (log.metadata?.[key] as unknown[]).map(String) : []);
+        }))];
+
+        const [attendanceDetailsRes, savingsDetailsRes, activityStudentsRes] = await Promise.all([
+          sessionIds.length
+            ? supabase.from('attendance_records')
+              .select('session_id,status,student:students(first_name,last_name,student_code)')
+              .eq('workspace_id', workspaceId)
+              .in('session_id', sessionIds)
+            : Promise.resolve({ data: [] }),
+          transactionIds.length
+            ? supabase.from('savings_transactions')
+              .select('id,amount,student_id,transaction_type,student:students(first_name,last_name,student_code)')
+              .eq('workspace_id', workspaceId)
+              .in('id', transactionIds)
+            : Promise.resolve({ data: [] }),
+          attendanceStudentIds.length
+            ? supabase.from('students')
+              .select('id,first_name,last_name,student_code')
+              .eq('workspace_id', workspaceId)
+              .in('id', attendanceStudentIds)
+            : Promise.resolve({ data: [] }),
+        ]);
+        setActivityEntries(buildActivityFeed(
+          logs,
+          (attendanceDetailsRes.data || []) as unknown as AttendanceActivityRecord[],
+          (savingsDetailsRes.data || []) as unknown as SavingsActivityTransaction[],
+          (activityStudentsRes.data || []) as ActivityStudentDirectoryRow[],
+        ));
+      }
     } catch (err: unknown) {
       const e = err as Error;
       setNotice(`เกิดข้อผิดพลาดในการโหลดข้อมูล: ${e.message}`);
     } finally {
       setIsLoading(false);
       setIsLoadingTasks(false);
+      setIsLoadingActivity(false);
     }
   }, [demoMode, session.profile.id, workspaceId]);
 
@@ -602,6 +807,15 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       }),
     [filter, notifications],
   );
+
+  const activityGroups = useMemo(() => {
+    const groups = new Map<string, ActivityFeedEntry[]>();
+    activityEntries.forEach((entry) => {
+      const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date(entry.created_at));
+      groups.set(dayKey, [...(groups.get(dayKey) || []), entry]);
+    });
+    return [...groups.entries()];
+  }, [activityEntries]);
 
   const unreadCount = notifications.filter((notification) => !notification.read_at).length;
   // Total Action Items count
@@ -811,6 +1025,22 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
 
           <button
             className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+              activeTab === 'activity'
+                ? 'bg-slate-950 text-white shadow-md'
+                : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
+            }`}
+            onClick={() => setActiveTab('activity')}
+            type="button"
+          >
+            <Activity size={15} />
+            ความเคลื่อนไหว
+            {activityEntries.length > 0 ? (
+              <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-[10px] font-black text-white">{activityEntries.length}</span>
+            ) : null}
+          </button>
+
+          <button
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
               activeTab === 'inbox'
                 ? 'bg-slate-950 text-white shadow-md'
                 : 'bg-white text-slate-600 hover:bg-slate-50 ring-1 ring-slate-200'
@@ -843,12 +1073,12 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
 
         <button
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
-          disabled={isLoading || isLoadingTasks}
+          disabled={isLoading || isLoadingTasks || isLoadingActivity}
           onClick={() => void loadData()}
           title="รีเฟรชข้อมูลล่าสุด"
           type="button"
         >
-          <RefreshCw className={isLoading || isLoadingTasks ? 'animate-spin' : ''} size={14} />
+          <RefreshCw className={isLoading || isLoadingTasks || isLoadingActivity ? 'animate-spin' : ''} size={14} />
           รีเฟรช
         </button>
       </div>
@@ -1138,6 +1368,74 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             </div>
           )}
         </div>
+      ) : null}
+
+      {/* TAB: ประวัติความเคลื่อนไหวของผู้ใช้ใน Workspace นี้ */}
+      {activeTab === 'activity' ? (
+        <section className="mt-4 space-y-4">
+          <article className="nexus-card overflow-hidden">
+            <div className="flex flex-col gap-3 border-b border-cyan-100 bg-cyan-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="inline-flex items-center gap-2 text-xs font-black text-cyan-800"><Activity size={15} /> ประวัติการใช้งานของฉัน</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">สรุปสิ่งที่บันทึกในระบบ</h2>
+                <p className="mt-1 text-xs font-semibold text-slate-600">แสดงเฉพาะรายการที่คุณบันทึกในโรงเรียนที่เลือก พร้อมรายชื่อนักเรียนที่ต้องติดตาม</p>
+              </div>
+              <span className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600 ring-1 ring-slate-200">ย้อนหลัง 30 วัน · {activityEntries.length} รายการ</span>
+            </div>
+
+            <div className="space-y-4 p-4 sm:p-5">
+              {isLoadingActivity ? (
+                <div className="py-10 text-center"><NexusAuroraInline label="กำลังโหลดประวัติความเคลื่อนไหว…" /></div>
+              ) : activityGroups.length ? activityGroups.map(([day, entries]) => {
+                const savings = entries.filter((entry) => entry.action === 'savings_transaction.created');
+                const deposits = savings.filter((entry) => entry.moneyDirection === 'deposit');
+                const withdrawals = savings.filter((entry) => entry.moneyDirection === 'withdrawal');
+                const depositTotal = deposits.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+                const withdrawalTotal = withdrawals.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+                const saverCount = new Set(deposits.flatMap((entry) => entry.details)).size;
+                return (
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" key={day}>
+                    <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 text-sm font-black text-slate-900"><CalendarDays size={16} className="text-cyan-700" />{formatDate(`${day}T12:00:00+07:00`)}</div>
+                      <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+                        {entries.some((entry) => entry.action.startsWith('attendance.')) ? <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-800">เช็กชื่อ {entries.filter((entry) => entry.action.startsWith('attendance.')).length} ครั้ง</span> : null}
+                        {savings.length ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800">ฝาก {depositTotal.toLocaleString('th-TH')} บาท · {saverCount} คน</span> : null}
+                        {withdrawals.length ? <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-800">ถอน {withdrawalTotal.toLocaleString('th-TH')} บาท</span> : null}
+                      </div>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {entries.map((entry) => (
+                        <div className="flex gap-3 px-4 py-3" key={entry.id}>
+                          <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl ${entry.action.startsWith('attendance.') ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                            {entry.action.startsWith('attendance.') ? <Users size={17} /> : <Banknote size={17} />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-black text-slate-900">{entry.title}</p>
+                              <time className="text-[11px] font-bold text-slate-500">{new Date(entry.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}</time>
+                            </div>
+                            <p className="mt-1 text-xs font-semibold text-slate-600">{entry.summary}</p>
+                            {entry.details.length ? (
+                              <ul className="mt-2 space-y-1 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                                {entry.details.map((detail) => <li key={detail}>{detail}</li>)}
+                              </ul>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+                  <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-cyan-700 shadow-sm"><Activity size={21} /></span>
+                  <p className="mt-3 text-sm font-black text-slate-800">ยังไม่มีความเคลื่อนไหวในช่วงนี้</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">เมื่อบันทึกเช็กชื่อหรือเงินออม รายการสรุปจะปรากฏที่นี่</p>
+                </div>
+              )}
+            </div>
+          </article>
+        </section>
       ) : null}
 
       {/* TAB 2: กล่องข้อความแจ้งเตือน (INBOX) */}

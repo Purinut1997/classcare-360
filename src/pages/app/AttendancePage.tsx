@@ -879,9 +879,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
       entityTable: 'attendance_sessions',
       metadata: {
         absent_count: summary.find((item) => item.value === 'absent')?.count || 0,
+        absent_student_ids: payload.filter((record) => record.status === 'absent').map((record) => record.student_id),
         attendance_date: activeSession.attendance_date,
         classroom_name: selectedClassroom?.name || '',
         late_count: summary.find((item) => item.value === 'late')?.count || 0,
+        late_student_ids: payload.filter((record) => record.status === 'late').map((record) => record.student_id),
         leave_count: summary.find((item) => item.value === 'leave')?.count || 0,
         period_label: activeSession.period_label,
         present_count: summary.find((item) => item.value === 'present')?.count || 0,
