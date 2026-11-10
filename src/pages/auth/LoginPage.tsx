@@ -97,9 +97,10 @@ function getModeFromQuery(mode: string | null): AuthMode {
 
 interface LoginPageProps {
   session?: AppSessionContext | null;
+  sessionWarning?: string | null;
 }
 
-export function LoginPage({ session }: LoginPageProps) {
+export function LoginPage({ session, sessionWarning }: LoginPageProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getModeFromQuery(searchParams.get('mode'));
@@ -111,6 +112,7 @@ export function LoginPage({ session }: LoginPageProps) {
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [showMobileFeatures, setShowMobileFeatures] = useState(false);
   const [notice, setNotice] = useState<string | null>(() => {
+    if (sessionWarning) return sessionWarning;
     if (searchParams.get('reset') === 'success') return 'ตั้งรหัสผ่านใหม่สำเร็จแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่';
     return isSupabaseReady ? null : 'ยังไม่ได้ตั้งค่า .env.local จึงแสดงเป็นโหมดตัวอย่างก่อน';
   });
@@ -123,6 +125,10 @@ export function LoginPage({ session }: LoginPageProps) {
     if (!session) return;
     navigate(getPostAuthRouteForSession(session, searchParams.get('redirect')), { replace: true });
   }, [navigate, searchParams, session]);
+
+  useEffect(() => {
+    if (sessionWarning) setNotice(sessionWarning);
+  }, [sessionWarning]);
 
   function switchMode(nextMode: AuthMode) {
     const next = new URLSearchParams(searchParams);

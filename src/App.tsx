@@ -1,11 +1,12 @@
 import { lazy, Suspense, useMemo } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 
 import { getInitialRouteForSession, getPostAuthRouteForSession, getRouteGuardPreview, withDemoContext } from './lib/auth';
 import { appEnv } from './lib/env';
 import { canUseModule, getEntitlementSummary } from './lib/entitlements';
 import { canManageWorkspace, hasWorkspaceCapability, roleLabels, type WorkspaceCapabilityKey } from './lib/roles';
-import { useAppSession } from './lib/session';
+import { getSessionLoadErrorMessage, useAppSession } from './lib/session';
 import { isSupabaseReady } from './lib/supabaseClient';
 import { NexusAuroraLoader } from './components/system/NexusAuroraLoader';
 import { AppShell } from './layouts/AppShell';
@@ -272,6 +273,30 @@ function getAllowedRolesForNavItem(key: string) {
 
 function SessionStateScreen({ detail, title }: { detail: string; title: string }) {
   return <NexusAuroraLoader message={detail} title={title} variant="page" />;
+}
+
+function SessionRecoveryScreen({ detail, onRetry, loginPath }: { detail: string; onRetry: () => void; loginPath: string }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#f5f8fb] px-4 py-10">
+      <section aria-live="assertive" className="w-full max-w-xl rounded-3xl border border-amber-200 bg-white p-7 shadow-xl shadow-slate-900/5 sm:p-9" role="alert">
+        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+          <AlertTriangle aria-hidden="true" size={26} />
+        </div>
+        <p className="mt-5 text-xs font-black uppercase tracking-[0.12em] text-sky-800">ClassCare 360 · ตรวจสอบบัญชี</p>
+        <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">เปิดข้อมูลบัญชีไม่สำเร็จ</h1>
+        <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">{detail}</p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-slate-800" onClick={onRetry} type="button">
+            <RefreshCw aria-hidden="true" size={16} /> ลองอีกครั้ง
+          </button>
+          <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-700 transition hover:bg-slate-50" to={loginPath}>
+            <LogIn aria-hidden="true" size={16} /> ไปหน้าเข้าสู่ระบบ
+          </Link>
+        </div>
+        <p className="mt-5 border-t border-slate-100 pt-4 text-xs font-semibold leading-5 text-slate-500">ระบบยังไม่เปิดข้อมูลโรงเรียนจนกว่าจะตรวจสอบสิทธิ์บัญชีได้ เพื่อป้องกันข้อมูลข้ามบัญชี</p>
+      </section>
+    </main>
+  );
 }
 
 function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
@@ -622,14 +647,16 @@ function PortalInvitationsRoute({ session }: { session: AppSessionContext | null
 
 function AppRoutes() {
   const location = useLocation();
-  const { error, session, state } = useAppSession(location.search);
+  const { error, retry, session, state } = useAppSession(location.search);
+  const isPublicRoute = ['/', '/login', '/pricing', '/public/report', '/support', '/report-lookup'].includes(location.pathname);
+  const loginPath = `/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
-  if (state === 'loading' && location.pathname !== '/') {
+  if (state === 'loading' && !isPublicRoute) {
     return <SessionStateScreen detail="กำลังตรวจสอบสิทธิ์ความปลอดภัยและเตรียมข้อมูลผู้ใช้" title="กำลังเข้าสู่ระบบ" />;
   }
 
-  if (state === 'error' && location.pathname !== '/') {
-    return <SessionStateScreen detail={error || 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง'} title="เกิดข้อผิดพลาดในการโหลดระบบ" />;
+  if (state === 'error' && !isPublicRoute) {
+    return <SessionRecoveryScreen detail={getSessionLoadErrorMessage(error)} loginPath={loginPath} onRetry={retry} />;
   }
 
   if (session?.profile.needsProfile && !['/auth/complete-profile', '/auth/reset-password'].includes(location.pathname)) {
@@ -651,7 +678,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<LandingPage session={session} />} path="/" />
-      <Route element={<LoginPage session={session} />} path="/login" />
+      <Route element={<LoginPage session={session} sessionWarning={state === 'error' ? getSessionLoadErrorMessage(error) : null} />} path="/login" />
       <Route element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />} path="/auth/complete-profile" />
       <Route element={session ? <ResetPasswordPage /> : <Navigate replace to="/login?mode=forgot" />} path="/auth/reset-password" />
       <Route element={<PricingPage />} path="/pricing" />

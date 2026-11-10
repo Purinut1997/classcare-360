@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { demoModeQueryKey, demoWorkspaceQueryKey, getDemoSession } from './auth';
 import { supabase } from './supabaseClient';
@@ -22,6 +22,7 @@ export function requestAppSessionRefresh() {
 interface UseAppSessionResult {
   error: string | null;
   isDemoMode: boolean;
+  retry: () => void;
   session: AppSessionContext | null;
   state: SessionLoadState;
 }
@@ -354,9 +355,16 @@ export function useAppSession(search: string): UseAppSessionResult {
   );
   const [state, setState] = useState<SessionLoadState>(() => (!supabase || forcedDemo ? 'demo' : 'loading'));
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const retry = useCallback(() => {
+    setError(null);
+    setState('loading');
+    setRetryCount((count) => count + 1);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
+    let hasResolvedSession = false;
 
     if (!supabase || forcedDemo) {
       setSession(getDemoSession(demoMode, demoWorkspaceId));
@@ -374,11 +382,15 @@ export function useAppSession(search: string): UseAppSessionResult {
       try {
         const nextSession = await resolveSupabaseSession();
         if (!isMounted) return;
+        hasResolvedSession = true;
         setSession(nextSession);
         setState('ready');
       } catch (loadError) {
         if (!isMounted) return;
-        if (!isBackground) {
+        // A failed initial auth/profile lookup must leave a recoverable error
+        // state. Background refresh failures after a successful load should not
+        // tear down a teacher's active screen.
+        if (!isBackground || !hasResolvedSession) {
           setSession(null);
           setState('error');
           setError(loadError instanceof Error ? loadError.message : 'โหลด session ไม่สำเร็จ');
@@ -413,12 +425,29 @@ export function useAppSession(search: string): UseAppSessionResult {
       subscription.unsubscribe();
       window.removeEventListener(sessionRefreshEvent, handleSessionRefresh);
     };
-  }, [demoMode, demoWorkspaceId, forcedDemo]);
+  }, [demoMode, demoWorkspaceId, forcedDemo, retryCount]);
 
   return {
     error,
     isDemoMode: !supabase || forcedDemo,
+    retry,
     session,
     state,
   };
+}
+
+export function getSessionLoadErrorMessage(rawError?: string | null) {
+  const message = (rawError || '').toLowerCase();
+
+  if (/failed to fetch|fetch failed|network error|load failed|timeout|timed out/.test(message)) {
+    return 'เชื่อมต่อบริการบัญชีไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง';
+  }
+  if (/refresh token|jwt expired|invalid.*token|session.*expired/.test(message)) {
+    return 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่ แล้วลองเปิดหน้านี้อีกครั้ง';
+  }
+  if (/pgrst205|42p01|schema cache|does not exist/.test(message)) {
+    return 'ข้อมูลบัญชีบางส่วนยังอัปเดตไม่ครบ กรุณาลองใหม่อีกครั้ง หากยังพบปัญหาให้ผู้ดูแลตรวจการอัปเดตระบบ';
+  }
+
+  return 'ตรวจสอบบัญชีและสิทธิ์การใช้งานไม่สำเร็จ กรุณาลองอีกครั้ง';
 }
