@@ -28,6 +28,9 @@ export async function sendTeacherReport({ body, eventId, kind, session, title }:
       type: kind,
       workspaceId,
     },
+    // Report delivery is a secondary background action. Its network failure
+    // must not be presented as if the savings/attendance record itself failed.
+    headers: { 'x-silent': 'true' },
   });
 
   if (error) console.warn('Unable to deliver personal teacher report:', error.message);
