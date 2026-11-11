@@ -8,8 +8,10 @@ import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
+import { MenuUsageInsights } from '../../components/dashboard/MenuUsageInsights';
 import { MemberAccessControl } from '../../components/workspace/MemberAccessControl';
 import { WorkspaceAiSettingsCard } from '../../components/workspace/WorkspaceAiSettingsCard';
+import { appNavItems } from '../../routes/appRoutes';
 
 interface WorkspaceSettingsPageProps {
   session: AppSessionContext;
@@ -1900,6 +1902,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </div>
           )}
         </section>
+      )}
+
+      {activeSettingsTab === 'all' && (
+        <details className="mt-5 rounded-[26px] border border-slate-200 bg-white/80 p-4 shadow-sm">
+          <summary className="cursor-pointer list-none text-xs font-black text-slate-600 hover:text-slate-950">
+            📊 สถิติการใช้งานเมนูของโรงเรียนและการตั้งค่าความเป็นส่วนตัว (คลิกเพื่อดู)
+          </summary>
+          <MenuUsageInsights navItems={appNavItems} session={session} />
+        </details>
       )}
 
       {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && canUseDestructiveActions ? (
