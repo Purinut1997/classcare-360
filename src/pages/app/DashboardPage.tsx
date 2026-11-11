@@ -1237,55 +1237,57 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
   return (
     <main className="app-page dashboard-premium">
-      {/* Friendly Hero Banner & Classroom Header */}
-      <div className="relative overflow-hidden flex flex-col gap-4 rounded-[30px] border-2 border-[#e6dcce] bg-[#fbf7ee] p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 xl:p-8">
-        {/* Cute Tape Sticker */}
-        <span className="absolute -top-1.5 left-12 w-14 h-3.5 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[-2deg] pointer-events-none" />
+      {/* Friendly Stationery Hero Banner & Classroom Header (Style A) */}
+      <div className="relative flex flex-col gap-4 rounded-[28px] border-2 border-[#e3d6c1] bg-[#fbf7ee] p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        {/* Cute Striped Washi Tape Sticker */}
+        <span aria-hidden="true" className="pointer-events-none absolute -top-2 left-10 h-3.5 w-16 rotate-[-2deg] rounded-sm border border-amber-200/80 washi-amber shadow-sm" />
 
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">☀️</span>
-            <h1 className="text-xl font-black tracking-tight text-[#1c1917] sm:text-2xl xl:text-4xl">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <span aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border-2 border-amber-200 bg-white text-2xl shadow-sm sm:h-14 sm:w-14 sm:text-3xl">
+            ☀️
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-xl font-black tracking-tight text-stone-950 sm:text-2xl">
               สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'} 🎒
             </h1>
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-stone-600">
+              <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
+              <span>·</span>
+              <span className={isSelectedClassroomHomeroom ? 'font-black text-amber-800' : 'text-stone-800'}>
+                {isSelectedClassroomHomeroom ? '⭐ ห้องที่ปรึกษา: ' : 'ห้องเรียน: '}
+                {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
+              </span>
+              <span>·</span>
+              <span>{formatThaiRecordDate(getBangkokDate())}</span>
+              {isSelectedClassroomHomeroom && (
+                <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-black text-amber-900">
+                  คุณเป็นครูที่ปรึกษา
+                </span>
+              )}
+              {attendanceTrendDelta !== null && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-black ${
+                    attendanceTrendDelta >= 0
+                      ? 'border border-emerald-300 bg-emerald-100 text-emerald-900'
+                      : 'border border-rose-300 bg-rose-100 text-rose-900'
+                  }`}
+                  title="เปรียบเทียบอัตราการมาเรียน 3 วันล่าสุด กับ 3 วันก่อนหน้า"
+                >
+                  {attendanceTrendDelta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                  {attendanceTrendDelta >= 0 ? '+' : ''}{attendanceTrendDelta}% สัปดาห์นี้
+                </span>
+              )}
+            </p>
           </div>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-bold text-stone-600">
-            <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
-            <span>·</span>
-            <span className={isSelectedClassroomHomeroom ? 'font-black text-amber-800' : 'text-stone-800'}>
-              {isSelectedClassroomHomeroom ? '⭐ ห้องที่ปรึกษา: ' : 'ห้องเรียน: '}
-              {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
-            </span>
-            <span>·</span>
-            <span>{formatThaiRecordDate(getBangkokDate())}</span>
-            {isSelectedClassroomHomeroom && (
-              <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 shadow-2xs">
-                คุณเป็นครูที่ปรึกษา
-              </span>
-            )}
-            {attendanceTrendDelta !== null && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black shadow-2xs ${
-                  attendanceTrendDelta >= 0
-                    ? 'border border-emerald-300 bg-emerald-100 text-emerald-900'
-                    : 'border border-rose-300 bg-rose-100 text-rose-900'
-                }`}
-                title="เปรียบเทียบอัตราการมาเรียน 3 วันล่าสุด กับ 3 วันก่อนหน้า"
-              >
-                {attendanceTrendDelta >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                {attendanceTrendDelta >= 0 ? '+' : ''}{attendanceTrendDelta}% สัปดาห์นี้
-              </span>
-            )}
-          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Quick switch to advisory classroom if currently looking at another room */}
           {myAdvisoryClassroom && selectedClassroomId !== myAdvisoryClassroom.id && (
             <button
               type="button"
               onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
-              className="flex items-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-amber-100/90 px-3.5 py-2 text-xs font-black text-amber-900 shadow-xs transition-all hover:bg-amber-200 active:scale-95"
+              className="flex items-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-amber-100/90 px-3.5 py-2 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95"
               title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
             >
               <span>⭐ กลับไปห้องที่ปรึกษา ({myAdvisoryClassroom.name})</span>
@@ -1296,22 +1298,22 @@ export function DashboardPage({ session }: DashboardPageProps) {
           {classrooms.length > 0 ? (
             <div className="relative inline-block text-left">
               <div
-                className={`flex items-center gap-2 rounded-2xl border-2 p-2 px-3.5 shadow-xs transition-all ${
+                className={`flex items-center gap-2 rounded-2xl border-2 bg-white px-3.5 py-2 shadow-sm transition-all ${
                   isSelectedClassroomHomeroom
-                    ? 'border-amber-300 bg-amber-50/90 text-amber-950'
-                    : 'border-[#cbd5e1] bg-white text-slate-800'
+                    ? 'border-amber-300 text-amber-950'
+                    : 'border-stone-300 text-stone-800'
                 }`}
               >
                 {isSelectedClassroomHomeroom ? (
                   <span className="text-sm">⭐</span>
                 ) : (
-                  <School className="text-teal-700" size={17} aria-hidden="true" />
+                  <School className="text-teal-700" size={16} aria-hidden="true" />
                 )}
-                <span className="text-xs font-black text-slate-500">
-                  {isSelectedClassroomHomeroom ? 'ห้องที่ปรึกษา:' : 'เลือกห้อง:'}
+                <span className="text-xs font-black text-stone-500">
+                  {isSelectedClassroomHomeroom ? 'ห้อง:' : 'เลือกห้อง:'}
                 </span>
                 <select
-                  className="cursor-pointer bg-transparent pr-4 text-sm font-black text-slate-900 focus:outline-none"
+                  className="cursor-pointer bg-transparent pr-4 text-xs font-black text-stone-900 focus:outline-none sm:text-sm"
                   value={selectedClassroomId}
                   onChange={(e) => setSelectedClassroomId(e.target.value)}
                 >
@@ -1325,13 +1327,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
                     );
                   })}
                 </select>
-                <ChevronDown className="pointer-events-none -ml-4 text-slate-400" size={16} />
+                <ChevronDown className="pointer-events-none -ml-4 text-stone-400" size={16} />
               </div>
             </div>
           ) : null}
 
           <Link
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white px-5 text-sm font-black shadow-md shadow-emerald-700/20 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border-b-4 border-emerald-700 bg-emerald-500 px-5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-600 active:translate-y-0.5"
             to="/app/dashboard?view=teacher-work"
           >
             <CalendarClock size={18} aria-hidden="true" />
@@ -1340,7 +1342,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         </div>
       </div>
 
-      {/* 🔔 HOMEPAGE CALENDAR NOTIFICATION & REMINDER BANNER (Always visible in both modes!) */}
+      {/* 🔔 HOMEPAGE CALENDAR NOTIFICATION & REMINDER POST-IT BANNER */}
       {(() => {
         const todayStr = getBangkokDate();
         const todayEvents = upcomingEvents.filter((ev) => {
@@ -1358,28 +1360,28 @@ export function DashboardPage({ session }: DashboardPageProps) {
           const primaryEvent = todayEvents[0];
           const conf = eventTypeConfig[primaryEvent.type] || eventTypeConfig.custom;
           return (
-            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="relative mt-5 overflow-hidden rounded-[26px] border-2 border-amber-300 bg-gradient-to-r from-amber-100/90 via-amber-50 to-orange-100/80 p-4 sm:p-5 shadow-sm">
-              {/* Cute Tape */}
-              <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-12 h-3.5 bg-white/90 border border-amber-300 rounded-xs shadow-2xs rotate-[1deg] pointer-events-none" />
+            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="relative mt-4 rounded-[24px] border-2 border-amber-300 bg-[#fff5cf] p-4 shadow-sm sm:px-5">
+              {/* Cute Pink Washi Tape */}
+              <span aria-hidden="true" className="pointer-events-none absolute -top-2 left-1/2 hidden h-3.5 w-14 -translate-x-1/2 rotate-[1deg] rounded-sm border border-rose-200/70 washi-pink shadow-sm sm:block" />
 
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-start sm:items-center gap-3 min-w-0">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 text-xl">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-400 text-xl text-stone-950 shadow-sm">
                     🔔
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-amber-600 text-white px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider shadow-2xs">
+                      <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-xs font-black text-white shadow-sm">
                         แจ้งเตือนวันนี้ 📌
                       </span>
-                      <span className={`rounded-full border px-2.5 py-0.5 text-[10.5px] font-black ${conf.badge}`}>
+                      <span className={`rounded-full border px-2.5 py-0.5 text-xs font-black ${conf.badge}`}>
                         {conf.icon} {conf.label}
                       </span>
                     </div>
-                    <h3 className="mt-1 text-base sm:text-lg font-black text-slate-950 truncate">
+                    <h3 className="mt-1 truncate text-base font-black text-slate-950 sm:text-lg">
                       {todayEvents.map((e) => e.title).join(' · ')}
                     </h3>
-                    <p className="mt-0.5 text-xs font-bold text-slate-600">
+                    <p className="mt-0.5 text-xs font-bold text-stone-600">
                       {todayEvents.length > 1
                         ? `มีทั้งหมด ${todayEvents.length} รายการวันนี้`
                         : primaryEvent.type === 'holiday'
@@ -1391,10 +1393,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
                   <Link
                     to="/app/dashboard?view=school-calendar"
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-4 text-xs font-black text-white hover:bg-slate-800 transition shadow-xs active:scale-95"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-stone-900 px-4 text-xs font-black text-white shadow-sm transition hover:bg-stone-800 active:scale-95"
                   >
                     <span>เปิดปฏิทินโรงเรียน</span>
                     <ArrowRight size={14} />
@@ -1412,24 +1414,23 @@ export function DashboardPage({ session }: DashboardPageProps) {
           const daysFromNow = Math.round((featuredDate.getTime() - Date.now()) / 86_400_000);
           const featuredDateLabel = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }).format(featuredDate);
           return (
-            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="relative mt-5 overflow-hidden rounded-[28px] border-2 border-amber-300 bg-gradient-to-r from-[#fff3c4] via-[#fff9e7] to-[#fff2dc] p-4 shadow-sm sm:p-5">
-              <span aria-hidden="true" className="absolute -top-1 left-[22%] h-4 w-14 -rotate-2 border border-amber-200 bg-white/80 shadow-xs" />
-              <span aria-hidden="true" className="pointer-events-none absolute -bottom-8 right-10 text-7xl opacity-[0.08]">🏫</span>
-              <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-                  <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-[22px] bg-amber-500 text-2xl text-white shadow-md shadow-amber-700/15">🔔</span>
+            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="relative mt-4 rounded-[24px] border-2 border-amber-300 bg-[#fff5cf] p-4 shadow-sm sm:px-5">
+              <span aria-hidden="true" className="pointer-events-none absolute -top-2 left-[22%] h-3.5 w-14 -rotate-2 rounded-sm border border-rose-200/70 washi-pink shadow-sm" />
+              <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-400 text-xl text-stone-950 shadow-sm">🔔</span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-amber-600 px-2.5 py-1 text-[10px] font-black text-white">แจ้งเตือนกำหนดการ 📌</span>
-                      <span className={`rounded-full border border-white/80 bg-white/80 px-2.5 py-1 text-[10px] font-black ${featuredConfig.badge}`}>{featuredConfig.icon} {featuredConfig.label}</span>
-                      <span className="rounded-full border border-sky-200 bg-sky-100 px-2.5 py-1 text-[10px] font-black text-sky-800">{daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`}</span>
+                      <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-xs font-black text-white">แจ้งเตือนกำหนดการ 📌</span>
+                      <span className={`rounded-full border border-white/80 bg-white/85 px-2.5 py-0.5 text-xs font-black ${featuredConfig.badge}`}>{featuredConfig.icon} {featuredConfig.label}</span>
+                      <span className="rounded-full border border-sky-200 bg-sky-100 px-2.5 py-0.5 text-xs font-black text-sky-900">{daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`}</span>
                     </div>
-                    <h3 className="mt-1 text-base font-black text-slate-950 sm:text-xl">{featuredEvent.title}</h3>
-                    <p className="mt-0.5 text-xs font-bold text-slate-600">{featuredDateLabel}{upcomingSlice.length > 1 ? ` · มีกำหนดการถัดไปอีก ${upcomingSlice.length - 1} รายการ` : ' · กิจกรรมของโรงเรียนที่กำลังจะถึง'}</p>
+                    <h3 className="mt-1 truncate text-base font-black text-slate-950 sm:text-lg">{featuredEvent.title}</h3>
+                    <p className="mt-0.5 text-xs font-bold text-stone-600">{featuredDateLabel}{upcomingSlice.length > 1 ? ` · มีกำหนดการถัดไปอีก ${upcomingSlice.length - 1} รายการ` : ' · กิจกรรมของโรงเรียนที่กำลังจะถึง'}</p>
                   </div>
                 </div>
-                <Link to="/app/dashboard?view=school-calendar" className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start rounded-2xl bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 sm:self-center sm:px-5 sm:text-sm">
-                  เปิดปฏิทินโรงเรียน <ArrowRight size={15} />
+                <Link to="/app/dashboard?view=school-calendar" className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 self-end rounded-xl bg-stone-900 px-4 text-xs font-black text-white shadow-sm transition hover:bg-stone-800 sm:self-center">
+                  เปิดปฏิทินโรงเรียน <ArrowRight size={14} />
                 </Link>
               </div>
             </section>
@@ -1450,16 +1451,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
         totalPeriodCount={totalPeriodCount}
       />
 
-      {/* 🚀 MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
-      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-2 shadow-2xs sm:w-fit">
-        <div className="flex items-center gap-1.5 p-1 bg-[#ede4d5] rounded-xl w-full sm:w-auto">
+      {/* 🚀 BOOKMARK MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border-2 border-[#e3d6c1] bg-[#fbf7ee] p-1.5 shadow-sm sm:w-fit">
+        <div className="flex w-full items-center gap-1.5 rounded-xl bg-[#ede4d5] p-1 sm:w-auto">
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('shortcuts')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-3.5 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
+            className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-black transition-all sm:flex-initial sm:gap-2 sm:px-4 ${
               dashboardViewMode === 'shortcuts'
-                ? 'bg-white text-emerald-950 shadow-sm ring-1 ring-stone-300 scale-[1.01]'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                ? 'bg-white text-emerald-950 shadow-sm ring-1 ring-amber-200/80'
+                : 'text-stone-600 hover:bg-white/60 hover:text-stone-900'
             }`}
           >
             <Sparkles size={15} className={dashboardViewMode === 'shortcuts' ? 'text-emerald-600' : 'text-stone-400'} />
@@ -1470,60 +1471,61 @@ export function DashboardPage({ session }: DashboardPageProps) {
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('analytics')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-3.5 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap ${
+            className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-black transition-all sm:flex-initial sm:gap-2 sm:px-4 ${
               dashboardViewMode === 'analytics'
-                ? 'bg-white text-sky-950 shadow-sm ring-1 ring-stone-300 scale-[1.01]'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                ? 'bg-white text-sky-950 shadow-sm ring-1 ring-sky-200/80'
+                : 'text-stone-600 hover:bg-white/60 hover:text-stone-900'
             }`}
           >
             <FileSpreadsheet size={15} className={dashboardViewMode === 'analytics' ? 'text-sky-600' : 'text-stone-400'} />
             <span className="sm:hidden">สถิติภาพรวม</span>
-            <span className="hidden sm:inline">สถิติ & กราฟวิเคราะห์ห้องเรียน</span>
+            <span className="hidden sm:inline">สถิติ &amp; กราฟวิเคราะห์ห้องเรียน</span>
           </button>
         </div>
       </div>
 
       {dashboardViewMode === 'shortcuts' ? (
-        <section aria-label="งานประจำวันของห้องนี้" className="relative mt-4 overflow-hidden rounded-[30px] border-2 border-[#e8dfd2] bg-[#fffdf8] p-4 shadow-sm sm:p-5 xl:p-6" style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0, transparent 39px, rgb(148 163 184 / 0.10) 40px, transparent 41px)', backgroundPosition: '0 18px' }}>
-          <span aria-hidden="true" className="absolute -top-1 left-[18%] h-4 w-14 rotate-[-3deg] border border-amber-200/80 bg-white/85 shadow-sm" />
-          <span aria-hidden="true" className="absolute -top-1 right-[16%] h-4 w-14 rotate-[2deg] border border-sky-200/80 bg-white/85 shadow-sm" />
+        <section aria-label="งานประจำวันของห้องนี้" className="notebook-paper-lines relative mt-4 rounded-[30px] border-2 border-[#e5d9c5] bg-[#fffdf8] p-4 shadow-sm sm:p-5 xl:p-6">
+          <span aria-hidden="true" className="pointer-events-none absolute -top-2 left-[18%] h-3.5 w-14 rotate-[-3deg] rounded-sm border border-amber-200/80 washi-amber shadow-sm" />
+          <span aria-hidden="true" className="pointer-events-none absolute -top-2 right-[16%] h-3.5 w-14 rotate-[2deg] rounded-sm border border-sky-200/80 washi-sky shadow-sm" />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-xl shadow-sm ring-1 ring-amber-200">📒</span>
+              <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-200 bg-amber-100 text-xl shadow-sm">📒</span>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-700">TODAY · ห้องเรียนของเรา</p>
+                <p className="text-xs font-black tracking-wide text-teal-700">TODAY · ห้องเรียนของเรา</p>
                 <h2 className="mt-0.5 text-base font-black text-slate-950 sm:text-lg">งานประจำวันของห้องนี้</h2>
-                <p className="mt-0.5 text-xs font-semibold text-slate-500">เลือกการ์ดเพื่อเริ่มทำงานหรือดูสถานะล่าสุด</p>
+                <p className="mt-0.5 text-xs font-semibold text-stone-500">เลือกการ์ดเพื่อเริ่มทำงานหรือดูสถานะล่าสุด</p>
               </div>
             </div>
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">{dynamicTodayTasks.length} งานวันนี้ ✨</span>
+            <span className="rounded-full border border-amber-200 bg-amber-100/90 px-3 py-1 text-xs font-black text-amber-900">{dynamicTodayTasks.length} งานวันนี้ ✨</span>
           </div>
-          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {dynamicTodayTasks.slice(0, 4).map((task, index) => {
               const Icon = task.icon;
               const cardTone = [
-                'border-emerald-200 bg-[#e9fbef] hover:border-emerald-300 hover:bg-emerald-50',
-                'border-sky-200 bg-[#edf8ff] hover:border-sky-300 hover:bg-sky-50',
-                'border-violet-200 bg-[#f4efff] hover:border-violet-300 hover:bg-violet-50',
-                'border-amber-200 bg-[#fff8d9] hover:border-amber-300 hover:bg-amber-50',
+                'border-emerald-200 bg-[#e9fbef] hover:border-emerald-300',
+                'border-sky-200 bg-[#eaf6ff] hover:border-sky-300',
+                'border-violet-200 bg-[#f4f0ff] hover:border-violet-300',
+                'border-amber-200 bg-[#fff7df] hover:border-amber-300',
               ][index % 4];
+              const tapeTone = ['washi-mint', 'washi-sky', 'washi-violet', 'washi-amber'][index % 4];
               const iconTone = ['bg-emerald-600', 'bg-sky-600', 'bg-violet-600', 'bg-amber-500'][index % 4];
               return (
                 <Link
                   key={task.label}
                   to={task.path}
-                  className={`group relative flex min-h-[96px] items-center gap-3 rounded-[22px] border p-3.5 shadow-[0_3px_0_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${cardTone}`}
+                  className={`group relative mt-1 flex min-h-[96px] items-center gap-3 rounded-[22px] border-2 p-3.5 pt-4 shadow-[0_4px_0_rgba(120,90,45,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${cardTone}`}
                 >
-                  <span aria-hidden="true" className="absolute -top-1 left-1/2 h-3 w-10 -translate-x-1/2 rotate-1 border border-white/80 bg-white/75 shadow-xs" />
-                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-md transition group-hover:rotate-[-4deg] group-hover:scale-105 ${iconTone}`}>
+                  <span aria-hidden="true" className={`pointer-events-none absolute -top-2 left-1/2 h-3 w-11 -translate-x-1/2 rotate-1 rounded-sm border border-white/80 shadow-sm ${tapeTone}`} />
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-sm transition group-hover:scale-105 ${iconTone}`}>
                     <Icon size={18} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-black text-slate-900">{task.label}</span>
-                    <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{task.detail}</span>
+                    <span className="mt-0.5 block truncate text-xs font-semibold text-stone-600">{task.detail}</span>
                   </span>
-                  <span className={`shrink-0 rounded-full border border-white/80 bg-white/80 px-2 py-1 text-[11px] font-black shadow-xs ${task.tone}`}>{task.status}</span>
-                  <ArrowRight aria-hidden="true" className="shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-700" size={15} />
+                  <span className={`shrink-0 rounded-full border border-white/80 bg-white/90 px-2.5 py-1 text-xs font-black shadow-sm ${task.tone}`}>{task.status}</span>
+                  <ArrowRight aria-hidden="true" className="shrink-0 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-stone-700" size={15} />
                 </Link>
               );
             })}

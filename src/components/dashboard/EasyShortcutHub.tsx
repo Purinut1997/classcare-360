@@ -40,14 +40,14 @@ export const SHORTCUT_CATEGORIES = [
     badge: '⭐ 6 ภารกิจหลักครูประจำชั้น',
     desc: 'รวม 6 ภารกิจหลักของครูประจำชั้นไว้ในที่เดียว: ทะเบียน เช็กชื่อ สุขภาพ เวร เงินออม และสรุปรายวัน',
     theme: {
-      frameBg: 'bg-gradient-to-br from-emerald-50/80 via-teal-50/30 to-emerald-50/15',
-      frameBorder: 'border-2 border-emerald-300/90 shadow-sm shadow-emerald-500/5',
-      headerIconBg: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30',
+      frameBg: 'bg-[#f1fcf5]',
+      frameBorder: 'border-2 border-emerald-200/95 shadow-sm',
+      headerIconBg: 'bg-emerald-500 text-white shadow-sm',
       headerTitle: 'text-emerald-950',
-      headerBadge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      headerDesc: 'text-emerald-800/80',
-      divider: 'border-emerald-200/90',
-      tabActive: 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/25',
+      headerBadge: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+      headerDesc: 'text-emerald-800/85',
+      divider: 'border-dashed border-emerald-200',
+      tabActive: 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20',
     },
   },
   {
@@ -57,14 +57,14 @@ export const SHORTCUT_CATEGORIES = [
     badge: '5 เมนูหลัก',
     desc: 'ตารางสอน สมุดคะแนน ตรวจข้อสอบ OMR ศูนย์วิชาการ และพิมพ์รายงาน ปพ.',
     theme: {
-      frameBg: 'bg-gradient-to-br from-sky-50/80 via-blue-50/30 to-sky-50/15',
-      frameBorder: 'border-2 border-sky-300/90 shadow-sm shadow-sky-500/5',
-      headerIconBg: 'bg-sky-600 text-white shadow-md shadow-sky-600/30',
+      frameBg: 'bg-[#f0f7ff]',
+      frameBorder: 'border-2 border-sky-200/95 shadow-sm',
+      headerIconBg: 'bg-sky-500 text-white shadow-sm',
       headerTitle: 'text-sky-950',
-      headerBadge: 'bg-sky-100 text-sky-800 border-sky-300',
-      headerDesc: 'text-sky-800/80',
-      divider: 'border-sky-200/90',
-      tabActive: 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-600/25',
+      headerBadge: 'bg-sky-100 text-sky-900 border-sky-200',
+      headerDesc: 'text-sky-800/85',
+      divider: 'border-dashed border-sky-200',
+      tabActive: 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-500/20',
     },
   },
   {
@@ -74,14 +74,14 @@ export const SHORTCUT_CATEGORIES = [
     badge: '3 เมนูหลัก',
     desc: 'บันทึกพฤติกรรม ประเมินคุณลักษณะ 8 ประการ และแจ้งเตือนเด็กเสี่ยงขาด/ตก',
     theme: {
-      frameBg: 'bg-gradient-to-br from-rose-50/80 via-pink-50/30 to-rose-50/15',
-      frameBorder: 'border-2 border-rose-300/90 shadow-sm shadow-rose-500/5',
-      headerIconBg: 'bg-rose-500 text-white shadow-md shadow-rose-500/30',
+      frameBg: 'bg-[#fff3f6]',
+      frameBorder: 'border-2 border-rose-200/95 shadow-sm',
+      headerIconBg: 'bg-rose-500 text-white shadow-sm',
       headerTitle: 'text-rose-950',
-      headerBadge: 'bg-rose-100 text-rose-800 border-rose-300',
-      headerDesc: 'text-rose-800/80',
-      divider: 'border-rose-200/90',
-      tabActive: 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-600/25',
+      headerBadge: 'bg-rose-100 text-rose-900 border-rose-200',
+      headerDesc: 'text-rose-800/85',
+      divider: 'border-dashed border-rose-200',
+      tabActive: 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-500/20',
     },
   },
   {
@@ -91,14 +91,14 @@ export const SHORTCUT_CATEGORIES = [
     badge: '2 เมนูหลัก',
     desc: 'วงล้อสุ่มนักเรียน & จัดกลุ่ม และปฏิทินโรงเรียน',
     theme: {
-      frameBg: 'bg-gradient-to-br from-amber-50/80 via-yellow-50/30 to-amber-50/15',
-      frameBorder: 'border-2 border-amber-300/90 shadow-sm shadow-amber-500/5',
-      headerIconBg: 'bg-amber-500 text-white shadow-md shadow-amber-500/30',
+      frameBg: 'bg-[#fff9ea]',
+      frameBorder: 'border-2 border-amber-200/95 shadow-sm',
+      headerIconBg: 'bg-amber-500 text-white shadow-sm',
       headerTitle: 'text-amber-950',
-      headerBadge: 'bg-amber-100 text-amber-800 border-amber-300',
-      headerDesc: 'text-amber-800/80',
-      divider: 'border-amber-200/90',
-      tabActive: 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600/25',
+      headerBadge: 'bg-amber-100 text-amber-900 border-amber-200',
+      headerDesc: 'text-amber-800/85',
+      divider: 'border-dashed border-amber-200',
+      tabActive: 'bg-amber-500 text-slate-950 shadow-sm ring-2 ring-amber-400/25',
     },
   },
   {
@@ -108,14 +108,14 @@ export const SHORTCUT_CATEGORIES = [
     badge: '5 เมนูหลัก',
     desc: 'ตั้งค่าโรงเรียน จัดการปีการศึกษา ล็อกงวด นำเข้า/ส่งออก และสำรองข้อมูล',
     theme: {
-      frameBg: 'bg-gradient-to-br from-slate-100/90 via-slate-50/50 to-slate-100/25',
-      frameBorder: 'border-2 border-slate-300/90 shadow-sm shadow-slate-500/5',
-      headerIconBg: 'bg-slate-700 text-white shadow-md shadow-slate-700/30',
-      headerTitle: 'text-slate-900',
-      headerBadge: 'bg-slate-200 text-slate-800 border-slate-300',
-      headerDesc: 'text-slate-700/80',
-      divider: 'border-slate-200/90',
-      tabActive: 'bg-slate-800 text-white shadow-sm ring-2 ring-slate-800/25',
+      frameBg: 'bg-[#fbf7ee]',
+      frameBorder: 'border-2 border-[#e3d6c1] shadow-sm',
+      headerIconBg: 'bg-stone-700 text-white shadow-sm',
+      headerTitle: 'text-stone-900',
+      headerBadge: 'bg-amber-100/70 text-stone-800 border-[#ded1bc]',
+      headerDesc: 'text-stone-600',
+      divider: 'border-dashed border-[#dfd0b8]',
+      tabActive: 'bg-stone-800 text-white shadow-sm ring-2 ring-stone-700/20',
     },
   },
 ] as const;
@@ -640,34 +640,34 @@ export function EasyShortcutHub({
         key={item.id}
         externalUrl={item.externalUrl}
         to={item.path}
-        className={`group relative flex flex-col justify-between rounded-2xl sm:rounded-3xl border ${item.accentColor.border} ${item.accentColor.hoverBorder} bg-white/95 hover:bg-white p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]`}
+        className={`group relative flex flex-col justify-between rounded-[22px] border-2 ${item.accentColor.border} ${item.accentColor.hoverBorder} bg-white/95 p-4 shadow-[0_3px_0_rgba(120,90,45,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md active:scale-[0.99] sm:p-5`}
       >
         <div>
           <div className="flex items-start justify-between gap-3">
-            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${item.accentColor.iconBg} shadow-sm transition-transform duration-200 group-hover:scale-110`}>
-              <Icon size={22} aria-hidden="true" />
+            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${item.accentColor.iconBg} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
+              <Icon size={21} aria-hidden="true" />
             </span>
             {item.badge && (
-              <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black ${item.badgeTone || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-black ${item.badgeTone || 'border-stone-200 bg-stone-100 text-stone-700'}`}>
                 {item.badge}
               </span>
             )}
           </div>
 
-          <h4 className="mt-3.5 text-base font-black text-slate-900 group-hover:text-slate-950 transition-colors">
+          <h4 className="mt-3.5 text-base font-black text-slate-900 transition-colors group-hover:text-slate-950">
             {item.title}
           </h4>
-          <p className="mt-0.5 text-xs font-bold text-slate-600 line-clamp-1">
+          <p className="mt-0.5 line-clamp-1 text-xs font-bold text-stone-600">
             {item.subtitle}
           </p>
-          <p className="mt-2 text-xs font-semibold text-slate-500 line-clamp-2 leading-relaxed">
+          <p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-stone-500">
             {item.description}
           </p>
         </div>
 
-        <div className={`mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-black ${item.accentColor.text}`}>
+        <div className={`mt-4 flex items-center justify-between border-t border-dashed border-stone-200 pt-3 text-xs font-black ${item.accentColor.text}`}>
           <span>เข้าใช้งาน</span>
-          <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
+          <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1" />
         </div>
       </Link>
     );
@@ -675,22 +675,22 @@ export function EasyShortcutHub({
 
   return (
     <div className="space-y-6">
-      {/* 🔎 Compact Filter & Search Toolbar */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+      {/* 🔎 Compact Stationery Filter & Search Toolbar */}
+      <div className="flex flex-col gap-3 rounded-[24px] border-2 border-[#e3d6c1] bg-[#fbf7ee] p-3.5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="relative flex flex-1 items-center lg:max-w-md">
-          <Search className="absolute left-3.5 text-slate-400" size={16} aria-hidden="true" />
+          <Search className="absolute left-3.5 text-stone-400" size={16} aria-hidden="true" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="กรองเมนูในหน้านี้ เช่น เช็กชื่อ, คะแนน, ปพ.5..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-8 text-xs sm:text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
+            className="w-full rounded-xl border border-[#d9cab3] bg-white py-2 pl-9 pr-8 text-xs font-bold text-slate-900 placeholder:text-stone-400 transition-all focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 sm:text-sm"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 grid h-6 w-6 place-items-center rounded-full bg-slate-200/80 text-slate-600 hover:bg-slate-300"
+              className="absolute right-2.5 grid h-6 w-6 place-items-center rounded-full bg-stone-200/80 text-stone-600 hover:bg-stone-300"
               aria-label="ล้างคำค้นหา"
             >
               <X size={13} />
@@ -704,10 +704,10 @@ export function EasyShortcutHub({
               key={tag.label}
               type="button"
               onClick={() => setSearchQuery(searchQuery === tag.query ? '' : tag.query)}
-              className={`shrink-0 whitespace-nowrap rounded-xl border px-2.5 py-1.5 text-xs font-bold transition-all ${
+              className={`shrink-0 whitespace-nowrap rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
                 searchQuery === tag.query
-                  ? 'border-teal-600 bg-teal-600 text-white shadow-2xs'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-900'
+                  ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
+                  : 'border-[#dfd0b8] bg-white text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900'
               }`}
             >
               {tag.label}
@@ -718,19 +718,19 @@ export function EasyShortcutHub({
 
       {/* 🏷️ Category Filter Tabs */}
       <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
+        <div className="flex flex-col gap-3 border-b-2 border-dashed border-[#e3d6c1] pb-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
-              className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
+              className={`flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-black transition-all active:scale-95 sm:px-4 sm:py-2.5 ${
                 activeCategory === 'all'
-                  ? 'bg-slate-950 text-white shadow-sm ring-2 ring-slate-950/20'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-stone-900 text-white shadow-sm ring-2 ring-stone-900/15'
+                  : 'border border-[#e3d6c1] bg-[#fbf7ee] text-stone-700 hover:bg-white'
               }`}
             >
               <span>🌟 ทุกเมนู</span>
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${activeCategory === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'}`}>
+              <span className={`rounded-full px-2 py-0.5 text-xs ${activeCategory === 'all' ? 'bg-white/20 text-white' : 'bg-[#ede4d5] text-stone-800'}`}>
                 {categoryCounts.all}
               </span>
             </button>
@@ -743,15 +743,15 @@ export function EasyShortcutHub({
                   key={cat.key}
                   type="button"
                   onClick={() => setActiveCategory(cat.key)}
-                  className={`flex items-center gap-1.5 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-black transition-all active:scale-95 ${
+                  className={`flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-black transition-all active:scale-95 sm:px-4 sm:py-2.5 ${
                     isActive
                       ? cat.theme.tabActive
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      : 'border border-[#e3d6c1] bg-[#fbf7ee] text-stone-700 hover:bg-white'
                   }`}
                 >
                   <span>{cat.icon}</span>
                   <span>{cat.label}</span>
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${isActive ? 'bg-white/20 text-white' : 'bg-[#ede4d5] text-stone-800'}`}>
                     {count}
                   </span>
                 </button>
@@ -759,15 +759,15 @@ export function EasyShortcutHub({
             })}
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 shrink-0 w-full sm:w-auto pt-1 sm:pt-0">
+          <div className="flex w-full shrink-0 items-center justify-between pt-1 text-xs font-bold text-stone-500 sm:w-auto sm:pt-0">
             <span>
-              แสดง <strong className="font-black text-slate-900">{filteredShortcuts.length}</strong> เมนู
+              แสดง <strong className="font-black text-stone-900">{filteredShortcuts.length}</strong> เมนู
             </span>
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="text-xs font-black text-teal-700 hover:underline ml-2"
+                className="ml-2 text-xs font-black text-teal-700 hover:underline"
               >
                 ล้างคำค้นหา
               </button>
@@ -775,30 +775,30 @@ export function EasyShortcutHub({
           </div>
         </div>
 
-        {/* 🗂️ Grid of Shortcuts Grouped by Distinct Colored Category Frames */}
+        {/* 🗂️ Grid of Shortcuts Grouped by Pastel Stationery Category Frames */}
         {groupedSections.length > 0 ? (
           <div className="space-y-6 sm:space-y-8">
             {groupedSections.map(({ category: cat, items }) => (
               <div
                 key={cat.key}
                 id={`cat-frame-${cat.key}`}
-                className={`relative overflow-hidden rounded-3xl border-2 ${cat.theme.frameBorder} ${cat.theme.frameBg} p-4 sm:p-6 transition-all duration-300`}
+                className={`relative overflow-hidden rounded-[28px] border-2 ${cat.theme.frameBorder} ${cat.theme.frameBg} p-4 transition-all duration-300 sm:p-6`}
               >
                 {/* 🏷️ Distinct Category Header inside Frame */}
-                <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 mb-4 border-b ${cat.theme.divider}`}>
+                <div className={`mb-4 flex flex-col gap-3 border-b pb-4 md:flex-row md:items-center md:justify-between ${cat.theme.divider}`}>
                   <div className="flex items-center gap-3">
                     <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${cat.theme.headerIconBg} text-xl`}>
                       {cat.icon}
                     </span>
                     <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className={`text-base sm:text-lg font-black tracking-tight ${cat.theme.headerTitle}`}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className={`text-base font-black tracking-tight sm:text-lg ${cat.theme.headerTitle}`}>
                           {cat.label}
                         </h3>
-                        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black shadow-2xs ${cat.theme.headerBadge}`}>
+                        <span className={`rounded-full border px-2.5 py-0.5 text-xs font-black ${cat.theme.headerBadge}`}>
                           {cat.badge}
                         </span>
-                        <span className="rounded-full bg-white/90 border border-slate-200/80 text-slate-700 px-2.5 py-0.5 text-[11px] font-black">
+                        <span className="rounded-full border border-stone-200/80 bg-white/90 px-2.5 py-0.5 text-xs font-black text-stone-700">
                           {items.length} เมนู
                         </span>
                       </div>
@@ -817,10 +817,10 @@ export function EasyShortcutHub({
             ))}
           </div>
         ) : (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center">
+          <div className="rounded-[28px] border-2 border-dashed border-[#dfd0b8] bg-[#fbf7ee] p-8 text-center">
             <span className="text-3xl">🔍</span>
-            <h4 className="mt-2 text-base font-black text-slate-800">ไม่พบเมนูที่ตรงกับ "{searchQuery}"</h4>
-            <p className="mt-1 text-xs font-bold text-slate-500">
+            <h4 className="mt-2 text-base font-black text-stone-800">ไม่พบเมนูที่ตรงกับ "{searchQuery}"</h4>
+            <p className="mt-1 text-xs font-bold text-stone-500">
               ลองค้นหาด้วยคำอื่น เช่น "เช็กชื่อ", "คะแนน", "ปพ", "อาหาร", "เงินออม" หรือกดปุ่มด้านล่างเพื่อล้างคำค้นหา
             </p>
             <button
@@ -829,7 +829,7 @@ export function EasyShortcutHub({
                 setSearchQuery('');
                 setActiveCategory('all');
               }}
-              className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-4 py-2 text-xs font-black text-white hover:bg-teal-700 shadow-sm transition"
+              className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-teal-700"
             >
               <span>แสดงทุกเมนู</span>
             </button>

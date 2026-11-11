@@ -857,91 +857,182 @@ export interface SubjectVisualTheme {
   iconBg: string;
   periodBadge: string;
   subjectLabel: string;
+  washiClass: string;
 }
 
 const subjectVisualPalettes: Array<Omit<SubjectVisualTheme, 'icon' | 'subjectLabel'> & { defaultLabel: string }> = [
   {
-    accentBar: 'bg-blue-500',
-    border: 'border-blue-200 hover:border-blue-400',
-    cardBg: 'bg-gradient-to-b from-white to-blue-50/70',
+    accentBar: 'bg-sky-500',
+    border: 'border-sky-300 hover:border-sky-400',
+    cardBg: 'bg-[#eaf6ff]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-blue-50/90 border-blue-100',
-    iconBg: 'bg-blue-100 text-blue-900 ring-1 ring-blue-200',
-    periodBadge: 'bg-blue-600 text-white',
+    headerBg: 'bg-sky-100/70 border-sky-200',
+    iconBg: 'bg-sky-100 text-sky-900 border-2 border-sky-200',
+    periodBadge: 'bg-sky-600 text-white',
+    washiClass: 'washi-sky',
   },
   {
-    accentBar: 'bg-orange-500',
-    border: 'border-orange-200 hover:border-orange-400',
-    cardBg: 'bg-gradient-to-b from-white to-orange-50/70',
+    accentBar: 'bg-orange-400',
+    border: 'border-orange-300 hover:border-orange-400',
+    cardBg: 'bg-[#fff2e6]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-orange-50/90 border-orange-100',
-    iconBg: 'bg-orange-100 text-orange-900 ring-1 ring-orange-200',
-    periodBadge: 'bg-orange-600 text-white',
+    headerBg: 'bg-orange-100/70 border-orange-200',
+    iconBg: 'bg-orange-100 text-orange-900 border-2 border-orange-200',
+    periodBadge: 'bg-orange-500 text-white',
+    washiClass: 'washi-amber',
   },
   {
     accentBar: 'bg-emerald-500',
-    border: 'border-emerald-200 hover:border-emerald-400',
-    cardBg: 'bg-gradient-to-b from-white to-emerald-50/70',
+    border: 'border-emerald-300 hover:border-emerald-400',
+    cardBg: 'bg-[#e9fbef]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-emerald-50/90 border-emerald-100',
-    iconBg: 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200',
+    headerBg: 'bg-emerald-100/70 border-emerald-200',
+    iconBg: 'bg-emerald-100 text-emerald-900 border-2 border-emerald-200',
     periodBadge: 'bg-emerald-600 text-white',
+    washiClass: 'washi-mint',
   },
   {
-    accentBar: 'bg-pink-500',
-    border: 'border-pink-200 hover:border-pink-400',
-    cardBg: 'bg-gradient-to-b from-white to-pink-50/70',
+    accentBar: 'bg-pink-400',
+    border: 'border-pink-300 hover:border-pink-400',
+    cardBg: 'bg-[#fff1f8]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-pink-50/90 border-pink-100',
-    iconBg: 'bg-pink-100 text-pink-900 ring-1 ring-pink-200',
-    periodBadge: 'bg-pink-600 text-white',
+    headerBg: 'bg-pink-100/70 border-pink-200',
+    iconBg: 'bg-pink-100 text-pink-900 border-2 border-pink-200',
+    periodBadge: 'bg-pink-500 text-white',
+    washiClass: 'washi-pink',
   },
   {
     accentBar: 'bg-amber-400',
-    border: 'border-amber-200 hover:border-amber-400',
-    cardBg: 'bg-gradient-to-b from-white to-amber-50/75',
+    border: 'border-amber-300 hover:border-amber-400',
+    cardBg: 'bg-[#fff7df]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-amber-50/90 border-amber-100',
-    iconBg: 'bg-amber-100 text-amber-900 ring-1 ring-amber-200',
+    headerBg: 'bg-amber-100/70 border-amber-200',
+    iconBg: 'bg-amber-100 text-amber-900 border-2 border-amber-200',
     periodBadge: 'bg-amber-500 text-slate-950',
+    washiClass: 'washi-amber',
   },
   {
     accentBar: 'bg-violet-500',
-    border: 'border-violet-200 hover:border-violet-400',
-    cardBg: 'bg-gradient-to-b from-white to-violet-50/70',
+    border: 'border-violet-300 hover:border-violet-400',
+    cardBg: 'bg-[#f4f0ff]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-violet-50/90 border-violet-100',
-    iconBg: 'bg-violet-100 text-violet-900 ring-1 ring-violet-200',
+    headerBg: 'bg-violet-100/70 border-violet-200',
+    iconBg: 'bg-violet-100 text-violet-900 border-2 border-violet-200',
     periodBadge: 'bg-violet-600 text-white',
+    washiClass: 'washi-violet',
   },
   {
     accentBar: 'bg-cyan-500',
-    border: 'border-cyan-200 hover:border-cyan-400',
-    cardBg: 'bg-gradient-to-b from-white to-cyan-50/70',
+    border: 'border-cyan-300 hover:border-cyan-400',
+    cardBg: 'bg-[#ecfeff]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-cyan-50/90 border-cyan-100',
-    iconBg: 'bg-cyan-100 text-cyan-900 ring-1 ring-cyan-200',
-    periodBadge: 'bg-cyan-700 text-white',
+    headerBg: 'bg-cyan-100/70 border-cyan-200',
+    iconBg: 'bg-cyan-100 text-cyan-900 border-2 border-cyan-200',
+    periodBadge: 'bg-cyan-600 text-white',
+    washiClass: 'washi-sky',
   },
   {
-    accentBar: 'bg-rose-500',
-    border: 'border-rose-200 hover:border-rose-400',
-    cardBg: 'bg-gradient-to-b from-white to-rose-50/70',
+    accentBar: 'bg-rose-400',
+    border: 'border-rose-300 hover:border-rose-400',
+    cardBg: 'bg-[#fff0f2]',
     defaultLabel: 'รายวิชา',
-    headerBg: 'bg-rose-50/90 border-rose-100',
-    iconBg: 'bg-rose-100 text-rose-900 ring-1 ring-rose-200',
-    periodBadge: 'bg-rose-600 text-white',
+    headerBg: 'bg-rose-100/70 border-rose-200',
+    iconBg: 'bg-rose-100 text-rose-900 border-2 border-rose-200',
+    periodBadge: 'bg-rose-500 text-white',
+    washiClass: 'washi-pink',
   },
 ];
 
-/**
- * แยกสีการ์ดตารางสอนตาม "กลุ่มสาระวิชา / กิจกรรม" เป็นหลัก
- * เพื่อไม่ให้วิชาต่างๆ ในห้องเดียวกันดูสีเหมือนกันหมด
- */
-export function getSubjectVisualTheme(subject = ''): SubjectVisualTheme {
-  const norm = subject.trim();
-  const icon = getSubjectIcon(norm);
+function getClassroomGradeLabel(classroom = ''): string {
+  const c = classroom.trim();
+  const match = c.match(/(อ\.?\s*\d|ป\.?\s*\d|ม\.?\s*\d)/);
+  if (match) return `ระดับชั้น ${match[1].replace(/\s+/g, '')}`;
+  return c ? `ห้อง ${c}` : 'รายวิชา';
+}
 
+/**
+ * แยกสีการ์ดตารางสอนสไตล์สมุดแพลนเนอร์ & โพสต์อิท
+ * ลำดับความสำคัญ:
+ * 1) คาบพิเศษ (ซ่อมเสริม, ชุมนุม, ลูกเสือ, แนะแนว, โฮมรูม) แยกสีชัดทันที
+ * 2) เมื่อสอนหลายระดับชั้น (colorBy === 'classroom') แยกสีตามระดับชั้น เช่น ป.5 ฟ้า vs ป.4 เหลืองครีม
+ * 3) เมื่อสอนห้องเดียวหลายวิชา (colorBy === 'subject') แยกสีตามกลุ่มสาระวิชา
+ */
+export function getSubjectVisualTheme(
+  subject = '',
+  classroom = '',
+  subjectCode = '',
+  colorBy: 'subject' | 'classroom' = 'subject',
+): SubjectVisualTheme {
+  const norm = subject.trim();
+  const normCode = subjectCode.trim();
+  const normRoom = classroom.trim();
+  const combinedMeta = `${norm} ${normCode}`.trim();
+  const icon = getSubjectIcon(combinedMeta);
+
+  // 1) คาบซ่อมเสริม / ทบทวน / ติว (เช็กทั้งชื่อวิชาและรหัส/หมายเหตุ) -> โพสต์อิทชมพู-ปะการัง + 🩹
+  if (/ซ่อมเสริม|ทบทวน|ติว/.test(combinedMeta)) {
+    return {
+      ...subjectVisualPalettes[7],
+      icon: '🩹',
+      subjectLabel: '✨ คาบซ่อมเสริม',
+    };
+  }
+
+  // 2) กิจกรรมพัฒนาผู้เรียน & กิจกรรมพิเศษ -> สีเด่นเฉพาะประเภท
+  if (/ชุมนุม|ชมรม|กิจกรรม|สวดมนต์|จริยธรรม|ศีลธรรม|คุณธรรม/.test(combinedMeta)) {
+    return {
+      ...subjectVisualPalettes[5],
+      icon,
+      subjectLabel: '🎯 กิจกรรมพัฒนาผู้เรียน',
+    };
+  }
+  if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ/.test(combinedMeta)) {
+    return {
+      ...subjectVisualPalettes[2],
+      icon,
+      subjectLabel: '🌲 ลูกเสือ-เนตรนารี',
+    };
+  }
+  if (/แนะแนว/.test(combinedMeta)) {
+    return {
+      accentBar: 'bg-teal-500',
+      border: 'border-teal-300 hover:border-teal-400',
+      cardBg: 'bg-[#ecfdf8]',
+      headerBg: 'bg-teal-100/70 border-teal-200',
+      icon,
+      iconBg: 'bg-teal-100 text-teal-900 border-2 border-teal-200',
+      periodBadge: 'bg-teal-600 text-white',
+      subjectLabel: '🧭 แนะแนว',
+      washiClass: 'washi-mint',
+    };
+  }
+  if (/โฮมรูม/.test(combinedMeta)) {
+    return {
+      ...subjectVisualPalettes[0],
+      icon,
+      subjectLabel: '🏠 โฮมรูม',
+    };
+  }
+
+  // 3) โหมดแยกสีตามระดับชั้น/ห้องเรียน (เหมาะกับครูที่สอนวิชาเดียวกันหลายชั้น เช่น คณิต ป.4 vs ป.5)
+  if (colorBy === 'classroom' && normRoom) {
+    const gradeLabel = getClassroomGradeLabel(normRoom);
+    if (/ป\.?\s*1(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[3], icon, subjectLabel: gradeLabel };
+    if (/ป\.?\s*2(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[6], icon, subjectLabel: gradeLabel };
+    if (/ป\.?\s*3(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[2], icon, subjectLabel: gradeLabel };
+    if (/ป\.?\s*4(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[4], icon, subjectLabel: gradeLabel };
+    if (/ป\.?\s*5(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[0], icon, subjectLabel: gradeLabel };
+    if (/ป\.?\s*6(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[1], icon, subjectLabel: gradeLabel };
+    if (/ม\.?\s*1(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[5], icon, subjectLabel: gradeLabel };
+    if (/ม\.?\s*2(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[2], icon, subjectLabel: gradeLabel };
+    if (/ม\.?\s*3(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[0], icon, subjectLabel: gradeLabel };
+    if (/ม\.?\s*4(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[3], icon, subjectLabel: gradeLabel };
+    if (/ม\.?\s*5(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[1], icon, subjectLabel: gradeLabel };
+    if (/ม\.?\s*6(\b|\/|\s|$)/.test(normRoom)) return { ...subjectVisualPalettes[7], icon, subjectLabel: gradeLabel };
+    if (/อ\.?\s*[1-3]/.test(normRoom)) return { ...subjectVisualPalettes[4], icon, subjectLabel: gradeLabel };
+  }
+
+  // 4) โหมดแยกสีตามกลุ่มสาระวิชา (เหมาะกับครูประจำชั้นที่สอนหลายวิชาในห้องเดียว)
   if (/คณิต|คำนวณ|คิดเลข|สถิติ/.test(norm)) {
     return { ...subjectVisualPalettes[0], icon, subjectLabel: 'คณิตศาสตร์' };
   }
@@ -957,61 +1048,36 @@ export function getSubjectVisualTheme(subject = ''): SubjectVisualTheme {
   if (/สังคม|ประวัติศาสตร์|ภูมิศาสตร์|หน้าที่พลเมือง|ศาสนา/.test(norm)) {
     return { ...subjectVisualPalettes[4], icon, subjectLabel: 'สังคมศึกษา' };
   }
-  if (/ชุมนุม|ชมรม|กิจกรรม|สวดมนต์|จริยธรรม|ศีลธรรม|คุณธรรม/.test(norm)) {
-    return { ...subjectVisualPalettes[5], icon, subjectLabel: 'กิจกรรมพัฒนาผู้เรียน' };
-  }
   if (/อังกฤษ|eng|จีน|ญี่ปุ่น|ต่างประเทศ/i.test(norm)) {
     return { ...subjectVisualPalettes[6], icon, subjectLabel: 'ภาษาต่างประเทศ' };
   }
-  if (/ซ่อมเสริม|ทบทวน|ติว|การงาน|เกษตร|ช่าง|คหกรรม/.test(norm)) {
-    return { ...subjectVisualPalettes[7], icon, subjectLabel: /ซ่อมเสริม|ทบทวน|ติว/.test(norm) ? 'ซ่อมเสริม' : 'การงานอาชีพ' };
-  }
-  if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ|แนะแนว/.test(norm)) {
-    return {
-      accentBar: 'bg-teal-600',
-      border: 'border-teal-200 hover:border-teal-400',
-      cardBg: 'bg-gradient-to-b from-white to-teal-50/75',
-      headerBg: 'bg-teal-50/90 border-teal-100',
-      icon,
-      iconBg: 'bg-teal-100 text-teal-900 ring-1 ring-teal-200',
-      periodBadge: 'bg-teal-700 text-white',
-      subjectLabel: /แนะแนว/.test(norm) ? 'แนะแนว' : 'ลูกเสือ-เนตรนารี',
-    };
+  if (/การงาน|เกษตร|ช่าง|คหกรรม/.test(norm)) {
+    return { ...subjectVisualPalettes[1], icon, subjectLabel: 'การงานอาชีพ' };
   }
   if (/สุขศึกษา|พละ|พลศึกษา|กีฬา|ว่ายน้ำ/.test(norm)) {
     return {
       accentBar: 'bg-lime-500',
-      border: 'border-lime-300 hover:border-lime-500',
-      cardBg: 'bg-gradient-to-b from-white to-lime-50/75',
-      headerBg: 'bg-lime-50/95 border-lime-200',
+      border: 'border-lime-300 hover:border-lime-400',
+      cardBg: 'bg-[#f4fce8]',
+      headerBg: 'bg-lime-100/70 border-lime-200',
       icon,
-      iconBg: 'bg-lime-100 text-lime-900 ring-1 ring-lime-300',
+      iconBg: 'bg-lime-100 text-lime-900 border-2 border-lime-200',
       periodBadge: 'bg-lime-600 text-white',
       subjectLabel: 'สุขศึกษา / พละ',
+      washiClass: 'washi-mint',
     };
   }
   if (/คอม|เทคโนโลยี|วิทยาการคำนวณ|ai|coding/i.test(norm)) {
     return {
-      accentBar: 'bg-indigo-600',
-      border: 'border-indigo-200 hover:border-indigo-400',
-      cardBg: 'bg-gradient-to-b from-white to-indigo-50/75',
-      headerBg: 'bg-indigo-50/90 border-indigo-100',
+      accentBar: 'bg-indigo-500',
+      border: 'border-indigo-300 hover:border-indigo-400',
+      cardBg: 'bg-[#eef2ff]',
+      headerBg: 'bg-indigo-100/70 border-indigo-200',
       icon,
-      iconBg: 'bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200',
-      periodBadge: 'bg-indigo-700 text-white',
+      iconBg: 'bg-indigo-100 text-indigo-900 border-2 border-indigo-200',
+      periodBadge: 'bg-indigo-600 text-white',
       subjectLabel: 'เทคโนโลยี / คอมฯ',
-    };
-  }
-  if (/โฮมรูม/.test(norm)) {
-    return {
-      accentBar: 'bg-sky-500',
-      border: 'border-sky-200 hover:border-sky-400',
-      cardBg: 'bg-gradient-to-b from-white to-sky-50/75',
-      headerBg: 'bg-sky-50/95 border-sky-100',
-      icon,
-      iconBg: 'bg-sky-100 text-sky-900 ring-1 ring-sky-200',
-      periodBadge: 'bg-sky-600 text-white',
-      subjectLabel: 'โฮมรูม',
+      washiClass: 'washi-violet',
     };
   }
 
@@ -1025,17 +1091,17 @@ export function getSubjectVisualTheme(subject = ''): SubjectVisualTheme {
 
 export function getClassroomPillTone(classroom = ''): string {
   const c = classroom.trim();
-  if (/ป\.?\s*1(\b|\/|\s|$)/.test(c)) return 'bg-pink-100 text-pink-900 ring-1 ring-pink-300';
-  if (/ป\.?\s*2(\b|\/|\s|$)/.test(c)) return 'bg-cyan-100 text-cyan-900 ring-1 ring-cyan-300';
-  if (/ป\.?\s*3(\b|\/|\s|$)/.test(c)) return 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300';
-  if (/ป\.?\s*4(\b|\/|\s|$)/.test(c)) return 'bg-amber-100 text-amber-900 ring-1 ring-amber-300';
-  if (/ป\.?\s*5(\b|\/|\s|$)/.test(c)) return 'bg-indigo-100 text-indigo-900 ring-1 ring-indigo-300';
-  if (/ป\.?\s*6(\b|\/|\s|$)/.test(c)) return 'bg-rose-100 text-rose-900 ring-1 ring-rose-300';
-  if (/ม\.?\s*1(\b|\/|\s|$)/.test(c)) return 'bg-violet-100 text-violet-900 ring-1 ring-violet-300';
-  if (/ม\.?\s*2(\b|\/|\s|$)/.test(c)) return 'bg-teal-100 text-teal-900 ring-1 ring-teal-300';
-  if (/ม\.?\s*3(\b|\/|\s|$)/.test(c)) return 'bg-blue-100 text-blue-900 ring-1 ring-blue-300';
-  if (/ม\.?\s*4(\b|\/|\s|$)/.test(c)) return 'bg-fuchsia-100 text-fuchsia-900 ring-1 ring-fuchsia-300';
-  if (/ม\.?\s*5(\b|\/|\s|$)/.test(c)) return 'bg-orange-100 text-orange-900 ring-1 ring-orange-300';
-  if (/ม\.?\s*6(\b|\/|\s|$)/.test(c)) return 'bg-red-100 text-red-900 ring-1 ring-red-300';
-  return 'bg-slate-100 text-slate-800 ring-1 ring-slate-200';
+  if (/ป\.?\s*1(\b|\/|\s|$)/.test(c)) return 'bg-pink-100 text-pink-900 border border-pink-300';
+  if (/ป\.?\s*2(\b|\/|\s|$)/.test(c)) return 'bg-cyan-100 text-cyan-900 border border-cyan-300';
+  if (/ป\.?\s*3(\b|\/|\s|$)/.test(c)) return 'bg-emerald-100 text-emerald-900 border border-emerald-300';
+  if (/ป\.?\s*4(\b|\/|\s|$)/.test(c)) return 'bg-amber-200/80 text-amber-950 border border-amber-300';
+  if (/ป\.?\s*5(\b|\/|\s|$)/.test(c)) return 'bg-sky-100 text-sky-900 border border-sky-300';
+  if (/ป\.?\s*6(\b|\/|\s|$)/.test(c)) return 'bg-orange-100 text-orange-900 border border-orange-300';
+  if (/ม\.?\s*1(\b|\/|\s|$)/.test(c)) return 'bg-violet-100 text-violet-900 border border-violet-300';
+  if (/ม\.?\s*2(\b|\/|\s|$)/.test(c)) return 'bg-teal-100 text-teal-900 border border-teal-300';
+  if (/ม\.?\s*3(\b|\/|\s|$)/.test(c)) return 'bg-blue-100 text-blue-900 border border-blue-300';
+  if (/ม\.?\s*4(\b|\/|\s|$)/.test(c)) return 'bg-fuchsia-100 text-fuchsia-900 border border-fuchsia-300';
+  if (/ม\.?\s*5(\b|\/|\s|$)/.test(c)) return 'bg-orange-100 text-orange-900 border border-orange-300';
+  if (/ม\.?\s*6(\b|\/|\s|$)/.test(c)) return 'bg-rose-100 text-rose-900 border border-rose-300';
+  return 'bg-white text-stone-800 border border-stone-300';
 }

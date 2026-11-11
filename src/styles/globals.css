@@ -763,6 +763,67 @@
   .pulse-glow {
     animation: pulse-glow 3.8s ease-in-out infinite;
   }
+
+  /* 📒 Classroom Notebook & Washi Tape Helpers (Style A: Stationery) */
+  .notebook-paper-lines {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 27px,
+      rgba(180, 159, 132, 0.14) 27px,
+      rgba(180, 159, 132, 0.14) 28px
+    );
+  }
+
+  .washi-amber {
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(253, 230, 138, 0.92),
+      rgba(253, 230, 138, 0.92) 6px,
+      rgba(255, 251, 235, 0.96) 6px,
+      rgba(255, 251, 235, 0.96) 12px
+    );
+  }
+
+  .washi-sky {
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(186, 230, 253, 0.92),
+      rgba(186, 230, 253, 0.92) 6px,
+      rgba(240, 249, 255, 0.96) 6px,
+      rgba(240, 249, 255, 0.96) 12px
+    );
+  }
+
+  .washi-pink {
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(251, 207, 232, 0.92),
+      rgba(251, 207, 232, 0.92) 6px,
+      rgba(253, 242, 248, 0.96) 6px,
+      rgba(253, 242, 248, 0.96) 12px
+    );
+  }
+
+  .washi-mint {
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(167, 243, 208, 0.9),
+      rgba(167, 243, 208, 0.9) 6px,
+      rgba(236, 253, 245, 0.96) 6px,
+      rgba(236, 253, 245, 0.96) 12px
+    );
+  }
+
+  .washi-violet {
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(221, 214, 254, 0.92),
+      rgba(221, 214, 254, 0.92) 6px,
+      rgba(245, 243, 255, 0.96) 6px,
+      rgba(245, 243, 255, 0.96) 12px
+    );
+  }
 }
 
 @keyframes float-soft {
