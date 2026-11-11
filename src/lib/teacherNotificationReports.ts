@@ -1,6 +1,7 @@
 import { isDemoSession } from './auth';
 import { supabase } from './supabaseClient';
 import type { AppSessionContext } from '../types/core';
+import { formatAttendanceReport, type AttendanceReportDetails } from './parentReportFormat';
 
 export type TeacherReportKind = 'attendance_homeroom' | 'attendance_subject' | 'savings_saved' | 'daily_brief_saved';
 
@@ -10,12 +11,20 @@ interface TeacherReportInput {
   kind: TeacherReportKind;
   session: AppSessionContext;
   title: string;
+  attendance?: AttendanceReportDetails;
 }
 
 /** Sends a privacy-safe summary to the signed-in teacher's own verified Telegram only. */
-export async function sendTeacherReport({ body, eventId, kind, session, title }: TeacherReportInput) {
+export async function sendTeacherReport({ body, eventId, kind, session, title, attendance }: TeacherReportInput) {
   const workspaceId = session.workspace?.id;
   if (!supabase || !workspaceId || isDemoSession(session)) return;
+
+  if (attendance) {
+    const { data, error } = await supabase.from('teacher_notification_preferences')
+      .select('preferences').eq('workspace_id', workspaceId).eq('profile_id', session.profile.id).maybeSingle();
+    // When settings cannot be read, keep names private.
+    body = formatAttendanceReport(attendance, Boolean(error) || data?.preferences?.summaryOnly !== false);
+  }
 
   const { error } = await supabase.functions.invoke('dispatch-notification', {
     body: {

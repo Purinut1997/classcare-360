@@ -902,9 +902,20 @@ export function AttendancePage({ session }: AttendancePageProps) {
         countSummary || `บันทึกนักเรียน ${data?.length || 0} คน`,
       ].join('\n'),
       eventId: `${activeSession.id}:${Date.now()}`,
+      attendance: {
+        school: session.workspace?.schoolName || 'รายงานชั้นเรียน',
+        classroom: selectedClassroom?.name || '-',
+        date: activeSession.attendance_date,
+        subject: isSubjectCheck ? activeSession.subject_name : null,
+        period: activeSession.period_label,
+        students: payload.map((record) => {
+          const student = classroomStudents.find((item) => item.id === record.student_id);
+          return { name: student ? `${student.first_name} ${student.last_name}` : 'ไม่ระบุชื่อ', status: record.status };
+        }),
+      },
       kind: isSubjectCheck ? 'attendance_subject' : 'attendance_homeroom',
       session,
-      title: isSubjectCheck ? 'บันทึกเช็คชื่อรายวิชาแล้ว' : 'บันทึกเช็คชื่อประจำชั้นแล้ว',
+      title: isSubjectCheck ? 'รายงานการมาเรียนรายวิชา' : 'รายงานการมาเรียนประจำวัน',
     });
     feedback.endOperation(operationId);
     feedback.success({

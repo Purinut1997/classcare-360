@@ -31,6 +31,7 @@ import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, type ScopedClassroom } from '../../lib/teacherClassrooms';
 import { getBangkokDate } from '../../lib/date';
+import { formatReportDate } from '../../lib/parentReportFormat';
 import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type DayName } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
 
@@ -646,7 +647,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     try {
       const { data: studentRows, error: studentError } = await supabase
         .from('students')
-        .select('id')
+        .select('id,first_name,last_name')
         .eq('workspace_id', workspaceId)
         .in('classroom_id', classroomIds);
       if (studentError) {
@@ -675,12 +676,26 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       const uniqueSavers = new Set(deposits.map((row) => row.student_id)).size;
       const money = (value: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value);
       const body = [
-        `วันที่ ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(`${today}T12:00:00+07:00`))}`,
+        session.workspace?.schoolName || 'รายงานชั้นเรียน',
+        `ประจำวันที่ ${formatReportDate(today)}`,
+        '', 'เรียน ผู้ปกครองนักเรียน', 'ขอแจ้งสรุปเงินออมประจำวัน ดังนี้',
         `นักเรียนที่ออมวันนี้ ${uniqueSavers} คน จาก ${studentIds.length} คน`,
         `ยอดฝากรวม ${money(depositTotal)} บาท (${deposits.length} รายการ)`,
         `ยอดถอนรวม ${money(withdrawalTotal)} บาท (${withdrawals.length} รายการ)`,
       ].join('\n');
-      await sendPersonalReport('savings_daily_summary', 'สรุปการออมวันนี้', body);
+      const totals = new Map<string, { deposits: number; withdrawals: number }>();
+      for (const transaction of transactions || []) {
+        const total = totals.get(transaction.student_id) || { deposits: 0, withdrawals: 0 };
+        if (transaction.transaction_type === 'deposit') total.deposits += Number(transaction.amount || 0);
+        if (transaction.transaction_type === 'withdrawal') total.withdrawals += Number(transaction.amount || 0);
+        totals.set(transaction.student_id, total);
+      }
+      const names = preferences.summaryOnly ? [] : (studentRows || []).filter((student) => totals.has(student.id)).map((student, index) => {
+        const total = totals.get(student.id)!;
+        return `${index + 1}. ${student.first_name} ${student.last_name} — ฝาก ${money(total.deposits)} บาท / ถอน ${money(total.withdrawals)} บาท`;
+      });
+      const report = [body, ...(names.length ? ['', 'รายละเอียดรายบุคคล', ...names] : []), '', 'จึงเรียนมาเพื่อทราบ', 'ครูผู้บันทึกเงินออม'].join('\n');
+      await sendPersonalReport('savings_daily_summary', 'รายงานเงินออมประจำวัน', report);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'สร้างสรุปเงินออมวันนี้ไม่สำเร็จ');
     } finally {
@@ -720,8 +735,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       return;
     }
     const today = getBangkokDate();
-    const dateLabel = new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(`${today}T12:00:00+07:00`));
-    const sections: string[] = [`รายงานข้อมูลจริงประจำวันที่ ${dateLabel}`];
+    const sections: string[] = [session.workspace?.schoolName || 'รายงานชั้นเรียน', `ประจำวันที่ ${formatReportDate(today)}`, 'สรุปข้อมูลประจำวัน', '', 'เรียน ผู้ปกครองนักเรียน'];
     const rooms = preferenceClassroomScope.allClassrooms;
     const roomNameById = new Map(rooms.map((room) => [room.id, room.name]));
     const money = (value: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value);
@@ -739,7 +753,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         const scheduledLessons = schedule.activeDays.includes(weekday)
           ? periods.map((period) => ({ ...period, cell: schedule.cells[makeScheduleCellKey(weekday, period.index)] })).filter((period) => period.cell?.subject)
           : [];
-        sections.push(`\n📚 ตารางสอนวันนี้${scheduledLessons.length ? ` (${weekday})` : ''}`);
+        sections.push('\n1. ตารางเรียนประจำวัน');
         sections.push(scheduledLessons.length
           ? scheduledLessons.map((lesson) => `• ${lesson.label} ${lesson.start}-${lesson.end} · ${lesson.cell.classroom || 'ไม่ระบุห้อง'} · ${lesson.cell.subject}`).join('\n')
           : schedule.activeDays.includes(weekday) ? 'ไม่พบคาบสอนที่บันทึกไว้ในตารางวันนี้' : 'วันนี้ไม่มีสอนตามวันที่กำหนดในตาราง');
@@ -748,8 +762,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       if (calendarSelected) {
         const { data, error } = await supabase.from('school_calendar_days').select('title,day_type').eq('workspace_id', workspaceId).eq('calendar_date', today).order('title');
         if (error) throw new Error(`อ่านปฏิทินวันนี้ไม่สำเร็จ: ${error.message}`);
-        sections.push('\n🗓️ กิจกรรมและปฏิทิน');
-        sections.push(data?.length ? data.map((item) => `• ${item.title} (${item.day_type})`).join('\n') : 'วันนี้ไม่มีรายการในปฏิทินโรงเรียน');
+        sections.push('\n2. กิจกรรมและปฏิทิน');
+        sections.push(data?.length ? data.map((item) => `• ${item.title}`).join('\n') : 'วันนี้ไม่มีรายการในปฏิทินโรงเรียน');
       }
 
       const attendanceScopes: Array<{ enabled: boolean; label: string; ids: string[]; subject: boolean }> = [
@@ -759,7 +773,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       const enabledScopes = attendanceScopes.filter((scope) => scope.enabled);
       if (enabledScopes.length) {
         const allowedClassroomIds = [...new Set(enabledScopes.flatMap((scope) => scope.ids))];
-        sections.push('\n🧑‍🏫 ผลเช็คชื่อวันนี้');
+        sections.push('\n3. ผลการมาเรียน');
         if (!allowedClassroomIds.length) {
           sections.push('ยังไม่มีห้องเรียนที่บัญชีนี้ได้รับสิทธิ์สำหรับรายงาน');
         } else {
@@ -791,8 +805,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             const counts = countsBySession.get(row.id) || {};
             const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
             const bits = [`มา ${counts.present || 0}`, `สาย ${counts.late || 0}`, `ขาด ${counts.absent || 0}`, `ลา ${counts.leave || 0}`, `ป่วย ${counts.sick || 0}`];
-            const followUpNames = !preferences.summaryOnly ? (records || []).filter((record) => record.session_id === row.id && ['absent', 'late'].includes(record.status)).map((record) => studentNames.get(record.student_id) || '').filter(Boolean) : [];
-            return `• ${roomNameById.get(row.classroom_id) || 'ห้องเรียน'} · ${row.subject_name ? `${row.subject_name} · ` : ''}${row.period_label}: ${total} คน (${bits.join(' · ')})${followUpNames.length ? `\n  ติดตาม: ${followUpNames.join(', ')}` : ''}`;
+            const followUpNames = !preferences.summaryOnly ? (records || []).filter((record) => record.session_id === row.id && ['absent', 'late', 'leave', 'sick'].includes(record.status)).map((record) => `${({ absent: 'ขาดเรียน', late: 'มาสาย', leave: 'ลา', sick: 'ลาป่วย' } as Record<string, string>)[record.status]}: ${studentNames.get(record.student_id) || 'ไม่ระบุชื่อ'}`).filter(Boolean) : [];
+            return `• ${roomNameById.get(row.classroom_id) || 'ห้องเรียน'} · ${row.subject_name ? `${row.subject_name} · ` : ''}${row.period_label}: ${total} คน (${bits.join(' · ')})${followUpNames.length ? `\n${followUpNames.map((name, index) => `  ${index + 1}. ${name}`).join('\n')}` : ''}`;
           }).join('\n') : 'ยังไม่มีการบันทึกเช็คชื่อที่ส่งแล้ววันนี้');
         }
       }
@@ -810,20 +824,20 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         ]) : [{ count: 0, error: null }, { count: 0, error: null }, { count: 0, error: null }];
         const taskError = casesResult.error || warningsResult.error || visitsResult.error;
         if (taskError) throw new Error(`อ่านงานที่ต้องติดตามไม่สำเร็จ: ${taskError.message}`);
-        sections.push('\n📌 งานที่ต้องติดตาม');
+        sections.push('\n4. งานที่ต้องติดตาม');
         sections.push(`มี ${casesResult.count || 0} เคสดูแล, ${warningsResult.count || 0} สัญญาณเตือน และ ${visitsResult.count || 0} งานเยี่ยมบ้านที่ยังเปิดอยู่ในห้องที่คุณเข้าถึงได้`);
       }
 
       if (preferences.afterDailyBrief) {
         const { data, error } = await supabase.from('daily_school_briefs').select('title,summary,status').eq('workspace_id', workspaceId).eq('created_by', session.profile.id).eq('brief_date', today).order('created_at', { ascending: false });
         if (error) throw new Error(`อ่านสรุปประจำวันไม่สำเร็จ: ${error.message}`);
-        sections.push('\n📝 บันทึกสรุปประจำวัน');
+        sections.push('\n5. บันทึกสรุปประจำวัน');
         sections.push(data?.length ? data.map((brief) => `• ${brief.title} — ${brief.summary || 'ไม่มีรายละเอียด'} (${brief.status})`).join('\n') : 'วันนี้ยังไม่มีบันทึกสรุปประจำวัน');
       }
 
       const classroomIds = rooms.map((room) => room.id);
       if (classroomIds.length) {
-        const { data: studentRows, error: studentError } = await supabase.from('students').select('id').eq('workspace_id', workspaceId).in('classroom_id', classroomIds);
+        const { data: studentRows, error: studentError } = await supabase.from('students').select('id,first_name,last_name').eq('workspace_id', workspaceId).in('classroom_id', classroomIds);
         if (studentError) throw new Error(`อ่านจำนวนนักเรียนไม่สำเร็จ: ${studentError.message}`);
         const studentIds = (studentRows || []).map((student) => student.id as string);
         if (studentIds.length) {
@@ -833,14 +847,23 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           const withdrawals = (transactions || []).filter((row) => row.transaction_type === 'withdrawal');
           const depositTotal = deposits.reduce((sum, row) => sum + Number(row.amount || 0), 0);
           const withdrawalTotal = withdrawals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-          sections.push('\n🐷 เงินออมวันนี้');
+          sections.push('\n6. สรุปเงินออมประจำวัน');
           sections.push(`ออม ${new Set(deposits.map((row) => row.student_id)).size} คน · ฝาก ${money(depositTotal)} บาท (${deposits.length} รายการ) · ถอน ${money(withdrawalTotal)} บาท (${withdrawals.length} รายการ)`);
+          if (!preferences.summaryOnly) {
+            const participants = (studentRows || []).filter((student) => (transactions || []).some((row) => row.student_id === student.id));
+            sections.push(...participants.map((student, index) => {
+              const saved = deposits.filter((row) => row.student_id === student.id).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+              const withdrawn = withdrawals.filter((row) => row.student_id === student.id).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+              return `${index + 1}. ${student.first_name} ${student.last_name} — ฝาก ${money(saved)} บาท / ถอน ${money(withdrawn)} บาท`;
+            }));
+          }
         }
       }
 
+      sections.push('', 'จึงเรียนมาเพื่อทราบ', 'ครูผู้บันทึกข้อมูล');
       const reportBody = sections.join('\n');
       const safeBody = reportBody.length > 3800 ? `${reportBody.slice(0, 3760)}\n… (ตัดส่วนที่เหลือเพื่อให้ Telegram รับข้อความได้)` : reportBody;
-      await sendPersonalReport('daily_report_today', 'รายงานข้อมูลจริงวันนี้', safeBody);
+      await sendPersonalReport('daily_report_today', 'รายงานประจำวัน', safeBody);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'สร้างรายงานข้อมูลจริงวันนี้ไม่สำเร็จ');
     } finally {
