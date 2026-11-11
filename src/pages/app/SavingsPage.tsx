@@ -1763,21 +1763,20 @@ export function SavingsPage({ session }: SavingsPageProps) {
                         return (
                           <tr
                             key={student.id}
-                            onClick={() => setSelectedStudentId(student.id)}
-                            className={`cursor-pointer transition ${
-                              isSelected ? 'bg-amber-100/70 font-bold' : 'hover:bg-amber-50/50'
+                            onClick={() => {
+                              setSelectedStudentId(student.id);
+                              setViewingStudent(student);
+                            }}
+                            className={`group cursor-pointer transition ${
+                              isSelected ? 'bg-amber-100/70 font-bold hover:bg-amber-100' : 'hover:bg-amber-50/70'
                             }`}
+                            title={`เปิดสมุดเงินออมของ ${student.first_name} ${student.last_name}`}
                           >
                             <td className="px-3 py-2.5 text-[#78716c] font-bold">{idx + 1}</td>
                             <td className="px-3 py-2.5">
                               <button
                                 type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setSelectedStudentId(student.id);
-                                  setViewingStudent(student);
-                                }}
-                                className="rounded-md text-left font-bold text-[#3f3a36] underline decoration-transparent underline-offset-2 transition hover:text-cyan-800 hover:decoration-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                                className="rounded-md text-left font-bold text-[#3f3a36] underline decoration-transparent underline-offset-2 transition group-hover:text-cyan-800 group-hover:decoration-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                                 aria-label={`ดูสมุดเงินออมของ ${student.first_name} ${student.last_name}`}
                               >
                                 {student.first_name} {student.last_name}
