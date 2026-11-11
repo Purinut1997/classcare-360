@@ -224,6 +224,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
   const [selectedPresetAmount, setSelectedPresetAmount] = useState<number>(20);
   const [customPresetAmount, setCustomPresetAmount] = useState('20');
   const [sheetStudent, setSheetStudent] = useState<StudentRow | null>(null);
+  const [viewingStudent, setViewingStudent] = useState<StudentRow | null>(null);
   const [viewingTransaction, setViewingTransaction] = useState<SavingsTransactionRow | null>(null);
   const [correctionTransaction, setCorrectionTransaction] = useState<SavingsTransactionRow | null>(null);
   const [isCancellingTransaction, setIsCancellingTransaction] = useState(false);
@@ -294,6 +295,15 @@ export function SavingsPage({ session }: SavingsPageProps) {
         .filter((transaction) => transaction.student_id === selectedStudent?.id)
         .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at)),
     [selectedStudent?.id, transactions],
+  );
+
+  const viewingStudentTransactions = useMemo(
+    () => viewingStudent
+      ? transactions
+          .filter((transaction) => transaction.student_id === viewingStudent.id)
+          .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at))
+      : [],
+    [transactions, viewingStudent],
   );
 
   const summary = useMemo(() => {
@@ -1719,9 +1729,9 @@ export function SavingsPage({ session }: SavingsPageProps) {
                     <h2 className="text-lg sm:text-xl font-bold text-[#3f3a36]">
                       สมุดบัญชีเงินออม ({classroomStudents.length} คน)
                     </h2>
-                    <p className="text-xs text-[#8a8178]">
-                      แตะที่ชื่อนักเรียนเพื่อดูประวัติการฝาก–ถอน
-                    </p>
+                      <p className="text-xs text-[#8a8178]">
+                        คลิกชื่อนักเรียนเพื่อเปิดยอดเงินและประวัติการฝาก–ถอน
+                      </p>
                   </div>
                   <div className="relative">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1760,9 +1770,18 @@ export function SavingsPage({ session }: SavingsPageProps) {
                           >
                             <td className="px-3 py-2.5 text-[#78716c] font-bold">{idx + 1}</td>
                             <td className="px-3 py-2.5">
-                              <p className="text-[#3f3a36] font-bold">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedStudentId(student.id);
+                                  setViewingStudent(student);
+                                }}
+                                className="rounded-md text-left font-bold text-[#3f3a36] underline decoration-transparent underline-offset-2 transition hover:text-cyan-800 hover:decoration-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                                aria-label={`ดูสมุดเงินออมของ ${student.first_name} ${student.last_name}`}
+                              >
                                 {student.first_name} {student.last_name}
-                              </p>
+                              </button>
                               <p className="text-[11px] text-[#8a8178]">
                                 {student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}
                               </p>
@@ -1912,6 +1931,73 @@ export function SavingsPage({ session }: SavingsPageProps) {
                   <button type="button" onClick={() => { setViewingTransaction(null); setIsCancellingTransaction(false); setCorrectionTransaction(viewingTransaction); setCorrectionForm({ amount: String(viewingTransaction.amount), date: viewingTransaction.transaction_date, reason: '', studentId: viewingTransaction.student_id, type: viewingTransaction.transaction_type === 'withdrawal' ? 'withdrawal' : 'deposit' }); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-bold text-violet-800 hover:bg-violet-50"><Pencil size={15} />แก้รายการ</button>
                   <button type="button" onClick={() => { const randomValues = new Uint32Array(1); window.crypto.getRandomValues(randomValues); setCancellationCode(String(1000 + (randomValues[0] % 9000))); setCancellationCodeInput(''); setViewingTransaction(null); setIsCancellingTransaction(true); setCorrectionTransaction(viewingTransaction); setCorrectionForm({ amount: '0', date: viewingTransaction.transaction_date, reason: '', studentId: viewingTransaction.student_id, type: 'deposit' }); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50"><Undo2 size={15} />ยกเลิกรายการ</button>
                 </> : null}
+              </footer>
+            </section>
+          </div>
+        )}
+
+        {viewingStudent && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingStudent(null); }}
+            role="presentation"
+          >
+            <section className="flex max-h-[min(86vh,760px)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#ded5c6] bg-[#fffdf8] shadow-[0_24px_80px_rgba(15,23,42,0.28)]" role="dialog" aria-modal="true" aria-labelledby="savings-student-detail-title">
+              <header className="flex items-start justify-between gap-4 border-b border-amber-100 bg-gradient-to-r from-amber-50 via-white to-cyan-50 p-5 sm:p-6">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-cyan-800">สมุดเงินออมนักเรียน</p>
+                  <h2 id="savings-student-detail-title" className="mt-1 truncate text-xl font-black text-slate-950">{viewingStudent.first_name} {viewingStudent.last_name}</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">เลขที่ {viewingStudent.student_code || '—'}{viewingStudent.nickname ? ` · น้อง${viewingStudent.nickname}` : ''}</p>
+                </div>
+                <button type="button" onClick={() => setViewingStudent(null)} className="shrink-0 rounded-xl p-2 text-slate-500 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500" aria-label="ปิดสมุดเงินออม"><X size={19} /></button>
+              </header>
+              <div className="grid gap-3 border-b border-stone-100 p-5 sm:grid-cols-3 sm:p-6">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:col-span-1">
+                  <p className="text-xs font-semibold text-slate-500">ยอดคงเหลือ</p>
+                  <p className="mt-1 text-2xl font-black text-emerald-800">{formatBaht(accountByStudent.get(viewingStudent.id)?.balance || 0)} บาท</p>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500">ยอดยกมา</p>
+                  <p className="mt-1 text-lg font-black text-amber-900">{formatBaht(Number(accountByStudent.get(viewingStudent.id)?.metadata?.opening_balance || 0))} บาท</p>
+                </div>
+                <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500">จำนวนรายการ</p>
+                  <p className="mt-1 text-lg font-black text-sky-900">{viewingStudentTransactions.length} รายการ</p>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="font-black text-slate-900">ประวัติฝาก–ถอน</h3>
+                  <span className="text-xs font-semibold text-slate-500">รายการล่าสุดอยู่บนสุด</span>
+                </div>
+                <div className="grid gap-2">
+                  {viewingStudentTransactions.map((transaction) => {
+                    const isWithdrawal = transaction.transaction_type === 'withdrawal';
+                    const isAdjustment = transaction.transaction_type === 'adjustment';
+                    const Icon = isWithdrawal ? TrendingDown : isAdjustment ? RotateCcw : TrendingUp;
+                    return (
+                      <button
+                        key={transaction.id}
+                        type="button"
+                        onClick={() => { setViewingStudent(null); setViewingTransaction(transaction); }}
+                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${isWithdrawal ? 'border-rose-200 bg-rose-50' : isAdjustment ? 'border-violet-200 bg-violet-50' : 'border-lime-200 bg-lime-50'}`}
+                      >
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isWithdrawal ? 'bg-rose-100 text-rose-700' : isAdjustment ? 'bg-violet-100 text-violet-700' : 'bg-lime-100 text-lime-700'}`}><Icon size={18} /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-bold text-slate-900">{isWithdrawal ? 'ถอนเงิน' : isAdjustment ? 'ยอดยกมา / ปรับยอด' : 'ฝากเงิน'} {formatBaht(transaction.amount)} บาท</span>
+                          <span className="mt-0.5 block truncate text-xs font-medium text-slate-600">{formatSavingsDate(transaction.transaction_date)} · {transaction.note || 'ไม่มีหมายเหตุ'}</span>
+                        </span>
+                        <span className="shrink-0 text-xs font-bold text-cyan-800">รายละเอียด</span>
+                      </button>
+                    );
+                  })}
+                  {viewingStudentTransactions.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">นักเรียนคนนี้ยังไม่มีประวัติฝาก–ถอน</div>
+                  )}
+                </div>
+              </div>
+              <footer className="flex justify-end border-t border-slate-100 bg-white p-4">
+                <button type="button" onClick={() => setViewingStudent(null)} className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700">ปิด</button>
               </footer>
             </section>
           </div>
