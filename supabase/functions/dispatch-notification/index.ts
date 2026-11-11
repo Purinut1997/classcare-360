@@ -124,7 +124,8 @@ async function sendLinkedTelegramMessage(
     const attendance = preferences?.attendance as Record<string, unknown> | undefined;
     const allowed = type === 'attendance_homeroom' ? attendance?.homeroomEnabled === true
       : type === 'attendance_subject' ? attendance?.subjectEnabled === true
-      : type === 'savings_saved' ? preferences?.afterSavings === true
+      : type === 'savings_saved' ? false
+      : type === 'savings_daily_summary' || type === 'daily_report_test' || type === 'daily_report_today' ? true
       : type === 'daily_brief_saved' ? preferences?.afterDailyBrief === true
       : false;
     if (!allowed) return { channel: 'telegram', errorMessage: 'This report is disabled in the teacher settings', status: 'skipped' };
@@ -191,7 +192,7 @@ Deno.serve(async (request) => {
     const queueId = payload.queueId?.trim();
     const personalReport = payload.personalReport === true;
     const eventId = payload.eventId?.trim();
-    const personalReportTypes = new Set(['attendance_homeroom', 'attendance_subject', 'savings_saved', 'daily_brief_saved']);
+    const personalReportTypes = new Set(['attendance_homeroom', 'attendance_subject', 'savings_saved', 'savings_daily_summary', 'daily_report_test', 'daily_report_today', 'daily_brief_saved']);
 
     if (personalReport && (!eventId || eventId.length > 180 || !personalReportTypes.has(type) || channels.length !== 1 || channels[0] !== 'telegram')) {
       return jsonResponse({ error: 'Personal report payload is invalid' }, 400);
@@ -304,7 +305,8 @@ Deno.serve(async (request) => {
       const attendance = settings?.attendance as Record<string, unknown> | undefined;
       const enabled = settings?.telegramEnabled === true && (type === 'attendance_homeroom' ? attendance?.homeroomEnabled === true
         : type === 'attendance_subject' ? attendance?.subjectEnabled === true
-        : type === 'savings_saved' ? settings?.afterSavings === true
+        : type === 'savings_saved' ? false
+        : type === 'savings_daily_summary' || type === 'daily_report_test' || type === 'daily_report_today' ? true
         : settings?.afterDailyBrief === true);
       if (!enabled) return jsonResponse({ ok: true, dispatchResults: [{ channel: 'telegram', status: 'skipped', errorMessage: 'Report is disabled in teacher settings' }] });
 

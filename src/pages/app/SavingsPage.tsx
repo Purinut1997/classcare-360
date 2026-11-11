@@ -4,23 +4,19 @@ import {
   AlertTriangle,
   ArrowDownToLine,
   Check,
-  CheckCircle2,
   ChevronDown,
   Coins,
   Download,
   FileSpreadsheet,
-  History,
   LayoutGrid,
   ListFilter,
   Minus,
   Pencil,
-  PiggyBank,
   Plus,
   Printer,
   RotateCcw,
   Save,
   Search,
-  ShieldCheck,
   TrendingDown,
   TrendingUp,
   Undo2,
@@ -36,7 +32,6 @@ import { getBangkokDate } from '../../lib/date';
 import { formatThaiOfficialDate, buildOfficialReportCss, escapeOfficialHtml } from '../../lib/officialReport';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getClassroomScopeBadge, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
-import { sendTeacherReport } from '../../lib/teacherNotificationReports';
 import type { AppSessionContext } from '../../types/core';
 
 interface SavingsPageProps {
@@ -138,6 +133,16 @@ function formatBaht(value: number) {
   return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(value);
 }
 
+function formatSavingsDate(value: string) {
+  if (!value) return 'ไม่ระบุวันที่';
+  return new Intl.DateTimeFormat('th-TH-u-ca-buddhist', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Bangkok',
+  }).format(new Date(`${value.slice(0, 10)}T12:00:00+07:00`));
+}
+
 function numberToThaiBahtText(num: number): string {
   if (isNaN(num) || num === 0) return 'ศูนย์บาทถ้วน';
   const digits = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
@@ -219,6 +224,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
   const [selectedPresetAmount, setSelectedPresetAmount] = useState<number>(20);
   const [customPresetAmount, setCustomPresetAmount] = useState('20');
   const [sheetStudent, setSheetStudent] = useState<StudentRow | null>(null);
+  const [viewingTransaction, setViewingTransaction] = useState<SavingsTransactionRow | null>(null);
   const [correctionTransaction, setCorrectionTransaction] = useState<SavingsTransactionRow | null>(null);
   const [isCancellingTransaction, setIsCancellingTransaction] = useState(false);
   const [cancellationCode, setCancellationCode] = useState('');
@@ -286,7 +292,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
     () =>
       transactions
         .filter((transaction) => transaction.student_id === selectedStudent?.id)
-        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at)),
     [selectedStudent?.id, transactions],
   );
 
@@ -525,13 +531,6 @@ export function SavingsPage({ session }: SavingsPageProps) {
       },
       riskLevel: transaction.transaction_type === 'withdrawal' ? 'normal' : 'low',
       source: 'savings_center',
-    });
-    void sendTeacherReport({
-      body: `บันทึกรายการ${transaction.transaction_type === 'withdrawal' ? 'ถอน' : 'ฝาก'}เงิน ${transaction.amount} บาท\nยอดคงเหลือ ${account.balance} บาท`,
-      eventId: transaction.id,
-      kind: 'savings_saved',
-      session,
-      title: 'บันทึกเงินออมแล้ว',
     });
     setTransactions((current) => [transaction, ...current]);
     setNotice('บันทึกเงินออมแล้ว');
@@ -840,14 +839,6 @@ export function SavingsPage({ session }: SavingsPageProps) {
       if (transactionError) throw transactionError;
 
       const savedTransaction = transactionData as SavingsTransactionRow;
-      void sendTeacherReport({
-        body: `บันทึกรายการ${savedTransaction.transaction_type === 'withdrawal' ? 'ถอน' : 'ฝาก'}เงิน ${savedTransaction.amount} บาท\nยอดคงเหลือ ${account.balance} บาท`,
-        eventId: savedTransaction.id,
-        kind: 'savings_saved',
-        session,
-        title: 'บันทึกเงินออมแล้ว',
-      });
-
       setAccounts((current) => {
         const idx = current.findIndex((a) => a.id === account.id);
         if (idx >= 0) {
@@ -1822,22 +1813,22 @@ export function SavingsPage({ session }: SavingsPageProps) {
                             : 'bg-[#d9f99d]/40 border-lime-200'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <button type="button" onClick={() => setViewingTransaction(transaction)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
                           <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                             isWithdrawal ? 'bg-rose-100 text-rose-700' : isAdjustment ? 'bg-purple-100 text-purple-700' : 'bg-lime-100 text-lime-700'
                           }`}>
                             <Icon size={16} />
                           </span>
-                          <div>
-                            <p className="font-bold text-[#3f3a36]">
+                          <span className="min-w-0">
+                            <span className="block font-bold text-[#3f3a36]">
                               {isWithdrawal ? 'ถอนเงิน' : isAdjustment ? 'ยอดยกมา / ปรับยอด' : 'ฝากเงิน'}{' '}
                               <b>{formatBaht(transaction.amount)} ฿</b>
-                            </p>
-                            <p className="text-[11px] text-[#8a8178]">
-                              {transaction.transaction_date} | {transaction.note || 'ไม่มีหมายเหตุ'}
-                            </p>
-                          </div>
-                        </div>
+                            </span>
+                            <span className="block truncate text-[11px] text-[#8a8178]">
+                              {formatSavingsDate(transaction.transaction_date)} · {transaction.note || 'ไม่มีหมายเหตุ'}
+                            </span>
+                          </span>
+                        </button>
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
                           <span className="text-[11px] font-bold text-[#78716c]">
                             {isAdjustment ? 'ยอดยกมา' : isWithdrawal ? 'ถอน' : 'ฝาก'}
@@ -1897,6 +1888,35 @@ export function SavingsPage({ session }: SavingsPageProps) {
           </div>
         )}
 
+        {viewingTransaction && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingTransaction(null); }} role="presentation">
+            <section className="w-full max-w-lg overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]" role="dialog" aria-modal="true" aria-labelledby="savings-transaction-detail-title">
+              <header className="flex items-start justify-between gap-4 border-b border-stone-100 bg-gradient-to-r from-amber-50 via-white to-cyan-50 p-5 sm:p-6">
+                <div>
+                  <p className="text-xs font-bold text-cyan-800">รายละเอียดสมุดบัญชีเงินออม</p>
+                  <h2 id="savings-transaction-detail-title" className="mt-1 text-xl font-black text-slate-950">{viewingTransaction.transaction_type === 'withdrawal' ? 'ถอนเงิน' : viewingTransaction.transaction_type === 'adjustment' ? 'ปรับยอด' : 'ฝากเงิน'} {formatBaht(viewingTransaction.amount)} บาท</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">{students.find((student) => student.id === viewingTransaction.student_id)?.first_name || 'นักเรียน'} {students.find((student) => student.id === viewingTransaction.student_id)?.last_name || ''}</p>
+                </div>
+                <button type="button" onClick={() => setViewingTransaction(null)} className="rounded-xl p-2 text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500" aria-label="ปิดรายละเอียด"><X size={19} /></button>
+              </header>
+              <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4"><p className="text-xs font-semibold text-slate-500">วันที่ทำรายการ</p><p className="mt-1 font-black text-slate-900">{formatSavingsDate(viewingTransaction.transaction_date)}</p></div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4"><p className="text-xs font-semibold text-slate-500">ยอดเงินปัจจุบัน</p><p className="mt-1 font-black text-slate-900">{formatBaht(accountByStudent.get(viewingTransaction.student_id)?.balance || 0)} บาท</p></div>
+                <div className="rounded-2xl border border-stone-100 bg-stone-50 p-4 sm:col-span-2"><p className="text-xs font-semibold text-slate-500">หมายเหตุ</p><p className="mt-1 whitespace-pre-wrap font-semibold text-slate-800">{viewingTransaction.note || 'ไม่มีหมายเหตุ'}</p></div>
+                <div className="rounded-2xl border border-stone-100 bg-white p-4 sm:col-span-2"><p className="text-xs font-semibold text-slate-500">บันทึกเข้าระบบเมื่อ</p><p className="mt-1 font-semibold text-slate-800">{new Intl.DateTimeFormat('th-TH-u-ca-buddhist', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(viewingTransaction.created_at))}</p></div>
+                {viewingTransaction.metadata?.correction_id || viewingTransaction.metadata?.correction_of ? <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 text-sm font-bold text-violet-800 sm:col-span-2">{viewingTransaction.metadata?.correction_role === 'reversal' ? 'รายการย้อนกลับ' : viewingTransaction.metadata?.correction_role === 'replacement' ? 'รายการแก้ไขแทน' : 'รายการที่มีการแก้ไข'} · เก็บประวัติเดิมไว้ตรวจสอบ</div> : null}
+              </div>
+              <footer className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => setViewingTransaction(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">ปิด</button>
+                {!viewingTransaction.metadata?.correction_id && !viewingTransaction.metadata?.correction_of ? <>
+                  <button type="button" onClick={() => { setViewingTransaction(null); setIsCancellingTransaction(false); setCorrectionTransaction(viewingTransaction); setCorrectionForm({ amount: String(viewingTransaction.amount), date: viewingTransaction.transaction_date, reason: '', studentId: viewingTransaction.student_id, type: viewingTransaction.transaction_type === 'withdrawal' ? 'withdrawal' : 'deposit' }); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-bold text-violet-800 hover:bg-violet-50"><Pencil size={15} />แก้รายการ</button>
+                  <button type="button" onClick={() => { const randomValues = new Uint32Array(1); window.crypto.getRandomValues(randomValues); setCancellationCode(String(1000 + (randomValues[0] % 9000))); setCancellationCodeInput(''); setViewingTransaction(null); setIsCancellingTransaction(true); setCorrectionTransaction(viewingTransaction); setCorrectionForm({ amount: '0', date: viewingTransaction.transaction_date, reason: '', studentId: viewingTransaction.student_id, type: 'deposit' }); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50"><Undo2 size={15} />ยกเลิกรายการ</button>
+                </> : null}
+              </footer>
+            </section>
+          </div>
+        )}
+
         {correctionTransaction && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs" role="presentation">
             <form onSubmit={(event) => void handleCorrectSavingsTransaction(event)} className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="savings-correction-title">
@@ -1911,7 +1931,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
               <div className="grid gap-3 p-5">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
                   <p className="font-black text-slate-800">รายการเดิม: {correctionTransaction.transaction_type === 'withdrawal' ? 'ถอน' : correctionTransaction.transaction_type === 'adjustment' ? 'ปรับยอด' : 'ฝาก'} {formatBaht(correctionTransaction.amount)} บาท</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">{students.find((student) => student.id === correctionTransaction.student_id)?.first_name || 'นักเรียน'} {students.find((student) => student.id === correctionTransaction.student_id)?.last_name || ''} · {correctionTransaction.transaction_date} · {correctionTransaction.note || 'ไม่มีหมายเหตุ'}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{students.find((student) => student.id === correctionTransaction.student_id)?.first_name || 'นักเรียน'} {students.find((student) => student.id === correctionTransaction.student_id)?.last_name || ''} · {formatSavingsDate(correctionTransaction.transaction_date)} · {correctionTransaction.note || 'ไม่มีหมายเหตุ'}</p>
                 </div>
                 {isCancellingTransaction ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">

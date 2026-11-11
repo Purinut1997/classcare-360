@@ -30,6 +30,8 @@ import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { isDemoSession } from '../../lib/auth';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, type ScopedClassroom } from '../../lib/teacherClassrooms';
+import { getBangkokDate } from '../../lib/date';
+import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type DayName } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
 
 interface NotificationsPageProps {
@@ -582,6 +584,260 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     const result = await manageTelegram('test');
     if (result?.status === 'sent') setNotice('ส่งข้อความทดสอบถึง Telegram ของคุณแล้ว');
     setTelegramBusy(false);
+  }
+
+  async function sendPersonalReport(kind: 'daily_report_test' | 'daily_report_today' | 'savings_daily_summary', title: string, body: string) {
+    if (!supabase || !workspaceId || demoMode) {
+      setNotice('การส่งรายงาน Telegram ใช้ได้เมื่อเข้าสู่ระบบโรงเรียนที่เชื่อมฐานข้อมูลแล้ว');
+      return;
+    }
+    setTelegramBusy(true);
+    setNotice(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('dispatch-notification', {
+        body: {
+          body,
+          channels: ['telegram'],
+          eventId: `${kind}:${getBangkokDate()}:${crypto.randomUUID()}`,
+          personalReport: true,
+          profileId: session.profile.id,
+          title,
+          type: kind,
+          workspaceId,
+        },
+      });
+      const response = data as { dispatchResults?: Array<{ errorMessage?: string; status?: string }>; error?: string } | null;
+      const result = response?.dispatchResults?.[0];
+      if (error || response?.error) {
+        setNotice(response?.error || error?.message || 'ส่งรายงานไม่สำเร็จ กรุณาลองใหม่');
+      } else if (result?.status === 'sent') {
+        setNotice(kind === 'savings_daily_summary' ? 'ส่งสรุปเงินออมวันนี้ไป Telegram แล้ว' : kind === 'daily_report_today' ? 'ส่งรายงานข้อมูลจริงวันนี้ไป Telegram แล้ว' : 'ส่งรายงานทดสอบวันนี้ไป Telegram แล้ว');
+      } else {
+        setNotice(result?.errorMessage || 'ยังส่งไม่ได้ กรุณาตรวจการเชื่อม Telegram และเปิดรับรายงาน');
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'ส่งรายงานไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function sendTodaySavingsSummary() {
+    if (!supabase || !workspaceId || demoMode) {
+      setNotice('การส่งรายงาน Telegram ใช้ได้เมื่อเข้าสู่ระบบโรงเรียนที่เชื่อมฐานข้อมูลแล้ว');
+      return;
+    }
+    const classroomIds = preferenceClassroomScope.allClassrooms.map((room) => room.id);
+    if (classroomIds.length === 0) {
+      setNotice('ยังไม่มีห้องเรียนที่บัญชีนี้เข้าถึงได้ จึงสร้างสรุปเงินออมไม่ได้');
+      return;
+    }
+    setTelegramBusy(true);
+    setNotice(null);
+    const today = getBangkokDate();
+    try {
+      const { data: studentRows, error: studentError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .in('classroom_id', classroomIds);
+      if (studentError) {
+        setNotice(`อ่านรายชื่อนักเรียนไม่สำเร็จ: ${studentError.message}`);
+        return;
+      }
+      const studentIds = (studentRows || []).map((student) => student.id as string);
+      if (studentIds.length === 0) {
+        setNotice('ห้องเรียนที่ดูแลยังไม่มีรายชื่อนักเรียน');
+        return;
+      }
+      const { data: transactions, error: savingsError } = await supabase
+        .from('savings_transactions')
+        .select('student_id,transaction_type,amount')
+        .eq('workspace_id', workspaceId)
+        .eq('transaction_date', today)
+        .in('student_id', studentIds);
+      if (savingsError) {
+        setNotice(`อ่านรายการออมวันนี้ไม่สำเร็จ: ${savingsError.message}`);
+        return;
+      }
+      const deposits = (transactions || []).filter((row) => row.transaction_type === 'deposit');
+      const withdrawals = (transactions || []).filter((row) => row.transaction_type === 'withdrawal');
+      const depositTotal = deposits.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const withdrawalTotal = withdrawals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const uniqueSavers = new Set(deposits.map((row) => row.student_id)).size;
+      const money = (value: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value);
+      const body = [
+        `วันที่ ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(`${today}T12:00:00+07:00`))}`,
+        `นักเรียนที่ออมวันนี้ ${uniqueSavers} คน จาก ${studentIds.length} คน`,
+        `ยอดฝากรวม ${money(depositTotal)} บาท (${deposits.length} รายการ)`,
+        `ยอดถอนรวม ${money(withdrawalTotal)} บาท (${withdrawals.length} รายการ)`,
+      ].join('\n');
+      await sendPersonalReport('savings_daily_summary', 'สรุปการออมวันนี้', body);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'สร้างสรุปเงินออมวันนี้ไม่สำเร็จ');
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function sendTodayReportTest() {
+    const today = getBangkokDate();
+    const selected = [
+      preferences.morningDigest.includeSchedule ? 'ตารางสอน' : null,
+      preferences.morningDigest.includeCalendar ? 'กิจกรรมและปฏิทิน' : null,
+      preferences.morningDigest.includeTasks ? 'งานติดตาม' : null,
+      preferences.attendance.homeroomEnabled ? 'เช็คชื่อประจำชั้น' : null,
+      preferences.attendance.subjectEnabled ? 'เช็คชื่อรายคาบ' : null,
+      preferences.afterDailyBrief ? 'สรุปประจำวัน' : null,
+      preferences.eveningDigest.enabled ? 'สรุปท้ายวัน' : null,
+    ].filter(Boolean);
+    const dateLabel = new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(`${today}T12:00:00+07:00`));
+    const body = [
+      `วันที่ ${dateLabel}`,
+      'ข้อความนี้ใช้ตรวจรูปแบบรายงานและการเชื่อมต่อ Telegram',
+      `หัวข้อที่เลือกไว้: ${selected.length ? selected.join(' · ') : 'ยังไม่ได้เลือกหัวข้อรายงาน'}`,
+      `รายงานตอนเช้า ${preferences.morningDigest.enabled ? `เปิด ${preferences.morningDigest.time} น.` : 'ปิด'} · รายงานท้ายวัน ${preferences.eveningDigest.enabled ? `เปิด ${preferences.eveningDigest.time} น.` : 'ปิด'}`,
+      'ข้อมูลนักเรียนจะแสดงเป็นจำนวนรวมตามการตั้งค่าความเป็นส่วนตัว',
+    ].join('\n');
+    await sendPersonalReport('daily_report_test', 'ทดสอบรายงานวันนี้', body);
+  }
+
+  async function sendTodayActualReport() {
+    if (!supabase || !workspaceId || demoMode) {
+      setNotice('รายงานข้อมูลจริงใช้ได้เมื่อเข้าสู่ระบบโรงเรียนที่เชื่อมฐานข้อมูลแล้ว');
+      return;
+    }
+    if (telegramStatus !== 'connected' || !preferences.telegramEnabled) {
+      setNotice('กรุณาเชื่อม Telegram และเปิดรับรายงานก่อน');
+      return;
+    }
+    const today = getBangkokDate();
+    const dateLabel = new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(`${today}T12:00:00+07:00`));
+    const sections: string[] = [`รายงานข้อมูลจริงประจำวันที่ ${dateLabel}`];
+    const rooms = preferenceClassroomScope.allClassrooms;
+    const roomNameById = new Map(rooms.map((room) => [room.id, room.name]));
+    const money = (value: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value);
+
+    setTelegramBusy(true);
+    setNotice(null);
+    try {
+      const scheduleSelected = preferences.morningDigest.includeSchedule;
+      const calendarSelected = preferences.morningDigest.includeCalendar || preferences.calendar.enabled;
+      if (scheduleSelected) {
+        const schedule = loadScheduleSettings(session.workspace?.classroomName, workspaceId);
+        const weekdayByIndex: Record<number, DayName> = { 0: 'อาทิตย์', 1: 'จันทร์', 2: 'อังคาร', 3: 'พุธ', 4: 'พฤหัสบดี', 5: 'ศุกร์', 6: 'เสาร์' };
+        const weekday = weekdayByIndex[new Date(`${today}T12:00:00+07:00`).getUTCDay()];
+        const periods = buildSchedulePeriods(schedule);
+        const scheduledLessons = schedule.activeDays.includes(weekday)
+          ? periods.map((period) => ({ ...period, cell: schedule.cells[makeScheduleCellKey(weekday, period.index)] })).filter((period) => period.cell?.subject)
+          : [];
+        sections.push(`\n📚 ตารางสอนวันนี้${scheduledLessons.length ? ` (${weekday})` : ''}`);
+        sections.push(scheduledLessons.length
+          ? scheduledLessons.map((lesson) => `• ${lesson.label} ${lesson.start}-${lesson.end} · ${lesson.cell.classroom || 'ไม่ระบุห้อง'} · ${lesson.cell.subject}`).join('\n')
+          : schedule.activeDays.includes(weekday) ? 'ไม่พบคาบสอนที่บันทึกไว้ในตารางวันนี้' : 'วันนี้ไม่มีสอนตามวันที่กำหนดในตาราง');
+      }
+
+      if (calendarSelected) {
+        const { data, error } = await supabase.from('school_calendar_days').select('title,day_type').eq('workspace_id', workspaceId).eq('calendar_date', today).order('title');
+        if (error) throw new Error(`อ่านปฏิทินวันนี้ไม่สำเร็จ: ${error.message}`);
+        sections.push('\n🗓️ กิจกรรมและปฏิทิน');
+        sections.push(data?.length ? data.map((item) => `• ${item.title} (${item.day_type})`).join('\n') : 'วันนี้ไม่มีรายการในปฏิทินโรงเรียน');
+      }
+
+      const attendanceScopes: Array<{ enabled: boolean; label: string; ids: string[]; subject: boolean }> = [
+        { enabled: preferences.attendance.homeroomEnabled, label: 'เช็คชื่อครูประจำชั้น', ids: (preferences.attendance.homeroomClassroomIds.length ? preferenceClassroomScope.homeroomClassrooms.filter((room) => preferences.attendance.homeroomClassroomIds.includes(room.id)) : preferenceClassroomScope.homeroomClassrooms).map((room) => room.id), subject: false },
+        { enabled: preferences.attendance.subjectEnabled, label: 'เช็คชื่อครูประจำวิชา (แยกตามคาบ)', ids: (preferences.attendance.subjectClassroomIds.length ? preferenceClassroomScope.teachingClassrooms.filter((room) => preferences.attendance.subjectClassroomIds.includes(room.id)) : preferenceClassroomScope.teachingClassrooms).map((room) => room.id), subject: true },
+      ];
+      const enabledScopes = attendanceScopes.filter((scope) => scope.enabled);
+      if (enabledScopes.length) {
+        const allowedClassroomIds = [...new Set(enabledScopes.flatMap((scope) => scope.ids))];
+        sections.push('\n🧑‍🏫 ผลเช็คชื่อวันนี้');
+        if (!allowedClassroomIds.length) {
+          sections.push('ยังไม่มีห้องเรียนที่บัญชีนี้ได้รับสิทธิ์สำหรับรายงาน');
+        } else {
+          const { data: sessions, error: sessionError } = await supabase.from('attendance_sessions')
+            .select('id,classroom_id,period_label,subject_name')
+            .eq('workspace_id', workspaceId).eq('attendance_date', today).in('classroom_id', allowedClassroomIds)
+            .in('status', ['submitted', 'locked']);
+          if (sessionError) throw new Error(`อ่านผลเช็คชื่อวันนี้ไม่สำเร็จ: ${sessionError.message}`);
+          const relevantSessions = (sessions || []).filter((row) => enabledScopes.some((scope) => scope.ids.includes(row.classroom_id) && (scope.subject ? Boolean(row.subject_name) : !row.subject_name)));
+          const sessionIds = relevantSessions.map((row) => row.id as string);
+          const { data: records, error: recordsError } = sessionIds.length
+            ? await supabase.from('attendance_records').select('session_id,student_id,status').eq('workspace_id', workspaceId).in('session_id', sessionIds)
+            : { data: [], error: null };
+          if (recordsError) throw new Error(`อ่านรายละเอียดเช็คชื่อวันนี้ไม่สำเร็จ: ${recordsError.message}`);
+          const countsBySession = new Map<string, Record<string, number>>();
+          for (const record of records || []) {
+            const counts = countsBySession.get(record.session_id) || {};
+            counts[record.status] = (counts[record.status] || 0) + 1;
+            countsBySession.set(record.session_id, counts);
+          }
+          const studentNames = new Map<string, string>();
+          if (!preferences.summaryOnly && (records || []).length) {
+            const studentIds = [...new Set((records || []).map((record) => record.student_id as string))];
+            const { data: students, error: studentsError } = await supabase.from('students').select('id,first_name,last_name').eq('workspace_id', workspaceId).in('id', studentIds);
+            if (studentsError) throw new Error(`อ่านรายชื่อนักเรียนสำหรับรายงานไม่สำเร็จ: ${studentsError.message}`);
+            for (const student of students || []) studentNames.set(student.id, `${student.first_name || ''} ${student.last_name || ''}`.trim());
+          }
+          sections.push(relevantSessions.length ? relevantSessions.map((row) => {
+            const counts = countsBySession.get(row.id) || {};
+            const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+            const bits = [`มา ${counts.present || 0}`, `สาย ${counts.late || 0}`, `ขาด ${counts.absent || 0}`, `ลา ${counts.leave || 0}`, `ป่วย ${counts.sick || 0}`];
+            const followUpNames = !preferences.summaryOnly ? (records || []).filter((record) => record.session_id === row.id && ['absent', 'late'].includes(record.status)).map((record) => studentNames.get(record.student_id) || '').filter(Boolean) : [];
+            return `• ${roomNameById.get(row.classroom_id) || 'ห้องเรียน'} · ${row.subject_name ? `${row.subject_name} · ` : ''}${row.period_label}: ${total} คน (${bits.join(' · ')})${followUpNames.length ? `\n  ติดตาม: ${followUpNames.join(', ')}` : ''}`;
+          }).join('\n') : 'ยังไม่มีการบันทึกเช็คชื่อที่ส่งแล้ววันนี้');
+        }
+      }
+
+      if (preferences.morningDigest.includeTasks) {
+        const allowedStudentIds = rooms.length
+          ? await supabase.from('students').select('id').eq('workspace_id', workspaceId).in('classroom_id', rooms.map((room) => room.id))
+          : { data: [], error: null };
+        if (allowedStudentIds.error) throw new Error(`อ่านรายชื่อนักเรียนสำหรับงานติดตามไม่สำเร็จ: ${allowedStudentIds.error.message}`);
+        const studentIds = (allowedStudentIds.data || []).map((student) => student.id as string);
+        const [casesResult, warningsResult, visitsResult] = studentIds.length ? await Promise.all([
+          supabase.from('student_care_cases').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('student_id', studentIds).in('status', ['open', 'monitoring']),
+          supabase.from('early_warning_signals').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('student_id', studentIds).eq('status', 'open'),
+          supabase.from('student_home_visits').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('student_id', studentIds).in('status', ['draft', 'ready']),
+        ]) : [{ count: 0, error: null }, { count: 0, error: null }, { count: 0, error: null }];
+        const taskError = casesResult.error || warningsResult.error || visitsResult.error;
+        if (taskError) throw new Error(`อ่านงานที่ต้องติดตามไม่สำเร็จ: ${taskError.message}`);
+        sections.push('\n📌 งานที่ต้องติดตาม');
+        sections.push(`มี ${casesResult.count || 0} เคสดูแล, ${warningsResult.count || 0} สัญญาณเตือน และ ${visitsResult.count || 0} งานเยี่ยมบ้านที่ยังเปิดอยู่ในห้องที่คุณเข้าถึงได้`);
+      }
+
+      if (preferences.afterDailyBrief) {
+        const { data, error } = await supabase.from('daily_school_briefs').select('title,summary,status').eq('workspace_id', workspaceId).eq('created_by', session.profile.id).eq('brief_date', today).order('created_at', { ascending: false });
+        if (error) throw new Error(`อ่านสรุปประจำวันไม่สำเร็จ: ${error.message}`);
+        sections.push('\n📝 บันทึกสรุปประจำวัน');
+        sections.push(data?.length ? data.map((brief) => `• ${brief.title} — ${brief.summary || 'ไม่มีรายละเอียด'} (${brief.status})`).join('\n') : 'วันนี้ยังไม่มีบันทึกสรุปประจำวัน');
+      }
+
+      const classroomIds = rooms.map((room) => room.id);
+      if (classroomIds.length) {
+        const { data: studentRows, error: studentError } = await supabase.from('students').select('id').eq('workspace_id', workspaceId).in('classroom_id', classroomIds);
+        if (studentError) throw new Error(`อ่านจำนวนนักเรียนไม่สำเร็จ: ${studentError.message}`);
+        const studentIds = (studentRows || []).map((student) => student.id as string);
+        if (studentIds.length) {
+          const { data: transactions, error: savingsError } = await supabase.from('savings_transactions').select('student_id,transaction_type,amount').eq('workspace_id', workspaceId).eq('transaction_date', today).in('student_id', studentIds);
+          if (savingsError) throw new Error(`อ่านรายการออมวันนี้ไม่สำเร็จ: ${savingsError.message}`);
+          const deposits = (transactions || []).filter((row) => row.transaction_type === 'deposit');
+          const withdrawals = (transactions || []).filter((row) => row.transaction_type === 'withdrawal');
+          const depositTotal = deposits.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+          const withdrawalTotal = withdrawals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+          sections.push('\n🐷 เงินออมวันนี้');
+          sections.push(`ออม ${new Set(deposits.map((row) => row.student_id)).size} คน · ฝาก ${money(depositTotal)} บาท (${deposits.length} รายการ) · ถอน ${money(withdrawalTotal)} บาท (${withdrawals.length} รายการ)`);
+        }
+      }
+
+      const reportBody = sections.join('\n');
+      const safeBody = reportBody.length > 3800 ? `${reportBody.slice(0, 3760)}\n… (ตัดส่วนที่เหลือเพื่อให้ Telegram รับข้อความได้)` : reportBody;
+      await sendPersonalReport('daily_report_today', 'รายงานข้อมูลจริงวันนี้', safeBody);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'สร้างรายงานข้อมูลจริงวันนี้ไม่สำเร็จ');
+    } finally {
+      setTelegramBusy(false);
+    }
   }
 
   const loadData = useCallback(async () => {
@@ -1707,7 +1963,10 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
               <article className="nexus-card p-5">
                 <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><CheckCircle2 size={20} /></span><div><h3 className="font-black text-slate-950">หลังบันทึกและสรุปวัน</h3><p className="mt-1 text-xs font-bold text-slate-500">เลือกเหตุการณ์ที่ต้องการรับสรุป</p></div></div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 rounded-xl bg-emerald-50/70 p-3 text-xs font-bold text-slate-700"><input checked={preferences.afterSavings} className="h-4 w-4 accent-emerald-600" onChange={(event) => updatePreferences((current) => ({ ...current, afterSavings: event.target.checked }))} type="checkbox" />หลังบันทึกเงินออม</label>
+                  <div className="flex flex-col items-start gap-3 rounded-xl bg-emerald-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs font-bold leading-5 text-slate-700">ส่งสรุปยอดออมวันนี้ครั้งเดียว ลดข้อความซ้ำจากการบันทึกหลายคน</span>
+                    <button className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={telegramBusy || telegramStatus !== 'connected' || !preferences.telegramEnabled} onClick={() => void sendTodaySavingsSummary()} type="button"><Banknote size={15} />แจ้งเตือนการออมวันนี้</button>
+                  </div>
                   <label className="flex items-center gap-2 rounded-xl bg-cyan-50/70 p-3 text-xs font-bold text-slate-700"><input checked={preferences.afterDailyBrief} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, afterDailyBrief: event.target.checked }))} type="checkbox" />หลังบันทึกสรุปประจำวัน</label>
                   <label className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-50/70 p-3 text-xs font-bold text-slate-700 sm:col-span-2"><input checked={preferences.eveningDigest.enabled} className="h-4 w-4 accent-amber-600" onChange={(event) => updatePreferences((current) => ({ ...current, eveningDigest: { ...current.eveningDigest, enabled: event.target.checked } }))} type="checkbox" />สรุปงานช่วงท้ายวัน เวลา<input aria-label="เวลาสรุปช่วงท้ายวัน" className="h-9 rounded-lg border border-slate-200 bg-white px-2 font-bold" onChange={(event) => updatePreferences((current) => ({ ...current, eveningDigest: { ...current.eveningDigest, time: event.target.value } }))} type="time" value={preferences.eveningDigest.time} /></label>
                 </div>
@@ -1716,7 +1975,11 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
 
             <div className="nexus-card flex flex-col gap-4 border border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
               <label className="flex items-start gap-3 text-xs font-bold text-amber-900"><ShieldAlert className="mt-0.5 shrink-0 text-amber-700" size={19} /><span><span className="block text-sm font-black text-amber-950">ความเป็นส่วนตัว</span><span className="mt-1 flex items-center gap-2"><input checked={preferences.summaryOnly} className="h-4 w-4 accent-amber-700" onChange={(event) => updatePreferences((current) => ({ ...current, summaryOnly: event.target.checked }))} type="checkbox" />ส่งเฉพาะจำนวนและสรุป ไม่ส่งชื่อนักเรียนผ่าน Telegram</span></span></label>
-              <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-60" disabled={isSavingPreferences} onClick={() => void savePreferences()} type="button"><Save size={17} />{isSavingPreferences ? 'กำลังบันทึก…' : 'บันทึกการตั้งค่า'}</button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-black text-white transition-colors hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={telegramBusy || telegramStatus !== 'connected' || !preferences.telegramEnabled} onClick={() => void sendTodayActualReport()} type="button"><Activity size={16} />ส่งรายงานข้อมูลจริงวันนี้</button>
+                <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-4 text-sm font-black text-cyan-900 transition-colors hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={telegramBusy || telegramStatus !== 'connected' || !preferences.telegramEnabled} onClick={() => void sendTodayReportTest()} type="button"><Send size={16} />ทดสอบรายงานวันนี้</button>
+                <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black disabled:opacity-60" disabled={isSavingPreferences} onClick={() => void savePreferences()} type="button"><Save size={17} />{isSavingPreferences ? 'กำลังบันทึก…' : 'บันทึกการตั้งค่า'}</button>
+              </div>
             </div>
             <p className="rounded-2xl border border-slate-200 bg-white p-3 text-xs font-bold leading-5 text-slate-600">ค่าตั้งค่าแยกตามบัญชีครูและโรงเรียนที่เลือก การส่งตามเวลาเริ่มทำงานเมื่อระบบตั้งเวลาส่งของโรงเรียนถูกเปิดใช้งาน</p>
           </section>
