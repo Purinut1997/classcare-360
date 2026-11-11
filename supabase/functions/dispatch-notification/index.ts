@@ -310,6 +310,28 @@ Deno.serve(async (request) => {
         : settings?.afterDailyBrief === true);
       if (!enabled) return jsonResponse({ ok: true, dispatchResults: [{ channel: 'telegram', status: 'skipped', errorMessage: 'Report is disabled in teacher settings' }] });
 
+      const selectedRooms = Array.isArray(settings?.reportClassroomIds) ? settings.reportClassroomIds : null;
+      const isAttendanceReport = type === 'attendance_homeroom' || type === 'attendance_subject';
+      if (isAttendanceReport || type === 'daily_brief_saved') {
+        // Resolve the room from the saved record, not a browser-supplied room ID.
+        const sourceId = eventId!.split(':')[0];
+        const { data: source, error: sourceError } = await serviceClient
+          .from(isAttendanceReport ? 'attendance_sessions' : 'daily_school_briefs')
+          .select('classroom_id').eq('workspace_id', workspaceId).eq('id', sourceId).maybeSingle();
+        if (sourceError) throw sourceError;
+        if (!source) return jsonResponse({ error: 'Saved report record not found in this workspace' }, 404);
+        const roleRooms = isAttendanceReport
+          ? (type === 'attendance_homeroom' ? attendance?.homeroomClassroomIds : attendance?.subjectClassroomIds)
+          : null;
+        if ((selectedRooms && !selectedRooms.includes(source.classroom_id))
+          || (Array.isArray(roleRooms) && roleRooms.length > 0 && !roleRooms.includes(source.classroom_id))) {
+          return jsonResponse({ ok: true, dispatchResults: [{ channel: 'telegram', status: 'skipped', errorMessage: 'ห้องนี้ไม่ได้อยู่ในห้องที่คุณเลือกรับรายงาน' }] });
+        }
+      }
+      if (selectedRooms?.length === 0 && (type === 'daily_report_today' || type === 'savings_daily_summary')) {
+        return jsonResponse({ ok: true, dispatchResults: [{ channel: 'telegram', status: 'skipped', errorMessage: 'กรุณาเลือกห้องเรียนที่ต้องการรับรายงานก่อน' }] });
+      }
+
       const { error: markerError } = await serviceClient.from('teacher_notification_delivery_log').insert({
         workspace_id: workspaceId,
         profile_id: user.id,

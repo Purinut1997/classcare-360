@@ -45,6 +45,7 @@ type NotificationTab = 'tasks' | 'inbox' | 'activity' | 'settings';
 
 interface TeacherNotificationPreferences {
   telegramEnabled: boolean;
+  reportClassroomIds: string[] | null;
   morningDigest: { enabled: boolean; time: string; includeSchedule: boolean; includeCalendar: boolean; includeTasks: boolean };
   attendance: { homeroomEnabled: boolean; subjectEnabled: boolean; homeroomClassroomIds: string[]; subjectClassroomIds: string[] };
   calendar: { enabled: boolean; reminderTime: string };
@@ -58,6 +59,7 @@ interface NotificationClassroom extends ScopedClassroom {}
 
 const defaultNotificationPreferences: TeacherNotificationPreferences = {
   telegramEnabled: false,
+  reportClassroomIds: null,
   morningDigest: { enabled: false, time: '06:00', includeSchedule: true, includeCalendar: true, includeTasks: false },
   attendance: { homeroomEnabled: false, subjectEnabled: false, homeroomClassroomIds: [], subjectClassroomIds: [] },
   calendar: { enabled: false, reminderTime: '06:00' },
@@ -79,6 +81,7 @@ function mergeNotificationPreferences(value: unknown): TeacherNotificationPrefer
   return {
     ...defaultNotificationPreferences,
     ...incoming,
+    reportClassroomIds: Array.isArray(incoming.reportClassroomIds) ? incoming.reportClassroomIds.filter((id): id is string => typeof id === 'string') : null,
     morningDigest: { ...defaultNotificationPreferences.morningDigest, ...(incoming.morningDigest || {}) },
     attendance: { ...defaultNotificationPreferences.attendance, ...(incoming.attendance || {}) },
     calendar: { ...defaultNotificationPreferences.calendar, ...(incoming.calendar || {}) },
@@ -400,6 +403,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   const [totalStudentsCount, setTotalStudentsCount] = useState<number>(demoMode ? 35 : 0);
   const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
   const preferenceClassroomScope = getTeacherClassroomScope(session, preferenceClassrooms);
+  const reportClassrooms = preferenceClassroomScope.allClassrooms.filter((room) => preferences.reportClassroomIds === null || preferences.reportClassroomIds.includes(room.id));
+  const reportGrades = [...new Set(preferenceClassroomScope.allClassrooms.map((room) => room.name.split('/')[0]))];
 
   useEffect(() => {
     let isMounted = true;
@@ -636,7 +641,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       setNotice('การส่งรายงาน Telegram ใช้ได้เมื่อเข้าสู่ระบบโรงเรียนที่เชื่อมฐานข้อมูลแล้ว');
       return;
     }
-    const classroomIds = preferenceClassroomScope.allClassrooms.map((room) => room.id);
+    const classroomIds = reportClassrooms.map((room) => room.id);
     if (classroomIds.length === 0) {
       setNotice('ยังไม่มีห้องเรียนที่บัญชีนี้เข้าถึงได้ จึงสร้างสรุปเงินออมไม่ได้');
       return;
@@ -734,9 +739,10 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       setNotice('กรุณาเชื่อม Telegram และเปิดรับรายงานก่อน');
       return;
     }
+    if (reportClassrooms.length === 0) { setNotice('กรุณาเลือกห้องเรียนที่ต้องการรับรายงานก่อน'); return; }
     const today = getBangkokDate();
-    const sections: string[] = [session.workspace?.schoolName || 'รายงานชั้นเรียน', `ประจำวันที่ ${formatReportDate(today)}`, 'สรุปข้อมูลประจำวัน', '', 'เรียน ผู้ปกครองนักเรียน'];
-    const rooms = preferenceClassroomScope.allClassrooms;
+    const sections: string[] = [session.workspace?.schoolName || 'รายงานชั้นเรียน', `ห้องเรียนที่รายงาน: ${reportClassrooms.map((room) => room.name).join(', ')}`, `ประจำวันที่ ${formatReportDate(today)}`, 'สรุปข้อมูลประจำวัน', '', 'เรียน ผู้ปกครองนักเรียน'];
+    const rooms = reportClassrooms;
     const roomNameById = new Map(rooms.map((room) => [room.id, room.name]));
     const money = (value: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value);
 
@@ -751,7 +757,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         const weekday = weekdayByIndex[new Date(`${today}T12:00:00+07:00`).getUTCDay()];
         const periods = buildSchedulePeriods(schedule);
         const scheduledLessons = schedule.activeDays.includes(weekday)
-          ? periods.map((period) => ({ ...period, cell: schedule.cells[makeScheduleCellKey(weekday, period.index)] })).filter((period) => period.cell?.subject)
+          ? periods.map((period) => ({ ...period, cell: schedule.cells[makeScheduleCellKey(weekday, period.index)] })).filter((period) => period.cell?.subject && (preferences.reportClassroomIds === null || rooms.some((room) => room.name === period.cell.classroom || room.name.split('/')[0] === period.cell.classroom)))
           : [];
         sections.push('\n1. ตารางเรียนประจำวัน');
         sections.push(scheduledLessons.length
@@ -772,7 +778,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       ];
       const enabledScopes = attendanceScopes.filter((scope) => scope.enabled);
       if (enabledScopes.length) {
-        const allowedClassroomIds = [...new Set(enabledScopes.flatMap((scope) => scope.ids))];
+        const allowedClassroomIds = [...new Set(enabledScopes.flatMap((scope) => scope.ids))].filter((id) => rooms.some((room) => room.id === id));
         sections.push('\n3. ผลการมาเรียน');
         if (!allowedClassroomIds.length) {
           sections.push('ยังไม่มีห้องเรียนที่บัญชีนี้ได้รับสิทธิ์สำหรับรายงาน');
@@ -782,7 +788,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             .eq('workspace_id', workspaceId).eq('attendance_date', today).in('classroom_id', allowedClassroomIds)
             .in('status', ['submitted', 'locked']);
           if (sessionError) throw new Error(`อ่านผลเช็คชื่อวันนี้ไม่สำเร็จ: ${sessionError.message}`);
-          const relevantSessions = (sessions || []).filter((row) => enabledScopes.some((scope) => scope.ids.includes(row.classroom_id) && (scope.subject ? Boolean(row.subject_name) : !row.subject_name)));
+          const relevantSessions = (sessions || []).filter((row) => enabledScopes.some((scope) => rooms.some((room) => room.id === row.classroom_id) && scope.ids.includes(row.classroom_id) && (scope.subject ? Boolean(row.subject_name) : !row.subject_name)));
           const sessionIds = relevantSessions.map((row) => row.id as string);
           const { data: records, error: recordsError } = sessionIds.length
             ? await supabase.from('attendance_records').select('session_id,student_id,status').eq('workspace_id', workspaceId).in('session_id', sessionIds)
@@ -829,7 +835,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       }
 
       if (preferences.afterDailyBrief) {
-        const { data, error } = await supabase.from('daily_school_briefs').select('title,summary,status').eq('workspace_id', workspaceId).eq('created_by', session.profile.id).eq('brief_date', today).order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('daily_school_briefs').select('title,summary,status').eq('workspace_id', workspaceId).eq('created_by', session.profile.id).eq('brief_date', today).in('classroom_id', rooms.map((room) => room.id)).order('created_at', { ascending: false });
         if (error) throw new Error(`อ่านสรุปประจำวันไม่สำเร็จ: ${error.message}`);
         sections.push('\n5. บันทึกสรุปประจำวัน');
         sections.push(data?.length ? data.map((brief) => `• ${brief.title} — ${brief.summary || 'ไม่มีรายละเอียด'} (${brief.status})`).join('\n') : 'วันนี้ยังไม่มีบันทึกสรุปประจำวัน');
@@ -1964,6 +1970,28 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                 <span><span className="block text-sm font-black text-slate-900">รับรายงานผ่าน Telegram</span><span className="block text-xs font-bold text-slate-500">ต้องเชื่อม Telegram ด้านบนก่อน</span></span>
               </label>
             </div>
+
+            <article className="nexus-card border border-sky-100 p-5">
+              <h3 className="font-black text-slate-950">เลือกชั้นและห้องที่ต้องการรับรายงาน</h3>
+              <p className="mt-1 text-sm text-slate-600">ใช้กับผลเช็คชื่อ รายงานเงินออม และสรุปประจำวัน แยกตามบัญชีของคุณ</p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><input type="radio" name="report-room-scope" checked={preferences.reportClassroomIds === null} onChange={() => updatePreferences((current) => ({ ...current, reportClassroomIds: null }))} />ทุกห้องที่ฉันมีสิทธิ์</label>
+                <label className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold"><input type="radio" name="report-room-scope" checked={preferences.reportClassroomIds !== null} onChange={() => updatePreferences((current) => ({ ...current, reportClassroomIds: reportClassrooms.map((room) => room.id) }))} />เลือกเฉพาะห้อง</label>
+              </div>
+              {preferences.reportClassroomIds !== null && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {reportGrades.map((grade) => {
+                  const rooms = preferenceClassroomScope.allClassrooms.filter((room) => room.name.split('/')[0] === grade);
+                  const allChecked = rooms.every((room) => preferences.reportClassroomIds?.includes(room.id));
+                  return <fieldset key={grade} className="rounded-2xl border border-sky-100 bg-sky-50/40 p-3">
+                    <legend className="px-1 text-sm font-black text-sky-900">ชั้น {grade}</legend>
+                    <label className="flex items-center gap-2 border-b border-sky-100 pb-2 text-sm font-bold"><input type="checkbox" checked={allChecked} onChange={(event) => updatePreferences((current) => ({ ...current, reportClassroomIds: event.target.checked ? [...new Set([...(current.reportClassroomIds || []), ...rooms.map((room) => room.id)])] : (current.reportClassroomIds || []).filter((id) => !rooms.some((room) => room.id === id)) }))} />เลือกทุกห้องในชั้นนี้</label>
+                    {rooms.map((room) => <label key={room.id} className="mt-2 flex items-center gap-2 rounded-lg bg-white p-2 text-sm"><input type="checkbox" checked={preferences.reportClassroomIds?.includes(room.id) || false} onChange={(event) => updatePreferences((current) => ({ ...current, reportClassroomIds: event.target.checked ? [...new Set([...(current.reportClassroomIds || []), room.id])] : (current.reportClassroomIds || []).filter((id) => id !== room.id) }))} />{room.name}</label>)}
+                  </fieldset>;
+                })}
+              </div>}
+              <p className="mt-3 text-sm font-bold text-sky-800">เลือกแล้ว {reportClassrooms.length} ห้อง{reportClassrooms.length ? `: ${reportClassrooms.map((room) => room.name).join(', ')}` : ' — จะไม่ส่งรายงานห้องเรียนจนกว่าจะเลือกห้อง'}</p>
+              <p className="mt-1 text-xs text-slate-500">กิจกรรมปฏิทินส่วนกลางยังเป็นข้อมูลระดับโรงเรียน กดบันทึกการตั้งค่าด้านล่างเพื่อใช้กับรายงานอัตโนมัติ</p>
+            </article>
 
             <div className="grid gap-4 xl:grid-cols-2">
               <article className="nexus-card p-5">
