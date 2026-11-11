@@ -7,12 +7,11 @@ import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
-import { buildSchedulePeriods, getScheduleTheme, loadScheduleSettings, makeScheduleCellKey, thaiDayStyles, type ScheduleSettings } from '../../lib/scheduleSettings';
+import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type ScheduleSettings } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 import type { WatchlistStudentItem } from '../../components/dashboard/StudentWatchlist';
 import type { ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
-import { OnboardingRoadmapCard } from '../../components/dashboard/OnboardingRoadmapCard';
 import { SystemReportsDashboard } from '../../components/dashboard/SystemReportsDashboard';
 import { TeacherSchedulePreview } from '../../components/dashboard/TeacherSchedulePreview';
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
@@ -1245,7 +1244,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-2xl animate-bounce">☀️</span>
+            <span className="text-2xl">☀️</span>
             <h1 className="text-xl font-black tracking-tight text-[#1c1917] sm:text-2xl xl:text-4xl">
               สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'} 🎒
             </h1>
@@ -1365,7 +1364,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-3 min-w-0">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 text-xl animate-pulse">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 text-xl">
                     🔔
                   </span>
                   <div className="min-w-0">
@@ -1452,7 +1451,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       />
 
       {/* 🚀 MODE SELECTOR TABS: ทางลัดทุกเมนู (โหมดง่าย) vs แดชบอร์ดสถิติ */}
-      <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-2 sm:p-2.5 shadow-2xs">
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-2 shadow-2xs sm:w-fit">
         <div className="flex items-center gap-1.5 p-1 bg-[#ede4d5] rounded-xl w-full sm:w-auto">
           <button
             type="button"
@@ -1466,9 +1465,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
             <Sparkles size={15} className={dashboardViewMode === 'shortcuts' ? 'text-emerald-600' : 'text-stone-400'} />
             <span className="sm:hidden">ทางลัดทุกเมนู</span>
             <span className="hidden sm:inline">ศูนย์รวมทางลัดทุกเมนู (โหมดง่าย)</span>
-            <span className="hidden md:inline-block rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
-              เริ่มต้น
-            </span>
           </button>
 
           <button
@@ -1484,14 +1480,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
             <span className="sm:hidden">สถิติภาพรวม</span>
             <span className="hidden sm:inline">สถิติ & กราฟวิเคราะห์ห้องเรียน</span>
           </button>
-        </div>
-
-        <div className="px-3 text-[11px] font-bold text-stone-500 hidden md:block">
-          {dashboardViewMode === 'shortcuts' ? (
-            <span>💡 เข้าถึง 20+ เมนูในคลิกเดียว จัดหมวดตามสิ่งที่ครูทำจริง</span>
-          ) : (
-            <span>📊 สถิติเวลาเรียน คะแนน และรายงานเชิงลึก</span>
-          )}
         </div>
       </div>
 
@@ -1544,27 +1532,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
       ) : null}
 
       {dashboardViewMode === 'shortcuts' ? (
-        <>
-          <div className="mt-5">
-            <OnboardingRoadmapCard
-              session={session}
-              classroomsCount={classrooms.length}
-              studentsCount={Number(stats[0]?.value || 0)}
-              hasAttendanceRecorded={analyticsData.dataCompleteness.attendanceCheckedToday || (analyticsData.attendance?.totalSessions || 0) > 0}
-              hasScoresRecorded={(analyticsData.scores?.assessmentCount || 0) > 0 || (analyticsData.dataCompleteness?.scoresEnteredCount || 0) > 0}
-              startCollapsed
-            />
-          </div>
-          <div className="mt-5">
-            <EasyShortcutHub
-              analyticsData={analyticsData}
-              classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
-              isHomeroom={isSelectedClassroomHomeroom}
-              onSwitchToAnalytics={() => handleSetDashboardViewMode('analytics')}
-              session={session}
-            />
-          </div>
-        </>
+        <div className="mt-5">
+          <EasyShortcutHub
+            analyticsData={analyticsData}
+            classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
+            isHomeroom={isSelectedClassroomHomeroom}
+            session={session}
+          />
+        </div>
       ) : (
         <SystemReportsDashboard
           analyticsData={analyticsData}

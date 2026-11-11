@@ -9,7 +9,6 @@ import {
   CalendarDays,
   CalendarRange,
   ClipboardCheck,
-  ClipboardList,
   DatabaseZap,
   Dice5,
   FileSpreadsheet,
@@ -21,7 +20,6 @@ import {
   School,
   ScanLine,
   Search,
-  Sparkles,
   Users,
   Workflow,
   X,
@@ -148,15 +146,13 @@ interface EasyShortcutHubProps {
   analyticsData?: ClassroomAnalyticsData;
   classroomName?: string;
   isHomeroom?: boolean;
-  onSwitchToAnalytics?: () => void;
   session: AppSessionContext;
 }
 
 export function EasyShortcutHub({
   analyticsData,
-  classroomName = 'ห้องเรียน',
-  isHomeroom = false,
-  onSwitchToAnalytics,
+  classroomName: _classroomName = 'ห้องเรียน',
+  isHomeroom: _isHomeroom = false,
   session: _session,
 }: EasyShortcutHubProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,7 +198,7 @@ export function EasyShortcutHub({
         icon: CalendarClock,
         path: '/app/dashboard?view=teacher-work',
         badge: attendanceChecked ? '✓ เช็กแล้ว' : '🔔 รอเช็กเช้า',
-        badgeTone: attendanceChecked ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-rose-100 text-rose-800 border-rose-200 animate-pulse',
+        badgeTone: attendanceChecked ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-rose-100 text-rose-800 border-rose-200',
         category: 'classroom-admin',
         accentColor: {
           bg: 'from-emerald-500/10 via-white to-teal-500/5',
@@ -679,251 +675,46 @@ export function EasyShortcutHub({
 
   return (
     <div className="space-y-6">
-      {/* 🚀 Welcome & Intent Search Box */}
-      <section className="relative overflow-hidden rounded-3xl border-2 border-[#e6dcce] bg-[#fbf7ee] p-5 sm:p-7 shadow-sm">
-        {/* Cute Tape Sticker */}
-        <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-16 h-4 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[-1deg] pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
-          <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/80 bg-teal-100/80 px-3 py-1 text-[11px] sm:text-xs font-black text-teal-800 shadow-2xs">
-              <span>📌</span>
-              <span>ศูนย์รวมทางลัดทุกเมนู (Easy Shortcut Hub)</span>
-            </div>
-            <h2 className="mt-2.5 text-xl font-black text-[#1c1917] tracking-tight sm:text-3xl">
-              ต้องการทำอะไรในวันนี้ครับ? 📝
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm font-bold text-slate-600 max-w-xl leading-relaxed">
-              เข้าถึงทุกเมนูง่ายๆ ในคลิกเดียว ไม่ต้องจำเมนูซับซ้อน จัดหมวดหมู่ตามภาระงานจริงของคุณครู
-            </p>
-          </div>
-
-          {onSwitchToAnalytics && (
+      {/* 🔎 Compact Filter & Search Toolbar */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex flex-1 items-center lg:max-w-md">
+          <Search className="absolute left-3.5 text-slate-400" size={16} aria-hidden="true" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="กรองเมนูในหน้านี้ เช่น เช็กชื่อ, คะแนน, ปพ.5..."
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-8 text-xs sm:text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
+          />
+          {searchQuery && (
             <button
               type="button"
-              onClick={onSwitchToAnalytics}
-              className="inline-flex items-center gap-2 self-start md:self-auto rounded-xl sm:rounded-2xl border-2 border-[#cbd5e1] bg-white px-4 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-teal-800 hover:border-teal-400 active:scale-95"
-              title="สลับไปดูแดชบอร์ดสถิติและการวิเคราะห์ห้องเรียน"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 grid h-6 w-6 place-items-center rounded-full bg-slate-200/80 text-slate-600 hover:bg-slate-300"
+              aria-label="ล้างคำค้นหา"
             >
-              <span>📊 สลับไปดูสถิติภาพรวม</span>
-              <ArrowRight size={13} />
+              <X size={13} />
             </button>
           )}
         </div>
 
-        {/* 🔎 Smart Search Bar */}
-        <div className="relative mt-6 max-w-2xl">
-          <div className="relative flex items-center">
-            <Search className="absolute left-4 text-slate-400" size={20} aria-hidden="true" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="พิมพ์สิ่งที่ต้องการทำ เช่น เช็กชื่อ, แปรงฟัน, กรอกคะแนน, ปพ.5, เงินออม, สุ่มชื่อ ..."
-              className="w-full rounded-2xl border-2 border-teal-300/80 bg-white py-3.5 pl-12 pr-10 text-sm font-bold text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
-                aria-label="ล้างคำค้นหา"
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-
-          {/* Quick Tag Recommendations styled as cute pastel sticky tabs */}
-          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <span className="text-[11px] font-black text-slate-500 mr-1 shrink-0 whitespace-nowrap">แนะนำ:</span>
-            {quickFilterTags.map((tag) => (
-              <button
-                key={tag.label}
-                type="button"
-                onClick={() => setSearchQuery(tag.query)}
-                className={`shrink-0 whitespace-nowrap rounded-xl border-2 px-3 py-1 text-xs font-bold transition-all shadow-2xs hover:-translate-y-0.5 ${
-                  searchQuery === tag.query
-                    ? 'border-teal-600 bg-teal-600 text-white shadow-xs'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-900'
-                }`}
-              >
-                {tag.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 lg:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {quickFilterTags.map((tag) => (
+            <button
+              key={tag.label}
+              type="button"
+              onClick={() => setSearchQuery(searchQuery === tag.query ? '' : tag.query)}
+              className={`shrink-0 whitespace-nowrap rounded-xl border px-2.5 py-1.5 text-xs font-bold transition-all ${
+                searchQuery === tag.query
+                  ? 'border-teal-600 bg-teal-600 text-white shadow-2xs'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-900'
+              }`}
+            >
+              {tag.label}
+            </button>
+          ))}
         </div>
-      </section>
-
-      {/* ⭐ 5 เมนูยอดนิยมที่ต้องใช้บ่อยที่สุด (Cute Pastel Sticky Notes) */}
-      {!searchQuery && activeCategory === 'all' && (
-        <details className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
-          <summary className="cursor-pointer list-none rounded-xl px-2 py-1 text-sm font-black text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
-            เมนูที่ใช้บ่อย 5 อย่าง <span className="ml-1 text-xs font-semibold text-slate-500">กดเพื่อแสดงหรือซ่อน</span>
-          </summary>
-        <section className="mt-4 space-y-3">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {/* Card 1: เช็กเวลาเรียน (Mint Green Sticky Note) */}
-            <Link
-              to="/app/dashboard?view=teacher-work"
-              className="group relative flex flex-col justify-between overflow-hidden rounded-[26px] border-2 border-[#86efac] bg-[#dcfce7] p-5 shadow-[2px_5px_12px_rgba(22,101,52,0.12)] transition-all duration-300 hover:-translate-y-2 hover:rotate-[-1deg] hover:shadow-xl hover:shadow-emerald-600/20 active:scale-[0.98]"
-            >
-              {/* Cute Tape */}
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-9 h-3.5 bg-white/90 border border-[#86efac] rounded-xs shadow-2xs pointer-events-none rotate-[-1deg]" />
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-700/30 transition-transform duration-300 group-hover:scale-110">
-                    <CalendarClock size={24} aria-hidden="true" />
-                  </span>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-black shadow-2xs border ${
-                      attendanceChecked
-                        ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                        : 'bg-rose-100 text-rose-900 border-rose-300 animate-bounce'
-                    }`}
-                  >
-                    {attendanceChecked ? '✓ เช็กแล้ว' : '🔔 รอเช็กเช้า'}
-                  </span>
-                </div>
-                <h4 className="mt-4 text-lg font-black text-emerald-950 transition-colors">
-                  เช็กเวลาเรียนวันนี้
-                </h4>
-                <p className="mt-1 text-xs font-bold text-emerald-800/90 leading-relaxed">
-                  {attendanceChecked
-                    ? `ห้อง ${classroomName} บันทึกเรียบร้อยแล้ว`
-                    : 'บันทึก มา สาย ลา ขาด ประจำวันอย่างรวดเร็ว'}
-                </p>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-emerald-300/70 pt-3 text-xs font-black text-emerald-900">
-                <span>{attendanceChecked ? 'ดูรายงานวันนี้' : 'แตะเช็กชื่อทันที'}</span>
-                <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
-              </div>
-            </Link>
-
-            {/* Card 2: กรอกคะแนน (Sky Blue Sticky Note) */}
-            <Link
-              to="/app/dashboard?view=scores&scoreView=excel"
-              className="group relative flex flex-col justify-between overflow-hidden rounded-[26px] border-2 border-[#7dd3fc] bg-[#e0f2fe] p-5 shadow-[2px_5px_12px_rgba(3,105,161,0.12)] transition-all duration-300 hover:-translate-y-2 hover:rotate-[1deg] hover:shadow-xl hover:shadow-sky-600/20 active:scale-[0.98]"
-            >
-              {/* Cute Tape */}
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-9 h-3.5 bg-white/90 border border-[#7dd3fc] rounded-xs shadow-2xs pointer-events-none rotate-[1.5deg]" />
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-700/30 transition-transform duration-300 group-hover:scale-110">
-                    <GraduationCap size={24} aria-hidden="true" />
-                  </span>
-                  <span className="rounded-full bg-sky-100 text-sky-900 border border-sky-300 px-3 py-1 text-xs font-black shadow-2xs">
-                    {assessmentCount} ชุดคะแนน
-                  </span>
-                </div>
-                <h4 className="mt-4 text-lg font-black text-sky-950 transition-colors">
-                  สมุดกรอกคะแนน
-                </h4>
-                <p className="mt-1 text-xs font-bold text-sky-800/90 leading-relaxed">
-                  เปิดตารางคะแนนสไตล์ Excel กรอกง่าย ตัดเกรดอัตโนมัติ
-                </p>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-sky-300/70 pt-3 text-xs font-black text-sky-900">
-                <span>เปิดสมุดคะแนน</span>
-                <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
-              </div>
-            </Link>
-
-            {/* Card 3: ตรวจข้อสอบ OMR (Lavender/Indigo Sticky Note) */}
-            <Link
-              to="/app/dashboard?view=omr-scanner"
-              className="group relative flex flex-col justify-between overflow-hidden rounded-[26px] border-2 border-[#c4b5fd] bg-[#ede9fe] p-5 shadow-[2px_5px_12px_rgba(67,56,202,0.12)] transition-all duration-300 hover:-translate-y-2 hover:rotate-[-1.5deg] hover:shadow-xl hover:shadow-indigo-600/20 active:scale-[0.98]"
-            >
-              {/* Cute Tape */}
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-9 h-3.5 bg-white/90 border border-[#c4b5fd] rounded-xs shadow-2xs pointer-events-none rotate-[-1deg]" />
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-700/30 transition-transform duration-300 group-hover:scale-110">
-                    <ScanLine size={24} aria-hidden="true" />
-                  </span>
-                  <span className="rounded-full bg-indigo-100 text-indigo-900 border border-indigo-300 px-3 py-1 text-xs font-black shadow-2xs">
-                    AI Vision ✨
-                  </span>
-                </div>
-                <h4 className="mt-4 text-lg font-black text-indigo-950 transition-colors">
-                  ตรวจข้อสอบ OMR
-                </h4>
-                <p className="mt-1 text-xs font-bold text-indigo-800/90 leading-relaxed">
-                  สแกนกระดาษคำตอบผ่านกล้อง ออกแบบข้อสอบ & ตัดเกรด
-                </p>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-indigo-300/70 pt-3 text-xs font-black text-indigo-900">
-                <span>เปิดระบบตรวจ & พิมพ์</span>
-                <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
-              </div>
-            </Link>
-
-            {/* Card 4: ทะเบียนนักเรียน (Soft Yellow/Amber Sticky Note) */}
-            <Link
-              to="/app/dashboard?view=students"
-              className="group relative flex flex-col justify-between overflow-hidden rounded-[26px] border-2 border-[#fde047] bg-[#fef9c3] p-5 shadow-[2px_5px_12px_rgba(180,83,9,0.12)] transition-all duration-300 hover:-translate-y-2 hover:rotate-[1deg] hover:shadow-xl hover:shadow-amber-600/20 active:scale-[0.98]"
-            >
-              {/* Cute Tape */}
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-9 h-3.5 bg-white/90 border border-[#fde047] rounded-xs shadow-2xs pointer-events-none rotate-[2deg]" />
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-600 text-white shadow-md shadow-amber-700/30 transition-transform duration-300 group-hover:scale-110">
-                    <Users size={24} aria-hidden="true" />
-                  </span>
-                  <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 text-xs font-black shadow-2xs">
-                    {studentCount} คนในห้อง
-                  </span>
-                </div>
-                <h4 className="mt-4 text-lg font-black text-amber-950 transition-colors">
-                  ข้อมูลนักเรียนรายคน
-                </h4>
-                <p className="mt-1 text-xs font-bold text-amber-800/90 leading-relaxed">
-                  ดูประวัติ, รูปถ่าย, เบอร์ติดต่อผู้ปกครอง และสถิติรายบุคคล
-                </p>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-amber-300/70 pt-3 text-xs font-black text-amber-900">
-                <span>เปิดคลังนักเรียน</span>
-                <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
-              </div>
-            </Link>
-
-            {/* Card 5: ปพ. & รายงาน (Pastel Peach/Rose Sticky Note) */}
-            <Link
-              to="/app/dashboard?view=academic-hub"
-              className="group relative flex flex-col justify-between overflow-hidden rounded-[26px] border-2 border-[#fda4af] bg-[#ffe4e6] p-5 shadow-[2px_5px_12px_rgba(190,18,60,0.12)] transition-all duration-300 hover:-translate-y-2 hover:rotate-[-2deg] hover:shadow-xl hover:shadow-rose-600/20 active:scale-[0.98]"
-            >
-              {/* Cute Tape */}
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-9 h-3.5 bg-white/90 border border-[#fda4af] rounded-xs shadow-2xs pointer-events-none rotate-[-1.5deg]" />
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-600 text-white shadow-md shadow-rose-700/30 transition-transform duration-300 group-hover:scale-110">
-                    <BookOpen size={24} aria-hidden="true" />
-                  </span>
-                  <span className="rounded-full bg-rose-100 text-rose-900 border border-rose-300 px-3 py-1 text-xs font-black shadow-2xs">
-                    ปพ.5 / ปพ.6 🌟
-                  </span>
-                </div>
-                <h4 className="mt-4 text-lg font-black text-rose-950 transition-colors">
-                  ออกเอกสาร ปพ. & รายงาน
-                </h4>
-                <p className="mt-1 text-xs font-bold text-rose-800/90 leading-relaxed">
-                  พิมพ์สมุดประเมินผลการเรียน ปพ.5 และ ปพ.6 ตามมาตรฐาน สพฐ.
-                </p>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-rose-300/70 pt-3 text-xs font-black text-rose-900">
-                <span>ไปศูนย์งาน ปพ.</span>
-                <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1.5" />
-              </div>
-            </Link>
-          </div>
-        </section>
-        </details>
-      )}
+      </div>
 
       {/* 🏷️ Category Filter Tabs */}
       <section className="space-y-4">
@@ -1044,29 +835,6 @@ export function EasyShortcutHub({
             </button>
           </div>
         )}
-      </section>
-
-      {/* 💡 Help & Friendly Tip for Beginners */}
-      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
-            <Sparkles size={20} />
-          </span>
-          <div>
-            <h4 className="text-sm font-black text-slate-900">ยังไม่แน่ใจว่าจะเริ่มตรงไหนดี?</h4>
-            <p className="mt-0.5 text-xs font-bold text-slate-500">
-              เริ่มต้นง่ายๆ ด้วยการกด <strong className="text-emerald-700">"เช็กเวลาเรียนวันนี้"</strong> ในตอนเช้า และ <strong className="text-sky-700">"สมุดกรอกคะแนน"</strong> ในคาบสอน
-            </p>
-          </div>
-        </div>
-
-        <Link
-          to="/app/dashboard?view=help-center"
-          className="inline-flex items-center gap-2 self-start sm:self-auto rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
-        >
-          <ClipboardList size={16} className="text-slate-500" />
-          <span>ดูคู่มือและวิดีโอสอน</span>
-        </Link>
       </section>
     </div>
   );
