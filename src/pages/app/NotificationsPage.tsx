@@ -82,7 +82,7 @@ function mergeNotificationPreferences(value: unknown): TeacherNotificationPrefer
     ...defaultNotificationPreferences,
     ...incoming,
     reportClassroomIds: Array.isArray(incoming.reportClassroomIds) ? incoming.reportClassroomIds.filter((id): id is string => typeof id === 'string') : null,
-    morningDigest: { ...defaultNotificationPreferences.morningDigest, ...(incoming.morningDigest || {}) },
+    morningDigest: { ...defaultNotificationPreferences.morningDigest, ...(incoming.morningDigest || {}), enabled: incoming.morningDigest?.enabled === true || incoming.calendar?.enabled === true },
     attendance: { ...defaultNotificationPreferences.attendance, ...(incoming.attendance || {}) },
     calendar: { ...defaultNotificationPreferences.calendar, ...(incoming.calendar || {}) },
     eveningDigest: { ...defaultNotificationPreferences.eveningDigest, ...(incoming.eveningDigest || {}) },
@@ -436,6 +436,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
   }, [demoMode, session, workspaceId]);
 
   async function savePreferences(nextPreferences = preferences) {
+    nextPreferences = { ...nextPreferences, calendar: { ...nextPreferences.calendar, enabled: nextPreferences.morningDigest.enabled && nextPreferences.calendar.enabled, reminderTime: nextPreferences.morningDigest.time } };
     setIsSavingPreferences(true);
     setNotice(null);
     if (demoMode || !supabase || !workspaceId) {
@@ -750,7 +751,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
     setNotice(null);
     try {
       const scheduleSelected = preferences.morningDigest.includeSchedule;
-      const calendarSelected = preferences.morningDigest.includeCalendar || preferences.calendar.enabled;
+      const calendarSelected = preferences.morningDigest.includeCalendar;
       if (scheduleSelected) {
         const schedule = loadScheduleSettings(session.workspace?.classroomName, workspaceId);
         const weekdayByIndex: Record<number, DayName> = { 0: 'อาทิตย์', 1: 'จันทร์', 2: 'อังคาร', 3: 'พุธ', 4: 'พฤหัสบดี', 5: 'ศุกร์', 6: 'เสาร์' };
@@ -772,6 +773,16 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
         sections.push(data?.length ? data.map((item) => `• ${item.title}`).join('\n') : 'วันนี้ไม่มีรายการในปฏิทินโรงเรียน');
       }
 
+      if (preferences.calendar.enabled) {
+        const tomorrowDate = new Date(`${today}T12:00:00+07:00`);
+        tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+        const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+        const { data, error } = await supabase.from('school_calendar_days').select('title').eq('workspace_id', workspaceId).eq('calendar_date', tomorrow).order('title');
+        if (error) throw new Error(`อ่านปฏิทินวันพรุ่งนี้ไม่สำเร็จ: ${error.message}`);
+        sections.push(`\n2. กิจกรรมวันพรุ่งนี้ (${formatReportDate(tomorrow)})`);
+        sections.push(data?.length ? data.map((item) => `• ${item.title}`).join('\n') : 'ไม่มีรายการกิจกรรมวันพรุ่งนี้');
+      }
+
       const attendanceScopes: Array<{ enabled: boolean; label: string; ids: string[]; subject: boolean }> = [
         { enabled: preferences.attendance.homeroomEnabled, label: 'เช็คชื่อครูประจำชั้น', ids: (preferences.attendance.homeroomClassroomIds.length ? preferenceClassroomScope.homeroomClassrooms.filter((room) => preferences.attendance.homeroomClassroomIds.includes(room.id)) : preferenceClassroomScope.homeroomClassrooms).map((room) => room.id), subject: false },
         { enabled: preferences.attendance.subjectEnabled, label: 'เช็คชื่อครูประจำวิชา (แยกตามคาบ)', ids: (preferences.attendance.subjectClassroomIds.length ? preferenceClassroomScope.teachingClassrooms.filter((room) => preferences.attendance.subjectClassroomIds.includes(room.id)) : preferenceClassroomScope.teachingClassrooms).map((room) => room.id), subject: true },
@@ -786,7 +797,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           const { data: sessions, error: sessionError } = await supabase.from('attendance_sessions')
             .select('id,classroom_id,period_label,subject_name')
             .eq('workspace_id', workspaceId).eq('attendance_date', today).in('classroom_id', allowedClassroomIds)
-            .in('status', ['submitted', 'locked']);
+            .neq('status', 'archived');
           if (sessionError) throw new Error(`อ่านผลเช็คชื่อวันนี้ไม่สำเร็จ: ${sessionError.message}`);
           const relevantSessions = (sessions || []).filter((row) => enabledScopes.some((scope) => rooms.some((room) => room.id === row.classroom_id) && scope.ids.includes(row.classroom_id) && (scope.subject ? Boolean(row.subject_name) : !row.subject_name)));
           const sessionIds = relevantSessions.map((row) => row.id as string);
@@ -807,13 +818,14 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             if (studentsError) throw new Error(`อ่านรายชื่อนักเรียนสำหรับรายงานไม่สำเร็จ: ${studentsError.message}`);
             for (const student of students || []) studentNames.set(student.id, `${student.first_name || ''} ${student.last_name || ''}`.trim());
           }
-          sections.push(relevantSessions.length ? relevantSessions.map((row) => {
+          const recordedSessions = relevantSessions.filter((row) => countsBySession.has(row.id));
+          sections.push(recordedSessions.length ? recordedSessions.map((row) => {
             const counts = countsBySession.get(row.id) || {};
             const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
             const bits = [`มา ${counts.present || 0}`, `สาย ${counts.late || 0}`, `ขาด ${counts.absent || 0}`, `ลา ${counts.leave || 0}`, `ป่วย ${counts.sick || 0}`];
-            const followUpNames = !preferences.summaryOnly ? (records || []).filter((record) => record.session_id === row.id && ['absent', 'late', 'leave', 'sick'].includes(record.status)).map((record) => `${({ absent: 'ขาดเรียน', late: 'มาสาย', leave: 'ลา', sick: 'ลาป่วย' } as Record<string, string>)[record.status]}: ${studentNames.get(record.student_id) || 'ไม่ระบุชื่อ'}`).filter(Boolean) : [];
+            const followUpNames = !preferences.summaryOnly ? (records || []).filter((record) => record.session_id === row.id && ['present', 'absent', 'late', 'leave', 'sick'].includes(record.status)).map((record) => `${({ present: 'มาเรียน', absent: 'ขาดเรียน', late: 'มาสาย', leave: 'ลา', sick: 'ลาป่วย' } as Record<string, string>)[record.status]}: ${studentNames.get(record.student_id) || 'ไม่ระบุชื่อ'}`).filter(Boolean) : [];
             return `• ${roomNameById.get(row.classroom_id) || 'ห้องเรียน'} · ${row.subject_name ? `${row.subject_name} · ` : ''}${row.period_label}: ${total} คน (${bits.join(' · ')})${followUpNames.length ? `\n${followUpNames.map((name, index) => `  ${index + 1}. ${name}`).join('\n')}` : ''}`;
-          }).join('\n') : 'ยังไม่มีการบันทึกเช็คชื่อที่ส่งแล้ววันนี้');
+          }).join('\n') : 'ยังไม่มีผลเช็คชื่อที่บันทึกไว้ในห้องที่เลือกสำหรับวันนี้');
         }
       }
 
@@ -867,7 +879,8 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       }
 
       sections.push('', 'จึงเรียนมาเพื่อทราบ', 'ครูผู้บันทึกข้อมูล');
-      const reportBody = sections.join('\n');
+      let sectionNumber = 0;
+      const reportBody = sections.map((section) => section.replace(/^\n\d+\. /, () => `\n${++sectionNumber}. `)).join('\n');
       const safeBody = reportBody.length > 3800 ? `${reportBody.slice(0, 3760)}\n… (ตัดส่วนที่เหลือเพื่อให้ Telegram รับข้อความได้)` : reportBody;
       await sendPersonalReport('daily_report_today', 'รายงานประจำวัน', safeBody);
     } catch (error) {
@@ -1997,12 +2010,14 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
               <article className="nexus-card p-5">
                 <div className="flex items-start gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={20} /></span>
-                  <div className="flex-1"><h3 className="font-black text-slate-950">รายงานตอนเช้า</h3><p className="mt-1 text-xs font-bold leading-5 text-slate-500">สรุปตารางสอน กิจกรรม และงานก่อนเริ่มวัน</p></div>
-                  <input aria-label="เปิดรายงานตอนเช้า" checked={preferences.morningDigest.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, enabled: event.target.checked } }))} type="checkbox" />
+                  <div className="flex-1"><h3 className="font-black text-slate-950">รายงานก่อนเริ่มวัน</h3><p className="mt-1 text-xs font-bold leading-5 text-slate-500">สรุปตารางสอน กิจกรรม และงานก่อนเริ่มวัน</p></div>
+                  <input aria-label="เปิดรายงานก่อนเริ่มวัน" checked={preferences.morningDigest.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, enabled: event.target.checked } }))} type="checkbox" />
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="text-xs font-black text-slate-600">เวลาแจ้ง<input className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, time: event.target.value } }))} type="time" value={preferences.morningDigest.time} /></label>
-                  <div className="space-y-2 pt-1">{([['includeSchedule', 'ตารางสอนวันนี้'], ['includeCalendar', 'กิจกรรมและปฏิทิน'], ['includeTasks', 'งานที่ต้องติดตาม']] as const).map(([key, label]) => <label className="flex items-center gap-2 text-xs font-bold text-slate-700" key={key}><input checked={preferences.morningDigest[key]} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, [key]: event.target.checked } }))} type="checkbox" />{label}</label>)}</div>
+                  <div className="space-y-2 pt-1">{([['includeSchedule', 'ตารางสอนวันนี้'], ['includeCalendar', 'กิจกรรมวันนี้'], ['includeTasks', 'งานที่ต้องติดตาม']] as const).map(([key, label]) => <label className="flex items-center gap-2 text-xs font-bold text-slate-700" key={key}><input checked={preferences.morningDigest[key]} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, morningDigest: { ...current.morningDigest, [key]: event.target.checked } }))} type="checkbox" />{label}</label>)}</div>
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 sm:col-start-2"><input checked={preferences.calendar.enabled} className="h-4 w-4 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, enabled: event.target.checked } }))} type="checkbox" />เตือนกิจกรรมวันพรุ่งนี้</label>
+                  <p className="text-xs text-slate-500 sm:col-span-2">รวมข้อมูลที่เลือกเป็นรายงานเดียว ใช้เวลาแจ้งเดียวกัน</p>
                 </div>
               </article>
 
@@ -2014,10 +2029,7 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                 </div>
               </article>
 
-              <article className="nexus-card p-5">
-                <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-100 text-blue-700"><CalendarDays size={20} /></span><div className="flex-1"><h3 className="font-black text-slate-950">เตือนจากปฏิทิน</h3><p className="mt-1 text-xs font-bold text-slate-500">เตือนล่วงหน้า 1 วันตามวันที่ในปฏิทินโรงเรียน</p></div><input aria-label="เปิดการเตือนปฏิทิน" checked={preferences.calendar.enabled} className="mt-1 h-5 w-5 accent-cyan-600" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, enabled: event.target.checked } }))} type="checkbox" /></div>
-                <label className="mt-4 block text-xs font-black text-slate-600">เวลาเตือน<input className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900" onChange={(event) => updatePreferences((current) => ({ ...current, calendar: { ...current.calendar, reminderTime: event.target.value } }))} type="time" value={preferences.calendar.reminderTime} /></label>
-              </article>
+
 
               <article className="nexus-card p-5">
                 <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><CheckCircle2 size={20} /></span><div><h3 className="font-black text-slate-950">หลังบันทึกและสรุปวัน</h3><p className="mt-1 text-xs font-bold text-slate-500">เลือกเหตุการณ์ที่ต้องการรับสรุป</p></div></div>
