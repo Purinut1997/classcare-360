@@ -609,7 +609,15 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
       const response = data as { dispatchResults?: Array<{ errorMessage?: string; status?: string }>; error?: string } | null;
       const result = response?.dispatchResults?.[0];
       if (error || response?.error) {
-        setNotice(response?.error || error?.message || 'ส่งรายงานไม่สำเร็จ กรุณาลองใหม่');
+        let message = response?.error || '';
+        const context = (error as { context?: unknown } | null)?.context;
+        if (!message && context instanceof Response) {
+          const responseBody = await context.clone().json().catch(() => null) as { error?: string } | null;
+          message = responseBody?.error || '';
+        }
+        setNotice(message === 'Personal report payload is invalid'
+          ? 'ระบบส่งรายงานยังเป็นรุ่นเก่า กรุณาอัปเดตฟังก์ชันส่งรายงานก่อน'
+          : message || error?.message || 'ส่งรายงานไม่สำเร็จ กรุณาลองใหม่');
       } else if (result?.status === 'sent') {
         setNotice(kind === 'savings_daily_summary' ? 'ส่งสรุปเงินออมวันนี้ไป Telegram แล้ว' : kind === 'daily_report_today' ? 'ส่งรายงานข้อมูลจริงวันนี้ไป Telegram แล้ว' : 'ส่งรายงานทดสอบวันนี้ไป Telegram แล้ว');
       } else {

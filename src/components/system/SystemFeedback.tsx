@@ -187,7 +187,7 @@ export function installSystemNetworkFeedback() {
           try {
             const clone = response.clone();
             const json = await clone.json();
-            const raw = json?.message || json?.error_description || json?.details || json?.hint || response.statusText;
+            const raw = json?.message || json?.error || json?.error_description || json?.details || json?.hint || response.statusText || `HTTP ${response.status}`;
             statusText = translateDatabaseError(raw);
           } catch {
             statusText = translateDatabaseError(response.statusText);
