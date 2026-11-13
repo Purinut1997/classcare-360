@@ -356,7 +356,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     });
 
     if (success) {
-      setToastMessage('📋 คัดลอกข้อมูลตารางสำหรับ Excel เรียบร้อยแล้ว! สามารถเปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
+      setToastMessage('คัดลอกข้อมูลตารางสำหรับ Excel เรียบร้อยแล้ว! สามารถเปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
       setTimeout(() => setToastMessage(null), 6000);
     }
   };
@@ -398,7 +398,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       rows,
     });
 
-    setToastMessage('📥 ดาวน์โหลดไฟล์ Excel (.xlsx) สำเร็จ');
+    setToastMessage('ดาวน์โหลดไฟล์ Excel (.xlsx) สำเร็จ');
     setTimeout(() => setToastMessage(null), 5000);
   };
 
@@ -424,7 +424,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
     });
 
     if (success) {
-      setToastMessage('📋 คัดลอกโครงสร้างรายวิชาสำหรับ Excel เรียบร้อยแล้ว! เปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
+      setToastMessage('คัดลอกโครงสร้างรายวิชาสำหรับ Excel เรียบร้อยแล้ว! เปิด Excel แล้วกด Ctrl+V เพื่อวางได้ทันที');
       setTimeout(() => setToastMessage(null), 6000);
     }
   };
@@ -452,7 +452,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       rows,
     });
 
-    setToastMessage('📥 ดาวน์โหลดไฟล์โครงสร้างรายวิชา (.xlsx) สำเร็จ');
+    setToastMessage('ดาวน์โหลดไฟล์โครงสร้างรายวิชา (.xlsx) สำเร็จ');
     setTimeout(() => setToastMessage(null), 5000);
   };
 
@@ -505,23 +505,21 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
       )}
 
       {/* Top Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-950 via-indigo-900 to-slate-900 p-6 sm:p-8 text-white shadow-2xl mb-8 border border-white/10">
-        <div className="absolute right-0 top-0 -mt-12 -mr-12 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute left-1/3 bottom-0 -mb-12 h-48 w-48 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
-
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1C342B] via-[#234136] to-[#152821] p-6 sm:p-8 text-white shadow-xl mb-8 border border-[#2F7D5B]/30">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-200 backdrop-blur-md mb-3 border border-blue-400/20">
-              <ShieldCheck size={13} className="text-blue-300" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-200 backdrop-blur-md mb-3 border border-white/15">
+              <ShieldCheck size={13} className="text-emerald-300" />
               <span>ศูนย์งานทะเบียนและวิชาการ สพฐ. (มาตรฐานกระทรวงศึกษาธิการ)</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <span>📚 งานวิชาการ & ทะเบียนกลาง</span>
-              <span className="rounded-xl bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-400/30">
+              <BookOpen size={26} className="text-emerald-300 shrink-0" aria-hidden="true" />
+              <span>งานวิชาการ &amp; ทะเบียนกลาง</span>
+              <span className="rounded-xl bg-amber-400/20 px-2.5 py-0.5 text-xs font-bold text-amber-200 border border-amber-300/30">
                 สพฐ.
               </span>
             </h1>
-            <p className="mt-2 text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+            <p className="mt-2 text-xs sm:text-sm text-emerald-100/80 max-w-2xl leading-relaxed">
               รองรับ 8 กลุ่มสาระ 10 รายวิชา ป.5 ตัดเกรด 8 ระดับ (0 - 4) อัตโนมัติ พิมพ์แบบ ปพ.๕, ปพ.๖ และหนังสือรับรองทางการ พร้อมตัวช่วยปิดเทอมและเลื่อนชั้น
             </p>
           </div>
@@ -529,14 +527,14 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
           {/* Controls: Classroom & Term + 1-Click Sync */}
           <div className="flex flex-wrap items-center gap-3 bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-inner">
             <div className="flex flex-col">
-              <label className="text-[10px] uppercase font-bold text-blue-200 ml-1">ห้องเรียน</label>
+              <label className="text-[10px] uppercase font-bold text-emerald-200 ml-1">ห้องเรียน</label>
               <select
                 value={selectedClassroomId}
                 onChange={(e) => setSelectedClassroomId(e.target.value)}
-                className="rounded-xl border border-white/20 bg-slate-900/90 px-3 py-1.5 text-xs font-bold text-white focus:border-blue-400 focus:outline-none"
+                className="rounded-xl border border-white/20 bg-[#152821] px-3 py-1.5 text-xs font-bold text-white focus:border-emerald-400 focus:outline-none"
               >
                 {classrooms.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                  <option key={c.id} value={c.id} className="bg-[#152821] text-white">
                     {c.name} {c.academic_year ? `(${c.academic_year})` : ''}
                   </option>
                 ))}
@@ -544,15 +542,15 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-[10px] uppercase font-bold text-blue-200 ml-1">ภาคเรียน</label>
+              <label className="text-[10px] uppercase font-bold text-emerald-200 ml-1">ภาคเรียน</label>
               <select
                 value={selectedTerm}
                 onChange={(e) => setSelectedTerm(e.target.value as '1' | '2' | 'yearly')}
-                className="rounded-xl border border-white/20 bg-slate-900/90 px-3 py-1.5 text-xs font-bold text-white focus:border-blue-400 focus:outline-none"
+                className="rounded-xl border border-white/20 bg-[#152821] px-3 py-1.5 text-xs font-bold text-white focus:border-emerald-400 focus:outline-none"
               >
-                <option value="1" className="bg-slate-900 text-white">ภาคเรียนที่ 1</option>
-                <option value="2" className="bg-slate-900 text-white">ภาคเรียนที่ 2</option>
-                <option value="yearly" className="bg-slate-900 text-white">ตลอดปีการศึกษา</option>
+                <option value="1" className="bg-[#152821] text-white">ภาคเรียนที่ 1</option>
+                <option value="2" className="bg-[#152821] text-white">ภาคเรียนที่ 2</option>
+                <option value="yearly" className="bg-[#152821] text-white">ตลอดปีการศึกษา</option>
               </select>
             </div>
 
@@ -565,17 +563,17 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-xs font-black text-white shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
                 >
                   <Zap size={13} className={isSyncing ? 'animate-spin' : ''} />
-                  <span>{isSyncing ? 'กำลังโหลด...' : `⚡ โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'}`}</span>
+                  <span>{isSyncing ? 'กำลังโหลด...' : `โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'}`}</span>
                 </button>
 
                 <button
                   onClick={handleAutoRealign}
                   disabled={isSyncing}
                   title="จัดระเบียบและย้ายนักเรียนเข้าห้องที่ถูกต้องโดยอัตโนมัติ (ป.4 = 16 คน, ป.5 = 20 คน, ป.6 = 16 คน)"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 text-xs font-black text-white shadow-lg shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2F7D5B] hover:bg-[#256549] px-3 text-xs font-black text-white shadow-lg transition-all disabled:opacity-50 self-end"
                 >
                   <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
-                  <span>{isSyncing ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
+                  <span>{isSyncing ? 'กำลังจัดระเบียบ...' : 'แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
                 </button>
               </>
             )}
@@ -809,7 +807,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400 transition shadow-sm"
                 >
                   <Copy size={13} className="text-emerald-700" />
-                  <span>📋 คัดลอกลง Excel</span>
+                  <span>คัดลอกลง Excel</span>
                 </button>
 
                 {/* Download Excel Button */}
@@ -952,7 +950,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                 className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition"
               >
                 <Copy size={13} className="text-emerald-700" />
-                <span>📋 คัดลอกลง Excel</span>
+                <span>คัดลอกลง Excel</span>
               </button>
 
               <button

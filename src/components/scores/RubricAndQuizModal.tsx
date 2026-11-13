@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   AlertCircle,
   ArrowRight,
+  BarChart3,
   BookOpen,
   Check,
   CheckCircle2,
@@ -9,9 +10,11 @@ import {
   Copy,
   FileCheck2,
   FileText,
+  FolderArchive,
   GraduationCap,
   HelpCircle,
   History,
+  KeyRound,
   Layers,
   Lightbulb,
   Loader2,
@@ -1222,9 +1225,12 @@ export function RubricAndQuizModal({
                   </div>
 
                   {rubricResult.scoringGuidance ? (
-                    <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-3.5 text-xs text-violet-900">
-                      <span className="font-bold">💡 คำแนะนำการให้คะแนน: </span>
-                      <span>{rubricResult.scoringGuidance}</span>
+                    <div className="flex items-start gap-2 rounded-2xl border border-violet-100 bg-violet-50/60 p-3.5 text-xs text-violet-900">
+                      <Lightbulb size={15} className="mt-0.5 shrink-0 text-violet-600" aria-hidden="true" />
+                      <div>
+                        <span className="font-bold">คำแนะนำการให้คะแนน: </span>
+                        <span>{rubricResult.scoringGuidance}</span>
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -1294,8 +1300,9 @@ export function RubricAndQuizModal({
                       ))}
                     </div>
                   </div>
-                  <p className="text-[11px] font-medium text-slate-500">
-                    💡 พิมพ์ตัวเลขได้อิสระ (1 - 30 ข้อ) หรือคลิกเลือกปุ่มลัด
+                  <p className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                    <Lightbulb size={12} className="text-amber-500" aria-hidden="true" />
+                    <span>พิมพ์ตัวเลขได้อิสระ (1 - 30 ข้อ) หรือคลิกเลือกปุ่มลัด</span>
                   </p>
                 </div>
 
@@ -1316,10 +1323,10 @@ export function RubricAndQuizModal({
                     <option value="true-false">ถูก / ผิด (2 ตัวเลือก - ตรวจสอบมโนทัศน์)</option>
                   </select>
                   <p className="text-[11px] font-medium text-slate-500">
-                    {choiceType === '4-choices' && '📌 4 ตัวเลือก ก-ง ตามรูปแบบข้อสอบมาตรฐาน'}
-                    {choiceType === '3-choices' && '📌 3 ตัวเลือก ก-ค เหมาะกับเด็กเล็กหรือนักเรียนกลุ่มพิเศษ'}
-                    {choiceType === '5-choices' && '📌 5 ตัวเลือก ก-จ เพิ่มความลึกของตัวลวงระดับมัธยม'}
-                    {choiceType === 'true-false' && '📌 2 ตัวเลือก ถูก/ผิด เน้นดักจุดที่มักสับสน'}
+                    {choiceType === '4-choices' && '4 ตัวเลือก ก-ง ตามรูปแบบข้อสอบมาตรฐาน'}
+                    {choiceType === '3-choices' && '3 ตัวเลือก ก-ค เหมาะกับเด็กเล็กหรือนักเรียนกลุ่มพิเศษ'}
+                    {choiceType === '5-choices' && '5 ตัวเลือก ก-จ เพิ่มความลึกของตัวลวงระดับมัธยม'}
+                    {choiceType === 'true-false' && '2 ตัวเลือก ถูก/ผิด เน้นดักจุดที่มักสับสน'}
                   </p>
                 </div>
               </div>
@@ -1635,7 +1642,7 @@ export function RubricAndQuizModal({
                       ) : (
                         <>
                           <Sparkles size={14} className="text-amber-300 animate-pulse" />
-                          <span>✨ ให้ AI วิเคราะห์ตัวชี้วัด สพฐ.</span>
+                          <span>ให้ AI วิเคราะห์ตัวชี้วัด สพฐ.</span>
                           <span className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                         </>
                       )}
@@ -1654,8 +1661,9 @@ export function RubricAndQuizModal({
                 {isAddingIndicatorManual && (
                   <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2.5 animate-in fade-in">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-violet-950">
-                        ➕ เพิ่มตัวชี้วัดด้วยตนเอง
+                      <span className="inline-flex items-center gap-1 text-xs font-black text-violet-950">
+                        <Plus size={13} aria-hidden="true" />
+                        <span>เพิ่มตัวชี้วัดด้วยตนเอง</span>
                       </span>
                       <button
                         type="button"
@@ -1805,7 +1813,7 @@ export function RubricAndQuizModal({
                       ยังไม่มีตัวชี้วัดในรายการ
                     </p>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      คลิกปุ่ม "✨ ให้ AI วิเคราะห์ตัวชี้วัดจากหน่วย" หรือ "+ เพิ่มตัวชี้วัดเอง" เพื่อเริ่มต้น
+                      คลิกปุ่ม "ให้ AI วิเคราะห์ตัวชี้วัดจากหน่วย" หรือ "+ เพิ่มตัวชี้วัดเอง" เพื่อเริ่มต้น
                     </p>
                   </div>
                 ) : (
@@ -2217,10 +2225,10 @@ export function RubricAndQuizModal({
                         }
                         className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-2.5 text-xs font-bold text-slate-800 focus:border-violet-500 focus:outline-none"
                       >
-                        <option value="balanced">⭐ สมดุล สพฐ. (จำ 30% : เข้าใจ 50% : วิเคราะห์ 20%)</option>
-                        <option value="basic">🌱 เน้นมโนทัศน์พื้นฐาน (จำ 50% : เข้าใจ 40% : ประยุกต์ 10%)</option>
-                        <option value="advanced">🚀 คิดวิเคราะห์ขั้นสูง (เข้าใจ 30% : ประยุกต์ 40% : วิเคราะห์ 30%)</option>
-                        <option value="custom">🛠️ กำหนดสัดส่วนเอง (Custom %)</option>
+                        <option value="balanced">สมดุล สพฐ. (จำ 30% : เข้าใจ 50% : วิเคราะห์ 20%)</option>
+                        <option value="basic">เน้นมโนทัศน์พื้นฐาน (จำ 50% : เข้าใจ 40% : ประยุกต์ 10%)</option>
+                        <option value="advanced">คิดวิเคราะห์ขั้นสูง (เข้าใจ 30% : ประยุกต์ 40% : วิเคราะห์ 30%)</option>
+                        <option value="custom">กำหนดสัดส่วนเอง (Custom %)</option>
                       </select>
 
                       {/* Custom Ratio Controls */}
@@ -2309,9 +2317,10 @@ export function RubricAndQuizModal({
                                 setCustomUnderstandRatio(u);
                                 setCustomApplyRatio(a);
                               }}
-                              className="w-full py-1 text-[10.5px] font-black text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition cursor-pointer"
+                              className="inline-flex w-full items-center justify-center gap-1 py-1 text-[10.5px] font-black text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition cursor-pointer"
                             >
-                              ⚡ ปรับสัดส่วนให้ครบ 100% อัตโนมัติ
+                              <Zap size={12} aria-hidden="true" />
+                              <span>ปรับสัดส่วนให้ครบ 100% อัตโนมัติ</span>
                             </button>
                           )}
                         </div>
@@ -2345,15 +2354,15 @@ export function RubricAndQuizModal({
                         <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 shadow-lg shadow-violet-500/40">
                           <Loader2 className="animate-spin text-white" size={24} />
                           <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-slate-900">
-                            ⚡
+                            <Zap size={10} className="fill-current" aria-hidden="true" />
                           </span>
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="text-base font-black tracking-tight text-white">
                               {generationMode === 'express'
-                                ? '⚡ กำลังสร้างข้อสอบด่วนทันใจ (Curriculum Engine)'
-                                : '✨ Gemini AI Exam Studio กำลังประพันธ์ข้อสอบ'}
+                                ? 'กำลังสร้างข้อสอบด่วนทันใจ (Curriculum Engine)'
+                                : 'Gemini AI Exam Studio กำลังประพันธ์ข้อสอบ'}
                             </h4>
                             <span className="rounded-full bg-violet-500/30 px-2 py-0.5 text-[10px] font-black text-violet-200 border border-violet-400/30 uppercase tracking-wider">
                               Live
@@ -2370,7 +2379,7 @@ export function RubricAndQuizModal({
                         <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 backdrop-blur-md border border-white/15">
                           <Clock size={16} className="text-amber-300 animate-pulse" />
                           <span className="font-mono text-sm font-black text-amber-300">
-                            ⏱️ {generationElapsed.toFixed(1)} วิ
+                            {generationElapsed.toFixed(1)} วิ
                           </span>
                         </div>
                         {generationMode === 'ai' && (
@@ -2594,7 +2603,7 @@ export function RubricAndQuizModal({
 
                       {/* General Instructions */}
                       <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-xs text-amber-900">
-                        <span className="font-black">📌 คำชี้แจงทั่วไป: </span>
+                        <span className="font-black">คำชี้แจงทั่วไป: </span>
                         <span>{examResult.instructions}</span>
                       </div>
 
@@ -2671,7 +2680,10 @@ export function RubricAndQuizModal({
                     <div className="rounded-3xl border-2 border-slate-200 bg-white p-6 shadow-sm space-y-5">
                       <div className="flex items-center justify-between border-b pb-3">
                         <div>
-                          <h4 className="text-base font-black text-slate-900">🔑 เฉลยละเอียดและเกณฑ์ตรวจ (สำหรับครู)</h4>
+                          <h4 className="inline-flex items-center gap-2 text-base font-black text-slate-900">
+                            <KeyRound size={17} className="text-[#2F7D5B]" aria-hidden="true" />
+                            <span>เฉลยละเอียดและเกณฑ์ตรวจ (สำหรับครู)</span>
+                          </h4>
                           <p className="text-xs font-bold text-slate-500">วิชา{examResult.subject} ชั้น{examResult.gradeLevel} ภาคเรียนที่ {examResult.term}</p>
                         </div>
                         <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-black text-rose-800 border border-rose-200">
@@ -2748,7 +2760,10 @@ export function RubricAndQuizModal({
                     <div className="rounded-3xl border-2 border-slate-200 bg-white p-6 shadow-sm space-y-4">
                       <div className="flex items-center justify-between border-b pb-3">
                         <div>
-                          <h4 className="text-base font-black text-slate-900">📊 ตารางผังวิเคราะห์ข้อสอบ (Test Blueprint)</h4>
+                          <h4 className="inline-flex items-center gap-2 text-base font-black text-slate-900">
+                            <BarChart3 size={17} className="text-[#2F7D5B]" aria-hidden="true" />
+                            <span>ตารางผังวิเคราะห์ข้อสอบ (Test Blueprint)</span>
+                          </h4>
                           <p className="text-xs font-bold text-slate-500">เอกสารแนบตามเกณฑ์งานวัดและประเมินผลการศึกษา สพฐ.</p>
                         </div>
                         <button
@@ -2819,7 +2834,10 @@ export function RubricAndQuizModal({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-black text-slate-900">🗂️ คลังชุดข้อสอบย้อนหลัง 10 ชุดล่าสุด (FIFO)</h3>
+                      <h3 className="inline-flex items-center gap-2 text-base font-black text-slate-900">
+                        <FolderArchive size={17} className="text-amber-700" aria-hidden="true" />
+                        <span>คลังชุดข้อสอบย้อนหลัง 10 ชุดล่าสุด (FIFO)</span>
+                      </h3>
                       <span className="rounded-full bg-amber-100 border border-amber-300/80 px-2.5 py-0.5 text-[11px] font-black text-amber-900">
                         เก็บสูงสุด 10 ชุด
                       </span>
@@ -3057,7 +3075,7 @@ export function RubricAndQuizModal({
               ) : (
                 <>
                   <Sparkles size={16} className="text-amber-300 animate-pulse" />
-                  <span>{rubricResult ? '✨ ให้ AI ออกแบบเกณฑ์ใหม่' : '✨ ออกแบบเกณฑ์ Rubrics 4 ระดับ'}</span>
+                  <span>{rubricResult ? 'ให้ AI ออกแบบเกณฑ์ใหม่' : 'ออกแบบเกณฑ์ Rubrics 4 ระดับ'}</span>
                   <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}
@@ -3087,8 +3105,8 @@ export function RubricAndQuizModal({
                   <Sparkles size={16} className="text-amber-300 animate-pulse" />
                   <span>
                     {quizResult
-                      ? '✨ ให้ AI สร้างข้อสอบชุดใหม่'
-                      : `✨ สร้างข้อสอบซ่อมเสริม ${questionCount} ข้อ (${
+                      ? 'ให้ AI สร้างข้อสอบชุดใหม่'
+                      : `สร้างข้อสอบซ่อมเสริม ${questionCount} ข้อ (${
                           choiceType === '4-choices'
                             ? '4 ตัวเลือก'
                             : choiceType === '3-choices'
@@ -3117,7 +3135,7 @@ export function RubricAndQuizModal({
                 title="ออกข้อสอบทันทีตามผังหลักสูตร สพฐ. โดยไม่ต้องรอ AI เจน (เสร็จใน 1 วินาที)"
               >
                 <Zap size={15} className="fill-current text-slate-950" />
-                <span>⚡ ออกข้อสอบทันที (~1 วิ)</span>
+                <span>ออกข้อสอบทันที (~1 วิ)</span>
               </button>
 
               <button
@@ -3141,8 +3159,8 @@ export function RubricAndQuizModal({
                     <Sparkles size={16} className="text-amber-300 animate-pulse" />
                     <span>
                       {examResult
-                        ? '✨ ให้ AI ออกข้อสอบชุดใหม่'
-                        : `✨ ออกแบบด้วย Gemini AI (${examPart1Count} ข้อปรนัย${
+                        ? 'ให้ AI ออกข้อสอบชุดใหม่'
+                        : `ออกแบบด้วย Gemini AI (${examPart1Count} ข้อปรนัย${
                             examIncludePart2 ? ` + ${examPart2Count} ข้ออัตนัย` : ''
                           })`}
                     </span>

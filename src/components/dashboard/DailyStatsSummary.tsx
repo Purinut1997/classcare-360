@@ -14,6 +14,7 @@ import {
   TrendingDown,
   TrendingUp,
   Users,
+  XCircle,
   Zap,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
@@ -246,12 +247,12 @@ function AttendanceQualityHeatmap({ trend, onSelectDay, selectedDay }: HeatmapPr
   }
 
   const getHeatLevel = (pt: AttendanceTrendPoint) => {
-    if (pt.total === 0) return { bg: 'bg-slate-100 text-slate-400 border-slate-200/80', tag: 'ไม่มีข้อมูล', icon: '⚪' };
+    if (pt.total === 0) return { bg: 'bg-slate-100 text-slate-400 border-slate-200/80', tag: 'ไม่มีข้อมูล' };
     const pct = Math.round((pt.present / pt.total) * 100);
-    if (pct >= 95) return { bg: 'bg-emerald-600 text-white border-emerald-700 shadow-xs shadow-emerald-500/20', tag: 'ดีเยี่ยม', icon: '🔥' };
-    if (pct >= 85) return { bg: 'bg-emerald-500 text-white border-emerald-600', tag: 'ดีมาก', icon: '✓' };
-    if (pct >= 70) return { bg: 'bg-amber-400 text-slate-950 border-amber-500', tag: 'ปานกลาง', icon: '⏱' };
-    return { bg: 'bg-rose-500 text-white border-rose-600', tag: 'ต้องดูแล', icon: '!' };
+    if (pct >= 95) return { bg: 'bg-emerald-600 text-white border-emerald-700 shadow-xs shadow-emerald-500/20', tag: 'ดีเยี่ยม' };
+    if (pct >= 85) return { bg: 'bg-emerald-500 text-white border-emerald-600', tag: 'ดีมาก' };
+    if (pct >= 70) return { bg: 'bg-amber-400 text-slate-950 border-amber-500', tag: 'ปานกลาง' };
+    return { bg: 'bg-rose-500 text-white border-rose-600', tag: 'ต้องดูแล' };
   };
 
   return (
@@ -392,7 +393,7 @@ function BehaviorDivergingBalance({
             ? 'bg-purple-50 border border-purple-200 text-purple-800'
             : 'bg-rose-50 border border-rose-200 text-rose-800'
         }`}>
-          {netScore >= 0 ? `Net +${netScore} ⭐` : `Net ${netScore}`}
+          {netScore >= 0 ? `Net +${netScore} คะแนน` : `Net ${netScore}`}
         </span>
       </header>
 
@@ -435,8 +436,15 @@ function BehaviorDivergingBalance({
       </div>
 
       <div className="daily-balance-footer mt-3 flex items-center justify-between pt-2.5 border-t border-slate-100">
-        <p className="text-xs font-semibold text-slate-600 truncate">
-          {posPct >= 80 ? '🌟 พฤติกรรมเชิงบวกสูงมาก' : 'ติดตามและส่งเสริมจุดเด่น'}
+        <p className="text-xs font-semibold text-slate-600 truncate flex items-center gap-1">
+          {posPct >= 80 ? (
+            <>
+              <Sparkles size={13} className="text-[#2F7D5B] shrink-0" aria-hidden="true" />
+              <span>พฤติกรรมเชิงบวกสูงมาก</span>
+            </>
+          ) : (
+            'ติดตามและส่งเสริมจุดเด่น'
+          )}
         </p>
         <Link
           to="/app/dashboard?view=behavior"
@@ -487,8 +495,8 @@ function AcademicScoreSpectrum({
       {/* Progress & Pass Spectrum */}
       <div className="mt-3">
         <div className="flex items-center justify-between text-xs font-black mb-1.5">
-          <span className="text-emerald-700 flex items-center gap-1">
-            ✓ ผ่านเกณฑ์ {passedStudentsCount} คน ({passRate}%)
+          <span className="text-emerald-700 inline-flex items-center gap-1">
+            <CheckCircle2 size={13} aria-hidden="true" /> ผ่านเกณฑ์ {passedStudentsCount} คน ({passRate}%)
           </span>
           <span className="text-amber-600 flex items-center gap-1">
             ซ่อมเสริม {failingCount} คน
@@ -615,9 +623,9 @@ function SubjectRow({ item }: { item: SubjectAttendanceSummary }) {
         />
       </div>
       <div className="daily-subject-chips">
-        <span className="chip-present">✓ {item.present} มา</span>
-        {item.late > 0 && <span className="chip-late">⏱ {item.late} สาย</span>}
-        {item.absent > 0 && <span className="chip-absent">✗ {item.absent} ขาด</span>}
+        <span className="chip-present inline-flex items-center gap-1"><CheckCircle2 size={11} aria-hidden="true" /> {item.present} มา</span>
+        {item.late > 0 && <span className="chip-late inline-flex items-center gap-1"><Clock size={11} aria-hidden="true" /> {item.late} สาย</span>}
+        {item.absent > 0 && <span className="chip-absent inline-flex items-center gap-1"><XCircle size={11} aria-hidden="true" /> {item.absent} ขาด</span>}
         <span className="daily-subject-pct">{pct}%</span>
       </div>
     </li>
@@ -652,16 +660,13 @@ export function DailyStatsSummary({
   }).format(new Date(`${selectedDate}T12:00:00+07:00`));
 
   return (
-    <section className="daily-stats-panel relative overflow-hidden rounded-[28px] border-2 border-[#e6dcce] bg-[#fcfaf4] shadow-sm" aria-label="สรุปสถิติประจำวัน">
-      {/* Cute Tape Sticker */}
-      <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-14 h-3.5 bg-white/90 border border-amber-200/70 rounded-xs shadow-2xs rotate-[1deg] pointer-events-none" />
-
-      {/* ── Top Header & Tab Controls ── */}
+    <section className="daily-stats-panel relative overflow-hidden rounded-[28px] border border-[#DCE3D7] bg-[#FAFBF8] shadow-[0_2px_12px_rgba(28,52,43,0.05)]" aria-label="สรุปสถิติประจำวัน">
+      {/* Top Header & Tab Controls */}
       <div className="daily-stats-header">
         <div>
           <div className="daily-stats-eyebrow">
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
-              📌 DAILY INTELLIGENCE
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#E9F0EA] text-[#2F7D5B] border border-[#DCE3D7] px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+              DAILY INTELLIGENCE
             </span>
             <span className="daily-stats-date">{displayDate}</span>
           </div>

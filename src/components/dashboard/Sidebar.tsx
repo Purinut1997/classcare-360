@@ -151,13 +151,13 @@ export function Sidebar({
   const content = (
     <>
       <div className="app-sidebar-brand">
-        <AppLogo className="h-10 w-10 rounded-xl bg-white/95 ring-1 ring-cyan-100/20" />
+        <AppLogo className="h-10 w-10 rounded-xl bg-white p-0.5 ring-1 ring-[#86efac]/30 shadow-xs" />
         <div className="min-w-0">
-          <p className="truncate text-base font-black tracking-tight text-white">ClassCare 360</p>
-          <p className="truncate text-[11px] font-bold text-cyan-100/75">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
+          <p className="truncate font-display text-base font-extrabold tracking-tight text-white">ClassCare 360</p>
+          <p className="truncate text-[11px] font-semibold text-[#b7d9c6]">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
         </div>
         <button
-          className="ml-auto grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white lg:hidden"
+          className="ml-auto grid h-9 w-9 place-items-center rounded-xl text-[#c5ddd0] hover:bg-white/10 hover:text-white lg:hidden"
           aria-label="ปิดเมนู"
           onClick={onClose}
           type="button"
@@ -166,24 +166,24 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* 🏫 Top Workspace Selector Card */}
+      {/* Top Workspace Selector Card */}
       {session?.workspace ? (
-        <div className="px-3 pb-1 pt-1">
+        <div className="pb-1 pt-2.5">
           <Link
-            className="flex items-center gap-2.5 rounded-2xl bg-white/[0.08] p-2.5 text-left ring-1 ring-white/15 transition hover:bg-white/15 group"
+            className="flex items-center gap-2.5 rounded-2xl bg-white/[0.08] p-2.5 text-left ring-1 ring-white/15 transition hover:bg-white/[0.14] group"
             onClick={onClose}
             to="/app/select-workspace"
-            title="คลิกเพื่อสลับโรงเรียน / Workspace"
+            title="คลิกเพื่อสลับโรงเรียน / พื้นที่ทำงาน"
           >
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-500/20 text-cyan-300 group-hover:bg-cyan-500/30">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#2f7d5b]/45 text-[#a7f3d0] group-hover:bg-[#2f7d5b]/65">
               <Building2 size={16} aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-black text-white group-hover:text-cyan-200">
+              <p className="truncate text-xs font-bold text-white group-hover:text-[#a7f3d0]">
                 {session.workspace.schoolName || session.workspace.name}
               </p>
-              <p className="truncate text-[10px] font-bold text-slate-300">
-                ปี {session.workspace.academicYear || 'ปัจจุบัน'} · สลับ Workspace ▾
+              <p className="truncate text-[10px] font-medium text-[#c5ddd0]">
+                ปี {session.workspace.academicYear || 'ปัจจุบัน'} · สลับห้องเรียน
               </p>
             </div>
           </Link>
@@ -209,12 +209,12 @@ export function Sidebar({
                 </div>
                 <span className="min-w-0 flex-1 truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
                 {item.key === 'overview' && (
-                  <span className="shrink-0 rounded-full bg-cyan-400/20 px-2 py-0.5 text-[9px] font-black text-cyan-200">
-                    HUB
+                  <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-bold text-[#d1fae5]">
+                    หลัก
                   </span>
                 )}
                 {!isActive && item.key !== 'overview' && (
-                  <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-[#b7d9c6] group-hover:translate-x-0.5 transition-all" />
                 )}
               </Link>
             );
@@ -226,20 +226,30 @@ export function Sidebar({
           const hasActiveItem = section.items.some((item) => item.key === activeView);
           const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
           const SectionIcon = section.icon;
+          const badgeTone =
+            section.key === 'academic-assessment'
+              ? 'bg-sky-400/20 text-sky-200 border-sky-300/25'
+              : section.key === 'student-care'
+                ? 'bg-rose-400/20 text-rose-200 border-rose-300/25'
+                : section.key === 'tools-calendar'
+                  ? 'bg-amber-400/20 text-amber-200 border-amber-300/25'
+                  : section.key === 'school-management'
+                    ? 'bg-violet-400/20 text-violet-200 border-violet-300/25'
+                    : 'bg-[#2f7d5b]/40 text-[#a7f3d0] border-[#6ee7b7]/25';
           return (
             <details className="app-sidebar-section mt-2.5" key={section.key} open={isSectionOpen}>
               <summary className="app-sidebar-section-summary">
                 <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                   {SectionIcon && (
-                    <span className="app-sidebar-section-icon-badge">
+                    <span className={`grid h-5 w-5 place-items-center rounded-md border ${badgeTone}`}>
                       <SectionIcon size={12} aria-hidden="true" />
                     </span>
                   )}
-                  <span className={`min-w-0 truncate font-black ${section.key === 'classroom-admin' ? 'text-cyan-200' : ''}`}>
+                  <span className={`min-w-0 truncate font-bold ${section.key === 'classroom-admin' ? 'text-[#a7f3d0]' : ''}`}>
                     {section.label}
                   </span>
                 </span>
-                <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-slate-400" aria-hidden="true" />
+                <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-[#9fc0ae]" aria-hidden="true" />
               </summary>
               <div className="grid gap-1 py-1 pl-1">
                 {section.items.map((item) => {
@@ -376,8 +386,8 @@ export function Sidebar({
         </aside>
       </div>
 
-      {/* 💻 Desktop Static Sidebar */}
-      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[224px]">
+      {/* Desktop Static Sidebar */}
+      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[232px]">
         {content}
       </aside>
     </>

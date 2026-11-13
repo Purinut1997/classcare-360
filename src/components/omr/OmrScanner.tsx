@@ -4,6 +4,8 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Cloud,
+  Compass,
   Eye,
   FileCheck,
   FileUp,
@@ -12,7 +14,9 @@ import {
   Image as ImageIcon,
   Layers,
   Maximize2,
+  Megaphone,
   RefreshCw,
+  RotateCw,
   Sliders,
   Sparkles,
   Trash2,
@@ -29,8 +33,6 @@ import {
   FolderArchive,
   Search,
   QrCode,
-  Compass,
-  RotateCw,
 } from 'lucide-react';
 import type {
   AnswerSheetConfig,
@@ -446,7 +448,8 @@ export function OmrScanner({
               </span>
               {isCloudSynced && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md" title="ข้อมูลชุดข้อสอบซิงค์กับระบบคลาวด์แล้ว ใช้งานได้ทั้งบนคอมและมือถือ">
-                  ☁️ ซิงค์คลาวด์แล้ว
+                  <Cloud size={11} aria-hidden="true" />
+                  <span>ซิงค์คลาวด์แล้ว</span>
                 </span>
               )}
             </div>
@@ -464,11 +467,11 @@ export function OmrScanner({
             <button
               type="button"
               onClick={() => setShowExamPickerModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3.5 py-2 text-xs font-black text-cyan-900 hover:bg-cyan-100 transition shadow-2xs active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#E9F0EA] px-3.5 py-2 text-xs font-black text-[#1C342B] hover:bg-[#DCE3D7]/70 transition shadow-2xs active:scale-95"
               title="เลือกชุดข้อสอบอื่นที่บันทึกไว้จากคอมพิวเตอร์เพื่อนำมาตรวจบนมือถือ"
             >
-              <FolderArchive size={14} className="text-cyan-700" />
-              📑 สลับชุดข้อสอบ ({savedTemplates.length})
+              <FolderArchive size={14} className="text-[#2F7D5B]" />
+              <span>สลับชุดข้อสอบ ({savedTemplates.length})</span>
             </button>
           )}
 
@@ -728,7 +731,7 @@ export function OmrScanner({
               </div>
               <div className="inline-flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
                 {[
-                  { value: 'auto', label: '🔄 อัตโนมัติ 360° (ทุกแนว)' },
+                  { value: 'auto', label: 'อัตโนมัติ 360° (ทุกแนว)' },
                   { value: 0, label: '0° แนวตั้ง' },
                   { value: 90, label: '90° แนวนอน' },
                   { value: 180, label: '180° กลับหัว' },
@@ -999,7 +1002,8 @@ export function OmrScanner({
                             className="inline-flex items-center gap-0.5 rounded bg-slate-200/80 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 font-mono"
                             title={`สแกนมุม ${item.detectedOrientation}° และหมุนตรงอัตโนมัติ`}
                           >
-                            📐 {item.detectedOrientation === 0 ? '0° ตั้ง' : `${item.detectedOrientation}°`}
+                            <RotateCw size={9} aria-hidden="true" />
+                            {item.detectedOrientation === 0 ? '0° ตั้ง' : `${item.detectedOrientation}°`}
                           </span>
                         )}
                       </div>
@@ -1094,8 +1098,9 @@ export function OmrScanner({
                     </span>
                   )}
                   {activeReviewResult.detectedOrientation !== undefined && (
-                    <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
-                      📐 มุมสแกน: {activeReviewResult.detectedOrientation === 0 ? '0° (แนวตั้งปกติ)' : activeReviewResult.detectedOrientation === 90 ? '90° (แนวนอน)' : activeReviewResult.detectedOrientation === 180 ? '180° (กลับหัว)' : '270° (ตะแคงซ้าย)'} • หมุนตรงอัตโนมัติ
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold mt-0.5">
+                      <RotateCw size={11} aria-hidden="true" />
+                      มุมสแกน: {activeReviewResult.detectedOrientation === 0 ? '0° (แนวตั้งปกติ)' : activeReviewResult.detectedOrientation === 90 ? '90° (แนวนอน)' : activeReviewResult.detectedOrientation === 180 ? '180° (กลับหัว)' : '270° (ตะแคงซ้าย)'} • หมุนตรงอัตโนมัติ
                     </span>
                   )}
                 </div>
@@ -1230,8 +1235,9 @@ export function OmrScanner({
               <CheckCircle2 size={36} />
             </div>
 
-            <div className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700 mb-2">
-              📢 โหมดแจ้งคะแนน (ไม่บันทึกลงระบบ)
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700 mb-2">
+              <Megaphone size={13} aria-hidden="true" />
+              <span>โหมดแจ้งคะแนน (ไม่บันทึกลงระบบ)</span>
             </div>
 
             <h3 className="text-xl font-black text-slate-950">{activeDisplayHud.studentName}</h3>
@@ -1414,8 +1420,9 @@ export function OmrScanner({
 
             {/* Footer with Cloud Refresh */}
             <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-6 py-3">
-              <span className="text-[11px] font-bold text-slate-500">
-                ☁️ ซิงค์ข้อมูลกับคลาวด์ ClassCare 360
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                <Cloud size={13} className="text-[#2F7D5B]" aria-hidden="true" />
+                <span>ซิงค์ข้อมูลกับคลาวด์ ClassCare 360</span>
               </span>
               {onRefreshCloud && (
                 <button

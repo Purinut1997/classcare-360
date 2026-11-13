@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
   AlertCircle,
+  BarChart3,
   Bot,
   CheckCircle2,
+  Crown,
   ExternalLink,
   Key,
   Lock,
   RefreshCw,
   Save,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
+  Zap,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 
@@ -122,8 +126,9 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                 ระบบ AI ผู้ช่วยครู (Google Gemini AI)
               </h2>
               {isVip ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
-                  VIP Enabled 👑
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
+                  <Crown size={11} aria-hidden="true" />
+                  <span>VIP Enabled</span>
                 </span>
               ) : (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
@@ -234,8 +239,18 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                 <label className="block text-xs font-bold text-slate-700">
                   โหมดการเลือกโมเดล AI มาตรฐานของโรงเรียน
                 </label>
-                <span className="text-[10px] font-bold text-indigo-600">
-                  {selectedModel === 'auto' ? '✨ โหมดสลับอัตโนมัติ' : '🎯 โหมดเลือกเอง'}
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600">
+                  {selectedModel === 'auto' ? (
+                    <>
+                      <Sparkles size={11} aria-hidden="true" />
+                      <span>โหมดสลับอัตโนมัติ</span>
+                    </>
+                  ) : (
+                    <>
+                      <SlidersHorizontal size={11} aria-hidden="true" />
+                      <span>โหมดเลือกเอง</span>
+                    </>
+                  )}
                 </span>
               </div>
 
@@ -251,7 +266,7 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <span>✨</span>
+                  <Sparkles size={13} aria-hidden="true" />
                   <span>สลับอัตโนมัติ (Auto Mode)</span>
                 </button>
                 <button
@@ -268,7 +283,7 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <span>🎯</span>
+                  <SlidersHorizontal size={13} aria-hidden="true" />
                   <span>เลือกโมเดลเอง (Manual)</span>
                 </button>
               </div>
@@ -278,7 +293,7 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 text-indigo-950 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs flex items-center gap-1.5 text-indigo-900">
-                      <span>🤖</span> Auto Model Cascade (แนะนำสำหรับโรงเรียน ✨)
+                      <Bot size={14} aria-hidden="true" /> Auto Model Cascade (แนะนำสำหรับโรงเรียน)
                     </span>
                     <span className="text-[9px] font-black text-indigo-700 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200">
                       Zero Downtime
@@ -289,17 +304,17 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-indigo-700">1️⃣ แนะนำล่าสุด</div>
+                      <div className="text-[10px] font-bold text-indigo-700">ลำดับที่ 1 · แนะนำล่าสุด</div>
                       <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.5 Flash / 3.6</div>
                       <div className="text-[10px] text-slate-500 mt-1">Google แนะนำรุ่นใหม่</div>
                     </div>
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-amber-700">2️⃣ ขั้นสำรองด่วน</div>
+                      <div className="text-[10px] font-bold text-amber-700">ลำดับที่ 2 · ขั้นสำรองด่วน</div>
                       <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.5 Flash Lite / 3.5</div>
                       <div className="text-[10px] text-slate-500 mt-1">เร็ว ละเอียด ประหยัดโควตา</div>
                     </div>
                     <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
-                      <div className="text-[10px] font-bold text-emerald-700">3️⃣ ขั้นสำรองสากล</div>
+                      <div className="text-[10px] font-bold text-emerald-700">ลำดับที่ 3 · ขั้นสำรองสากล</div>
                       <div className="font-black text-slate-800 text-xs mt-0.5">Gemini 2.0 Flash / Pro</div>
                       <div className="text-[10px] text-slate-500 mt-1">สลับอัตโนมัติ ไม่สะดุด</div>
                     </div>
@@ -338,8 +353,14 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
                           </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.description}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
-                            <span className="bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded font-medium">⚡ {m.speed}</span>
-                            <span className="bg-indigo-50 text-indigo-800 border border-indigo-100 px-1.5 py-0.2 rounded font-bold">📊 {m.quota}</span>
+                            <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded font-medium">
+                              <Zap size={10} aria-hidden="true" />
+                              {m.speed}
+                            </span>
+                            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-800 border border-indigo-100 px-1.5 py-0.2 rounded font-bold">
+                              <BarChart3 size={10} aria-hidden="true" />
+                              {m.quota}
+                            </span>
                           </div>
                         </div>
                       </label>

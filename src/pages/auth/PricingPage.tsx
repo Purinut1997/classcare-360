@@ -20,7 +20,7 @@ const plans = [
     description: 'ใช้ได้ 1 ครั้งต่อ Workspace และเปิดฟังก์ชันครบเหมือน VIP ตามจำนวนวันที่ Superadmin กำหนด',
     cta: 'สร้าง workspace',
     href: '/app/select-workspace?demo=no-workspace',
-    tone: 'border-sky-200/80 bg-sky-50/80',
+    tone: 'border-[#DCE3D7] bg-[#E9F0EA]/70',
     icon: Sparkles,
     features: ['เปิดทุกโมดูลเหมือน VIP', 'สูงสุด 10 ห้อง / 500 คน', 'เชิญผู้ร่วมงานได้ 10 คน'],
   },
@@ -31,7 +31,7 @@ const plans = [
     description: 'แพ็กเกจพรีเมียมแบบเต็มระบบ โดยราคาและจำนวนวันใช้งานกำหนดจากระบบกลาง',
     cta: 'ดูแพ็กเกจ',
     href: '/app/package',
-    tone: 'border-cyan-200/80 bg-white/85 shadow-[0_26px_70px_rgba(14,165,233,0.18)]',
+    tone: 'border-[#2F7D5B]/40 bg-white/95 shadow-[0_26px_70px_rgba(47,125,91,0.14)]',
     icon: Crown,
     features: ['เปิดทุกโมดูลและรายงาน/ส่งออก', 'สูงสุด 100 ห้อง / 5,000 คน', 'เชิญผู้ร่วมงานได้ 100 คน'],
   },
@@ -45,7 +45,7 @@ const paymentRules = [
 
 export function PricingPage() {
   return (
-    <main className="classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+    <main className="classcare-grid-bg min-h-screen px-4 py-8 text-[#1C342B] sm:px-6 lg:px-8">
       <section className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="nexus-card overflow-hidden">
           <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -54,10 +54,10 @@ export function PricingPage() {
                 <WalletCards size={18} aria-hidden="true" />
                 Package
               </div>
-              <h1 className="mt-5 max-w-3xl text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-5 max-w-3xl text-3xl font-black leading-tight text-[#1C342B] sm:text-5xl">
                 แพ็กเกจและการอัปเกรด
               </h1>
-              <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-slate-600">
+              <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-[#5A6F64]">
                 หน้าแพ็กเกจใช้คำว่า ClassCare 360 VIP เฉพาะบริบทสมัครสมาชิก ต่ออายุ สิทธิ์พิเศษ และฟีเจอร์พรีเมียมเท่านั้น
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
@@ -65,21 +65,21 @@ export function PricingPage() {
                   ไปหน้าชำระเงิน
                   <ArrowRight size={17} aria-hidden="true" />
                 </Link>
-                <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5" to="/login">
+                <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-[#1C342B] transition hover:-translate-y-0.5" to="/login">
                   เข้าสู่ระบบ
                   <ArrowRight size={17} aria-hidden="true" />
                 </Link>
               </div>
             </div>
 
-            <div className="relative overflow-hidden border-t border-slate-100 bg-slate-950 p-6 text-white lg:border-l lg:border-t-0 sm:p-8">
-              <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-300/20 blur-2xl" />
-              <p className="relative text-sm font-black text-cyan-200">Payment Guard</p>
+            <div className="relative overflow-hidden border-t border-[#DCE3D7] bg-gradient-to-br from-[#1C342B] to-[#152821] p-6 text-white lg:border-l lg:border-t-0 sm:p-8">
+              <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-[#2F7D5B]/25 blur-2xl" />
+              <p className="relative text-sm font-black text-[#BCE0CE]">Payment Guard</p>
               <div className="relative mt-5 grid gap-3">
                 {paymentRules.map((rule) => (
                   <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur" key={rule}>
-                    <ShieldCheck className="mt-0.5 shrink-0 text-cyan-300" size={18} aria-hidden="true" />
-                    <p className="text-sm font-bold leading-6 text-slate-100">{rule}</p>
+                    <ShieldCheck className="mt-0.5 shrink-0 text-[#8CC6A7]" size={18} aria-hidden="true" />
+                    <p className="text-sm font-bold leading-6 text-[#E9F0EA]">{rule}</p>
                   </div>
                 ))}
               </div>
@@ -88,9 +88,9 @@ export function PricingPage() {
         </div>
 
         <aside className="nexus-card p-5">
-          <p className="text-sm font-black text-cyan-700">สถานะระบบ</p>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">พร้อมต่อ payment flow</h2>
-          <p className="mt-3 text-sm font-bold leading-7 text-slate-600">
+          <p className="text-sm font-black text-[#2F7D5B]">สถานะระบบ</p>
+          <h2 className="mt-2 text-2xl font-black text-[#1C342B]">พร้อมต่อ payment flow</h2>
+          <p className="mt-3 text-sm font-bold leading-7 text-[#5A6F64]">
             ฝั่ง UI พร้อมแล้ว เหลือ Edge Function, storage policy, audit log และหน้า Superadmin สำหรับอนุมัติจริง
           </p>
         </aside>
@@ -101,30 +101,30 @@ export function PricingPage() {
           const Icon = plan.icon;
 
           return (
-            <article className={`rounded-[28px] border p-5 shadow-[0_20px_60px_rgba(15,23,42,0.09)] backdrop-blur-xl transition hover:-translate-y-1 ${plan.tone}`} key={plan.badge}>
+            <article className={`rounded-[28px] border p-5 shadow-[0_20px_60px_rgba(28,52,43,0.08)] backdrop-blur-xl transition hover:-translate-y-1 ${plan.tone}`} key={plan.badge}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                  <p className="inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-black text-[#2F7D5B] ring-1 ring-[#DCE3D7]">
                     {plan.badge}
                   </p>
-                  <h2 className="mt-4 text-2xl font-black text-slate-950">{plan.name}</h2>
+                  <h2 className="mt-4 text-2xl font-black text-[#1C342B]">{plan.name}</h2>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-cyan-200 shadow-lg">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#1C342B] text-[#E9F0EA] shadow-lg">
                   <Icon size={22} aria-hidden="true" />
                 </div>
               </div>
-              <p className="mt-5 text-4xl font-black text-slate-950">{plan.price}</p>
-              <p className="mt-3 min-h-[84px] text-sm font-bold leading-7 text-slate-600">{plan.description}</p>
+              <p className="mt-5 text-4xl font-black text-[#1C342B]">{plan.price}</p>
+              <p className="mt-3 min-h-[84px] text-sm font-bold leading-7 text-[#5A6F64]">{plan.description}</p>
               <div className="mt-5 grid gap-3">
                 {plan.features.map((feature) => (
-                  <div className="flex gap-2 text-sm font-bold leading-6 text-slate-700" key={feature}>
-                    <CheckCircle2 className="mt-0.5 shrink-0 text-cyan-600" size={17} aria-hidden="true" />
+                  <div className="flex gap-2 text-sm font-bold leading-6 text-[#1C342B]" key={feature}>
+                    <CheckCircle2 className="mt-0.5 shrink-0 text-[#2F7D5B]" size={17} aria-hidden="true" />
                     <span>{feature}</span>
                   </div>
                 ))}
               </div>
               <Link
-                className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-[0_16px_34px_rgba(2,6,23,0.20)] transition hover:-translate-y-0.5 hover:bg-slate-900"
+                className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#1C342B] px-4 text-sm font-black text-white shadow-[0_16px_34px_rgba(21,40,33,0.20)] transition hover:-translate-y-0.5 hover:bg-[#2F7D5B]"
                 to={plan.href}
               >
                 {plan.cta}
@@ -135,7 +135,7 @@ export function PricingPage() {
         })}
       </section>
 
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">
+      <footer className="mt-6 text-center text-xs font-bold text-[#5A6F64]">
         Created by MIKPURINUT
       </footer>
     </main>

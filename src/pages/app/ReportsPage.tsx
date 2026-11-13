@@ -2,18 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Award,
+  BarChart3,
   BookOpen,
   Building2,
   CalendarRange,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Download,
   FileSpreadsheet,
   FileText,
   HeartPulse,
   ImagePlus,
   LayoutList,
+  MessageSquareText,
   Printer,
   Save,
   Search,
@@ -21,10 +24,12 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
+  Target,
   Trash2,
   UserCheck,
   Users,
   Wallet,
+  type LucideIcon,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
@@ -374,7 +379,7 @@ interface ReportViewConfig {
   category: ReportCategoryKey;
   defaultOrientation: OfficialReportOrientation;
   description: string;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   shortLabel: string;
   value: ReportView;
@@ -385,7 +390,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'attendance_savings',
     defaultOrientation: 'landscape',
     description: 'ตารางเช็คชื่อรายเดือน หรือสรุปเวลาเรียนรายเทอม/ปีการศึกษา พร้อมร้อยละเวลาเรียน',
-    icon: '📅',
+    icon: CalendarRange,
     label: 'บัญชีเวลาเรียนประจำชั้น',
     shortLabel: 'เวลาเรียน',
     value: 'attendance',
@@ -394,7 +399,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'attendance_savings',
     defaultOrientation: 'landscape',
     description: 'สรุปเวลาเรียนแยกรายวิชาและคาบเรียน พร้อมพิมพ์ตารางเช็คชื่อรายวิชา',
-    icon: '📖',
+    icon: BookOpen,
     label: 'เวลาเรียนแยกรายวิชา',
     shortLabel: 'เวลาเรียนรายวิชา',
     value: 'subject-attendance',
@@ -403,7 +408,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'attendance_savings',
     defaultOrientation: 'landscape',
     description: 'ตารางบันทึกเงินออมรายวัน สรุปยอดฝาก-ถอนรายเดือน และยอดเงินสะสมคงเหลือจริง',
-    icon: '🐷',
+    icon: Wallet,
     label: 'รายงานการออมเงินนักเรียน',
     shortLabel: 'เงินออม',
     value: 'savings',
@@ -412,7 +417,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'academic_scores',
     defaultOrientation: 'landscape',
     description: 'ตารางสรุปคะแนนรวมทุกวิชา เกรดเฉลี่ย (GPA) และสรุปชุดการประเมินทั้งห้อง',
-    icon: '🎯',
+    icon: Target,
     label: 'สรุปคะแนนรวมทุกวิชา (ทั้งห้อง)',
     shortLabel: 'คะแนนรวมห้อง',
     value: 'scores',
@@ -421,7 +426,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'academic_scores',
     defaultOrientation: 'landscape',
     description: 'ตารางคะแนนเก็บรายช่อง คะแนนรวม เกรด และจำนวนงานค้างแยกรายวิชา',
-    icon: '📊',
+    icon: BarChart3,
     label: 'ตารางคะแนนและงานค้างรายวิชา',
     shortLabel: 'คะแนนรายวิชา',
     value: 'subject-scores',
@@ -430,7 +435,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'student_care',
     defaultOrientation: 'portrait',
     description: 'ใบสรุปผลการเรียน เวลาเรียน สุขภาพ เงินออม และพฤติกรรมรายคน สำหรับแจกผู้ปกครอง (A4)',
-    icon: '👤',
+    icon: UserCheck,
     label: 'ใบรายงานผลรายบุคคล (แจกผู้ปกครอง)',
     shortLabel: 'รายบุคคล (สมุดพกย่อ)',
     value: 'individual',
@@ -439,7 +444,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'student_care',
     defaultOrientation: 'portrait',
     description: 'บัญชีรายชื่อนักเรียน ใบเซ็นชื่อรับเงิน และข้อมูลทะเบียนครอบครัว/ผู้ปกครอง A4',
-    icon: '📋',
+    icon: ClipboardList,
     label: 'ทะเบียนรายชื่อ / ใบเซ็นชื่อ A4',
     shortLabel: 'ทะเบียนรายชื่อ',
     value: 'student-register',
@@ -448,7 +453,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'student_care',
     defaultOrientation: 'landscape',
     description: 'รายงานน้ำหนัก ส่วนสูง ดัชนีมวลกาย (BMI) แปรงฟัน ดื่มนม อาหารกลางวัน และสุขอนามัย',
-    icon: '🏥',
+    icon: HeartPulse,
     label: 'รายงานสุขภาพและกิจวัตรนักเรียน',
     shortLabel: 'สุขภาพ/กิจวัตร',
     value: 'health',
@@ -457,7 +462,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'student_care',
     defaultOrientation: 'portrait',
     description: 'สรุปความดี คะแนนพฤติกรรม และเคสดูแลช่วยเหลือนักเรียนที่ต้องติดตาม',
-    icon: '💬',
+    icon: MessageSquareText,
     label: 'รายงานพฤติกรรมและเคสดูแล',
     shortLabel: 'พฤติกรรม',
     value: 'behavior',
@@ -466,7 +471,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'executive_settings',
     defaultOrientation: 'portrait',
     description: 'ใบสรุปผลการดำเนินงานประจำเดือน/เทอม/ปี สำหรับเสนอผู้อำนวยการโรงเรียนพิจารณาลงนาม',
-    icon: '👔',
+    icon: Users,
     label: 'รายงานสรุปสำหรับผู้บริหาร',
     shortLabel: 'สรุปผู้บริหาร',
     value: 'executive',
@@ -475,7 +480,7 @@ const reportViews: ReportViewConfig[] = [
     category: 'executive_settings',
     defaultOrientation: 'portrait',
     description: 'ตั้งค่าชื่อโรงเรียน ตราโรงเรียน ชื่อผู้ลงนามในรายงาน และวันที่เปิด-ปิดภาคเรียน',
-    icon: '⚙️',
+    icon: Settings,
     label: 'ตั้งค่าหัวกระดาษและผู้ลงนาม',
     shortLabel: 'ตั้งค่ารายงาน',
     value: 'settings',
@@ -484,31 +489,31 @@ const reportViews: ReportViewConfig[] = [
 
 const reportCategories: Array<{
   description: string;
-  icon: string;
+  icon: LucideIcon;
   key: ReportCategoryKey;
   title: string;
 }> = [
   {
     description: 'เช็คชื่อรายเดือน/เทอม/ปี และสมุดเงินออม',
-    icon: '📅',
+    icon: CalendarRange,
     key: 'attendance_savings',
     title: 'เวลาเรียน & เงินออม',
   },
   {
     description: 'คะแนนรวมห้อง คะแนนรายวิชา และ ปพ.5/ปพ.6',
-    icon: '📊',
+    icon: BarChart3,
     key: 'academic_scores',
     title: 'ผลการเรียน & ปพ.',
   },
   {
     description: 'ใบสรุปรายคน บัญชีรายชื่อ สุขภาพ พฤติกรรม',
-    icon: '👤',
+    icon: UserCheck,
     key: 'student_care',
     title: 'นักเรียน & รายบุคคล',
   },
   {
     description: 'ใบสรุปเสนอผู้บริหาร และตั้งค่าหัวกระดาษ',
-    icon: '🏛️',
+    icon: Building2,
     key: 'executive_settings',
     title: 'ผู้บริหาร & ตั้งค่า',
   },
@@ -4164,16 +4169,18 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       </div>
 
       {/* 2. Guided report menu */}
-      <section className="mt-4 overflow-hidden rounded-3xl border border-[#e7dece] bg-gradient-to-br from-[#fffdf8] via-white to-[#f1fbf8] p-3.5 shadow-sm sm:p-5">
+      <section className="mt-4 overflow-hidden rounded-3xl border border-[#DCE3D7] bg-[#FAFBF8] p-3.5 shadow-[0_2px_10px_rgba(28,52,43,0.04)] sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-amber-100 text-2xl shadow-inner" aria-hidden="true">🧸</span>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#E9F0EA] text-[#2F7D5B] border border-[#DCE3D7]" aria-hidden="true">
+              <FileSpreadsheet size={20} />
+            </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-900">เริ่มตรงนี้</span>
-                <span className="text-xs font-bold text-slate-500">เลือกหมวด แล้วเลือกรายงานที่ต้องการ</span>
+                <span className="rounded-full bg-[#E9F0EA] border border-[#DCE3D7] px-2.5 py-0.5 text-[10px] font-black text-[#2F7D5B]">เริ่มตรงนี้</span>
+                <span className="text-xs font-bold text-[#5A6F64]">เลือกหมวด แล้วเลือกรายงานที่ต้องการ</span>
               </div>
-              <h2 className="mt-1 text-lg font-black text-slate-950 sm:text-xl">วันนี้อยากดูรายงานเรื่องไหน?</h2>
+              <h2 className="mt-1 text-lg font-black text-[#1C342B] sm:text-xl">วันนี้อยากดูรายงานเรื่องไหน?</h2>
             </div>
           </div>
           <button
@@ -4181,8 +4188,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             onClick={() => updateReportSearch({ reportView: 'settings' })}
             className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition ${
               reportView === 'settings'
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50'
+                ? 'border-[#1C342B] bg-[#1C342B] text-white'
+                : 'border-[#DCE3D7] bg-white text-[#1C342B] hover:border-[#2F7D5B]/50 hover:bg-[#E9F0EA]/60'
             }`}
           >
             <Settings size={15} aria-hidden="true" /> ตั้งค่าหน้ารายงาน
@@ -4193,39 +4200,48 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           {reportCategories.map((cat) => {
             const isActiveCat = activeCategoryKey === cat.key;
             const firstViewInCat = reportViews.find((view) => view.category === cat.key)?.value || 'attendance';
+            const CatIcon = cat.icon;
             return (
               <button
                 key={cat.key}
                 type="button"
                 aria-pressed={isActiveCat}
                 onClick={() => updateReportSearch({ reportView: firstViewInCat })}
-                className={`group flex min-h-[86px] items-center gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                className={`group flex min-h-[86px] items-center gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${
                   isActiveCat
-                    ? 'border-teal-400 bg-teal-50 shadow-sm ring-2 ring-teal-200/70'
-                    : 'border-slate-200 bg-white/90 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-50/50'
+                    ? 'border-[#2F7D5B] bg-[#E9F0EA] shadow-sm ring-1 ring-[#2F7D5B]/30'
+                    : 'border-[#DCE3D7] bg-white hover:-translate-y-0.5 hover:border-[#2F7D5B]/50 hover:bg-white'
                 }`}
               >
-                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-2xl transition ${isActiveCat ? 'bg-white shadow-sm' : 'bg-[#f6f2eb] group-hover:bg-white'}`} aria-hidden="true">{cat.icon}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-black leading-5 text-slate-950">{cat.title}</span>
-                  <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-500">{cat.description}</span>
+                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition ${isActiveCat ? 'border-[#2F7D5B]/25 bg-white text-[#2F7D5B] shadow-xs' : 'border-[#DCE3D7] bg-[#F6F7F3] text-[#5A6F64] group-hover:bg-[#E9F0EA] group-hover:text-[#2F7D5B]'}`} aria-hidden="true">
+                  <CatIcon size={22} />
                 </span>
-                {isActiveCat ? <CheckCircle2 size={18} className="shrink-0 text-teal-700" aria-label="หมวดที่เลือก" /> : null}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black leading-5 text-[#1C342B]">{cat.title}</span>
+                  <span className="mt-1 block text-[11px] font-semibold leading-4 text-[#5A6F64]">{cat.description}</span>
+                </span>
+                {isActiveCat ? <CheckCircle2 size={18} className="shrink-0 text-[#2F7D5B]" aria-label="หมวดที่เลือก" /> : null}
               </button>
             );
           })}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/80 p-3 sm:p-4">
+        <div className="mt-4 rounded-2xl border border-[#DCE3D7] bg-white p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">ขั้นต่อไป · เลือกรายงาน</p>
-              <h3 className="mt-0.5 text-sm font-black text-slate-900 sm:text-base">
-                {reportCategories.find((category) => category.key === activeCategoryKey)?.icon}{' '}
-                {reportCategories.find((category) => category.key === activeCategoryKey)?.title}
-              </h3>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#5A6F64]">ขั้นต่อไป · เลือกรายงาน</p>
+              {(() => {
+                const activeCat = reportCategories.find((category) => category.key === activeCategoryKey);
+                const ActiveCatIcon = activeCat?.icon;
+                return (
+                  <h3 className="mt-0.5 flex items-center gap-2 text-sm font-black text-[#1C342B] sm:text-base">
+                    {ActiveCatIcon ? <ActiveCatIcon size={16} className="text-[#2F7D5B]" aria-hidden="true" /> : null}
+                    <span>{activeCat?.title}</span>
+                  </h3>
+                );
+              })()}
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-[11px] font-bold text-teal-800">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E9F0EA] px-3 py-1.5 text-[11px] font-bold text-[#2F7D5B]">
               <CheckCircle2 size={14} aria-hidden="true" /> เลือกอยู่: {activeReportConfig.shortLabel}
             </span>
           </div>
@@ -4235,24 +4251,27 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               .filter((item) => item.category === activeCategoryKey)
               .map((item) => {
                 const isActive = reportView === item.value;
+                const ItemIcon = item.icon;
                 return (
                   <button
                     key={item.value}
                     type="button"
                     aria-pressed={isActive}
                     onClick={() => updateReportSearch({ reportView: item.value })}
-                    className={`flex min-h-[76px] items-start gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                    className={`flex min-h-[76px] items-start gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${
                       isActive
-                        ? 'border-teal-400 bg-teal-50 shadow-sm ring-2 ring-teal-200/60'
-                        : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/40'
+                        ? 'border-[#2F7D5B] bg-[#E9F0EA]/70 shadow-xs ring-1 ring-[#2F7D5B]/30'
+                        : 'border-[#DCE3D7] bg-white hover:border-[#2F7D5B]/50 hover:bg-[#FAFBF8]'
                     }`}
                   >
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-xs" aria-hidden="true">{item.icon}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-black leading-5 text-slate-900">{item.label}</span>
-                      <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-500">{item.description}</span>
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border shadow-2xs ${isActive ? 'border-[#2F7D5B]/25 bg-white text-[#2F7D5B]' : 'border-[#DCE3D7] bg-[#F6F7F3] text-[#5A6F64]'}`} aria-hidden="true">
+                      <ItemIcon size={18} />
                     </span>
-                    {isActive ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-teal-700" aria-label="รายงานที่เลือก" /> : <ChevronRight size={16} className="mt-0.5 shrink-0 text-slate-300" aria-hidden="true" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black leading-5 text-[#1C342B]">{item.label}</span>
+                      <span className="mt-1 block text-[11px] font-semibold leading-4 text-[#5A6F64]">{item.description}</span>
+                    </span>
+                    {isActive ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-[#2F7D5B]" aria-label="รายงานที่เลือก" /> : <ChevronRight size={16} className="mt-0.5 shrink-0 text-[#8EA096]" aria-hidden="true" />}
                   </button>
                 );
               })}
@@ -4261,14 +4280,16 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               <button
                 type="button"
                 onClick={() => setIsOfficialDocsOpen(true)}
-                className="flex min-h-[76px] items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-3 text-left transition hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="flex min-h-[76px] items-center gap-3 rounded-2xl border border-[#DCE3D7] bg-[#F6F7F3] p-3 text-left transition hover:border-[#2F7D5B] hover:bg-[#E9F0EA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B]"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-xs" aria-hidden="true">📘</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-black text-indigo-950">สมุด ปพ.5 / ปพ.6 / ใบรับรอง</span>
-                  <span className="mt-1 block text-[11px] font-semibold text-indigo-800">เปิดแบบฟอร์มทางการเพื่อกรอกและพิมพ์</span>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#DCE3D7] bg-white text-[#2F7D5B] shadow-2xs" aria-hidden="true">
+                  <BookOpen size={18} />
                 </span>
-                <ChevronRight size={16} className="shrink-0 text-indigo-400" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black text-[#1C342B]">สมุด ปพ.5 / ปพ.6 / ใบรับรอง</span>
+                  <span className="mt-1 block text-[11px] font-semibold text-[#5A6F64]">เปิดแบบฟอร์มทางการเพื่อกรอกและพิมพ์</span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />
               </button>
             ) : null}
           </div>
@@ -4382,7 +4403,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                   className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-2xl border border-teal-200 bg-teal-50 px-3 text-xs font-black text-teal-900 hover:bg-teal-100"
                   title="สลับแนวกระดาษ A4 แนวตั้ง / แนวนอน"
                 >
-                  <span>📄 A4 {pageOrientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</span>
+                  <span>A4 {pageOrientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</span>
                 </button>
                 <div className="relative flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
@@ -4707,8 +4728,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
           {(['term1', 'term2'] as TermKey[]).map((term) => (
             <article className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5" key={term}>
-              <h3 className="text-lg font-black text-slate-950">
-                {term === 'term1' ? '📅 กำหนดการภาคเรียนที่ 1' : '📅 กำหนดการภาคเรียนที่ 2'}
+              <h3 className="text-lg font-black text-[#1C342B]">
+                {term === 'term1' ? 'กำหนดการภาคเรียนที่ 1' : 'กำหนดการภาคเรียนที่ 2'}
               </h3>
               <p className="mt-1 text-xs font-bold text-slate-600">
                 ใช้สำหรับคำนวณช่วงวันที่อัตโนมัติเมื่อเลือกดูรายงานแบบ &ldquo;รายเทอม&rdquo;
@@ -4739,7 +4760,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           ))}
 
           <article className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 lg:col-span-2">
-            <h3 className="text-xl font-black text-slate-950">🏛️ ตั้งค่าหัวกระดาษราชการ ตราโรงเรียน และผู้ลงนาม</h3>
+            <h3 className="text-xl font-black text-[#1C342B]">ตั้งค่าหัวกระดาษราชการ ตราโรงเรียน และผู้ลงนาม</h3>
             <p className="mt-1 text-xs font-bold text-slate-500">
               ข้อมูลชุดนี้จะแสดงบนหัวกระดาษ A4 และช่องลายเซ็นด้านล่างของรายงานทุกฉบับโดยอัตโนมัติ
             </p>
@@ -4863,12 +4884,19 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       ) : (
         <section className="mt-4">
           {/* Paper Top Action Bar */}
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-100/80 px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{activeReportConfig.icon}</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] px-4 py-2.5">
+            <div className="flex items-center gap-2.5">
+              {(() => {
+                const ActiveIcon = activeReportConfig.icon;
+                return (
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-[#DCE3D7] bg-[#E9F0EA] text-[#2F7D5B]" aria-hidden="true">
+                    <ActiveIcon size={17} />
+                  </span>
+                );
+              })()}
               <div>
-                <h2 className="text-sm font-black text-slate-950">{activeReportConfig.label}</h2>
-                <p className="text-[11px] font-bold text-slate-500">
+                <h2 className="text-sm font-black text-[#1C342B]">{activeReportConfig.label}</h2>
+                <p className="text-[11px] font-bold text-[#5A6F64]">
                   {displayMode === 'a4'
                     ? `มุมมองกระดาษ A4 ${pageOrientation === 'portrait' ? 'แนวตั้ง (210 × 297 มม.)' : 'แนวนอน (297 × 210 มม.)'} · พร้อมพิมพ์ทันที`
                     : 'มุมมองการ์ดสำหรับสมาร์ตโฟน อ่านง่ายไม่ต้องเลื่อนซ้าย-ขวา'}
@@ -4879,7 +4907,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               <button
                 type="button"
                 onClick={() => void printReport(false)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-xs font-black text-white shadow-xs hover:bg-emerald-700"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2F7D5B] px-3.5 text-xs font-black text-white shadow-xs hover:bg-[#256549]"
               >
                 <Printer size={14} />
                 <span>สั่งพิมพ์ A4 / PDF</span>

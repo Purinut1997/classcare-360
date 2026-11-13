@@ -97,28 +97,26 @@ export function DailyInspectionModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
       role="dialog"
     >
-      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border-2 border-[#e6dcce] bg-[#fbf8f3] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] shadow-2xl font-['Itim',sans-serif]">
+        <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-[#DCE3D7] bg-[#FAFBF8] shadow-2xl">
         {/* Top Header */}
-        <div className="relative border-b border-[#e2d5c3] bg-[#f5efe6] px-6 py-5">
-          <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-10 rounded-[1px] bg-white/80 shadow-2xs" />
+        <div className="relative border-b border-[#DCE3D7] bg-[#F6F7F3] px-6 py-5">
           <div className="flex items-start justify-between">
             <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-900 border border-emerald-300">
-                <CheckCircle2 size={13} />
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E9F0EA] px-3 py-0.5 text-xs font-black text-[#2F7D5B] border border-[#DCE3D7]">
+                <CheckCircle2 size={13} aria-hidden="true" />
                 ตรวจผลเวรประจำวัน
               </span>
               <div className="mt-1.5 flex items-center gap-2">
                 <button
-                  className="grid h-7 w-7 place-items-center rounded-lg bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
+                  className="grid h-7 w-7 place-items-center rounded-lg bg-white border border-[#DCE3D7] text-[#1C342B] hover:bg-[#E9F0EA] active:scale-95 transition shadow-2xs"
                   onClick={() => changeDay(-1)}
                   title="วันก่อนหน้า"
                   type="button"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5" id="inspection-modal-title">
+                <h2 className="text-xl sm:text-2xl font-black text-[#1C342B] tracking-tight flex items-center gap-1.5" id="inspection-modal-title">
                   <span>{formattedDate}</span>
-                  <span>🧹📌</span>
                 </h2>
                 <button
                   className="grid h-7 w-7 place-items-center rounded-lg bg-white border border-[#c7bca9] text-[#44403c] hover:bg-amber-50 active:scale-95 transition shadow-2xs"
@@ -184,8 +182,8 @@ export function DailyInspectionModal({
               onClick={() => void onMarkAllDone(selectedDate)}
               type="button"
             >
-              <CheckCircle2 size={13} />
-              ทำครบทุกคน ({pendingCount} คน) ✓
+              <CheckCircle2 size={13} aria-hidden="true" />
+              ทำครบทุกคน ({pendingCount} คน)
             </button>
           </div>
         ) : null}
@@ -256,10 +254,10 @@ export function DailyInspectionModal({
                       {/* Status Action Buttons */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <button
-                          className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
+                          className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
                             assignment.status === "completed"
-                              ? "bg-[#1b3e04] text-white shadow-xs"
-                              : "border border-lime-300 bg-white text-lime-900 hover:bg-lime-50"
+                              ? "bg-[#2F7D5B] text-white shadow-xs"
+                              : "border border-emerald-200 bg-white text-emerald-900 hover:bg-emerald-50"
                           }`}
                           disabled={busy || !canManage}
                           onClick={() => {
@@ -278,20 +276,22 @@ export function DailyInspectionModal({
                           }}
                           type="button"
                         >
-                          🟢 ทำแล้ว (+1)
+                          <CheckCircle2 size={12} aria-hidden="true" />
+                          ทำแล้ว (+1)
                         </button>
 
                         <button
-                          className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
+                          className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${
                             assignment.status === "missed"
-                              ? "bg-[#881337] text-white shadow-xs"
-                              : "border border-rose-300 bg-white text-rose-900 hover:bg-rose-50"
+                              ? "bg-[#C25970] text-white shadow-xs"
+                              : "border border-rose-200 bg-white text-rose-900 hover:bg-rose-50"
                           }`}
                           disabled={busy || !canManage}
                           onClick={() => void onRecord(assignment, "missed")}
                           type="button"
                         >
-                          🔴 ไม่ทำ (-1)
+                          <XCircle size={12} aria-hidden="true" />
+                          ไม่ทำ (-1)
                         </button>
 
                         <button
@@ -410,8 +410,9 @@ export function DailyInspectionModal({
                     {/* Evidence Path (if required) */}
                     {task?.evidence_required ? (
                       <div className="mt-2.5 border-t border-slate-100 pt-2 text-xs">
-                        <span className="font-bold text-cyan-800">
-                          📷 หน้าที่นี้ต้องการหลักฐานภาพถ่าย:
+                        <span className="inline-flex items-center gap-1.5 font-bold text-[#2F7D5B]">
+                          <Camera size={13} aria-hidden="true" />
+                          หน้าที่นี้ต้องการหลักฐานภาพถ่าย:
                         </span>
                         <input
                           className="mt-1 h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs font-bold"

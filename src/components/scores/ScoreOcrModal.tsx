@@ -157,8 +157,8 @@ export function ScoreOcrModal({
               <Camera size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-900">
-                📸 สแกนใบคะแนนกระดาษด้วย AI (Smart Score OCR)
+              <h3 className="text-lg font-black text-[#1C342B]">
+                สแกนใบคะแนนกระดาษด้วย AI (Smart Score OCR)
               </h3>
               <p className="text-xs font-bold text-slate-500">
                 ถ่ายภาพใบคะแนนสอบ/ใบงานเก็บคะแนน แล้วให้ AI ดึงคะแนนรายคนลงช่องอัตโนมัติ
@@ -401,7 +401,7 @@ export function ScoreOcrModal({
               ) : (
                 <>
                   <Sparkles size={16} className="text-amber-300 animate-pulse" />
-                  <span>✨ ถอดรหัสคะแนนด้วย AI Vision</span>
+                  <span>ถอดรหัสคะแนนด้วย AI Vision</span>
                   <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}

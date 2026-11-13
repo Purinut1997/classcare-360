@@ -2,6 +2,7 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
+  BarChart3,
   BookOpen,
   Building2,
   Check,
@@ -15,14 +16,18 @@ import {
   Filter,
   HelpCircle,
   Info,
+  Lightbulb,
   RefreshCw,
   RotateCcw,
   Save,
+  Scale,
   Search,
   ShieldCheck,
   Sparkles,
+  Tag,
   Trash2,
   Upload,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -1571,8 +1576,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         return;
       }
       const confirmMsg = overwriteScope === 'all_workspace'
-        ? `⚠️ ยืนยันล้างข้อมูลนักเรียนทั้งโรงเรียน (${students.length} คน) และนำเข้ารายชื่อใหม่ ${validPreviewRows.length} คน หรือไม่?\n\nข้อมูลนักเรียนเดิมและประวัติที่ผูกอยู่จะถูกลบออกจากฐานข้อมูลอย่างสมบูรณ์`
-        : `⚠️ ยืนยันลบข้อมูลนักเรียนเดิมในห้องเป้าหมายและนำเข้ารายชื่อใหม่ ${validPreviewRows.length} คน หรือไม่?`;
+        ? `ยืนยันล้างข้อมูลนักเรียนทั้งโรงเรียน (${students.length} คน) และนำเข้ารายชื่อใหม่ ${validPreviewRows.length} คน หรือไม่?\n\nข้อมูลนักเรียนเดิมและประวัติที่ผูกอยู่จะถูกลบออกจากฐานข้อมูลอย่างสมบูรณ์`
+        : `ยืนยันลบข้อมูลนักเรียนเดิมในห้องเป้าหมายและนำเข้ารายชื่อใหม่ ${validPreviewRows.length} คน หรือไม่?`;
       if (!window.confirm(confirmMsg)) return;
 
       void executeImport('update_name');
@@ -2299,19 +2304,19 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </div>
       </div>
 
-      {/* 🧭 Top-Level Workstream Tabs */}
-      <nav className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-3" aria-label="หมวดหมู่งานนำเข้าส่งออก">
+      {/* Top-Level Workstream Tabs */}
+      <nav className="mt-5 flex flex-wrap gap-2 border-b border-[#DCE3D7] pb-3" aria-label="หมวดหมู่งานนำเข้าส่งออก">
         <button
           type="button"
           onClick={() => setActiveMainTab('import')}
           className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
             activeMainTab === 'import'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+              ? 'bg-[#D98B26] text-white shadow-sm'
+              : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
           }`}
         >
-          <FileUp size={17} />
-          📥 นำเข้าข้อมูล (CSV / DMC / ผู้ปกครอง)
+          <FileUp size={17} aria-hidden="true" />
+          นำเข้าข้อมูล (CSV / DMC / ผู้ปกครอง)
           {(previewRows.length > 0 || guardianPreviewRows.length > 0) && (
             <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs font-black">
               {previewRows.length + guardianPreviewRows.length} แถว
@@ -2324,13 +2329,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           onClick={() => setActiveMainTab('roster')}
           className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
             activeMainTab === 'roster'
-              ? 'bg-cyan-700 text-white shadow-md'
-              : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+              ? 'bg-[#2F7D5B] text-white shadow-sm'
+              : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
           }`}
         >
-          <Users size={17} />
-          🧹 จัดการบัญชีรายชื่อ & ลบชื่อซ้ำ
-          <span className="ml-1 rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-black">
+          <Users size={17} aria-hidden="true" />
+          จัดการบัญชีรายชื่อ & ลบชื่อซ้ำ
+          <span className="ml-1 rounded-full bg-[#E9F0EA] text-[#1C342B] px-2 py-0.5 text-xs font-black">
             {students.length} คน
           </span>
         </button>
@@ -2340,12 +2345,12 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           onClick={() => setActiveMainTab('export_backup')}
           className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
             activeMainTab === 'export_backup'
-              ? 'bg-slate-900 text-white shadow-md'
-              : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+              ? 'bg-[#1C342B] text-white shadow-sm'
+              : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
           }`}
         >
-          <Download size={17} />
-          📤 ส่งออก & สำรองข้อมูล Workspace
+          <Download size={17} aria-hidden="true" />
+          ส่งออก & สำรองข้อมูล Workspace
         </button>
       </nav>
 
@@ -2608,7 +2613,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                     >
                       <RefreshCw size={15} className={`shrink-0 mt-0.5 ${importMode === 'merge' ? 'text-white' : 'text-emerald-600'}`} />
                       <div>
-                        <div className="text-xs font-black">🔄 อัปเดต/ผสานข้อมูล</div>
+                        <div className="text-xs font-black">อัปเดต/ผสานข้อมูล</div>
                         <div className={`text-[10px] mt-0.5 ${importMode === 'merge' ? 'text-emerald-100' : 'text-slate-500'}`}>
                           คงข้อมูลเดิม เติม/อัปเดตข้อมูลใหม่ (แนะนำ)
                         </div>
@@ -2626,7 +2631,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                     >
                       <Trash2 size={15} className={`shrink-0 mt-0.5 ${importMode === 'overwrite' ? 'text-white' : 'text-rose-600'}`} />
                       <div>
-                        <div className="text-xs font-black">⚠️ ลบข้อมูลเดิมแล้ววางทับ</div>
+                        <div className="text-xs font-black">ลบข้อมูลเดิมแล้ววางทับ</div>
                         <div className={`text-[10px] mt-0.5 ${importMode === 'overwrite' ? 'text-rose-100' : 'text-slate-500'}`}>
                           ลบข้อมูลในห้องที่เลือกแล้วใส่ใหม่
                         </div>
@@ -2699,13 +2704,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                       <>กำลังนำเข้าข้อมูล...</>
                     ) : importMode === 'overwrite' ? (
                       <>
-                        <Trash2 size={20} />
-                        ⚠️ ยืนยันลบทับ & นำเข้ารายชื่อ ({validPreviewRows.length} คน)
+                        <Trash2 size={20} aria-hidden="true" />
+                        ยืนยันลบทับ & นำเข้ารายชื่อ ({validPreviewRows.length} คน)
                       </>
                     ) : (
                       <>
-                        <Save size={20} />
-                        🚀 บันทึกนำเข้ารายชื่อทันที ({validPreviewRows.length} คน)
+                        <Save size={20} aria-hidden="true" />
+                        บันทึกนำเข้ารายชื่อทันที ({validPreviewRows.length} คน)
                       </>
                     )}
                   </button>
@@ -2732,24 +2737,24 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   onClick={() => setManualEntryMode('paste')}
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
                     manualEntryMode === 'paste'
-                      ? 'bg-cyan-700 text-white shadow-sm'
+                      ? 'bg-[#2F7D5B] text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <ClipboardList size={14} />
-                  📋 วางตารางจาก Excel
+                  <ClipboardList size={14} aria-hidden="true" />
+                  วางตารางจาก Excel
                 </button>
                 <button
                   type="button"
                   onClick={() => setManualEntryMode('single')}
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
                     manualEntryMode === 'single'
-                      ? 'bg-cyan-700 text-white shadow-sm'
+                      ? 'bg-[#2F7D5B] text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <Users size={14} />
-                  👤 พิมพ์ทีละคน
+                  <Users size={14} aria-hidden="true" />
+                  พิมพ์ทีละคน
                 </button>
               </div>
 
@@ -2779,8 +2784,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                     />
                   </label>
                   <div className="flex items-center pt-5">
-                    <span className="text-[11px] font-bold leading-tight text-slate-500">
-                      💡 หากข้อมูลที่วางมีคอลัมน์ "ชั้น/ห้อง" อยู่แล้ว ระบบจะแยกตามตารางให้อัตโนมัติ
+                    <span className="inline-flex items-start gap-1.5 text-[11px] font-bold leading-tight text-[#5A6F64]">
+                      <Lightbulb size={13} className="mt-0.5 shrink-0 text-[#D98B26]" aria-hidden="true" />
+                      หากข้อมูลที่วางมีคอลัมน์ "ชั้น/ห้อง" อยู่แล้ว ระบบจะแยกตามตารางให้อัตโนมัติ
                     </span>
                   </div>
                 </div>
@@ -2905,10 +2911,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             <button
               type="button"
               onClick={() => setShowSchemaGuideModal(true)}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/70 py-2.5 text-xs font-black text-cyan-800 transition hover:bg-cyan-100"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE3D7] bg-[#E9F0EA]/70 py-2.5 text-xs font-black text-[#1C342B] transition hover:bg-[#E9F0EA]"
             >
-              <BookOpen size={15} />
-              📘 คลิกเพื่อดูโครงร่างคอลัมน์ที่รองรับ (Schema Guide)
+              <BookOpen size={15} className="text-[#2F7D5B]" />
+              คลิกเพื่อดูโครงร่างคอลัมน์ที่รองรับ (Schema Guide)
             </button>
           </div>
 
@@ -3043,12 +3049,13 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                       เลือกว่าต้องการผสานข้อมูลกับของเดิม หรือลบข้อมูลเดิมในระบบแล้ววางทับใหม่
                     </p>
                   </div>
-                  <span className={`inline-flex items-center gap-1 self-start sm:self-auto rounded-full px-3 py-1 text-xs font-black ${
+                  <span className={`inline-flex items-center gap-1.5 self-start sm:self-auto rounded-full px-3 py-1 text-xs font-black ${
                     importMode === 'merge'
                       ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800'
                       : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800'
                   }`}>
-                    {importMode === 'merge' ? '🔄 โหมดผสานข้อมูล' : '⚠️ โหมดลบทับข้อมูล'}
+                    {importMode === 'merge' ? <RotateCcw size={12} aria-hidden="true" /> : <AlertTriangle size={12} aria-hidden="true" />}
+                    {importMode === 'merge' ? 'โหมดผสานข้อมูล' : 'โหมดลบทับข้อมูล'}
                   </span>
                 </div>
 
@@ -3152,8 +3159,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
                     {overwriteScope === 'all_workspace' && (
                       <div className="mt-3 rounded-xl border border-rose-300 bg-white/90 p-3 dark:border-rose-800 dark:bg-slate-900/80">
-                        <p className="text-xs font-bold text-rose-700 dark:text-rose-300">
-                          ⚠️ คำเตือน: ระบบจะลบนักเรียนทั้งหมด {students.length} คนในโรงเรียน พร้อมประวัติการเข้าเรียนและคะแนนที่ผูกอยู่ทั้งหมดอย่างถาวร
+                        <p className="inline-flex items-start gap-1.5 text-xs font-bold text-rose-700 dark:text-rose-300">
+                          <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                          <span>คำเตือน: ระบบจะลบนักเรียนทั้งหมด {students.length} คนในโรงเรียน พร้อมประวัติการเข้าเรียนและคะแนนที่ผูกอยู่ทั้งหมดอย่างถาวร</span>
                         </p>
                         <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-xs font-black text-rose-900 dark:text-rose-200">
                           <input
@@ -3199,19 +3207,22 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                         {row.source === 'dmc' ? (
                           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
                             {row.healthFlags?.weight_kg && row.healthFlags?.height_cm ? (
-                              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200/60">
-                                ⚖️ {String(row.healthFlags.weight_kg)} กก. / {String(row.healthFlags.height_cm)} ซม.
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200/60">
+                                <Scale size={11} aria-hidden="true" />
+                                {String(row.healthFlags.weight_kg)} กก. / {String(row.healthFlags.height_cm)} ซม.
                                 {row.healthFlags.bmi ? ` (BMI ${String(row.healthFlags.bmi)})` : ''}
                               </span>
                             ) : null}
                             {row.careFlags?.disadvantage ? (
-                              <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-200/60">
-                                🏷️ {String(row.careFlags.disadvantage)}
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-200/60">
+                                <Tag size={11} aria-hidden="true" />
+                                {String(row.careFlags.disadvantage)}
                               </span>
                             ) : null}
                             {row.metadata?.dmc_guardian && typeof row.metadata.dmc_guardian === 'object' && (row.metadata.dmc_guardian as Record<string, unknown>).first_name ? (
-                              <span className="rounded-md bg-slate-50 px-1.5 py-0.5 text-slate-600 ring-1 ring-slate-200">
-                                👤 ปกครอง: {String((row.metadata.dmc_guardian as Record<string, unknown>).first_name)} ({String((row.metadata.dmc_guardian as Record<string, unknown>).relation || 'ผู้ปกครอง')})
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-1.5 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                                <UserRound size={11} aria-hidden="true" />
+                                ปกครอง: {String((row.metadata.dmc_guardian as Record<string, unknown>).first_name)} ({String((row.metadata.dmc_guardian as Record<string, unknown>).relation || 'ผู้ปกครอง')})
                               </span>
                             ) : null}
                           </div>
@@ -3481,8 +3492,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               {[
                 { id: 'all', label: 'ทั้งหมด', count: categoryCounts.all, icon: Users },
                 { id: 'active', label: 'กำลังเรียน', count: categoryCounts.active, icon: CheckCircle2 },
-                { id: 'archived', label: '📦 หมวดเก็บถาวร', count: categoryCounts.archived, icon: Archive, badgeClass: 'bg-amber-100 text-amber-900 ring-amber-300' },
-                { id: 'duplicate', label: '⚠️ ข้อมูลซ้ำ', count: categoryCounts.duplicate, icon: AlertTriangle, badgeClass: 'bg-rose-100 text-rose-900 ring-rose-300' },
+                { id: 'archived', label: 'หมวดเก็บถาวร', count: categoryCounts.archived, icon: Archive, badgeClass: 'bg-amber-100 text-amber-900 ring-amber-300' },
+                { id: 'duplicate', label: 'ข้อมูลซ้ำ', count: categoryCounts.duplicate, icon: AlertTriangle, badgeClass: 'bg-rose-100 text-rose-900 ring-rose-300' },
                 { id: 'unassigned', label: 'ยังไม่ผูกห้อง', count: categoryCounts.unassigned, icon: Filter },
               ].map((tab) => {
                 const isActive = activeCategoryTab === tab.id;
@@ -3541,7 +3552,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   <Archive className="mt-0.5 shrink-0 text-amber-700" size={20} aria-hidden="true" />
                   <div>
                     <h4 className="text-sm font-black text-amber-950">
-                      📦 หมวดเก็บถาวร / รายชื่อเก่าที่ตกค้าง ({categoryCounts.archived} คน)
+                      หมวดเก็บถาวร / รายชื่อเก่าที่ตกค้าง ({categoryCounts.archived} คน)
                     </h4>
                     <p className="mt-0.5 text-xs font-bold leading-5 text-amber-900/80">
                       รายชื่อกลุ่มนี้ถูกแยกออกจากห้องเรียนแล้ว คุณครูสามารถกดปุ่ม "เลือกทั้งหมดในหมวดนี้" แล้วกดปุ่มสีแดง <strong>"ลบถาวร"</strong> เพื่อเคลียร์ข้อมูลซ้ำหรือรายชื่อเก่าพร้อมกันได้ทันที
@@ -3907,8 +3918,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                     </p>
                     <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
                       {backupDryRunResult.checks.map((check) => (
-                        <li className={`rounded-xl px-3 py-2 text-xs font-bold ${check.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`} key={check.label}>
-                          {check.passed ? '✓' : '⚠'} {check.label}: {check.detail}
+                        <li className={`flex items-start gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${check.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`} key={check.label}>
+                          {check.passed ? <Check size={14} className="mt-0.5 shrink-0" aria-hidden="true" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />}
+                          <span>{check.label}: {check.detail}</span>
                         </li>
                       ))}
                     </ul>
@@ -4020,8 +4032,9 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-slate-400">
-                💡 <span className="font-bold text-amber-400">คำแนะนำ:</span> หากเป็นคนเดียวกันที่มีการเปลี่ยนชื่อ-นามสกุลจริง ให้เลือก <strong>"อัปเดตเป็นชื่อใหม่"</strong> หรือหากต้องการคงชื่อเดิมไว้ในระบบ ให้เลือก <strong>"คงชื่อเดิมไว้"</strong> โดยทั้งสองตัวเลือกจะฟื้นคืนชีพสถานะกลับมาเป็น active ในห้องเรียนปัจจุบันให้อัตโนมัติ
+              <p className="mt-3 flex items-start gap-1.5 text-xs leading-relaxed text-slate-400">
+                <Lightbulb size={15} className="mt-0.5 shrink-0 text-amber-400" aria-hidden="true" />
+                <span><span className="font-bold text-amber-400">คำแนะนำ:</span> หากเป็นคนเดียวกันที่มีการเปลี่ยนชื่อ-นามสกุลจริง ให้เลือก <strong>"อัปเดตเป็นชื่อใหม่"</strong> หรือหากต้องการคงชื่อเดิมไว้ในระบบ ให้เลือก <strong>"คงชื่อเดิมไว้"</strong> โดยทั้งสองตัวเลือกจะฟื้นคืนชีพสถานะกลับมาเป็น active ในห้องเรียนปัจจุบันให้อัตโนมัติ</span>
               </p>
             </div>
 
@@ -4037,16 +4050,18 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               <button
                 type="button"
                 onClick={() => void executeImport('keep_name')}
-                className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-xs font-black text-sky-300 hover:bg-sky-500/25"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-xs font-black text-sky-300 hover:bg-sky-500/25"
               >
-                🛡️ คงชื่อเดิมไว้ (อัปเดตข้อมูลอื่น & ฟื้นคืนชีพ)
+                <ShieldCheck size={14} aria-hidden="true" />
+                คงชื่อเดิมไว้ (อัปเดตข้อมูลอื่น & ฟื้นคืนชีพ)
               </button>
               <button
                 type="button"
                 onClick={() => void executeImport('update_name')}
-                className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-black text-white shadow-lg shadow-amber-500/25 hover:from-amber-400 hover:to-orange-400"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#D98B26] to-[#B5721B] px-4 py-2 text-xs font-black text-white shadow-lg hover:brightness-110"
               >
-                ✅ ยืนยันอัปเดตเป็นชื่อใหม่ทั้งหมด
+                <CheckCircle2 size={14} aria-hidden="true" />
+                ยืนยันอัปเดตเป็นชื่อใหม่ทั้งหมด
               </button>
             </div>
           </div>
@@ -4124,7 +4139,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               {/* Schema Table */}
               <div>
                 <h4 className="text-sm font-black text-slate-200 mb-2.5 flex items-center gap-2">
-                  <span>📋</span> รายการคอลัมน์และชื่อหัวตารางที่รองรับ
+                  <ClipboardList size={15} className="text-cyan-400" aria-hidden="true" />
+                  <span>รายการคอลัมน์และชื่อหัวตารางที่รองรับ</span>
                 </h4>
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
                   <table className="min-w-full divide-y divide-slate-800 text-left text-xs">
@@ -4262,7 +4278,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               {/* Sample Excel Preview Table */}
               <div>
                 <h4 className="text-sm font-black text-slate-200 mb-2.5 flex items-center gap-2">
-                  <span>📊</span> ตัวอย่างหน้าตาใน Excel หรือ Google Sheets ที่ใช้งานได้ทันที
+                  <BarChart3 size={15} className="text-emerald-400" aria-hidden="true" />
+                  <span>ตัวอย่างหน้าตาใน Excel หรือ Google Sheets ที่ใช้งานได้ทันที</span>
                 </h4>
                 <div className="overflow-x-auto rounded-2xl border border-emerald-500/30 bg-slate-950 p-3">
                   <table className="min-w-full text-left font-mono text-xs">
@@ -4321,10 +4338,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <button
                   type="button"
                   onClick={exportExcelTemplate}
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-500"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#2F7D5B] px-4 py-2 text-xs font-black text-white shadow-md hover:bg-[#1C342B]"
                 >
                   <FileSpreadsheet size={16} />
-                  📥 ดาวน์โหลดแม่แบบ Excel (.xlsx)
+                  ดาวน์โหลดแม่แบบ Excel (.xlsx)
                 </button>
                 <button
                   type="button"
@@ -4332,7 +4349,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-black text-slate-200 hover:bg-slate-700"
                 >
                   <Download size={16} />
-                  📥 ดาวน์โหลดแม่แบบ CSV (.csv)
+                  ดาวน์โหลดแม่แบบ CSV (.csv)
                 </button>
               </div>
 
@@ -4348,14 +4365,14 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         </div>
       )}
 
-      {/* 🚀 Floating Bottom Import Dock */}
+      {/* Floating Bottom Import Dock */}
       {validPreviewRows.length > 0 && activeMainTab === 'import' && (
         <aside
           aria-label="แถบดำเนินการนำเข้าด่วน"
-          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-4 left-3 right-3 sm:left-6 sm:right-6 z-40 max-w-4xl mx-auto rounded-3xl bg-slate-950/95 text-white backdrop-blur-md p-3.5 sm:p-4 shadow-2xl border border-slate-700/80 ring-1 ring-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-4 left-3 right-3 sm:left-6 sm:right-6 z-40 max-w-4xl mx-auto rounded-3xl bg-[#1C342B]/95 text-white backdrop-blur-md p-3.5 sm:p-4 shadow-2xl border border-[#2F7D5B]/50 ring-1 ring-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 text-white shadow-md">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#2F7D5B] to-[#1C342B] text-white shadow-md border border-white/15">
               <Save size={22} />
             </span>
             <div className="min-w-0">
@@ -4363,15 +4380,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 <span className="text-sm font-black text-white">
                   พร้อมนำเข้า {validPreviewRows.length} รายชื่อ
                 </span>
-                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black ${
                   importMode === 'overwrite'
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                     : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 }`}>
-                  {importMode === 'overwrite' ? '⚠️ โหมดลบทับ' : '🔄 โหมดผสาน'}
+                  {importMode === 'overwrite' ? <AlertTriangle size={11} aria-hidden="true" /> : <RotateCcw size={11} aria-hidden="true" />}
+                  {importMode === 'overwrite' ? 'โหมดลบทับ' : 'โหมดผสาน'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-bold truncate">
+              <p className="text-xs text-emerald-100/75 font-bold truncate">
                 {selectedDmcClassKeys.length > 0
                   ? `เลือก ${selectedDmcClassKeys.length} ห้องเรียน (จาก DMC)`
                   : 'จากไฟล์ Excel / CSV'}
@@ -4383,10 +4401,10 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             <button
               type="button"
               onClick={() => previewSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="h-11 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center gap-1.5 transition"
+              className="h-11 px-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white/90 flex items-center gap-1.5 transition"
             >
               <Eye size={15} />
-              ดูตาราง Preview ↓
+              ดูตาราง Preview
             </button>
             <button
               type="button"
@@ -4399,7 +4417,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               className={`h-11 px-6 rounded-xl text-sm font-black flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500 ${
                 importMode === 'overwrite'
                   ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+                : 'bg-[#2F7D5B] hover:bg-[#25664A] text-white'
               }`}
             >
               {isSubmitting ? (
@@ -4412,7 +4430,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               ) : (
                 <>
                   <Save size={16} />
-                  🚀 กดนำเข้าทันที ({validPreviewRows.length} คน)
+                  กดนำเข้าทันที ({validPreviewRows.length} คน)
                 </>
               )}
             </button>

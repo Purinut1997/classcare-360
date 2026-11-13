@@ -1535,8 +1535,9 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                               </div>
                               <p className="mt-1 text-xs font-bold text-slate-600">{item.summary}</p>
                               {item.nextAction ? (
-                                <p className="mt-1 text-xs font-bold text-blue-700">
-                                  👉 สิ่งที่ต้องตามต่อ: {item.nextAction}
+                                <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-[#2F7D5B]">
+                                  <ArrowRight size={12} aria-hidden="true" />
+                                  <span>สิ่งที่ต้องตามต่อ: {item.nextAction}</span>
                                 </p>
                               ) : null}
                             </div>

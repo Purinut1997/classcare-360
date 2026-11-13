@@ -513,7 +513,7 @@ export function ScheduleOcrModal({
               ) : (
                 <>
                   <Sparkles size={16} className="text-yellow-200 animate-pulse" />
-                  <span>✨ วิเคราะห์ตารางสอนด้วย AI Vision</span>
+                  <span>วิเคราะห์ตารางสอนด้วย AI Vision</span>
                   <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}

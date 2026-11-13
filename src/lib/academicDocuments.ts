@@ -150,7 +150,7 @@ export function buildPhorPhorDocumentCss(): string {
 export function buildPhorPhor5ClassCoverHtml(meta: PhorPhor5ClassMeta, identity?: SchoolReportIdentity): string {
   const logoHtml = identity?.schoolLogoDataUrl
     ? `<img src="${identity.schoolLogoDataUrl}" style="max-height: 110px; max-width: 140px; margin-bottom: 16px; object-fit: contain;" alt="ตราโรงเรียน" />`
-    : `<div style="font-size: 52px; margin-bottom: 16px;">🏫</div>`;
+    : `<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;margin-bottom:16px;border:2px solid #334155;border-radius:16px;font-size:20px;font-weight:bold;color:#0f172a;letter-spacing:1px;">ปพ.๕</div>`;
 
   return `
     <div class="page">
@@ -194,7 +194,7 @@ export function buildPhorPhor5ClassCoverHtml(meta: PhorPhor5ClassMeta, identity?
 export function buildPhorPhor5SubjectCoverHtml(meta: PhorPhor5SubjectMeta, identity?: SchoolReportIdentity): string {
   const logoHtml = identity?.schoolLogoDataUrl
     ? `<img src="${identity.schoolLogoDataUrl}" style="max-height: 110px; max-width: 140px; margin-bottom: 16px; object-fit: contain;" alt="ตราโรงเรียน" />`
-    : `<div style="font-size: 52px; margin-bottom: 16px;">📚</div>`;
+    : `<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;margin-bottom:16px;border:2px solid #334155;border-radius:16px;font-size:20px;font-weight:bold;color:#0f172a;letter-spacing:1px;">ปพ.๕</div>`;
 
   return `
     <div class="page">
@@ -254,7 +254,7 @@ export function buildOfficialStudentCertificateHtml(params: {
   const thaiDate = formatThaiOfficialDate(params.issueDateStr || new Date().toISOString());
   const logoHtml = params.logoUrl
     ? `<img src="${params.logoUrl}" style="height: 85px; width: auto; object-fit: contain; margin-bottom: 8px;" alt="ตราโรงเรียน" />`
-    : `<div style="font-size: 42px; margin-bottom: 8px;">🏛️</div>`;
+    : `<div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;margin-bottom:8px;border:2px solid #334155;border-radius:14px;font-size:15px;font-weight:bold;color:#0f172a;">สถานศึกษา</div>`;
 
   return `
     <!DOCTYPE html>

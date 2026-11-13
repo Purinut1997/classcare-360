@@ -187,6 +187,6 @@ export function getClassroomScopeBadge(
   return {
     isHomeroom,
     label: isHomeroom ? 'ห้องที่ปรึกษา' : 'ห้องสอนวิชา',
-    prefix: isHomeroom ? '⭐ ' : '📚 ',
+    prefix: '',
   };
 }

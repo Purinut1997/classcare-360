@@ -1,4 +1,4 @@
-import { CalendarDays, FileCheck2, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Printer, RefreshCw, Sparkles, Trash2, X } from 'lucide-react';
+import { Calendar, CalendarDays, CalendarRange, ClipboardList, Clock, FileCheck2, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Pencil, Pin, Plus, Printer, RefreshCw, Sparkles, Star, Trash2, Umbrella, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
@@ -175,7 +175,7 @@ const typeConfig: Record<
     chip: string;
     dot: string;
     borderLeft: string;
-    icon: string;
+    icon: LucideIcon;
     filterActive: string;
   }
 > = {
@@ -184,7 +184,7 @@ const typeConfig: Record<
     chip: 'border-rose-300 bg-rose-50/95 text-rose-800 hover:bg-rose-100 shadow-2xs',
     dot: 'bg-rose-500 ring-2 ring-rose-200',
     borderLeft: 'border-l-4 border-l-rose-500',
-    icon: '🏖️',
+    icon: Umbrella,
     filterActive: 'border-rose-500 bg-rose-500 text-white shadow-xs',
   },
   exam: {
@@ -192,7 +192,7 @@ const typeConfig: Record<
     chip: 'border-indigo-300 bg-indigo-50/95 text-indigo-900 hover:bg-indigo-100 shadow-2xs',
     dot: 'bg-indigo-600 ring-2 ring-indigo-200',
     borderLeft: 'border-l-4 border-l-indigo-600',
-    icon: '📝',
+    icon: ClipboardList,
     filterActive: 'border-indigo-600 bg-indigo-600 text-white shadow-xs',
   },
   activity: {
@@ -200,7 +200,7 @@ const typeConfig: Record<
     chip: 'border-emerald-300 bg-emerald-50/95 text-emerald-900 hover:bg-emerald-100 shadow-2xs',
     dot: 'bg-emerald-500 ring-2 ring-emerald-200',
     borderLeft: 'border-l-4 border-l-emerald-500',
-    icon: '🎪',
+    icon: Sparkles,
     filterActive: 'border-emerald-600 bg-emerald-600 text-white shadow-xs',
   },
   makeup: {
@@ -208,7 +208,7 @@ const typeConfig: Record<
     chip: 'border-amber-300 bg-amber-50/95 text-amber-950 hover:bg-amber-100 shadow-2xs',
     dot: 'bg-amber-500 ring-2 ring-amber-200',
     borderLeft: 'border-l-4 border-l-amber-500',
-    icon: '⏰',
+    icon: Clock,
     filterActive: 'border-amber-500 bg-amber-500 text-white shadow-xs',
   },
   custom: {
@@ -216,7 +216,7 @@ const typeConfig: Record<
     chip: 'border-sky-300 bg-sky-50/95 text-sky-900 hover:bg-sky-100 shadow-2xs',
     dot: 'bg-sky-500 ring-2 ring-sky-200',
     borderLeft: 'border-l-4 border-l-sky-500',
-    icon: '📌',
+    icon: Pin,
     filterActive: 'border-sky-600 bg-sky-600 text-white shadow-xs',
   },
 };
@@ -893,7 +893,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     if (!canEditCalendar || aiPreviewHolidays.newCount === 0) return;
     const newItems = aiPreviewHolidays.items.filter((item) => !item.isExisting);
 
-    setSync({ status: 'loading', message: `✨ AI กำลังนำเข้าวันหยุดราชการ ${newItems.length} วัน...` });
+    setSync({ status: 'loading', message: `AI กำลังนำเข้าวันหยุดราชการ ${newItems.length} วัน...` });
 
     let supabaseSuccess = false;
     let createdEvents: CalendarEvent[] = [];
@@ -954,7 +954,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
     setSync({
       status: supabaseSuccess ? 'synced' : 'local',
-      message: `✨ AI นำเข้าวันหยุดราชการสำเร็จแล้ว ${createdEvents.length} รายการ`,
+      message: `AI นำเข้าวันหยุดราชการสำเร็จแล้ว ${createdEvents.length} รายการ`,
     });
     notifyCalendarUpdated();
     setShowAiHolidayModal(false);
@@ -1060,18 +1060,18 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                 title="ปรึกษาหรือถามกิจกรรมปฏิทินโรงเรียนกับน้องแคร์ AI"
               >
                 <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
-                <span>✨ ปรึกษาปฏิทินด้วย AI</span>
+                <span>ปรึกษาปฏิทินด้วย AI</span>
                 <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
               </button>
               {canEditCalendar && (
                 <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 px-4 text-sm font-black text-white shadow-md shadow-rose-500/25 hover:shadow-lg hover:shadow-rose-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] px-4 text-sm font-black text-white shadow-sm hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
                   onClick={() => setShowAiHolidayModal(true)}
                   type="button"
                   title="AI ช่วยนำเข้าวันหยุดราชการไทย ทั้งปีนี้และล่วงหน้า 1 ปี"
                 >
-                  <Sparkles size={16} aria-hidden="true" className="text-amber-200 animate-pulse" />
-                  <span>✨ AI นำเข้าวันหยุดล่วงหน้า 1 ปี</span>
+                  <Sparkles size={16} aria-hidden="true" className="text-amber-200" />
+                  <span>AI นำเข้าวันหยุดล่วงหน้า 1 ปี</span>
                 </button>
               )}
             </div>
@@ -1296,18 +1296,19 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                   ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
                   : typeConfig[item].filterActive;
 
+                const FilterIcon = item !== 'all' ? typeConfig[item].icon : null;
                 return (
                   <button
-                    className={`rounded-2xl border px-3 sm:px-3.5 py-1.5 text-xs font-black transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-2xl border px-3 sm:px-3.5 py-1.5 text-xs font-black transition-all ${
                       isActive
                         ? activeCls
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        : 'border-[#DCE3D7] bg-white text-[#5A6F64] hover:bg-[#FAFBF8]'
                     }`}
                     key={item}
                     onClick={() => setFilter(item)}
                     type="button"
                   >
-                    {item !== 'all' ? <span className="mr-1">{typeConfig[item].icon}</span> : null}
+                    {FilterIcon ? <FilterIcon size={13} aria-hidden="true" /> : null}
                     {item === 'all' ? 'ทั้งหมด' : typeLabels[item]}
                   </button>
                 );
@@ -1411,15 +1412,16 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                       const conf = typeConfig[span.type] || typeConfig.custom;
 
                       // Single Day Event Pill
+                      const ConfIcon = conf.icon;
                       if (!isMulti) {
                         return (
                           <div
-                            className={`truncate rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black transition-transform hover:scale-[1.02] ${conf.chip}`}
+                            className={`flex items-center gap-1 truncate rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black transition-transform hover:scale-[1.02] ${conf.chip}`}
                             key={span.id}
                             title={span.title}
                           >
-                            <span className="mr-1">{conf.icon}</span>
-                            {span.title}
+                            <ConfIcon size={11} className="shrink-0" aria-hidden="true" />
+                            <span className="truncate">{span.title}</span>
                           </div>
                         );
                       }
@@ -1433,8 +1435,11 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             title={`${span.title} (${span.durationDays} วัน: ${toThaiDate(span.startDate)} - ${toThaiDate(span.endDate)})`}
                             className={`h-6 rounded-l-lg rounded-r-none border-y border-l border-r-0 mr-[-6px] sm:mr-[-10px] z-10 px-2 py-0.5 text-[10.5px] font-black flex items-center gap-1 shadow-sm transition-transform hover:scale-[1.01] ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
                           >
-                            <span className="shrink-0">{conf.icon}</span>
-                            <span className="truncate font-black">{continuesFromPrevWeek ? `◀ ${span.title}` : span.title}</span>
+                            <ConfIcon size={11} className="shrink-0" aria-hidden="true" />
+                            <span className="truncate font-black inline-flex items-center gap-0.5">
+                              {continuesFromPrevWeek ? <ChevronLeft size={10} className="shrink-0" aria-hidden="true" /> : null}
+                              <span className="truncate">{span.title}</span>
+                            </span>
                             <span className="shrink-0 text-[9px] opacity-85 font-black hidden lg:inline">({span.durationDays}ว.)</span>
                           </div>
                         );
@@ -1462,7 +1467,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             className={`h-6 rounded-r-lg rounded-l-none border-y border-r border-l-0 ml-[-6px] sm:ml-[-10px] z-10 px-1.5 py-0.5 text-[10.5px] font-black flex items-center justify-end shadow-sm ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
                           >
                             {continuesToNextWeek ? (
-                              <span className="text-[10px] font-black text-white">▶</span>
+                              <ChevronRight size={11} className="text-white" aria-hidden="true" />
                             ) : (
                               <span className="text-[8.5px] font-black opacity-90 pr-0.5">สิ้นสุด</span>
                             )}
@@ -1478,8 +1483,12 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                           className={`h-6 rounded-lg border px-1.5 py-0.5 text-[10.5px] font-black flex items-center justify-between shadow-sm ${barTheme.bg} ${barTheme.textColor} ${barTheme.borderColor}`}
                         >
                           <span className="truncate font-black">{span.title}</span>
-                          <span className="text-[9px] font-black opacity-85">
-                            {continuesFromPrevWeek ? '◀' : continuesToNextWeek ? '▶' : ''}
+                          <span className="inline-flex items-center opacity-85">
+                            {continuesFromPrevWeek ? (
+                              <ChevronLeft size={10} aria-hidden="true" />
+                            ) : continuesToNextWeek ? (
+                              <ChevronRight size={10} aria-hidden="true" />
+                            ) : null}
                           </span>
                         </div>
                       );
@@ -1556,20 +1565,25 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     </div>
 
                     {/* Event Info */}
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-black text-slate-900 truncate" title={event.title}>
-                        <span className="mr-1">{conf.icon}</span>
-                        {event.title}
-                      </h4>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${conf.badge}`}>
-                          {typeLabels[event.type]}
-                        </span>
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                          {policyLabels[event.attendancePolicy]}
-                        </span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const EventIcon = conf.icon;
+                      return (
+                        <div className="min-w-0 flex-1">
+                          <h4 className="flex items-center gap-1.5 text-sm font-black text-[#1C342B] truncate" title={event.title}>
+                            <EventIcon size={14} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />
+                            <span className="truncate">{event.title}</span>
+                          </h4>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${conf.badge}`}>
+                              {typeLabels[event.type]}
+                            </span>
+                            <span className="rounded-full border border-[#DCE3D7] bg-[#F6F7F3] px-2 py-0.5 text-[10px] font-bold text-[#5A6F64]">
+                              {policyLabels[event.attendancePolicy]}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Quick Actions */}
                     {canEditCalendar && (
@@ -1646,8 +1660,9 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <p className="text-[10px] font-black uppercase tracking-[0.1em]">{typeLabels[event.type]}</p>
                                     {isSpanMulti && (
-                                      <span className="rounded-full bg-purple-100 text-purple-800 px-2 py-0.2 text-[9px] font-black">
-                                        🗓️ {span.durationDays} วัน (วันที่ {dayNum}/{span.durationDays})
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-800 px-2 py-0.2 text-[9px] font-black">
+                                        <CalendarRange size={10} aria-hidden="true" />
+                                        {span.durationDays} วัน (วันที่ {dayNum}/{span.durationDays})
                                       </span>
                                     )}
                                   </div>
@@ -1719,7 +1734,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
-                        <span>📅</span> วันเดียว
+                        <Calendar size={13} aria-hidden="true" /> วันเดียว
                       </button>
                       <button
                         type="button"
@@ -1730,7 +1745,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
-                        <span>🗓️</span> ช่วงวันที่ (วัน A ถึง วัน B)
+                        <CalendarRange size={13} aria-hidden="true" /> ช่วงวันที่ (วัน A ถึง วัน B)
                       </button>
                     </div>
 
@@ -1882,23 +1897,23 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
               className="my-auto w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-[0_32px_100px_rgba(2,8,23,0.5)]"
             >
               {/* Modal Header */}
-              <header className="flex items-start justify-between gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-6 py-5 text-white">
+              <header className="flex items-start justify-between gap-4 bg-gradient-to-br from-[#1C342B] via-[#234136] to-[#152821] px-6 py-5 text-white">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-0.5 text-[11px] font-black text-amber-300">
-                    <Sparkles size={13} className="animate-pulse" />
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-0.5 text-[11px] font-black text-emerald-200">
+                    <Sparkles size={13} />
                     <span>AI Assistant · School Calendar</span>
                   </div>
                   <h2 id="ai-holiday-modal-title" className="mt-2 text-2xl font-black tracking-tight">
-                    ✨ AI นำเข้าวันหยุดราชการไทยอัตโนมัติ
+                    AI นำเข้าวันหยุดราชการไทยอัตโนมัติ
                   </h2>
-                  <p className="mt-1 text-xs font-bold text-slate-300">
+                  <p className="mt-1 text-xs font-bold text-emerald-100/80">
                     วางแผนวันหยุดล่วงหน้า 1 ปี ข้ามปีการศึกษา ไม่ต้องนั่งกรอกทีละวัน ระบบตั้งค่านโยบายข้ามเช็กชื่อให้อัตโนมัติ
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowAiHolidayModal(false)}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 text-emerald-100 transition hover:bg-white/10 hover:text-white"
                   aria-label="ปิดหน้าต่าง"
                 >
                   <X size={18} />
@@ -1923,8 +1938,9 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="inline-block rounded-full bg-rose-500 text-white px-2 py-0.5 text-[9.5px] font-black w-fit mb-1 shadow-2xs">
-                        ⭐ แนะนำ (ล่วงหน้า 1 ปี)
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 text-white px-2 py-0.5 text-[9.5px] font-black w-fit mb-1 shadow-2xs">
+                        <Star size={10} aria-hidden="true" />
+                        แนะนำ (ล่วงหน้า 1 ปี)
                       </span>
                       <div className="text-base font-black text-slate-950">
                         พ.ศ. {currentMonth.getFullYear() + 1 + 543}
@@ -1963,7 +1979,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="text-[10px] font-black text-emerald-700 mb-1">⚡ รวดเดียว 2 ปี</span>
+                      <span className="text-[10px] font-black text-emerald-700 mb-1">รวดเดียว 2 ปี</span>
                       <div className="text-base font-black text-slate-950">
                         {currentMonth.getFullYear() + 543} + {currentMonth.getFullYear() + 1 + 543}
                       </div>
@@ -2017,7 +2033,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-base shrink-0">🏖️</span>
+                          <Umbrella size={15} className="shrink-0 text-rose-500" aria-hidden="true" />
                           <span className="font-black text-slate-800 shrink-0">
                             {formatThaiOfficialDate(item.date)}
                           </span>

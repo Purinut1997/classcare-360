@@ -6,11 +6,15 @@ import {
   Download,
   History,
   ListRestart,
+  Minimize2,
+  MonitorPlay,
   Save,
   Shuffle,
   Sparkles,
   UsersRound,
 } from 'lucide-react';
+
+import { BotanicalCardSprig, BotanicalCornerWatermark, BotanicalEmptyState } from '../../components/shared/BotanicalDecor';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
@@ -171,6 +175,7 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
   const [currentResult, setCurrentResult] = useState<RandomizerResult | null>(demoMode ? demoHistory[0]?.result || null : null);
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSaving, setIsSaving] = useState(false);
+  const [isProjectorMode, setIsProjectorMode] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration เพื่อบันทึกประวัติการสุ่มจริง',
   );
@@ -371,45 +376,125 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
 
   return (
     <main className="app-page">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
+      <div className="botanical-banner relative flex flex-col gap-4 overflow-hidden p-5 xl:flex-row xl:items-end xl:justify-between">
+        <BotanicalCornerWatermark className="pointer-events-none absolute -bottom-4 right-2 opacity-60" color="#2F7D5B" opacity={0.14} />
+        <div className="relative z-10">
           <div className="nexus-kicker">
             <Dice5 size={16} aria-hidden="true" />
-            Classroom Randomizer
+            กิจกรรมห้องเรียน · สุ่มรายชื่อและจัดกลุ่ม
           </div>
-          <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
+          <h1 className="mt-3 max-w-4xl font-display text-2xl font-bold leading-tight text-[#1F2A22] sm:text-3xl">
             เครื่องมือสุ่มรายชื่อ แบ่งกลุ่ม และจัดลำดับนำเสนอ
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            ใช้รายชื่อนักเรียนจาก Student 360 เพื่อสุ่มกิจกรรมในห้องเรียน พร้อมบันทึกประวัติการสุ่มแบบผูก workspace
+          <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-[#5B6A5F]">
+            ใช้รายชื่อนักเรียนในห้องเพื่อสุ่มกิจกรรมร่วมกัน พร้อมโหมดขึ้นจอห้องเรียนที่ตัวอักษรใหญ่ อ่านง่ายทั้งห้อง
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:min-w-[520px]">
+        <div className="relative z-10 grid grid-cols-3 gap-2.5 sm:min-w-[440px]">
           {[
-            { label: 'นักเรียน', value: classroomStudents.length },
-            { label: 'ประวัติ', value: activeHistory.length },
-            { label: 'โหมด', value: getModeLabel(mode) },
+            { label: 'นักเรียน', value: classroomStudents.length, topBar: 'bg-[#2F7D5B]' },
+            { label: 'ประวัติการสุ่ม', value: activeHistory.length, topBar: 'bg-[#2D72A3]' },
+            { label: 'โหมดใช้งาน', value: getModeLabel(mode), topBar: 'bg-[#D98B26]' },
           ].map((item) => (
-            <div className="nexus-card p-3 text-center" key={item.label}>
-              <p className="text-xl font-black text-slate-950">{item.value}</p>
-              <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#DCE3D7] bg-white p-3 pt-3.5 text-center shadow-2xs" key={item.label}>
+              <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 h-[3px] ${item.topBar}`} />
+              <p className="font-display text-xl font-bold text-[#1F2A22]">{item.value}</p>
+              <p className="mt-0.5 text-xs font-bold text-[#5B6A5F]">{item.label}</p>
             </div>
           ))}
         </div>
       </div>
 
+      {isProjectorMode && currentResult ? (
+        <section
+          aria-label="โหมดขึ้นจอห้องเรียน"
+          className="relative mt-5 overflow-hidden rounded-3xl border-2 border-[#2F7D5B] bg-gradient-to-br from-[#F5FBF7] via-white to-[#EDF4EE] p-6 shadow-md sm:p-10"
+        >
+          <BotanicalCornerWatermark className="pointer-events-none absolute -bottom-4 right-4 opacity-70" color="#2F7D5B" opacity={0.14} />
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-[#DCE3D7] pb-4">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#BFE0CD] bg-[#E6F4EC] px-3 py-1 text-xs font-bold text-[#1C573D]">
+                <MonitorPlay size={14} aria-hidden="true" />
+                โหมดขึ้นจอห้องเรียน (Projector View)
+              </span>
+              <h2 className="mt-2 font-display text-2xl font-bold text-[#1F2A22] sm:text-4xl">
+                {title || getModeLabel(mode)}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#2F7D5B] px-5 text-sm font-bold text-white shadow-xs transition hover:bg-[#235F45]"
+                onClick={() => setCurrentResult(createRandomResult())}
+                type="button"
+              >
+                <Sparkles size={17} aria-hidden="true" />
+                สุ่มใหม่อีกครั้ง
+              </button>
+              <button
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#DCE3D7] bg-white px-4 text-sm font-bold text-[#1F2A22] shadow-2xs transition hover:bg-[#FAFBF8]"
+                onClick={() => setIsProjectorMode(false)}
+                type="button"
+              >
+                <Minimize2 size={17} aria-hidden="true" />
+                กลับสู่มุมมองปกติ
+              </button>
+            </div>
+          </div>
+
+          <div className="relative z-10 mt-6">
+            {currentResult.groups ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {currentResult.groups.map((group, index) => (
+                  <div className="relative overflow-hidden rounded-2xl border border-[#DCE3D7] bg-white p-5 pt-6 shadow-xs" key={`${currentResult.seed}-proj-${index}`}>
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[#2F7D5B]" />
+                    <div className="flex items-center gap-2 font-display text-lg font-bold text-[#1C573D]">
+                      <UsersRound size={20} aria-hidden="true" />
+                      กลุ่มที่ {index + 1}
+                    </div>
+                    <ol className="mt-3 grid gap-2">
+                      {group.map((student) => (
+                        <li className="rounded-xl border border-[#EDF1EA] bg-[#FAFBF8] px-3.5 py-2.5 text-lg font-bold text-[#1F2A22]" key={student.id}>
+                          {student.studentCode ? `${student.studentCode} · ` : ''}
+                          {student.label}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {currentResult.picked ? (
+              <ol className="grid gap-4 sm:grid-cols-2">
+                {currentResult.picked.map((student, index) => (
+                  <li className="flex items-center gap-4 rounded-2xl border border-[#BFE0CD] bg-white p-5 shadow-xs" key={`${student.id}-proj-${index}`}>
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#2F7D5B] font-display text-2xl font-bold text-white shadow-xs">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-display text-2xl font-bold text-[#1F2A22] sm:text-3xl">{student.label}</p>
+                      <p className="mt-1 text-sm font-bold text-[#5B6A5F]">เลขประจำตัว / รหัส {student.studentCode || '-'}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section className="app-workbench">
         <aside className="grid gap-4">
-          <form className="nexus-card p-4 sm:p-5" onSubmit={(event) => void handleRandomize(event)}>
-            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+          <form className="rounded-2xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-5" onSubmit={(event) => void handleRandomize(event)}>
+            <div className="flex items-center gap-2 text-sm font-bold text-[#2F7D5B]">
               <Shuffle size={16} aria-hidden="true" />
               ตั้งค่าการสุ่ม
             </div>
             <div className="mt-4 grid gap-3">
               <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">ห้องเรียน</span>
-                <select className="nexus-field mt-2" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
+                <span className="text-xs font-bold uppercase text-[#5B6A5F]">ห้องเรียน</span>
+                <select className="nexus-field mt-1.5" onChange={(event) => setClassroomId(event.target.value)} value={classroomId}>
                   {classrooms.map((classroom) => (
                     <option key={classroom.id} value={classroom.id}>
                       {classroom.name}
@@ -418,14 +503,14 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-black uppercase text-slate-500">ชื่อกิจกรรม</span>
-                <input className="nexus-field mt-2" onChange={(event) => setTitle(event.target.value)} value={title} />
+                <span className="text-xs font-bold uppercase text-[#5B6A5F]">ชื่อกิจกรรม</span>
+                <input className="nexus-field mt-1.5" onChange={(event) => setTitle(event.target.value)} value={title} />
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {(['single', 'groups', 'order'] as RandomizerMode[]).map((item) => (
                   <button
-                    className={`h-11 rounded-2xl px-2 text-xs font-black transition ${
-                      mode === item ? 'bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.18)]' : 'bg-white text-slate-600 ring-1 ring-slate-200'
+                    className={`h-11 rounded-xl px-2 text-xs font-bold transition ${
+                      mode === item ? 'bg-[#1C342B] text-white shadow-xs' : 'border border-[#DCE3D7] bg-[#FAFBF8] text-[#465549] hover:bg-white'
                     }`}
                     key={item}
                     onClick={() => setMode(item)}
@@ -437,36 +522,36 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
               </div>
               {mode === 'single' ? (
                 <label className="block">
-                  <span className="text-xs font-black uppercase text-slate-500">จำนวนคนที่สุ่ม</span>
-                  <input className="nexus-field mt-2" min="1" onChange={(event) => setPickCount(event.target.value)} type="number" value={pickCount} />
+                  <span className="text-xs font-bold uppercase text-[#5B6A5F]">จำนวนคนที่สุ่ม</span>
+                  <input className="nexus-field mt-1.5" min="1" onChange={(event) => setPickCount(event.target.value)} type="number" value={pickCount} />
                 </label>
               ) : null}
               {mode === 'groups' ? (
                 <label className="block">
-                  <span className="text-xs font-black uppercase text-slate-500">จำนวนคนต่อกลุ่ม</span>
-                  <input className="nexus-field mt-2" min="1" onChange={(event) => setGroupSize(event.target.value)} type="number" value={groupSize} />
+                  <span className="text-xs font-bold uppercase text-[#5B6A5F]">จำนวนคนต่อกลุ่ม</span>
+                  <input className="nexus-field mt-1.5" min="1" onChange={(event) => setGroupSize(event.target.value)} type="number" value={groupSize} />
                 </label>
               ) : null}
             </div>
-            <button className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading} type="submit">
+            <button className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading} type="submit">
               <Sparkles size={17} aria-hidden="true" />
               สุ่มเลย
             </button>
-            <button className="dark-action mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!currentResult || isSaving} onClick={() => void handleSaveHistory()} type="button">
+            <button className="dark-action mt-2.5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!currentResult || isSaving} onClick={() => void handleSaveHistory()} type="button">
               <Save size={17} aria-hidden="true" />
               บันทึกประวัติ
             </button>
           </form>
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 text-sm font-black text-teal-700">
+          <div className="rounded-2xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-5">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#2F7D5B]">
               <History size={16} aria-hidden="true" />
               ประวัติล่าสุด
             </div>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-2.5">
               {activeHistory.map((item) => (
                 <button
-                  className="nexus-muted-box p-3 text-left transition hover:bg-white"
+                  className="rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] p-3 text-left transition hover:border-[#2F7D5B]/50 hover:bg-white"
                   key={item.id}
                   onClick={() => {
                     setCurrentResult(item.result);
@@ -475,50 +560,63 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
                   }}
                   type="button"
                 >
-                  <p className="font-black text-slate-950">{item.title}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
+                  <p className="font-bold text-[#1F2A22]">{item.title}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#5B6A5F]">
                     {getModeLabel(item.mode)} | {new Date(item.created_at).toLocaleString('th-TH')}
                   </p>
                 </button>
               ))}
               {activeHistory.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">ยังไม่มีประวัติการสุ่ม</div>
+                <div className="rounded-xl border border-dashed border-[#DCE3D7] bg-[#FAFBF8] p-4 text-center text-sm font-semibold text-[#5B6A5F]">
+                  ยังไม่มีประวัติการสุ่ม
+                </div>
               ) : null}
             </div>
           </div>
         </aside>
 
         <section className="grid gap-5">
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="relative overflow-hidden rounded-2xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-6">
+            <BotanicalCardSprig className="absolute right-2 top-2" color="#2F7D5B" opacity={0.14} />
+            <div className="relative z-10 flex flex-col gap-3 border-b border-[#EDF1EA] pb-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-sm font-black text-cyan-700">Random Result</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">{title || getModeLabel(mode)}</h2>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#2F7D5B]">Random Result</p>
+                <h2 className="mt-1 font-display text-2xl font-bold text-[#1F2A22]">{title || getModeLabel(mode)}</h2>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!currentResult} onClick={() => void copyResult()} type="button">
-                  <Copy size={17} aria-hidden="true" />
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#BFE0CD] bg-[#E6F4EC] px-4 text-xs font-bold text-[#1C573D] transition hover:bg-[#d6ede0] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!currentResult}
+                  onClick={() => setIsProjectorMode((prev) => !prev)}
+                  type="button"
+                >
+                  <MonitorPlay size={16} aria-hidden="true" />
+                  {isProjectorMode ? 'ซ่อนโหมดขึ้นจอ' : 'โหมดขึ้นจอห้องเรียน'}
+                </button>
+                <button className="dark-action inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!currentResult} onClick={() => void copyResult()} type="button">
+                  <Copy size={16} aria-hidden="true" />
                   คัดลอก
                 </button>
-                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!currentResult} onClick={exportResult} type="button">
-                  <Download size={17} aria-hidden="true" />
+                <button className="amber-action inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!currentResult} onClick={exportResult} type="button">
+                  <Download size={16} aria-hidden="true" />
                   Export
                 </button>
               </div>
             </div>
 
-            <div className="mt-5">
+            <div className="relative z-10 mt-5">
               {currentResult?.groups ? (
                 <div className="grid gap-3 lg:grid-cols-2">
                   {currentResult.groups.map((group, index) => (
-                    <div className="rounded-3xl border border-slate-100 bg-white/75 p-4" key={`${currentResult.seed}-${index}`}>
-                      <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+                    <div className="relative overflow-hidden rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 pt-5" key={`${currentResult.seed}-${index}`}>
+                      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#2F7D5B]" />
+                      <div className="flex items-center gap-2 text-sm font-bold text-[#1C573D]">
                         <UsersRound size={16} aria-hidden="true" />
                         กลุ่ม {index + 1}
                       </div>
                       <ol className="mt-3 grid gap-2">
                         {group.map((student) => (
-                          <li className="rounded-2xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700" key={student.id}>
+                          <li className="rounded-xl border border-[#DCE3D7] bg-white px-3 py-2 text-sm font-bold text-[#1F2A22]" key={student.id}>
                             {student.studentCode ? `${student.studentCode} ` : ''}
                             {student.label}
                           </li>
@@ -532,13 +630,13 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
               {currentResult?.picked ? (
                 <ol className="grid gap-3">
                   {currentResult.picked.map((student, index) => (
-                    <li className="flex items-center gap-3 rounded-3xl border border-slate-100 bg-white/75 p-4" key={`${student.id}-${index}`}>
-                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-950 text-sm font-black text-white">
+                    <li className="flex items-center gap-3 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4" key={`${student.id}-${index}`}>
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#2F7D5B] font-display text-sm font-bold text-white shadow-2xs">
                         {index + 1}
                       </span>
                       <div className="min-w-0">
-                        <p className="font-black text-slate-950">{student.label}</p>
-                        <p className="text-xs font-bold text-slate-500">รหัส {student.studentCode || '-'}</p>
+                        <p className="font-display font-bold text-[#1F2A22]">{student.label}</p>
+                        <p className="text-xs font-semibold text-[#5B6A5F]">รหัส {student.studentCode || '-'}</p>
                       </div>
                     </li>
                   ))}
@@ -546,23 +644,25 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
               ) : null}
 
               {!currentResult ? (
-                <div className="nexus-muted-box p-5 text-center text-sm font-bold text-slate-600">
-                  กดสุ่มเพื่อเริ่มกิจกรรมในห้องเรียน
-                </div>
+                <BotanicalEmptyState
+                  title="พร้อมสุ่มกิจกรรมในห้องเรียน"
+                  description="เลือกโหมดการสุ่มด้านซ้ายแล้วกดปุ่มสุ่มเลย เพื่อจัดกลุ่มหรือสุ่มผู้โชคดี"
+                  icon={<Dice5 className="text-[#2F7D5B]" size={22} />}
+                />
               ) : null}
             </div>
           </div>
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+          <div className="rounded-2xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-5">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#2F7D5B]">
               <ListRestart size={16} aria-hidden="true" />
-              รายชื่อนักเรียนในชุดสุ่ม
+              รายชื่อนักเรียนในชุดสุ่ม ({classroomStudents.length} คน)
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {classroomStudents.map((student) => (
-                <div className="nexus-muted-box p-3" key={student.id}>
-                  <p className="font-black text-slate-950">{getStudentLabel(student)}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">รหัส {student.student_code || '-'}</p>
+                <div className="rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] p-3" key={student.id}>
+                  <p className="font-bold text-[#1F2A22]">{getStudentLabel(student)}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#5B6A5F]">รหัส {student.student_code || '-'}</p>
                 </div>
               ))}
             </div>
@@ -571,13 +671,13 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
       </section>
 
       {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
+        <div className="mt-5 flex gap-2 rounded-2xl border border-[#F0D9AE] bg-[#FDF4E1] p-3 text-sm font-bold leading-6 text-[#8B5312] shadow-2xs">
           <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
           <p>{notice}</p>
         </div>
       ) : null}
 
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">Created by MIKPURINUT</footer>
+      <footer className="mt-6 text-center text-xs font-bold text-[#6F8073]">ClassCare 360 · Classroom Randomizer</footer>
     </main>
   );
 }

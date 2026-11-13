@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Search, Trash2, UserCheck, Users, X } from "lucide-react";
+import { AlertTriangle, Check, Scale, Search, Trash2, UserCheck, Users, X } from "lucide-react";
 import type { DutyAssignment, DutyTask, Student } from "../../types/duty";
 
 interface StudentAssignModalProps {
@@ -172,15 +172,16 @@ export function StudentAssignModal({
           <div className="mt-2.5 flex items-center justify-between">
             <div className="inline-flex rounded-lg bg-slate-200/70 p-0.5 text-xs font-bold">
               <button
-                className={`rounded-md px-2.5 py-1 transition ${
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 transition ${
                   filterMode === "least"
-                    ? "bg-white text-cyan-900 shadow-sm"
+                    ? "bg-white text-[#1C342B] shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
                 onClick={() => setFilterMode("least")}
                 type="button"
               >
-                ⚖️ ทำเวรน้อยสุดก่อน (แนะนำ)
+                <Scale size={12} aria-hidden="true" />
+                ทำเวรน้อยสุดก่อน (แนะนำ)
               </button>
               <button
                 className={`rounded-md px-2.5 py-1 transition ${
@@ -247,8 +248,8 @@ export function StudentAssignModal({
                             ทำเวรไปแล้ว {count} ครั้ง
                           </span>
                           {conflictTask ? (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
-                              ⚠️ วันนี้มีเวร: {conflictTask}
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
+                              <AlertTriangle size={10} aria-hidden="true" /> วันนี้มีเวร: {conflictTask}
                             </span>
                           ) : null}
                         </div>

@@ -696,7 +696,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
         setTransactions((current) => [...newTransactions, ...current]);
         setDraftDeposits({});
-        setNotice(`✨ บันทึกเงินออมประจำวันเรียบร้อยแล้ว (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿) [โหมดตัวอย่าง]`);
+        setNotice(`บันทึกเงินออมประจำวันเรียบร้อยแล้ว (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿) [โหมดตัวอย่าง]`);
         setIsSubmitting(false);
         return;
       }
@@ -761,7 +761,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
       setTransactions((current) => [...newTransactions, ...current]);
       setDraftDeposits({});
-      setNotice(`✨ บันทึกเงินออมประจำวันสำเร็จ (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿)`);
+      setNotice(`บันทึกเงินออมประจำวันสำเร็จ (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿)`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setNotice(`บันทึกเงินออมไม่สำเร็จ: ${msg}`);
@@ -1208,87 +1208,80 @@ export function SavingsPage({ session }: SavingsPageProps) {
   }, [batchOpeningAmounts, classroomStudents]);
 
   return (
-    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
-      {/* ======================================================== */}
-      {/* CORKBOARD / LINED PAPER CONTAINER (Post-it Theme)         */}
-      {/* ======================================================== */}
-      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+    <main className="app-page min-h-screen pb-64 lg:pb-32">
+      {/* Morning Sage Classroom Savings Container */}
+      <div className="rounded-3xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 shadow-xs sm:p-7">
         
         {/* Top Header */}
         <header className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
-              <span>สมุดเงินออมนักเรียน</span>
-              <span className="text-xl sm:text-2xl">📌</span>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1F2A22] tracking-tight">
+              สมุดเงินออมนักเรียน
             </h1>
-            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
+            <p className="mt-1 text-sm font-medium text-[#5B6A5F]">
               ฝาก ถอน ปรับยอด ดูยอดรวมทั้งห้อง และพิมพ์ใบส่งมอบเงินออม
             </p>
           </div>
 
-          {/* 4 Post-it Stat Memo Cards */}
+          {/* 4 Stat Cards */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:min-w-[500px]">
-            {/* Total Balance */}
-            <div className="relative rounded-xl bg-[#d9f99d] p-3 text-center shadow-[2px_4px_6px_rgba(27,62,4,0.18)] rotate-[1deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#1b3e04]">{formatBaht(summary.totalBalance)} ฿</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#1b3e04]">ยอดคงเหลือรวม</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#BFE0CD] bg-[#E6F4EC] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#2F7D5B]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#1C573D]">{formatBaht(summary.totalBalance)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#1C573D]">ยอดคงเหลือรวม</p>
             </div>
 
-            {/* Opening Total */}
-            <div className="relative rounded-xl bg-[#e9d5ff] p-3 text-center shadow-[2px_4px_6px_rgba(88,28,135,0.18)] -rotate-[1.5deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#581c87]">{formatBaht(summary.openingTotal)} ฿</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#581c87]">ยอดยกมาจากชั้นก่อน</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#D8D4F2] bg-[#F1F0FA] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#6B63B5]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#49428B]">{formatBaht(summary.openingTotal)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#49428B]">ยอดยกมาจากชั้นก่อน</p>
             </div>
 
-            {/* Deposits */}
-            <div className="relative rounded-xl bg-[#bae6fd] p-3 text-center shadow-[2px_4px_6px_rgba(3,79,119,0.18)] rotate-[1.5deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#034f77]">{formatBaht(summary.deposits)} ฿</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#034f77]">ฝากเพิ่มรอบนี้</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#CBE1F2] bg-[#E9F3FA] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#2D72A3]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#1D547C]">{formatBaht(summary.deposits)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#1D547C]">ฝากเพิ่มรอบนี้</p>
             </div>
 
-            {/* Withdrawals */}
-            <div className="relative rounded-xl bg-[#fecdd3] p-3 text-center shadow-[2px_4px_6px_rgba(136,19,55,0.18)] -rotate-[1deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#881337]">{formatBaht(summary.withdrawals)} ฿</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#881337]">ถอนรอบนี้</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#F0CFD7] bg-[#FBEFF2] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#C25970]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#8E354A]">{formatBaht(summary.withdrawals)} ฿</p>
+              <p className="mt-0.5 text-xs font-bold text-[#8E354A]">ถอนรอบนี้</p>
             </div>
           </div>
         </header>
 
         {/* Mode Switcher & Filter Bar */}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2d5c3] pt-3.5">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#DCE3D7] pt-3.5">
           {/* View Mode Toggle */}
-          <div className="inline-flex rounded-2xl bg-white/80 p-1 border border-[#c7bca9] shadow-2xs">
+          <div className="inline-flex rounded-xl border border-[#DCE3D7] bg-white p-1 shadow-2xs">
             <button
               type="button"
               onClick={() => setViewMode('board')}
-              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
                 viewMode === 'board'
-                  ? 'bg-[#332f2b] text-white shadow-xs'
-                  : 'text-[#57534e] hover:text-[#1c1917]'
+                  ? 'bg-[#1C342B] text-white shadow-xs'
+                  : 'text-[#5B6A5F] hover:text-[#1F2A22]'
               }`}
             >
               <LayoutGrid size={15} />
-              <span>กระดานออมเงิน 📌</span>
+              <span>กระดานออมเงิน</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('ledger')}
-              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
                 viewMode === 'ledger'
-                  ? 'bg-[#332f2b] text-white shadow-xs'
-                  : 'text-[#57534e] hover:text-[#1c1917]'
+                  ? 'bg-[#1C342B] text-white shadow-xs'
+                  : 'text-[#5B6A5F] hover:text-[#1F2A22]'
               }`}
             >
               <ListFilter size={15} />
-              <span>สมุดบัญชีละเอียด 📋</span>
+              <span>สมุดบัญชีละเอียด</span>
             </button>
             <Link
               to={`/app/dashboard?view=reports&reportView=savings${classroomId ? `&classroomId=${encodeURIComponent(classroomId)}` : ''}`}
-              className="flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold text-teal-800 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              className="flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold text-[#2F7D5B] transition hover:bg-[#E6F4EC]"
             >
               <FileSpreadsheet size={15} aria-hidden="true" />
               <span>รายงานเงินออม</span>
@@ -1296,11 +1289,11 @@ export function SavingsPage({ session }: SavingsPageProps) {
           </div>
 
           {/* Classroom Selector */}
-          <div className="relative inline-flex items-center rotate-[0.8deg] shadow-xs">
+          <div className="relative inline-flex items-center shadow-2xs">
             <select
               value={classroomId}
               onChange={(e) => setClassroomId(e.target.value)}
-              className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              className="appearance-none rounded-xl border border-[#DCE3D7] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1F2A22] focus:outline-none focus:ring-2 focus:ring-[#2F7D5B] cursor-pointer"
             >
               {displayClassrooms.map((c) => {
                 const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -1408,8 +1401,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
               </div>
             </div>
 
-            <p className="mt-1 text-xs sm:text-sm font-medium text-[#57534e]">
-              กำหนดยอดที่ช่องด้านบนหรือเลือกยอดด่วน แล้วแตะโน้ตเพื่อใส่ยอดฝาก (แตะซ้ำเพื่อเพิ่มยอด) หรือกด ✏️ เพื่อดูรายละเอียด/ถอนเงิน
+            <p className="mt-1 text-xs sm:text-sm font-medium text-[#5B6A5F]">
+              กำหนดยอดที่ช่องด้านบนหรือเลือกยอดด่วน แล้วแตะบัตรนักเรียนเพื่อใส่ยอดฝาก (แตะซ้ำเพื่อเพิ่มยอด) หรือกดไอคอนดินสอเพื่อดูรายละเอียดและถอนเงิน
             </p>
 
             {/* Post-it Notes Grid */}
@@ -1554,22 +1547,22 @@ export function SavingsPage({ session }: SavingsPageProps) {
                             }}
                             className={`rounded-md px-2 py-0.5 transition ${
                               scopeFilter === 'homeroom'
-                                ? 'bg-white text-amber-900 shadow-2xs'
-                                : 'text-slate-500 hover:text-slate-800'
+                                ? 'bg-white text-[#1C573D] shadow-2xs'
+                                : 'text-[#5B6A5F] hover:text-[#1F2A22]'
                             }`}
                           >
-                            ⭐ ที่ปรึกษา
+                            ห้องที่ปรึกษา
                           </button>
                           <button
                             type="button"
                             onClick={() => setScopeFilter('all')}
                             className={`rounded-md px-2 py-0.5 transition ${
                               scopeFilter === 'all'
-                                ? 'bg-white text-slate-800 shadow-2xs'
-                                : 'text-slate-500 hover:text-slate-800'
+                                ? 'bg-white text-[#1F2A22] shadow-2xs'
+                                : 'text-[#5B6A5F] hover:text-[#1F2A22]'
                             }`}
                           >
-                            🌐 ทุกห้อง
+                            ทุกห้อง
                           </button>
                         </div>
                       )}
@@ -1680,10 +1673,10 @@ export function SavingsPage({ session }: SavingsPageProps) {
                 <button
                   type="submit"
                   disabled={isSubmitting || isLoading}
-                  className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-sm font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+                  className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#2F7D5B] hover:bg-[#235F45] text-white text-sm font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <Save size={16} />
-                  <span>บันทึกธุรกรรม ✓</span>
+                  <span>บันทึกธุรกรรม</span>
                 </button>
               </form>
 

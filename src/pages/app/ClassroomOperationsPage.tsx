@@ -22,10 +22,14 @@ import {
   RefreshCw,
   RotateCcw,
   Scale,
+  Search,
+  ShieldCheck,
   Sparkles,
+  Star,
   Trash2,
   Users,
   X,
+  XCircle,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
@@ -1059,7 +1063,7 @@ export function ClassroomOperationsPage({
       }
     }
 
-    setNotice("แบ่งกลุ่มเวรวันจันทร์-ศุกร์ (5 กลุ่ม) เข้าตารางเรียบร้อยแล้ว ✨");
+    setNotice("แบ่งกลุ่มเวรวันจันทร์-ศุกร์ (5 กลุ่ม) เข้าตารางเรียบร้อยแล้ว");
     setBusy(false);
   }
 
@@ -1121,7 +1125,7 @@ export function ClassroomOperationsPage({
       pending.forEach((item) => {
         setBehaviorPoints((curr) => [...curr, { points: 1, student_id: item.student_id }]);
       });
-      setNotice(`🎉 บันทึกผลสำเร็จ: มาทำเวรครบทุกคน (${pending.length} คน) +1 คะแนนจิตพิสัย`);
+      setNotice(`บันทึกผลสำเร็จ: มาทำเวรครบทุกคน (${pending.length} คน) +1 คะแนนจิตพิสัย`);
       setBusy(false);
       return;
     }
@@ -1149,7 +1153,7 @@ export function ClassroomOperationsPage({
           : item
       )
     );
-    setNotice(`🎉 บันทึกผลสำเร็จ: มาทำเวรครบทุกคน (${successCount} คน) +1 คะแนนจิตพิสัย`);
+    setNotice(`บันทึกผลสำเร็จ: มาทำเวรครบทุกคน (${successCount} คน) +1 คะแนนจิตพิสัย`);
     setBusy(false);
   }
 
@@ -1469,7 +1473,7 @@ export function ClassroomOperationsPage({
         targetClassroomId: demoId,
         targetYear: academicYear.trim(),
       }));
-      setNotice(`✨ สร้างห้อง ${name} (${academicYear}) ในโหมดตัวอย่างแล้ว`);
+      setNotice(`สร้างห้อง ${name} (${academicYear}) ในโหมดตัวอย่างแล้ว`);
       setBusy(false);
       return;
     }
@@ -1509,7 +1513,7 @@ export function ClassroomOperationsPage({
           riskLevel: "low",
           source: "classroom_operations",
         });
-        setNotice(`✨ สร้างห้อง ${name} (ปีการศึกษา ${academicYear}) สำเร็จและเลือกให้อัตโนมัติแล้ว`);
+        setNotice(`สร้างห้อง ${name} (ปีการศึกษา ${academicYear}) สำเร็จและเลือกให้อัตโนมัติแล้ว`);
       }
     } catch (err: any) {
       setNotice(err.message || "เกิดข้อผิดพลาดในการสร้างห้อง");
@@ -1530,7 +1534,7 @@ export function ClassroomOperationsPage({
     }
 
     if (!supabase || !session.workspace) {
-      setNotice("🎉 จำลองการเลื่อนชั้นในโหมดตัวอย่างสำเร็จ! (สร้าง Snapshot และย้ายนักเรียนแล้ว)");
+      setNotice("จำลองการเลื่อนชั้นในโหมดตัวอย่างสำเร็จ! (สร้าง Snapshot และย้ายนักเรียนแล้ว)");
       return;
     }
 
@@ -1600,7 +1604,7 @@ export function ClassroomOperationsPage({
         source: "classroom_operations",
       });
 
-      setNotice("🎉 เลื่อนชั้นสำเร็จเรียบร้อยแล้ว! ข้อมูลเดิมถูกสำรองเป็น Snapshot ในคลังย้อนหลัง และย้ายนักเรียนเข้าห้องใหม่เรียบร้อยแล้ว (สามารถ Undo คืนค่าเดิมได้ภายใน 7 วัน)");
+      setNotice("เลื่อนชั้นสำเร็จเรียบร้อยแล้ว! ข้อมูลเดิมถูกสำรองเป็น Snapshot ในคลังย้อนหลัง และย้ายนักเรียนเข้าห้องใหม่เรียบร้อยแล้ว (สามารถ Undo คืนค่าเดิมได้ภายใน 7 วัน)");
       setTimeout(() => window.location.reload(), 700);
     } catch (err: any) {
       setNotice(err.message || "เกิดข้อผิดพลาดในการเลื่อนชั้น");
@@ -1755,15 +1759,16 @@ export function ClassroomOperationsPage({
             {teacherScope.hasHomeroom ? (
               <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-xs font-black">
                 <button
-                  className={`rounded-lg px-2.5 py-1 transition ${
+                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition ${
                     scopeFilter === "homeroom"
-                      ? "bg-white text-cyan-900 shadow-sm ring-1 ring-slate-200"
-                      : "text-slate-600 hover:text-slate-900"
+                      ? "bg-white text-[#1C342B] shadow-sm ring-1 ring-[#DCE3D7]"
+                      : "text-[#5A6F64] hover:text-[#1C342B]"
                   }`}
                   onClick={() => handleScopeChange("homeroom")}
                   type="button"
                 >
-                  ⭐ เฉพาะในที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
+                  <Star size={11} className="text-[#D98B26]" aria-hidden="true" />
+                  เฉพาะในที่ปรึกษา ({teacherScope.homeroomClassrooms.length})
                 </button>
                 <button
                   className={`rounded-lg px-2.5 py-1 transition ${
@@ -1774,7 +1779,7 @@ export function ClassroomOperationsPage({
                   onClick={() => handleScopeChange("all")}
                   type="button"
                 >
-                  🌐 ทั้งหมด ({classrooms.filter((room) => room.status === "active").length})
+                  ทั้งหมด ({classrooms.filter((room) => room.status === "active").length})
                 </button>
               </div>
             ) : null}
@@ -1785,15 +1790,15 @@ export function ClassroomOperationsPage({
             >
               {scopeFilter === "all" && teacherScope.hasHomeroom ? (
                 <>
-                  <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                  <optgroup label="ห้องที่ปรึกษาของฉัน">
                     {teacherScope.homeroomClassrooms.map((room) => (
                       <option key={room.id} value={room.id}>
-                        ⭐ {room.name} ({room.academic_year || "-"})
+                        {room.name} ({room.academic_year || "-"})
                       </option>
                     ))}
                   </optgroup>
                   {teacherScope.otherClassrooms.length > 0 ? (
-                    <optgroup label="📚 ห้องเรียนอื่น ๆ">
+                    <optgroup label="ห้องเรียนอื่น ๆ">
                       {teacherScope.otherClassrooms.map((room) => (
                         <option key={room.id} value={room.id}>
                           {room.name} ({room.academic_year || "-"})
@@ -1807,7 +1812,7 @@ export function ClassroomOperationsPage({
                   const isHome = teacherScope.homeroomClassrooms.some((c) => c.id === room.id);
                   return (
                     <option key={room.id} value={room.id}>
-                      {isHome ? "⭐ " : ""}{room.name} ({room.academic_year || "-"}){isHome ? " [ห้องที่ปรึกษา]" : ""}
+                      {room.name} ({room.academic_year || "-"}){isHome ? " [ห้องที่ปรึกษา]" : ""}
                     </option>
                   );
                 })
@@ -2199,7 +2204,7 @@ export function ClassroomOperationsPage({
 
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       <button
-                        className={`flex-1 rounded-xl py-1.5 text-xs font-black transition ${
+                        className={`inline-flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-xs font-black transition ${
                           assignment.status === "completed"
                             ? "bg-emerald-600 text-white"
                             : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
@@ -2208,10 +2213,11 @@ export function ClassroomOperationsPage({
                         onClick={() => void recordDuty(assignment, "completed")}
                         type="button"
                       >
-                        🟢 ทำแล้ว (+1)
+                        <CheckCircle2 size={13} aria-hidden="true" />
+                        ทำแล้ว (+1)
                       </button>
                       <button
-                        className={`flex-1 rounded-xl py-1.5 text-xs font-black transition ${
+                        className={`inline-flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-xs font-black transition ${
                           assignment.status === "missed"
                             ? "bg-rose-600 text-white"
                             : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-rose-50 hover:text-rose-800"
@@ -2220,7 +2226,8 @@ export function ClassroomOperationsPage({
                         onClick={() => void recordDuty(assignment, "missed")}
                         type="button"
                       >
-                        🔴 ไม่ทำ (-1)
+                        <XCircle size={13} aria-hidden="true" />
+                        ไม่ทำ (-1)
                       </button>
                       <button
                         className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100"
@@ -3225,20 +3232,21 @@ function RolloverPanel({
 
   return (
     <section className="mt-5 space-y-6">
-      {/* 🌟 Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90">
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-[#DCE3D7] bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-2xl text-white shadow-md shadow-cyan-500/25">
-              🎓
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#1C342B] text-white shadow-sm">
+              <GraduationCap size={24} aria-hidden="true" />
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-black text-slate-950 dark:text-white sm:text-2xl">
+                <h2 className="text-xl font-black text-[#1C342B] dark:text-white sm:text-2xl">
                   ระบบเลื่อนชั้นเรียนข้ามปีการศึกษา (Promotion Wizard)
                 </h2>
-                <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
-                  🛡️ สำรอง Snapshot อัตโนมัติ
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#DCE3D7] bg-[#E9F0EA] px-2.5 py-0.5 text-xs font-black text-[#2F7D5B] dark:text-emerald-300">
+                  <ShieldCheck size={12} aria-hidden="true" />
+                  สำรอง Snapshot อัตโนมัติ
                 </span>
               </div>
               <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -3343,7 +3351,7 @@ function RolloverPanel({
                     const count = students.filter((s) => s.classroom_id === r.id).length;
                     return (
                       <option key={r.id} value={r.id}>
-                        📚 {r.name} (ปี {r.academic_year || "-"}) · {count} คน
+                        {r.name} (ปี {r.academic_year || "-"}) · {count} คน
                       </option>
                     );
                   })}
@@ -3387,7 +3395,7 @@ function RolloverPanel({
                     .filter((r) => r.id !== classroomId && r.status === "active")
                     .map((r) => (
                       <option key={r.id} value={r.id}>
-                        🎯 {r.name} (ปี {r.academic_year})
+                        {r.name} (ปี {r.academic_year})
                       </option>
                     ))}
                 </select>
@@ -3403,8 +3411,8 @@ function RolloverPanel({
                   onClick={() => onQuickCreateClassroom(predicted.suggestedName, predicted.nextYear)}
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 p-2.5 text-xs font-black text-white shadow-sm transition-all hover:scale-[1.01] hover:shadow-md active:scale-95"
                 >
-                  <Sparkles size={15} />
-                  <span>✨ กดสร้างห้อง "{predicted.suggestedName}" (ปี {predicted.nextYear}) ให้อัตโนมัติ</span>
+                  <Sparkles size={15} aria-hidden="true" />
+                  <span>สร้างห้อง "{predicted.suggestedName}" (ปี {predicted.nextYear}) อัตโนมัติ</span>
                 </button>
               </div>
             )}
@@ -3515,11 +3523,12 @@ function RolloverPanel({
         </div>
 
         {/* Search input */}
-        <div className="mt-4">
+        <div className="relative mt-4">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6F64]" aria-hidden="true" />
           <input
             type="text"
-            placeholder="🔍 ค้นหาชื่อหรือเลขประจำตัวนักเรียน..."
-            className="nexus-field h-10 w-full px-3 text-xs font-bold"
+            placeholder="ค้นหาชื่อหรือเลขประจำตัวนักเรียน..."
+            className="nexus-field h-10 w-full pl-9 pr-3 text-xs font-bold"
             value={studentSearch}
             onChange={(e) => setStudentSearch(e.target.value)}
           />
@@ -3552,50 +3561,54 @@ function RolloverPanel({
 
                   {/* Interactive Status Segmented Button */}
                   <div className="flex flex-wrap items-center gap-1 self-start sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => handleSetStudentStatus(student.id, "promoted")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
-                        status === "promoted"
-                          ? "bg-emerald-600 text-white shadow-sm"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      ✓ เลื่อนชั้น
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetStudentStatus(student.id, "retained")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
-                        status === "retained"
-                          ? "bg-amber-600 text-white shadow-sm"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      ↩ ซ้ำชั้น
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetStudentStatus(student.id, "graduated")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
-                        status === "graduated"
-                          ? "bg-purple-600 text-white shadow-sm"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      🎓 จบการศึกษา
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetStudentStatus(student.id, "transferred")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
-                        status === "transferred"
-                          ? "bg-sky-600 text-white shadow-sm"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      ✈️ ย้าย รร.
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetStudentStatus(student.id, "promoted")}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                          status === "promoted"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                        }`}
+                      >
+                        <Check size={12} aria-hidden="true" />
+                        เลื่อนชั้น
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetStudentStatus(student.id, "retained")}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                          status === "retained"
+                            ? "bg-amber-600 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                        }`}
+                      >
+                        <RotateCcw size={12} aria-hidden="true" />
+                        ซ้ำชั้น
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetStudentStatus(student.id, "graduated")}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                          status === "graduated"
+                            ? "bg-purple-600 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                        }`}
+                      >
+                        <GraduationCap size={12} aria-hidden="true" />
+                        จบการศึกษา
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetStudentStatus(student.id, "transferred")}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                          status === "transferred"
+                            ? "bg-sky-600 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                        }`}
+                      >
+                        <ArrowRight size={12} aria-hidden="true" />
+                        ย้าย รร.
+                      </button>
                   </div>
                 </div>
               );
@@ -3628,15 +3641,15 @@ function RolloverPanel({
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-2.5">
-            <button
-              type="button"
-              disabled={busy || (!form.targetClassroomId && !predicted.isGraduating) || roomStudents.length === 0}
-              onClick={handleExecuteFastTrack}
-              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-teal-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <Sparkles size={17} />
-              <span>🚀 ยืนยันเลื่อนชั้นทันที (1-Click Promote)</span>
-            </button>
+              <button
+                type="button"
+                disabled={busy || (!form.targetClassroomId && !predicted.isGraduating) || roomStudents.length === 0}
+                onClick={handleExecuteFastTrack}
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-[#1C342B] px-6 py-3.5 text-sm font-black text-white shadow-sm transition-all hover:bg-[#2F7D5B] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Sparkles size={17} aria-hidden="true" />
+                <span>ยืนยันเลื่อนชั้นทันที (1-Click Promote)</span>
+              </button>
           </div>
         </div>
       </div>
@@ -3818,8 +3831,8 @@ function ParentQrPanel({
           <h2 className="text-xl font-black text-slate-950">
             สร้าง QR คำเชิญผู้ปกครอง
           </h2>
-          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">
-            ⭐ เฉพาะนักเรียนในที่ปรึกษา
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black text-[#2F7D5B] ring-1 ring-emerald-200">
+            <Star size={11} aria-hidden="true" /> เฉพาะนักเรียนในที่ปรึกษา
           </span>
         </div>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">

@@ -146,7 +146,7 @@ export function DutyScheduleView({
           </p>
           <p className="mt-0.5 text-[11px] font-bold text-slate-400">
             {todayAssignments.length > 0 && todayDoneCount === todayAssignments.length
-              ? "ตรวจเรียบร้อยครบทุกคน 🎉"
+              ? "ตรวจเรียบร้อยครบทุกคน"
               : todayAssignments.length > 0
                 ? "รอตรวจเวรตอนเย็น"
                 : "วันหยุดหรือไม่มีการลงเวร"}

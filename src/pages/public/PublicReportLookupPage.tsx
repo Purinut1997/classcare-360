@@ -9,6 +9,7 @@ import {
   GraduationCap,
   HeartHandshake,
   Eye,
+  Lightbulb,
   LockKeyhole,
   Search,
   Shield,
@@ -138,12 +139,12 @@ function MetricCard({ label, value, tone = 'slate' }: { label: string; value: st
 function SectionHeader({ icon, label, title }: { icon: ReactNode; label: string; title: string }) {
   return (
     <div className="mb-5 flex items-center gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E9F0EA] text-[#2F7D5B] ring-1 ring-[#DCE3D7]">
         {icon}
       </div>
       <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">{label}</p>
-        <h2 className="text-xl font-black text-slate-900">{title}</h2>
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#2F7D5B]">{label}</p>
+        <h2 className="text-xl font-black text-[#1C342B]">{title}</h2>
       </div>
     </div>
   );
@@ -157,7 +158,7 @@ function TrustBadge({ icon: Icon, title, body }: { icon: React.ElementType; titl
       </span>
       <div>
         <p className="text-sm font-bold text-white">{title}</p>
-        <p className="mt-0.5 text-xs font-medium leading-5 text-indigo-200">{body}</p>
+        <p className="mt-0.5 text-xs font-medium leading-5 text-[#C8D8CE]">{body}</p>
       </div>
     </div>
   );
@@ -264,27 +265,27 @@ export function PublicReportLookupPage() {
   const canSubmit = !isLoading && !!schools.length && citizenId.length === 13 && !!birthDate;
 
   return (
-    <main className="min-h-screen" style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 48%, #f8fafc 48%)' }}>
+    <main className="min-h-screen" style={{ background: 'linear-gradient(160deg, #152821 0%, #1C342B 48%, #F6F7F3 48%)' }}>
 
       {/* ── Navbar ────────────────────────────────────────────────────────── */}
       <nav className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Link className="flex items-center gap-3" to="/">
-          <AppLogo className="h-10 w-10 rounded-xl bg-white/10 object-contain p-1.5 ring-1 ring-white/20" />
+          <AppLogo className="h-10 w-10 rounded-xl bg-white object-contain p-1 ring-1 ring-white/25" />
           <div>
             <p className="text-sm font-black text-white">ClassCare 360</p>
-            <p className="text-[10px] font-semibold text-indigo-300">ระบบดูรายงานนักเรียน</p>
+            <p className="text-[10px] font-semibold text-[#BCE0CE]">ระบบดูรายงานนักเรียน</p>
           </div>
         </Link>
         <div className="flex items-center gap-2">
           <Link
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white/80 transition hover:bg-white/10 hover:text-white"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white/85 transition hover:bg-white/10 hover:text-white"
             to="/"
           >
             <ChevronLeft size={15} aria-hidden="true" />
             กลับหน้าแรก
           </Link>
           <Link
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-4 text-xs font-black text-indigo-900 shadow-lg transition hover:bg-indigo-50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-4 text-xs font-black text-[#1C342B] shadow-lg transition hover:bg-[#E9F0EA]"
             to="/login"
           >
             เข้าสู่ระบบครู
@@ -300,20 +301,20 @@ export function PublicReportLookupPage() {
           {/* Form card */}
           <div>
             <div className="mb-8">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-indigo-200 ring-1 ring-white/15">
-                <Sparkles size={12} aria-hidden="true" />
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-[#BCE0CE] ring-1 ring-white/15">
+                <Sparkles size={12} aria-hidden="true" className="text-[#F5B95D]" />
                 ระบบรายงานสำหรับผู้ปกครอง
               </div>
               <h1 className="text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl xl:text-[2.6rem]">
                 ติดตามความก้าวหน้า<br />
-                <span className="text-amber-400">ของบุตรหลาน</span>
+                <span className="text-[#F5B95D]">ของบุตรหลาน</span>
               </h1>
-              <p className="mt-4 max-w-xl text-sm font-medium leading-7 text-indigo-200">
+              <p className="mt-4 max-w-xl text-sm font-medium leading-7 text-[#C8D8CE]">
                 กรอกเลขบัตรประชาชน 13 หลัก และวันเกิดของนักเรียน เพื่อดูรายงานที่โรงเรียนอนุญาตให้เปิดเผย
               </p>
             </div>
 
-            <div className="rounded-3xl bg-white p-7 shadow-2xl shadow-indigo-900/25">
+            <div className="rounded-3xl border border-[#DCE3D7] bg-white p-7 shadow-2xl shadow-[#152821]/20">
               {/* Step indicators */}
               <div className="mb-7 flex items-center gap-1.5">
                 {[
@@ -323,9 +324,9 @@ export function PublicReportLookupPage() {
                 ].map((step, i) => (
                   <div key={step.num} className="flex items-center gap-1.5">
                     {i > 0 && (
-                      <div className={`h-px w-6 transition-all duration-500 ${step.done ? 'bg-indigo-400' : 'bg-slate-200'}`} />
+                      <div className={`h-px w-6 transition-all duration-500 ${step.done ? 'bg-[#2F7D5B]' : 'bg-[#DCE3D7]'}`} />
                     )}
-                    <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all duration-300 ${step.done ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                    <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all duration-300 ${step.done ? 'bg-[#2F7D5B] text-white' : 'bg-[#F6F7F3] text-[#5A6F64]'}`}>
                       <span>{step.done ? '✓' : step.num}</span>
                       <span className="hidden sm:inline">{step.label}</span>
                     </div>
@@ -336,12 +337,12 @@ export function PublicReportLookupPage() {
               <form className="grid gap-5" onSubmit={(event) => void submitLookup(event)}>
                 {/* School */}
                 <div className="grid gap-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="school-select">
+                  <label className="text-xs font-black uppercase tracking-widest text-[#5A6F64]" htmlFor="school-select">
                     โรงเรียน
                   </label>
                   <div className="relative">
                     <select
-                      className="h-12 w-full appearance-none rounded-xl border-2 border-slate-200 bg-slate-50 pl-4 pr-10 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                      className="h-12 w-full appearance-none rounded-xl border-2 border-[#DCE3D7] bg-[#FAFBF8] pl-4 pr-10 text-sm font-semibold text-[#1C342B] outline-none transition focus:border-[#2F7D5B] focus:bg-white focus:ring-4 focus:ring-[#2F7D5B]/15"
                       id="school-select"
                       onChange={(event) => setSelectedWorkspaceId(event.target.value)}
                       value={selectedWorkspaceId}
@@ -356,19 +357,19 @@ export function PublicReportLookupPage() {
                         <option value="">ยังไม่มีโรงเรียนที่เปิดรายงานหน้าแรก</option>
                       )}
                     </select>
-                    <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400" aria-hidden="true" />
+                    <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-[#5A6F64]" aria-hidden="true" />
                   </div>
                 </div>
 
                 {/* Citizen ID */}
                 <div className="grid gap-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="citizen-id">
+                  <label className="text-xs font-black uppercase tracking-widest text-[#5A6F64]" htmlFor="citizen-id">
                     เลขบัตรประชาชนนักเรียน
                   </label>
                   <div className="relative">
                     <input
                       autoComplete="off"
-                      className="h-12 w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 text-sm font-semibold tracking-[0.12em] text-slate-800 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                      className="h-12 w-full rounded-xl border-2 border-[#DCE3D7] bg-[#FAFBF8] px-4 text-sm font-semibold tracking-[0.12em] text-[#1C342B] outline-none transition focus:border-[#2F7D5B] focus:bg-white focus:ring-4 focus:ring-[#2F7D5B]/15"
                       id="citizen-id"
                       inputMode="numeric"
                       maxLength={13}
@@ -379,7 +380,7 @@ export function PublicReportLookupPage() {
                     {/* Progress bar */}
                     <div className="absolute bottom-0 left-0 h-[2px] overflow-hidden rounded-b-xl">
                       <div
-                        className="h-full bg-indigo-500 transition-all duration-300"
+                        className="h-full bg-[#2F7D5B] transition-all duration-300"
                         style={{ width: `${(citizenId.length / 13) * 100}%` }}
                       />
                     </div>
@@ -388,13 +389,13 @@ export function PublicReportLookupPage() {
                     <p className="text-xs font-semibold text-amber-600">กรุณากรอกให้ครบ 13 หลัก (กรอกแล้ว {citizenId.length} หลัก)</p>
                   )}
                   {citizenId.length === 13 && (
-                    <p className="text-xs font-bold text-emerald-600">✓ {formatCitizenId(citizenId)}</p>
+                    <p className="text-xs font-bold text-[#2F7D5B]">✓ {formatCitizenId(citizenId)}</p>
                   )}
                 </div>
 
                 {/* Birthdate */}
                 <div className="grid gap-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="birth-date">
+                  <label className="text-xs font-black uppercase tracking-widest text-[#5A6F64]" htmlFor="birth-date">
                     วันเดือนปีเกิด
                   </label>
                   <ThaiDatePicker appearance="light" className="h-12 px-4 text-sm" onValueChange={setBirthDate} value={birthDate} />
@@ -402,7 +403,7 @@ export function PublicReportLookupPage() {
 
                 {/* Submit */}
                 <button
-                  className={`mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-black shadow-lg transition-all duration-200 ${canSubmit ? 'cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-indigo-500/30 hover:brightness-110 active:scale-[0.98]' : 'cursor-not-allowed bg-slate-200 text-slate-400 shadow-none'}`}
+                  className={`mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl px-6 text-sm font-black shadow-lg transition-all duration-200 ${canSubmit ? 'cursor-pointer bg-gradient-to-r from-[#1C342B] to-[#2F7D5B] text-white shadow-[#1C342B]/25 hover:brightness-110 active:scale-[0.98]' : 'cursor-not-allowed bg-slate-200 text-slate-400 shadow-none'}`}
                   disabled={!canSubmit}
                   type="submit"
                 >
@@ -432,13 +433,13 @@ export function PublicReportLookupPage() {
           {/* Trust panel (glassmorphism) */}
           <aside
             className="rounded-3xl p-6"
-            style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.13)' }}
+            style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.14)' }}
           >
             <div className="mb-1 flex items-center gap-2">
-              <Shield size={18} className="text-indigo-300" aria-hidden="true" />
+              <Shield size={18} className="text-[#8CC6A7]" aria-hidden="true" />
               <h2 className="text-sm font-black text-white">ปลอดภัยและเป็นส่วนตัว</h2>
             </div>
-            <p className="mb-6 text-xs font-medium leading-6 text-indigo-300">
+            <p className="mb-6 text-xs font-medium leading-6 text-[#C8D8CE]">
               ข้อมูลแสดงตามสิทธิ์ที่โรงเรียนกำหนด เข้าถึงได้เฉพาะผู้ที่มีข้อมูลตรงกันเท่านั้น
             </p>
             <div className="grid gap-5">
@@ -448,8 +449,11 @@ export function PublicReportLookupPage() {
             </div>
             <div className="my-6 h-px bg-white/10" />
             <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-              <p className="text-xs font-black text-indigo-200">💡 สำหรับผู้ปกครอง</p>
-              <p className="mt-2 text-xs font-medium leading-5 text-indigo-300">
+              <p className="flex items-center gap-1.5 text-xs font-black text-[#E9F0EA]">
+                <Lightbulb size={14} className="text-[#F5B95D]" aria-hidden="true" />
+                <span>สำหรับผู้ปกครอง</span>
+              </p>
+              <p className="mt-2 text-xs font-medium leading-5 text-[#C8D8CE]">
                 หากไม่พบข้อมูล กรุณาติดต่อครูประจำชั้นเพื่อตรวจสอบว่าโรงเรียนเปิดระบบรายงานนี้แล้วหรือยัง
               </p>
             </div>
@@ -458,26 +462,26 @@ export function PublicReportLookupPage() {
       </div>
 
       {/* ── Results ───────────────────────────────────────────────────────── */}
-      <div className="bg-slate-50 min-h-[160px]">
+      <div className="bg-[#F6F7F3] min-h-[160px]">
         <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">
 
           {result?.ok && result.student ? (
             <div className="grid gap-6">
               {/* Student identity card */}
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-700 p-7 shadow-xl shadow-indigo-500/20">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1C342B] to-[#2F7D5B] p-7 shadow-xl shadow-[#1C342B]/20">
                 <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/5 blur-2xl" aria-hidden="true" />
-                <div className="pointer-events-none absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-violet-400/10 blur-2xl" aria-hidden="true" />
+                <div className="pointer-events-none absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-[#8CC6A7]/15 blur-2xl" aria-hidden="true" />
                 <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-indigo-200">{result.workspace?.school_name}</p>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#BCE0CE]">{result.workspace?.school_name}</p>
                     <h2 className="text-2xl font-black text-white sm:text-3xl">
                       {result.student.first_name} {result.student.last_name}
-                      {result.student.nickname ? <span className="ml-2 text-lg font-bold text-indigo-200">({result.student.nickname})</span> : null}
+                      {result.student.nickname ? <span className="ml-2 text-lg font-bold text-[#BCE0CE]">({result.student.nickname})</span> : null}
                     </h2>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-indigo-200">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-[#E9F0EA]">
                       {result.student.student_code && <span>รหัส: {result.student.student_code}</span>}
-                      {result.student.classroom_name && <><span className="text-indigo-400">·</span><span>ชั้น {result.student.classroom_name}</span></>}
-                      {result.workspace?.academic_year && <><span className="text-indigo-400">·</span><span>ปีการศึกษา {result.workspace.academic_year}</span></>}
+                      {result.student.classroom_name && <><span className="text-[#8CC6A7]">·</span><span>ชั้น {result.student.classroom_name}</span></>}
+                      {result.workspace?.academic_year && <><span className="text-[#8CC6A7]">·</span><span>ปีการศึกษา {result.workspace.academic_year}</span></>}
                     </div>
                   </div>
                   <span className="w-fit shrink-0 rounded-full bg-white/15 px-4 py-2 text-xs font-black text-white ring-1 ring-white/20">
@@ -489,7 +493,7 @@ export function PublicReportLookupPage() {
               {/* Metric cards grid */}
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {result.attendance ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-3xl border border-[#DCE3D7] bg-white p-6 shadow-sm">
                     <SectionHeader icon={<Clock3 size={18} />} label="Attendance" title="เวลาเรียน" />
                     <div className="grid grid-cols-2 gap-3">
                       <MetricCard label="มาเรียน (วัน)"  value={result.attendance.present} tone="green" />
@@ -501,7 +505,7 @@ export function PublicReportLookupPage() {
                 ) : null}
 
                 {result.scores ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-3xl border border-[#DCE3D7] bg-white p-6 shadow-sm">
                     <SectionHeader icon={<GraduationCap size={18} />} label="Scores" title="ผลการเรียน" />
                     <div className="grid gap-3">
                       <MetricCard label="รายการคะแนนที่บันทึก" value={result.scores.entries} />
@@ -515,7 +519,7 @@ export function PublicReportLookupPage() {
                 ) : null}
 
                 {result.savings ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-3xl border border-[#DCE3D7] bg-white p-6 shadow-sm">
                     <SectionHeader icon={<WalletCards size={18} />} label="Savings" title="เงินออม" />
                     <MetricCard
                       label="ยอดเงินออมคงเหลือ"
@@ -526,7 +530,7 @@ export function PublicReportLookupPage() {
                 ) : null}
 
                 {result.behavior ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-3xl border border-[#DCE3D7] bg-white p-6 shadow-sm">
                     <SectionHeader icon={<HeartHandshake size={18} />} label="Care" title="พฤติกรรมและการดูแล" />
                     <div className="grid grid-cols-3 gap-3">
                       <MetricCard label="เชิงบวก"    value={result.behavior.positive}  tone="green" />
@@ -537,7 +541,7 @@ export function PublicReportLookupPage() {
                 ) : null}
 
                 {result.home_visit ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-3xl border border-[#DCE3D7] bg-white p-6 shadow-sm">
                     <SectionHeader icon={<FileText size={18} />} label="Home Visit" title="แบบเยี่ยมบ้าน" />
                     <div className="grid gap-3">
                       <MetricCard label="สถานะ" value={result.home_visit.status || '-'} />
@@ -547,28 +551,28 @@ export function PublicReportLookupPage() {
                 ) : null}
 
                 {result.guardians ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-3xl border border-[#DCE3D7] bg-white p-6 shadow-sm">
                     <SectionHeader icon={<UserRound size={18} />} label="Guardian" title="ผู้ปกครอง" />
                     <div className="grid gap-3">
                       {result.guardians.length ? (
                         result.guardians.map((guardian, index) => (
                           <div
-                            className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100"
+                            className="flex items-center gap-3 rounded-2xl bg-[#FAFBF8] px-4 py-3 ring-1 ring-[#DCE3D7]"
                             key={`${guardian.display_name}-${index}`}
                           >
-                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-600">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E9F0EA] text-[#2F7D5B]">
                               <UserRound size={15} aria-hidden="true" />
                             </span>
                             <div>
-                              <p className="text-sm font-black text-slate-800">{guardian.display_name || 'ไม่ระบุชื่อ'}</p>
-                              <p className="text-xs font-bold text-slate-500">
+                              <p className="text-sm font-black text-[#1C342B]">{guardian.display_name || 'ไม่ระบุชื่อ'}</p>
+                              <p className="text-xs font-bold text-[#5A6F64]">
                                 {guardian.relation || '-'}{guardian.is_primary ? ' · ผู้ปกครองหลัก' : ''}
                               </p>
                             </div>
                           </div>
                         ))
                       ) : (
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
+                        <div className="rounded-2xl bg-[#FAFBF8] px-4 py-3 text-sm font-semibold text-[#5A6F64]">
                           ยังไม่มีข้อมูลผู้ปกครองที่เปิดเผย
                         </div>
                       )}
@@ -580,12 +584,12 @@ export function PublicReportLookupPage() {
           ) : (
             /* Empty state */
             <div className="flex flex-col items-center gap-4 py-14 text-center">
-              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-indigo-100 text-indigo-500">
+              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#E9F0EA] text-[#2F7D5B] ring-1 ring-[#DCE3D7]">
                 <Search size={28} aria-hidden="true" />
               </div>
               <div>
-                <p className="text-base font-black text-slate-700">รอการค้นหา</p>
-                <p className="mt-1 text-sm font-medium text-slate-500">กรอกข้อมูลด้านบนเพื่อดูรายงานที่โรงเรียนอนุญาต</p>
+                <p className="text-base font-black text-[#1C342B]">รอการค้นหา</p>
+                <p className="mt-1 text-sm font-medium text-[#5A6F64]">กรอกข้อมูลด้านบนเพื่อดูรายงานที่โรงเรียนอนุญาต</p>
               </div>
             </div>
           )}

@@ -1,13 +1,13 @@
 import type { DutyAssignment, DutyTask, Student } from "../types/duty";
 
-function getEmoji(name: string): string {
-  if (name.includes("กวาด")) return "🧹";
-  if (name.includes("ถู")) return "🧽";
-  if (name.includes("ขยะ")) return "🗑️";
-  if (name.includes("กระดาน") || name.includes("โต๊ะ")) return "🧼";
-  if (name.includes("ห้องน้ำ")) return "🚿";
-  if (name.includes("ไฟ") || name.includes("แอร์") || name.includes("หน้าต่าง")) return "🪟";
-  return "⭐";
+function getTaskDotColor(name: string): string {
+  if (name.includes("กวาด")) return "#2F7D5B";
+  if (name.includes("ถู")) return "#2D72A3";
+  if (name.includes("ขยะ")) return "#D98B26";
+  if (name.includes("กระดาน") || name.includes("โต๊ะ")) return "#6B63B5";
+  if (name.includes("ห้องน้ำ")) return "#0284c7";
+  if (name.includes("ไฟ") || name.includes("แอร์") || name.includes("หน้าต่าง")) return "#0f766e";
+  return "#1C342B";
 }
 
 function escapeHtml(text: string): string {
@@ -228,7 +228,7 @@ export function buildClassroomPosterHtml({
   <div class="poster-container">
     <div class="poster-header">
       <div class="poster-title-area">
-        <h1>✨ ตารางเวรทำความสะอาดประจำห้อง ${escapeHtml(roomName)}</h1>
+        <h1>ตารางเวรทำความสะอาดประจำห้อง ${escapeHtml(roomName)}</h1>
         <p>${escapeHtml(schoolName)} · ร่วมสร้างห้องเรียนสะอาด น่าอยู่ มีระเบียบวินัย</p>
       </div>
       <div class="poster-badge">
@@ -254,7 +254,7 @@ export function buildClassroomPosterHtml({
                 return `
               <div class="task-block">
                 <div class="task-title">
-                  <span>${getEmoji(task.name)}</span>
+                  <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${getTaskDotColor(task.name)};flex-shrink:0;"></span>
                   <span>${escapeHtml(task.name)}</span>
                 </div>
                 ${
@@ -284,7 +284,7 @@ export function buildClassroomPosterHtml({
     </div>
 
     <div class="poster-footer">
-      <div class="slogan">🌟 "ห้องเรียนสะอาด จิตใจแจ่มใส ร่วมใจดูแลของส่วนรวม"</div>
+      <div class="slogan">"ห้องเรียนสะอาด จิตใจแจ่มใส ร่วมใจดูแลของส่วนรวม"</div>
       <div class="teacher">ครูประจำชั้น: ${escapeHtml(teacherName || "................................................")}</div>
     </div>
   </div>

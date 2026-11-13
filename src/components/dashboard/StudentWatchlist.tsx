@@ -1,4 +1,4 @@
-import { ArrowRight, Users } from 'lucide-react';
+import { ArrowRight, Star, Users } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 
 export interface WatchlistStudentItem {
@@ -23,8 +23,8 @@ export function StudentWatchlist({ classroomName, isHomeroom, students }: Studen
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-black text-rose-600">STUDENT 360</p>
             {isHomeroom && (
-              <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 border border-amber-300">
-                ⭐ ห้องที่ปรึกษา
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-[#D98B26] text-[10px] font-black px-2 py-0.5 border border-amber-200">
+                <Star size={10} aria-hidden="true" /> ห้องที่ปรึกษา
               </span>
             )}
           </div>

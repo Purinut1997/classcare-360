@@ -423,26 +423,10 @@ export const thaiDayHeaderStyles: Record<string, {
 };
 
 /**
- * ดึงสัญลักษณ์ประจำกลุ่มสาระวิชา / กิจกรรม เพื่อให้สังเกตและจำแนกได้ทันที
+ * ดึงรหัสสัญลักษณ์ประจำกลุ่มสาระวิชา / กิจกรรม (ปลอด Emoji ใช้คู่กับ SubjectLucideIcon)
  */
-export function getSubjectIcon(subject = ''): string {
-  const norm = subject.trim();
-  if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ/.test(norm)) return '🌲';
-  if (/ชุมนุม|ชมรม|กิจกรรม/.test(norm)) return '🎯';
-  if (/แนะแนว/.test(norm)) return '🧭';
-  if (/ซ่อมเสริม|ทบทวน|ติว/.test(norm)) return '⚡';
-  if (/โฮมรูม/.test(norm)) return '🏠';
-  if (/สวดมนต์|จริยธรรม|ศีลธรรม|คุณธรรม/.test(norm)) return '✨';
-  if (/คณิต|คำนวณ|คิดเลข|สถิติ/.test(norm)) return '📐';
-  if (/ไทย|วรรณคดี|การอ่าน/.test(norm)) return '📖';
-  if (/วิทย์|ฟิสิกส์|เคมี|ชีว|ดาราศาสตร์/.test(norm)) return '🔬';
-  if (/อังกฤษ|eng|จีน|ญี่ปุ่น|ต่างประเทศ/.test(norm)) return '🔤';
-  if (/สังคม|ประวัติศาสตร์|ภูมิศาสตร์|หน้าที่พลเมือง|ศาสนา/.test(norm)) return '🌍';
-  if (/สุขศึกษา|พละ|พลศึกษา|กีฬา|ว่ายน้ำ/.test(norm)) return '⚽';
-  if (/ศิลปะ|ทัศนศิลป์|ดนตรี|นาฏศิลป์/.test(norm)) return '🎨';
-  if (/การงาน|เกษตร|ช่าง|คหกรรม/.test(norm)) return '🛠️';
-  if (/คอม|เทคโนโลยี|วิทยาการคำนวณ|ai|coding/i.test(norm)) return '💻';
-  return '📚';
+export function getSubjectIcon(_subject = ''): string {
+  return '';
 }
 
 /**
@@ -969,12 +953,12 @@ export function getSubjectVisualTheme(
   const combinedMeta = `${norm} ${normCode}`.trim();
   const icon = getSubjectIcon(combinedMeta);
 
-  // 1) คาบซ่อมเสริม / ทบทวน / ติว (เช็กทั้งชื่อวิชาและรหัส/หมายเหตุ) -> โพสต์อิทชมพู-ปะการัง + 🩹
+  // 1) คาบซ่อมเสริม / ทบทวน / ติว
   if (/ซ่อมเสริม|ทบทวน|ติว/.test(combinedMeta)) {
     return {
       ...subjectVisualPalettes[7],
-      icon: '🩹',
-      subjectLabel: '✨ คาบซ่อมเสริม',
+      icon: '',
+      subjectLabel: 'คาบซ่อมเสริม',
     };
   }
 
@@ -983,26 +967,26 @@ export function getSubjectVisualTheme(
     return {
       ...subjectVisualPalettes[5],
       icon,
-      subjectLabel: '🎯 กิจกรรมพัฒนาผู้เรียน',
+      subjectLabel: 'กิจกรรมพัฒนาผู้เรียน',
     };
   }
   if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ/.test(combinedMeta)) {
     return {
       ...subjectVisualPalettes[2],
       icon,
-      subjectLabel: '🌲 ลูกเสือ-เนตรนารี',
+      subjectLabel: 'ลูกเสือ-เนตรนารี',
     };
   }
   if (/แนะแนว/.test(combinedMeta)) {
     return {
-      accentBar: 'bg-teal-500',
-      border: 'border-teal-300 hover:border-teal-400',
-      cardBg: 'bg-[#ecfdf8]',
-      headerBg: 'bg-teal-100/70 border-teal-200',
+      accentBar: 'bg-emerald-600',
+      border: 'border-[#BFE0CD] hover:border-[#2F7D5B]',
+      cardBg: 'bg-[#F5FBF7]',
+      headerBg: 'bg-[#E6F4EC] border-[#BFE0CD]',
       icon,
-      iconBg: 'bg-teal-100 text-teal-900 border-2 border-teal-200',
-      periodBadge: 'bg-teal-600 text-white',
-      subjectLabel: '🧭 แนะแนว',
+      iconBg: 'bg-[#E6F4EC] text-[#1C573D] border border-[#BFE0CD]',
+      periodBadge: 'bg-[#2F7D5B] text-white',
+      subjectLabel: 'แนะแนว',
       washiClass: 'washi-mint',
     };
   }
@@ -1010,7 +994,7 @@ export function getSubjectVisualTheme(
     return {
       ...subjectVisualPalettes[0],
       icon,
-      subjectLabel: '🏠 โฮมรูม',
+      subjectLabel: 'โฮมรูม',
     };
   }
 

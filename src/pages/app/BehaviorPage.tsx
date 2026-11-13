@@ -121,10 +121,10 @@ interface QuickBehaviorPreset {
 }
 
 const QUICK_PRESETS: QuickBehaviorPreset[] = [
-  { category: 'ทำความดี', id: 'star_1', label: '⭐ ทำความดี (+1)', points: 1, tone: 'positive' },
-  { category: 'จิตอาสา/ช่วยเหลือ', id: 'star_2', label: '🏆 จิตอาสา (+2)', points: 2, tone: 'positive' },
-  { category: 'มารยาทและความประพฤติดีเยี่ยม', id: 'star_3', label: '✨ พิเศษ (+3)', points: 3, tone: 'positive' },
-  { category: 'ตักเตือนพฤติกรรม', id: 'warn_1', label: '⚠️ เตือน (-1)', points: -1, tone: 'discipline' },
+  { category: 'ทำความดี', id: 'star_1', label: 'ทำความดี (+1)', points: 1, tone: 'positive' },
+  { category: 'จิตอาสา/ช่วยเหลือ', id: 'star_2', label: 'จิตอาสา (+2)', points: 2, tone: 'positive' },
+  { category: 'มารยาทและความประพฤติดีเยี่ยม', id: 'star_3', label: 'พิเศษ (+3)', points: 3, tone: 'positive' },
+  { category: 'ตักเตือนพฤติกรรม', id: 'warn_1', label: 'ตักเตือน (-1)', points: -1, tone: 'discipline' },
 ];
 
 const toneLabels = Object.fromEntries(toneOptions.map((option) => [option.value, option.label])) as Record<
@@ -480,7 +480,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
 
         setRecords((current) => [...newRecords, ...current]);
         setDraftAwards({});
-        setNotice(`✨ บันทึกดาวความดีเรียบร้อยแล้ว (${studentIds.length} คน รวม ${totalPts} แต้ม) [โหมดตัวอย่าง]`);
+        setNotice(`บันทึกดาวความดีเรียบร้อยแล้ว (${studentIds.length} คน รวม ${totalPts} แต้ม) [โหมดตัวอย่าง]`);
         setIsSubmitting(false);
         return;
       }
@@ -512,7 +512,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
 
       setRecords((current) => [...createdRecords, ...current]);
       setDraftAwards({});
-      setNotice(`✨ บันทึกดาวความดีเรียบร้อยแล้ว (${studentIds.length} คน รวม ${totalPts} แต้ม)`);
+      setNotice(`บันทึกดาวความดีเรียบร้อยแล้ว (${studentIds.length} คน รวม ${totalPts} แต้ม)`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setNotice(`บันทึกไม่สำเร็จ: ${msg}`);
@@ -546,7 +546,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
         };
         setRecords((current) => [record, ...current]);
         setSheetStudent(null);
-        setNotice(`✨ บันทึกพฤติกรรมของน้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย [โหมดตัวอย่าง]`);
+        setNotice(`บันทึกพฤติกรรมของน้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย [โหมดตัวอย่าง]`);
         return;
       }
 
@@ -570,7 +570,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
       const record = data as BehaviorRecordRow;
       setRecords((current) => [record, ...current]);
       setSheetStudent(null);
-      setNotice(`✨ บันทึกพฤติกรรมของน้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย`);
+      setNotice(`บันทึกพฤติกรรมของน้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setNotice(`บันทึกไม่สำเร็จ: ${msg}`);
@@ -609,105 +609,98 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
   const draftTotalPoints = Object.values(draftAwards).reduce((sum, a) => sum + a.points, 0);
 
   return (
-    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
-      {/* ======================================================== */}
-      {/* CORKBOARD / LINED PAPER CONTAINER (Style 5: Post-it)     */}
-      {/* ======================================================== */}
-      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+    <main className="app-page min-h-screen pb-64 lg:pb-32">
+      {/* Morning Sage Classroom Behavior Board Container */}
+      <div className="rounded-3xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 shadow-xs sm:p-7">
         
         {/* Header */}
         <header className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-900 border border-amber-300">
-                <Heart size={13} className="text-amber-700" />
-                บอร์ดพฤติกรรม & บันทึกความดี
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#BFE0CD] bg-[#E6F4EC] px-3 py-0.5 text-xs font-bold text-[#1C573D]">
+                <Heart size={13} className="text-[#2F7D5B]" />
+                บอร์ดพฤติกรรม &amp; บันทึกความดี
               </span>
               <Link
                 to="/app/dashboard?view=desirable-characteristics"
-                className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-0.5 text-xs font-bold text-stone-700 hover:text-stone-950 border border-stone-300 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-1 rounded-full border border-[#DCE3D7] bg-white px-3 py-0.5 text-xs font-bold text-[#465549] transition-colors hover:border-[#2F7D5B] hover:text-[#1C342B] shadow-2xs"
               >
-                <Award size={13} className="text-amber-600" />
-                <span>ประเมินคุณลักษณะ 8 ประการ (สพฐ.) ➜</span>
+                <Award size={13} className="text-[#D98B26]" />
+                <span>ประเมินคุณลักษณะ 8 ประการ (สพฐ.)</span>
               </Link>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
-              <span>บอร์ดความดีและพฤติกรรม</span>
-              <span className="text-xl sm:text-2xl">🌟📌</span>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1F2A22] tracking-tight">
+              บอร์ดความดีและพฤติกรรม
             </h1>
-            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
-              ให้ดาวความดี บันทึกข้อห่วงใย และสะสมแต้มความดีรายคน
+            <p className="mt-1 text-sm font-medium text-[#5B6A5F]">
+              ให้คะแนนความดี บันทึกข้อห่วงใย และสะสมแต้มความประพฤติรายบุคคล
             </p>
           </div>
 
-          {/* 4 Post-it Stat Memo Cards */}
+          {/* 4 Stat Cards */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:min-w-[480px]">
-            {/* Total Points */}
-            <div className="relative rounded-xl bg-[#d9f99d] p-3 text-center shadow-[2px_4px_6px_rgba(27,62,4,0.18)] rotate-[1deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#1b3e04]">{summary.totalPoints}</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#1b3e04]">คะแนนรวมทั้งห้อง</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#BFE0CD] bg-[#E6F4EC] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#2F7D5B]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#1C573D]">{summary.totalPoints}</p>
+              <p className="mt-0.5 text-xs font-bold text-[#1C573D]">คะแนนรวมทั้งห้อง</p>
             </div>
 
-            {/* Positive */}
-            <div className="relative rounded-xl bg-[#fef08a] p-3 text-center shadow-[2px_4px_6px_rgba(113,63,18,0.18)] -rotate-[1.5deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#713f12]">{summary.positive}</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#713f12]">ความดีเชิงบวก</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#F0D9AE] bg-[#FDF4E1] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#D98B26]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#8B5312]">{summary.positive}</p>
+              <p className="mt-0.5 text-xs font-bold text-[#8B5312]">ความดีเชิงบวก</p>
             </div>
 
-            {/* Concern */}
-            <div className="relative rounded-xl bg-[#fecdd3] p-3 text-center shadow-[2px_4px_6px_rgba(136,19,55,0.18)] rotate-[1.5deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#881337]">{summary.concern}</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#881337]">ข้อห่วงใย</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#F0CFD7] bg-[#FBEFF2] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#C25970]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#8E354A]">{summary.concern}</p>
+              <p className="mt-0.5 text-xs font-bold text-[#8E354A]">ข้อห่วงใย</p>
             </div>
 
-            {/* Follow Up */}
-            <div className="relative rounded-xl bg-[#bae6fd] p-3 text-center shadow-[2px_4px_6px_rgba(3,79,119,0.18)] -rotate-[1deg] hover:scale-105 transition">
-              <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2 w-6 rounded-[1px] bg-white/70 shadow-2xs" />
-              <p className="text-lg sm:text-xl font-bold text-[#034f77]">{summary.followUp}</p>
-              <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#034f77]">งานติดตาม</p>
+            <div className="relative overflow-hidden rounded-2xl border border-[#CBE1F2] bg-[#E9F3FA] p-3 pt-3.5 text-center shadow-2xs">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#2D72A3]" />
+              <p className="font-display text-lg sm:text-xl font-bold text-[#1D547C]">{summary.followUp}</p>
+              <p className="mt-0.5 text-xs font-bold text-[#1D547C]">งานติดตาม</p>
             </div>
           </div>
         </header>
 
         {/* Mode Switcher & Filter Bar */}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2d5c3] pt-3.5">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#DCE3D7] pt-3.5">
           {/* View Mode Toggle */}
-          <div className="inline-flex rounded-2xl bg-white/80 p-1 border border-[#c7bca9] shadow-2xs">
+          <div className="inline-flex rounded-xl border border-[#DCE3D7] bg-white p-1 shadow-2xs">
             <button
               type="button"
               onClick={() => setViewMode('board')}
-              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
                 viewMode === 'board'
-                  ? 'bg-[#332f2b] text-white shadow-xs'
-                  : 'text-[#57534e] hover:text-[#1c1917]'
+                  ? 'bg-[#1C342B] text-white shadow-xs'
+                  : 'text-[#5B6A5F] hover:text-[#1F2A22]'
               }`}
             >
               <LayoutGrid size={15} />
-              <span>กระดานดาวความดี 📌</span>
+              <span>กระดานดาวความดี</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 rounded-xl px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 ${
                 viewMode === 'table'
-                  ? 'bg-[#332f2b] text-white shadow-xs'
-                  : 'text-[#57534e] hover:text-[#1c1917]'
+                  ? 'bg-[#1C342B] text-white shadow-xs'
+                  : 'text-[#5B6A5F] hover:text-[#1F2A22]'
               }`}
             >
               <ListFilter size={15} />
-              <span>ตารางบันทึกละเอียด 📋</span>
+              <span>ตารางบันทึกละเอียด</span>
             </button>
           </div>
 
           {/* Classroom Selector */}
-          <div className="relative inline-flex items-center rotate-[0.8deg] shadow-xs">
+          <div className="relative inline-flex items-center shadow-2xs">
             <select
               value={classroomId}
               onChange={(e) => setClassroomId(e.target.value)}
-              className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              className="appearance-none rounded-xl border border-[#DCE3D7] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1F2A22] focus:outline-none focus:ring-2 focus:ring-[#2F7D5B] cursor-pointer"
             >
               {displayClassrooms.map((c) => {
                 const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -784,8 +777,8 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
               </div>
             </div>
 
-            <p className="mt-1 text-xs sm:text-sm font-medium text-[#57534e]">
-              แตะโน้ตเพื่อเพิ่มแต้ม {activePreset.label} (แตะซ้ำเพื่อเพิ่ม หรือวนกลับเป็น 0) หรือกด ✏️ เพื่อดูรายละเอียด/ใส่ข้อห่วงใย
+            <p className="mt-1 text-xs sm:text-sm font-medium text-[#5B6A5F]">
+              แตะบัตรนักเรียนเพื่อเพิ่มแต้ม {activePreset.label} (แตะซ้ำเพื่อเพิ่ม หรือวนกลับเป็น 0) หรือกดไอคอนดินสอเพื่อดูรายละเอียดและใส่ข้อห่วงใย
             </p>
 
             {/* Post-it Notes Grid */}
@@ -897,14 +890,15 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
                     {/* Badge: Draft points or Cumulative points */}
                     <div className="mt-1">
                       {hasDraft ? (
-                        <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.2 text-[10px] sm:text-xs font-bold text-white shadow-2xs animate-in zoom-in-75 duration-100 ${
-                          draft.points > 0 ? 'bg-[#1b3e04]' : 'bg-[#881337]'
+                        <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-bold text-white shadow-2xs animate-in zoom-in-75 duration-100 ${
+                          draft.points > 0 ? 'bg-[#1C573D]' : 'bg-[#8E354A]'
                         }`}>
-                          {draft.points > 0 ? `+${draft.points}` : draft.points} ⭐
+                          {draft.points > 0 ? `+${draft.points}` : draft.points} แต้ม
                         </span>
                       ) : (
-                        <span className="text-[10px] font-semibold opacity-75">
-                          {totalPoints} ⭐
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold opacity-75">
+                          <Star size={10} aria-hidden="true" />
+                          {totalPoints}
                         </span>
                       )}
                     </div>
@@ -1001,9 +995,9 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
                   </label>
                 </div>
 
-                <button className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-sm font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer" disabled={isSubmitting || isLoading} type="submit">
+                <button className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#2F7D5B] hover:bg-[#235F45] text-white text-sm font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer" disabled={isSubmitting || isLoading} type="submit">
                   <Save size={16} aria-hidden="true" />
-                  <span>บันทึกพฤติกรรม ✓</span>
+                  <span>บันทึกพฤติกรรม</span>
                 </button>
               </form>
 
@@ -1063,7 +1057,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
                               <p className="font-bold text-[#3f3a36]">{student.first_name} {student.last_name}</p>
                               <p className="text-[11px] text-[#8a8178]">{student.nickname ? `น้อง${student.nickname}` : student.student_code || '-'}</p>
                             </td>
-                            <td className="px-3 py-2.5 text-right text-base sm:text-lg font-bold text-[#3f3a36]">{totalPoints} ⭐</td>
+                            <td className="px-3 py-2.5 text-right text-base sm:text-lg font-bold text-[#1C342B]">{totalPoints} คะแนน</td>
                             <td className="px-3 py-2.5 text-center font-bold text-[#78716c]">{studentRecords.length}</td>
                             <td className="px-3 py-2.5 text-right">
                               <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${openFollowUp > 0 ? 'bg-amber-100 text-amber-800' : 'bg-lime-100 text-lime-800'}`}>
@@ -1123,8 +1117,8 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
                             <p className="mt-1.5 font-bold text-[#3f3a36]">{record.description}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className={`text-base font-bold ${record.points >= 0 ? 'text-[#1b3e04]' : 'text-[#881337]'}`}>
-                              {record.points >= 0 ? `+${record.points}` : record.points} ⭐
+                            <span className={`text-base font-bold ${record.points >= 0 ? 'text-[#2F7D5B]' : 'text-[#C25970]'}`}>
+                              {record.points >= 0 ? `+${record.points}` : record.points} คะแนน
                             </span>
                             <p className="text-[11px] text-[#8a8178]">{record.behavior_date}</p>
                           </div>
@@ -1157,7 +1151,7 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
             </span>
             <span>·</span>
             <span>
-              รวมแต้ม <b className="text-[#1b3e04]">{draftTotalPoints >= 0 ? `+${draftTotalPoints}` : draftTotalPoints} ⭐</b>
+              รวมแต้ม <b className="text-[#2F7D5B]">{draftTotalPoints >= 0 ? `+${draftTotalPoints}` : draftTotalPoints} คะแนน</b>
             </span>
           </div>
 
@@ -1192,8 +1186,8 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
                 <h3 className="text-lg font-bold text-[#3f3a36]">
                   {sheetStudent.first_name} {sheetStudent.last_name}
                 </h3>
-                <p className="text-xs text-[#8a8178]">
-                  {sheetStudent.nickname ? `น้อง${sheetStudent.nickname}` : 'นักเรียน'} · คะแนนสะสมรวม: {(recordsByStudent.get(sheetStudent.id) || []).reduce((sum, r) => sum + r.points, 0)} ⭐
+                <p className="text-xs text-[#5A6F64]">
+                  {sheetStudent.nickname ? `น้อง${sheetStudent.nickname}` : 'นักเรียน'} · คะแนนสะสมรวม: {(recordsByStudent.get(sheetStudent.id) || []).reduce((sum, r) => sum + r.points, 0)} คะแนน
                 </p>
               </div>
               <button

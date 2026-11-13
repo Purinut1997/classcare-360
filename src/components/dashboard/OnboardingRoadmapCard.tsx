@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowUpRight,
   BarChart3,
   CalendarCheck,
   Check,
@@ -181,14 +182,16 @@ export function OnboardingRoadmapCard({
   // Compact collapsed state if dismissed
   if (isDismissed) {
     return (
-      <div className="relative flex flex-wrap items-center justify-between gap-2 overflow-hidden rounded-[22px] border-2 border-teal-100 bg-gradient-to-r from-[#effbf5] via-[#fffdf8] to-[#f0f8ff] px-4 py-3 shadow-sm transition-all hover:border-teal-200">
+      <div className="relative flex flex-wrap items-center justify-between gap-2 overflow-hidden rounded-[22px] border border-[#DCE3D7] bg-[#FAFBF8] px-4 py-3 shadow-sm transition-all hover:border-[#2F7D5B]/50">
         <div className="flex items-center gap-2.5">
-          <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-teal-100">🚀</span>
-          <span className="text-xs font-black text-slate-800">
+          <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-xl bg-[#E9F0EA] text-[#2F7D5B] border border-[#DCE3D7]">
+            <Compass size={18} />
+          </span>
+          <span className="text-xs font-black text-[#1C342B]">
             ก้าวแรกสู่ ClassCare 360
           </span>
-          <span className="hidden sm:inline text-teal-300">·</span>
-          <span className="rounded-full border border-teal-200 bg-white/90 px-2.5 py-1 text-[11px] font-black text-teal-800 shadow-xs">
+          <span className="hidden sm:inline text-[#DCE3D7]">·</span>
+          <span className="rounded-full border border-[#DCE3D7] bg-white px-2.5 py-1 text-[11px] font-black text-[#2F7D5B] shadow-2xs">
             ความคืบหน้า: {completedCount}/{totalSteps} ({progressPercent}%)
           </span>
         </div>
@@ -197,16 +200,17 @@ export function OnboardingRoadmapCard({
           <button
             type="button"
             onClick={handleRestore}
-            className="rounded-xl px-2.5 py-1.5 text-xs font-black text-teal-800 transition hover:bg-white/80 hover:text-teal-950"
+            className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-black text-[#2F7D5B] transition hover:bg-[#E9F0EA] hover:text-[#1C342B]"
           >
-            แสดงการ์ดแนะนำ ↗
+            <span>แสดงการ์ดแนะนำ</span>
+            <ArrowUpRight size={13} aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={handleStartTour}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-white/85 px-2.5 py-1.5 text-xs font-black text-sky-800 transition hover:bg-sky-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-white px-2.5 py-1.5 text-xs font-black text-[#1C342B] transition hover:bg-[#E9F0EA]"
           >
-            <Compass size={13} className="text-sky-600" />
+            <Compass size={13} className="text-[#2F7D5B]" />
             <span className="hidden sm:inline">ทัวร์นำทาง</span>
           </button>
         </div>
@@ -217,23 +221,19 @@ export function OnboardingRoadmapCard({
   return (
     <section
       aria-label="ก้าวแรกสู่ ClassCare 360"
-      className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/90 backdrop-blur-sm"
+      className="relative overflow-hidden rounded-3xl border border-[#DCE3D7] bg-white p-5 shadow-sm sm:p-6"
     >
-      {/* Background Ambient Accents */}
-      <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl dark:bg-cyan-500/15" />
-      <div className="pointer-events-none absolute -left-20 -bottom-20 h-56 w-56 rounded-full bg-indigo-500/10 blur-3xl dark:bg-indigo-500/15" />
-
       {/* Header with Title and Dismiss button */}
       <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-xl text-white shadow-md shadow-cyan-500/25">
-            🚀
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#2F7D5B] to-[#1C342B] text-white shadow-sm">
+            <Compass size={21} aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-black tracking-tight text-[#1C342B] flex items-center gap-2">
               ก้าวแรกสู่ ClassCare 360 — แนะนำการเริ่มต้นใช้งานระบบ
             </h2>
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-bold text-[#5A6F64]">
               5 ขั้นตอนง่ายๆ เพื่อเตรียมระบบและเปิดใช้งานครบทุกส่วนของโรงเรียน
             </p>
           </div>
@@ -312,15 +312,15 @@ export function OnboardingRoadmapCard({
                   </span>
 
                   {done ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
-                      <Check size={11} strokeWidth={3} /> ทำแล้ว ✓
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+                      <Check size={11} strokeWidth={3} /> ทำแล้ว
                     </span>
                   ) : isCurrent ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/50 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-black text-cyan-800 dark:text-cyan-200 animate-pulse">
-                      👉 กำลังทำ
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[#2F7D5B]/40 bg-[#E9F0EA] px-2 py-0.5 text-[10px] font-black text-[#2F7D5B]">
+                      กำลังทำ
                     </span>
                   ) : (
-                    <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded-full border border-[#DCE3D7] bg-[#F6F7F3] px-2 py-0.5 text-[10px] font-bold text-[#5A6F64]">
                       รอเริ่ม
                     </span>
                   )}
@@ -402,10 +402,10 @@ export function OnboardingRoadmapCard({
         <button
           type="button"
           onClick={handleStartTour}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-cyan-500/25 transition-all hover:shadow-lg hover:shadow-cyan-500/35 hover:scale-[1.02] active:scale-[0.98]"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] px-5 py-2.5 text-sm font-black text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
         >
-          <Compass size={17} className="animate-spin duration-3000" />
-          <span>🧭 เริ่มต้นทัวร์นำทางสดทีละขั้น</span>
+          <Compass size={17} />
+          <span>เริ่มต้นทัวร์นำทางสดทีละขั้น</span>
         </button>
       </div>
     </section>

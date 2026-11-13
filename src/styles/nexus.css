@@ -62,11 +62,11 @@
   background: conic-gradient(
     from 110deg at 52% 48%,
     transparent 0deg,
-    rgb(14 165 233 / 0.035) 54deg,
+    rgb(47 125 91 / 0.04) 54deg,
     transparent 112deg,
-    rgb(190 242 100 / 0.04) 184deg,
+    rgb(217 139 38 / 0.035) 184deg,
     transparent 250deg,
-    rgb(245 158 11 / 0.025) 318deg,
+    rgb(45 114 163 / 0.03) 318deg,
     transparent 360deg
   );
   transform-origin: center;
@@ -85,7 +85,7 @@
   right: -10rem;
   width: clamp(28rem, 48vw, 52rem);
   height: clamp(28rem, 48vw, 52rem);
-  background: rgb(125 211 252 / 0.17);
+  background: rgb(47 125 91 / 0.11);
 }
 
 .app-ambient-orb-two {
@@ -93,7 +93,7 @@
   left: 12%;
   width: clamp(22rem, 36vw, 40rem);
   height: clamp(22rem, 36vw, 40rem);
-  background: rgb(190 242 100 / 0.12);
+  background: rgb(217 139 38 / 0.09);
 }
 
 .app-ambient-orb-three {
@@ -101,16 +101,16 @@
   bottom: -16rem;
   width: clamp(26rem, 42vw, 46rem);
   height: clamp(26rem, 42vw, 46rem);
-  background: rgb(251 191 36 / 0.09);
+  background: rgb(45 114 163 / 0.08);
 }
 
 .app-ambient-mesh {
   position: absolute;
   inset: 0;
-  opacity: 0.28;
+  opacity: 0.22;
   background-image: radial-gradient(
     circle,
-    rgb(51 65 85 / 0.2) 0.7px,
+    rgb(31 42 34 / 0.16) 0.7px,
     transparent 0.8px
   );
   background-size: 28px 28px;

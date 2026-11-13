@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck2, CheckCircle2, Clock3, ShieldCheck, UserRound, Users } from 'lucide-react';
 
+import { AppLogo } from '../../components/brand/AppLogo';
+import { BotanicalCardSprig, BotanicalCornerWatermark, BotanicalEmptyState } from '../../components/shared/BotanicalDecor';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -246,52 +248,65 @@ export function PortalHome({ portalRole, session }: PortalHomeProps) {
     };
   }, [portalRole, session.profile.id]);
 
-  const title = portalRole === 'parent' ? 'Portal ผู้ปกครอง' : 'Portal นักเรียน';
+  const title = portalRole === 'parent' ? 'สมุดพกผู้ปกครอง' : 'สมุดพกนักเรียน';
   const subtitle =
     portalRole === 'parent'
-      ? 'ดูข้อมูลบุตรหลานตาม consent และ RLS ที่ระบบอนุญาตเท่านั้น'
-      : 'ดูข้อมูลของตนเองผ่าน student profile link ที่ active และ RLS ที่จำกัดเฉพาะ record ของตนเอง';
+      ? 'ติดตามเวลาเรียนและข้อมูลดูแลช่วยเหลือนักเรียนของบุตรหลานได้อย่างปลอดภัยและสะดวก'
+      : 'ดูประวัติการมาเรียน รายวิชา และข้อมูลประจำวันของตนเองได้ครบในหน้าเดียว';
+
+  const summaryThemes: Record<string, { topBar: string; sprig: string; pill: string }> = {
+    present: { topBar: 'bg-[#2F7D5B]', sprig: '#2F7D5B', pill: 'bg-[#E6F4EC] text-[#1C573D] border-[#BFE0CD]' },
+    late: { topBar: 'bg-[#D98B26]', sprig: '#D98B26', pill: 'bg-[#FDF4E1] text-[#8B5312] border-[#F0D9AE]' },
+    absent: { topBar: 'bg-[#C25970]', sprig: '#C25970', pill: 'bg-[#FBEFF2] text-[#8E354A] border-[#F0CFD7]' },
+    leave: { topBar: 'bg-[#2D72A3]', sprig: '#2D72A3', pill: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]' },
+  };
 
   return (
-    <main className="classcare-grid-bg min-h-screen px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+    <main className="classcare-grid-bg min-h-screen px-4 py-8 text-[#1F2A22] sm:px-6 lg:px-8">
       <section className="mx-auto max-w-7xl">
-        <div className="nexus-card overflow-hidden">
-          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="botanical-banner relative overflow-hidden">
+          <BotanicalCornerWatermark className="pointer-events-none absolute -bottom-4 right-2 opacity-60" color="#2F7D5B" opacity={0.14} />
+          <div className="relative z-10 grid gap-0 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="p-6 sm:p-8">
-              <div className="nexus-kicker">
-                <Users size={18} aria-hidden="true" />
-                {portalRole === 'parent' ? 'Parent Portal' : 'Student Portal'}
+              <div className="flex items-center gap-3">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#DCE3D7] bg-white shadow-xs">
+                  <AppLogo className="h-8 w-8" />
+                </div>
+                <div className="nexus-kicker">
+                  <Users size={16} aria-hidden="true" />
+                  {portalRole === 'parent' ? 'สมุดพกผู้ปกครอง · ClassCare 360' : 'สมุดพกนักเรียน · ClassCare 360'}
+                </div>
               </div>
-              <h1 className="mt-5 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-5 font-display text-3xl font-bold leading-tight text-[#1F2A22] sm:text-4xl">
                 {title}
               </h1>
-              <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-slate-600">
+              <p className="mt-3 max-w-3xl text-base font-medium leading-7 text-[#5B6A5F]">
                 {subtitle}
               </p>
-              <div className="mt-7 flex flex-wrap gap-3">
-                <span className="nexus-pill inline-flex h-11 items-center gap-2 px-4 text-sm font-black text-slate-700">
-                  <UserRound size={17} aria-hidden="true" />
+              <div className="mt-6 flex flex-wrap gap-3">
+                <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#DCE3D7] bg-white px-4 text-sm font-bold text-[#1F2A22] shadow-2xs">
+                  <UserRound size={16} className="text-[#2F7D5B]" aria-hidden="true" />
                   {session.profile.displayName}
                 </span>
-                <span className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black">
-                  <ShieldCheck size={17} aria-hidden="true" />
-                  RLS protected
+                <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#BFE0CD] bg-[#E6F4EC] px-4 text-sm font-bold text-[#1C573D]">
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  คุ้มครองข้อมูลส่วนบุคคล
                 </span>
               </div>
             </div>
 
-            <div className="relative overflow-hidden border-t border-slate-100 bg-slate-950 p-6 text-white xl:border-l xl:border-t-0 sm:p-8">
-              <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-cyan-300/20 blur-2xl" />
-              <p className="relative text-sm font-black text-cyan-200">Privacy Guard</p>
-              <div className="relative mt-5 grid gap-3">
+            <div className="relative overflow-hidden border-t border-[#DCE3D7] bg-[#F5FBF7] p-6 xl:border-l xl:border-t-0 sm:p-8">
+              <BotanicalCardSprig className="absolute right-2 top-2" color="#2F7D5B" opacity={0.18} />
+              <p className="relative font-display text-sm font-bold text-[#1C573D]">ความปลอดภัยของข้อมูล</p>
+              <div className="relative mt-4 grid gap-2.5">
                 {[
-                  'เห็นเฉพาะนักเรียนที่ผูกสิทธิ์',
-                  'consent ต้องเป็น granted',
-                  'ไม่แสดงข้อมูล workspace อื่น',
+                  'แสดงเฉพาะข้อมูลนักเรียนที่ได้รับสิทธิ์เท่านั้น',
+                  'เชื่อมโยงการเข้าถึงตามการยินยอมของผู้ปกครอง',
+                  'แยกข้อมูลแต่ละโรงเรียนอย่างเป็นสัดส่วนปลอดภัย',
                 ].map((item) => (
-                  <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur" key={item}>
-                    <CheckCircle2 className="mt-0.5 shrink-0 text-cyan-300" size={18} aria-hidden="true" />
-                    <p className="text-sm font-bold leading-6 text-slate-100">{item}</p>
+                  <div className="flex gap-3 rounded-xl border border-[#BFE0CD]/80 bg-white/90 p-3 shadow-2xs" key={item}>
+                    <CheckCircle2 className="mt-0.5 shrink-0 text-[#2F7D5B]" size={17} aria-hidden="true" />
+                    <p className="text-xs font-semibold leading-5 text-[#1F2A22] sm:text-sm">{item}</p>
                   </div>
                 ))}
               </div>
@@ -300,38 +315,46 @@ export function PortalHome({ portalRole, session }: PortalHomeProps) {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {summary.map((item) => (
-            <div className="nexus-card p-4 text-center transition hover:-translate-y-1" key={item.status}>
-              <p className="text-3xl font-black text-slate-950">{item.count}</p>
-              <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
-            </div>
-          ))}
+          {summary.map((item) => {
+            const theme = summaryThemes[item.status] || summaryThemes.present;
+            return (
+              <div className="relative overflow-hidden rounded-2xl border border-[#DCE3D7] bg-white p-4 pt-5 text-center shadow-xs transition hover:-translate-y-0.5 hover:shadow-md" key={item.status}>
+                <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 h-[3px] ${theme.topBar}`} />
+                <BotanicalCardSprig className="absolute -right-2 -top-1.5" color={theme.sprig} opacity={0.14} />
+                <p className="relative z-10 font-display text-3xl font-bold text-[#1F2A22]">{item.count}</p>
+                <span className={`relative z-10 mt-1.5 inline-block rounded-full border px-3 py-0.5 text-xs font-bold ${theme.pill}`}>
+                  {item.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         {notice ? (
-          <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
+          <div className="mt-5 flex gap-2.5 rounded-2xl border border-[#F0D9AE] bg-[#FDF4E1] p-3.5 text-sm font-bold leading-6 text-[#8B5312] shadow-2xs">
             <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
             <p>{notice}</p>
           </div>
         ) : null}
 
         <section className="mt-5 grid gap-5">
-          <aside className="nexus-card p-4 sm:p-5">
+          <aside className="rounded-3xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-6">
             <div className="nexus-kicker">
-              <UserRound size={16} aria-hidden="true" />
-              นักเรียนในสิทธิ์
+              <UserRound size={15} aria-hidden="true" />
+              รายชื่อนักเรียนในสิทธิ์
             </div>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {students.map((student) => (
-                <div className="nexus-muted-box p-4" key={student.id}>
-                  <div className="flex items-start justify-between gap-3">
+                <div className="relative overflow-hidden rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4" key={student.id}>
+                  <BotanicalCardSprig className="absolute -right-2 -top-2" color="#2F7D5B" opacity={0.14} />
+                  <div className="relative z-10 flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-black text-slate-950">{student.name}</p>
-                      <p className="mt-1 text-sm font-bold text-slate-500">
+                      <p className="font-display font-bold text-[#1F2A22]">{student.name}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#5B6A5F]">
                         {student.code} | {student.nickname} | {student.classroomName}
                       </p>
                     </div>
-                    <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                    <span className="rounded-full border border-[#BFE0CD] bg-[#E6F4EC] px-3 py-1 text-xs font-bold text-[#1C573D]">
                       {student.relation}
                     </span>
                   </div>
@@ -339,62 +362,73 @@ export function PortalHome({ portalRole, session }: PortalHomeProps) {
               ))}
 
               {!isLoading && students.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีนักเรียนในสิทธิ์ของบัญชีนี้
+                <div className="sm:col-span-2">
+                  <BotanicalEmptyState
+                    title="ยังไม่มีข้อมูลนักเรียนที่เชื่อมโยง"
+                    description="กรุณาติดต่อครูประจำชั้นเพื่อตรวจสอบการอนุมัติสิทธิ์การเข้าถึงข้อมูลนักเรียน"
+                    icon={<UserRound className="text-[#2F7D5B]" size={22} />}
+                  />
                 </div>
               ) : null}
             </div>
           </aside>
 
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="rounded-3xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-6">
+            <div className="flex flex-col gap-3 border-b border-[#EDF1EA] pb-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-sm font-black text-cyan-700">Attendance Timeline</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">เวลาเรียนล่าสุด</h2>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#2F7D5B]">Attendance Timeline</p>
+                <h2 className="mt-1 font-display text-2xl font-bold text-[#1F2A22]">เวลาเรียนล่าสุด</h2>
               </div>
-              <span className="nexus-pill inline-flex h-10 items-center gap-2 px-3 text-xs font-black text-slate-600">
-                <CalendarCheck2 size={16} aria-hidden="true" />
-                {session.workspace?.schoolName || 'Portal'}
+              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] px-3.5 text-xs font-bold text-[#465549]">
+                <CalendarCheck2 size={16} className="text-[#2F7D5B]" aria-hidden="true" />
+                {session.workspace?.schoolName || 'สมุดพกห้องเรียน'}
               </span>
             </div>
 
             <div className="mt-4 grid gap-3">
-              {attendance.map((record) => (
-                <article className="nexus-muted-box p-4" key={record.id}>
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px] md:items-center">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                          {attendanceLabels[record.status]}
-                        </span>
-                        <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-100">
-                          {formatDate(record.date)} | {record.period}
-                        </span>
+              {attendance.map((record) => {
+                const statusTheme = summaryThemes[record.status] || {
+                  pill: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]',
+                };
+                return (
+                  <article className="rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 transition hover:bg-white" key={record.id}>
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px] md:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusTheme.pill}`}>
+                            {attendanceLabels[record.status]}
+                          </span>
+                          <span className="rounded-full border border-[#DCE3D7] bg-white px-3 py-1 text-xs font-bold text-[#5B6A5F]">
+                            {formatDate(record.date)} | {record.period}
+                          </span>
+                        </div>
+                        <h3 className="mt-3 font-display font-bold text-[#1F2A22]">{record.studentName}</h3>
+                        <p className="mt-1 text-sm font-medium leading-6 text-[#5B6A5F]">
+                          {record.subject} | {record.note}
+                        </p>
                       </div>
-                      <h3 className="mt-3 font-black text-slate-950">{record.studentName}</h3>
-                      <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                        {record.subject} | {record.note}
-                      </p>
+                      <div className="flex items-center gap-2 rounded-xl border border-[#DCE3D7] bg-white p-3 text-sm font-bold text-[#465549]">
+                        <Clock3 className="shrink-0 text-[#2F7D5B]" size={17} aria-hidden="true" />
+                        บันทึกแล้ว
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-2xl bg-white/80 p-3 text-sm font-black text-slate-600 shadow-sm">
-                      <Clock3 className="shrink-0 text-cyan-600" size={18} aria-hidden="true" />
-                      ตรวจแล้ว
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
 
               {!isLoading && attendance.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีข้อมูลเวลาเรียนที่บัญชีนี้ดูได้
-                </div>
+                <BotanicalEmptyState
+                  title="ยังไม่มีข้อมูลเวลาเรียนล่าสุด"
+                  description="เมื่อคุณครูเช็กเวลาเรียนในห้องเรียน รายการล่าสุดจะปรากฏที่นี่"
+                  icon={<CalendarCheck2 className="text-[#2F7D5B]" size={22} />}
+                />
               ) : null}
             </div>
           </div>
         </section>
 
-        <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-          Created by MIKPURINUT
+        <footer className="mt-6 text-center text-xs font-bold text-[#6F8073]">
+          ClassCare 360 · สมุดพกห้องเรียนดิจิทัล
         </footer>
       </section>
     </main>

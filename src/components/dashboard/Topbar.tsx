@@ -120,8 +120,8 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
       )}
 
       <div className="hidden min-w-0 md:block">
-        <p className="truncate text-sm font-black text-slate-800">{activeLabel}</p>
-        <p className="truncate text-[11px] font-bold text-slate-500">พื้นที่ทำงานปัจจุบัน</p>
+        <p className="truncate font-display text-sm font-bold text-[#1f2a22]">{activeLabel}</p>
+        <p className="truncate text-[11px] font-semibold text-[#5b6a5f]">พื้นที่ทำงานปัจจุบัน</p>
       </div>
 
       <GlobalSearch navItems={navItems} session={session} />
@@ -130,11 +130,11 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         <button
           type="button"
           onClick={onOpenGuide}
-          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200/90 bg-white/90 px-3 text-xs font-bold text-slate-600 shadow-2xs transition hover:border-sky-300 hover:bg-sky-50/70 hover:text-sky-800 active:scale-95"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[#dce3d7] bg-white px-3 text-xs font-bold text-[#4b594f] shadow-2xs transition hover:border-[#2f7d5b]/40 hover:bg-[#e6f4ec]/60 hover:text-[#1c573d] active:scale-95"
           aria-label="คู่มือแนะนำการใช้งานระบบ"
           title="เปิดตัวนำทางการใช้งานระบบ ClassCare 360 (5 ขั้นตอน)"
         >
-          <Compass size={16} className="text-sky-600" aria-hidden="true" />
+          <Compass size={16} className="text-[#2f7d5b]" aria-hidden="true" />
           <span className="hidden md:inline">คู่มือเริ่มต้น</span>
         </button>
       )}
@@ -149,16 +149,16 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
           type="button"
         >
           <Bell size={19} aria-hidden="true" />
-          {notificationItems.some((item) => !item.read_at) && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+          {notificationItems.some((item) => !item.read_at) && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#c25970] ring-2 ring-white" />}
         </button>
         {isNotificationOpen && (
           <section className={`topbar-notification-panel ${isNotificationCollapsed ? 'is-collapsed' : ''}`} role="dialog" aria-label="รายการแจ้งเตือน">
             <div className="topbar-notification-header">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-100 text-cyan-800"><Bell size={19} aria-hidden="true" /></span>
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#e6f4ec] text-[#1c573d]"><Bell size={19} aria-hidden="true" /></span>
                 <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-950">แจ้งเตือนของฉัน</p>
-                  <p className="text-xs font-semibold text-slate-500">{notificationItems.filter((item) => !item.read_at).length} รายการที่ยังไม่ได้อ่าน</p>
+                  <p className="text-sm font-bold text-[#1f2a22]">แจ้งเตือนของฉัน</p>
+                  <p className="text-xs font-semibold text-[#5b6a5f]">{notificationItems.filter((item) => !item.read_at).length} รายการที่ยังไม่ได้อ่าน</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -192,14 +192,14 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
       </div>
 
       <div className="hidden items-center gap-2 sm:flex">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-cyan-100 text-xs font-black text-cyan-800">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#e6f4ec] text-xs font-bold text-[#1c573d] ring-1 ring-[#2f7d5b]/20">
           {getInitials(session?.profile.displayName)}
         </span>
         <span className="hidden min-w-0 xl:block">
-          <span className="block max-w-40 truncate text-xs font-black text-slate-900">
+          <span className="block max-w-40 truncate text-xs font-bold text-[#1f2a22]">
             {session?.profile.displayName || 'ผู้ใช้งาน'}
           </span>
-          <span className="block max-w-40 truncate text-[10px] font-bold text-slate-500">
+          <span className="block max-w-40 truncate text-[10px] font-semibold text-[#5b6a5f]">
             {session ? roleLabels[session.profile.role] : 'ผู้ใช้งาน'}
           </span>
         </span>

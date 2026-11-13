@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, CheckCircle2, Clock3, PlayCircle, School } from 'lucide-react';
+import { ArrowRight, CalendarDays, CheckCircle2, Clock3, Coffee, PlayCircle, School, Sun, Sunset } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
+import { BotanicalCardSprig, SubjectLucideIcon } from '../shared/BotanicalDecor';
 import {
   buildSchedulePeriods,
   getClassroomPillTone,
@@ -165,17 +166,17 @@ export function TeacherSchedulePreview({
   const activeLesson = lessons.find((item) => item.timeStatus === 'now');
   const nextLesson = lessons.find((item) => item.timeStatus === 'next');
 
-  // If no periods exist anywhere in the schedule, keep a slim compact stationery bar.
+  // If no periods exist anywhere in the schedule, keep a slim compact Morning Sage bar.
   if (totalPeriodCount === 0) {
     return (
-      <section aria-label="ตารางสอนวันนี้" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border-2 border-[#e2d4be] bg-[#fbf6ec] px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2.5 text-xs font-extrabold text-stone-700">
-          <span className="grid h-9 w-9 place-items-center rounded-xl border border-amber-300 bg-amber-100 text-amber-800">
+      <section aria-label="ตารางสอนวันนี้" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#DCE3D7] bg-white px-4 py-3 shadow-xs">
+        <div className="flex items-center gap-2.5 text-xs font-bold text-[#465549]">
+          <span className="grid h-9 w-9 place-items-center rounded-xl border border-[#BFE0CD] bg-[#E6F4EC] text-[#2F7D5B]">
             <CalendarDays size={17} aria-hidden="true" />
           </span>
           <span>ยังไม่ได้ตั้งค่าตารางสอนประจำสัปดาห์</span>
         </div>
-        <Link to="/app/dashboard?view=schedule" className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-black text-white transition hover:bg-stone-800">
+        <Link to="/app/dashboard?view=schedule" className="inline-flex items-center gap-1.5 rounded-xl bg-[#2F7D5B] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#235F45]">
           เพิ่มตารางสอน <ArrowRight size={13} aria-hidden="true" />
         </Link>
       </section>
@@ -193,30 +194,29 @@ export function TeacherSchedulePreview({
     return (
       <li
         key={`${selectedDay}-${lesson.index}`}
-        className={`group relative mt-1.5 flex flex-col justify-between rounded-[24px] border-2 p-4 pt-5 shadow-[0_4px_0_rgba(120,90,45,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+        className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 pt-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
           isNow
-            ? 'border-emerald-500 bg-emerald-50/85 ring-4 ring-emerald-500/15'
+            ? 'border-[#2F7D5B] bg-[#F5FBF7] ring-2 ring-[#2F7D5B]/15'
             : isNext
-            ? `${theme.cardBg} border-sky-400 ring-2 ring-sky-400/20`
-            : `${theme.cardBg} ${theme.border}`
+            ? 'border-[#73B0D9] bg-white ring-1 ring-[#2D72A3]/15'
+            : 'border-[#DCE3D7] bg-white hover:border-[#B6C7B3]'
         } ${isPast ? 'opacity-75 saturate-75 hover:opacity-100' : ''}`}
       >
-        {/* Cute Washi Tape Sticker */}
+        {/* Crisp 3px top botanical accent bar */}
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute -top-2 left-1/2 h-3.5 w-14 -translate-x-1/2 -rotate-2 rounded-sm border border-white/80 shadow-sm ${
-            isNow ? 'washi-mint' : theme.washiClass
-          }`}
+          className={`pointer-events-none absolute inset-x-0 top-0 h-[3px] ${isNow ? 'bg-[#2F7D5B]' : theme.accentBar}`}
         />
+        <BotanicalCardSprig className="absolute -right-2 -top-1.5" color={isNow ? '#2F7D5B' : '#7B8A7E'} opacity={0.14} />
 
-        <div>
+        <div className="relative z-10">
           {/* Period & Time Header */}
           <div className="flex items-center justify-between gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-black shadow-sm ${isNow ? 'bg-emerald-600 text-white' : theme.periodBadge}`}>
+            <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold shadow-2xs ${isNow ? 'bg-[#2F7D5B] text-white' : theme.periodBadge}`}>
               คาบที่ {lesson.index}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-xl border border-stone-200/90 bg-white/95 px-2.5 py-1 text-xs font-black tabular-nums text-stone-800">
-              <Clock3 size={12} className="text-stone-500" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1 rounded-lg border border-[#DCE3D7] bg-[#F6F7F3] px-2.5 py-1 text-xs font-bold tabular-nums text-[#465549]">
+              <Clock3 size={12} className="text-[#6F8073]" aria-hidden="true" />
               {lesson.start}–{lesson.end}
             </span>
           </div>
@@ -225,17 +225,17 @@ export function TeacherSchedulePreview({
           {(isNow || isNext || isPast) && (
             <div className="mt-2">
               {isNow && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-black text-white shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#2F7D5B] px-2.5 py-0.5 text-xs font-bold text-white shadow-2xs">
                   <PlayCircle size={12} aria-hidden="true" /> กำลังสอนตอนนี้
                 </span>
               )}
               {isNext && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-xs font-black text-white shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#CBE1F2] bg-[#E9F3FA] px-2.5 py-0.5 text-xs font-bold text-[#1D547C]">
                   <Clock3 size={12} aria-hidden="true" /> คาบถัดไป
                 </span>
               )}
               {isPast && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-stone-200/90 px-2.5 py-0.5 text-xs font-bold text-stone-700">
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#DCE3D7] bg-[#F6F7F3] px-2.5 py-0.5 text-xs font-semibold text-[#5B6A5F]">
                   <CheckCircle2 size={12} aria-hidden="true" /> จบคาบแล้ว
                 </span>
               )}
@@ -246,15 +246,15 @@ export function TeacherSchedulePreview({
           <div className="mt-3 flex items-start gap-3">
             <span
               aria-hidden="true"
-              className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-2xl shadow-sm transition-transform duration-200 group-hover:scale-105 ${theme.iconBg}`}
+              className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl shadow-2xs transition-transform duration-200 group-hover:scale-105 ${theme.iconBg}`}
             >
-              {theme.icon}
+              <SubjectLucideIcon size={20} subject={`${lesson.subject} ${lesson.subjectCode || ''}`} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-stone-600">
+              <p className="text-xs font-semibold text-[#6F8073]">
                 {theme.subjectLabel}
               </p>
-              <h3 className="mt-0.5 truncate text-base font-black leading-snug text-slate-950 sm:text-[17px]" title={lesson.subject}>
+              <h3 className="mt-0.5 truncate font-display text-base font-bold leading-snug text-[#1F2A22]" title={lesson.subject}>
                 {lesson.subject}
               </h3>
             </div>
@@ -262,13 +262,13 @@ export function TeacherSchedulePreview({
         </div>
 
         {/* Distinct Classroom Footer */}
-        <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-dashed border-stone-300/80 pt-2.5">
-          <span className={`inline-flex min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-black shadow-sm ${roomTone}`}>
+        <div className="relative z-10 mt-3.5 flex items-center justify-between gap-2 border-t border-dashed border-[#E4EAE0] pt-2.5">
+          <span className={`inline-flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${roomTone}`}>
             <School size={13} className="shrink-0" aria-hidden="true" />
             <span className="truncate">ชั้น {lesson.classroom || 'ไม่ระบุชั้น'}</span>
           </span>
           {cleanCode ? (
-            <span className="shrink-0 rounded-lg border border-stone-200 bg-white/95 px-2.5 py-0.5 text-xs font-bold text-stone-600">
+            <span className="shrink-0 rounded-md border border-[#DCE3D7] bg-[#FAFBF8] px-2 py-0.5 text-xs font-semibold text-[#5B6A5F]">
               {cleanCode}
             </span>
           ) : null}
@@ -280,39 +280,39 @@ export function TeacherSchedulePreview({
   return (
     <section
       aria-label="ตารางสอนวันนี้"
-      className="notebook-paper-lines relative mt-4 overflow-hidden rounded-[30px] border-2 border-[#e2d4be] bg-[#fbf6ec] p-4 shadow-md sm:mt-5 sm:p-6"
+      className="relative mt-4 overflow-hidden rounded-3xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:mt-5 sm:p-6"
     >
-      {/* Subtle Top Color Strip */}
-      <div className={`absolute inset-x-0 top-0 h-1.5 ${dayStyle.bar}`} aria-hidden="true" />
+      {/* Subtle Top Botanical Day Accent */}
+      <div className={`absolute inset-x-0 top-0 h-1 ${dayStyle.bar}`} aria-hidden="true" />
 
-      <header className="flex flex-col gap-3 border-b-2 border-dashed border-[#dfd0b8] pb-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex flex-col gap-3 border-b border-[#EDF1EA] pb-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border-2 border-white/80 shadow-sm ${dayHeaderStyle.headerBg}`}>
-            <CalendarDays size={22} aria-hidden="true" />
+          <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/80 shadow-xs ${dayHeaderStyle.headerBg}`}>
+            <CalendarDays size={20} aria-hidden="true" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-black text-stone-950 sm:text-xl">
+              <h2 className="font-display text-lg font-bold text-[#1F2A22] sm:text-xl">
                 ตารางสอนวัน{selectedDay}
               </h2>
               {selectedDay === currentDay && (
-                <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-xs font-black text-emerald-900">
-                  วันนี้ 📌
+                <span className="rounded-full border border-[#BFE0CD] bg-[#E6F4EC] px-2.5 py-0.5 text-xs font-bold text-[#1C573D]">
+                  วันนี้
                 </span>
               )}
               {activeLesson ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-black text-white shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#2F7D5B] px-2.5 py-0.5 text-xs font-bold text-white shadow-2xs">
                   <PlayCircle size={12} aria-hidden="true" /> กำลังสอนคาบ {activeLesson.index}: {activeLesson.subject}
                 </span>
               ) : nextLesson ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-100 px-2.5 py-0.5 text-xs font-black text-sky-900">
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#CBE1F2] bg-[#E9F3FA] px-2.5 py-0.5 text-xs font-bold text-[#1D547C]">
                   <Clock3 size={12} aria-hidden="true" /> ถัดไปคาบ {nextLesson.index} ({nextLesson.start})
                 </span>
               ) : null}
             </div>
-            <p className="mt-0.5 text-xs font-bold text-stone-600">
+            <p className="mt-0.5 text-xs font-medium text-[#5B6A5F]">
               {lessons.length > 0
-                ? `มีสอน ${lessons.length} คาบ · ${colorByMode === 'classroom' ? 'แยกสีการ์ดตามระดับชั้นและคาบพิเศษ' : 'แยกสีการ์ดตามรายวิชาและคาบพิเศษ'}`
+                ? `มีสอน ${lessons.length} คาบ · ${colorByMode === 'classroom' ? 'แยกสีตามระดับชั้นและคาบพิเศษ' : 'แยกสีตามรายวิชาและคาบพิเศษ'}`
                 : 'เลือกวันเพื่อดูคาบสอนหรือสลับห้องเรียน'}
             </p>
           </div>
@@ -320,22 +320,22 @@ export function TeacherSchedulePreview({
 
         <div className="flex flex-wrap items-center gap-2">
           {scheduleClassrooms.length > 1 ? (
-            <label className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-[#d9cab3] bg-white px-3 text-xs font-bold text-stone-700 shadow-sm">
-              <School size={14} className="text-sky-700" aria-hidden="true" />
+            <label className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] px-3 text-xs font-bold text-[#465549]">
+              <School size={14} className="text-[#2D72A3]" aria-hidden="true" />
               <span className="sr-only">กรองตามห้องเรียน</span>
-              <select aria-label="กรองตารางสอนตามห้อง" value={scheduleClassFilter} onChange={(event) => onClassroomChange(event.target.value)} className="max-w-36 cursor-pointer bg-transparent font-extrabold text-stone-800 outline-none">
+              <select aria-label="กรองตารางสอนตามห้อง" value={scheduleClassFilter} onChange={(event) => onClassroomChange(event.target.value)} className="max-w-36 cursor-pointer bg-transparent font-bold text-[#1F2A22] outline-none">
                 <option value="all">ทุกห้อง</option>
                 {scheduleClassrooms.map((room) => <option key={room.name} value={room.name}>{room.name}</option>)}
               </select>
             </label>
           ) : null}
-          <Link to="/app/dashboard?view=schedule" className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 text-xs font-black text-white shadow-sm transition hover:bg-stone-800">
+          <Link to="/app/dashboard?view=schedule" className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-[#1C342B] px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#2F7D5B]">
             ดูตารางเต็ม <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
       </header>
 
-      {/* Day Tabs & Pastel Legend Strip */}
+      {/* Day Tabs & Botanical Legend Strip */}
       <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {visibleDays.map((day) => {
@@ -347,16 +347,16 @@ export function TeacherSchedulePreview({
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => onDayChange(day)}
-                className={`relative min-w-14 shrink-0 rounded-2xl px-3.5 py-2 text-center text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+                className={`relative min-w-14 shrink-0 rounded-xl px-3.5 py-2 text-center text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${
                   isSelected
-                    ? `${tabStyle.badge} border shadow-sm`
-                    : 'border border-[#e3d7c4] bg-white/85 text-stone-600 hover:bg-white hover:text-stone-900'
+                    ? `${tabStyle.badge} border shadow-2xs`
+                    : 'border border-[#DCE3D7] bg-[#FAFBF8] text-[#5B6A5F] hover:bg-white hover:text-[#1F2A22]'
                 }`}
               >
                 <span className="sm:hidden">{shortDayNames[day] || day}</span>
                 <span className="hidden sm:inline">{day}</span>
                 {day === currentDay ? (
-                  <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-emerald-500 align-middle ring-2 ring-white" title="วันนี้" />
+                  <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-[#2F7D5B] align-middle ring-2 ring-white" title="วันนี้" />
                 ) : null}
               </button>
             );
@@ -364,9 +364,9 @@ export function TeacherSchedulePreview({
         </div>
 
         {legendItems.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
             {legendItems.map((item) => (
-              <span key={item.label} className={`rounded-full border px-2.5 py-0.5 shadow-sm ${item.badgeClass}`}>
+              <span key={item.label} className={`rounded-full border px-2.5 py-0.5 ${item.badgeClass}`}>
                 {item.label}
               </span>
             ))}
@@ -379,12 +379,13 @@ export function TeacherSchedulePreview({
           {morningLessons.length > 0 && (
             <div>
               {afternoonLessons.length > 0 && (
-                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-100/90 px-3 py-1 text-xs font-black text-amber-950">
-                  <span>☀️ ช่วงเช้า</span>
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[#F0D9AE] bg-[#FDF4E1] px-3 py-1 text-xs font-bold text-[#8B5312]">
+                  <Sun size={13} aria-hidden="true" />
+                  <span>ช่วงเช้า</span>
                   <span>({morningLessons.length} คาบ)</span>
                 </div>
               )}
-              <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <ol className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
                 {morningLessons.map(renderLessonCard)}
               </ol>
             </div>
@@ -392,36 +393,38 @@ export function TeacherSchedulePreview({
 
           {morningLessons.length > 0 && afternoonLessons.length > 0 && (
             <div className="flex items-center gap-3 py-0.5" aria-hidden="true">
-              <div className="h-px flex-1 border-t-2 border-dashed border-[#dccbb0]" />
-              <span className="rounded-full border border-[#e3d2b6] bg-white px-3.5 py-1 text-xs font-black text-stone-700 shadow-sm">
-                🍱 พักกลางวัน ({settings.lunchStart || '11:40'}–{settings.lunchEnd || '12:30'})
+              <div className="h-px flex-1 border-t border-dashed border-[#DCE3D7]" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#DCE3D7] bg-[#FAFBF8] px-3.5 py-1 text-xs font-bold text-[#5B6A5F]">
+                <Coffee size={13} className="text-[#8B5312]" aria-hidden="true" />
+                พักกลางวัน ({settings.lunchStart || '11:40'}–{settings.lunchEnd || '12:30'})
               </span>
-              <div className="h-px flex-1 border-t-2 border-dashed border-[#dccbb0]" />
+              <div className="h-px flex-1 border-t border-dashed border-[#DCE3D7]" />
             </div>
           )}
 
           {afternoonLessons.length > 0 && (
             <div>
               {morningLessons.length > 0 && (
-                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-100/90 px-3 py-1 text-xs font-black text-sky-950">
-                  <span>🌤️ ช่วงบ่าย</span>
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[#CBE1F2] bg-[#E9F3FA] px-3 py-1 text-xs font-bold text-[#1D547C]">
+                  <Sunset size={13} aria-hidden="true" />
+                  <span>ช่วงบ่าย</span>
                   <span>({afternoonLessons.length} คาบ)</span>
                 </div>
               )}
-              <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <ol className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
                 {afternoonLessons.map(renderLessonCard)}
               </ol>
             </div>
           )}
         </div>
       ) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-[#d9cab3] bg-white/75 px-5 py-6 text-center">
-          <CalendarDays size={24} className="mx-auto text-stone-400" aria-hidden="true" />
-          <p className="mt-2 text-sm font-bold text-stone-700">
+        <div className="mt-4 rounded-2xl border border-dashed border-[#DCE3D7] bg-[#FAFBF8] px-5 py-6 text-center">
+          <CalendarDays size={24} className="mx-auto text-[#7B8A7E]" aria-hidden="true" />
+          <p className="mt-2 text-sm font-bold text-[#1F2A22]">
             ไม่มีคาบสอน{selectedDay === currentDay ? 'วันนี้' : `วัน${selectedDay}`}{scheduleClassFilter !== 'all' ? ` สำหรับห้อง ${scheduleClassFilter}` : ''}
           </p>
-          <Link to="/app/dashboard?view=schedule" className="mt-2 inline-flex text-xs font-black text-sky-800 hover:underline">
-            จัดการตารางสอน →
+          <Link to="/app/dashboard?view=schedule" className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#2F7D5B] hover:underline">
+            จัดการตารางสอน <ArrowRight size={13} />
           </Link>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, ArrowRight, Bot, Building2, Download, Globe2, GraduationCap, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowRight, BarChart3, Bot, Building2, Download, Globe2, GraduationCap, ImagePlus, LayoutGrid, Plus, RotateCcw, Save, School, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
@@ -1172,32 +1172,32 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </span>
         </div>
 
-        {/* 🧭 Tab Switcher */}
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-200/80 pt-4">
+        {/* Tab Switcher */}
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-[#DCE3D7] pt-4">
           <button
             type="button"
             onClick={() => setActiveSettingsTab('profile')}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
               activeSettingsTab === 'profile'
-                ? 'bg-amber-600 text-white shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+                ? 'bg-[#D98B26] text-white shadow-sm'
+                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
             }`}
           >
-            <School size={17} />
-            🏫 ข้อมูลโรงเรียน & ผู้ลงนาม
+            <School size={17} aria-hidden="true" />
+            ข้อมูลโรงเรียน & ผู้ลงนาม
           </button>
           <button
             type="button"
             onClick={() => setActiveSettingsTab('classrooms')}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
               activeSettingsTab === 'classrooms'
-                ? 'bg-cyan-700 text-white shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+                ? 'bg-[#2F7D5B] text-white shadow-sm'
+                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
             }`}
           >
-            <Building2 size={17} />
-            📚 จัดการห้องเรียน & ครูประจำชั้น
-            <span className="ml-1 rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-black">
+            <Building2 size={17} aria-hidden="true" />
+            จัดการห้องเรียน & ครูประจำชั้น
+            <span className="ml-1 rounded-full bg-[#E9F0EA] text-[#1C342B] px-2 py-0.5 text-xs font-black">
               {classrooms.length} ห้อง
             </span>
           </button>
@@ -1206,12 +1206,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             onClick={() => setActiveSettingsTab('members')}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
               activeSettingsTab === 'members'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+                ? 'bg-[#2D72A3] text-white shadow-sm'
+                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
             }`}
           >
-            <Users size={17} />
-            👥 อนุมัติครู & สิทธิ์สมาชิก
+            <Users size={17} aria-hidden="true" />
+            อนุมัติครู & สิทธิ์สมาชิก
             {pendingMembers.length > 0 && (
               <span className="ml-1 rounded-full bg-rose-500 text-white px-2 py-0.5 text-xs font-black">
                 {pendingMembers.length} รออนุมัติ
@@ -1223,23 +1223,24 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             onClick={() => setActiveSettingsTab('ai')}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
               activeSettingsTab === 'ai'
-                ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-md'
-                : 'bg-white text-slate-700 hover:bg-slate-100 ring-1 ring-slate-200'
+                ? 'bg-[#1C342B] text-white shadow-sm'
+                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
             }`}
           >
-            <Bot size={17} />
-            🤖 AI ผู้ช่วยครู (Gemini)
+            <Bot size={17} aria-hidden="true" />
+            AI ผู้ช่วยครู (Gemini)
           </button>
           <button
             type="button"
             onClick={() => setActiveSettingsTab('all')}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${
               activeSettingsTab === 'all'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white text-slate-500 hover:bg-slate-100 ring-1 ring-slate-200'
+                ? 'bg-[#1C342B] text-white shadow-sm'
+                : 'bg-white text-[#5A6F64] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
             }`}
           >
-            📋 แสดงทั้งหมด
+            <LayoutGrid size={16} aria-hidden="true" />
+            แสดงทั้งหมด
           </button>
         </div>
       </section>
@@ -1490,7 +1491,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                   >
                     {activeMembers.map((member) => (
                       <option key={member.profile_id} value={member.profile_id}>
-                        ⭐ {member.display_name} ({member.email})
+                        {member.display_name} ({member.email})
                       </option>
                     ))}
                   </select>
@@ -1624,7 +1625,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                         <option value="">-- ยังไม่ระบุครูที่ปรึกษา --</option>
                         {activeMembers.map((member) => (
                           <option key={member.profile_id} value={member.profile_id}>
-                            ⭐ {member.display_name}
+                            {member.display_name}
                           </option>
                         ))}
                       </select>
@@ -1906,8 +1907,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
       {activeSettingsTab === 'all' && (
         <details className="mt-5 rounded-[26px] border border-slate-200 bg-white/80 p-4 shadow-sm">
-          <summary className="cursor-pointer list-none text-xs font-black text-slate-600 hover:text-slate-950">
-            📊 สถิติการใช้งานเมนูของโรงเรียนและการตั้งค่าความเป็นส่วนตัว (คลิกเพื่อดู)
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 text-xs font-black text-[#5A6F64] hover:text-[#1C342B]">
+            <BarChart3 size={14} className="text-[#2F7D5B]" aria-hidden="true" />
+            สถิติการใช้งานเมนูของโรงเรียนและการตั้งค่าความเป็นส่วนตัว (คลิกเพื่อดู)
           </summary>
           <MenuUsageInsights navItems={appNavItems} session={session} />
         </details>

@@ -19,28 +19,28 @@ export const LOADER_THEMES: LoaderThemeOption[] = [
     name: 'Quantum Holo',
     badge: 'ล้ำยุค ไซเบอร์เนติก',
     tagline: 'วงแหวนปฏิกรณ์ควอนตัมคู่ + แสงเลเซอร์โฮโลแกรม',
-    icon: '🌐',
+    icon: 'Q',
   },
   {
     id: 'aurora',
     name: 'Aurora Circular Orb',
     badge: 'วงกลมเรืองแสง พรีเมียม',
     tagline: 'วงกลมแก้วฝ้า + วงแหวนเรเดียลโพรเกรสระดับสตูดิโอ',
-    icon: '🔮',
+    icon: 'A',
   },
   {
     id: 'titanium',
     name: 'Titanium Pro',
     badge: 'มินิมอลโมเดิร์น',
-    tagline: 'สไตล์ Apple Pro เลเซอร์สปินเนอร์แม่นยำสูง',
-    icon: '⚡',
+    tagline: 'สไตล์โปร เลเซอร์สปินเนอร์แม่นยำสูง',
+    icon: 'T',
   },
   {
     id: 'magic',
-    name: 'Carey Magic',
-    badge: 'น้องแคร์ & ดวงดาว',
-    tagline: 'มาสคอตคู่ประกายดาววิเศษ อบอุ่น สบายตา',
-    icon: '🐻',
+    name: 'Carey Gentle',
+    badge: 'น้องแคร์ & ธรรมชาติ',
+    tagline: 'มาสคอตคู่ใบไม้ธรรมชาติ อบอุ่น สบายตา',
+    icon: 'C',
   },
 ];
 
@@ -421,9 +421,12 @@ export function NexusAuroraVisual({
           <div className="absolute -bottom-20 -right-20 h-60 w-60 rounded-full bg-sky-400/20 blur-3xl pointer-events-none" />
 
           {/* Floating Starlight Particles */}
-          <div className="absolute top-6 left-10 text-amber-300 animate-bounce text-sm pointer-events-none">✨</div>
-          <div className="absolute top-12 right-12 text-yellow-200 animate-pulse text-xs pointer-events-none">⭐</div>
-          <div className="absolute bottom-8 left-14 text-sky-300 animate-pulse text-xs pointer-events-none">🌟</div>
+          <div className="pointer-events-none absolute top-6 left-10 text-amber-300/70 animate-bounce">
+            <Sparkles size={14} aria-hidden="true" />
+          </div>
+          <div className="pointer-events-none absolute top-12 right-12 text-emerald-300/70 animate-pulse">
+            <Sparkles size={12} aria-hidden="true" />
+          </div>
 
           {/* Mascot in Glowing Starlight Pedestal */}
           <div className="relative z-10 mx-auto grid h-32 w-32 place-items-center mb-5">
@@ -437,7 +440,7 @@ export function NexusAuroraVisual({
           </div>
 
           <div className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-3.5 py-1 text-[11px] font-black text-amber-300 mb-3">
-            <span>✨</span>
+            <Sparkles size={12} aria-hidden="true" />
             <span>น้องแคร์พร้อมดูแลคุณครูค่ะ</span>
           </div>
 
@@ -456,7 +459,7 @@ export function NexusAuroraVisual({
               />
             </div>
             <div className="mt-3 flex items-center justify-between text-xs font-bold text-amber-200/90">
-              <span>🌟 กำลังส่งต่อความสุข...</span>
+              <span>กำลังเตรียมห้องเรียนของคุณ...</span>
               <span className="font-mono text-white">{percent}%</span>
             </div>
           </div>

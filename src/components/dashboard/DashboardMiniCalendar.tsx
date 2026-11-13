@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, Sparkles, ArrowRight } from 'lucide-react';
+import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Pin, Sparkles, Umbrella, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import { getBangkokDate } from '../../lib/date';
 
@@ -66,44 +66,44 @@ const eventTypeMeta: Record<
     badge: string;
     bgRibbon: string;
     dot: string;
-    icon: string;
+    icon: LucideIcon;
     label: string;
   }
 > = {
   activity: {
     label: 'กิจกรรม',
-    icon: '🎪',
-    dot: 'bg-purple-600',
-    bgRibbon: 'bg-purple-600 text-white',
-    badge: 'bg-purple-100 text-purple-800 border-purple-200',
+    icon: Sparkles,
+    dot: 'bg-[#2F7D5B]',
+    bgRibbon: 'bg-[#2F7D5B] text-white',
+    badge: 'bg-[#E6F4EC] text-[#1C573D] border-[#BFE0CD]',
   },
   holiday: {
     label: 'หยุดเรียน',
-    icon: '🏖️',
-    dot: 'bg-rose-500',
-    bgRibbon: 'bg-rose-500 text-white',
-    badge: 'bg-rose-100 text-rose-800 border-rose-200',
+    icon: Umbrella,
+    dot: 'bg-[#C25970]',
+    bgRibbon: 'bg-[#C25970] text-white',
+    badge: 'bg-[#FBEFF2] text-[#8E354A] border-[#F0CFD7]',
   },
   exam: {
     label: 'วันสอบ',
-    icon: '📝',
-    dot: 'bg-indigo-600',
-    bgRibbon: 'bg-indigo-600 text-white',
-    badge: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+    icon: ClipboardList,
+    dot: 'bg-[#6B63B5]',
+    bgRibbon: 'bg-[#6B63B5] text-white',
+    badge: 'bg-[#F1F0FA] text-[#49428B] border-[#D8D4F2]',
   },
   makeup: {
     label: 'เรียนชดเชย',
-    icon: '⏰',
-    dot: 'bg-amber-500',
-    bgRibbon: 'bg-amber-500 text-white',
-    badge: 'bg-amber-100 text-amber-950 border-amber-200',
+    icon: Clock,
+    dot: 'bg-[#D98B26]',
+    bgRibbon: 'bg-[#D98B26] text-white',
+    badge: 'bg-[#FDF4E1] text-[#8B5312] border-[#F0D9AE]',
   },
   custom: {
     label: 'กำหนดเอง',
-    icon: '📌',
-    dot: 'bg-teal-600',
-    bgRibbon: 'bg-teal-600 text-white',
-    badge: 'bg-teal-100 text-teal-900 border-teal-200',
+    icon: Pin,
+    dot: 'bg-[#2D72A3]',
+    bgRibbon: 'bg-[#2D72A3] text-white',
+    badge: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]',
   },
 };
 
@@ -461,6 +461,7 @@ export function DashboardMiniCalendar({
           <div className="mt-2 space-y-1.5">
             {selectedDateEvents.map((ev) => {
               const meta = eventTypeMeta[ev.type] || eventTypeMeta.custom;
+              const MetaIcon = meta.icon;
               const isMulti = ev.isMultiDay;
               const evDate = new Date(`${ev.date}T00:00:00`);
               const daysFromNow = Math.round((evDate.getTime() - Date.now()) / 86_400_000);
@@ -474,10 +475,12 @@ export function DashboardMiniCalendar({
               return (
                 <div
                   key={ev.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-white px-2.5 py-1.5 shadow-2xs"
+                  className="flex items-center justify-between gap-2 rounded-xl border border-[#DCE3D7] bg-white px-2.5 py-1.5 shadow-2xs"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm shrink-0">{meta.icon}</span>
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-[#EDF1EA] text-[#2F7D5B]">
+                      <MetaIcon size={13} aria-hidden="true" />
+                    </span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 truncate">
                         <span className="truncate text-xs font-black text-slate-900">

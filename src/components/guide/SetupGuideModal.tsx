@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Layers,
   Lightbulb,
+  ListChecks,
   Maximize2,
   Minimize2,
   Play,
@@ -587,8 +588,9 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
               </span>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-bold text-cyan-400 border border-cyan-500/30">
-                    🧭 ตัวนำทางการใช้งานระบบ
+                  <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-bold text-cyan-400 border border-cyan-500/30">
+                    <Compass size={12} aria-hidden="true" />
+                    ตัวนำทางการใช้งานระบบ
                   </span>
                   <span className="text-xs text-slate-400 font-medium">ClassCare 360 Onboarding Navigator</span>
                 </div>
@@ -809,7 +811,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
                   </span>
                   <div className="space-y-1.5">
                     <p className="text-xs font-black uppercase tracking-wide text-amber-400">
-                      💡 เคล็ดลับมืออาชีพ (Pro Tips)
+                      เคล็ดลับมืออาชีพ (Pro Tips)
                     </p>
                     <ul className="space-y-1 text-xs text-slate-300">
                       {currentStep.proTips.map((tip, idx) => (
@@ -839,7 +841,8 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
                   onClick={() => handleStartFloatingTour(activeStepIndex)}
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-105 active:scale-95"
                 >
-                  <span>🧭 เริ่มนำทางขั้นตอนนี้</span>
+                  <Compass size={14} aria-hidden="true" />
+                  <span>เริ่มนำทางขั้นตอนนี้</span>
                   <ArrowRight size={14} />
                 </button>
               </div>
@@ -849,7 +852,7 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
             <div className="space-y-4">
               <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-xs text-slate-300">
                 <p className="font-bold text-white">
-                  📌 ลำดับขั้นตอนแนะนำสำหรับการเริ่มต้นใช้งาน ClassCare 360:
+                  ลำดับขั้นตอนแนะนำสำหรับการเริ่มต้นใช้งาน ClassCare 360:
                 </p>
                 <p className="mt-1 text-slate-400">
                   ระบบได้รับการออกแบบให้ทำตามลำดับ 1 ➔ 2 ➔ 3 ➔ 4 ➔ 5 เพื่อให้ข้อมูลเชื่อมโยงกันอย่างสมบูรณ์แบบ
@@ -892,8 +895,14 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
                           </div>
                           <p className="mt-1 text-xs text-slate-400">{step.whyFirst}</p>
                           <div className="mt-2 flex items-center gap-4 text-[11px] text-slate-500">
-                            <span>⏱️ เวลาประมาณ: {step.estimatedTime}</span>
-                            <span>📋 {step.todoList.length} หัวข้อที่ต้องเตรียม</span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock size={12} aria-hidden="true" />
+                              เวลาประมาณ: {step.estimatedTime}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <ListChecks size={12} aria-hidden="true" />
+                              {step.todoList.length} หัวข้อที่ต้องเตรียม
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -914,7 +923,8 @@ export function SetupGuideModal({ isOpen, onClose, session }: SetupGuideModalPro
                           onClick={() => handleStartFloatingTour(idx)}
                           className="flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-cyan-500"
                         >
-                          <span>🧭 เริ่มนำทาง</span>
+                          <Compass size={12} aria-hidden="true" />
+                          <span>เริ่มนำทาง</span>
                           <ExternalLink size={12} />
                         </button>
                       </div>

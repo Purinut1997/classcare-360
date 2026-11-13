@@ -12,6 +12,7 @@ import {
   HeartPulse,
   History,
   Home,
+  Info,
   Link2,
   Mail,
   MapPin,
@@ -3550,8 +3551,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
             <p className="mt-1 text-2xl font-black text-slate-900">
               {classroomStats.total} <span className="text-xs font-bold text-slate-500">คน</span>
             </p>
-            <p className="mt-1 text-[11px] font-bold text-sky-800">
-              👦 ชาย {classroomStats.maleCount} · 👧 หญิง {classroomStats.femaleCount}
+            <p className="mt-1 text-[11px] font-bold text-[#2D72A3]">
+              ชาย {classroomStats.maleCount} · หญิง {classroomStats.femaleCount}
             </p>
           </div>
 
@@ -3671,13 +3672,15 @@ export function StudentsPage({ session }: StudentsPageProps) {
         </div>
 
         {studentLimitReached ? (
-          <p className="mt-2 text-xs font-bold text-rose-700">
-            ⚠️ โควตานักเรียนเต็ม: จัดเก็บนักเรียนที่ย้ายออก/จบการศึกษาแล้วเป็นประวัติ หรืออัปเกรดแพ็กเกจก่อนเพิ่มรายชื่อใหม่
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-rose-700">
+            <AlertTriangle size={13} className="shrink-0" aria-hidden="true" />
+            โควตานักเรียนเต็ม: จัดเก็บนักเรียนที่ย้ายออก/จบการศึกษาแล้วเป็นประวัติ หรืออัปเกรดแพ็กเกจก่อนเพิ่มรายชื่อใหม่
           </p>
         ) : null}
         {!canWriteRoster ? (
-          <p className="mt-2 text-xs font-bold text-amber-700">
-            ℹ️ โหมดอ่านอย่างเดียว: เจ้าของ Workspace ยังไม่ได้เปิดสิทธิ์เพิ่มและแก้ไขรายชื่อนักเรียนให้บัญชีนี้
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700">
+            <Info size={13} className="shrink-0" aria-hidden="true" />
+            โหมดอ่านอย่างเดียว: เจ้าของ Workspace ยังไม่ได้เปิดสิทธิ์เพิ่มและแก้ไขรายชื่อนักเรียนให้บัญชีนี้
           </p>
         ) : null}
       </section>
@@ -3815,8 +3818,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     onClick={() => void handleAutoRealignStudents()}
                     type="button"
                   >
-                    <RefreshCw size={15} className={isRealigning ? 'animate-spin' : ''} />
-                    <span>{isRealigning ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้องทันที'}</span>
+                    <RefreshCw size={15} className={isRealigning ? 'animate-spin' : ''} aria-hidden="true" />
+                    <span>{isRealigning ? 'กำลังจัดระเบียบ...' : 'แก้บัคนักเรียนอยู่ผิดห้องทันที'}</span>
                   </button>
                 </div>
               </div>
@@ -4024,8 +4027,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 onClick={() => void handleAutoRealignStudents()}
                 type="button"
               >
-                <RefreshCw size={14} className={isRealigning ? 'animate-spin' : ''} />
-                <span>{isRealigning ? 'กำลังจัดระเบียบ...' : '🔄 แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
+                <RefreshCw size={14} className={isRealigning ? 'animate-spin' : ''} aria-hidden="true" />
+                <span>{isRealigning ? 'กำลังจัดระเบียบ...' : 'แก้บัคนักเรียนอยู่ผิดห้อง'}</span>
               </button>
             </div>
           ) : null}

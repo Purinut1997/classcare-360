@@ -308,15 +308,15 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             {/* Sheet Header */}
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-cyan-700">ClassCare 360</p>
-                <h3 className="text-lg font-bold leading-tight text-slate-950">
+                <p className="text-[11px] font-bold text-[#2f7d5b]">ClassCare 360</p>
+                <h3 className="font-display text-lg font-bold leading-tight text-[#1f2a22]">
                   เมนูและงานครู
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAllMenusOpen(false)}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#dce3d7] bg-white text-[#5b6a5f] transition-colors hover:bg-[#fafbf8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b]"
                 aria-label="ปิดเมนู"
               >
                 <X size={18} />
@@ -327,21 +327,21 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             <div className="relative mt-3 shrink-0">
               <Search
                 size={17}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a5f]"
               />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหาเมนู เช่น เช็กชื่อ ตารางสอน คะแนน"
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm font-medium text-slate-900 placeholder:text-slate-500 focus:border-cyan-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-700/15 transition-colors"
+                className="h-11 w-full rounded-xl border border-[#dce3d7] bg-[#fafbf8] pl-10 pr-10 text-sm font-medium text-[#1f2a22] placeholder:text-[#7c897f] focus:border-[#2f7d5b] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2f7d5b]/15 transition-colors"
                 aria-label="ค้นหาเมนู"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600"
+                  className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[#5b6a5f] transition-colors hover:bg-[#edf1ea] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b]"
                   aria-label="ล้างคำค้น"
                 >
                   <X size={15} />
@@ -354,10 +354,10 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
               <button
                 type="button"
                 onClick={() => setSelectedCategory('all')}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
                   selectedCategory === 'all'
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'border-[#1c342b] bg-[#1c342b] text-white'
+                    : 'border-[#dce3d7] bg-white text-[#4b594f] hover:bg-[#fafbf8]'
                 }`}
               >
                 ทุกหมวด
@@ -373,10 +373,10 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                       setSelectedCategory(cat.key);
                       setExpandedCategory(cat.key);
                     }}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
                       isActive
-                        ? 'border-cyan-700 bg-cyan-50 text-cyan-950'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d]'
+                        : 'border-[#dce3d7] bg-white text-[#4b594f] hover:bg-[#fafbf8]'
                     }`}
                   >
                     <CategoryIcon size={14} aria-hidden="true" />
@@ -392,21 +392,21 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                 <Link
                   to={overviewItem.path}
                   onClick={() => setIsAllMenusOpen(false)}
-                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
+                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
                     activeView === 'overview'
-                      ? 'border-cyan-700 bg-cyan-50 text-cyan-950'
-                      : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
+                      ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d]'
+                      : 'border-[#dce3d7] bg-white text-[#1f2a22] hover:bg-[#fafbf8]'
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${activeView === 'overview' ? 'bg-cyan-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${activeView === 'overview' ? 'bg-[#2f7d5b] text-white' : 'bg-[#edf1ea] text-[#5b6a5f]'}`}>
                       <Home size={16} aria-hidden="true" />
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">ภาพรวมและทางลัด</p>
                     </div>
                   </div>
-                  {activeView === 'overview' ? <span className="shrink-0 text-xs font-semibold text-cyan-800">กำลังเปิด</span> : <ChevronDown size={16} className="-rotate-90 shrink-0 text-slate-400" aria-hidden="true" />}
+                  {activeView === 'overview' ? <span className="shrink-0 text-xs font-semibold text-[#1c573d]">กำลังเปิด</span> : <ChevronDown size={16} className="-rotate-90 shrink-0 text-[#86948a]" aria-hidden="true" />}
                 </Link>
               )}
 
@@ -444,17 +444,17 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                           externalUrl={item.externalUrl}
                           to={item.path}
                           onClick={() => setIsAllMenusOpen(false)}
-                          className={`flex min-h-11 items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 ${
+                          className={`flex min-h-11 items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
                             isActive
-                              ? 'border-cyan-700 bg-cyan-50 text-cyan-950'
-                              : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
+                              ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d]'
+                              : 'border-[#dce3d7] bg-white text-[#1f2a22] hover:bg-[#fafbf8]'
                           }`}
                         >
                           <span
                             className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
                               isActive
-                                ? 'bg-cyan-700 text-white'
-                                : 'bg-slate-100 text-slate-600'
+                                ? 'bg-[#2f7d5b] text-white'
+                                : 'bg-[#edf1ea] text-[#5b6a5f]'
                             }`}
                           >
                             <Icon size={15} aria-hidden="true" />
@@ -462,7 +462,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-semibold leading-tight">{item.label}</p>
                           </div>
-                          {isActive ? <span className="shrink-0 text-[10px] font-semibold text-cyan-800">กำลังเปิด</span> : <ChevronDown size={14} className="-rotate-90 shrink-0 text-slate-400" aria-hidden="true" />}
+                          {isActive ? <span className="shrink-0 text-[10px] font-semibold text-[#1c573d]">กำลังเปิด</span> : <ChevronDown size={14} className="-rotate-90 shrink-0 text-[#86948a]" aria-hidden="true" />}
                         </Link>
                       );
                     })}
@@ -527,13 +527,13 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             type="button"
             onClick={handleToggleAiChat}
             aria-label="ผู้ช่วยครูอัจฉริยะ น้องแคร์ AI"
-            className="group relative -mt-6.5 flex h-14.5 w-14.5 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+            className="group relative -mt-6.5 flex h-14.5 w-14.5 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-[#2f7d5b] via-[#3ea378] to-[#1c342b] p-0.5 text-white shadow-xl shadow-[#1c342b]/25 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
           >
-            {/* Breathing Neon Aura Ring */}
-            <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-pink-400 via-sky-400 to-amber-300 opacity-60 blur-xs animate-pulse group-hover:opacity-100 transition-opacity" />
+            {/* Subtle Botanical Ring */}
+            <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-[#86efac]/60 via-[#2f7d5b]/50 to-[#f5a623]/40 opacity-50 blur-xs group-hover:opacity-90 transition-opacity" />
 
             {/* Center Inner Circle */}
-            <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-600 shadow-inner overflow-hidden">
+            <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-[#2f7d5b] via-[#256649] to-[#1c342b] shadow-inner overflow-hidden">
               {isChatOpen ? (
                 <X size={24} className="text-white drop-shadow" />
               ) : (
@@ -545,7 +545,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                   />
                   <Sparkles
                     size={12}
-                    className="absolute -top-1 -right-1 text-amber-300 animate-bounce drop-shadow"
+                    className="absolute -top-1 -right-1 text-amber-200 drop-shadow"
                   />
                 </div>
               )}
@@ -553,20 +553,20 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
 
             {/* Unread Message Badge */}
             {unreadCount > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 z-20 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-rose-500 px-1 text-[9px] font-black text-white shadow">
+              <span className="absolute -right-0.5 -top-0.5 z-20 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-[#c25970] px-1 text-[9px] font-bold text-white shadow">
                 {unreadCount}
               </span>
             ) : null}
 
-            {/* Illuminated AI Mini Badge */}
-            <span className="absolute -bottom-1.5 z-20 rounded-full bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-white shadow-xs border border-white/60">
+            {/* AI Mini Badge */}
+            <span className="absolute -bottom-1.5 z-20 rounded-full bg-[#1c342b] px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider text-[#d1fae5] shadow-xs border border-white/70">
               AI
             </span>
           </button>
 
           <span
-            className={`mt-0.5 text-[8.5px] font-black leading-none tracking-tight transition-colors ${
-              isChatOpen ? 'text-cyan-600 font-extrabold' : 'text-slate-600'
+            className={`mt-0.5 text-[8.5px] font-bold leading-none tracking-tight transition-colors ${
+              isChatOpen ? 'text-[#2f7d5b] font-extrabold' : 'text-[#5b6a5f]'
             }`}
           >
             {isChatOpen ? 'ปิดแชท' : 'น้องแคร์ AI'}

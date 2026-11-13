@@ -2,18 +2,27 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
+  Award,
   BookOpen,
+  CalendarCheck2,
   Camera,
   Check,
+  CheckCircle2,
   ChevronDown,
+  Clock,
+  FileText,
   Home,
   MoreHorizontal,
   Pencil,
   Printer,
   Send,
+  Settings2,
   Smile,
+  Thermometer,
+  Undo2,
   UserCheck,
   X,
+  XCircle,
 } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { AttendanceOcrModal } from '../../components/attendance/AttendanceOcrModal';
@@ -133,13 +142,13 @@ const statusLabels = Object.fromEntries(statusOptions.map((option) => [option.va
 // Tap cycles through the four most common statuses; sick/activity live in the long-press sheet.
 const TAP_CYCLE: AttendanceStatus[] = ['present', 'absent', 'leave', 'late'];
 
-const STATUS_EMOJI: Record<AttendanceStatus, string> = {
-  present: '😊',
-  absent: '😢',
-  late: '🐢',
-  leave: '📝',
-  sick: '🤒',
-  activity: '🏅',
+const STATUS_ICON: Record<AttendanceStatus, typeof CheckCircle2> = {
+  present: CheckCircle2,
+  absent: XCircle,
+  late: Clock,
+  leave: FileText,
+  sick: Thermometer,
+  activity: Award,
 };
 
 const postItTone: Record<
@@ -838,7 +847,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       setUndoMarks(null);
       feedback.endOperation(operationId);
       feedback.success({
-        title: 'บันทึกเช็คชื่อแล้ว 🐾',
+        title: 'บันทึกเช็คชื่อแล้ว',
         message: 'บันทึกข้อมูลในโหมดตัวอย่างครบทุกคนแล้ว',
         details: successDetails,
       });
@@ -919,7 +928,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     });
     feedback.endOperation(operationId);
     feedback.success({
-      title: 'บันทึกเช็คชื่อแล้ว 🐾',
+      title: 'บันทึกเช็คชื่อแล้ว',
       message: `บันทึกสถานะนักเรียนครบ ${data?.length || 0} คน`,
       details: successDetails,
     });
@@ -1080,7 +1089,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setQuickRollInput('');
     setIsQuickRollOpen(false);
     const statusLabel = statusLabels[quickRollStatus] || quickRollStatus;
-    setNotice(`⚡ บันทึกสถานะ [${statusLabel}] ให้นักเรียนเลขที่ ${targetNumbers.join(', ')} เรียบร้อยแล้ว (ที่เหลือเป็น [มา]) — กด "บันทึกเช็คชื่อ" ได้เลย`);
+    setNotice(`บันทึกสถานะ [${statusLabel}] ให้นักเรียนเลขที่ ${targetNumbers.join(', ')} เรียบร้อยแล้ว (ที่เหลือเป็น [มา]) — กด "บันทึกเช็คชื่อ" ได้เลย`);
   }
 
   function handleApplyAttendanceOcr(recordsToApply: Record<string, { status: AttendanceStatus; note?: string | null }>) {
@@ -1140,33 +1149,37 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   return (
-    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
+    <main className="app-page min-h-screen pb-64 lg:pb-32">
       {/* ======================================================== */}
-      {/* CORKBOARD / LINED PAPER CONTAINER (Style 5: Post-it)     */}
+      {/* MORNING SAGE LINEN CONTAINER                             */}
       {/* ======================================================== */}
-      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+      <div className="rounded-[28px] border border-[#DCE3D7] bg-[#FAFBF8] p-4 sm:p-7 shadow-[0_2px_12px_rgba(28,52,43,0.05)]">
         
         {/* Header */}
         <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
+              <h1 className="text-2xl sm:text-3xl font-black text-[#1C342B] tracking-tight flex items-center gap-2">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E9F0EA] text-[#2F7D5B] border border-[#DCE3D7]">
+                  <CalendarCheck2 size={20} aria-hidden="true" />
+                </span>
                 <span>เช็คชื่อ{isToday ? 'วันนี้' : 'ย้อนหลัง'}</span>
-                <span className="text-xl sm:text-2xl">📌</span>
               </h1>
             </div>
-            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
+            <p className="mt-1 text-sm sm:text-base font-semibold text-[#5A6F64]">
               {thaiDateLabel} · {mode === 'homeroom' ? (periodLabel === 'เช้า' ? 'ช่วงเช้า' : periodLabel) : `${subjectName} (${periodLabel})`}
             </p>
-            <p className="mt-1 text-sm sm:text-base font-medium text-[#292524]">
-              แตะรายชื่อเพื่อเริ่มเช็กชื่อ · แตะซ้ำเพื่อเปลี่ยนสถานะ · กด ✏️ เพื่อเลือกสถานะเพิ่มเติม
+            <p className="mt-1 flex flex-wrap items-center gap-1 text-xs sm:text-sm font-medium text-[#5A6F64]">
+              <span>แตะรายชื่อเพื่อเริ่มเช็กชื่อ · แตะซ้ำเพื่อเปลี่ยนสถานะ · กดไอคอน</span>
+              <Pencil size={13} className="inline text-[#2F7D5B]" aria-hidden="true" />
+              <span>เพื่อเลือกสถานะเพิ่มเติม</span>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* Keep the date control visible so missed days are easy to record later. */}
-            <div className={`rounded-xl border px-2.5 py-1.5 shadow-xs ${isToday ? 'border-sky-200 bg-sky-50/80' : 'border-amber-300 bg-amber-50'}`}>
-              <span className="mb-0.5 block text-[10px] font-black text-slate-500">วันที่เช็กชื่อ</span>
+            <div className={`rounded-xl border px-2.5 py-1.5 shadow-2xs ${isToday ? 'border-[#DCE3D7] bg-white' : 'border-amber-300 bg-amber-50'}`}>
+              <span className="mb-0.5 block text-[10px] font-black text-[#5A6F64]">วันที่เช็กชื่อ</span>
               <div className="flex items-center gap-1.5">
                 <ThaiDatePicker
                   className="h-8 min-w-36 bg-white px-2.5 text-xs"
@@ -1174,17 +1187,17 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   max={getTodayDate()}
                   onValueChange={setAttendanceDate}
                 />
-                <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${isToday ? 'bg-sky-100 text-sky-800' : 'bg-amber-200 text-amber-950'}`}>
+                <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${isToday ? 'bg-[#E9F0EA] text-[#2F7D5B]' : 'bg-amber-200 text-amber-950'}`}>
                   {isToday ? 'วันนี้' : 'ย้อนหลัง'}
                 </span>
               </div>
             </div>
             {/* Classroom Selector */}
-            <div className="relative inline-flex items-center rotate-[1.5deg] shadow-xs">
+            <div className="relative inline-flex items-center shadow-2xs">
               <select
                 value={classroomId}
                 onChange={(e) => setClassroomId(e.target.value)}
-                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                className="appearance-none rounded-xl border border-[#DCE3D7] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1C342B] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2F7D5B]/40 cursor-pointer"
               >
                 {displayClassrooms.map((c) => {
                   const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -1195,14 +1208,14 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   );
                 })}
               </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#57534e]" />
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#5A6F64]" />
             </div>
 
             {/* More Settings Button */}
             <button
               type="button"
               onClick={() => setIsMoreOpen(true)}
-              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-[#c7bca9] bg-white text-[#44403c] hover:bg-white/80 active:scale-95 transition shadow-xs rotate-[-1deg]"
+              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-[#DCE3D7] bg-white text-[#1C342B] hover:bg-[#E9F0EA] active:scale-95 transition shadow-2xs"
               title="เมนูเพิ่มเติม (เปลี่ยนวันที่ / รายวิชา / แก้ไขย้อนหลัง)"
             >
               <MoreHorizontal size={17} />
@@ -1210,7 +1223,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         </header>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[#e2d5c3] bg-white/70 p-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[#DCE3D7] bg-white p-2">
           <span className="px-2 text-xs font-bold text-slate-600">กำลังเช็กชื่อแบบ:</span>
           {(['homeroom', 'subject'] as AttendanceMode[]).map((attendanceMode) => {
             const Icon = modeCopy[attendanceMode].icon;
@@ -1488,26 +1501,26 @@ export function AttendancePage({ session }: AttendancePageProps) {
       </div>
 
       {/* ======================================================== */}
-      {/* BOTTOM FOOTER DOCK: Matches Image 2 (Style 5)             */}
+      {/* BOTTOM FOOTER DOCK                                       */}
       {/* ======================================================== */}
       {classroomStudents.length > 0 && (
-        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#c7bca9] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8]/95 p-3.5 shadow-xl backdrop-blur-md">
           {/* Summary Text: มา 27 ขาด 1 ลา 1 สาย 1 */}
-          <div className="flex items-center justify-center gap-3 sm:gap-4 text-base sm:text-lg font-bold text-[#1c1917]">
+          <div className="flex items-center justify-center gap-3 sm:gap-4 text-base sm:text-lg font-bold text-[#1C342B]">
             <span>
-              ยังไม่เช็ก <b className="text-slate-600">{unmarkedCount}</b>
+              ยังไม่เช็ก <b className="text-[#5A6F64]">{unmarkedCount}</b>
             </span>
             <span>
-              มา <b className="text-[#1b3e04]">{summary.find((s) => s.value === 'present')?.count || 0}</b>
+              มา <b className="text-[#2F7D5B]">{summary.find((s) => s.value === 'present')?.count || 0}</b>
             </span>
             <span>
               ขาด <b className="text-[#881337]">{summary.find((s) => s.value === 'absent')?.count || 0}</b>
             </span>
             <span>
-              ลา <b className="text-[#034f77]">{summary.find((s) => s.value === 'leave')?.count || 0}</b>
+              ลา <b className="text-[#2D72A3]">{summary.find((s) => s.value === 'leave')?.count || 0}</b>
             </span>
             <span>
-              สาย <b className="text-[#78350f]">{summary.find((s) => s.value === 'late')?.count || 0}</b>
+              สาย <b className="text-[#B06C14]">{summary.find((s) => s.value === 'late')?.count || 0}</b>
             </span>
             {((summary.find((s) => s.value === 'sick')?.count || 0) + (summary.find((s) => s.value === 'activity')?.count || 0)) > 0 && (
               <span>
@@ -1522,23 +1535,24 @@ export function AttendancePage({ session }: AttendancePageProps) {
               type="button"
               onClick={undoLastMarkChange}
               disabled={isSubmitting}
-              className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-1 rounded-xl border border-[#DCE3D7] bg-white px-3 text-sm font-black text-[#1C342B] hover:bg-[#E9F0EA] disabled:opacity-50"
               title="ย้อนการเปลี่ยนสถานะล่าสุดที่ยังไม่ได้บันทึก"
             >
-              ↶ ย้อนกลับ
+              <Undo2 size={15} aria-hidden="true" />
+              <span>ย้อนกลับ</span>
             </button>
           ) : null}
-          {/* Big Charcoal Button with Golden Shadow */}
+          {/* Primary Save Button */}
           <button
             type="button"
             onClick={() => void handleSaveRecords()}
             disabled={isSubmitting || isHolidayBlocked || unmarkedCount > 0}
-            className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+            className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1C342B] hover:bg-[#152821] text-white text-base sm:text-lg font-bold shadow-md active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
               <span>กำลังบันทึก...</span>
             ) : (
-              <span>{unmarkedCount > 0 ? `ตรวจอีก ${unmarkedCount} คน` : hasUnsavedChanges ? `บันทึก ✓ (${classroomStudents.length} คน)` : 'บันทึกเรียบร้อย ✓'}</span>
+              <span>{unmarkedCount > 0 ? `ตรวจอีก ${unmarkedCount} คน` : hasUnsavedChanges ? `บันทึก (${classroomStudents.length} คน)` : 'บันทึกเรียบร้อย'}</span>
             )}
           </button>
           </div>
@@ -1549,7 +1563,8 @@ export function AttendancePage({ session }: AttendancePageProps) {
               disabled={isSubmitting}
               className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 text-xs font-black text-amber-950 hover:bg-amber-100 disabled:opacity-50"
             >
-              ↶ ย้อนผลเช็กชื่อที่บันทึกล่าสุด
+              <Undo2 size={14} aria-hidden="true" />
+              <span>ย้อนผลเช็กชื่อที่บันทึกล่าสุด</span>
             </button>
           ) : null}
         </div>
@@ -1567,11 +1582,11 @@ export function AttendancePage({ session }: AttendancePageProps) {
               onClick={() => setSheetStudentId(null)}
               aria-hidden="true"
             />
-            <div className="relative z-10 w-full max-w-lg rounded-[28px] sm:rounded-[32px] border border-[#c7bca9] bg-[#fbf8f3] p-5 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto">
+            <div className="relative z-10 w-full max-w-lg rounded-[28px] sm:rounded-[32px] border border-[#DCE3D7] bg-[#FAFBF8] p-5 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto">
               <button
                 type="button"
                 onClick={() => setSheetStudentId(null)}
-                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-stone-400 hover:bg-stone-200/60 hover:text-stone-800 transition cursor-pointer"
+                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-[#5A6F64] hover:bg-[#E9F0EA] hover:text-[#1C342B] transition cursor-pointer"
                 aria-label="ปิดหน้าต่าง"
               >
                 <X size={18} />
@@ -1579,12 +1594,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
               {/* Header with Post-it Number & Name */}
               <div className="flex items-center gap-3">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-bold shadow-xs ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].bg : 'border border-dashed border-slate-300 bg-white'} ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].text : 'text-slate-500'}`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-bold shadow-xs ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].bg : 'border border-dashed border-[#DCE3D7] bg-white'} ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].text : 'text-[#5A6F64]'}`}>
                   {sheetStudentIndex + 1}
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="rounded-full bg-slate-200/90 px-2.5 py-0.5 text-xs font-bold text-slate-800">
+                    <span className="rounded-full bg-[#E9F0EA] px-2.5 py-0.5 text-xs font-bold text-[#1C342B]">
                       เลขที่ {sheetStudentIndex + 1}
                     </span>
                     {sheetStudent.nickname && (
@@ -1593,7 +1608,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-1 text-lg sm:text-xl font-bold text-slate-950">
+                  <h3 className="mt-1 text-lg sm:text-xl font-bold text-[#1C342B]">
                     {sheetStudent.first_name} {sheetStudent.last_name}
                   </h3>
                 </div>
@@ -1604,6 +1619,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 {statusOptions.map((opt) => {
                   const isSelected = marks[sheetStudent.id] === opt.value;
                   const tone = postItTone[opt.value];
+                  const StatusIcon = STATUS_ICON[opt.value];
                   return (
                     <button
                       key={opt.value}
@@ -1614,10 +1630,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
                       className={`flex h-12 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
                         isSelected
                           ? `${tone.bg} ${tone.text} ring-2 ring-current shadow-xs`
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          : 'border border-[#DCE3D7] bg-white text-[#1C342B] hover:bg-[#E9F0EA]/60'
                       }`}
                     >
-                      <span>{STATUS_EMOJI[opt.value]}</span>
+                      <StatusIcon size={15} aria-hidden="true" />
                       <span>{opt.label}</span>
                       {isSelected && <Check size={14} className="stroke-[3]" />}
                     </button>
@@ -1627,12 +1643,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
               {/* Note Input */}
               <div className="mt-4">
-                <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                <label className="block text-xs sm:text-sm font-bold text-[#1C342B] mb-1">
                   หมายเหตุ (เช่น อาการป่วย, เหตุผลการลา):
                 </label>
                 <input
                   type="text"
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-xs sm:text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-slate-400 shadow-2xs"
+                  className="h-11 w-full rounded-xl border border-[#DCE3D7] bg-white px-3.5 text-xs sm:text-sm font-bold text-[#1C342B] outline-none focus:ring-2 focus:ring-[#2F7D5B]/40 placeholder:text-[#8EA096] shadow-2xs"
                   placeholder={`ระบุหมายเหตุสำหรับ ${sheetStudent.first_name}...`}
                   value={notes[sheetStudent.id] || ''}
                   onChange={(e) => setNotes((prev) => ({ ...prev, [sheetStudent.id]: e.target.value }))}
@@ -1640,7 +1656,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               </div>
 
               {/* Navigation and Done */}
-              <div className="mt-5 flex items-center justify-between gap-2 pt-3 border-t border-slate-200">
+              <div className="mt-5 flex items-center justify-between gap-2 pt-3 border-t border-[#DCE3D7]">
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -1650,7 +1666,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                         setSheetStudentId(classroomStudents[sheetStudentIndex - 1].id);
                       }
                     }}
-                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 disabled:opacity-30 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                    className="rounded-xl border border-[#DCE3D7] bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-[#1C342B] disabled:opacity-30 hover:bg-[#E9F0EA] active:scale-95 transition cursor-pointer"
                   >
                     ← ก่อนหน้า
                   </button>
@@ -1662,7 +1678,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                         setSheetStudentId(classroomStudents[sheetStudentIndex + 1].id);
                       }
                     }}
-                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 disabled:opacity-30 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                    className="rounded-xl border border-[#DCE3D7] bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-[#1C342B] disabled:opacity-30 hover:bg-[#E9F0EA] active:scale-95 transition cursor-pointer"
                   >
                     ถัดไป →
                   </button>
@@ -1670,7 +1686,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 <button
                   type="button"
                   onClick={() => setSheetStudentId(null)}
-                  className="rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] px-6 py-2 text-xs sm:text-sm font-bold text-white shadow-[2px_3px_0_#f59e0b] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                  className="rounded-xl bg-[#1C342B] hover:bg-[#152821] px-6 py-2 text-xs sm:text-sm font-bold text-white shadow-sm active:translate-y-0.5 transition-all cursor-pointer"
                 >
                   เสร็จสิ้น
                 </button>
@@ -1691,18 +1707,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
               onClick={() => setIsMoreOpen(false)}
               aria-hidden="true"
             />
-            <div className="relative z-10 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl max-h-[90dvh] overflow-y-auto">
+            <div className="relative z-10 w-full max-w-md rounded-3xl border border-[#DCE3D7] bg-[#FAFBF8] p-5 sm:p-6 shadow-2xl max-h-[90dvh] overflow-y-auto">
               <button
                 type="button"
                 onClick={() => setIsMoreOpen(false)}
-                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 cursor-pointer"
+                className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-[#5A6F64] hover:bg-[#E9F0EA] cursor-pointer"
                 aria-label="ปิดหน้าต่าง"
               >
                 <X size={18} />
               </button>
 
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span>⚙️ การตั้งค่า & เครื่องมือเพิ่มเติม</span>
+            <h3 className="text-base font-bold text-[#1C342B] flex items-center gap-2">
+              <Settings2 size={17} className="text-[#2F7D5B]" aria-hidden="true" />
+              <span>การตั้งค่า &amp; เครื่องมือเพิ่มเติม</span>
             </h3>
 
             {/* Correct existing session date */}

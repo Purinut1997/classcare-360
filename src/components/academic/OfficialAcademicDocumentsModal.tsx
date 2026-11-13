@@ -1002,7 +1002,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                   {/* Section 4: Action Footer */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
                     <p className="text-xs text-slate-400">
-                      💡 เมื่อกดบันทึก ข้อมูลและตราโรงเรียนจะถูกจัดเก็บเข้าสู่ระบบเพื่อใช้กับเอกสาร ปพ.๕, ปพ.๖ และหนังสือรับรองโดยอัตโนมัติ
+                      เมื่อกดบันทึก ข้อมูลและตราโรงเรียนจะถูกจัดเก็บเข้าสู่ระบบเพื่อใช้กับเอกสาร ปพ.๕, ปพ.๖ และหนังสือรับรองโดยอัตโนมัติ
                     </p>
 
                     <button

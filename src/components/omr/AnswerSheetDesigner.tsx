@@ -1,16 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import {
+  Award,
   Check,
   ChevronRight,
   Download,
   FileText,
+  Globe,
+  Lightbulb,
   Printer,
   RotateCcw,
+  Save,
+  School,
   Sparkles,
   Sliders,
   Play,
   Layers,
   FolderArchive,
+  Target,
   Upload,
   Plus,
   Trash2,
@@ -27,6 +33,7 @@ import {
   Lock,
   BookOpen,
   ClipboardList,
+  Zap,
 } from 'lucide-react';
 import type { AnswerSheetConfig, AnswerSheetLayout, ChoiceLabelType, StudentIdFormat, ExamBankTemplate } from '../../types/omr';
 import { CHOICE_KEYS_ABCD, generateSyntheticFilledSheet, getChoiceLabel } from '../../lib/omrEngine';
@@ -516,36 +523,36 @@ export function AnswerSheetDesigner({
     });
 
     setActiveSubTab('preview');
-    showToast(`⚡ ปรับเป็นแม่แบบ "${preset.label}" เรียบร้อย พร้อมสั่งพิมพ์ได้ทันที!`);
+    showToast(`ปรับเป็นแม่แบบ "${preset.label}" เรียบร้อย พร้อมสั่งพิมพ์ได้ทันที`);
   };
 
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-xl animate-in slide-in-from-top-2">
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-2xl bg-[#1C342B] px-4 py-3 text-xs font-bold text-white shadow-xl animate-in slide-in-from-top-2">
           <CheckCircle2 size={16} className="text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* ⚡ 1-Click Express Presets Bar for Non-Tech Teachers */}
-      <div className="rounded-3xl border-2 border-cyan-400/80 bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-emerald-500/10 p-4 sm:p-5 shadow-xs">
+      {/* 1-Click Express Presets Bar for Non-Tech Teachers */}
+      <div className="rounded-3xl border-2 border-[#DCE3D7] bg-gradient-to-r from-[#E9F0EA]/80 via-[#FAFBF8] to-[#E9F0EA]/60 p-4 sm:p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-600 text-white shadow-xs">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#2F7D5B] text-white shadow-xs">
               <Sparkles size={16} />
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black text-slate-950">
+                <h3 className="text-sm sm:text-base font-black text-[#1C342B]">
                   แม่แบบกระดาษคำตอบสำเร็จรูป (1 คลิกพร้อมพิมพ์ทันที)
                 </h3>
-                <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[10px] font-black text-cyan-800 border border-cyan-200">
+                <span className="rounded-full bg-[#E9F0EA] px-2.5 py-0.5 text-[10px] font-black text-[#2F7D5B] border border-[#DCE3D7]">
                   สำหรับคุณครู
                 </span>
               </div>
-              <p className="text-xs font-bold text-slate-600 mt-0.5">
+              <p className="text-xs font-bold text-[#5A6F64] mt-0.5">
                 เลือกจำนวนข้อที่ต้องการ ระบบจะปรับขนาดและเตรียมกระดาษให้พร้อมสั่งพิมพ์ทันที
               </p>
             </div>
@@ -563,24 +570,26 @@ export function AnswerSheetDesigner({
               choiceLabelType: 'THAI',
               label: '20 ข้อ ก-ง (ครึ่ง A4 ยอดนิยม)',
             })}
-            className="group relative flex flex-col justify-between rounded-2xl border-2 border-slate-200 bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-500 hover:shadow-md active:scale-[0.98]"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-[#DCE3D7] bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[#2F7D5B] hover:shadow-md active:scale-[0.98]"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 border border-emerald-200">
+                <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-[#2F7D5B] border border-emerald-200">
                   ครึ่ง A4 (1 แผ่นได้ 2 ชุด)
                 </span>
-                <span className="text-xs font-black text-slate-400 group-hover:text-cyan-600">20 ข้อ</span>
+                <span className="text-xs font-black text-[#5A6F64] group-hover:text-[#2F7D5B]">20 ข้อ</span>
               </div>
-              <p className="font-black text-sm text-slate-900 mt-2 group-hover:text-cyan-700">
-                🌱 20 ข้อ (ประหยัดกระดาษ)
+              <p className="font-black text-sm text-[#1C342B] mt-2 group-hover:text-[#2F7D5B] inline-flex items-center gap-1.5">
+                <Layers size={14} className="text-[#2F7D5B]" aria-hidden="true" />
+                <span>20 ข้อ (ประหยัดกระดาษ)</span>
               </p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
+              <p className="text-[11px] font-medium text-[#5A6F64] mt-1">
                 ก ข ค ง · ตัวหนังสือใหญ่ ประหยัดงบถ่ายเอกสาร
               </p>
             </div>
-            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50/70 py-1.5 text-xs font-black text-cyan-800 group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition shadow-2xs">
-              <span>⚡ เลือกแม่แบบนี้</span>
+            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#E9F0EA]/70 py-1.5 text-xs font-black text-[#1C342B] group-hover:bg-[#2F7D5B] group-hover:text-white group-hover:border-[#2F7D5B] transition shadow-2xs">
+              <Zap size={13} aria-hidden="true" />
+              <span>เลือกแม่แบบนี้</span>
               <ChevronRight size={13} />
             </div>
           </button>
@@ -595,24 +604,26 @@ export function AnswerSheetDesigner({
               choiceLabelType: 'THAI',
               label: '30 ข้อ ก-ง (กลางภาคมาตรฐาน)',
             })}
-            className="group relative flex flex-col justify-between rounded-2xl border-2 border-slate-200 bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-500 hover:shadow-md active:scale-[0.98]"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-[#DCE3D7] bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[#2F7D5B] hover:shadow-md active:scale-[0.98]"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 border border-blue-200">
+                <span className="rounded-lg bg-sky-50 px-2 py-0.5 text-[10px] font-black text-[#2D72A3] border border-sky-200">
                   มาตรฐานกลางภาค
                 </span>
-                <span className="text-xs font-black text-slate-400 group-hover:text-cyan-600">30 ข้อ</span>
+                <span className="text-xs font-black text-[#5A6F64] group-hover:text-[#2F7D5B]">30 ข้อ</span>
               </div>
-              <p className="font-black text-sm text-slate-900 mt-2 group-hover:text-cyan-700">
-                📘 30 ข้อ (กลางภาค)
+              <p className="font-black text-sm text-[#1C342B] mt-2 group-hover:text-[#2F7D5B] inline-flex items-center gap-1.5">
+                <BookOpen size={14} className="text-[#2D72A3]" aria-hidden="true" />
+                <span>30 ข้อ (กลางภาค)</span>
               </p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
+              <p className="text-[11px] font-medium text-[#5A6F64] mt-1">
                 ก ข ค ง · วงกลมใหญ่ ฝนง่าย ตรวจแม่นยำสูง
               </p>
             </div>
-            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50/70 py-1.5 text-xs font-black text-cyan-800 group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition shadow-2xs">
-              <span>⚡ เลือกแม่แบบนี้</span>
+            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#E9F0EA]/70 py-1.5 text-xs font-black text-[#1C342B] group-hover:bg-[#2F7D5B] group-hover:text-white group-hover:border-[#2F7D5B] transition shadow-2xs">
+              <Zap size={13} aria-hidden="true" />
+              <span>เลือกแม่แบบนี้</span>
               <ChevronRight size={13} />
             </div>
           </button>
@@ -627,24 +638,26 @@ export function AnswerSheetDesigner({
               choiceLabelType: 'THAI',
               label: '60 ข้อ ก-ง (ปลายภาค 2 คอลัมน์)',
             })}
-            className="group relative flex flex-col justify-between rounded-2xl border-2 border-slate-200 bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-500 hover:shadow-md active:scale-[0.98]"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-[#DCE3D7] bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[#2F7D5B] hover:shadow-md active:scale-[0.98]"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="rounded-lg bg-purple-50 px-2 py-0.5 text-[10px] font-black text-purple-700 border border-purple-200">
+                <span className="rounded-lg bg-violet-50 px-2 py-0.5 text-[10px] font-black text-[#6B63B5] border border-violet-200">
                   ปลายภาค 2 คอลัมน์
                 </span>
-                <span className="text-xs font-black text-slate-400 group-hover:text-cyan-600">60 ข้อ</span>
+                <span className="text-xs font-black text-[#5A6F64] group-hover:text-[#2F7D5B]">60 ข้อ</span>
               </div>
-              <p className="font-black text-sm text-slate-900 mt-2 group-hover:text-cyan-700">
-                🎯 60 ข้อ (ปลายภาค)
+              <p className="font-black text-sm text-[#1C342B] mt-2 group-hover:text-[#2F7D5B] inline-flex items-center gap-1.5">
+                <Target size={14} className="text-[#6B63B5]" aria-hidden="true" />
+                <span>60 ข้อ (ปลายภาค)</span>
               </p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
+              <p className="text-[11px] font-medium text-[#5A6F64] mt-1">
                 ก ข ค ง · แบ่ง 2 คอลัมน์ ครบจบใน A4 1 แผ่น
               </p>
             </div>
-            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50/70 py-1.5 text-xs font-black text-cyan-800 group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition shadow-2xs">
-              <span>⚡ เลือกแม่แบบนี้</span>
+            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#E9F0EA]/70 py-1.5 text-xs font-black text-[#1C342B] group-hover:bg-[#2F7D5B] group-hover:text-white group-hover:border-[#2F7D5B] transition shadow-2xs">
+              <Zap size={13} aria-hidden="true" />
+              <span>เลือกแม่แบบนี้</span>
               <ChevronRight size={13} />
             </div>
           </button>
@@ -659,24 +672,26 @@ export function AnswerSheetDesigner({
               choiceLabelType: 'THAI',
               label: '100 ข้อ ก-ง (สอบระดับชั้น 4 คอลัมน์)',
             })}
-            className="group relative flex flex-col justify-between rounded-2xl border-2 border-slate-200 bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-500 hover:shadow-md active:scale-[0.98]"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-[#DCE3D7] bg-white p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[#2F7D5B] hover:shadow-md active:scale-[0.98]"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700 border border-amber-200">
+                <span className="rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-black text-[#D98B26] border border-amber-200">
                   วัดผลใหญ่ 4 คอลัมน์
                 </span>
-                <span className="text-xs font-black text-slate-400 group-hover:text-cyan-600">100 ข้อ</span>
+                <span className="text-xs font-black text-[#5A6F64] group-hover:text-[#2F7D5B]">100 ข้อ</span>
               </div>
-              <p className="font-black text-sm text-slate-900 mt-2 group-hover:text-cyan-700">
-                🏆 100 ข้อ (วัดผลใหญ่)
+              <p className="font-black text-sm text-[#1C342B] mt-2 group-hover:text-[#2F7D5B] inline-flex items-center gap-1.5">
+                <Award size={14} className="text-[#D98B26]" aria-hidden="true" />
+                <span>100 ข้อ (วัดผลใหญ่)</span>
               </p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
+              <p className="text-[11px] font-medium text-[#5A6F64] mt-1">
                 ก ข ค ง · 4 คอลัมน์ มาตรฐานสอบรวม/ระดับชั้น
               </p>
             </div>
-            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50/70 py-1.5 text-xs font-black text-cyan-800 group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600 transition shadow-2xs">
-              <span>⚡ เลือกแม่แบบนี้</span>
+            <div className="mt-3.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#E9F0EA]/70 py-1.5 text-xs font-black text-[#1C342B] group-hover:bg-[#2F7D5B] group-hover:text-white group-hover:border-[#2F7D5B] transition shadow-2xs">
+              <Zap size={13} aria-hidden="true" />
+              <span>เลือกแม่แบบนี้</span>
               <ChevronRight size={13} />
             </div>
           </button>
@@ -910,7 +925,8 @@ export function AnswerSheetDesigner({
                       }`}
                     >
                       <span className="text-xs font-black flex items-center gap-1.5">
-                        🌐 กระดาษคำตอบกลาง (ใช้ได้ทุกห้อง)
+                        <Globe size={13} className="text-[#2F7D5B]" aria-hidden="true" />
+                        <span>กระดาษคำตอบกลาง (ใช้ได้ทุกห้อง)</span>
                       </span>
                       <span className="text-[11px] text-slate-500 font-normal mt-0.5">
                         ไม่พิมพ์ชื่อห้องลงบนหัวกระดาษ ให้นักเรียนกรอกห้องและเลขที่ด้วยตนเอง (แนะนำสำหรับพิมพ์แจกทุกชั้น)
@@ -927,7 +943,8 @@ export function AnswerSheetDesigner({
                       }`}
                     >
                       <span className="text-xs font-black flex items-center gap-1.5">
-                        🏫 ระบุห้องเรียนเฉพาะ
+                        <School size={13} className="text-[#2D72A3]" aria-hidden="true" />
+                        <span>ระบุห้องเรียนเฉพาะ</span>
                       </span>
                       <span className="text-[11px] text-slate-500 font-normal mt-0.5">
                         พิมพ์ชื่อห้องเรียนลงบนหัวกระดาษ เหมาะสำหรับการสอบเฉพาะห้อง
@@ -1257,7 +1274,7 @@ export function AnswerSheetDesigner({
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="text-xs sm:text-sm font-black text-emerald-950">
-                      ✅ บันทึกเฉลยอัตโนมัติแล้ว (Auto-Saved)
+                      บันทึกเฉลยอัตโนมัติแล้ว (Auto-Saved)
                     </h4>
                     <span className="rounded-full bg-emerald-200/70 px-2 py-0.5 text-[10px] font-black text-emerald-900 border border-emerald-300">
                       จำค่าล่าสุด {lastSavedTime} น.
@@ -1273,11 +1290,11 @@ export function AnswerSheetDesigner({
                 <button
                   type="button"
                   onClick={() => setShowQuickPasteModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-white px-3 py-1.5 text-xs font-black text-cyan-900 shadow-2xs hover:bg-cyan-50 transition active:scale-95"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-white px-3 py-1.5 text-xs font-black text-[#1C342B] shadow-2xs hover:bg-[#F6F7F3] transition active:scale-95"
                   title="ก๊อปปี้เฉลยมาวางรวดเดียว เช่น ก ข ค ง หรือ ABCD"
                 >
-                  <ClipboardList size={14} className="text-cyan-600" />
-                  📋 วางเฉลยรวดเดียว (เช่น กขคง...)
+                  <ClipboardList size={14} className="text-[#2F7D5B]" />
+                  <span>วางเฉลยรวดเดียว (เช่น กขคง...)</span>
                 </button>
 
                 <button
@@ -1286,13 +1303,13 @@ export function AnswerSheetDesigner({
                     await saveCloudExamTemplate(config, undefined);
                     const updated = await fetchCloudExamTemplates(workspaceId, effectiveTeacherId);
                     setBankTemplates(updated);
-                    showToast(`💾 บันทึกชุดข้อสอบและเฉลย "${config.title}" ลงคลังข้อสอบและคลาวด์เรียบร้อยแล้ว`);
+                    showToast(`บันทึกชุดข้อสอบและเฉลย "${config.title}" ลงคลังข้อสอบและคลาวด์เรียบร้อยแล้ว`);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-2xs hover:bg-indigo-700 transition active:scale-95"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#1C342B] px-3.5 py-1.5 text-xs font-black text-white shadow-2xs hover:bg-[#152821] transition active:scale-95"
                   title="บันทึกเก็บไว้ในคลังเพื่อนำกลับมาใช้ซ้ำในเทอมถัดไป หรือแชร์ให้ครูท่านอื่น"
                 >
-                  <FolderArchive size={14} />
-                  💾 บันทึกลงคลังข้อสอบ
+                  <Save size={14} />
+                  <span>บันทึกลงคลังข้อสอบ</span>
                 </button>
               </div>
             </div>
@@ -1910,8 +1927,11 @@ export function AnswerSheetDesigner({
 
             {/* Modal Body */}
             <div className="p-5 space-y-4 overflow-y-auto">
-              <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 text-xs text-slate-600 space-y-1">
-                <span className="font-bold text-slate-900 block">💡 รูปแบบข้อความที่รองรับ (คัดลอกมาวางได้เลย):</span>
+              <div className="rounded-xl bg-[#F6F7F3] p-3 border border-[#DCE3D7] text-xs text-[#5A6F64] space-y-1">
+                <span className="font-bold text-[#1C342B] inline-flex items-center gap-1.5">
+                  <Lightbulb size={13} className="text-[#D98B26]" aria-hidden="true" />
+                  <span>รูปแบบข้อความที่รองรับ (คัดลอกมาวางได้เลย):</span>
+                </span>
                 <p>• ตัวเลือกเรียงต่อกัน: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">กขคงกขคง...</code> หรือ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">ABCDABCD...</code></p>
                 <p>• เว้นวรรค: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">ก ข ค ง ก ก ข ค...</code></p>
                 <p>• มีเลขข้อกำกับ: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">1.ก 2.ข 3.ค 4.ง...</code> หรือ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-cyan-700">1:A, 2:B, 3:C...</code></p>
@@ -1943,7 +1963,7 @@ export function AnswerSheetDesigner({
                     }`}
                   >
                     <div className="flex items-center justify-between font-bold mb-1">
-                      <span>{parsedCount > 0 ? `✅ ตรวจพบ ${parsedCount} ข้อ (จากทั้งหมด ${config.totalQuestions} ข้อ)` : '⚠️ ยังตรวจไม่พบตัวเลือกเฉลยที่ถูกต้อง'}</span>
+                      <span>{parsedCount > 0 ? `ตรวจพบ ${parsedCount} ข้อ (จากทั้งหมด ${config.totalQuestions} ข้อ)` : 'ยังตรวจไม่พบตัวเลือกเฉลยที่ถูกต้อง'}</span>
                       {parsedCount > 0 && <span className="text-[10px] text-emerald-700 font-normal">พร้อมนำเข้าทันที</span>}
                     </div>
                     {parsedCount > 0 && (
@@ -1988,9 +2008,9 @@ export function AnswerSheetDesigner({
                   });
                   setShowQuickPasteModal(false);
                   setPasteText('');
-                  showToast(`✅ นำเข้าและบันทึกเฉลย ${count} ข้อ สำหรับชุด ${currentSet} สำเร็จแล้ว`);
+                  showToast(`นำเข้าและบันทึกเฉลย ${count} ข้อ สำหรับชุด ${currentSet} สำเร็จแล้ว`);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-5 py-2 text-xs font-black text-white hover:bg-cyan-500 disabled:opacity-50 disabled:pointer-events-none transition shadow-xs"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#2F7D5B] px-5 py-2 text-xs font-black text-white hover:bg-[#1C342B] disabled:opacity-50 disabled:pointer-events-none transition shadow-xs"
               >
                 <Check size={14} />
                 นำเข้าและบันทึกเฉลยทันที

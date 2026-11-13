@@ -607,7 +607,7 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
                     <p>{item.body}</p>
                   </div>
                   <div className="approval-reason-meta">
-                    <span>💡 เหตุผล: {item.reason}</span>
+                    <span>เหตุผล: {item.reason}</span>
                   </div>
 
                   {/* Actions */}

@@ -173,8 +173,8 @@ export function AttendanceOcrModal({
               <UserCheck size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-900">
-                📸 สแกนใบเช็คชื่อกระดาษด้วย AI (Smart Attendance OCR)
+              <h3 className="text-lg font-black text-[#1C342B]">
+                สแกนใบเช็คชื่อกระดาษด้วย AI (Smart Attendance OCR)
               </h3>
               <p className="text-xs font-bold text-slate-500">
                 ถ่ายภาพใบเช็คแถวหรือสมุดเช็คชื่อกระดาษ แล้วให้ AI แปลงสถานะ มา/ขาด/สาย/ลา อัตโนมัติ
@@ -429,7 +429,7 @@ export function AttendanceOcrModal({
               ) : (
                 <>
                   <Sparkles size={16} className="text-amber-300 animate-pulse" />
-                  <span>✨ ตรวจจับการเช็คชื่อด้วย AI Vision</span>
+                  <span>ตรวจจับการเช็คชื่อด้วย AI Vision</span>
                   <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </>
               )}

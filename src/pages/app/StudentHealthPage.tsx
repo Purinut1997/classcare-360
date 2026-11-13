@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ClipboardCheck,
+  Droplets,
   HeartPulse,
   Ruler,
   Save,
@@ -86,13 +87,13 @@ const routineTone: Record<RoutineStatus, { bg: string; text: string; shadow: str
     bg: 'bg-[#d9f99d]',
     text: 'text-[#1b3e04]',
     shadow: 'shadow-[2px_5px_8px_rgba(27,62,4,0.22)]',
-    label: 'เรียบร้อย ✓',
+    label: 'เรียบร้อย',
   },
   missed: {
     bg: 'bg-[#fecdd3]',
     text: 'text-[#881337]',
     shadow: 'shadow-[2px_5px_8px_rgba(136,19,55,0.22)]',
-    label: 'ไม่ได้ทำ ✕',
+    label: 'ไม่ได้ทำ',
   },
   exempt: {
     bg: 'bg-[#fde68a]',
@@ -404,27 +405,29 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
   }
 
   return (
-    <main className="app-page min-h-screen pb-64 lg:pb-32 font-['Itim',sans-serif]">
+    <main className="app-page min-h-screen pb-64 lg:pb-32">
       {/* ======================================================== */}
-      {/* CORKBOARD / LINED PAPER CONTAINER (Post-it Theme)         */}
+      {/* MORNING SAGE LINEN CONTAINER                             */}
       {/* ======================================================== */}
-      <div className="rounded-[32px] border-2 border-[#e6dcce] bg-[#f5efe6] [background-image:repeating-linear-gradient(0deg,transparent_0_27px,#e8dfd2_27px_28px)] p-4 sm:p-7 shadow-md">
+      <div className="rounded-[28px] border border-[#DCE3D7] bg-[#FAFBF8] p-4 sm:p-7 shadow-[0_2px_12px_rgba(28,52,43,0.05)]">
 
         {/* Top Header */}
         <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-1.5">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#1C342B] tracking-tight flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E9F0EA] text-[#2F7D5B] border border-[#DCE3D7]">
+                <HeartPulse size={20} aria-hidden="true" />
+              </span>
               <span>สุขภาพและกิจวัตรนักเรียน</span>
-              <span className="text-xl sm:text-2xl">📌</span>
             </h1>
-            <p className="mt-0.5 text-sm sm:text-base font-semibold text-[#44403c]">
+            <p className="mt-1 text-sm sm:text-base font-semibold text-[#5A6F64]">
               บันทึกกิจกรรมประจำวัน น้ำหนัก ส่วนสูง BMI และตรวจสุขภาพ 7 ด้าน
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Classroom Selector with cute tilt */}
-            <div className="relative inline-flex items-center rotate-[1.5deg] shadow-xs">
+            {/* Classroom Selector */}
+            <div className="relative inline-flex items-center shadow-2xs">
               <select
                 value={classroomId}
                 onChange={(event) => {
@@ -433,7 +436,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                   nextParams.set('classroomId', event.target.value);
                   setSearchParams(nextParams, { replace: true });
                 }}
-                className="appearance-none rounded-xl border border-[#c7bca9] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1c1917] shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                className="appearance-none rounded-xl border border-[#DCE3D7] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1C342B] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2F7D5B]/40 cursor-pointer"
               >
                 {displayClassrooms.map((c) => {
                   const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -444,13 +447,13 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                   );
                 })}
               </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#57534e]" />
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#5A6F64]" />
             </div>
 
             {/* Date Picker */}
-            <div className="relative inline-flex items-center rotate-[-1deg] shadow-xs">
+            <div className="relative inline-flex items-center shadow-2xs">
               <ThaiDatePicker
-                className="h-8.5 rounded-xl border border-[#c7bca9] bg-white px-2.5 text-xs font-bold text-[#1c1917]"
+                className="h-8.5 rounded-xl border border-[#DCE3D7] bg-white px-2.5 text-xs font-bold text-[#1C342B]"
                 value={recordDate}
                 onValueChange={setRecordDate}
               />
@@ -471,24 +474,32 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
           </div>
         )}
 
-        {/* Mode Selector Tabs (Styled as cute sticky tabs) */}
-        <div className="mt-4 flex flex-wrap gap-2 pt-2 border-t border-[#e2d5c3]">
-          {modeOptions.map((option, idx) => {
+        {/* Mode Selector Tabs */}
+        <div className="mt-4 flex flex-wrap gap-2 pt-3 border-t border-[#DCE3D7]">
+          {modeOptions.map((option) => {
             const active = mode === option.value;
-            const tabRotations = ['rotate-[1deg]', '-rotate-[1deg]', 'rotate-[0.5deg]', '-rotate-[1.5deg]', 'rotate-[1deg]'];
-            const rot = tabRotations[idx % tabRotations.length];
+            const ModeIcon =
+              option.value === 'toothbrushing'
+                ? Sparkles
+                : option.value === 'milk'
+                ? Droplets
+                : option.value === 'lunch'
+                ? Utensils
+                : option.value === 'growth'
+                ? Scale
+                : HeartPulse;
             return (
               <button
                 key={option.value}
                 onClick={() => selectMode(option.value)}
                 type="button"
-                className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all ${rot} ${
+                className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all ${
                   active
-                    ? 'bg-[#3f3a36] text-white shadow-[2px_3px_0_#f59e0b] -translate-y-0.5'
-                    : 'bg-white text-[#292524] border border-[#c7bca9] hover:bg-stone-50 shadow-2xs'
+                    ? 'bg-[#1C342B] text-white shadow-sm'
+                    : 'bg-white text-[#1C342B] border border-[#DCE3D7] hover:bg-[#E9F0EA]/60 shadow-2xs'
                 }`}
               >
-                <span>{option.value === 'toothbrushing' ? '🪥' : option.value === 'milk' ? '🥛' : option.value === 'lunch' ? '🍱' : option.value === 'growth' ? '⚖️' : '🧼'}</span>
+                <ModeIcon size={15} aria-hidden="true" />
                 <span>{option.label}</span>
               </button>
             );
@@ -734,7 +745,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                           >
                             <span className="block text-xs sm:text-sm font-bold leading-tight">{inspectionLabels[key]}</span>
                             <span className="block text-xs font-bold mt-1">
-                              {status === 'pass' ? '✓ ผ่าน' : status === 'attention' ? '✕ ตรวจ' : '— รอ'}
+                              {status === 'pass' ? 'ผ่าน' : status === 'attention' ? 'ติดตาม' : 'รอตรวจ'}
                             </span>
                           </button>
                         );
@@ -760,14 +771,14 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       </div>
 
       {/* ======================================================== */}
-      {/* BOTTOM FOOTER DOCK: Matches Theme (Style 5)               */}
+      {/* BOTTOM FOOTER DOCK                                       */}
       {/* ======================================================== */}
       {classroomStudents.length > 0 && (
-        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#c7bca9] bg-[#fbf8f3]/95 p-3.5 shadow-xl backdrop-blur-md">
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8]/95 p-3.5 shadow-xl backdrop-blur-md">
           {/* Summary Text */}
-          <div className="flex items-center justify-center gap-4 text-base sm:text-lg font-bold text-[#1c1917]">
+          <div className="flex items-center justify-center gap-4 text-base sm:text-lg font-bold text-[#1C342B]">
             <span>
-              ครบแล้ว <b className="text-[#1b3e04]">{completedCount}</b>
+              ครบแล้ว <b className="text-[#2F7D5B]">{completedCount}</b>
             </span>
             <span>
               ติดตาม/ขาด <b className="text-[#881337]">{attentionCount}</b>
@@ -777,17 +788,20 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
             </span>
           </div>
 
-          {/* Big Charcoal Button */}
+          {/* Primary Save Button */}
           <button
             type="button"
             onClick={() => void saveRecords()}
             disabled={isLoading || isSaving}
-            className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3f3a36] hover:bg-[#2c2825] text-white text-base sm:text-lg font-bold shadow-[3px_4px_0_#f59e0b] active:translate-y-0.5 active:shadow-[1px_2px_0_#f59e0b] transition-all disabled:opacity-50 cursor-pointer"
+            className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1C342B] hover:bg-[#152821] text-white text-base sm:text-lg font-bold shadow-md active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
           >
             {isSaving ? (
               <span>กำลังบันทึก...</span>
             ) : (
-              <span>บันทึกทั้งห้อง ✓ ({classroomStudents.length} คน)</span>
+              <>
+                <Save size={18} aria-hidden="true" />
+                <span>บันทึกทั้งห้อง ({classroomStudents.length} คน)</span>
+              </>
             )}
           </button>
         </div>

@@ -9,6 +9,8 @@ import {
 import {
   AlertCircle,
   ArrowLeft,
+  Award,
+  BarChart3,
   Bot,
   CalendarDays,
   Check,
@@ -16,18 +18,26 @@ import {
   ChevronDown,
   Clock3,
   Copy,
+  Crown,
   ExternalLink,
   Key,
   LifeBuoy,
+  Lightbulb,
   MessageCircle,
   MessageSquare,
+  Palette,
   Plus,
   RefreshCw,
+  School,
   Send,
   Settings,
+  Sliders,
   Sparkles,
   Trash2,
+  User,
+  UserRoundCheck,
   X,
+  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -140,7 +150,7 @@ export function SupportChat({
       {
         id: `welcome-${Date.now()}`,
         role: "assistant",
-        content: `สวัสดี${initKa}คุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการ${initKa} ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลย${initNaka}`,
+        content: `สวัสดี${initKa}คุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการ${initKa}\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลย${initNaka}`,
         timestamp: new Date().toLocaleTimeString("th-TH", {
           hour: "2-digit",
           minute: "2-digit",
@@ -322,7 +332,7 @@ export function SupportChat({
     const freshWelcome: ChatMessage = {
       id: `welcome-${Date.now()}`,
       role: "assistant",
-      content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ ✨\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+      content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
       timestamp: new Date().toLocaleTimeString("th-TH", {
         hour: "2-digit",
         minute: "2-digit",
@@ -629,13 +639,13 @@ export function SupportChat({
         {
           id: `asst-cal-saved-${Date.now()}`,
           role: "assistant",
-          content: `✅ **บันทึก ${typeThai} สำเร็จแล้วค่ะ!**\n\n- **รายการ:** ${title}\n- **วันที่:** ${date}\n- **นโยบายเวลาเรียน:** ${isHoliday ? "ไม่นับเป็นวันเรียน (ข้ามการเช็กชื่ออัตโนมัติ ไม่กระทบสถิติ 80%)" : "เช็กชื่อตามปกติ"}\n\nระบบอัปเดตลงในปฏิทินโรงเรียนเรียบร้อยแล้วค่ะ คุณครูสามารถเปิดดูในปฏิทินได้เลยนะคะ`,
+          content: `**บันทึก ${typeThai} สำเร็จแล้วค่ะ!**\n\n- **รายการ:** ${title}\n- **วันที่:** ${date}\n- **นโยบายเวลาเรียน:** ${isHoliday ? "ไม่นับเป็นวันเรียน (ข้ามการเช็กชื่ออัตโนมัติ ไม่กระทบสถิติ 80%)" : "เช็กชื่อตามปกติ"}\n\nระบบอัปเดตลงในปฏิทินโรงเรียนเรียบร้อยแล้วค่ะ คุณครูสามารถเปิดดูในปฏิทินได้เลยนะคะ`,
           timestamp: new Date().toLocaleTimeString("th-TH", {
             hour: "2-digit",
             minute: "2-digit",
           }),
           actions: [
-            { type: "navigate", target: "/app/dashboard?view=school-calendar", label: "📅 ไปที่หน้าปฏิทินโรงเรียน" },
+            { type: "navigate", target: "/app/dashboard?view=school-calendar", label: "ไปที่หน้าปฏิทินโรงเรียน" },
           ],
         },
       ]);
@@ -715,13 +725,13 @@ export function SupportChat({
         {
           id: `asst-cal-batch-saved-${Date.now()}`,
           role: "assistant",
-          content: `🎉 **บันทึกวันหยุดราชการไทยประจำปี ${thaiYear} ครบทั้งปีสำเร็จแล้วค่ะ!**\n\n- **จำนวนวันหยุด:** ${holidays.length} วัน (ปีใหม่, วันครู, มาฆบูชา, สงกรานต์, วันเฉลิมพระชนมพรรษา, วันแม่, วันพ่อ ฯลฯ)\n- **นโยบายเวลาเรียน:** ทุกวันหยุดถูกตั้งค่าเป็น **"ไม่นับเป็นวันเรียน (ข้ามเช็กชื่อ)"** ให้อัตโนมัติ เพื่อไม่ให้กระทบสถิติเวลาเรียน 80% ของนักเรียน\n\nคุณครูสามารถเปิดดูในปฏิทินโรงเรียนได้ทันทีเลยนะคะ`,
+          content: `**บันทึกวันหยุดราชการไทยประจำปี ${thaiYear} ครบทั้งปีสำเร็จแล้วค่ะ!**\n\n- **จำนวนวันหยุด:** ${holidays.length} วัน (ปีใหม่, วันครู, มาฆบูชา, สงกรานต์, วันเฉลิมพระชนมพรรษา, วันแม่, วันพ่อ ฯลฯ)\n- **นโยบายเวลาเรียน:** ทุกวันหยุดถูกตั้งค่าเป็น **"ไม่นับเป็นวันเรียน (ข้ามเช็กชื่อ)"** ให้อัตโนมัติ เพื่อไม่ให้กระทบสถิติเวลาเรียน 80% ของนักเรียน\n\nคุณครูสามารถเปิดดูในปฏิทินโรงเรียนได้ทันทีเลยนะคะ`,
           timestamp: new Date().toLocaleTimeString("th-TH", {
             hour: "2-digit",
             minute: "2-digit",
           }),
           actions: [
-            { type: "navigate", target: "/app/dashboard?view=school-calendar", label: "📅 เปิดดูปฏิทินโรงเรียน" },
+            { type: "navigate", target: "/app/dashboard?view=school-calendar", label: "เปิดดูปฏิทินโรงเรียน" },
           ],
         },
       ]);
@@ -834,18 +844,18 @@ export function SupportChat({
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span>
                             {selectedModel === 'auto'
-                              ? '✨ Auto'
+                              ? 'Auto'
                               : selectedModel === 'gemini-3.6-flash'
-                              ? '🌟 3.6 Flash'
+                              ? '3.6 Flash'
                               : selectedModel === 'gemini-3.5-flash'
-                              ? '✨ 3.5 Flash'
+                              ? '3.5 Flash'
                               : selectedModel === 'gemini-2.5-flash-lite'
-                              ? '⚡ 2.5 Lite'
+                              ? '2.5 Lite'
                               : selectedModel === 'gemini-2.0-flash'
-                              ? '⭐ 2.0 Flash'
+                              ? '2.0 Flash'
                               : selectedModel === 'gemini-2.5-pro'
-                              ? '🧠 2.5 Pro'
-                              : '🌟 2.5 Flash'}
+                              ? '2.5 Pro'
+                              : '2.5 Flash'}
                           </span>
                           <ChevronDown size={10} className="text-emerald-400 ml-0.5" />
                         </button>
@@ -1322,7 +1332,8 @@ export function SupportChat({
                 {/* VIP Indicator */}
                 <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3 text-amber-900 shadow-2xs">
                   <span className="font-black flex items-center gap-1.5 text-amber-800">
-                    <span>👑</span> สิทธิ์การใช้งานระดับ VIP:
+                    <Crown size={14} className="text-amber-600" />
+                    <span>สิทธิ์การใช้งานระดับ VIP:</span>
                   </span>
                   <p className="mt-1 text-[11px] text-amber-700/90 leading-relaxed">
                     สามารถใส่ Google Gemini API Key เพื่อปลดล็อกการแชทวิเคราะห์ข้อมูลและการตอบคำถามอิสระฟรี 100%
@@ -1330,14 +1341,15 @@ export function SupportChat({
                 </div>
 
                 {/* Cute Mascot Selection */}
-                <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-b from-sky-50/80 via-white to-indigo-50/50 p-3.5 shadow-2xs space-y-2.5">
+                <div className="rounded-2xl border border-[#DCE3D7] bg-gradient-to-b from-[#FAFBF8] via-white to-[#E9F0EA]/40 p-3.5 shadow-2xs space-y-2.5">
                   <div className="flex items-center justify-between">
                     <label className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-                      <span>🎨</span>
-                      <span>เลือกตัวละครน้องแคร์ (มาสคอตน่ารัก):</span>
+                      <Palette size={14} className="text-[#2F7D5B]" />
+                      <span>เลือกตัวละครน้องแคร์ (มาสคอตผู้ช่วย):</span>
                     </label>
-                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full border border-sky-200">
-                      {currentMascot.emoji} {currentMascot.name}
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#1C342B] bg-[#E9F0EA] px-2 py-0.5 rounded-full border border-[#DCE3D7]">
+                      <CuteCareyAvatar type={mascotType} size={15} />
+                      <span>{currentMascot.name}</span>
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-snug">
@@ -1351,7 +1363,7 @@ export function SupportChat({
                         onClick={() => handleSelectMascot(m.id)}
                         className={`flex items-center gap-2 rounded-xl border p-2 text-left transition-all ${
                           mascotType === m.id
-                            ? "border-sky-500 bg-sky-50/90 text-sky-950 shadow-xs ring-2 ring-sky-400 font-bold"
+                            ? "border-[#2F7D5B] bg-[#E9F0EA] text-[#1C342B] shadow-xs ring-2 ring-[#2F7D5B]/30 font-bold"
                             : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                         }`}
                       >
@@ -1370,14 +1382,14 @@ export function SupportChat({
                 </div>
 
                 {/* Polite Ending & Teacher Tone Setting */}
-                <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-b from-indigo-50/70 via-white to-sky-50/50 p-3.5 shadow-2xs space-y-2.5">
+                <div className="rounded-2xl border border-[#DCE3D7] bg-gradient-to-b from-[#FAFBF8] via-white to-[#F6F7F3] p-3.5 shadow-2xs space-y-2.5">
                   <div className="flex items-center justify-between">
                     <label className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-                      <span>🗣️</span>
+                      <MessageCircle size={14} className="text-[#2F7D5B]" />
                       <span>คำลงท้ายสำหรับคุณครู (ร่างข้อความ/แชท):</span>
                     </label>
-                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/90 px-2 py-0.5 rounded-full border border-indigo-200">
-                      {politeEnding === 'male' ? '👨‍🏫 ครับ / นะครับ' : politeEnding === 'female' ? '👩‍🏫 ค่ะ / นะคะ' : '🌟 สุภาพเป็นกลาง'}
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1C342B] bg-[#E9F0EA] px-2 py-0.5 rounded-full border border-[#DCE3D7]">
+                      {politeEnding === 'male' ? 'ครับ / นะครับ' : politeEnding === 'female' ? 'ค่ะ / นะคะ' : 'สุภาพเป็นกลาง'}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-snug">
@@ -1389,13 +1401,13 @@ export function SupportChat({
                       onClick={() => handleSelectPoliteEnding('female')}
                       className={`flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
                         politeEnding === 'female'
-                          ? 'border-pink-500 bg-pink-50/90 text-pink-950 shadow-xs ring-2 ring-pink-400 font-bold'
+                          ? 'border-rose-400 bg-rose-50/90 text-rose-950 shadow-xs ring-2 ring-rose-300 font-bold'
                           : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="text-xl">👩‍🏫</span>
+                      <UserRoundCheck size={20} className={politeEnding === 'female' ? 'text-rose-600' : 'text-slate-400'} />
                       <span className="text-xs font-bold">ครูผู้หญิง</span>
-                      <span className="text-[9px] text-pink-600 bg-pink-100/80 px-1.5 py-0.2 rounded-full font-bold">ค่ะ / นะคะ</span>
+                      <span className="text-[9px] text-rose-600 bg-rose-100/80 px-1.5 py-0.2 rounded-full font-bold">ค่ะ / นะคะ</span>
                     </button>
 
                     <button
@@ -1403,13 +1415,13 @@ export function SupportChat({
                       onClick={() => handleSelectPoliteEnding('male')}
                       className={`flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
                         politeEnding === 'male'
-                          ? 'border-indigo-500 bg-indigo-50/90 text-indigo-950 shadow-xs ring-2 ring-indigo-400 font-bold'
+                          ? 'border-[#2F7D5B] bg-[#E9F0EA] text-[#1C342B] shadow-xs ring-2 ring-[#2F7D5B]/30 font-bold'
                           : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="text-xl">👨‍🏫</span>
+                      <User size={20} className={politeEnding === 'male' ? 'text-[#2F7D5B]' : 'text-slate-400'} />
                       <span className="text-xs font-bold">ครูผู้ชาย</span>
-                      <span className="text-[9px] text-indigo-600 bg-indigo-100/80 px-1.5 py-0.2 rounded-full font-bold">ครับ / นะครับ</span>
+                      <span className="text-[9px] text-[#2F7D5B] bg-[#E9F0EA] px-1.5 py-0.2 rounded-full font-bold">ครับ / นะครับ</span>
                     </button>
 
                     <button
@@ -1417,11 +1429,11 @@ export function SupportChat({
                       onClick={() => handleSelectPoliteEnding('neutral')}
                       className={`flex flex-col items-center justify-center gap-1 rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
                         politeEnding === 'neutral'
-                          ? 'border-sky-500 bg-sky-50/90 text-sky-950 shadow-xs ring-2 ring-sky-400 font-bold'
+                          ? 'border-sky-500 bg-sky-50/90 text-sky-950 shadow-xs ring-2 ring-sky-300 font-bold'
                           : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="text-xl">🌟</span>
+                      <Award size={20} className={politeEnding === 'neutral' ? 'text-sky-600' : 'text-slate-400'} />
                       <span className="text-xs font-bold">ทางการ / กลาง</span>
                       <span className="text-[9px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-full font-bold">ตามบริบท</span>
                     </button>
@@ -1439,11 +1451,14 @@ export function SupportChat({
                       onClick={() => handleSelectScope("workspace")}
                       className={`rounded-xl border p-2.5 text-left transition ${
                         keyScope === "workspace"
-                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs ring-1 ring-indigo-400"
+                          ? "border-[#2F7D5B] bg-[#E9F0EA] text-[#1C342B] font-bold shadow-2xs ring-1 ring-[#2F7D5B]"
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                       }`}
                     >
-                      <span className="block text-xs font-bold text-slate-800">🏫 Key โรงเรียน</span>
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <School size={13} className="text-[#2F7D5B]" />
+                        <span>Key โรงเรียน</span>
+                      </span>
                       <span className="text-[10px] text-slate-500 font-normal">
                         ครูทุกคนในโรงเรียนใช้ร่วมกัน
                       </span>
@@ -1454,11 +1469,14 @@ export function SupportChat({
                       onClick={() => handleSelectScope("personal")}
                       className={`rounded-xl border p-2.5 text-left transition ${
                         keyScope === "personal"
-                          ? "border-indigo-500 bg-indigo-50/80 text-indigo-900 font-bold shadow-2xs ring-1 ring-indigo-400"
+                          ? "border-[#2F7D5B] bg-[#E9F0EA] text-[#1C342B] font-bold shadow-2xs ring-1 ring-[#2F7D5B]"
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100/60"
                       }`}
                     >
-                      <span className="block text-xs font-bold text-slate-800">👤 Key ส่วนตัว</span>
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <User size={13} className="text-[#2F7D5B]" />
+                        <span>Key ส่วนตัว</span>
+                      </span>
                       <span className="text-[10px] text-slate-500 font-normal">
                         ใช้เฉพาะบัญชีของคุณคนเดียว
                       </span>
@@ -1469,10 +1487,18 @@ export function SupportChat({
                 {/* API Key Input */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block font-bold text-slate-700">
-                      {keyScope === "workspace"
-                        ? "🏫 Google Gemini API Key ของโรงเรียน"
-                        : "👤 Google Gemini API Key ส่วนตัว"}
+                    <label className="flex items-center gap-1.5 font-bold text-slate-700">
+                      {keyScope === "workspace" ? (
+                        <>
+                          <School size={13} className="text-[#2F7D5B]" />
+                          <span>Google Gemini API Key ของโรงเรียน</span>
+                        </>
+                      ) : (
+                        <>
+                          <User size={13} className="text-[#2F7D5B]" />
+                          <span>Google Gemini API Key ส่วนตัว</span>
+                        </>
+                      )}
                     </label>
                     <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
                       {keyScope === "workspace" ? "บันทึกแยกใน Workspace" : "บันทึกแยกใน Profile"}
@@ -1508,8 +1534,18 @@ export function SupportChat({
                     <label className="block font-bold text-slate-700">
                       โหมดการเลือกโมเดล AI
                     </label>
-                    <span className="text-[10px] font-bold text-indigo-600">
-                      {selectedModel === 'auto' ? '✨ โหมดสลับอัตโนมัติ' : '🎯 โหมดเลือกเอง'}
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#2F7D5B]">
+                      {selectedModel === 'auto' ? (
+                        <>
+                          <Sparkles size={11} />
+                          <span>โหมดสลับอัตโนมัติ</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sliders size={11} />
+                          <span>โหมดเลือกเอง</span>
+                        </>
+                      )}
                     </span>
                   </div>
 
@@ -1520,11 +1556,11 @@ export function SupportChat({
                       onClick={() => setSelectedModel('auto')}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition ${
                         selectedModel === 'auto'
-                          ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-slate-200'
+                          ? 'bg-white text-[#1C342B] shadow-xs ring-1 ring-[#DCE3D7]'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <span>✨</span>
+                      <Sparkles size={13} className="text-[#2F7D5B]" />
                       <span>สลับอัตโนมัติ (Auto)</span>
                     </button>
                     <button
@@ -1536,42 +1572,52 @@ export function SupportChat({
                       }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition ${
                         selectedModel !== 'auto'
-                          ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-slate-200'
+                          ? 'bg-white text-[#1C342B] shadow-xs ring-1 ring-[#DCE3D7]'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <span>🎯</span>
+                      <Sliders size={13} className="text-[#2F7D5B]" />
                       <span>เลือกโมเดลเอง (Manual)</span>
                     </button>
                   </div>
 
                   {/* Auto Mode UI */}
                   {selectedModel === 'auto' ? (
-                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-indigo-950 space-y-2.5">
+                    <div className="rounded-xl border border-[#DCE3D7] bg-[#E9F0EA]/70 p-3 text-[#1C342B] space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs flex items-center gap-1.5 text-indigo-900">
-                          <span>🤖</span> Auto Model Cascade (แนะนำสูงสุด ✨)
+                        <span className="font-bold text-xs flex items-center gap-1.5 text-[#1C342B]">
+                          <Bot size={14} className="text-[#2F7D5B]" />
+                          <span>Auto Model Cascade (แนะนำสูงสุด)</span>
                         </span>
-                        <span className="text-[9px] font-black text-indigo-700 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200">
+                        <span className="text-[9px] font-black text-[#2F7D5B] bg-white/90 px-2 py-0.5 rounded-full border border-[#DCE3D7]">
                           Zero Downtime
                         </span>
                       </div>
-                      <p className="text-[11px] text-indigo-900/90 leading-relaxed">
+                      <p className="text-[11px] text-[#5A6F64] leading-relaxed">
                         ระบบจะเริ่มจากโมเดลที่ฉลาดที่สุด และสลับรุ่นสำรองให้อัตโนมัติทันทีเมื่อโควตาเต็ม ไม่สะดุด:
                       </p>
-                      <div className="space-y-1.5 text-[11px] bg-white/80 rounded-xl p-2.5 border border-indigo-100 shadow-2xs">
+                      <div className="space-y-1.5 text-[11px] bg-white/80 rounded-xl p-2.5 border border-[#DCE3D7] shadow-2xs">
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">🌟 1. Gemini 2.5 Flash / 3.6 Flash</span>
-                          <span className="text-[9px] text-indigo-700 bg-indigo-100/90 px-1.5 py-0.2 rounded font-bold">Google แนะนำล่าสุด</span>
+                          <span className="flex items-center gap-1.5">
+                            <Award size={12} className="text-[#D98B26]" />
+                            <span>1. Gemini 2.5 Flash / 3.6 Flash</span>
+                          </span>
+                          <span className="text-[9px] text-[#1C342B] bg-[#E9F0EA] px-1.5 py-0.2 rounded font-bold">Google แนะนำล่าสุด</span>
                         </div>
                         <div className="text-[10px] text-slate-400 pl-5">↓ สลับอัตโนมัติเมื่อจำเป็น</div>
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">✨ 2. Gemini 2.5 Flash Lite / 3.5 Flash</span>
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles size={12} className="text-[#2F7D5B]" />
+                            <span>2. Gemini 2.5 Flash Lite / 3.5 Flash</span>
+                          </span>
                           <span className="text-[9px] text-amber-700 bg-amber-100/90 px-1.5 py-0.2 rounded font-bold">เร็ว ละเอียด</span>
                         </div>
                         <div className="text-[10px] text-slate-400 pl-5">↓ สลับสำรอง</div>
                         <div className="flex items-center justify-between font-bold text-slate-800">
-                          <span className="flex items-center gap-1">⚡ 3. Gemini 2.0 Flash / 2.5 Pro</span>
+                          <span className="flex items-center gap-1.5">
+                            <Zap size={12} className="text-[#2D72A3]" />
+                            <span>3. Gemini 2.0 Flash / 2.5 Pro</span>
+                          </span>
                           <span className="text-[9px] text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded font-bold">สำรองสากล ไม่สะดุด</span>
                         </div>
                       </div>
@@ -1588,7 +1634,7 @@ export function SupportChat({
                             key={m.id}
                             className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${
                               selectedModel === m.id
-                                ? "border-indigo-500 bg-indigo-50/70 text-indigo-950 shadow-2xs ring-1 ring-indigo-400"
+                                ? "border-[#2F7D5B] bg-[#E9F0EA]/70 text-[#1C342B] shadow-2xs ring-1 ring-[#2F7D5B]/40"
                                 : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                             }`}
                           >
@@ -1597,14 +1643,14 @@ export function SupportChat({
                               name="ai_model"
                               checked={selectedModel === m.id}
                               onChange={() => setSelectedModel(m.id)}
-                              className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                              className="mt-0.5 text-[#2F7D5B] focus:ring-[#2F7D5B]"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-xs text-slate-900">
                                   {m.name}
                                 </span>
-                                <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/80 px-1.5 py-0.2 rounded border border-indigo-200">
+                                <span className="text-[9px] font-bold text-[#1C342B] bg-[#E9F0EA] px-1.5 py-0.2 rounded border border-[#DCE3D7]">
                                   {m.tag}
                                 </span>
                               </div>
@@ -1612,11 +1658,13 @@ export function SupportChat({
                                 {m.description}
                               </p>
                               <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
-                                <span className="bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded font-medium">
-                                  ⚡ {m.speed}
+                                <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded font-medium">
+                                  <Zap size={10} className="text-[#D98B26]" />
+                                  <span>{m.speed}</span>
                                 </span>
-                                <span className="bg-indigo-50/80 text-indigo-800 border border-indigo-100 px-1.5 py-0.2 rounded font-bold">
-                                  📊 {m.quota}
+                                <span className="inline-flex items-center gap-1 bg-[#E9F0EA]/70 text-[#1C342B] border border-[#DCE3D7] px-1.5 py-0.2 rounded font-bold">
+                                  <BarChart3 size={10} className="text-[#2F7D5B]" />
+                                  <span>{m.quota}</span>
                                 </span>
                               </div>
                             </div>
@@ -1630,7 +1678,7 @@ export function SupportChat({
                           type="checkbox"
                           checked={allowFallback}
                           onChange={(e) => setAllowFallback(e.target.checked)}
-                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                          className="rounded text-[#2F7D5B] focus:ring-[#2F7D5B]"
                         />
                         <span className="text-[11px] text-slate-700 font-medium leading-tight">
                           เปิดการสลับรุ่นสำรองอัตโนมัติหากโควตารุ่นนี้เต็ม (ป้องกันติด Error 429)
@@ -1651,8 +1699,11 @@ export function SupportChat({
                   >
                     <div>{testResult.message}</div>
                     {!testResult.success && (testResult.message.includes('quota') || testResult.message.includes('Quota') || testResult.message.includes('429')) && (
-                      <div className="mt-1.5 pt-1.5 border-t border-rose-200/80 text-[11px] font-normal text-rose-700 leading-relaxed">
-                        💡 <strong>คำแนะนำ:</strong> โควตารายวันของโมเดลนี้เต็มแล้ว (เช่น 20 ครั้ง/วัน) คุณครูสามารถเลือกโหมด <strong>Auto Model (สลับอัตโนมัติ)</strong> หรือเลือกโมเดลอื่นที่มีโควตาว่าง เช่น <strong>Gemini 2.5 Flash / Lite</strong> ได้ทันทีค่ะ
+                      <div className="mt-1.5 pt-1.5 border-t border-rose-200/80 text-[11px] font-normal text-rose-700 leading-relaxed flex items-start gap-1.5">
+                        <Lightbulb size={13} className="shrink-0 mt-0.5 text-amber-600" />
+                        <span>
+                          <strong>คำแนะนำ:</strong> โควตารายวันของโมเดลนี้เต็มแล้ว (เช่น 20 ครั้ง/วัน) คุณครูสามารถเลือกโหมด <strong>Auto Model (สลับอัตโนมัติ)</strong> หรือเลือกโมเดลอื่นที่มีโควตาว่าง เช่น <strong>Gemini 2.5 Flash / Lite</strong> ได้ทันทีค่ะ
+                        </span>
                       </div>
                     )}
                   </div>
@@ -1683,7 +1734,7 @@ export function SupportChat({
                 <button
                   type="button"
                   onClick={handleSaveConfig}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white shadow-sm transition"
+                  className="flex-1 rounded-xl bg-[#1C342B] hover:bg-[#2F7D5B] py-2.5 text-xs font-bold text-white shadow-sm transition"
                 >
                   บันทึกการตั้งค่า
                 </button>
@@ -1693,16 +1744,16 @@ export function SupportChat({
 
           {/* Modal: Categorized Prompt Library */}
           {isPromptLibraryOpen && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-slate-50 text-slate-900 rounded-[28px] overflow-hidden">
+            <div className="absolute inset-0 z-30 flex flex-col bg-[#F6F7F3] text-[#1C342B] rounded-[28px] overflow-hidden">
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white shadow-xs">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#DCE3D7] bg-white shadow-xs">
                 <div className="flex items-center gap-2.5">
                   <span className="grid h-8 w-8 place-items-center rounded-xl bg-amber-100 text-amber-700 shadow-2xs">
                     <Sparkles size={17} />
                   </span>
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">คลังคำสั่งลัดสำเร็จรูป</h3>
-                    <p className="text-[10px] text-slate-500 font-medium">แตะคำสั่งที่ต้องการเพื่อให้ AI ช่วยร่างข้อความทันที</p>
+                    <h3 className="text-sm font-black text-[#1C342B]">คลังคำสั่งลัดสำเร็จรูป</h3>
+                    <p className="text-[10px] text-[#5A6F64] font-medium">แตะคำสั่งที่ต้องการเพื่อให้ AI ช่วยร่างข้อความทันที</p>
                   </div>
                 </div>
                 <button
@@ -1717,8 +1768,8 @@ export function SupportChat({
               <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
                 {ALL_PROMPT_CATEGORIES.map((cat) => (
                   <div key={cat.id} className="space-y-2">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100/80 text-indigo-700 font-bold text-xs">
-                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E9F0EA] border border-[#DCE3D7] text-[#1C342B] font-bold text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#2F7D5B]" />
                       <span>{cat.name}</span>
                     </div>
                     <div className="space-y-1.5 pl-1">
@@ -1730,12 +1781,12 @@ export function SupportChat({
                             setIsPromptLibraryOpen(false);
                             handleSendAiMessage(p.prompt);
                           }}
-                          className="w-full text-left rounded-xl border border-slate-200/80 bg-white p-3 hover:border-indigo-400 hover:bg-indigo-50/40 hover:shadow-xs transition group shadow-2xs"
+                          className="w-full text-left rounded-xl border border-[#DCE3D7] bg-white p-3 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 hover:shadow-xs transition group shadow-2xs"
                         >
-                          <span className="font-bold block text-slate-800 text-xs sm:text-sm group-hover:text-indigo-600 transition-colors">
+                          <span className="font-bold block text-[#1C342B] text-xs sm:text-sm group-hover:text-[#2F7D5B] transition-colors">
                             {p.label}
                           </span>
-                          <span className="text-[11px] text-slate-500 line-clamp-1 mt-1 group-hover:text-slate-600">
+                          <span className="text-[11px] text-[#5A6F64] line-clamp-1 mt-1 group-hover:text-slate-700">
                             {p.prompt}
                           </span>
                         </button>
@@ -1753,13 +1804,13 @@ export function SupportChat({
       <button
         aria-expanded={open}
         aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-        className="group relative ml-auto hidden lg:grid h-15 w-15 place-items-center rounded-full border-2 border-white/60 bg-gradient-to-br from-amber-300 via-sky-400 to-indigo-600 p-0.5 text-white shadow-xl shadow-sky-950/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-sky-500/40 active:scale-95 cursor-pointer pointer-events-auto"
+        className="group relative ml-auto hidden lg:grid h-15 w-15 place-items-center rounded-full border-2 border-white/70 bg-gradient-to-br from-[#8CC6A7] via-[#2F7D5B] to-[#1C342B] p-0.5 text-white shadow-xl shadow-[#1C342B]/30 transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 hover:shadow-[#2F7D5B]/40 active:scale-95 cursor-pointer pointer-events-auto"
         onClick={() => setOpen((value) => !value)}
       >
-        {/* Subtle hover aura ring (static at rest to save GPU/battery) */}
-        <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-pink-400 via-sky-400 to-amber-300 opacity-50 blur-xs group-hover:opacity-100 transition-opacity" />
+        {/* Subtle hover aura ring */}
+        <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-[#8CC6A7] via-[#2F7D5B] to-[#D98B26] opacity-40 blur-xs group-hover:opacity-90 transition-opacity" />
 
-        <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-600 shadow-inner overflow-hidden">
+        <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-[#2F7D5B] via-[#256649] to-[#1C342B] shadow-inner overflow-hidden">
           {open ? (
             <X size={26} className="text-white drop-shadow" />
           ) : (
@@ -1767,7 +1818,7 @@ export function SupportChat({
               <CuteCareyAvatar type={mascotType} size={38} className="drop-shadow-sm" />
               <Sparkles
                 size={13}
-                className="absolute -top-1 -right-1 text-amber-300 drop-shadow transition-transform group-hover:scale-125"
+                className="absolute -top-1 -right-1 text-[#F5B95D] drop-shadow transition-transform group-hover:scale-125"
               />
             </div>
           )}
@@ -1780,16 +1831,16 @@ export function SupportChat({
         ) : null}
 
         {/* Illuminated AI Mini Badge */}
-        <span className="absolute -bottom-1 z-20 rounded-full bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-md border border-white/60">
+        <span className="absolute -bottom-1 z-20 rounded-full bg-[#1C342B] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#BCE0CE] shadow-md border border-white/60">
           AI
         </span>
 
         {/* Floating Tooltip Bubble with Pointer Arrow (Only appears on hover, never blocks buttons) */}
         {!open && (
-          <div className="pointer-events-none absolute right-full mr-3 hidden lg:flex opacity-0 group-hover:opacity-100 items-center gap-2 rounded-2xl border border-sky-100/90 bg-white/95 px-3.5 py-2 text-xs font-black text-slate-800 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200">
-            <span className="text-sm">{currentMascot.emoji}</span>
-            <span className="bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
-              มีอะไรให้{currentMascot.name}ช่วยไหม{politeEnding === "male" ? "ครับ" : "คะ"}? ✨
+          <div className="pointer-events-none absolute right-full mr-3 hidden lg:flex opacity-0 group-hover:opacity-100 items-center gap-2 rounded-2xl border border-[#DCE3D7] bg-white/95 px-3.5 py-2 text-xs font-black text-[#1C342B] shadow-2xl backdrop-blur-md whitespace-nowrap transition-all duration-200">
+            <CuteCareyAvatar type={mascotType} size={20} />
+            <span className="text-[#1C342B]">
+              มีอะไรให้{currentMascot.name}ช่วยไหม{politeEnding === "male" ? "ครับ" : "คะ"}?
             </span>
             <span className="absolute -right-1.5 top-1/2 -translate-y-1/2 border-4 border-transparent border-l-white/95" />
           </div>

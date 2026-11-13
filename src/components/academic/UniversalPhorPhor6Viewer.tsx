@@ -356,7 +356,7 @@ export const UniversalPhorPhor6Viewer: React.FC<UniversalPhorPhor6ViewerProps> =
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow transition"
           >
             {isCopied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
-            {isCopied ? 'คัดลอกสำเร็จ!' : '📋 คัดลอกลง Excel'}
+            {isCopied ? 'คัดลอกสำเร็จ!' : 'คัดลอกลง Excel'}
           </button>
 
           <button

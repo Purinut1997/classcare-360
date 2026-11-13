@@ -1,12 +1,16 @@
 import { useState } from "react";
 import {
   CalendarRange,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
+  Droplets,
   FileText,
   Palette,
   Printer,
   Sparkles,
+  Trash2,
+  Wind,
   X,
 } from "lucide-react";
 import type { DutyAssignment, DutyTask, Student } from "../../types/duty";
@@ -63,37 +67,39 @@ export function DutyPosterModal({
 
   const activeTasks = tasks.filter((t) => t.is_active);
 
-  function getTaskEmoji(name: string): string {
-    if (name.includes("กวาด")) return "🧹";
-    if (name.includes("ถู")) return "🧽";
-    if (name.includes("ขยะ")) return "🗑️";
-    if (name.includes("กระดาน") || name.includes("โต๊ะ")) return "🧼";
-    if (name.includes("ห้องน้ำ")) return "🚿";
-    if (name.includes("ไฟ") || name.includes("แอร์") || name.includes("หน้าต่าง")) return "🪟";
-    return "⭐";
+  function renderTaskIcon(name: string) {
+    if (name.includes("กวาด") || name.includes("ถู") || name.includes("กระดาน") || name.includes("โต๊ะ")) {
+      return <Sparkles size={13} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />;
+    }
+    if (name.includes("ขยะ")) return <Trash2 size={13} className="shrink-0 text-[#D98B26]" aria-hidden="true" />;
+    if (name.includes("ห้องน้ำ")) return <Droplets size={13} className="shrink-0 text-[#2D72A3]" aria-hidden="true" />;
+    if (name.includes("ไฟ") || name.includes("แอร์") || name.includes("หน้าต่าง")) {
+      return <Wind size={13} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />;
+    }
+    return <CheckSquare size={13} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />;
   }
 
   return (
     <div
       aria-labelledby="duty-print-title"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1C342B]/65 p-4 backdrop-blur-sm"
       role="dialog"
     >
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-[#DCE3D7] bg-white shadow-2xl">
         {/* Header */}
-        <div className="relative overflow-hidden bg-slate-950 px-6 py-5 text-white">
-          <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-cyan-400/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#1C342B] via-[#1C342B] to-[#152821] px-6 py-5 text-white">
+          <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-[#2F7D5B]/25 blur-3xl" />
           <div className="flex items-start justify-between">
             <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-black text-cyan-300 ring-1 ring-cyan-400/30">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2F7D5B]/30 px-3 py-1 text-xs font-black text-[#E9F0EA] ring-1 ring-white/20">
                 <Printer size={13} />
                 พิมพ์ป้ายเวร & รายงาน A4 แนวนอน
               </span>
               <h2 className="mt-2 text-xl font-black" id="duty-print-title">
                 พิมพ์ตารางเวรห้อง {roomName}
               </h2>
-              <p className="mt-0.5 text-xs font-bold text-slate-300">
+              <p className="mt-0.5 text-xs font-bold text-emerald-100/80">
                 สัปดาห์วันที่{" "}
                 {new Intl.DateTimeFormat("th-TH", {
                   day: "numeric",
@@ -110,7 +116,7 @@ export function DutyPosterModal({
             </div>
             <button
               aria-label="ปิด"
-              className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+              className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-white/75 hover:bg-white/20 hover:text-white"
               onClick={onClose}
               type="button"
             >
@@ -124,7 +130,7 @@ export function DutyPosterModal({
               <button
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
                   posterStyle === "poster"
-                    ? "bg-cyan-500 text-slate-950 shadow-sm"
+                    ? "bg-[#E9F0EA] text-[#1C342B] shadow-sm"
                     : "text-white/80 hover:text-white"
                 }`}
                 onClick={() => setPosterStyle("poster")}
@@ -136,7 +142,7 @@ export function DutyPosterModal({
               <button
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
                   posterStyle === "official"
-                    ? "bg-cyan-500 text-slate-950 shadow-sm"
+                    ? "bg-[#E9F0EA] text-[#1C342B] shadow-sm"
                     : "text-white/80 hover:text-white"
                 }`}
                 onClick={() => setPosterStyle("official")}
@@ -149,48 +155,51 @@ export function DutyPosterModal({
 
             <div className="flex items-center gap-1 text-xs font-bold">
               <button
-                className="rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20"
+                className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 hover:bg-white/20"
                 onClick={() => setPrintWeek((w) => addDays(w, -7))}
                 type="button"
               >
-                ◀ สัปดาห์ก่อน
+                <ChevronLeft size={13} aria-hidden="true" />
+                สัปดาห์ก่อน
               </button>
               <button
-                className="rounded-lg bg-cyan-500/20 px-2 py-1 text-cyan-300"
+                className="inline-flex items-center gap-1 rounded-lg bg-[#2F7D5B]/35 px-2.5 py-1 text-[#E9F0EA]"
                 onClick={() => setPrintWeek(weekStart)}
                 type="button"
               >
+                <CalendarRange size={12} aria-hidden="true" />
                 สัปดาห์นี้
               </button>
               <button
-                className="rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20"
+                className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 hover:bg-white/20"
                 onClick={() => setPrintWeek((w) => addDays(w, 7))}
                 type="button"
               >
-                สัปดาห์ถัดไป ▶
+                สัปดาห์ถัดไป
+                <ChevronRight size={13} aria-hidden="true" />
               </button>
             </div>
           </div>
         </div>
 
         {/* Live Preview Paper Canvas */}
-        <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-slate-300 bg-white p-6 shadow-md">
+        <div className="flex-1 overflow-y-auto bg-[#F6F7F3] p-4 sm:p-6">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-[#DCE3D7] bg-white p-6 shadow-md">
             {posterStyle === "poster" ? (
               /* Playful Modern Poster */
               <div>
-                <div className="flex items-center justify-between border-b-2 border-cyan-500 pb-3">
+                <div className="flex items-center justify-between border-b-2 border-[#2F7D5B] pb-3">
                   <div>
-                    <span className="text-[11px] font-black uppercase tracking-wider text-cyan-600">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-[#2F7D5B]">
                       {schoolName}
                     </span>
-                    <h3 className="text-xl font-black text-slate-900">
-                      ✨ ตารางเวรทำความสะอาดประจำห้อง {roomName}
+                    <h3 className="text-xl font-black text-[#1C342B]">
+                      ตารางเวรทำความสะอาดประจำห้อง {roomName}
                     </h3>
                   </div>
-                  <div className="rounded-xl bg-cyan-50 px-3 py-1.5 text-right ring-1 ring-cyan-200">
-                    <p className="text-[10px] font-black text-cyan-800">ช่วงวันที่</p>
-                    <p className="text-xs font-black text-slate-800">
+                  <div className="rounded-xl bg-[#E9F0EA] px-3 py-1.5 text-right ring-1 ring-[#DCE3D7]">
+                    <p className="text-[10px] font-black text-[#2F7D5B]">ช่วงวันที่</p>
+                    <p className="text-xs font-black text-[#1C342B]">
                       {new Intl.DateTimeFormat("th-TH", {
                         day: "numeric",
                         month: "short",
@@ -236,8 +245,9 @@ export function DutyPosterModal({
                                 className="rounded-lg border border-slate-200 bg-white p-1.5 text-left text-xs"
                                 key={task.id}
                               >
-                                <p className="font-black text-slate-800">
-                                  {getTaskEmoji(task.name)} {task.name}
+                                <p className="inline-flex items-center gap-1.5 font-black text-[#1C342B]">
+                                  {renderTaskIcon(task.name)}
+                                  <span>{task.name}</span>
                                 </p>
                                 <div className="mt-1 space-y-0.5">
                                   {taskAssignments.length > 0 ? (
@@ -266,10 +276,10 @@ export function DutyPosterModal({
                   })}
                 </div>
 
-                <div className="mt-6 flex items-end justify-between border-t border-slate-200 pt-3 text-xs text-slate-500">
-                  <p>ห้องเรียนสะอาด ปลอดโปร่ง ร่วมใจรักษาความสะอาดประจำวัน 💖</p>
+                <div className="mt-6 flex items-end justify-between border-t border-[#DCE3D7] pt-3 text-xs text-[#5A6F64]">
+                  <p>ห้องเรียนสะอาด ปลอดโปร่ง ร่วมใจรักษาความสะอาดประจำวัน</p>
                   <div className="text-right">
-                    <p className="font-bold">ครูประจำชั้น: {teacherName}</p>
+                    <p className="font-bold text-[#1C342B]">ครูประจำชั้น: {teacherName}</p>
                   </div>
                 </div>
               </div>
@@ -342,7 +352,7 @@ export function DutyPosterModal({
               ปิด
             </button>
             <button
-              className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-6 py-2 text-sm font-black text-white shadow-md hover:bg-cyan-800 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1C342B] px-6 py-2 text-sm font-black text-white shadow-md hover:bg-[#152821] disabled:opacity-50"
               disabled={busy}
               onClick={() => onPrint(posterStyle, printWeek)}
               type="button"

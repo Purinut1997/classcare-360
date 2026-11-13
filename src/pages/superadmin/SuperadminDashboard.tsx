@@ -2645,23 +2645,27 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   <label className="block text-xs font-black text-slate-700 mb-1.5">ระดับความสำคัญและโทนสี</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { key: 'info', label: 'ℹ️ ประกาศทั่วไป (สีฟ้า)', tone: 'border-sky-300 bg-sky-50 text-sky-900' },
-                      { key: 'warning', label: '⚠️ เตือนสำคัญ (สีส้ม)', tone: 'border-amber-300 bg-amber-50 text-amber-900' },
-                      { key: 'maintenance', label: '🚨 ปิดปรับปรุง (สีแดง)', tone: 'border-rose-300 bg-rose-50 text-rose-900' },
-                    ].map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => setBroadcastForm({ ...broadcastForm, severity: item.key as BroadcastSeverity })}
-                        className={`rounded-xl border p-2.5 text-xs font-black transition-all ${
-                          broadcastForm.severity === item.key
-                            ? `${item.tone} ring-2 ring-slate-900 shadow-sm`
-                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+                      { key: 'info', label: 'ประกาศทั่วไป (สีฟ้า)', icon: Info, tone: 'border-sky-300 bg-sky-50 text-sky-900' },
+                      { key: 'warning', label: 'เตือนสำคัญ (สีส้ม)', icon: AlertTriangle, tone: 'border-amber-300 bg-amber-50 text-amber-900' },
+                      { key: 'maintenance', label: 'ปิดปรับปรุง (สีแดง)', icon: Wrench, tone: 'border-rose-300 bg-rose-50 text-rose-900' },
+                    ].map((item) => {
+                      const SevIcon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setBroadcastForm({ ...broadcastForm, severity: item.key as BroadcastSeverity })}
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-xl border p-2.5 text-xs font-black transition-all ${
+                            broadcastForm.severity === item.key
+                              ? `${item.tone} ring-2 ring-[#1C342B] shadow-sm`
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <SevIcon size={14} />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2780,14 +2784,19 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                       </div>
                     </div>
                   </div>
-                  <div className="bg-slate-50 px-4 py-2 text-center text-[10px] font-bold text-slate-400 border-t border-slate-100">
-                    สถานะปัจจุบัน: {broadcastForm.isActive ? '🟢 พร้อมแสดงผลทั่วทั้งระบบ' : '⚪ ปิดอยู่ (ไม่มีใครเห็น)'}
+                  <div className="bg-slate-50 px-4 py-2 text-center text-[10px] font-bold text-slate-500 border-t border-slate-100 flex items-center justify-center gap-1.5">
+                    <span>สถานะปัจจุบัน:</span>
+                    <span className={`inline-block h-2 w-2 rounded-full ${broadcastForm.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                    <span>{broadcastForm.isActive ? 'พร้อมแสดงผลทั่วทั้งระบบ' : 'ปิดอยู่ (ไม่มีใครเห็น)'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-xs text-slate-600 font-bold space-y-2">
-                <p className="font-black text-slate-800">💡 เคล็ดลับการส่งประกาศ:</p>
+              <div className="rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 text-xs text-slate-600 font-bold space-y-2">
+                <p className="font-black text-[#1C342B] flex items-center gap-1.5">
+                  <Megaphone size={14} className="text-[#2F7D5B]" />
+                  <span>เคล็ดลับการส่งประกาศ:</span>
+                </p>
                 <ul className="list-disc pl-4 space-y-1 text-slate-500">
                   <li>เลือก <b>"ปิดปรับปรุงระบบ"</b> เมื่อจำเป็นต้องแจ้งล่วงหน้าก่อนอัปเดต Supabase หรือระบบหลัก</li>
                   <li>ข้อความควรกระชับ ระบุช่วงเวลาชัดเจน (เช่น 23:00 - 01:00 น.)</li>

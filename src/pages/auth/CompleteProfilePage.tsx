@@ -97,12 +97,12 @@ export function CompleteProfilePage() {
   }
 
   return (
-    <main className="classcare-grid-bg min-h-screen px-4 py-7 text-slate-950 sm:px-6 lg:px-8">
+    <main className="classcare-grid-bg min-h-screen px-4 py-7 text-[#1C342B] sm:px-6 lg:px-8">
       <section className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="relative overflow-hidden rounded-[2rem] border border-slate-900/80 bg-slate-950 p-6 text-white shadow-[0_30px_80px_rgba(2,6,23,0.25)] sm:p-8">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:34px_34px]" />
-          <div className="pulse-glow absolute right-12 top-16 h-2 w-2 rounded-full bg-cyan-200 shadow-[0_0_28px_10px_rgba(103,232,249,0.35)]" />
-          <div className="relative inline-flex h-11 items-center gap-2 rounded-full bg-cyan-300/15 px-4 text-sm font-black text-cyan-100 ring-1 ring-cyan-200/20">
+        <aside className="relative overflow-hidden rounded-[2rem] border border-[#1C342B] bg-gradient-to-br from-[#1C342B] via-[#1C342B] to-[#152821] p-6 text-white shadow-[0_30px_80px_rgba(28,52,43,0.22)] sm:p-8">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[length:34px_34px]" />
+          <div className="pulse-glow absolute right-12 top-16 h-2 w-2 rounded-full bg-emerald-200 shadow-[0_0_28px_10px_rgba(47,125,91,0.4)]" />
+          <div className="relative inline-flex h-11 items-center gap-2 rounded-full bg-[#2F7D5B]/30 px-4 text-sm font-black text-[#E9F0EA] ring-1 ring-white/20">
             <BadgeCheck size={18} aria-hidden="true" />
             Complete Profile
           </div>
@@ -113,9 +113,9 @@ export function CompleteProfilePage() {
               'กำหนด role เริ่มต้นตาม workflow',
               'บันทึก audit log หลังสร้างบัญชี',
             ].map((item) => (
-              <div className="flex gap-3 rounded-3xl border border-white/10 bg-white/10 p-3 shadow-[0_16px_34px_rgba(8,47,73,0.16)] backdrop-blur-xl" key={item}>
-                <CheckCircle2 className="mt-0.5 shrink-0 text-cyan-200" size={18} aria-hidden="true" />
-                <p className="text-sm font-bold leading-6 text-slate-100">{item}</p>
+              <div className="flex gap-3 rounded-3xl border border-white/10 bg-white/10 p-3 shadow-[0_16px_34px_rgba(21,40,33,0.2)] backdrop-blur-xl" key={item}>
+                <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-200" size={18} aria-hidden="true" />
+                <p className="text-sm font-bold leading-6 text-emerald-50">{item}</p>
               </div>
             ))}
           </div>
@@ -123,22 +123,22 @@ export function CompleteProfilePage() {
 
         <form className="glass-panel rounded-[2rem] p-5 sm:p-6" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-sm font-black text-slate-700">
+            <label className="grid gap-2 text-sm font-black text-[#1C342B]">
               ชื่อที่แสดงในระบบ
               <span className="relative block">
-                <UserRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
+                <UserRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#5A6F64]" size={18} aria-hidden="true" />
                 <input
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white/90 pl-11 pr-4 text-base font-bold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  className="h-12 w-full rounded-2xl border border-[#DCE3D7] bg-white pl-11 pr-4 text-base font-bold outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15"
                   onChange={(event) => setDisplayName(event.target.value)}
                   value={displayName}
                 />
               </span>
             </label>
 
-            <label className="grid gap-2 text-sm font-black text-slate-700">
+            <label className="grid gap-2 text-sm font-black text-[#1C342B]">
               บทบาทเริ่มต้น
               <select
-                className="h-12 rounded-2xl border border-slate-200 bg-white/90 px-4 text-base font-bold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                className="h-12 rounded-2xl border border-[#DCE3D7] bg-white px-4 text-base font-bold outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15"
                 onChange={(event) => setRole(event.target.value as Exclude<WorkspaceRole, 'superadmin'>)}
                 value={role}
               >
@@ -149,47 +149,47 @@ export function CompleteProfilePage() {
                 ))}
               </select>
               {selectedRoleOption ? (
-                <span className="text-xs font-bold leading-5 text-slate-500">
+                <span className="text-xs font-bold leading-5 text-[#5A6F64]">
                   {selectedRoleOption.description}
                 </span>
               ) : null}
             </label>
 
-            <label className="grid gap-2 text-sm font-black text-slate-700">
+            <label className="grid gap-2 text-sm font-black text-[#1C342B]">
               เบอร์ติดต่อ
               <input
-                className="h-12 rounded-2xl border border-slate-200 bg-white/90 px-4 text-base font-bold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                className="h-12 rounded-2xl border border-[#DCE3D7] bg-white px-4 text-base font-bold outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15"
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="08x-xxx-xxxx"
                 value={phone}
               />
             </label>
 
-            <label className="grid gap-2 text-sm font-black text-slate-700">
+            <label className="grid gap-2 text-sm font-black text-[#1C342B]">
               โรงเรียน
               <span className="relative block">
-                <Building2 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
+                <Building2 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#5A6F64]" size={18} aria-hidden="true" />
                 <input
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white/90 pl-11 pr-4 text-base font-bold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  className="h-12 w-full rounded-2xl border border-[#DCE3D7] bg-white pl-11 pr-4 text-base font-bold outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15"
                   onChange={(event) => setSchoolName(event.target.value)}
                   placeholder="เช่น โรงเรียนตัวอย่าง ClassCare"
                   value={schoolName}
                 />
               </span>
-              <span className="text-xs font-bold leading-5 text-slate-500">
+              <span className="text-xs font-bold leading-5 text-[#5A6F64]">
                 ตัวอย่าง: โรงเรียนตัวอย่าง ClassCare ควรใช้ชื่อเดียวกันทุกครั้งเพื่อให้ระบบจับคู่ workspace ได้ถูกต้อง
               </span>
             </label>
           </div>
 
-          <div className="mt-5 rounded-3xl bg-gradient-to-r from-sky-50 to-cyan-50 p-4 ring-1 ring-sky-100">
+          <div className="mt-5 rounded-3xl bg-[#E9F0EA] p-4 ring-1 ring-[#DCE3D7]">
             <div className="flex gap-3">
               {role === 'teacher_owner' ? (
-                <ShieldCheck className="mt-0.5 shrink-0 text-sky-700" size={20} aria-hidden="true" />
+                <ShieldCheck className="mt-0.5 shrink-0 text-[#2F7D5B]" size={20} aria-hidden="true" />
               ) : (
-                <GraduationCap className="mt-0.5 shrink-0 text-sky-700" size={20} aria-hidden="true" />
+                <GraduationCap className="mt-0.5 shrink-0 text-[#2F7D5B]" size={20} aria-hidden="true" />
               )}
-              <p className="text-sm font-bold leading-6 text-sky-900">
+              <p className="text-sm font-bold leading-6 text-[#1C342B]">
                 {role === 'teacher_owner'
                   ? 'ถ้าครูใช้งานคนเดียว ให้เลือกบทบาทนี้ได้เลย หลังสร้าง workspace ระบบจะให้สิทธิ์เป็นทั้งครูผู้ใช้งานและเจ้าของ workspace ในบัญชีเดียว'
                   : 'ระบบจะใช้ข้อมูลนี้สร้าง profile และ membership เริ่มต้น โดยยังต้องบังคับ RLS ซ้ำในฐานข้อมูลจริง'}

@@ -61,25 +61,25 @@ const featureHighlights = [
     icon: FileSpreadsheet,
     title: 'เอกสาร ปพ.๕ / ปพ.๖',
     desc: 'มาตรฐาน สพฐ. พิมพ์ & Excel 1-Click',
-    color: 'bg-blue-500/20 border-blue-400/30 text-blue-300',
+    color: 'bg-[#2D72A3]/25 border-[#2D72A3]/40 text-sky-200',
   },
   {
     icon: GraduationCap,
     title: 'คะแนน & ตัดเกรด 8 ระดับ',
     desc: 'ตัดเกรดอัตโนมัติ 8 กลุ่มสาระ คำนวณ GPA',
-    color: 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300',
+    color: 'bg-[#2F7D5B]/30 border-[#8CC6A7]/40 text-[#BCE0CE]',
   },
   {
     icon: Users,
     title: 'ดูแลช่วยเหลือนักเรียน 360°',
     desc: 'เช็คชื่อ, คุณลักษณะ 8 ประการ & สุขภาพ BMI',
-    color: 'bg-purple-500/20 border-purple-400/30 text-purple-300',
+    color: 'bg-[#C25970]/25 border-[#C25970]/40 text-rose-200',
   },
   {
     icon: Sparkles,
     title: 'จัดการชั้นเรียนอัจฉริยะ',
     desc: 'สุ่มชื่อตอบ, ผังที่นั่ง, ตารางสอน & ออมทรัพย์',
-    color: 'bg-amber-500/20 border-amber-400/30 text-amber-300',
+    color: 'bg-[#D98B26]/25 border-[#D98B26]/40 text-amber-200',
   },
 ];
 
@@ -225,54 +225,54 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
   }
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-3.5 sm:p-6 lg:p-10 overflow-x-hidden font-sans">
-      {/* Dynamic Ambient Mesh Glow Background */}
-      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/20 blur-[130px]" />
-      <div className="pointer-events-none absolute -right-40 -bottom-40 h-96 w-96 rounded-full bg-indigo-600/20 blur-[140px]" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[160px]" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[length:32px_32px]" />
+    <main className="relative min-h-screen bg-[#152821] text-slate-100 flex items-center justify-center p-3.5 sm:p-6 lg:p-10 overflow-x-hidden font-sans">
+      {/* Morning Sage & Forest Canopy Mesh Background */}
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-[#2F7D5B]/25 blur-[130px]" />
+      <div className="pointer-events-none absolute -right-40 -bottom-40 h-96 w-96 rounded-full bg-[#D98B26]/15 blur-[140px]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-[#2F7D5B]/10 blur-[160px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgba(233,240,234,0.06)_1px,transparent_1px)] bg-[length:32px_32px]" />
 
       <section className="relative z-10 mx-auto w-full max-w-6xl flex flex-col lg:grid lg:grid-cols-[1.1fr_450px] gap-5 lg:gap-8 items-stretch">
         
         {/* ======================================================== */}
         {/* DESKTOP-ONLY LEFT COLUMN: Hero Brand Showcase */}
         {/* ======================================================== */}
-        <div className="hidden lg:flex flex-col justify-between overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-blue-950/70 p-8 sm:p-10 lg:p-12 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+        <div className="hidden lg:flex flex-col justify-between overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#1C342B] via-[#182D25] to-[#13231C] p-8 sm:p-10 lg:p-12 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-2xl">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-[#2F7D5B]/15 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-[#D98B26]/10 blur-3xl pointer-events-none" />
 
           {/* Top Brand Bar */}
           <div>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <AppLogo className="h-12 w-12 rounded-2xl bg-white shadow-lg shadow-blue-500/15 ring-2 ring-white/20 p-1" />
+                <AppLogo className="h-12 w-12 rounded-2xl bg-white shadow-lg shadow-[#152821]/30 ring-2 ring-[#E9F0EA]/30 p-1" />
                 <div>
                   <span className="text-xl font-black tracking-tight text-white flex items-center gap-2">
                     <span>ClassCare 360</span>
-                    <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[10px] font-bold text-blue-300 border border-blue-400/30">
+                    <span className="rounded-full bg-[#2F7D5B]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#BCE0CE] border border-[#8CC6A7]/30">
                       v2.0
                     </span>
                   </span>
-                  <p className="text-xs font-semibold text-slate-400">ระบบบริหารสถานศึกษาอัจฉริยะ</p>
+                  <p className="text-xs font-semibold text-[#A7BDB1]">ระบบบริหารสถานศึกษาอัจฉริยะ</p>
                 </div>
               </div>
 
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3.5 py-1.5 text-xs font-bold text-cyan-200 border border-white/10 backdrop-blur-md">
-                <ShieldCheck size={14} className="text-cyan-400 shrink-0" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-[#E9F0EA] border border-white/15 backdrop-blur-md">
+                <ShieldCheck size={14} className="text-[#8CC6A7] shrink-0" />
                 <span>มาตรฐานความปลอดภัย สพฐ.</span>
               </div>
             </div>
 
             {/* Hero Heading */}
             <div className="mt-10 sm:mt-12">
-              <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-500/20 to-indigo-500/20 px-3.5 py-1 text-xs font-bold text-blue-300 border border-blue-400/20 mb-4">
-                <Sparkles size={13} className="text-amber-300 animate-pulse" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#2F7D5B]/25 px-3.5 py-1 text-xs font-bold text-[#BCE0CE] border border-[#8CC6A7]/25 mb-4">
+                <Sparkles size={13} className="text-[#F5B95D]" />
                 <span>{currentCopy.eyebrow}</span>
               </div>
               <h1 className="text-3xl sm:text-5xl lg:text-5xl font-extrabold tracking-tight text-white leading-[1.15]">
                 {currentCopy.title}
               </h1>
-              <p className="mt-4 text-sm sm:text-base font-normal text-slate-300 leading-relaxed max-w-xl">
+              <p className="mt-4 text-sm sm:text-base font-normal text-[#C8D8CE] leading-relaxed max-w-xl">
                 {currentCopy.subtitle}
               </p>
             </div>
@@ -284,7 +284,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                 return (
                   <div
                     key={feat.title}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md hover:bg-white/[0.08] transition duration-200"
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] p-3.5 backdrop-blur-md hover:bg-white/[0.09] transition duration-200"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${feat.color}`}>
@@ -292,7 +292,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                       </div>
                       <div>
                         <h4 className="text-xs font-bold text-white">{feat.title}</h4>
-                        <p className="text-[11px] text-slate-300/80 mt-0.5">{feat.desc}</p>
+                        <p className="text-[11px] text-[#C8D8CE]/85 mt-0.5">{feat.desc}</p>
                       </div>
                     </div>
                   </div>
@@ -305,8 +305,8 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
           <div className="mt-8 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {trustBadges.map((badge) => (
               <div key={badge} className="flex items-center gap-2">
-                <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />
-                <span className="text-xs font-semibold text-slate-300">{badge}</span>
+                <CheckCircle2 size={15} className="text-[#8CC6A7] shrink-0" />
+                <span className="text-xs font-semibold text-[#C8D8CE]">{badge}</span>
               </div>
             ))}
           </div>
@@ -315,25 +315,25 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
         {/* ======================================================== */}
         {/* PRIMARY AUTH CARD (Immediate on Mobile, Right on Desktop) */}
         {/* ======================================================== */}
-        <div className="relative flex flex-col justify-between rounded-3xl sm:rounded-[2.5rem] border border-slate-200/80 bg-white p-5 sm:p-8 shadow-2xl text-slate-900 w-full max-w-md lg:max-w-none mx-auto">
+        <div className="relative flex flex-col justify-between rounded-3xl sm:rounded-[2.5rem] border border-[#DCE3D7] bg-[#FAFBF8] p-5 sm:p-8 shadow-2xl text-[#1C342B] w-full max-w-md lg:max-w-none mx-auto">
           
           <div>
             {/* Top Navigation Row */}
-            <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 pb-2.5 sm:pb-2 border-b border-slate-100 sm:border-0">
+            <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 pb-2.5 sm:pb-2 border-b border-[#DCE3D7] sm:border-0">
               <div className="flex items-center gap-2.5">
-                <AppLogo className="h-9 w-9 rounded-xl bg-slate-900 p-1 ring-1 ring-slate-200 shrink-0 lg:hidden" />
+                <AppLogo className="h-9 w-9 rounded-xl bg-white p-1 ring-1 ring-[#DCE3D7] shrink-0 lg:hidden" />
                 <div>
                   <div className="flex items-center gap-1.5 lg:hidden">
-                    <span className="text-sm font-black text-slate-900 leading-tight">ClassCare 360</span>
-                    <span className="rounded-full bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">v2.0</span>
+                    <span className="text-sm font-black text-[#1C342B] leading-tight">ClassCare 360</span>
+                    <span className="rounded-full bg-[#E9F0EA] px-1.5 py-0.2 text-[9px] font-bold text-[#2F7D5B] border border-[#DCE3D7]">v2.0</span>
                   </div>
-                  <span className="text-xs font-bold text-slate-400 block">
+                  <span className="text-xs font-bold text-[#5A6F64] block">
                     {mode === 'login' ? 'เข้าสู่ระบบบัญชีผู้ใช้' : mode === 'register' ? 'ลงทะเบียนใช้งาน' : 'กู้คืนรหัสผ่าน'}
                   </span>
                 </div>
               </div>
               <Link
-                className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-600 transition group bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200/80"
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#5A6F64] hover:text-[#2F7D5B] transition group bg-[#F6F7F3] hover:bg-[#E9F0EA] px-3 py-1.5 rounded-full border border-[#DCE3D7]"
                 to="/"
               >
                 <ArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
@@ -342,7 +342,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
             </div>
 
             {/* Segmented Auth Mode Switcher */}
-            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 border border-slate-200/80">
+            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-[#EEF2EC] p-1 border border-[#DCE3D7]">
               {authModes.map((item) => {
                 const Icon = item.icon;
                 const isActive = mode === item.mode;
@@ -354,11 +354,11 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                     type="button"
                     className={`flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
                       isActive
-                        ? 'bg-white text-blue-600 shadow-sm font-black'
-                        : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
+                        ? 'bg-white text-[#1C342B] shadow-sm font-black ring-1 ring-[#DCE3D7]'
+                        : 'text-[#5A6F64] hover:text-[#1C342B] hover:bg-white/50'
                     }`}
                   >
-                    <Icon size={14} />
+                    <Icon size={14} className={isActive ? 'text-[#2F7D5B]' : ''} />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -369,13 +369,13 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
             <form className="mt-4 sm:mt-6 space-y-3 sm:space-y-4" onSubmit={handleSubmit}>
               {mode === 'register' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-[#1C342B] mb-1">
                     ชื่อ - นามสกุล หรือ ชื่อที่แสดงในระบบ
                   </label>
                   <div className="relative">
-                    <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                    <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5A6F64]" size={17} />
                     <input
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
+                      className="h-11 w-full rounded-xl border border-[#DCE3D7] bg-white pl-10 pr-4 text-sm font-semibold text-[#1C342B] outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15 placeholder:text-slate-400"
                       onChange={(event) => setDisplayName(event.target.value)}
                       placeholder="เช่น ครูสมชาย ใจดี"
                       value={displayName}
@@ -386,14 +386,14 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-[#1C342B] mb-1">
                   อีเมล (Email)
                 </label>
                 <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5A6F64]" size={17} />
                   <input
                     autoComplete="email"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
+                    className="h-11 w-full rounded-xl border border-[#DCE3D7] bg-white pl-10 pr-4 text-sm font-semibold text-[#1C342B] outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15 placeholder:text-slate-400"
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="teacher@school.ac.th"
                     type="email"
@@ -406,24 +406,24 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
               {mode !== 'forgot' && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
+                    <label className="block text-xs font-bold text-[#1C342B]">
                       รหัสผ่าน (Password)
                     </label>
                     {mode === 'login' && (
                       <button
                         type="button"
                         onClick={() => switchMode('forgot')}
-                        className="text-[11px] font-bold text-blue-600 hover:underline"
+                        className="text-[11px] font-bold text-[#2F7D5B] hover:underline"
                       >
                         ลืมรหัสผ่าน?
                       </button>
                     )}
                   </div>
                   <div className="relative">
-                    <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                    <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5A6F64]" size={17} />
                     <input
                       autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-11 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
+                      className="h-11 w-full rounded-xl border border-[#DCE3D7] bg-white pl-10 pr-11 text-sm font-semibold text-[#1C342B] outline-none transition focus:border-[#2F7D5B] focus:ring-4 focus:ring-[#2F7D5B]/15 placeholder:text-slate-400"
                       minLength={mode === 'register' ? 8 : 1}
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder={mode === 'register' ? 'ความยาวอย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่านของคุณ'}
@@ -435,7 +435,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                       type="button"
                       aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-[#5A6F64] hover:text-[#1C342B] rounded-lg transition"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -447,7 +447,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
               <button
                 type="submit"
                 disabled={primaryDisabled}
-                className="w-full inline-flex h-11 sm:h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-600 text-white text-sm font-black shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none mt-1 sm:mt-2"
+                className="w-full inline-flex h-11 sm:h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1C342B] to-[#2F7D5B] hover:from-[#2F7D5B] hover:to-[#1C342B] text-white text-sm font-black shadow-lg shadow-[#1C342B]/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none mt-1 sm:mt-2"
               >
                 <span>{isSubmitting ? 'กำลังดำเนินการ...' : currentCopy.button}</span>
                 <ArrowRight size={16} />
@@ -457,10 +457,10 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
             {/* Divider */}
             <div className="relative my-3.5 sm:my-5">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
+                <div className="w-full border-t border-[#DCE3D7]" />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-3 text-slate-400 font-semibold">หรือดำเนินการด้วย</span>
+                <span className="bg-[#FAFBF8] px-3 text-[#5A6F64] font-semibold">หรือดำเนินการด้วย</span>
               </div>
             </div>
 
@@ -469,7 +469,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
               type="button"
               disabled={isGoogleSubmitting || isSubmitting}
               onClick={() => void handleGoogleLogin()}
-              className="w-full inline-flex h-11 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs hover:shadow-md transition active:scale-[0.99] disabled:opacity-60"
+              className="w-full inline-flex h-11 items-center justify-center gap-3 rounded-xl border border-[#DCE3D7] bg-white hover:bg-[#F6F7F3] text-[#1C342B] text-xs font-bold shadow-xs hover:shadow-md transition active:scale-[0.99] disabled:opacity-60"
             >
               <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -489,17 +489,17 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
           </div>
 
           {/* Bottom Card Footer with VIP link */}
-          <div className="mt-5 pt-3.5 sm:mt-6 sm:pt-4 border-t border-slate-100 text-center space-y-2.5 sm:space-y-3">
+          <div className="mt-5 pt-3.5 sm:mt-6 sm:pt-4 border-t border-[#DCE3D7] text-center space-y-2.5 sm:space-y-3">
             <Link
               to="/pricing"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/70 text-xs font-bold text-purple-700 hover:text-purple-900 hover:border-purple-300 transition shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50/80 border border-amber-200/80 text-xs font-bold text-[#9A5E14] hover:bg-amber-100/70 transition shadow-xs"
             >
-              <Crown size={13} className="text-amber-500" />
+              <Crown size={13} className="text-[#D98B26]" />
               <span>ดูแพ็กเกจและสิทธิพิเศษ ClassCare 360 VIP</span>
               <ArrowRight size={11} />
             </Link>
 
-            <p className="text-[11px] font-semibold text-slate-400">
+            <p className="text-[11px] font-semibold text-[#5A6F64]">
               {appEnv.appName} • ดูแลทั้งห้อง ครบจบในระบบเดียว
             </p>
           </div>
@@ -512,17 +512,17 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
           <button
             type="button"
             onClick={() => setShowMobileFeatures((prev) => !prev)}
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition backdrop-blur-md shadow-xs active:scale-95"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold text-[#E9F0EA] hover:text-white hover:bg-white/15 transition backdrop-blur-md shadow-xs active:scale-95"
           >
-            <Sparkles size={13} className="text-amber-300" />
+            <Sparkles size={13} className="text-[#F5B95D]" />
             <span>{showMobileFeatures ? 'ซ่อนจุดเด่นระบบ' : 'ดูจุดเด่นและบริการใน ClassCare 360'}</span>
             <ChevronDown size={14} className={`transition-transform duration-200 ${showMobileFeatures ? 'rotate-180' : ''}`} />
           </button>
 
           {showMobileFeatures && (
-            <div className="mt-3.5 w-full rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-blue-950/70 p-5 shadow-xl text-left animate-in fade-in slide-in-from-top-3 duration-200">
+            <div className="mt-3.5 w-full rounded-3xl border border-white/10 bg-gradient-to-br from-[#1C342B] via-[#182D25] to-[#13231C] p-5 shadow-xl text-left animate-in fade-in slide-in-from-top-3 duration-200">
               <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={14} className="text-amber-300" />
+                <Sparkles size={14} className="text-[#F5B95D]" />
                 <h3 className="text-sm font-black text-white">จุดเด่นระบบบริหารสถานศึกษา สพฐ.</h3>
               </div>
 
@@ -532,7 +532,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                   return (
                     <div
                       key={feat.title}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-md"
+                      className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 backdrop-blur-md"
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${feat.color}`}>
@@ -540,7 +540,7 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                         </div>
                         <div>
                           <h4 className="text-xs font-bold text-white">{feat.title}</h4>
-                          <p className="text-[11px] text-slate-300/80 mt-0.5">{feat.desc}</p>
+                          <p className="text-[11px] text-[#C8D8CE]/85 mt-0.5">{feat.desc}</p>
                         </div>
                       </div>
                     </div>
@@ -548,10 +548,10 @@ export function LoginPage({ session, sessionWarning }: LoginPageProps) {
                 })}
               </div>
 
-              <div className="mt-4 pt-3.5 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-300">
+              <div className="mt-4 pt-3.5 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#C8D8CE]">
                 {trustBadges.map((badge) => (
                   <div key={badge} className="flex items-center gap-1.5">
-                    <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                    <CheckCircle2 size={13} className="text-[#8CC6A7] shrink-0" />
                     <span>{badge}</span>
                   </div>
                 ))}

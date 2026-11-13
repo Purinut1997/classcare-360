@@ -6,11 +6,13 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Cloud,
   FileText,
   GraduationCap,
   Layers,
   Sparkles,
   Sliders,
+  Smartphone,
   Users,
   Printer,
   QrCode,
@@ -160,7 +162,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       pointsPerQuestion: template.pointsPerQuestion,
     };
     setConfig(loadedConfig);
-    setToastMessage(`⚡ สลับไปใช้ชุดข้อสอบ "${template.title}" (${template.totalQuestions} ข้อ) เรียบร้อยแล้ว`);
+    setToastMessage(`สลับไปใช้ชุดข้อสอบ "${template.title}" (${template.totalQuestions} ข้อ) เรียบร้อยแล้ว`);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
@@ -368,7 +370,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
 
     setDesignerSubTab('preview');
     setOmrTab('designer');
-    setToastMessage(`⚡ ปรับเป็นแม่แบบ "${preset.label}" เรียบร้อย พร้อมสั่งพิมพ์ได้ทันที!`);
+    setToastMessage(`ปรับเป็นแม่แบบ "${preset.label}" เรียบร้อย พร้อมสั่งพิมพ์ได้ทันที!`);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
@@ -383,17 +385,17 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       )}
 
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 p-6 sm:p-8 text-white shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl border border-[#DCE3D7] bg-gradient-to-r from-[#1C342B] via-[#213D32] to-[#152821] p-6 sm:p-8 text-white shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-lg bg-cyan-500/20 px-3 py-1 text-xs font-black text-cyan-300 border border-cyan-400/30">
-              <Sparkles size={13} />
+            <div className="inline-flex items-center gap-2 rounded-lg bg-[#2F7D5B]/30 px-3 py-1 text-xs font-black text-[#CBE4D4] border border-[#2F7D5B]/50">
+              <Sparkles size={13} aria-hidden="true" />
               ระบบตรวจกระดาษคำตอบ AI Vision OMR
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
               สร้าง ออกแบบ และตรวจกระดาษคำตอบผ่านกล้อง
             </h1>
-            <p className="text-xs sm:text-sm font-medium text-slate-300 leading-relaxed">
+            <p className="text-xs sm:text-sm font-medium text-emerald-100/80 leading-relaxed">
               สแกนด้วยกล้องมือถือหรืออัปโหลดภาพ ตรวจนับคะแนนอัตโนมัติแบบเรียลไทม์
               เลือกระบุชื่อนักเรียนในห้องเพื่อลงสมุดคะแนนทันที หรือตรวจแบบบุคคลทั่วไป พร้อมวิเคราะห์ความยากง่ายรายข้อ
             </p>
@@ -403,18 +405,18 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
             <button
               type="button"
               onClick={handleOpenMobileHandoff}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500/20 px-3.5 py-2.5 text-xs font-black text-indigo-100 border-2 border-indigo-400/50 hover:bg-indigo-500/35 transition shadow-sm active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 text-xs font-black text-white border border-white/25 hover:bg-white/20 transition shadow-sm active:scale-95"
               title="สร้าง QR Code เพื่อส่องด้วยกล้องมือถือแล้วเปิดหน้านี้บนมือถือได้ทันที"
             >
-              <QrCode size={16} className="text-indigo-300" />
-              <span>📱 ตรวจบนมือถือ (QR Handoff)</span>
+              <Smartphone size={16} className="text-emerald-200" aria-hidden="true" />
+              <span>ตรวจบนมือถือ (QR Handoff)</span>
             </button>
 
             <a
               href={withDemoContext('/app/dashboard?view=scores', window.location.search)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800/80 px-3.5 py-2.5 text-xs font-black text-slate-200 border-2 border-slate-700 hover:bg-slate-800 hover:border-slate-500 hover:text-white transition shadow-sm active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#152821] px-3.5 py-2.5 text-xs font-black text-emerald-100 border border-white/15 hover:bg-[#1C342B] hover:text-white transition shadow-sm active:scale-95"
             >
-              <GraduationCap size={16} className="text-slate-400" />
+              <GraduationCap size={16} className="text-emerald-200" aria-hidden="true" />
               <span>กลับสู่ระบบคะแนน</span>
             </a>
 
@@ -424,18 +426,18 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
                 setDesignerSubTab('preview');
                 setOmrTab('designer');
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-xs font-black text-slate-950 border-2 border-amber-300 shadow-md hover:from-amber-300 hover:to-amber-400 transition active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D98B26] px-4 py-2.5 text-xs font-black text-white border border-[#E69E3D] shadow-md hover:bg-[#C27A1E] transition active:scale-95"
               title="ไปที่หน้าดูตัวอย่างกระดาษคำตอบและสั่งพิมพ์ A4 ทันที"
             >
-              <Printer size={16} />
-              <span>🖨️ สั่งพิมพ์ A4 ด่วน</span>
+              <Printer size={16} aria-hidden="true" />
+              <span>สั่งพิมพ์ A4 ด่วน</span>
             </button>
           </div>
         </div>
 
-        {/* Decorative Grid Pattern */}
+        {/* Decorative Botanical Glow */}
         <div
-          className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"
+          className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#2F7D5B]/20 blur-3xl pointer-events-none"
           aria-hidden="true"
         />
       </div>
@@ -700,8 +702,9 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-600 text-[10px] text-white">2</span>
                   กดเปิดลิงก์ ระบบจะพาเข้าสู่หน้าตรวจ OMR พร้อมเฉลยชุดนี้ทันที
                 </p>
-                <p className="text-[11px] font-medium text-slate-500">
-                  ☁️ ข้อมูลชุดข้อสอบถูกซิงค์กับระบบคลาวด์แล้ว สามารถเปิดบนอุปกรณ์ใดก็ได้
+                <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#5A6F64]">
+                  <Cloud size={12} className="text-[#2F7D5B] shrink-0" aria-hidden="true" />
+                  ข้อมูลชุดข้อสอบถูกซิงค์กับระบบคลาวด์แล้ว สามารถเปิดบนอุปกรณ์ใดก็ได้
                 </p>
               </div>
 

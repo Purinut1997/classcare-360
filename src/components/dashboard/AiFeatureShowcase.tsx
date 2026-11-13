@@ -254,8 +254,8 @@ export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {
                 </Link>
               )}
             </div>
-            <h2 className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
-              ✨ รวมฟังก์ชัน AI อัจฉริยะ ช่วยงานครูไทยลดงานเอกสาร
+            <h2 className="mt-1 text-lg font-black text-[#1C342B] sm:text-xl">
+              รวมฟังก์ชัน AI อัจฉริยะ ช่วยงานครูไทยลดงานเอกสาร
             </h2>
             <p className="mt-0.5 text-xs font-bold text-slate-600">
               ถ่ายรูปกระดาษสู่ระบบใน 3 วินาที • ออกแบบรูบริก & ข้อสอบ สพฐ. อัตโนมัติ • ขับเคลื่อนด้วย Google Gemini Multimodal Vision
@@ -294,35 +294,38 @@ export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {
             <button
               type="button"
               onClick={() => setActiveCategory('ocr')}
-              className={`rounded-xl px-3 py-1.5 text-xs font-black transition ${
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
                 activeCategory === 'ocr'
                   ? 'bg-violet-600 text-white shadow-xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              📸 Smart OCR สแกนเอกสารกระดาษ (3)
+              <Camera size={13} aria-hidden="true" />
+              <span>Smart OCR สแกนเอกสารกระดาษ (3)</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('teaching')}
-              className={`rounded-xl px-3 py-1.5 text-xs font-black transition ${
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
                 activeCategory === 'teaching'
                   ? 'bg-violet-600 text-white shadow-xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              📝 ออกแบบการสอน & ข้อสอบ สพฐ. (2)
+              <FileCheck2 size={13} aria-hidden="true" />
+              <span>ออกแบบการสอน &amp; ข้อสอบ สพฐ. (2)</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory('assistant')}
-              className={`rounded-xl px-3 py-1.5 text-xs font-black transition ${
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black transition ${
                 activeCategory === 'assistant'
                   ? 'bg-violet-600 text-white shadow-xs'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              💡 ผู้ช่วยครู & วิเคราะห์ข้อมูล (1)
+              <Lightbulb size={13} aria-hidden="true" />
+              <span>ผู้ช่วยครู &amp; วิเคราะห์ข้อมูล (1)</span>
             </button>
           </div>
 

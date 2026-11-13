@@ -1,12 +1,14 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeftRight,
+  ArrowRight,
   BookOpenCheck,
   CalendarClock,
   CalendarRange,
   Download,
   FileSpreadsheet,
   GripVertical,
+  Lightbulb,
   Palette,
   Plus,
   Printer,
@@ -18,9 +20,11 @@ import {
   UserRound,
   Users,
   Utensils,
+  X,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
+import { SubjectLucideIcon } from '../../components/shared/BotanicalDecor';
 import { ScheduleOcrModal } from '../../components/schedule/ScheduleOcrModal';
 import type { ParsedScheduleResult } from '../../lib/aiVisionService';
 
@@ -31,7 +35,6 @@ import {
   defaultDays,
   exportScheduleCsv,
   getScheduleTheme,
-  getSubjectIcon,
   loadScheduleSettings,
   loadSchoolReportIdentity,
   makeScheduleCellKey,
@@ -306,7 +309,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
         if (/ลูกเสือ|เนตรนารี|ยุวกาชาด|บำเพ็ญ|ชุมนุม|ชมรม|กิจกรรม|แนะแนว|ซ่อมเสริม|โฮมรูม|สวดมนต์/.test(sub)) {
           const key = theme.categoryLabel || sub;
-          const current = activityMap.get(key) || { count: 0, icon: theme.icon || '🎯', label: key, theme };
+          const current = activityMap.get(key) || { count: 0, icon: sub, label: key, theme };
           current.count += 1;
           activityMap.set(key, current);
         } else if (room) {
@@ -315,7 +318,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
           gradeMap.set(room, current);
         } else {
           const key = theme.categoryLabel || sub;
-          const current = subjectMap.get(key) || { count: 0, icon: theme.icon || '📚', label: key, theme };
+          const current = subjectMap.get(key) || { count: 0, icon: sub, label: key, theme };
           current.count += 1;
           subjectMap.set(key, current);
         }
@@ -625,7 +628,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
         message: `สลับคาบเรียนระหว่าง "${sourceCell.subject}" กับ "${targetCell.subject}" เรียบร้อย`,
         previousCells,
       });
-      setNotice(`🔄 สลับคาบเรียนระหว่าง "${sourceCell.subject}" กับ "${targetCell.subject}" เรียบร้อย`);
+      setNotice(`สลับคาบเรียนระหว่าง "${sourceCell.subject}" กับ "${targetCell.subject}" เรียบร้อย`);
     } else {
       // ย้ายไปยังช่องว่าง (Move to empty)
       delete nextCells[sourceKey];
@@ -634,7 +637,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
         message: `ย้าย "${sourceCell.subject}${sourceCell.classroom ? ` (${sourceCell.classroom})` : ''}" ไปยังช่องใหม่เรียบร้อย`,
         previousCells,
       });
-      setNotice(`✨ ย้ายคาบ "${sourceCell.subject}${sourceCell.classroom ? ` (${sourceCell.classroom})` : ''}" ไปยังช่องใหม่เรียบร้อย`);
+      setNotice(`ย้ายคาบ "${sourceCell.subject}${sourceCell.classroom ? ` (${sourceCell.classroom})` : ''}" ไปยังช่องใหม่เรียบร้อย`);
     }
 
     const nextSettings = { ...settings, cells: nextCells };
@@ -649,7 +652,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     if (!lastActionUndo) return;
     const nextSettings = { ...settings, cells: lastActionUndo.previousCells };
     saveAll(nextSettings);
-    setNotice(`↩️ เลิกทำการย้าย/สลับคาบเรียนแล้ว`);
+    setNotice(`เลิกทำการย้าย/สลับคาบเรียนแล้ว`);
     setLastActionUndo(null);
   }
 
@@ -1478,7 +1481,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   type="button"
                 >
                   <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
-                  <span>✨ สแกนตารางสอน AI Vision</span>
+                  <span>สแกนตารางสอน AI Vision</span>
                   <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
                 </button>
                 <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
@@ -1546,7 +1549,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-2xs border ${act.theme.card}`}
                             title={`${act.label} (${act.count} คาบ)`}
                           >
-                            <span>{act.icon}</span>
+                            <SubjectLucideIcon subject={act.icon} size={13} />
                             <span>{act.label}</span>
                             <span className="text-[10.5px] opacity-90 font-bold">({act.count})</span>
                           </span>
@@ -1559,7 +1562,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-2xs border ${subj.theme.card}`}
                             title={`${subj.label} (${subj.count} คาบ)`}
                           >
-                            <span>{subj.icon}</span>
+                            <SubjectLucideIcon subject={subj.icon} size={13} />
                             <span>{subj.label}</span>
                             <span className="text-[10.5px] opacity-90 font-bold">({subj.count})</span>
                           </span>
@@ -1579,20 +1582,20 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   </div>
                 ) : null}
 
-                {/* 💡 Tips & Guidance bar */}
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
-                  <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                    <span className="text-amber-500">💡</span>
-                    <span>สามารถ<strong>คลิกลาก (Drag & Drop)</strong> การ์ดวิชาเพื่อย้ายคาบ หรือสลับช่องได้ทันที หรือกด "ย้าย" ที่มุมการ์ด</span>
+                {/* Tips & Guidance bar */}
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#5A6F64]">
+                  <span className="flex items-center gap-1.5 text-[#1C342B]">
+                    <Lightbulb size={15} className="text-[#D98B26] shrink-0" aria-hidden="true" />
+                    <span>สามารถ<strong>คลิกลาก (Drag & Drop)</strong> การ์ดวิชาเพื่อย้ายคาบ หรือสลับช่องได้ทันที หรือกด &quot;ย้าย&quot; ที่มุมการ์ด</span>
                   </span>
                   {workloadSummary.totalPeriods > 0 ? (
-                    <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <span className="rounded-lg bg-[#E9F0EA] px-2.5 py-1 text-[11px] font-black text-[#1C342B]">
                       รวมทั้งหมด {workloadSummary.totalPeriods} คาบ
                     </span>
                   ) : null}
                 </div>
 
-                {/* 📦 Moving Mode Banner */}
+                {/* Moving Mode Banner */}
                 {movingCellKey && settings.cells[movingCellKey] ? (
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-3.5 shadow-md">
                     <div className="flex flex-wrap items-center gap-2 text-sm font-black text-amber-950">
@@ -1601,8 +1604,8 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       <span className="rounded-lg bg-amber-200/90 px-2 py-0.5 text-amber-950 shadow-2xs">
                         {settings.cells[movingCellKey]?.subject} {settings.cells[movingCellKey]?.classroom ? `[${settings.cells[movingCellKey]?.classroom}]` : ''}
                       </span>
-                      <span className="text-xs font-bold text-amber-800">
-                        👉 คลิกที่ช่องปลายทางใดก็ได้ในตารางเพื่อ "วาง" หรือ "สลับคาบ"
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800">
+                        <ArrowRight size={14} aria-hidden="true" /> คลิกที่ช่องปลายทางใดก็ได้ในตารางเพื่อ &quot;วาง&quot; หรือ &quot;สลับคาบ&quot;
                       </span>
                     </div>
                     <button
@@ -1615,18 +1618,18 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   </div>
                 ) : null}
 
-                {/* ↩️ Undo Banner */}
+                {/* Undo Banner */}
                 {lastActionUndo ? (
-                  <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-bold text-sky-950 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3D7] bg-[#E9F0EA] px-4 py-2.5 text-xs font-bold text-[#1C342B] shadow-sm">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm">✨</span>
+                      <Sparkles size={15} className="text-[#2F7D5B] shrink-0" aria-hidden="true" />
                       <span className="font-black">{lastActionUndo.message}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={undoLastMove}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1 text-xs font-black text-sky-800 shadow-2xs border border-sky-200 hover:bg-sky-100"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1 text-xs font-black text-[#2F7D5B] shadow-2xs border border-[#DCE3D7] hover:bg-[#F6F7F3]"
                       >
                         <Undo2 size={13} />
                         เลิกทำ (Undo)
@@ -1634,9 +1637,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
                       <button
                         type="button"
                         onClick={() => setLastActionUndo(null)}
-                        className="text-sky-600 hover:text-sky-900 px-1 font-bold"
+                        className="text-[#5A6F64] hover:text-[#1C342B] px-1 font-bold"
+                        aria-label="ปิดแถบแจ้งเตือน"
                       >
-                        ✕
+                        <X size={14} aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -1645,9 +1649,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 {/* Timetable Grid */}
                 <div className="grid gap-2.5" style={{ gridTemplateColumns: `100px repeat(${scheduleColumns.length}, minmax(96px, 1fr))` }}>
                   {/* Top-Left Header: Day / Period */}
-                  <div className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-2 text-center text-white shadow-sm ring-1 ring-white/10">
+                  <div className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-[#1C342B] via-[#234136] to-[#152821] p-2 text-center text-white shadow-sm ring-1 ring-white/10">
                     <div className="flex flex-col items-center gap-1">
-                      <CalendarClock size={19} className="text-sky-300" />
+                      <CalendarClock size={19} className="text-emerald-300" />
                       <span className="text-sm font-black">วัน / คาบ</span>
                     </div>
                   </div>
@@ -1656,23 +1660,23 @@ export function SchedulePage({ session }: SchedulePageProps) {
                   {scheduleColumns.map((column) =>
                     column.type === 'lunch' ? (
                       <div
-                        className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-amber-100 via-orange-100 to-amber-200 p-2 text-center font-black text-amber-950 ring-1 ring-amber-300 shadow-sm"
+                        className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-amber-100 via-orange-50 to-amber-100 p-2 text-center font-black text-amber-950 ring-1 ring-amber-300/80 shadow-sm"
                         key={column.key}
                       >
                         <span className="flex items-center gap-1 text-xs font-black">
                           <Utensils size={13} className="text-amber-700" /> พักเที่ยง
                         </span>
-                        <span className="rounded-md bg-white/80 px-2 py-0.5 text-[11px] font-bold text-amber-900 shadow-2xs mt-1">
+                        <span className="rounded-md bg-white/85 px-2 py-0.5 text-[11px] font-bold text-amber-900 shadow-2xs mt-1">
                           {column.start} - {column.end}
                         </span>
                       </div>
                     ) : (
                       <div
-                        className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-2 text-center font-black text-white shadow-sm ring-1 ring-white/10"
+                        className="grid min-h-[82px] place-items-center rounded-2xl bg-gradient-to-br from-[#1C342B] to-[#152821] p-2 text-center font-black text-white shadow-sm ring-1 ring-white/10"
                         key={column.period.index}
                       >
-                        <span className="text-xs font-black text-sky-200">{column.period.label}</span>
-                        <span className="rounded-md bg-slate-700/80 px-2 py-0.5 text-[11px] font-bold text-slate-300 mt-1">
+                        <span className="text-xs font-black text-emerald-200">{column.period.label}</span>
+                        <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/80 mt-1">
                           {column.period.start} - {column.period.end}
                         </span>
                       </div>
@@ -1841,9 +1845,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
                                   {/* Middle row: Subject name with category icon */}
                                   <div className="my-1">
-                                    <p className="text-[12px] font-black leading-tight line-clamp-2">
-                                      {theme.icon ? <span className="mr-1 inline-block select-none">{theme.icon}</span> : null}
-                                      {cell.subject}
+                                    <p className="flex items-start gap-1 text-[12px] font-black leading-tight line-clamp-2">
+                                      <SubjectLucideIcon subject={cell.subject} size={13} className="mt-0.5 shrink-0 opacity-90" />
+                                      <span>{cell.subject}</span>
                                     </p>
                                   </div>
 
@@ -1990,9 +1994,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-2 text-lg font-black leading-snug">
-                                {draftTheme.icon ? <span className="mr-1.5">{draftTheme.icon}</span> : null}
-                                {cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}
+                              <p className="mt-2 flex items-center gap-1.5 text-lg font-black leading-snug">
+                                <SubjectLucideIcon subject={cellDraft.subject || ''} size={17} className="shrink-0 opacity-90" />
+                                <span>{cellDraft.subject || 'ยังไม่ได้เลือกวิชา'}</span>
                               </p>
                             </div>
                           </>

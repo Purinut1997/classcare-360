@@ -98,7 +98,7 @@ const startSteps: Array<HelpLinkAccess & { title: string; body: string; href: st
 
 const guideCards: GuideCard[] = [
   {
-    title: '✨ การออกข้อสอบกลางภาค / ปลายภาค ด้วย AI (หลายหน่วย & Test Blueprint)',
+    title: 'การออกข้อสอบกลางภาค / ปลายภาค ด้วย AI (หลายหน่วย & Test Blueprint)',
     category: 'ai_exam',
     categoryLabel: 'AI & ออกข้อสอบ',
     body: 'ออกแบบข้อสอบกลางภาค/ปลายภาคโดยยึดหน่วยการเรียนรู้เป็นตัวหลัก ใส่ได้หลายหน่วย ระบบมี AI ช่วยวิเคราะห์ตัวชี้วัด สพฐ. จากหน่วยอัตโนมัติ พร้อมระบบจัดสรรจำนวนข้อสอบ (โหมดสมดุล/โหมดกำหนดเอง) บังคับแสดงตัวชี้วัดกำกับท้ายข้อ และสร้างผัง Test Blueprint สำหรับส่งวิชาการ',
@@ -110,7 +110,7 @@ const guideCards: GuideCard[] = [
     isNew: true,
   },
   {
-    title: '✨ การออกแบบเกณฑ์ประเมินรูบริก 4 ระดับ (Rubric 4 Levels)',
+    title: 'การออกแบบเกณฑ์ประเมินรูบริก 4 ระดับ (Rubric 4 Levels)',
     category: 'ai_exam',
     categoryLabel: 'AI & ออกข้อสอบ',
     body: 'ระบุภาระงานหรือชิ้นงานที่ต้องการประเมิน ให้ AI ช่วยแตกมิติการประเมิน พร้อมกำหนดเกณฑ์ 4 ระดับ (ระดับ 4 ดีเยี่ยม, ระดับ 3 ดี, ระดับ 2 พอใช้, ระดับ 1 ปรับปรุง) พร้อมแนวทางการให้คะแนนที่ตรงตามมาตรฐาน สพฐ.',
@@ -122,7 +122,7 @@ const guideCards: GuideCard[] = [
     isNew: true,
   },
   {
-    title: '✨ การออกข้อสอบซ่อมเสริมเฉพาะจุด (Remedial Quiz)',
+    title: 'การออกข้อสอบซ่อมเสริมเฉพาะจุด (Remedial Quiz)',
     category: 'ai_exam',
     categoryLabel: 'AI & ออกข้อสอบ',
     body: 'เลือกเนื้อหาหรือมโนทัศน์ที่นักเรียนมักทำผิดบ่อย กำหนดจำนวนข้อสอบได้อิสระ 1-30 ข้อ พร้อมเลือกรูปแบบตัวเลือก (4 ชอยส์มาตรฐาน สพฐ., 3 ชอยส์เด็กเล็ก, 5 ชอยส์มัธยม, หรือ ถูก/ผิด) พร้อมเฉลยละเอียดและวิเคราะห์ตัวลวง',
@@ -134,7 +134,7 @@ const guideCards: GuideCard[] = [
     isNew: true,
   },
   {
-    title: '🤖 การใช้งานแชทบอทผู้ช่วยครู "น้องแคร์ AI" & ตารางสอนรายวัน',
+    title: 'การใช้งานแชทบอทผู้ช่วยครู "น้องแคร์ AI" & ตารางสอนรายวัน',
     category: 'ai_exam',
     categoryLabel: 'AI & ออกข้อสอบ',
     body: 'แตะปุ่มกลม "น้องแคร์ AI" ที่อยู่ตรงกลางแถบเมนูล่าง เพื่อถามคำถามตารางสอน เช่น "บอกตารางสอนวันจันทร์", "วันนี้มีสอนคาบไหนบ้าง", "สรุปสถิติมาเรียน", "วิเคราะห์พฤติกรรมนักเรียน" AI จะดึงข้อมูลโรงเรียนและห้องเรียนจริงมาตอบทันที',
@@ -146,10 +146,10 @@ const guideCards: GuideCard[] = [
     isNew: true,
   },
   {
-    title: '📱 การใช้งานระบบบนสมาร์ทโฟน & แผงเมนูด่วน (Mobile Super-App)',
+    title: 'การใช้งานระบบบนสมาร์ทโฟน & แผงเมนูด่วน (Mobile Super-App)',
     category: 'mobile_ux',
     categoryLabel: 'สมาร์ทโฟน',
-    body: 'แถบเมนูด้านล่าง 5 ช่องสมมาตร ออกแบบให้ใช้งานสะดวกด้วยนิ้วโป้ง ช่องตรงกลางคือปุ่มยกสูง "น้องแคร์ AI" พร้อมแสงเรืองนีออน และช่องขวาสุดสำหรับเปิด "แผงรวมเมนูและงานครู 12 โมดูล สพฐ." พร้อมช่องค้นหาด่วน (Live Search) ให้เข้าถึงทุกหน้าใน 1 วินาที',
+    body: 'แถบเมนูด้านล่าง 5 ช่องสมมาตร ออกแบบให้ใช้งานสะดวกด้วยนิ้วโป้ง ช่องตรงกลางคือปุ่มยกสูง "น้องแคร์ AI" และช่องขวาสุดสำหรับเปิด "แผงรวมเมนูและงานครู 12 โมดูล สพฐ." พร้อมช่องค้นหาด่วน (Live Search) ให้เข้าถึงทุกหน้าใน 1 วินาที',
     cta: 'ดูหน้าหลักบนมือถือ',
     href: '/app/dashboard?view=overview',
     tags: ['mobile', 'dock', 'มือถือ', 'เมนู', 'quick launcher', 'สมาร์ทโฟน'],
@@ -158,7 +158,7 @@ const guideCards: GuideCard[] = [
     isNew: true,
   },
   {
-    title: '📅 การใช้งานปฏิทินโรงเรียน & กำหนดกิจกรรมสถานศึกษา',
+    title: 'การใช้งานปฏิทินโรงเรียน & กำหนดกิจกรรมสถานศึกษา',
     category: 'schedule_cal',
     categoryLabel: 'ตารางสอน & ปฏิทิน',
     body: 'บันทึกวันเปิด-ปิดภาคเรียน วันสอบกลางภาค/ปลายภาค วันหยุดราชการ และกิจกรรมวิชาการ แสดงผลจุดสี (Dots Indicator) แยกหมวดหมู่อย่างเป็นระเบียบ ตัวย่อหัววันบนมือถืออ่านง่ายไม่ตกบรรทัด',
@@ -170,7 +170,7 @@ const guideCards: GuideCard[] = [
     isNew: true,
   },
   {
-    title: '⏰ การจัดตารางสอนและบันทึกเวลาเรียนรายวิชา',
+    title: 'การจัดตารางสอนและบันทึกเวลาเรียนรายวิชา',
     category: 'schedule_cal',
     categoryLabel: 'ตารางสอน & ปฏิทิน',
     body: 'ตั้งคาบเรียน เวลาพักเที่ยง วันเรียน รายวิชา และห้องเรียน (เช่น ห้อง ป.5/1) ระบบรองรับการแสดงผลตารางสอนแบบการ์ดไทม์ไลน์รายวันบนมือถือ และเชื่อมโยงกับการเช็กชื่อรายวิชาทันที',
@@ -181,7 +181,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'attendance',
   },
   {
-    title: '📊 การบันทึกคะแนน ตัดเกรด 0-4 และสมุดรวมคะแนน',
+    title: 'การบันทึกคะแนน ตัดเกรด 0-4 และสมุดรวมคะแนน',
     category: 'scores_reports',
     categoryLabel: 'คะแนน & รายงาน',
     body: 'สร้างชุดคะแนนตามสัดส่วน (กลางภาค/ปลายภาค/เก็บย่อย) บันทึกคะแนนแบบตาราง Excel-grid คัดลอก-วางได้ ตัดเกรด 0-4 และสรุปผลประเมินอัตโนมัติตามระเบียบวัดและประเมินผลของกระทรวงศึกษาธิการ',
@@ -192,7 +192,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'scores',
   },
   {
-    title: '📄 การออกเอกสารทางการ ปพ.5 / ปพ.6 และรายงานราชการ',
+    title: 'การออกเอกสารทางการ ปพ.5 / ปพ.6 และรายงานราชการ',
     category: 'scores_reports',
     categoryLabel: 'คะแนน & รายงาน',
     body: 'พิมพ์เอกสารทางการ ปพ.5 สมุดบันทึกผลการพัฒนาคุณภาพผู้เรียน, ปพ.6 แบบรายงานผลการเรียนรายบุคคล และรายงานสถิติเวลาเรียน พร้อมประทับชื่อ-ตำแหน่งผู้มีอำนาจลงนาม 4 ฝ่ายอัตโนมัติ',
@@ -203,7 +203,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'reports',
   },
   {
-    title: '📥 การนำเข้ารายชื่อนักเรียนจาก DMC และตรวจ Data Quality',
+    title: 'การนำเข้ารายชื่อนักเรียนจาก DMC และตรวจ Data Quality',
     category: 'students_data',
     categoryLabel: 'ข้อมูลนักเรียน',
     body: 'นำเข้ารายชื่อนักเรียนจากไฟล์ Excel ระบบ DMC ของกระทรวงฯ หรือเทมเพลต CSV แล้วใช้ศูนย์ Data Quality เพื่อตรวจรายชื่อซ้ำ นักเรียนไม่มีห้อง หรือนักเรียนผิดปีการศึกษา พร้อมระบบกู้คืนข้อมูล',
@@ -214,7 +214,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'import_export',
   },
   {
-    title: '🏥 ระบบดูแลช่วยเหลือนักเรียน 360 (Student 360 & เยี่ยมบ้าน กสศ.01)',
+    title: 'ระบบดูแลช่วยเหลือนักเรียน 360 (Student 360 & เยี่ยมบ้าน กสศ.01)',
     category: 'students_data',
     categoryLabel: 'ข้อมูลนักเรียน',
     body: 'บันทึกข้อมูลนักเรียนรายบุคคล, บันทึกการเยี่ยมบ้านตามแบบ กสศ.01 แนบรูปถ่ายและพิกัดแผนที่, บันทึกคัดกรองสุขภาพกาย-ใจ, บันทึกพฤติกรรมเชิงบวก/แก้ไข และบันทึกเงินออมทรัพย์เพื่อการศึกษา',
@@ -225,7 +225,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'students',
   },
   {
-    title: '⚙️ การตั้งค่าข้อมูลโรงเรียน โลโก้ และผู้มีอำนาจลงนาม 4 ฝ่าย',
+    title: 'การตั้งค่าข้อมูลโรงเรียน โลโก้ และผู้มีอำนาจลงนาม 4 ฝ่าย',
     category: 'admin_settings',
     categoryLabel: 'ตั้งค่า & สิทธิ์',
     body: 'กรอกชื่อโรงเรียน สังกัด เขตพื้นที่การศึกษา อัปโหลดตราสัญลักษณ์ (โลโก้) และตั้งชื่อ-ตำแหน่ง ผู้อำนวยการ, นายทะเบียน, หัวหน้าวิชาการ และครูประจำชั้น เพื่อใช้ร่วมกันบนหัวเอกสารทางการทั้งระบบ',
@@ -236,7 +236,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'support',
   },
   {
-    title: '👥 การเชิญครูผู้สอนและการจัดสิทธิ์ห้องเรียน',
+    title: 'การเชิญครูผู้สอนและการจัดสิทธิ์ห้องเรียน',
     category: 'admin_settings',
     categoryLabel: 'ตั้งค่า & สิทธิ์',
     body: 'ส่งคำเชิญครูเข้าโรงเรียนผ่านอีเมล กำหนดบทบาท ผู้ดูแลระบบ (Admin), ครูผู้สอน (Teacher) หรือ ผู้ดูรายงาน (Viewer) พร้อมจำกัดห้องเรียนที่รับผิดชอบเพื่อความปลอดภัยของข้อมูล',
@@ -247,7 +247,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'support',
   },
   {
-    title: '👨‍👩‍👧 การเชื่อมโยงระบบผู้ปกครองและรายงานสาธารณะ (Parent Portal)',
+    title: 'การเชื่อมโยงระบบผู้ปกครองและรายงานสาธารณะ (Parent Portal)',
     category: 'admin_settings',
     categoryLabel: 'ตั้งค่า & สิทธิ์',
     body: 'ตั้งค่านโยบายรายงานสาธารณะ (Public Report Policy) ก่อน แล้วส่งคำเชิญ Portal หรือแชร์ลิงก์ให้ผู้ปกครองและนักเรียนตรวจสอบเวลาเรียนและผลการเรียนได้แบบเรียลไทม์',
@@ -258,7 +258,7 @@ const guideCards: GuideCard[] = [
     moduleKey: 'parent_portal',
   },
   {
-    title: '🛡️ ศูนย์ดูแลความปลอดภัยและการกู้คืนข้อมูล (Data Safety Center)',
+    title: 'ศูนย์ดูแลความปลอดภัยและการกู้คืนข้อมูล (Data Safety Center)',
     category: 'admin_settings',
     categoryLabel: 'ตั้งค่า & สิทธิ์',
     body: 'ตรวจสอบบันทึกการใช้งาน (Audit Logs), ตรวจสอบความสมบูรณ์ของฐานข้อมูล, และกู้คืนข้อมูลที่ถูกเก็บถาวรหรือลบผิดพลาดได้อย่างปลอดภัย',
@@ -353,12 +353,12 @@ const roleWorkflows = [
 ];
 
 const quickLinks: Array<HelpLinkAccess & { label: string; href: string; icon: typeof DatabaseZap }> = [
-  { label: '✨ ออกข้อสอบ & รูบริก AI', href: '/app/dashboard?view=scores', icon: Sparkles, allowedRoles: teacherRoles, moduleKey: 'scores' },
-  { label: '📅 ปฏิทินโรงเรียน', href: '/app/dashboard?view=calendar', icon: Calendar, allowedRoles: reportRoles, moduleKey: 'attendance' },
-  { label: '📋 ตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList, allowedRoles: teacherRoles, moduleKey: 'attendance' },
-  { label: '🎓 กรอกคะแนน & ตัดเกรด', href: '/app/dashboard?view=scores&scoreView=excel', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
-  { label: '👥 นำเข้านักเรียน DMC', href: '/app/dashboard?view=import-export', icon: DatabaseZap, allowedRoles: ownerRoles, moduleKey: 'import_export' },
-  { label: '📄 ออกรายงาน ปพ.5 / ปพ.6', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet, allowedRoles: reportRoles, moduleKey: 'reports' },
+  { label: 'ออกข้อสอบ & รูบริก AI', href: '/app/dashboard?view=scores', icon: Sparkles, allowedRoles: teacherRoles, moduleKey: 'scores' },
+  { label: 'ปฏิทินโรงเรียน', href: '/app/dashboard?view=calendar', icon: Calendar, allowedRoles: reportRoles, moduleKey: 'attendance' },
+  { label: 'ตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList, allowedRoles: teacherRoles, moduleKey: 'attendance' },
+  { label: 'กรอกคะแนน & ตัดเกรด', href: '/app/dashboard?view=scores&scoreView=excel', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
+  { label: 'นำเข้านักเรียน DMC', href: '/app/dashboard?view=import-export', icon: DatabaseZap, allowedRoles: ownerRoles, moduleKey: 'import_export' },
+  { label: 'ออกรายงาน ปพ.5 / ปพ.6', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet, allowedRoles: reportRoles, moduleKey: 'reports' },
 ];
 
 export function HelpCenterPage({ session }: HelpCenterPageProps) {
@@ -394,12 +394,12 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
 
   const categories: { id: GuideCategory; label: string; icon: typeof BookOpen }[] = [
     { id: 'all', label: 'ทั้งหมด', icon: BookOpen },
-    { id: 'ai_exam', label: '✨ AI & ออกข้อสอบ สพฐ.', icon: Sparkles },
-    { id: 'mobile_ux', label: '📱 ใช้งานบนมือถือ', icon: Smartphone },
-    { id: 'schedule_cal', label: '📅 ตารางสอน & ปฏิทิน', icon: Calendar },
-    { id: 'scores_reports', label: '📊 คะแนน & รายงาน ปพ.', icon: GraduationCap },
-    { id: 'students_data', label: '👥 ข้อมูลนักเรียน & DMC', icon: DatabaseZap },
-    { id: 'admin_settings', label: '⚙️ ตั้งค่า & สิทธิ์', icon: Settings2 },
+    { id: 'ai_exam', label: 'AI & ออกข้อสอบ สพฐ.', icon: Sparkles },
+    { id: 'mobile_ux', label: 'ใช้งานบนมือถือ', icon: Smartphone },
+    { id: 'schedule_cal', label: 'ตารางสอน & ปฏิทิน', icon: Calendar },
+    { id: 'scores_reports', label: 'คะแนน & รายงาน ปพ.', icon: GraduationCap },
+    { id: 'students_data', label: 'ข้อมูลนักเรียน & DMC', icon: DatabaseZap },
+    { id: 'admin_settings', label: 'ตั้งค่า & สิทธิ์', icon: Settings2 },
   ];
 
   return (
@@ -562,8 +562,9 @@ export function HelpCenterPage({ session }: HelpCenterPageProps) {
                       {guide.categoryLabel}
                     </span>
                     {guide.isNew && (
-                      <span className="rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 text-[10px] font-black text-white shadow-xs">
-                        ✨ ฟีเจอร์ใหม่
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#D98B26] px-2 py-0.5 text-[10px] font-black text-white shadow-xs">
+                        <Sparkles size={10} aria-hidden="true" />
+                        ฟีเจอร์ใหม่
                       </span>
                     )}
                   </div>

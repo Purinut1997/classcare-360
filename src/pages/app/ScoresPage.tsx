@@ -24,6 +24,7 @@ import {
   Layers,
   Lightbulb,
   Lock,
+  Pin,
   Plus,
   RotateCcw,
   Save,
@@ -33,7 +34,9 @@ import {
   Sparkles,
   Square,
   Table,
+  Target,
   Trash2,
+  Unlock,
   Users,
   X,
 } from 'lucide-react';
@@ -2283,7 +2286,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 >
                   {teacherScope.hasHomeroom ? (
                     <>
-                      <optgroup label="⭐ ห้องที่ปรึกษาของฉัน">
+                      <optgroup label="ห้องที่ปรึกษาของฉัน">
                         {teacherScope.homeroomClassrooms.map((classroom) => (
                           <option key={classroom.id} value={classroom.id}>
                             {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
@@ -2291,7 +2294,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         ))}
                       </optgroup>
                       {teacherScope.otherClassrooms.length > 0 && (
-                        <optgroup label="📚 ห้องที่สอนวิชา / ห้องอื่น">
+                        <optgroup label="ห้องที่สอนวิชา / ห้องอื่น">
                           {teacherScope.otherClassrooms.map((classroom) => (
                             <option key={classroom.id} value={classroom.id}>
                               {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
@@ -2487,7 +2490,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   }`}
                   title="เปิด/ปิดการตรึงคอลัมน์ชื่อนักเรียนเพื่อเพิ่มพื้นที่เลื่อนกรอกคะแนน"
                 >
-                  <span>{isStickyRoster ? '📌 ตรึงชื่อนักเรียน' : '🔓 ปลดตรึงชื่อนักเรียน'}</span>
+                  {isStickyRoster ? <Pin size={12} aria-hidden="true" /> : <Unlock size={12} aria-hidden="true" />}
+                  <span>{isStickyRoster ? 'ตรึงชื่อนักเรียน' : 'ปลดตรึงชื่อนักเรียน'}</span>
                 </button>
               </div>
             </div>
@@ -2544,12 +2548,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
                               </button>
                               <span className="text-slate-300">|</span>
                               <button
-                                className="text-[9px] font-bold text-slate-500 hover:text-cyan-800"
+                                className="inline-flex items-center gap-0.5 text-[9px] font-bold text-slate-500 hover:text-[#2F7D5B]"
                                 onClick={() => openEditModal(assessment)}
                                 title="แก้ไขชื่อ คะแนนเต็ม หรือน้ำหนักคะแนน (%)"
                                 type="button"
                               >
-                                ✏️ แก้ไข
+                                <Edit3 size={10} aria-hidden="true" />
+                                แก้ไข
                               </button>
                             </div>
                           </div>
@@ -2797,14 +2802,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       {selectedAssessment.status === 'published' ? 'กลับเป็นฉบับร่าง' : 'เผยแพร่คะแนน'}
                     </button>
                     <button
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3.5 text-xs font-black text-white shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1C342B] px-3.5 text-xs font-black text-white shadow-sm hover:bg-[#2F7D5B] active:scale-[0.98] transition-all"
                       onClick={() => setIsScoreOcrOpen(true)}
                       title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI Vision"
                       type="button"
                     >
-                      <Camera size={14} className="text-cyan-200" aria-hidden="true" />
-                      <span>📸 สแกนใบคะแนน AI Vision</span>
-                      <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+                      <Camera size={14} className="text-emerald-200" aria-hidden="true" />
+                      <span>สแกนใบคะแนน AI Vision</span>
+                      <span className="rounded bg-white/15 px-1 py-0.2 text-[9px] font-black uppercase tracking-wider border border-white/20">AI</span>
                     </button>
                     <button
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition shadow-2xs"
@@ -2872,8 +2877,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       <Sparkles size={14} aria-hidden="true" />
                       ให้คะแนนเต็มทุกคน ({selectedAssessment.max_score})
                     </button>
-                    <span className="hidden text-xs font-bold text-slate-400 xl:inline">
-                      💡 เคล็ดลับ: กด Enter หรือ ลูกศรลง เพื่อเลื่อนไปคนถัดไป | วางจาก Excel ได้โดยตรง
+                    <span className="hidden items-center gap-1.5 text-xs font-bold text-[#5A6F64] xl:inline-flex">
+                      <Lightbulb size={13} className="text-[#D98B26] shrink-0" aria-hidden="true" />
+                      เคล็ดลับ: กด Enter หรือ ลูกศรลง เพื่อเลื่อนไปคนถัดไป | วางจาก Excel ได้โดยตรง
                     </span>
                   </div>
                 </div>
@@ -3080,8 +3086,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   <Settings2 size={15} className="text-cyan-700" aria-hidden="true" />
                   <div className="text-left">
                     <p className="text-[10px] text-cyan-600 font-bold leading-none">เกณฑ์สัดส่วนคะแนนวิชานี้</p>
-                    <p className="mt-0.5 text-xs font-black text-cyan-950">
-                      {scoreRatio.coursework} : {scoreRatio.midterm} : {scoreRatio.final} ⚙️
+                    <p className="mt-0.5 text-xs font-black text-[#1C342B]">
+                      {scoreRatio.coursework} : {scoreRatio.midterm} : {scoreRatio.final}
                     </p>
                   </div>
                 </button>
@@ -3106,12 +3112,17 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       style={{ width: `${Math.min(plannedTotalWeight, 100)}%` }}
                     />
                   </div>
-                  <p className="mt-1.5 text-[10px] font-bold text-slate-400 text-right">
-                    {plannedTotalWeight === 100
-                      ? '✓ โครงสร้างคะแนนครบ 100 พอดี'
-                      : plannedTotalWeight < 100
-                        ? `ขาดอีก ${100 - plannedTotalWeight} คะแนนให้ครบ 100`
-                        : `เกินไป ${plannedTotalWeight - 100} คะแนน`}
+                  <p className="mt-1.5 inline-flex items-center justify-end gap-1 w-full text-[10px] font-bold text-[#5A6F64] text-right">
+                    {plannedTotalWeight === 100 ? (
+                      <>
+                        <Check size={11} className="text-[#2F7D5B]" aria-hidden="true" />
+                        โครงสร้างคะแนนครบ 100 พอดี
+                      </>
+                    ) : plannedTotalWeight < 100 ? (
+                      `ขาดอีก ${100 - plannedTotalWeight} คะแนนให้ครบ 100`
+                    ) : (
+                      `เกินไป ${plannedTotalWeight - 100} คะแนน`
+                    )}
                   </p>
                 </div>
               </div>
@@ -3330,9 +3341,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                           setClassroomId(row.classroom.id);
                           handleScoreViewChange('excel');
                         }}
-                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-3 py-2 text-xs font-black text-white hover:bg-cyan-700 transition shadow-xs"
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#2F7D5B] px-3 py-2 text-xs font-black text-white hover:bg-[#1C342B] transition shadow-xs"
                       >
-                        📝 เข้ากรอก
+                        <Edit3 size={13} aria-hidden="true" />
+                        เข้ากรอก
                       </button>
                     </div>
 
@@ -3456,14 +3468,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         </td>
                         <td className="px-4 py-3.5 text-right whitespace-nowrap">
                           <button
-                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-50 px-3 text-xs font-black text-cyan-800 hover:bg-cyan-100 transition border border-cyan-200 whitespace-nowrap"
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-[#E9F0EA] px-3 text-xs font-black text-[#1C342B] hover:bg-[#DCE3D7] transition border border-[#DCE3D7] whitespace-nowrap"
                             onClick={() => {
                               setClassroomId(row.classroom.id);
                               handleScoreViewChange('excel');
                             }}
                             type="button"
                           >
-                            📝 เข้ากรอกคะแนน
+                            <Edit3 size={12} aria-hidden="true" />
+                            เข้ากรอกคะแนน
                           </button>
                         </td>
                       </tr>
@@ -3815,8 +3828,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     }}
                     className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
                   >
-                    <p className="font-black text-sky-900">📝 ใบงาน (10 คะแนน)</p>
-                    <p className="text-[10px] text-slate-500">เต็ม 10 · น้ำหนัก 10</p>
+                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><ClipboardList size={13} className="text-[#2F7D5B]" aria-hidden="true" /> ใบงาน (10 คะแนน)</p>
+                    <p className="text-[10px] text-[#5A6F64]">เต็ม 10 · น้ำหนัก 10</p>
                   </button>
 
                   <button
@@ -3830,10 +3843,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         weight: '10',
                       }));
                     }}
-                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                    className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 transition"
                   >
-                    <p className="font-black text-sky-900">📊 สอบย่อย (20 ข้อ)</p>
-                    <p className="text-[10px] text-slate-500">เต็ม 20 · หารคิด 10</p>
+                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><BarChart3 size={13} className="text-[#2D72A3]" aria-hidden="true" /> สอบย่อย (20 ข้อ)</p>
+                    <p className="text-[10px] text-[#5A6F64]">เต็ม 20 · หารคิด 10</p>
                   </button>
 
                   <button
@@ -3847,10 +3860,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         weight: '20',
                       }));
                     }}
-                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                    className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 transition"
                   >
-                    <p className="font-black text-sky-900">🎯 กลางภาค (20 คะแนน)</p>
-                    <p className="text-[10px] text-slate-500">เต็ม 20 · น้ำหนัก 20</p>
+                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><Target size={13} className="text-[#D98B26]" aria-hidden="true" /> กลางภาค (20 คะแนน)</p>
+                    <p className="text-[10px] text-[#5A6F64]">เต็ม 20 · น้ำหนัก 20</p>
                   </button>
 
                   <button
@@ -3864,10 +3877,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         weight: '30',
                       }));
                     }}
-                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
+                    className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 transition"
                   >
-                    <p className="font-black text-sky-900">🏆 ปลายภาค (30 คะแนน)</p>
-                    <p className="text-[10px] text-slate-500">เต็ม 30 · น้ำหนัก 30</p>
+                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><Award size={13} className="text-[#C25970]" aria-hidden="true" /> ปลายภาค (30 คะแนน)</p>
+                    <p className="text-[10px] text-[#5A6F64]">เต็ม 30 · น้ำหนัก 30</p>
                   </button>
                 </div>
               </div>
@@ -3935,8 +3948,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </label>
               </div>
 
-              <div className="rounded-xl bg-slate-50 p-2.5 text-[11px] font-bold text-slate-600 flex items-center justify-between">
-                <span>💡 ทิป: ถ้าทำได้ 10 ข้อ คิด 10 คะแนน ให้ใส่ตัวเลขเท่ากัน</span>
+              <div className="rounded-xl bg-[#FAFBF8] border border-[#DCE3D7] p-2.5 text-[11px] font-bold text-[#5A6F64] flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5"><Lightbulb size={13} className="text-[#D98B26] shrink-0" aria-hidden="true" /> ทิป: ถ้าทำได้ 10 ข้อ คิด 10 คะแนน ให้ใส่ตัวเลขเท่ากัน</span>
                 <button
                   type="button"
                   onClick={() => setForm((c) => ({ ...c, weight: c.maxScore }))}
@@ -4841,14 +4854,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             <Save size={13} />
                             บันทึกคะแนน
                           </span>
-                          <span className="rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-black text-white shadow-sm flex items-center gap-1">
-                            บันทึกแล้วไปห้องถัดไป ➡️
+                          <span className="rounded-xl bg-[#1C342B] px-4 py-1.5 text-xs font-black text-white shadow-sm inline-flex items-center gap-1">
+                            บันทึกแล้วไปห้องถัดไป <ArrowRight size={13} aria-hidden="true" />
                           </span>
                         </div>
                       </div>
 
-                      <p className="text-xs leading-relaxed text-slate-600">
-                        กดปุ่ม <strong>&ldquo;บันทึกแล้วไปห้องถัดไป ➡️&rdquo;</strong> เพื่อให้ระบบบันทึกคะแนนห้องปัจจุบัน แล้วเปิดตารางของห้องถัดไปให้ตรวจต่อทันที ไม่ต้องคลิกเลือกห้องใหม่!
+                      <p className="text-xs leading-relaxed text-[#5A6F64]">
+                        กดปุ่ม <strong>&ldquo;บันทึกแล้วไปห้องถัดไป&rdquo;</strong> เพื่อให้ระบบบันทึกคะแนนห้องปัจจุบัน แล้วเปิดตารางของห้องถัดไปให้ตรวจต่อทันที ไม่ต้องคลิกเลือกห้องใหม่!
                       </p>
                     </div>
                   )}
