@@ -8,15 +8,18 @@ import {
   Camera,
   CheckCircle2,
   Edit3,
+  Eye,
   FileSpreadsheet,
   HeartPulse,
   History,
   Home,
   Info,
   Link2,
+  Lock,
   Mail,
   MapPin,
   Phone,
+  PhoneCall,
   Printer,
   Save,
   School,
@@ -25,6 +28,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Unlock,
   Upload,
   RefreshCw,
   UserPlus,
@@ -1099,6 +1103,45 @@ function nullableValue(value: string) {
   return trimmed || null;
 }
 
+function calculateAge(birthDateStr?: string | null) {
+  if (!birthDateStr) return '-';
+  try {
+    const birth = new Date(birthDateStr);
+    if (isNaN(birth.getTime())) return '-';
+    const now = new Date();
+    let years = now.getFullYear() - birth.getFullYear();
+    let months = now.getMonth() - birth.getMonth();
+    if (months < 0 || (months === 0 && now.getDate() < birth.getDate())) {
+      years--;
+      months = (months + 12) % 12;
+    }
+    return `${years} ปี ${months} เดือน`;
+  } catch {
+    return '-';
+  }
+}
+
+function calculateBmi(weightKgStr?: string | null, heightCmStr?: string | null) {
+  const weight = parseFloat(weightKgStr || '');
+  const height = parseFloat(heightCmStr || '');
+  if (!weight || !height || height <= 0) return null;
+  const heightM = height / 100;
+  const bmi = weight / (heightM * heightM);
+  let label = 'สมส่วน';
+  let tone = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+  if (bmi < 18.5) {
+    label = 'น้ำหนักน้อยกว่าเกณฑ์';
+    tone = 'text-amber-700 bg-amber-50 border-amber-200';
+  } else if (bmi >= 23 && bmi < 25) {
+    label = 'ท้วม / น้ำหนักเกิน';
+    tone = 'text-amber-700 bg-amber-50 border-amber-200';
+  } else if (bmi >= 25) {
+    label = 'เริ่มอ้วน / อ้วน';
+    tone = 'text-rose-700 bg-rose-50 border-rose-200';
+  }
+  return { value: bmi.toFixed(1), label, tone };
+}
+
 function getStudentGender(student: StudentRow): 'male' | 'female' | 'other' {
   if (student.gender === 'male' || student.gender === 'female') return student.gender;
   const name = (student.first_name || '').trim();
@@ -1138,6 +1181,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [rosterStatusFilter, setRosterStatusFilter] = useState<StudentStatus | 'all'>('active');
   const [selectedStudentId, setSelectedStudentId] = useState(useRealBackend ? '' : demoStudents[0].id);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isManageMode, setIsManageMode] = useState(false);
+  const [viewingStudent, setViewingStudent] = useState<StudentRow | null>(null);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
@@ -3963,49 +4008,102 @@ export function StudentsPage({ session }: StudentsPageProps) {
       {activeStudentView === 'roster' ? (
       <section id="student-roster" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
-          <div className="grid gap-3 2xl:grid-cols-[minmax(220px,1fr)_220px_180px_auto] 2xl:items-center">
-            <label className="relative block min-w-0">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
-              <input
-                className="nexus-field h-11 w-full pl-10 pr-3"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="ค้นหาชื่อ รหัส ห้องเรียน สถานะ"
-                value={query}
-              />
-            </label>
+          <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+            <div className="grid flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(200px,1fr)_180px_160px] items-center">
+              <label className="relative block min-w-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" />
+                <input
+                  className="nexus-field h-11 w-full pl-10 pr-3"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="ค้นหาชื่อ รหัส ห้องเรียน สถานะ"
+                  value={query}
+                />
+              </label>
 
-            <select
-              className="nexus-field h-11 px-3"
-              onChange={(event) => setRosterClassroomFilter(event.target.value)}
-              value={rosterClassroomFilter}
-            >
-              <option value="all">ทุกห้องเรียน</option>
-              {classrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                </option>
-              ))}
-              <option value="">ยังไม่ผูกห้อง</option>
-            </select>
+              <select
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setRosterClassroomFilter(event.target.value)}
+                value={rosterClassroomFilter}
+              >
+                <option value="all">ทุกห้องเรียน</option>
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
+                  </option>
+                ))}
+                <option value="">ยังไม่ผูกห้อง</option>
+              </select>
 
-            <select
-              className="nexus-field h-11 px-3"
-              onChange={(event) => setRosterStatusFilter(event.target.value as StudentStatus | 'all')}
-              value={rosterStatusFilter}
-            >
-              <option value="active">กำลังเรียน</option>
-              <option value="all">ทุกสถานะ</option>
-              <option value="archived">เก็บถาวร</option>
-              <option value="inactive">พักใช้งาน</option>
-              <option value="graduated">จบการศึกษา / ศิษย์เก่า</option>
-              <option value="transferred">ย้ายสถานศึกษา</option>
-            </select>
+              <select
+                className="nexus-field h-11 px-3"
+                onChange={(event) => setRosterStatusFilter(event.target.value as StudentStatus | 'all')}
+                value={rosterStatusFilter}
+              >
+                <option value="active">กำลังเรียน</option>
+                <option value="all">ทุกสถานะ</option>
+                <option value="archived">เก็บถาวร</option>
+                <option value="inactive">พักใช้งาน</option>
+                <option value="graduated">จบการศึกษา / ศิษย์เก่า</option>
+                <option value="transferred">ย้ายสถานศึกษา</option>
+              </select>
+            </div>
 
-            <div className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-3 text-xs font-black text-slate-600">
-              <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
-              แสดง {filteredStudents.length}/{students.length}
+            <div className="flex items-center gap-2">
+              <div className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-3 text-xs font-black text-slate-600 shrink-0">
+                <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
+                แสดง {filteredStudents.length}/{students.length}
+              </div>
+
+              {/* Manage Mode Toggle Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageMode((prev) => {
+                    const next = !prev;
+                    if (!next) setSelectedStudentIds(new Set());
+                    return next;
+                  });
+                }}
+                className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-3.5 text-xs font-black transition-all shadow-2xs ${
+                  isManageMode
+                    ? 'border border-amber-400 bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-300/40 shadow-sm'
+                    : 'border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                }`}
+                title={isManageMode ? 'คลิกเพื่อปิดโหมดจัดการ (ซ่อนปุ่มแก้ไข/ลบ เพื่อความปลอดภัย)' : 'คลิกเพื่อเปิดโหมดจัดการ (แสดงปุ่มแก้ไข จัดเก็บ หรือลบรายชื่อ)'}
+              >
+                {isManageMode ? (
+                  <>
+                    <Unlock size={15} className="text-white" />
+                    <span>โหมดจัดการ: เปิดอยู่</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={15} className="text-slate-500" />
+                    <span>โหมดจัดการ: ปิด</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
+
+          {isManageMode ? (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50/95 px-3.5 py-2 text-xs font-bold text-amber-900 shadow-2xs animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={15} className="text-amber-700 shrink-0" />
+                <span>กำลังเปิด <strong>โหมดจัดการ</strong>: แสดงเครื่องมือแก้ไข จัดเก็บ และลบรายชื่อ (โปรดระมัดระวังการลบข้อมูล)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageMode(false);
+                  setSelectedStudentIds(new Set());
+                }}
+                className="ml-2 shrink-0 rounded-lg bg-amber-200/80 px-2.5 py-1 text-xs font-black text-amber-950 hover:bg-amber-300 transition"
+              >
+                ปิดโหมดจัดการ
+              </button>
+            </div>
+          ) : null}
 
           {rosterClassroomFilter && rosterClassroomFilter !== 'all' && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-850">
@@ -4091,7 +4189,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
           ) : null}
 
-          {selectedStudentIds.size > 0 && (
+          {isManageMode && selectedStudentIds.size > 0 && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50/95 p-3.5 shadow-sm dark:border-sky-800 dark:bg-sky-950/60">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-600 text-xs font-black text-white shadow-sm">
@@ -4160,24 +4258,26 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={selectedStudentIds.has(student.id)}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setSelectedStudentIds((current) => {
-                            const next = new Set(current);
-                            if (checked) {
-                              next.add(student.id);
-                            } else {
-                              next.delete(student.id);
-                            }
-                            return next;
-                          });
-                        }}
-                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                        aria-label={`เลือก ${student.first_name} ${student.last_name}`}
-                      />
+                      {isManageMode && (
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentIds.has(student.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSelectedStudentIds((current) => {
+                              const next = new Set(current);
+                              if (checked) {
+                                next.add(student.id);
+                              } else {
+                                next.delete(student.id);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                          aria-label={`เลือก ${student.first_name} ${student.last_name}`}
+                        />
+                      )}
                       <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-700">
                         รหัส: {student.student_code || '-'}
                       </span>
@@ -4190,7 +4290,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   <div className="mt-2.5 flex items-center justify-between gap-3">
                     <button
                       type="button"
-                      onClick={() => setSelectedStudentId(student.id)}
+                      onClick={() => setViewingStudent(student)}
                       className="flex items-center gap-3 text-left flex-1"
                     >
                       <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-xs font-black shadow-2xs border ${
@@ -4230,38 +4330,49 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       {getCareLabel(student.care_flags)}
                     </span>
 
-                    <div className="flex items-center gap-1.5">
+                    {isManageMode ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={!canWriteRoster}
+                          onClick={() => startEditStudent(student)}
+                          type="button"
+                          title="แก้ไขนักเรียน"
+                          aria-label="แก้ไขข้อมูลนักเรียน"
+                        >
+                          <Edit3 size={15} aria-hidden="true" />
+                        </button>
+                        <button
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-100 bg-white text-rose-600 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={!canWriteRoster}
+                          onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
+                          type="button"
+                          title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บถาวร'}
+                          aria-label="เปลี่ยนสถานะเก็บถาวร"
+                        >
+                          <Archive size={15} aria-hidden="true" />
+                        </button>
+                        <button
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
+                          onClick={() => void deleteStudentPermanently(student)}
+                          type="button"
+                          title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
+                          aria-label="ลบถาวร"
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
                       <button
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={!canWriteRoster}
-                        onClick={() => startEditStudent(student)}
                         type="button"
-                        title="แก้ไขนักเรียน"
-                        aria-label="แก้ไขข้อมูลนักเรียน"
+                        onClick={() => setViewingStudent(student)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-2xs hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 transition"
                       >
-                        <Edit3 size={15} aria-hidden="true" />
+                        <Eye size={13} className="text-emerald-600" />
+                        <span>ดูข้อมูล</span>
                       </button>
-                      <button
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-100 bg-white text-rose-600 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={!canWriteRoster}
-                        onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
-                        type="button"
-                        title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บถาวร'}
-                        aria-label="เปลี่ยนสถานะเก็บถาวร"
-                      >
-                        <Archive size={15} aria-hidden="true" />
-                      </button>
-                      <button
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
-                        onClick={() => void deleteStudentPermanently(student)}
-                        type="button"
-                        title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
-                        aria-label="ลบถาวร"
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                      </button>
-                    </div>
+                    )}
                   </div>
                 </div>
               );
@@ -4273,38 +4384,40 @@ export function StudentsPage({ session }: StudentsPageProps) {
             <table className="min-w-full divide-y divide-slate-200/80 text-left bg-white">
               <thead className="bg-slate-50/90 text-xs font-black uppercase text-slate-500">
                 <tr>
-                  <th className="px-3.5 py-3 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={
-                        filteredStudents.length > 0 &&
-                        filteredStudents.every((s) => selectedStudentIds.has(s.id))
-                      }
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedStudentIds((current) => {
-                            const next = new Set(current);
-                            filteredStudents.forEach((s) => next.add(s.id));
-                            return next;
-                          });
-                        } else {
-                          setSelectedStudentIds((current) => {
-                            const next = new Set(current);
-                            filteredStudents.forEach((s) => next.delete(s.id));
-                            return next;
-                          });
+                  {isManageMode && (
+                    <th className="px-3.5 py-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredStudents.length > 0 &&
+                          filteredStudents.every((s) => selectedStudentIds.has(s.id))
                         }
-                      }}
-                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                      aria-label="เลือกทั้งหมดในหน้านี้"
-                    />
-                  </th>
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedStudentIds((current) => {
+                              const next = new Set(current);
+                              filteredStudents.forEach((s) => next.add(s.id));
+                              return next;
+                            });
+                          } else {
+                            setSelectedStudentIds((current) => {
+                              const next = new Set(current);
+                              filteredStudents.forEach((s) => next.delete(s.id));
+                              return next;
+                            });
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        aria-label="เลือกทั้งหมดในหน้านี้"
+                      />
+                    </th>
+                  )}
                   <th className="px-3.5 py-3">รหัส</th>
                   <th className="px-3.5 py-3">ชื่อ-นามสกุล / ข้อมูลนักเรียน</th>
                   <th className="px-3.5 py-3">ห้องเรียน</th>
                   <th className="px-3.5 py-3">สถานะดูแล</th>
                   <th className="px-3.5 py-3">สถานะ</th>
-                  <th className="px-3.5 py-3 text-right">จัดการ</th>
+                  <th className="px-3.5 py-3 text-right">{isManageMode ? 'จัดการ' : 'ข้อมูล'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -4314,44 +4427,43 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
                   return (
                     <tr
-                      className={`group transition-all duration-150 ${
+                      className={`group cursor-pointer transition-all duration-150 ${
                         isSelected
                           ? 'bg-sky-50/90 shadow-2xs'
                           : 'hover:bg-slate-50/80'
                       }`}
                       key={student.id}
+                      onClick={() => setViewingStudent(student)}
                     >
-                      <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedStudentIds.has(student.id)}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setSelectedStudentIds((current) => {
-                              const next = new Set(current);
-                              if (checked) {
-                                next.add(student.id);
-                              } else {
-                                next.delete(student.id);
-                              }
-                              return next;
-                            });
-                          }}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                          aria-label={`เลือก ${student.first_name} ${student.last_name}`}
-                        />
-                      </td>
+                      {isManageMode && (
+                        <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentIds.has(student.id)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setSelectedStudentIds((current) => {
+                                const next = new Set(current);
+                                if (checked) {
+                                  next.add(student.id);
+                                } else {
+                                  next.delete(student.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            aria-label={`เลือก ${student.first_name} ${student.last_name}`}
+                          />
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-3.5 py-3">
                         <span className="inline-flex items-center rounded-lg bg-slate-100/90 px-2 py-0.5 font-mono text-xs font-black text-slate-700 border border-slate-200/60 shadow-2xs">
                           {student.student_code || '-'}
                         </span>
                       </td>
                       <td className="px-3.5 py-3">
-                        <button
-                          className="flex items-center gap-3 text-left group-hover:translate-x-0.5 transition-transform"
-                          onClick={() => setSelectedStudentId(student.id)}
-                          type="button"
-                        >
+                        <div className="flex items-center gap-3 text-left group-hover:translate-x-0.5 transition-transform">
                           <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black shadow-2xs border ${
                             student.gender === 'female'
                               ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/50'
@@ -4376,7 +4488,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                               {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'นักเรียน'} · รหัส {student.student_code || '-'}
                             </p>
                           </div>
-                        </button>
+                        </div>
                       </td>
                       <td className="whitespace-nowrap px-3.5 py-3">
                         {classroom?.name ? (
@@ -4408,36 +4520,47 @@ export function StudentsPage({ session }: StudentsPageProps) {
                           {statusLabels[student.status]}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-3.5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="whitespace-nowrap px-3.5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        {isManageMode ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-white text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                              disabled={!canWriteRoster}
+                              onClick={() => startEditStudent(student)}
+                              type="button"
+                              title="แก้ไขข้อมูลนักเรียน"
+                            >
+                              <Edit3 size={14} aria-hidden="true" />
+                            </button>
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-white text-slate-600 shadow-2xs transition hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                              disabled={!canWriteRoster}
+                              onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
+                              type="button"
+                              title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บประวัติ/พักสถานะ'}
+                            >
+                              <Archive size={14} aria-hidden="true" />
+                            </button>
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-xl border border-rose-200/80 bg-rose-50/80 text-rose-600 shadow-2xs transition hover:bg-rose-100 hover:text-rose-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                              disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
+                              onClick={() => void deleteStudentPermanently(student)}
+                              type="button"
+                              title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
+                            >
+                              <Trash2 size={14} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-white text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={!canWriteRoster}
-                            onClick={() => startEditStudent(student)}
                             type="button"
-                            title="แก้ไขข้อมูลนักเรียน"
+                            onClick={() => setViewingStudent(student)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-black text-slate-700 shadow-2xs hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 transition"
                           >
-                            <Edit3 size={14} aria-hidden="true" />
+                            <Eye size={13} className="text-emerald-600" />
+                            <span>ดูข้อมูล</span>
                           </button>
-                          <button
-                            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-white text-slate-600 shadow-2xs transition hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={!canWriteRoster}
-                            onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
-                            type="button"
-                            title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บประวัติ/พักสถานะ'}
-                          >
-                            <Archive size={14} aria-hidden="true" />
-                          </button>
-                          <button
-                            className="grid h-8 w-8 place-items-center rounded-xl border border-rose-200/80 bg-rose-50/80 text-rose-600 shadow-2xs transition hover:bg-rose-100 hover:text-rose-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
-                            onClick={() => void deleteStudentPermanently(student)}
-                            type="button"
-                            title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
-                          >
-                            <Trash2 size={14} aria-hidden="true" />
-                          </button>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -6531,6 +6654,295 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
         </div>
       ) : null}
+
+      {/* Student Details Popup Modal */}
+      {viewingStudent ? (() => {
+        const student = viewingStudent;
+        const metadata = student.metadata || {};
+        const dmcAddress = objectValue(metadata.dmc_address);
+        const dmcGuardian = objectValue(metadata.dmc_guardian);
+        const healthFlags = student.health_flags || {};
+        const studentGuardians = guardians.filter((item) => item.student_id === student.id);
+        const primaryGuardian = studentGuardians.find((item) => item.is_primary) || studentGuardians[0] || null;
+        const studentClassroom = classrooms.find((c) => c.id === student.classroom_id);
+        const guardianPhone = primaryGuardian?.phone || textValue(student.metadata?.guardian_phone) || '';
+        const studentPhone = textValue(metadata.contact_phone);
+        const bmi = calculateBmi(textValue(healthFlags.weight_kg), textValue(healthFlags.height_cm));
+        const age = calculateAge(student.birth_date);
+
+        const guardianDisplayName = [
+          textValue(dmcGuardian.prefix),
+          textValue(dmcGuardian.first_name),
+          textValue(dmcGuardian.last_name),
+        ].filter(Boolean).join(' ') || primaryGuardian?.display_name || '-';
+
+        const addressString = [
+          textValue(dmcAddress.house_no) ? `บ้านเลขที่ ${textValue(dmcAddress.house_no)}` : '',
+          textValue(dmcAddress.village_no) ? `หมู่ ${textValue(dmcAddress.village_no)}` : '',
+          textValue(dmcAddress.road_or_soi) ? `ถ./ซอย ${textValue(dmcAddress.road_or_soi)}` : '',
+          textValue(dmcAddress.subdistrict) ? `ต./แขวง ${textValue(dmcAddress.subdistrict)}` : '',
+          textValue(dmcAddress.district) ? `อ./เขต ${textValue(dmcAddress.district)}` : '',
+          textValue(dmcAddress.province) ? `จ.${textValue(dmcAddress.province)}` : '',
+        ].filter(Boolean).join(' ') || '-';
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setViewingStudent(null)}
+            role="presentation"
+          >
+            <div
+              className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10 dark:bg-slate-900"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="student-detail-modal-title"
+            >
+              {/* Header */}
+              <div className="relative border-b border-slate-100 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-sky-50/80 px-6 py-5 dark:border-slate-800 dark:from-slate-850 dark:to-slate-900">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-base font-black shadow-md border ${
+                      student.gender === 'female'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200 ring-4 ring-rose-100/60'
+                        : student.gender === 'male'
+                        ? 'bg-sky-50 text-sky-700 border-sky-200 ring-4 ring-sky-100/60'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-4 ring-emerald-100/60'
+                    }`}>
+                      {student.first_name ? student.first_name.slice(0, 2) : 'นร'}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-xl font-black text-slate-950 dark:text-white" id="student-detail-modal-title">
+                          {student.first_name} {student.last_name}
+                        </h3>
+                        {student.nickname ? (
+                          <span className="rounded-full bg-amber-100/90 px-2.5 py-0.5 text-xs font-black text-amber-900 border border-amber-200">
+                            {student.nickname}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-lg bg-white/90 px-2 py-0.5 font-mono font-black text-slate-700 shadow-2xs border border-slate-200/60 dark:bg-slate-800 dark:text-slate-300">
+                          รหัส: {student.student_code || '-'}
+                        </span>
+                        <span className="rounded-lg bg-emerald-100/80 px-2 py-0.5 font-black text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-400">
+                          ห้อง: {studentClassroom?.name || 'ยังไม่ผูกห้อง'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 font-black text-emerald-800 border border-emerald-200/70">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          {statusLabels[student.status]}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700"
+                    onClick={() => setViewingStudent(null)}
+                    type="button"
+                    title="ปิดหน้าต่าง"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+                {/* หมวดที่ 1: ข้อมูลทั่วไป */}
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
+                    <UserRound size={15} className="text-emerald-600" />
+                    <span>ข้อมูลส่วนตัว & ประจำตัว</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block font-medium">เลขประจำตัวประชาชน</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-mono text-xs font-black">
+                        {textValue(metadata.dmc_id_card) || '-'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">เพศ</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'ไม่ระบุ'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">วันเกิด / อายุ</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {student.birth_date ? `${student.birth_date} (${age})` : '-'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">สัญชาติ / เชื้อชาติ</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {textValue(metadata.dmc_nationality) || 'ไทย'} / {textValue(metadata.dmc_ethnicity) || 'ไทย'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">ศาสนา</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {textValue(metadata.dmc_religion) || 'พุทธ'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">สถานะการดูแล</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {getCareLabel(student.care_flags)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* หมวดที่ 2: การติดต่อ & ผู้ปกครอง */}
+                <div className="rounded-2xl border border-teal-200/80 bg-teal-50/40 p-4 dark:border-teal-900/60 dark:bg-teal-950/20">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-teal-800 dark:text-teal-400 mb-3">
+                    <Phone size={15} className="text-teal-600" />
+                    <span>ข้อมูลติดต่อ & ผู้ปกครอง</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-xl bg-white p-3 border border-teal-100 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-medium">เบอร์โทรศัพท์นักเรียน</span>
+                      <div className="mt-1 flex items-center justify-between">
+                        <strong className="text-slate-900 dark:text-white font-mono text-sm font-black">
+                          {studentPhone || 'ยังไม่มีเบอร์'}
+                        </strong>
+                        {studentPhone ? (
+                          <a
+                            href={`tel:${studentPhone}`}
+                            className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2 py-1 text-[11px] font-black text-teal-700 hover:bg-teal-100 transition"
+                          >
+                            <PhoneCall size={12} /> โทร
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-white p-3 border border-teal-100 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-medium">เบอร์โทรผู้ปกครอง</span>
+                      <div className="mt-1 flex items-center justify-between">
+                        <strong className="text-slate-900 dark:text-white font-mono text-sm font-black">
+                          {guardianPhone || 'ยังไม่มีเบอร์'}
+                        </strong>
+                        {guardianPhone ? (
+                          <a
+                            href={`tel:${guardianPhone}`}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-black text-white hover:bg-emerald-700 transition shadow-sm"
+                          >
+                            <PhoneCall size={12} /> โทรด่วน
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 block font-medium">ชื่อผู้ปกครองหลัก</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {guardianDisplayName}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 block font-medium">ความสัมพันธ์</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {textValue(dmcGuardian.relation) || 'ผู้ปกครอง'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* หมวดที่ 3: สุขภาพ & ร่างกาย */}
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
+                    <HeartPulse size={15} className="text-rose-600" />
+                    <span>สุขภาพ & กายภาพ</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block font-medium">ส่วนสูง</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {textValue(healthFlags.height_cm) ? `${textValue(healthFlags.height_cm)} ซม.` : '-'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">น้ำหนัก</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {textValue(healthFlags.weight_kg) ? `${textValue(healthFlags.weight_kg)} กก.` : '-'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">ดัชนีมวลกาย (BMI)</span>
+                      {bmi ? (
+                        <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-black border ${bmi.tone}`}>
+                          {bmi.value} ({bmi.label})
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-bold">-</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">หมู่เลือด</span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+                        {textValue(healthFlags.blood_type) || '-'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* หมวดที่ 4: ที่อยู่ตามทะเบียน */}
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
+                    <MapPin size={15} className="text-sky-600" />
+                    <span>ที่อยู่ตามทะเบียนราษฎร์ (DMC)</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {addressString}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-850">
+                <button
+                  type="button"
+                  onClick={() => setViewingStudent(null)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 hover:bg-slate-100 transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  ปิดหน้าต่าง
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {canWriteRoster && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = viewingStudent;
+                        setViewingStudent(null);
+                        startEditStudent(target);
+                      }}
+                      className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 text-xs font-black text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                    >
+                      <Edit3 size={14} />
+                      <span>แก้ไขข้อมูลนักเรียน</span>
+                    </button>
+                  )}
+                  {guardianPhone ? (
+                    <a
+                      href={`tel:${guardianPhone}`}
+                      className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#2F7D5B] px-5 text-xs font-black text-white hover:bg-[#27684c] shadow-sm transition"
+                    >
+                      <PhoneCall size={14} />
+                      <span>โทรหาผู้ปกครอง</span>
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">
         Created by MIKPURINUT
