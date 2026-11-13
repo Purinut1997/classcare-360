@@ -3,11 +3,13 @@ import {
   ArrowLeftRight,
   ArrowRight,
   BookOpenCheck,
+  Calendar,
   CalendarClock,
   CalendarRange,
   Download,
   FileSpreadsheet,
   GripVertical,
+  LayoutGrid,
   Lightbulb,
   Palette,
   Plus,
@@ -148,6 +150,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const [workspaceClassrooms, setWorkspaceClassrooms] = useState<WorkspaceClassroomRow[]>([]);
   const [printLogoDataUrl, setPrintLogoDataUrl] = useState('');
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [mobileDay, setMobileDay] = useState<DayName>(() => {
+    const bangkokDays: DayName[] = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    const todayIndex = new Date().getDay();
+    const todayName = bangkokDays[todayIndex];
+    if (todayName && settings.activeDays.includes(todayName)) return todayName;
+    return settings.activeDays[0] || 'จันทร์';
+  });
+  const [mobileScheduleMode, setMobileScheduleMode] = useState<'day' | 'grid'>('day');
 
   useEffect(() => {
     let isMounted = true;
@@ -265,6 +275,13 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const totalCells = settings.activeDays.length * periods.length;
   const completion = totalCells > 0 ? Math.round((usedCells / totalCells) * 100) : 0;
   const editingPeriod = editingCell ? periods.find((period) => period.index === editingCell.periodIndex) : null;
+
+  const getDayScheduledCount = (day: DayName) => {
+    return periods.filter((p) => {
+      const cell = settings.cells[makeScheduleCellKey(day, p.index)];
+      return Boolean(cell && cell.subject?.trim());
+    }).length;
+  };
 
   const workloadSummary = useMemo(() => {
     const map = new Map<string, { code: string; name: string; classrooms: Set<string>; count: number }>();
@@ -1076,8 +1093,126 @@ export function SchedulePage({ session }: SchedulePageProps) {
     'อาทิตย์': 'bg-rose-100 text-rose-900 border-l-4 border-rose-500',
   };
 
+  const thaiDayPillThemes: Record<DayName, { active: string; idle: string; border: string }> = {
+    'จันทร์': { active: 'bg-amber-400 text-amber-950 font-black shadow-sm ring-2 ring-amber-300', idle: 'bg-white text-slate-700 hover:bg-amber-50', border: 'border-amber-300' },
+    'อังคาร': { active: 'bg-pink-500 text-white font-black shadow-sm ring-2 ring-pink-300', idle: 'bg-white text-slate-700 hover:bg-pink-50', border: 'border-pink-300' },
+    'พุธ': { active: 'bg-emerald-600 text-white font-black shadow-sm ring-2 ring-emerald-300', idle: 'bg-white text-slate-700 hover:bg-emerald-50', border: 'border-emerald-300' },
+    'พฤหัสบดี': { active: 'bg-orange-500 text-white font-black shadow-sm ring-2 ring-orange-300', idle: 'bg-white text-slate-700 hover:bg-orange-50', border: 'border-orange-300' },
+    'ศุกร์': { active: 'bg-sky-500 text-white font-black shadow-sm ring-2 ring-sky-300', idle: 'bg-white text-slate-700 hover:bg-sky-50', border: 'border-sky-300' },
+    'เสาร์': { active: 'bg-purple-600 text-white font-black shadow-sm ring-2 ring-purple-300', idle: 'bg-white text-slate-700 hover:bg-purple-50', border: 'border-purple-300' },
+    'อาทิตย์': { active: 'bg-rose-500 text-white font-black shadow-sm ring-2 ring-rose-300', idle: 'bg-white text-slate-700 hover:bg-rose-50', border: 'border-rose-300' },
+  };
+
+  const renderMobileDayCards = (targetDay: DayName) => {
+    return (
+      <div className="space-y-2.5">
+        {scheduleColumns.map((column) => {
+          if (column.type === 'lunch') {
+            return (
+              <div
+                key={`mobile-lunch-${column.key}`}
+                className="flex items-center gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50 to-orange-50/70 p-3 sm:p-3.5 text-amber-950 shadow-2xs"
+              >
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                  <Utensils size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black">พักรับประทานอาหารกลางวัน</p>
+                  <p className="text-[11px] font-bold text-amber-700">{column.start} - {column.end} น.</p>
+                </div>
+              </div>
+            );
+          }
+
+          const { period } = column;
+          const key = makeScheduleCellKey(targetDay, period.index);
+          const cell = settings.cells[key];
+          const hasContent = Boolean(cell && cell.subject?.trim());
+          const theme = hasContent ? getScheduleTheme(cell.subject, cell.classroom) : null;
+
+          if (hasContent && theme) {
+            return (
+              <div
+                key={key}
+                onClick={() => openCellEditor(targetDay, period.index)}
+                role="button"
+                tabIndex={0}
+                className={`group relative flex items-center justify-between gap-3 rounded-2xl border p-3.5 text-left transition-all shadow-sm active:scale-[0.99] cursor-pointer ${theme.card}`}
+              >
+                {/* Left: Period & Time info */}
+                <div className="flex flex-col items-center justify-center rounded-xl bg-black/20 px-2.5 py-1.5 min-w-[56px] text-center text-white shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-85">{period.label}</span>
+                  <span className="text-[11px] font-black">{period.start}</span>
+                  <span className="text-[9.5px] opacity-75">{period.end}</span>
+                </div>
+
+                {/* Center: Subject & Class */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[10.5px] font-mono font-black ${theme.codeTag}`}>
+                      {cell.subjectCode || '—'}
+                    </span>
+                    {formatScheduleClassroom(cell.classroom) ? (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[10px] font-black ${theme.badge}`}>
+                        <Users size={10} className="opacity-75" />
+                        {formatScheduleClassroom(cell.classroom)}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-white/20 px-1.5 py-0.2 text-[9px] font-bold opacity-80">
+                        ทุกห้อง
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-black truncate">
+                    <SubjectLucideIcon subject={cell.subject} size={15} className="shrink-0 opacity-90" />
+                    <span className="truncate">{cell.subject}</span>
+                  </p>
+                  <p className="text-[10.5px] opacity-80 truncate">{theme.categoryLabel}</p>
+                </div>
+
+                {/* Right: Edit Button */}
+                <div className="shrink-0">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/20 text-white group-hover:bg-white/30 transition shadow-2xs">
+                    <Settings2 size={16} />
+                  </span>
+                </div>
+              </div>
+            );
+          }
+
+          // Empty slot card
+          return (
+            <div
+              key={key}
+              onClick={() => openCellEditor(targetDay, period.index)}
+              role="button"
+              tabIndex={0}
+              className="flex items-center justify-between gap-3 rounded-2xl border-2 border-dashed border-slate-200/90 bg-white/90 p-3 text-left transition-all hover:border-sky-400 hover:bg-sky-50/50 active:scale-[0.99] cursor-pointer shadow-2xs"
+            >
+              <div className="flex flex-col items-center justify-center rounded-xl bg-slate-100 px-2.5 py-1.5 min-w-[56px] text-center text-slate-700 shrink-0">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{period.label}</span>
+                <span className="text-[11px] font-black text-slate-800">{period.start}</span>
+                <span className="text-[9.5px] text-slate-500">{period.end}</span>
+              </div>
+
+              <div className="flex-1 flex items-center gap-2 text-slate-400">
+                <div className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-500">
+                  <Plus size={15} />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-600 block">ว่าง (ยังไม่มีวิชา)</span>
+                  <span className="text-[10.5px] text-slate-400 font-medium">แตะเพื่อกำหนดวิชาในคาบนี้</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <main className="app-page">
+    <main className="app-page pb-32 sm:pb-12">
       <style>{`
         @font-face {
           font-family: 'TH Sarabun PSK';
@@ -1243,60 +1378,120 @@ export function SchedulePage({ session }: SchedulePageProps) {
       </section>
 
       <div className="schedule-screen">
-        <div className="app-page-header">
-          <div>
-            <div className="nexus-kicker">
-              <CalendarRange size={18} aria-hidden="true" />
-              Teaching Schedule
+        {/* 📱 Mobile Top Navigation Bar (Visible only on < lg) */}
+        <div className="lg:hidden space-y-3 mb-4">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            {/* View Switcher: ตารางสอน vs ตั้งค่า */}
+            <div className="flex items-center p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setScheduleView('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                  activeView === 'table'
+                    ? 'bg-white text-slate-950 shadow-xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CalendarRange size={14} className={activeView === 'table' ? 'text-emerald-700' : ''} />
+                <span>ตารางสอน</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleView('settings')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                  activeView === 'settings'
+                    ? 'bg-white text-slate-950 shadow-xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Settings2 size={14} className={activeView === 'settings' ? 'text-amber-600' : ''} />
+                <span>ตั้งค่า</span>
+              </button>
             </div>
-            <h1 className="app-page-title">จัดตารางสอนและตารางเรียน</h1>
-            <p className="app-page-description">
-              ตั้งค่าวันเรียน คาบเรียน วิชา ห้อง และข้อมูลรายงาน จุดนี้จะกลายเป็น dropdown ให้บันทึกเวลาเรียนและรายงานใช้ต่อ
-            </p>
-          </div>
 
-          <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
-            {[
-              { label: 'คาบ/วัน', value: settings.periodCount },
-              { label: 'วันเปิดใช้', value: settings.activeDays.length },
-              { label: 'กรอกแล้ว', value: `${completion}%` },
-            ].map((metric) => (
-              <div className="rounded-2xl bg-white p-3 text-center font-black text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.06)] ring-1 ring-[#ead8bd]" key={metric.label}>
-                <p className="text-2xl">{metric.value}</p>
-                <p className="mt-1 text-xs text-slate-500">{metric.label}</p>
-              </div>
-            ))}
+            {/* Quick Mobile Actions */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsOcrModalOpen(true)}
+                className="inline-flex h-9 items-center gap-1 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-2.5 text-xs font-black text-white shadow-2xs active:scale-95"
+                title="สแกนตารางสอน AI Vision"
+              >
+                <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                <span className="hidden xs:inline">สแกน AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => saveAll()}
+                className="inline-flex h-9 items-center gap-1 rounded-xl bg-[#2F7D5B] text-white px-2.5 text-xs font-black shadow-2xs active:scale-95"
+                title="บันทึกตาราง"
+              >
+                <Save size={14} />
+                <span>บันทึก</span>
+              </button>
+              <button
+                type="button"
+                onClick={printSchedule}
+                className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-2xs active:scale-95"
+                title="พิมพ์ A4 แนวนอน"
+              >
+                <Printer size={15} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {notice ? (
-          <div className="mb-5 rounded-2xl border border-cyan-100 bg-cyan-50 p-3 text-sm font-bold text-cyan-900">
-            {notice}
-          </div>
-        ) : null}
+        {/* 🖥️ Desktop Header (Hidden on Mobile) */}
+        <div className="hidden lg:block">
+          <div className="app-page-header">
+            <div>
+              <div className="nexus-kicker">
+                <CalendarRange size={18} aria-hidden="true" />
+                Teaching Schedule
+              </div>
+              <h1 className="app-page-title">จัดตารางสอนและตารางเรียน</h1>
+              <p className="app-page-description">
+                ตั้งค่าวันเรียน คาบเรียน วิชา ห้อง และข้อมูลรายงาน จุดนี้จะกลายเป็น dropdown ให้บันทึกเวลาเรียนและรายงานใช้ต่อ
+              </p>
+            </div>
 
-        <section className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/92 p-2 shadow-[0_14px_34px_rgba(122,79,38,0.06)]">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              { value: 'table' as const, label: 'ตาราง', description: 'กรอกช่องตารางสอนและพิมพ์เอกสาร' },
-              { value: 'settings' as const, label: 'ตั้งค่า', description: 'คาบเรียน รายวิชา และห้องที่ใช้ในตาราง' },
-            ].map((item) => (
-              <button
-                className={`rounded-[1.35rem] px-4 py-3 text-left transition ${
-                  activeView === item.value
-                    ? 'bg-[#fff1c9] text-[#4b2f18] ring-1 ring-[#e6bd70]'
-                    : 'text-slate-600 hover:bg-[#fffaf0]'
-                }`}
-                key={item.value}
-                onClick={() => setScheduleView(item.value)}
-                type="button"
-              >
-                <span className="text-base font-black">{item.label}</span>
-                <span className="mt-1 block text-xs font-bold">{item.description}</span>
-              </button>
-            ))}
+            <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
+              {[
+                { label: 'คาบ/วัน', value: settings.periodCount },
+                { label: 'วันเปิดใช้', value: settings.activeDays.length },
+                { label: 'กรอกแล้ว', value: `${completion}%` },
+              ].map((metric) => (
+                <div className="rounded-2xl bg-white p-3 text-center font-black text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.06)] ring-1 ring-[#ead8bd]" key={metric.label}>
+                  <p className="text-2xl">{metric.value}</p>
+                  <p className="mt-1 text-xs text-slate-500">{metric.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </section>
+
+          <section className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/92 p-2 shadow-[0_14px_34px_rgba(122,79,38,0.06)]">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { value: 'table' as const, label: 'ตาราง', description: 'กรอกช่องตารางสอนและพิมพ์เอกสาร' },
+                { value: 'settings' as const, label: 'ตั้งค่า', description: 'คาบเรียน รายวิชา และห้องที่ใช้ในตาราง' },
+              ].map((item) => (
+                <button
+                  className={`rounded-[1.35rem] px-4 py-3 text-left transition ${
+                    activeView === item.value
+                      ? 'bg-[#fff1c9] text-[#4b2f18] ring-1 ring-[#e6bd70]'
+                      : 'text-slate-600 hover:bg-[#fffaf0]'
+                  }`}
+                  key={item.value}
+                  onClick={() => setScheduleView(item.value)}
+                  type="button"
+                >
+                  <span className="text-base font-black">{item.label}</span>
+                  <span className="mt-1 block text-xs font-bold">{item.description}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
 
         {activeView === 'settings' ? (
           <section className="grid gap-5 lg:grid-cols-2 items-start pb-20">
@@ -1455,52 +1650,141 @@ export function SchedulePage({ session }: SchedulePageProps) {
               </div>
             </div>
 
-            <div className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/90 p-4">
-              <div className="grid gap-3 rounded-3xl border border-[#e6bd70] bg-[#fffaf0] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            {/* 🖥️ Desktop Header Bars (Hidden on Mobile) */}
+            <div className="hidden lg:block space-y-5">
+              <div className="rounded-[1.75rem] border border-[#ead8bd] bg-white/90 p-4">
+                <div className="grid gap-3 rounded-3xl border border-[#e6bd70] bg-[#fffaf0] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิธีใช้งานตาราง</p>
+                    <h3 className="mt-1 text-2xl font-black text-slate-950">คลิกช่องว่างหรือช่องที่มีวิชาแล้วแก้ได้ทันที</h3>
+                    <p className="mt-1 text-sm font-bold text-slate-500">ข้อมูลรายวิชาและห้องเรียนมาจากเมนูตั้งค่า ส่วนปุ่มพิมพ์จะจัดหน้าเป็น A4 แนวนอนอัตโนมัติ</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#4b2f18] px-4 py-3 text-sm font-black text-white">
+                    {usedCells}/{totalCells} ช่อง
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิธีใช้งานตาราง</p>
-                  <h3 className="mt-1 text-2xl font-black text-slate-950">คลิกช่องว่างหรือช่องที่มีวิชาแล้วแก้ได้ทันที</h3>
-                  <p className="mt-1 text-sm font-bold text-slate-500">ข้อมูลรายวิชาและห้องเรียนมาจากเมนูตั้งค่า ส่วนปุ่มพิมพ์จะจัดหน้าเป็น A4 แนวนอนอัตโนมัติ</p>
+                  <p className="text-sm font-black text-[#b46a00]">ตารางสำหรับใช้งานจริง</p>
+                  <h2 className="text-3xl font-black text-slate-950">{identity.schoolName}</h2>
+                  <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่ แก้ไข หรือล้างวิชาในคาบนั้น</p>
                 </div>
-                <div className="rounded-2xl bg-[#4b2f18] px-4 py-3 text-sm font-black text-white">
-                  {usedCells}/{totalCells} ช่อง
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    onClick={() => setIsOcrModalOpen(true)}
+                    title="ถ่ายภาพตารางสอนกระดาษเพื่อนำเข้าสู่ระบบด้วย AI Vision"
+                    type="button"
+                  >
+                    <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
+                    <span>สแกนตารางสอน AI Vision</span>
+                    <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+                  </button>
+                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
+                    <Save size={17} aria-hidden="true" />
+                    บันทึกตาราง
+                  </button>
+                  <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
+                    <Printer size={17} aria-hidden="true" />
+                    พิมพ์ A4 แนวนอน
+                  </button>
+                  <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=subject-attendance">
+                    <FileSpreadsheet size={17} aria-hidden="true" />
+                    รายงาน / พิมพ์ตารางสอน
+                  </Link>
                 </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-black text-[#b46a00]">ตารางสำหรับใช้งานจริง</p>
-                <h2 className="text-3xl font-black text-slate-950">{identity.schoolName}</h2>
-                <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่ แก้ไข หรือล้างวิชาในคาบนั้น</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  onClick={() => setIsOcrModalOpen(true)}
-                  title="ถ่ายภาพตารางสอนกระดาษเพื่อนำเข้าสู่ระบบด้วย AI Vision"
-                  type="button"
-                >
-                  <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
-                  <span>สแกนตารางสอน AI Vision</span>
-                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
-                </button>
-                <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
-                  <Save size={17} aria-hidden="true" />
-                  บันทึกตาราง
-                </button>
-                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
-                  <Printer size={17} aria-hidden="true" />
-                  พิมพ์ A4 แนวนอน
-                </button>
-                <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=subject-attendance">
-                  <FileSpreadsheet size={17} aria-hidden="true" />
-                  รายงาน / พิมพ์ตารางสอน
-                </Link>
               </div>
             </div>
 
-            <div className="mt-5 overflow-x-auto">
-              <div className="min-w-[980px] rounded-[2.5rem] border border-slate-200/90 bg-white/95 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+            {/* 📱 Mobile Schedule Header & Controls (Visible on < lg) */}
+            <div className="lg:hidden space-y-3">
+              {/* Mode Switcher: รายวัน vs ตารางรวม 5 วัน */}
+              <div className="grid grid-cols-2 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => setMobileScheduleMode('day')}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-black transition-all ${
+                    mobileScheduleMode === 'day'
+                      ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar size={14} className={mobileScheduleMode === 'day' ? 'text-emerald-700' : ''} />
+                  <span>มุมมองรายวัน</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileScheduleMode('grid')}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-black transition-all ${
+                    mobileScheduleMode === 'grid'
+                      ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid size={14} className={mobileScheduleMode === 'grid' ? 'text-sky-700' : ''} />
+                  <span>ตารางรวม 5 วัน</span>
+                </button>
+              </div>
+
+              {/* Day Selector Bar (Visible when mobileScheduleMode === 'day') */}
+              {mobileScheduleMode === 'day' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] -mx-1 px-1">
+                    {settings.activeDays.map((day) => {
+                      const isSelected = mobileDay === day;
+                      const pillTheme = thaiDayPillThemes[day] || {
+                        active: 'bg-slate-900 text-white shadow-sm',
+                        idle: 'bg-white text-slate-700 hover:bg-slate-50',
+                        border: 'border-slate-200',
+                      };
+                      const dayCount = getDayScheduledCount(day);
+
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => setMobileDay(day)}
+                          className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-black transition-all shrink-0 active:scale-95 ${
+                            isSelected ? pillTheme.active : `${pillTheme.idle} ${pillTheme.border}`
+                          }`}
+                        >
+                          <span>{day}</span>
+                          <span
+                            className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                              isSelected ? 'bg-black/20 text-current' : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {dayCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Day Overview Sub-bar */}
+                  <div className="flex items-center justify-between rounded-xl bg-slate-100/90 px-3 py-1.5 text-xs font-bold text-slate-600">
+                    <span className="font-black text-slate-900">
+                      วัน{mobileDay} · สอน {getDayScheduledCount(mobileDay)} คาบ
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      ว่าง {periods.length - getDayScheduledCount(mobileDay)} คาบ
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 📱 Mobile Day View: Chronological Period Cards */}
+            {mobileScheduleMode === 'day' && (
+              <div className="lg:hidden space-y-2.5">
+                {renderMobileDayCards(mobileDay)}
+              </div>
+            )}
+
+            <div className={mobileScheduleMode === 'day' ? 'hidden lg:block' : 'block'}>
+              <div className="mt-2 sm:mt-5 overflow-x-auto">
+                <div className="min-w-[980px] rounded-[2.5rem] border border-slate-200/90 bg-white/95 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
                 {/* School & Teacher Header Banner */}
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-800/60">
                   <div className="flex items-center gap-3">
@@ -1894,6 +2178,91 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 </div>
               </div>
             </div>
+            </div>
+
+            {/* 📱 Mobile Summary & Controls (Visible only on < lg) */}
+            <div className="lg:hidden mt-4 space-y-3.5">
+              {/* 3 Metric cards */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'คาบ/วัน', value: settings.periodCount },
+                  { label: 'วันเปิดใช้', value: settings.activeDays.length },
+                  { label: 'กรอกแล้ว', value: `${completion}%` },
+                ].map((metric) => (
+                  <div className="rounded-2xl bg-white p-2.5 text-center font-black text-slate-950 shadow-2xs border border-slate-200/80" key={metric.label}>
+                    <p className="text-xl">{metric.value}</p>
+                    <p className="mt-0.5 text-[10.5px] text-slate-500">{metric.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Workload Pill */}
+              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/80 p-3 text-xs font-bold text-emerald-950 flex items-center justify-between">
+                <span className="font-black">ภาระงานสอนทั้งสัปดาห์</span>
+                <span className="rounded-lg bg-emerald-100 px-2 py-0.5 font-black text-emerald-800">
+                  {workloadSummary.totalPeriods} คาบ ({workloadSummary.totalHours} ชม.)
+                </span>
+              </div>
+
+              {/* Legend for grades and activities */}
+              {(scheduleLegend.grades.length > 0 || scheduleLegend.activities.length > 0) && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                  <p className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                    <Palette size={14} className="text-amber-500" />
+                    <span>ระดับชั้นและกิจกรรมที่สอน</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {scheduleLegend.grades.map((grade) => (
+                      <span
+                        key={grade.name}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black border ${grade.theme.card}`}
+                      >
+                        <span>{grade.name}</span>
+                        <span className="opacity-80">({grade.count} คาบ)</span>
+                      </span>
+                    ))}
+                    {scheduleLegend.activities.map((act) => (
+                      <span
+                        key={act.label}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black border ${act.theme.card}`}
+                      >
+                        <span>{act.label}</span>
+                        <span className="opacity-80">({act.count})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="space-y-2 pt-1">
+                <button
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-xs font-black text-white shadow-md active:scale-98"
+                  onClick={() => setIsOcrModalOpen(true)}
+                  type="button"
+                >
+                  <Sparkles size={15} className="text-amber-300 animate-pulse" />
+                  <span>สแกนตารางสอน AI Vision</span>
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 active:scale-98"
+                    onClick={printSchedule}
+                    type="button"
+                  >
+                    <Printer size={15} />
+                    <span>พิมพ์ A4 แนวนอน</span>
+                  </button>
+                  <Link
+                    className="inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 active:scale-98 text-center"
+                    to="/app/dashboard?view=reports&reportView=subject-attendance"
+                  >
+                    <FileSpreadsheet size={15} />
+                    <span>รายงานตารางสอน</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
 
             {editingCell ? (
               <div
@@ -1904,7 +2273,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 }}
                 role="dialog"
               >
-                <div className="w-full max-w-2xl rounded-[2rem] border border-[#e6bd70] bg-white p-5 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+                <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-[2rem] border border-[#e6bd70] bg-white p-5 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
                   <div className="flex flex-col gap-3 border-b border-[#ead8bd] pb-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">เลือกวิชาในตาราง</p>
