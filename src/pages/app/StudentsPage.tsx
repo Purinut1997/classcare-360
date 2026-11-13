@@ -1140,6 +1140,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
   const [studentForm, setStudentForm] = useState(() => emptyStudentForm(useRealBackend ? '' : demoClassrooms[0].id));
   const [classroomName, setClassroomName] = useState(session.workspace?.classroomName || 'ป.5/2');
   const [gradeLevel, setGradeLevel] = useState('ป.5');
@@ -1388,25 +1389,21 @@ export function StudentsPage({ session }: StudentsPageProps) {
   }, [currentViewStudents]);
 
   const handleFocusAddStudent = () => {
-    setEditingStudentId(null);
-    if (activeStudentView !== 'roster') {
-      navigate('/app/dashboard?view=students&studentView=roster');
-      setTimeout(() => {
-        const formElement = document.getElementById('add-student-form');
-        if (formElement) {
-          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          const codeInput = formElement.querySelector<HTMLInputElement>('input[placeholder*="รหัส"], input');
-          codeInput?.focus();
-        }
-      }, 100);
+    if (!canWriteRoster) {
+      setNotice('บัญชีนี้ดูรายชื่อได้ แต่ไม่ได้รับสิทธิ์เพิ่มหรือแก้ไขข้อมูลนักเรียน');
       return;
     }
-    const formElement = document.getElementById('add-student-form');
-    if (formElement) {
-      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const codeInput = formElement.querySelector<HTMLInputElement>('input[placeholder*="รหัส"], input');
-      codeInput?.focus();
+    if (studentLimitReached) {
+      setNotice(`โควตานักเรียนเต็มแล้ว (${activeStudents.length}/${workspaceLimits.activeStudents} คน) กรุณาเก็บรายชื่อเดิมหรืออัปเกรดแพ็กเกจ`);
+      return;
     }
+    const targetClassroomId =
+      rosterClassroomFilter && rosterClassroomFilter !== 'all'
+        ? rosterClassroomFilter
+        : activeClassrooms[0]?.id || classrooms[0]?.id || '';
+    setEditingStudentId(null);
+    setStudentForm(emptyStudentForm(targetClassroomId));
+    setIsEditModalOpen(true);
   };
 
   const studentsWithoutClassroom = useMemo(
@@ -2008,6 +2005,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       setClassrooms((current) => [...current, localClassroom]);
       setStudentForm((current) => ({ ...current, classroomId: localClassroom.id }));
       setNotice('เพิ่มห้องเรียนในโหมดตัวอย่างแล้ว');
+      setIsClassroomModalOpen(false);
       setIsSubmitting(false);
       return;
     }
@@ -2034,6 +2032,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
     setClassrooms((current) => [...current, nextClassroom]);
     setStudentForm((current) => ({ ...current, classroomId: nextClassroom.id }));
     setNotice('เพิ่มห้องเรียนสำเร็จ');
+    setIsClassroomModalOpen(false);
     setIsSubmitting(false);
   }
 
@@ -3637,6 +3636,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
               <span>เพิ่มนักเรียนใหม่</span>
             </button>
 
+            {canManageWorkspace(session.profile.role) ? (
+              <button
+                type="button"
+                onClick={() => setIsClassroomModalOpen(true)}
+                disabled={classroomLimitReached}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 transition-all dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 disabled:opacity-50"
+              >
+                <School size={15} className="text-[#2F7D5B]" />
+                <span>เพิ่มห้องเรียน</span>
+              </button>
+            ) : null}
+
             <Link
               to="/app/dashboard?view=import-export"
               className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 transition-all dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -4469,324 +4480,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
           ) : null}
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] items-start pb-24">
-          {!editingStudentId ? (
-          <form id="add-student-form" className="nexus-card p-4 sm:p-5" onSubmit={handleStudentSubmit}>
-            <div className="nexus-kicker">
-              <UserPlus size={16} aria-hidden="true" />
-              เพิ่มนักเรียน
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ห้องเรียน
-                  <select
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setStudentForm((current) => ({ ...current, classroomId: event.target.value }))}
-                    value={studentForm.classroomId}
-                  >
-                    {activeClassrooms.map((classroom) => (
-                      <option key={classroom.id} value={classroom.id}>
-                        {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                      </option>
-                    ))}
-                    {activeClassrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
-                  </select>
-                </label>
-
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  รหัสนักเรียน
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setStudentForm((current) => ({ ...current, studentCode: event.target.value }))}
-                    placeholder="เช่น 001"
-                    value={studentForm.studentCode}
-                  />
-                </label>
-
-                <label className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2 lg:col-span-1">
-                  ชื่อเล่น
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setStudentForm((current) => ({ ...current, nickname: event.target.value }))}
-                    placeholder="เช่น ต้นกล้า"
-                    value={studentForm.nickname}
-                  />
-                </label>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ชื่อ
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setStudentForm((current) => ({ ...current, firstName: event.target.value }))}
-                    placeholder="เช่น ภูริณัฏฐ์"
-                    value={studentForm.firstName}
-                  />
-                </label>
-
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  นามสกุล
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setStudentForm((current) => ({ ...current, lastName: event.target.value }))}
-                    placeholder="เช่น กุลัพพบุรี"
-                    value={studentForm.lastName}
-                  />
-                </label>
-              </div>
-
-              <details className="rounded-3xl bg-amber-50/70 p-4 ring-1 ring-amber-100">
-                <summary className="cursor-pointer text-sm font-black text-amber-900">
-                  ข้อมูล DMC รายบุคคลครบชุด
-                  <span className="ml-2 text-xs font-bold text-slate-500">สุขภาพ ที่อยู่ และครอบครัว</span>
-                </summary>
-
-                <div className="mt-4 grid gap-5">
-                  <section>
-                    <p className="text-xs font-black uppercase tracking-wide text-cyan-700">ข้อมูลพื้นฐานและสุขภาพ</p>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      {([
-                        ['prefix', 'คำนำหน้าชื่อ'],
-                        ['weightKg', 'น้ำหนัก (กก.)'],
-                        ['heightCm', 'ส่วนสูง (ซม.)'],
-                        ['bloodType', 'กลุ่มเลือด'],
-                        ['religion', 'ศาสนา'],
-                        ['ethnicity', 'เชื้อชาติ'],
-                        ['nationality', 'สัญชาติ'],
-                        ['disadvantage', 'ความด้อยโอกาส'],
-                      ] as const).map(([field, label]) => (
-                        <label className="grid gap-2 text-xs font-black text-slate-600" key={field}>
-                          {label}
-                          <input
-                            className="nexus-field h-10 px-3 text-sm"
-                            onChange={(event) => setStudentForm((current) => ({ ...current, [field]: event.target.value }))}
-                            value={studentForm[field]}
-                          />
-                        </label>
-                      ))}
-                      <label className="grid gap-2 text-xs font-black text-slate-600">
-                        เพศ
-                        <select
-                          className="nexus-field h-10 px-3 text-sm"
-                          onChange={(event) =>
-                            setStudentForm((current) => ({
-                              ...current,
-                              gender: event.target.value as NonNullable<StudentRow['gender']>,
-                            }))
-                          }
-                          value={studentForm.gender}
-                        >
-                          <option value="unspecified">ไม่ระบุ</option>
-                          <option value="male">ชาย</option>
-                          <option value="female">หญิง</option>
-                          <option value="other">อื่น ๆ</option>
-                        </select>
-                      </label>
-                      <label className="grid gap-2 text-xs font-black text-slate-600 sm:col-span-2 lg:col-span-3">
-                        สถานะยังไม่สามารถจำหน่ายได้ (3.1.8)
-                        <input
-                          className="nexus-field h-10 px-3 text-sm"
-                          onChange={(event) => setStudentForm((current) => ({ ...current, cannotDisposeStatus: event.target.value }))}
-                          value={studentForm.cannotDisposeStatus}
-                        />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section>
-                    <p className="text-xs font-black uppercase tracking-wide text-cyan-700">ที่อยู่ตามข้อมูล DMC</p>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {([
-                        ['houseNo', 'บ้านเลขที่'],
-                        ['villageNo', 'หมู่'],
-                        ['roadOrSoi', 'ถนน/ซอย'],
-                        ['subdistrict', 'ตำบล'],
-                        ['district', 'อำเภอ'],
-                        ['province', 'จังหวัด'],
-                      ] as const).map(([field, label]) => (
-                        <label className="grid gap-2 text-xs font-black text-slate-600" key={field}>
-                          {label}
-                          <input
-                            className="nexus-field h-10 px-3 text-sm"
-                            onChange={(event) => setStudentForm((current) => ({ ...current, [field]: event.target.value }))}
-                            value={studentForm[field]}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </section>
-
-                  {([
-                    {
-                      fields: [
-                        ['guardianPrefix', 'คำนำหน้า'],
-                        ['guardianFirstName', 'ชื่อ'],
-                        ['guardianLastName', 'นามสกุล'],
-                        ['guardianOccupation', 'อาชีพ'],
-                        ['guardianRelation', 'ความสัมพันธ์'],
-                      ] as const,
-                      title: 'ผู้ปกครอง',
-                    },
-                    {
-                      fields: [
-                        ['fatherPrefix', 'คำนำหน้า'],
-                        ['fatherFirstName', 'ชื่อ'],
-                        ['fatherLastName', 'นามสกุล'],
-                        ['fatherOccupation', 'อาชีพ'],
-                      ] as const,
-                      title: 'บิดา',
-                    },
-                    {
-                      fields: [
-                        ['motherPrefix', 'คำนำหน้า'],
-                        ['motherFirstName', 'ชื่อ'],
-                        ['motherLastName', 'นามสกุล'],
-                        ['motherOccupation', 'อาชีพ'],
-                      ] as const,
-                      title: 'มารดา',
-                    },
-                  ] as const).map((group) => (
-                    <section key={group.title}>
-                      <p className="text-xs font-black uppercase tracking-wide text-cyan-700">{group.title}</p>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {group.fields.map(([field, label]) => (
-                          <label className="grid gap-2 text-xs font-black text-slate-600" key={field}>
-                            {label}
-                            <input
-                              className="nexus-field h-10 px-3 text-sm"
-                              onChange={(event) => setStudentForm((current) => ({ ...current, [field]: event.target.value }))}
-                              value={studentForm[field]}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-
-                  <section>
-                    <p className="text-xs font-black uppercase tracking-wide text-cyan-700">แหล่งข้อมูล</p>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <label className="grid gap-2 text-xs font-black text-slate-600">
-                        รหัสโรงเรียน
-                        <input
-                          className="nexus-field h-10 px-3 text-sm"
-                          onChange={(event) => setStudentForm((current) => ({ ...current, schoolCode: event.target.value }))}
-                          value={studentForm.schoolCode}
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-black text-slate-600">
-                        ชื่อโรงเรียน
-                        <input
-                          className="nexus-field h-10 px-3 text-sm"
-                          onChange={(event) => setStudentForm((current) => ({ ...current, schoolName: event.target.value }))}
-                          value={studentForm.schoolName}
-                        />
-                      </label>
-                    </div>
-                  </section>
-                </div>
-              </details>
-
-              <div className="rounded-3xl bg-cyan-50/70 p-4 ring-1 ring-cyan-100">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black text-cyan-800">รายงานหน้าแรก</p>
-                    <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
-                      ใช้สำหรับให้ผู้ปกครองหรือนักเรียนเลือกโรงเรียน กรอกเลขบัตรและวันเกิด เพื่อดูเฉพาะรายงานที่โรงเรียนเปิดให้
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                    {selectedStudent?.metadata?.public_lookup_enabled || selectedStudent?.metadata?.public_lookup_id_hash
-                      ? 'เปิดแล้ว'
-                      : 'ยังไม่เปิด'}
-                  </span>
-                </div>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    วันเกิดนักเรียน
-                    <ThaiDatePicker className="h-11 px-3" onValueChange={(value) => setStudentForm((current) => ({ ...current, birthDate: value }))} value={studentForm.birthDate} />
-                  </label>
-
-                  <label className="grid gap-2 text-sm font-black text-slate-700">
-                    เลขบัตรประชาชน 13 หลัก
-                    <input
-                      className="nexus-field h-11 px-3"
-                      inputMode="numeric"
-                      maxLength={13}
-                      onChange={(event) =>
-                        setStudentForm((current) => ({
-                          ...current,
-                          citizenId: normalizeCitizenId(event.target.value).slice(0, 13),
-                        }))
-                      }
-                      placeholder="กรอกเมื่อต้องการเปิด public report"
-                      value={studentForm.citizenId}
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-2">
-              <button
-                className="blue-action inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={isSubmitting || studentLimitReached || !canWriteRoster}
-                type="submit"
-              >
-                {isSubmitting ? 'กำลังบันทึก' : 'บันทึกนักเรียน'}
-                <Save size={17} aria-hidden="true" />
-              </button>
-            </div>
-          </form>
-          ) : null}
-
-          <form className="nexus-card p-4 sm:p-5" onSubmit={handleCreateClassroom}>
-            <div className="nexus-kicker">
-              <School size={16} aria-hidden="true" />
-              ห้องเรียน
-            </div>
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ชื่อห้อง
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setClassroomName(event.target.value)}
-                  value={classroomName}
-                />
-              </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ระดับชั้น
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setGradeLevel(event.target.value)}
-                    value={gradeLevel}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ปีการศึกษา
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setAcademicYear(event.target.value)}
-                    value={academicYear}
-                  />
-                </label>
-              </div>
-            </div>
-            <button
-              className="nexus-pill mt-4 inline-flex h-11 w-full items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5"
-              disabled={isSubmitting || classroomLimitReached || !canManageWorkspace(session.profile.role)}
-              type="submit"
-            >
-              เพิ่มห้องเรียน
-              <School size={17} aria-hidden="true" />
-            </button>
-          </form>
-        </div>
       </section>
       ) : null}
 
@@ -6415,24 +6108,24 @@ export function StudentsPage({ session }: StudentsPageProps) {
             aria-labelledby="student-edit-modal-title"
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/80">
               <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-100 text-amber-800">
-                  <Edit3 size={20} aria-hidden="true" />
+                <span className={`grid h-10 w-10 place-items-center rounded-2xl ${editingStudentId ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400'}`}>
+                  {editingStudentId ? <Edit3 size={20} aria-hidden="true" /> : <UserPlus size={20} aria-hidden="true" />}
                 </span>
                 <div>
-                  <h3 className="text-lg font-black text-slate-950" id="student-edit-modal-title">
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white" id="student-edit-modal-title">
                     {editingStudentId ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียนใหม่'}
                   </h3>
                   <p className="text-xs font-bold text-slate-500">
                     {editingStudentId
                       ? `${studentForm.firstName} ${studentForm.lastName} (${studentForm.studentCode || 'ไม่มีรหัส'})`
-                      : 'กรอกข้อมูลพื้นฐานและเบอร์โทรศัพท์นักเรียน/ผู้ปกครอง'}
+                      : 'กรอกข้อมูลนักเรียนเพื่อบันทึกเข้าห้องเรียน'}
                   </p>
                 </div>
               </div>
               <button
-                className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+                className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700"
                 onClick={() => resetStudentForm(studentForm.classroomId)}
                 type="button"
                 title="ปิดหน้าต่าง"
@@ -6444,18 +6137,58 @@ export function StudentsPage({ session }: StudentsPageProps) {
             {/* Modal Body / Form */}
             <form className="flex-1 overflow-y-auto p-6" onSubmit={handleStudentSubmit}>
               <div className="grid gap-6">
-                {/* Section 1: ข้อมูลพื้นฐาน & เบอร์โทรศัพท์ */}
+                {/* Section 1: ข้อมูลพื้นฐาน & ห้องเรียน */}
                 <div className="rounded-2xl border border-amber-200/60 bg-amber-50/40 p-4">
                   <h4 className="flex items-center gap-2 text-sm font-black text-amber-900">
-                    <UserRound size={17} /> ข้อมูลพื้นฐาน & เบอร์โทรศัพท์ติดต่อ
+                    <UserRound size={17} /> ข้อมูลพื้นฐาน & ห้องเรียน
                   </h4>
+
+                  {/* แถวที่ 1: ห้องเรียน, รหัสนักเรียน, เลขบัตรประชาชน */}
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      ห้องเรียน <span className="text-rose-500">*</span>
+                      <select
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, classroomId: e.target.value }))}
+                        value={studentForm.classroomId}
+                      >
+                        {activeClassrooms.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name} {cls.academic_year ? `(${cls.academic_year})` : ''}
+                          </option>
+                        ))}
+                        {activeClassrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      รหัสประจำตัวนักเรียน
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, studentCode: e.target.value }))}
+                        placeholder="เช่น 2428 หรือ 001"
+                        value={studentForm.studentCode}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs font-black text-slate-700">
+                      เลขบัตรประชาชน (13 หลัก)
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        maxLength={13}
+                        onChange={(e) => setStudentForm((c) => ({ ...c, citizenId: e.target.value }))}
+                        placeholder="1330501xxxxxx"
+                        value={studentForm.citizenId}
+                      />
+                    </label>
+                  </div>
+
+                  {/* แถวที่ 2: คำนำหน้า, ชื่อจริง, นามสกุล, ชื่อเล่น */}
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="grid gap-1 text-xs font-black text-slate-700">
                       คำนำหน้า
                       <input
                         className="nexus-field h-10 px-3 text-sm font-bold"
                         onChange={(e) => setStudentForm((c) => ({ ...c, prefix: e.target.value }))}
-                        placeholder="เด็กชาย / เด็กหญิง / นาย"
+                        placeholder="ด.ช. / ด.ญ. / นาย / นางสาว"
                         value={studentForm.prefix}
                       />
                     </label>
@@ -6490,30 +6223,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     </label>
                   </div>
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      รหัสประจำตัวนักเรียน
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, studentCode: e.target.value }))}
-                        placeholder="เช่น 2428"
-                        value={studentForm.studentCode}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      เลขบัตรประชาชน (13 หลัก)
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        maxLength={13}
-                        onChange={(e) => setStudentForm((c) => ({ ...c, citizenId: e.target.value }))}
-                        placeholder="1330501xxxxxx"
-                        value={studentForm.citizenId}
-                      />
-                    </label>
+                  {/* แถวที่ 3: เพศ, วันเกิด */}
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-1 text-xs font-black text-slate-700">
                       เพศ
                       <select
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white"
                         onChange={(e) =>
                           setStudentForm((c) => ({
                             ...c,
@@ -6658,20 +6373,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
                         value={studentForm.province}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ห้องเรียน
-                      <select
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, classroomId: e.target.value }))}
-                        value={studentForm.classroomId}
-                      >
-                        {classrooms.map((cls) => (
-                          <option key={cls.id} value={cls.id}>
-                            {cls.name} ({cls.academic_year || '2569'})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                   </div>
 
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -6716,12 +6417,114 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   ยกเลิก
                 </button>
                 <button
-                  className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition hover:-translate-y-0.5"
+                  className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition hover:-translate-y-0.5 ${
+                    editingStudentId
+                      ? 'amber-action'
+                      : 'bg-[#2F7D5B] text-white hover:bg-[#27684c] shadow-sm'
+                  } disabled:opacity-50`}
                   disabled={isSubmitting || !canWriteRoster}
                   type="submit"
                 >
                   <Save size={18} aria-hidden="true" />
                   {isSubmitting ? 'กำลังบันทึก...' : editingStudentId ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลนักเรียน'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Interactive Modal Popup for Adding Classroom */}
+      {isClassroomModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setIsClassroomModalOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="relative flex w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="classroom-add-modal-title"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/80">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
+                  <School size={20} aria-hidden="true" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-950 dark:text-white" id="classroom-add-modal-title">
+                    เพิ่มห้องเรียนใหม่
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500">
+                    สร้างห้องเรียนใหม่สำหรับปีการศึกษานี้
+                  </p>
+                </div>
+              </div>
+              <button
+                className="grid h-8 w-8 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700"
+                onClick={() => setIsClassroomModalOpen(false)}
+                type="button"
+                title="ปิดหน้าต่าง"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form className="p-6" onSubmit={handleCreateClassroom}>
+              <div className="grid gap-4">
+                <label className="grid gap-1.5 text-xs font-black text-slate-700 dark:text-slate-300">
+                  ชื่อห้องเรียน <span className="text-rose-500">*</span>
+                  <input
+                    className="nexus-field h-11 px-3 text-sm font-bold"
+                    onChange={(event) => setClassroomName(event.target.value)}
+                    placeholder="เช่น ป.5/2 หรือ อนุบาล 2"
+                    required
+                    value={classroomName}
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700 dark:text-slate-300">
+                    ระดับชั้น
+                    <input
+                      className="nexus-field h-11 px-3 text-sm font-bold"
+                      onChange={(event) => setGradeLevel(event.target.value)}
+                      placeholder="เช่น ป.5"
+                      value={gradeLevel}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700 dark:text-slate-300">
+                    ปีการศึกษา
+                    <input
+                      className="nexus-field h-11 px-3 text-sm font-bold"
+                      onChange={(event) => setAcademicYear(event.target.value)}
+                      placeholder="เช่น 2569"
+                      value={academicYear}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Modal Footer Buttons */}
+              <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <button
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 hover:bg-slate-100 transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  onClick={() => setIsClassroomModalOpen(false)}
+                  type="button"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#2F7D5B] px-5 text-xs font-black text-white hover:bg-[#27684c] shadow-sm transition disabled:opacity-50"
+                  disabled={isSubmitting || classroomLimitReached || !canManageWorkspace(session.profile.role)}
+                  type="submit"
+                >
+                  <School size={15} aria-hidden="true" />
+                  {isSubmitting ? 'กำลังบันทึก...' : 'เพิ่มห้องเรียน'}
                 </button>
               </div>
             </form>
