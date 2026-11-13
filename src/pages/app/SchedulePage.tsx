@@ -1441,56 +1441,131 @@ export function SchedulePage({ session }: SchedulePageProps) {
           </div>
         </div>
 
-        {/* 🖥️ Desktop Header (Hidden on Mobile) */}
-        <div className="hidden lg:block">
-          <div className="app-page-header">
-            <div>
-              <div className="nexus-kicker">
-                <CalendarRange size={18} aria-hidden="true" />
-                Teaching Schedule
-              </div>
-              <h1 className="app-page-title">จัดตารางสอนและตารางเรียน</h1>
-              <p className="app-page-description">
-                ตั้งค่าวันเรียน คาบเรียน วิชา ห้อง และข้อมูลรายงาน จุดนี้จะกลายเป็น dropdown ให้บันทึกเวลาเรียนและรายงานใช้ต่อ
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 sm:min-w-[420px]">
-              {[
-                { label: 'คาบ/วัน', value: settings.periodCount },
-                { label: 'วันเปิดใช้', value: settings.activeDays.length },
-                { label: 'กรอกแล้ว', value: `${completion}%` },
-              ].map((metric) => (
-                <div className="rounded-2xl bg-white p-3 text-center font-black text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.06)] ring-1 ring-[#ead8bd]" key={metric.label}>
-                  <p className="text-2xl">{metric.value}</p>
-                  <p className="mt-1 text-xs text-slate-500">{metric.label}</p>
+        {/* 🖥️ Desktop Executive Command Header (Hidden on Mobile) */}
+        <div className="hidden lg:block mb-5">
+          <div className="rounded-3xl border border-slate-200/90 bg-white/95 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              {/* Left: Title, School Badge, and Context Subtitle */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-700 shadow-xs dark:bg-emerald-950/50 dark:text-emerald-400">
+                    <CalendarRange size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-xl font-black text-slate-950 dark:text-white">
+                        จัดตารางสอนและตารางเรียน
+                      </h1>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        {identity.schoolName}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                      {identity.teacherName ? `${identity.teacherName} · ` : ''}ปีการศึกษา {identity.academicYear} · {settings.periodCount} คาบ/วัน ({settings.activeDays.length} วันทำการ) · กรอกแล้ว {completion}%
+                    </p>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Center: Sleek Segmented Switcher */}
+              <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                <button
+                  type="button"
+                  onClick={() => setScheduleView('table')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    activeView === 'table'
+                      ? 'bg-white text-slate-950 shadow-sm border border-slate-200/60 dark:bg-slate-900 dark:text-white dark:border-slate-700'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Calendar size={14} className={activeView === 'table' ? 'text-emerald-700' : ''} />
+                  <span>ตารางสอน</span>
+                  <span className="rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 text-[10.5px] font-black">
+                    {usedCells}/{totalCells}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleView('settings')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    activeView === 'settings'
+                      ? 'bg-white text-slate-950 shadow-sm border border-slate-200/60 dark:bg-slate-900 dark:text-white dark:border-slate-700'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Settings2 size={14} className={activeView === 'settings' ? 'text-amber-600' : ''} />
+                  <span>ตั้งค่าคาบและวิชา</span>
+                </button>
+              </div>
+
+              {/* Right: Quick Action Group */}
+              <div className="flex items-center gap-2">
+                {activeView === 'table' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsOcrModalOpen(true)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-sm shadow-violet-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      title="ถ่ายภาพตารางสอนกระดาษเพื่อนำเข้าสู่ระบบด้วย AI Vision"
+                    >
+                      <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                      <span>สแกน AI Vision</span>
+                      <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase">AI</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => saveAll()}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2F7D5B] text-white px-3.5 text-xs font-black shadow-sm hover:bg-[#27684c] active:scale-[0.98] transition-all"
+                      title="บันทึกข้อมูลตารางสอนทั้งหมด"
+                    >
+                      <Save size={14} />
+                      <span>บันทึกตาราง</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={printSchedule}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all"
+                      title="พิมพ์ตารางสอนขนาด A4 แนวนอน"
+                    >
+                      <Printer size={14} />
+                      <span>พิมพ์ A4</span>
+                    </button>
+
+                    <Link
+                      to="/app/dashboard?view=reports&reportView=subject-attendance"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all"
+                      title="ดูรายงานเวลาเรียนและตารางสอน"
+                    >
+                      <FileSpreadsheet size={14} />
+                      <span>รายงาน</span>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => exportScheduleCsv(settings)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all"
+                      title="ส่งออกโครงสร้างตารางสอนเป็นไฟล์ CSV"
+                    >
+                      <Download size={14} />
+                      <span>ส่งออก CSV</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleView('table')}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 text-white px-3.5 text-xs font-black shadow-sm hover:bg-slate-800 active:scale-[0.98] transition-all dark:bg-slate-100 dark:text-slate-900"
+                    >
+                      <Calendar size={14} />
+                      <span>กลับไปหน้าตาราง</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-
-          <section className="mb-5 rounded-[1.75rem] border border-[#ead8bd] bg-white/92 p-2 shadow-[0_14px_34px_rgba(122,79,38,0.06)]">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                { value: 'table' as const, label: 'ตาราง', description: 'กรอกช่องตารางสอนและพิมพ์เอกสาร' },
-                { value: 'settings' as const, label: 'ตั้งค่า', description: 'คาบเรียน รายวิชา และห้องที่ใช้ในตาราง' },
-              ].map((item) => (
-                <button
-                  className={`rounded-[1.35rem] px-4 py-3 text-left transition ${
-                    activeView === item.value
-                      ? 'bg-[#fff1c9] text-[#4b2f18] ring-1 ring-[#e6bd70]'
-                      : 'text-slate-600 hover:bg-[#fffaf0]'
-                  }`}
-                  key={item.value}
-                  onClick={() => setScheduleView(item.value)}
-                  type="button"
-                >
-                  <span className="text-base font-black">{item.label}</span>
-                  <span className="mt-1 block text-xs font-bold">{item.description}</span>
-                </button>
-              ))}
-            </div>
-          </section>
         </div>
 
         {activeView === 'settings' ? (
@@ -1633,69 +1708,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
             </div>
           </section>
         ) : (
-          <section className="schedule-v2 app-panel-pad overflow-hidden">
-            <div className="mb-5 grid gap-3 rounded-[1.75rem] border border-[#ead8bd] bg-[#fffaf0]/80 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิชาหลักที่เลือกไว้</p>
-                <h3 className="mt-1 text-2xl font-black text-slate-950">
-                  {selectedSubjectCode ? `${selectedSubjectCode} / ` : ''}{selectedSubject || 'ยังไม่ได้เลือกวิชา'}
-                </h3>
-                <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องตารางเพื่อเพิ่มหรือแก้ไข ระบบจะให้เลือกวิชาและห้องในกล่องเดียว ไม่ต้องจำปุ่มหลายขั้น</p>
-              </div>
-              <div className="flex flex-wrap gap-2 md:justify-end">
-                <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={() => setScheduleView('settings')} type="button">
-                  <Settings2 size={17} aria-hidden="true" />
-                  ตั้งค่า
-                </button>
-              </div>
-            </div>
-
-            {/* 🖥️ Desktop Header Bars (Hidden on Mobile) */}
-            <div className="hidden lg:block space-y-5">
-              <div className="rounded-[1.75rem] border border-[#ead8bd] bg-white/90 p-4">
-                <div className="grid gap-3 rounded-3xl border border-[#e6bd70] bg-[#fffaf0] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b46a00]">วิธีใช้งานตาราง</p>
-                    <h3 className="mt-1 text-2xl font-black text-slate-950">คลิกช่องว่างหรือช่องที่มีวิชาแล้วแก้ได้ทันที</h3>
-                    <p className="mt-1 text-sm font-bold text-slate-500">ข้อมูลรายวิชาและห้องเรียนมาจากเมนูตั้งค่า ส่วนปุ่มพิมพ์จะจัดหน้าเป็น A4 แนวนอนอัตโนมัติ</p>
-                  </div>
-                  <div className="rounded-2xl bg-[#4b2f18] px-4 py-3 text-sm font-black text-white">
-                    {usedCells}/{totalCells} ช่อง
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-black text-[#b46a00]">ตารางสำหรับใช้งานจริง</p>
-                  <h2 className="text-3xl font-black text-slate-950">{identity.schoolName}</h2>
-                  <p className="mt-1 text-sm font-bold text-slate-500">คลิกช่องเพื่อใส่ แก้ไข หรือล้างวิชาในคาบนั้น</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                    onClick={() => setIsOcrModalOpen(true)}
-                    title="ถ่ายภาพตารางสอนกระดาษเพื่อนำเข้าสู่ระบบด้วย AI Vision"
-                    type="button"
-                  >
-                    <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
-                    <span>สแกนตารางสอน AI Vision</span>
-                    <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
-                  </button>
-                  <button className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={() => saveAll()} type="button">
-                    <Save size={17} aria-hidden="true" />
-                    บันทึกตาราง
-                  </button>
-                  <button className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" onClick={printSchedule} type="button">
-                    <Printer size={17} aria-hidden="true" />
-                    พิมพ์ A4 แนวนอน
-                  </button>
-                  <Link className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700" to="/app/dashboard?view=reports&reportView=subject-attendance">
-                    <FileSpreadsheet size={17} aria-hidden="true" />
-                    รายงาน / พิมพ์ตารางสอน
-                  </Link>
-                </div>
-              </div>
-            </div>
+          <section className="schedule-v2">
 
             {/* 📱 Mobile Schedule Header & Controls (Visible on < lg) */}
             <div className="lg:hidden space-y-3">
@@ -1783,7 +1796,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
             )}
 
             <div className={mobileScheduleMode === 'day' ? 'hidden lg:block' : 'block'}>
-              <div className="mt-2 sm:mt-5 overflow-x-auto">
+              <div className="mt-2 lg:mt-0 overflow-x-auto">
                 <div className="min-w-[980px] rounded-[2.5rem] border border-slate-200/90 bg-white/95 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
                 {/* School & Teacher Header Banner */}
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-800/60">
