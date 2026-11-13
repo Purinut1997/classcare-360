@@ -460,7 +460,7 @@ const demoAuditLogs: AuditLogRow[] = [
 
 const studentTaskLinks = [
   {
-    description: 'เพิ่ม แก้ไข ค้นหา และจัดห้องเรียน โดยข้อมูลทุกแถวต้องผูก workspace_id',
+    description: 'เพิ่ม แก้ไข ค้นหา และจัดสรรห้องเรียน พร้อมติดตามสถานะการเรียนและการดูแลรายบุคคล',
     label: 'รายชื่อและห้องเรียน',
     title: 'จัดการรายชื่อนักเรียน',
     value: 'roster',
@@ -3538,31 +3538,35 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </p>
         </div>
 
-        {/* 4 Demographics & Quality Stat Cards */}
+        {/* 4 Demographics & Quality Modern KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:min-w-[500px]">
           {/* 1. Classroom Students & Gender Breakdown */}
-          <div className="clay-stat-blue p-3.5">
+          <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-br from-white via-sky-50/40 to-sky-100/30 p-3.5 shadow-2xs">
             <div className="flex items-center justify-between text-sky-800">
               <span className="text-xs font-black">
                 {rosterClassroomFilter !== 'all' ? 'ในห้องที่เลือก' : 'ทั้งหมด'}
               </span>
-              <Users size={16} />
+              <div className="grid h-7 w-7 place-items-center rounded-xl bg-sky-100 text-sky-700">
+                <Users size={15} />
+              </div>
             </div>
-            <p className="mt-1 text-2xl font-black text-slate-900">
+            <p className="mt-1.5 text-2xl font-black text-slate-950">
               {classroomStats.total} <span className="text-xs font-bold text-slate-500">คน</span>
             </p>
-            <p className="mt-1 text-[11px] font-bold text-[#2D72A3]">
+            <p className="mt-1 text-[11px] font-bold text-sky-700">
               ชาย {classroomStats.maleCount} · หญิง {classroomStats.femaleCount}
             </p>
           </div>
 
           {/* 2. Complete Info */}
-          <div className="clay-stat-green p-3.5">
+          <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/40 to-emerald-100/30 p-3.5 shadow-2xs">
             <div className="flex items-center justify-between text-emerald-800">
               <span className="text-xs font-black">ข้อมูลสมบูรณ์</span>
-              <CheckCircle2 size={16} />
+              <div className="grid h-7 w-7 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+                <CheckCircle2 size={15} />
+              </div>
             </div>
-            <p className="mt-1 text-2xl font-black text-emerald-950">
+            <p className="mt-1.5 text-2xl font-black text-emerald-950">
               {classroomStats.completePercent}<span className="text-xs font-bold text-emerald-700">%</span>
             </p>
             <p className="mt-1 text-[11px] font-bold text-emerald-700">
@@ -3573,17 +3577,19 @@ export function StudentsPage({ session }: StudentsPageProps) {
           {/* 3. Incomplete / Needs Docs */}
           <Link
             to="/app/dashboard?view=students&studentView=quality"
-            className="group clay-stat-amber p-3.5 text-left active:scale-[0.98]"
+            className="group rounded-2xl border border-amber-200/80 bg-gradient-to-br from-white via-amber-50/40 to-amber-100/30 p-3.5 shadow-2xs transition hover:border-amber-300 hover:shadow-xs active:scale-[0.98]"
             title="คลิกเพื่อตรวจคุณภาพข้อมูลนักเรียน"
           >
-            <div className="flex items-center justify-between text-amber-900">
+            <div className="flex items-center justify-between text-amber-800">
               <span className="text-xs font-black">รอเอกสาร/ไม่ครบ</span>
-              <AlertTriangle size={16} className="text-amber-700 transition group-hover:scale-110" />
+              <div className="grid h-7 w-7 place-items-center rounded-xl bg-amber-100 text-amber-700 transition group-hover:scale-110">
+                <AlertTriangle size={15} />
+              </div>
             </div>
-            <p className="mt-1 text-2xl font-black text-amber-950">
+            <p className="mt-1.5 text-2xl font-black text-amber-950">
               {classroomStats.incompleteCount} <span className="text-xs font-bold text-amber-700">คน</span>
             </p>
-            <p className="mt-1 text-[11px] font-bold text-amber-800 underline decoration-amber-300">
+            <p className="mt-1 text-[11px] font-bold text-amber-800 group-hover:underline">
               ตรวจจุดบกพร่อง &rarr;
             </p>
           </Link>
@@ -3591,17 +3597,19 @@ export function StudentsPage({ session }: StudentsPageProps) {
           {/* 4. Special Care / Health */}
           <Link
             to="/app/dashboard?view=students&studentView=care"
-            className="group clay-stat-rose p-3.5 text-left active:scale-[0.98]"
+            className="group rounded-2xl border border-rose-200/80 bg-gradient-to-br from-white via-rose-50/40 to-rose-100/30 p-3.5 shadow-2xs transition hover:border-rose-300 hover:shadow-xs active:scale-[0.98]"
             title="คลิกเพื่อดูนักเรียนที่ต้องดูแลเป็นพิเศษหรือมีโรคประจำตัว"
           >
-            <div className="flex items-center justify-between text-rose-900">
+            <div className="flex items-center justify-between text-rose-800">
               <span className="text-xs font-black">ดูแล & สุขภาพ</span>
-              <HeartPulse size={16} className="text-rose-700 transition group-hover:scale-110" />
+              <div className="grid h-7 w-7 place-items-center rounded-xl bg-rose-100 text-rose-700 transition group-hover:scale-110">
+                <HeartPulse size={15} />
+              </div>
             </div>
-            <p className="mt-1 text-2xl font-black text-rose-950">
+            <p className="mt-1.5 text-2xl font-black text-rose-950">
               {classroomStats.specialCareCount} <span className="text-xs font-bold text-rose-700">คน</span>
             </p>
-            <p className="mt-1 text-[11px] font-bold text-rose-800 underline decoration-rose-300">
+            <p className="mt-1 text-[11px] font-bold text-rose-800 group-hover:underline">
               ดูเคสดูแล &rarr;
             </p>
           </Link>
@@ -3615,7 +3623,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       ) : null}
 
       {/* Quick Action Toolbar & Compact Plan Quota */}
-      <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm sm:p-3.5" aria-label="เครื่องมือด่วนและโควตา">
+      <section className="mt-3.5 rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900/90" aria-label="เครื่องมือด่วนและโควตา">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           {/* Quick Actions for Teachers */}
           <div className="flex flex-wrap items-center gap-2">
@@ -3623,48 +3631,48 @@ export function StudentsPage({ session }: StudentsPageProps) {
               type="button"
               onClick={handleFocusAddStudent}
               disabled={studentLimitReached || !canWriteRoster}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 active:scale-95 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2F7D5B] px-3.5 text-xs font-black text-white shadow-sm hover:bg-[#27684c] active:scale-95 disabled:opacity-50 transition-all"
             >
               <UserPlus size={15} />
-              เพิ่มนักเรียนใหม่
+              <span>เพิ่มนักเรียนใหม่</span>
             </button>
 
             <Link
               to="/app/dashboard?view=import-export"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 transition-all dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <FileSpreadsheet size={15} className="text-emerald-600" />
-              นำเข้า / ส่งออก Excel
+              <span>นำเข้า / ส่งออก Excel</span>
             </Link>
 
             <Link
               to="/app/dashboard?view=reports&reportView=roster"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 transition-all dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <Printer size={15} className="text-sky-600" />
-              พิมพ์ใบรายชื่อ A4
+              <span>พิมพ์ใบรายชื่อ A4</span>
             </Link>
 
             <Link
               to="/app/dashboard?view=students&studentView=quality"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-black text-amber-900 transition hover:bg-amber-100"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 text-xs font-black text-amber-900 shadow-2xs hover:bg-amber-100 transition-all"
             >
               <Sparkles size={15} className="text-amber-600" />
-              ตรวจคุณภาพข้อมูล
+              <span>ตรวจคุณภาพข้อมูล</span>
             </Link>
           </div>
 
           {/* Compact VIP Plan Quota Badge */}
-          <div className="flex items-center gap-3 self-end sm:self-auto rounded-xl border border-cyan-100 bg-cyan-50/60 px-3 py-1.5">
+          <div className="flex items-center gap-3 self-end sm:self-auto rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-800/60">
             <div className="text-right">
-              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700">{planLabels[effectivePlanCode]}</span>
-              <p className="text-xs font-black text-slate-800">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{planLabels[effectivePlanCode]}</span>
+              <p className="text-xs font-black text-slate-900 dark:text-white">
                 นักเรียน {activeStudents.length} / {workspaceLimits.activeStudents} คน
               </p>
             </div>
-            <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-200 sm:w-28">
+            <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-200 sm:w-28 dark:bg-slate-700">
               <div
-                className={`h-full rounded-full transition-all ${studentLimitReached ? 'bg-rose-500' : 'bg-cyan-500'}`}
+                className={`h-full rounded-full transition-all ${studentLimitReached ? 'bg-rose-500' : 'bg-emerald-500'}`}
                 style={{ width: `${Math.min((activeStudents.length / Math.max(workspaceLimits.activeStudents, 1)) * 100, 100)}%` }}
               />
             </div>
@@ -4168,21 +4176,39 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     </span>
                   </div>
 
-                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                  <div className="mt-2.5 flex items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={() => setSelectedStudentId(student.id)}
-                      className="text-left flex-1"
+                      className="flex items-center gap-3 text-left flex-1"
                     >
-                      <h4 className="text-base font-black text-slate-900 leading-tight">
-                        {student.first_name} {student.last_name}
-                      </h4>
-                      <p className="mt-0.5 text-xs font-bold text-slate-500">
-                        {student.nickname ? `ชื่อเล่น: ${student.nickname}` : 'ยังไม่มีชื่อเล่น'}
-                      </p>
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-xs font-black shadow-2xs border ${
+                        student.gender === 'female'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/50'
+                          : student.gender === 'male'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/50'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                      }`}>
+                        {student.first_name ? student.first_name.slice(0, 2) : 'นร'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-base font-black text-slate-900 leading-tight">
+                            {student.first_name} {student.last_name}
+                          </h4>
+                          {student.nickname ? (
+                            <span className="rounded-md bg-amber-50 px-1.5 py-0.2 text-[10.5px] font-black text-amber-800 border border-amber-200/60">
+                              ({student.nickname})
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 text-xs font-medium text-slate-500">
+                          {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'นักเรียน'}{classroom?.name ? ` · ห้อง ${classroom.name}` : ''}
+                        </p>
+                      </div>
                     </button>
                     {classroom?.name && (
-                      <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shrink-0">
+                      <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700 shrink-0 border border-slate-200/60">
                         {classroom.name}
                       </span>
                     )}
@@ -4232,11 +4258,11 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
 
           {/* Desktop Table View (หน้าจอแท็บเล็ต/คอมพิวเตอร์) */}
-          <div className="mt-4 hidden sm:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-left">
-              <thead>
-                <tr className="text-xs font-black uppercase text-slate-500">
-                  <th className="px-3 py-3 w-10 text-center">
+          <div className="mt-4 hidden sm:block overflow-x-auto rounded-2xl border border-slate-200/80 shadow-2xs">
+            <table className="min-w-full divide-y divide-slate-200/80 text-left bg-white">
+              <thead className="bg-slate-50/90 text-xs font-black uppercase text-slate-500">
+                <tr>
+                  <th className="px-3.5 py-3 w-10 text-center">
                     <input
                       type="checkbox"
                       checked={
@@ -4258,16 +4284,16 @@ export function StudentsPage({ session }: StudentsPageProps) {
                           });
                         }
                       }}
-                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       aria-label="เลือกทั้งหมดในหน้านี้"
                     />
                   </th>
-                  <th className="px-3 py-3">รหัส</th>
-                  <th className="px-3 py-3">ชื่อ-นามสกุล</th>
-                  <th className="px-3 py-3">ห้องเรียน</th>
-                  <th className="px-3 py-3">สถานะดูแล</th>
-                  <th className="px-3 py-3">สถานะ</th>
-                  <th className="px-3 py-3 text-right">จัดการ</th>
+                  <th className="px-3.5 py-3">รหัส</th>
+                  <th className="px-3.5 py-3">ชื่อ-นามสกุล / ข้อมูลนักเรียน</th>
+                  <th className="px-3.5 py-3">ห้องเรียน</th>
+                  <th className="px-3.5 py-3">สถานะดูแล</th>
+                  <th className="px-3.5 py-3">สถานะ</th>
+                  <th className="px-3.5 py-3 text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -4276,8 +4302,15 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   const isSelected = selectedStudent?.id === student.id;
 
                   return (
-                    <tr className={isSelected ? 'bg-sky-50/80' : 'hover:bg-sky-50/50'} key={student.id}>
-                      <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <tr
+                      className={`group transition-all duration-150 ${
+                        isSelected
+                          ? 'bg-sky-50/90 shadow-2xs'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                      key={student.id}
+                    >
+                      <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedStudentIds.has(student.id)}
@@ -4293,62 +4326,105 @@ export function StudentsPage({ session }: StudentsPageProps) {
                               return next;
                             });
                           }}
-                          className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                           aria-label={`เลือก ${student.first_name} ${student.last_name}`}
                         />
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 font-black text-slate-700">{student.student_code || '-'}</td>
-                      <td className="px-3 py-3">
+                      <td className="whitespace-nowrap px-3.5 py-3">
+                        <span className="inline-flex items-center rounded-lg bg-slate-100/90 px-2 py-0.5 font-mono text-xs font-black text-slate-700 border border-slate-200/60 shadow-2xs">
+                          {student.student_code || '-'}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-3">
                         <button
-                          className="text-left"
+                          className="flex items-center gap-3 text-left group-hover:translate-x-0.5 transition-transform"
                           onClick={() => setSelectedStudentId(student.id)}
                           type="button"
                         >
-                          <span className="block font-black text-slate-950">
-                            {student.first_name} {student.last_name}
-                          </span>
-                          <span className="text-xs font-bold text-slate-500">{student.nickname || 'ยังไม่มีชื่อเล่น'}</span>
+                          <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black shadow-2xs border ${
+                            student.gender === 'female'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/50'
+                              : student.gender === 'male'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/50'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                          }`}>
+                            {student.first_name ? student.first_name.slice(0, 2) : 'นร'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-slate-900 group-hover:text-emerald-800 transition">
+                                {student.first_name} {student.last_name}
+                              </span>
+                              {student.nickname ? (
+                                <span className="rounded-md bg-amber-50 px-1.5 py-0.2 text-[10.5px] font-black text-amber-800 border border-amber-200/60">
+                                  ({student.nickname})
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-[11px] font-medium text-slate-400">
+                              {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'นักเรียน'} · รหัส {student.student_code || '-'}
+                            </p>
+                          </div>
                         </button>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{classroom?.name || '-'}</td>
-                      <td className="whitespace-nowrap px-3 py-3">
-                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-100">
+                      <td className="whitespace-nowrap px-3.5 py-3">
+                        {classroom?.name ? (
+                          <span className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700 border border-slate-200/60">
+                            {classroom.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-bold">-</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3.5 py-3">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black border shadow-2xs ${
+                          getCareLabel(student.care_flags) === 'ปกติ'
+                            ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
                           {getCareLabel(student.care_flags)}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3">
-                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
+                      <td className="whitespace-nowrap px-3.5 py-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black border shadow-2xs ${
+                          student.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+                            : student.status === 'archived'
+                            ? 'bg-slate-100 text-slate-600 border-slate-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {student.status === 'active' && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                           {statusLabels[student.status]}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3">
-                        <div className="flex justify-end gap-2">
+                      <td className="whitespace-nowrap px-3.5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            className="nexus-icon-button h-9 w-9 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-white text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={!canWriteRoster}
                             onClick={() => startEditStudent(student)}
                             type="button"
-                            title="แก้ไขนักเรียน"
+                            title="แก้ไขข้อมูลนักเรียน"
                           >
-                            <Edit3 size={16} aria-hidden="true" />
+                            <Edit3 size={14} aria-hidden="true" />
                           </button>
                           <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-100 bg-white/85 text-rose-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-white text-slate-600 shadow-2xs transition hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={!canWriteRoster}
                             onClick={() => updateStudentStatus(student, student.status === 'archived' ? 'active' : 'archived')}
                             type="button"
-                            title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บถาวร'}
+                            title={student.status === 'archived' ? 'นำกลับมาใช้งาน' : 'เก็บประวัติ/พักสถานะ'}
                           >
-                            <Archive size={16} aria-hidden="true" />
+                            <Archive size={14} aria-hidden="true" />
                           </button>
                           <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="grid h-8 w-8 place-items-center rounded-xl border border-rose-200/80 bg-rose-50/80 text-rose-600 shadow-2xs transition hover:bg-rose-100 hover:text-rose-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={!canManageWorkspace(session.profile.role) && !canWriteRoster}
                             onClick={() => void deleteStudentPermanently(student)}
                             type="button"
                             title="ลบถาวรเมื่อ import ซ้ำหรือผิด"
                           >
-                            <Trash2 size={16} aria-hidden="true" />
+                            <Trash2 size={14} aria-hidden="true" />
                           </button>
                         </div>
                       </td>
