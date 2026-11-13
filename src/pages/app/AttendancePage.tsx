@@ -153,49 +153,55 @@ const STATUS_ICON: Record<AttendanceStatus, typeof CheckCircle2> = {
 
 const postItTone: Record<
   AttendanceStatus,
-  { bg: string; text: string; shadow: string; border: string; label: string }
+  { bg: string; text: string; shadow: string; border: string; label: string; clayClass: string }
 > = {
   present: {
-    bg: 'bg-[#d9f99d]',
-    text: 'text-[#1b3e04]',
-    shadow: 'shadow-[2px_5px_8px_rgba(27,62,4,0.22)]',
-    border: 'border-lime-400/60',
-    label: 'text-[#1b3e04]',
+    bg: 'clay-card-present',
+    text: 'text-[#144a34]',
+    shadow: 'shadow-md',
+    border: 'border-white/75',
+    label: 'text-[#144a34]',
+    clayClass: 'clay-card-present',
   },
   absent: {
-    bg: 'bg-[#fecdd3]',
+    bg: 'clay-card-absent',
     text: 'text-[#881337]',
-    shadow: 'shadow-[2px_5px_8px_rgba(136,19,55,0.22)]',
-    border: 'border-rose-400/60',
+    shadow: 'shadow-md',
+    border: 'border-white/75',
     label: 'text-[#881337]',
+    clayClass: 'clay-card-absent',
   },
   leave: {
-    bg: 'bg-[#bae6fd]',
-    text: 'text-[#034f77]',
-    shadow: 'shadow-[2px_5px_8px_rgba(3,79,119,0.22)]',
-    border: 'border-sky-400/60',
-    label: 'text-[#034f77]',
+    bg: 'clay-card-leave',
+    text: 'text-[#0f4c81]',
+    shadow: 'shadow-md',
+    border: 'border-white/75',
+    label: 'text-[#0f4c81]',
+    clayClass: 'clay-card-leave',
   },
   late: {
-    bg: 'bg-[#fde68a]',
+    bg: 'clay-card-late',
     text: 'text-[#78350f]',
-    shadow: 'shadow-[2px_5px_8px_rgba(120,53,15,0.22)]',
-    border: 'border-amber-400/60',
+    shadow: 'shadow-md',
+    border: 'border-white/75',
     label: 'text-[#78350f]',
+    clayClass: 'clay-card-late',
   },
   sick: {
-    bg: 'bg-[#e9d5ff]',
+    bg: 'clay-card-sick',
     text: 'text-[#581c87]',
-    shadow: 'shadow-[2px_5px_8px_rgba(88,28,135,0.22)]',
-    border: 'border-purple-400/60',
+    shadow: 'shadow-md',
+    border: 'border-white/75',
     label: 'text-[#581c87]',
+    clayClass: 'clay-card-sick',
   },
   activity: {
-    bg: 'bg-[#a7f3d0]',
+    bg: 'clay-card-activity',
     text: 'text-[#064e3b]',
-    shadow: 'shadow-[2px_5px_8px_rgba(6,78,59,0.22)]',
-    border: 'border-teal-400/60',
+    shadow: 'shadow-md',
+    border: 'border-white/75',
     label: 'text-[#064e3b]',
+    clayClass: 'clay-card-activity',
   },
 };
 
@@ -1151,16 +1157,16 @@ export function AttendancePage({ session }: AttendancePageProps) {
   return (
     <main className="app-page min-h-screen pb-64 lg:pb-32">
       {/* ======================================================== */}
-      {/* MORNING SAGE LINEN CONTAINER                             */}
+      {/* SOFT 3D LINEN CONTAINER                                  */}
       {/* ======================================================== */}
-      <div className="rounded-[28px] border border-[#DCE3D7] bg-[#FAFBF8] p-4 sm:p-7 shadow-[0_2px_12px_rgba(28,52,43,0.05)]">
+      <div className="rounded-[28px] border border-[#DCE3D7] bg-white p-4 sm:p-7 shadow-[0_12px_32px_-6px_rgba(28,52,43,0.08)]">
         
         {/* Header */}
         <header className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-black text-[#1C342B] tracking-tight flex items-center gap-2">
-                <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E9F0EA] text-[#2F7D5B] border border-[#DCE3D7]">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#2F7D5B] to-[#1C342B] text-white shadow-md shadow-[#1C342B]/20">
                   <CalendarCheck2 size={20} aria-hidden="true" />
                 </span>
                 <span>เช็คชื่อ{isToday ? 'วันนี้' : 'ย้อนหลัง'}</span>
@@ -1178,16 +1184,16 @@ export function AttendancePage({ session }: AttendancePageProps) {
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* Keep the date control visible so missed days are easy to record later. */}
-            <div className={`rounded-xl border px-2.5 py-1.5 shadow-2xs ${isToday ? 'border-[#DCE3D7] bg-white' : 'border-amber-300 bg-amber-50'}`}>
+            <div className={`rounded-xl border px-2.5 py-1.5 shadow-2xs ${isToday ? 'border-[#DCE3D7] bg-[#FAFBF8]' : 'border-amber-300 bg-amber-50'}`}>
               <span className="mb-0.5 block text-[10px] font-black text-[#5A6F64]">วันที่เช็กชื่อ</span>
               <div className="flex items-center gap-1.5">
                 <ThaiDatePicker
-                  className="h-8 min-w-36 bg-white px-2.5 text-xs"
+                  className="h-8 min-w-36 bg-white px-2.5 text-xs shadow-xs"
                   value={attendanceDate}
                   max={getTodayDate()}
                   onValueChange={setAttendanceDate}
                 />
-                <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${isToday ? 'bg-[#E9F0EA] text-[#2F7D5B]' : 'bg-amber-200 text-amber-950'}`}>
+                <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black ${isToday ? 'bg-[#E9F0EA] text-[#2F7D5B]' : 'bg-amber-200 text-amber-950'}`}>
                   {isToday ? 'วันนี้' : 'ย้อนหลัง'}
                 </span>
               </div>
@@ -1197,7 +1203,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               <select
                 value={classroomId}
                 onChange={(e) => setClassroomId(e.target.value)}
-                className="appearance-none rounded-xl border border-[#DCE3D7] bg-white py-1.5 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1C342B] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2F7D5B]/40 cursor-pointer"
+                className="appearance-none rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] py-2 pl-3.5 pr-8 text-xs sm:text-sm font-bold text-[#1C342B] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#2F7D5B]/40 cursor-pointer"
               >
                 {displayClassrooms.map((c) => {
                   const badge = getClassroomScopeBadge(c, session.profile.id);
@@ -1215,7 +1221,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             <button
               type="button"
               onClick={() => setIsMoreOpen(true)}
-              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-[#DCE3D7] bg-white text-[#1C342B] hover:bg-[#E9F0EA] active:scale-95 transition shadow-2xs"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] text-[#1C342B] hover:bg-[#E9F0EA] active:scale-95 transition shadow-2xs"
               title="เมนูเพิ่มเติม (เปลี่ยนวันที่ / รายวิชา / แก้ไขย้อนหลัง)"
             >
               <MoreHorizontal size={17} />
@@ -1223,7 +1229,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         </header>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[#DCE3D7] bg-white p-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-2">
           <span className="px-2 text-xs font-bold text-slate-600">กำลังเช็กชื่อแบบ:</span>
           {(['homeroom', 'subject'] as AttendanceMode[]).map((attendanceMode) => {
             const Icon = modeCopy[attendanceMode].icon;
@@ -1234,7 +1240,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 type="button"
                 aria-pressed={selected}
                 onClick={() => setMode(attendanceMode)}
-                className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${selected ? 'border-teal-500 bg-teal-50 text-teal-900 ring-1 ring-teal-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition shadow-xs ${selected ? 'border-[#8CC6A7] bg-gradient-to-b from-[#F0FBF3] to-[#D8F2E1] text-[#144A34] shadow-xs' : 'border-[#DCE3D7] bg-white text-[#5A6F64] hover:bg-[#E9F0EA]/60'}`}
               >
                 <Icon size={16} />
                 {attendanceMode === 'homeroom' ? 'เช็กชื่อประจำวัน' : 'เช็กชื่อรายวิชา'}
@@ -1279,7 +1285,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <Link
             to={attendanceReportPath}
             title="เปิดรายงานเวลาเรียนของห้องและเดือนที่เลือก"
-            className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:border-teal-800 hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#1C342B] to-[#2F7D5B] px-4 py-2 text-sm font-bold text-white shadow-md hover:shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] focus-visible:ring-offset-2 active:scale-95"
           >
             <Printer size={16} aria-hidden="true" />
             <span>ดูรายงานและพิมพ์</span>
@@ -1307,23 +1313,23 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         )}
 
-        {/* Quick action buttons row */}
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t border-[#e2d5c3]">
+        {/* Quick action buttons row with tactile gradients and soft shadows */}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#DCE3D7]">
           <button
             type="button"
             onClick={() => markAll('present')}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-lime-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#8CC6A7] bg-gradient-to-b from-[#FAFBF8] to-[#E9F0EA] px-3.5 py-1.5 text-xs sm:text-sm font-bold text-[#1C573D] hover:shadow-md active:scale-95 transition-all shadow-xs cursor-pointer"
           >
-            <Check size={14} className="text-[#1b3e04] stroke-[3]" />
+            <Check size={14} className="text-[#1C573D] stroke-[3]" />
             <span>ตั้งทุกคนเป็น “มา”</span>
           </button>
           <button
             type="button"
             onClick={() => setIsQuickRollOpen((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs sm:text-sm font-bold transition active:scale-95 shadow-2xs ${
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs sm:text-sm font-bold transition-all active:scale-95 shadow-xs cursor-pointer ${
               isQuickRollOpen
-                ? 'border-amber-400 bg-amber-200 text-amber-950'
-                : 'border-amber-400 bg-white text-amber-900 hover:bg-amber-50'
+                ? 'border-amber-400 bg-amber-200 text-amber-950 shadow-inner'
+                : 'border-amber-300 bg-gradient-to-b from-amber-50 to-amber-100/70 text-amber-900 hover:shadow-md'
             }`}
           >
             <UserCheck size={14} className="text-amber-700" />
@@ -1332,9 +1338,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <button
             type="button"
             onClick={() => setIsOcrModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-teal-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-teal-900 hover:bg-teal-50 active:scale-95 transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-gradient-to-b from-sky-50 to-sky-100/70 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-sky-950 hover:shadow-md active:scale-95 transition-all shadow-xs cursor-pointer"
           >
-            <Camera size={14} className="text-teal-700" />
+            <Camera size={14} className="text-sky-700" />
             <span>สแกน AI</span>
           </button>
           {alertStudents.length > 0 && (
@@ -1342,7 +1348,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               type="button"
               onClick={() => void notifyGuardians()}
               disabled={isNotifying}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-rose-900 hover:bg-rose-50 active:scale-95 transition shadow-2xs disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-gradient-to-b from-rose-50 to-rose-100/70 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-rose-950 hover:shadow-md active:scale-95 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               <Send size={14} className="text-rose-700" />
               <span>แจ้งผู้ปกครอง ({alertStudents.length})</span>
@@ -1399,15 +1405,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
         )}
 
         {/* ======================================================== */}
-        {/* POST-IT NOTES GRID (4 columns on mobile, matching image)  */}
+        {/* SOFT 3D CLAY STUDENT GRID                                */}
         {/* ======================================================== */}
-        <section className="mt-5">
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4.5 pt-2">
+        <section className="mt-6">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4 pt-2">
             {classroomStudents.map((student, idx) => {
               const rollNumber = idx + 1;
               const mark = marks[student.id];
-              const tone = mark ? postItTone[mark] : { bg: 'bg-white border border-dashed border-slate-300', shadow: 'shadow-sm', text: 'text-slate-500' };
-              const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
+              const tone = mark ? postItTone[mark] : null;
+              const clayClass = tone ? tone.clayClass : 'clay-card-unmarked';
               const isPresent = mark === 'present';
               const displayName = isPresent
                 ? student.nickname || student.first_name
@@ -1433,13 +1439,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     e.preventDefault();
                     setSheetStudentId(student.id);
                   }}
-                  className={`group relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
+                  className={`group relative flex flex-col items-center justify-center rounded-2xl p-2 sm:p-2.5 min-h-[72px] sm:min-h-[80px] transition-all select-none cursor-pointer duration-150 hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 ${clayClass}`}
                   title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${mark ? statusLabels[mark] : 'ยังไม่เช็ก'}) — แตะเพื่อเลือกสถานะ`}
                 >
-                  {/* Frosted Tape on top of note */}
-                  <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
-
-                  {/* Small Cute Edit / Detail Icon Button to Open Popup */}
+                  {/* Cute Edit / Note Button */}
                   <button
                     type="button"
                     aria-label={`แก้ไขรายละเอียดและหมายเหตุของเลขที่ ${rollNumber} ${student.first_name}`}
@@ -1449,10 +1452,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                     onPointerUp={(e) => e.stopPropagation()}
-                    className={`absolute top-1 right-1 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full transition-all cursor-pointer z-20 shadow-2xs ${
+                    className={`absolute top-1 right-1 flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded-full transition-all cursor-pointer z-20 shadow-xs ${
                       hasNote
-                        ? 'bg-amber-100 text-amber-800 border border-amber-300 ring-1 ring-amber-400/60'
-                        : 'bg-white/85 hover:bg-white text-stone-500 hover:text-stone-900 border border-stone-200/70'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300 ring-2 ring-amber-400/50'
+                        : 'bg-white/80 hover:bg-white text-stone-600 hover:text-stone-900 border border-white/70'
                     } hover:scale-115 active:scale-90`}
                     title={hasNote ? `หมายเหตุ: "${notes[student.id]}" (กดเพื่อแก้ไข)` : 'กดเพื่อดูรายละเอียด / ใส่หมายเหตุ'}
                   >
@@ -1466,12 +1469,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   </button>
 
                   {/* Large Roll Number */}
-                  <span className={`text-2xl sm:text-3xl font-bold leading-none tracking-tight ${tone.text}`}>
+                  <span className={`text-2xl sm:text-3xl font-extrabold leading-none tracking-tight ${tone?.text || 'text-[#5B6A5F]'}`}>
                     {rollNumber}
                   </span>
 
                   {/* Student Name / Status */}
-                  <span className={`text-sm sm:text-base font-bold truncate mt-1 max-w-full text-center px-0.5 ${tone.text}`}>
+                  <span className={`text-xs sm:text-sm font-bold truncate mt-1 max-w-full text-center px-0.5 ${tone?.text || 'text-[#5B6A5F]'}`}>
                     {displayName}
                   </span>
                 </div>
@@ -1501,10 +1504,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
       </div>
 
       {/* ======================================================== */}
-      {/* BOTTOM FOOTER DOCK                                       */}
+      {/* BOTTOM FOOTER DOCK (Tactile Elevation & Glass Depth)     */}
       {/* ======================================================== */}
       {classroomStudents.length > 0 && (
-        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8]/95 p-3.5 shadow-xl backdrop-blur-md">
+        <div className="fixed inset-x-4 bottom-20 z-30 lg:sticky lg:bottom-4 lg:z-10 mx-auto max-w-sm sm:max-w-md rounded-2xl border border-white/80 bg-white/95 p-3.5 shadow-[0_16px_36px_-6px_rgba(28,52,43,0.22),0_4px_12px_rgba(0,0,0,0.06)] backdrop-blur-xl">
           {/* Summary Text: มา 27 ขาด 1 ลา 1 สาย 1 */}
           <div className="flex items-center justify-center gap-3 sm:gap-4 text-base sm:text-lg font-bold text-[#1C342B]">
             <span>
@@ -1535,7 +1538,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
               type="button"
               onClick={undoLastMarkChange}
               disabled={isSubmitting}
-              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-1 rounded-xl border border-[#DCE3D7] bg-white px-3 text-sm font-black text-[#1C342B] hover:bg-[#E9F0EA] disabled:opacity-50"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-1 rounded-xl border border-[#DCE3D7] bg-white px-3 text-sm font-black text-[#1C342B] hover:bg-[#E9F0EA] shadow-xs active:scale-95 transition-all disabled:opacity-50"
               title="ย้อนการเปลี่ยนสถานะล่าสุดที่ยังไม่ได้บันทึก"
             >
               <Undo2 size={15} aria-hidden="true" />
@@ -1547,7 +1550,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             type="button"
             onClick={() => void handleSaveRecords()}
             disabled={isSubmitting || isHolidayBlocked || unmarkedCount > 0}
-            className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1C342B] hover:bg-[#152821] text-white text-base sm:text-lg font-bold shadow-md active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
+            className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1C342B] via-[#244337] to-[#2F7D5B] hover:brightness-110 text-white text-base sm:text-lg font-bold shadow-lg shadow-[#1C342B]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none cursor-pointer"
           >
             {isSubmitting ? (
               <span>กำลังบันทึก...</span>
@@ -1592,9 +1595,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 <X size={18} />
               </button>
 
-              {/* Header with Post-it Number & Name */}
+              {/* Header with Soft 3D Clay Number & Name */}
               <div className="flex items-center gap-3">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-bold shadow-xs ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].bg : 'border border-dashed border-[#DCE3D7] bg-white'} ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].text : 'text-[#5A6F64]'}`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-extrabold shadow-md ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].clayClass : 'clay-card-unmarked'} ${marks[sheetStudent.id] ? postItTone[marks[sheetStudent.id]!].text : 'text-[#5A6F64]'}`}>
                   {sheetStudentIndex + 1}
                 </div>
                 <div>
@@ -1614,7 +1617,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 </div>
               </div>
 
-              {/* 6 Status Options */}
+              {/* 6 Status Options with Tactile Pebble Styling */}
               <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-2.5">
                 {statusOptions.map((opt) => {
                   const isSelected = marks[sheetStudent.id] === opt.value;
@@ -1627,10 +1630,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
                       onClick={() => {
                         updateMarks((prev) => ({ ...prev, [sheetStudent.id]: opt.value }));
                       }}
-                      className={`flex h-12 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
+                      className={`flex h-12 items-center justify-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer ${
                         isSelected
-                          ? `${tone.bg} ${tone.text} ring-2 ring-current shadow-xs`
-                          : 'border border-[#DCE3D7] bg-white text-[#1C342B] hover:bg-[#E9F0EA]/60'
+                          ? `${tone.clayClass} ${tone.text} shadow-md ring-2 ring-white/80`
+                          : 'border border-[#DCE3D7] bg-[#FAFBF8] text-[#1C342B] hover:bg-white hover:border-[#8CC6A7]'
                       }`}
                     >
                       <StatusIcon size={15} aria-hidden="true" />
