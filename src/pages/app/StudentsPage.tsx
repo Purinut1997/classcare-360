@@ -3541,8 +3541,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
         {/* 4 Demographics & Quality Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:min-w-[500px]">
           {/* 1. Classroom Students & Gender Breakdown */}
-          <div className="rounded-2xl border border-sky-100 bg-white/90 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow">
-            <div className="flex items-center justify-between text-sky-700">
+          <div className="clay-stat-blue p-3.5">
+            <div className="flex items-center justify-between text-sky-800">
               <span className="text-xs font-black">
                 {rosterClassroomFilter !== 'all' ? 'ในห้องที่เลือก' : 'ทั้งหมด'}
               </span>
@@ -3557,8 +3557,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
 
           {/* 2. Complete Info */}
-          <div className="rounded-2xl border border-emerald-100 bg-white/90 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow">
-            <div className="flex items-center justify-between text-emerald-700">
+          <div className="clay-stat-green p-3.5">
+            <div className="flex items-center justify-between text-emerald-800">
               <span className="text-xs font-black">ข้อมูลสมบูรณ์</span>
               <CheckCircle2 size={16} />
             </div>
@@ -3573,12 +3573,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
           {/* 3. Incomplete / Needs Docs */}
           <Link
             to="/app/dashboard?view=students&studentView=quality"
-            className="group rounded-2xl border border-amber-200/90 bg-amber-50/50 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-100/70 hover:shadow"
+            className="group clay-stat-amber p-3.5 text-left active:scale-[0.98]"
             title="คลิกเพื่อตรวจคุณภาพข้อมูลนักเรียน"
           >
-            <div className="flex items-center justify-between text-amber-800">
+            <div className="flex items-center justify-between text-amber-900">
               <span className="text-xs font-black">รอเอกสาร/ไม่ครบ</span>
-              <AlertTriangle size={16} className="text-amber-600 transition group-hover:scale-110" />
+              <AlertTriangle size={16} className="text-amber-700 transition group-hover:scale-110" />
             </div>
             <p className="mt-1 text-2xl font-black text-amber-950">
               {classroomStats.incompleteCount} <span className="text-xs font-bold text-amber-700">คน</span>
@@ -3591,12 +3591,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
           {/* 4. Special Care / Health */}
           <Link
             to="/app/dashboard?view=students&studentView=care"
-            className="group rounded-2xl border border-rose-100 bg-rose-50/50 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100/70 hover:shadow"
+            className="group clay-stat-rose p-3.5 text-left active:scale-[0.98]"
             title="คลิกเพื่อดูนักเรียนที่ต้องดูแลเป็นพิเศษหรือมีโรคประจำตัว"
           >
-            <div className="flex items-center justify-between text-rose-800">
+            <div className="flex items-center justify-between text-rose-900">
               <span className="text-xs font-black">ดูแล & สุขภาพ</span>
-              <HeartPulse size={16} className="text-rose-600 transition group-hover:scale-110" />
+              <HeartPulse size={16} className="text-rose-700 transition group-hover:scale-110" />
             </div>
             <p className="mt-1 text-2xl font-black text-rose-950">
               {classroomStats.specialCareCount} <span className="text-xs font-bold text-rose-700">คน</span>

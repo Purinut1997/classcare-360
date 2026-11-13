@@ -4207,10 +4207,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                 type="button"
                 aria-pressed={isActiveCat}
                 onClick={() => updateReportSearch({ reportView: firstViewInCat })}
-                className={`group flex min-h-[86px] items-center gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${
+                className={`group flex min-h-[86px] items-center gap-3 rounded-2xl border p-3 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] active:scale-[0.98] ${
                   isActiveCat
-                    ? 'border-[#2F7D5B] bg-[#E9F0EA] shadow-sm ring-1 ring-[#2F7D5B]/30'
-                    : 'border-[#DCE3D7] bg-white hover:-translate-y-0.5 hover:border-[#2F7D5B]/50 hover:bg-white'
+                    ? 'border-[#8CC6A7] bg-gradient-to-br from-[#F0FBF3] to-[#D8F2E1] shadow-[0_8px_20px_-3px_rgba(47,125,91,0.22),inset_0_2px_2px_rgba(255,255,255,0.95)] ring-2 ring-white/60'
+                    : 'border-[#DCE3D7] bg-gradient-to-b from-white to-[#FAFBF8] shadow-[0_4px_12px_-2px_rgba(28,52,43,0.05)] hover:-translate-y-1 hover:border-[#8CC6A7] hover:shadow-[0_12px_24px_-4px_rgba(28,52,43,0.12)]'
                 }`}
               >
                 <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition ${isActiveCat ? 'border-[#2F7D5B]/25 bg-white text-[#2F7D5B] shadow-xs' : 'border-[#DCE3D7] bg-[#F6F7F3] text-[#5A6F64] group-hover:bg-[#E9F0EA] group-hover:text-[#2F7D5B]'}`} aria-hidden="true">
@@ -4258,10 +4258,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                     type="button"
                     aria-pressed={isActive}
                     onClick={() => updateReportSearch({ reportView: item.value })}
-                    className={`flex min-h-[76px] items-start gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${
+                    className={`flex min-h-[76px] items-start gap-3 rounded-2xl border p-3 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] active:scale-[0.98] ${
                       isActive
-                        ? 'border-[#2F7D5B] bg-[#E9F0EA]/70 shadow-xs ring-1 ring-[#2F7D5B]/30'
-                        : 'border-[#DCE3D7] bg-white hover:border-[#2F7D5B]/50 hover:bg-[#FAFBF8]'
+                        ? 'border-[#8CC6A7] bg-gradient-to-br from-[#F0FBF3] to-[#E2F7E9] shadow-[0_6px_16px_-3px_rgba(47,125,91,0.2),inset_0_1.5px_1.5px_rgba(255,255,255,0.9)] ring-1 ring-[#2F7D5B]/30'
+                        : 'border-[#DCE3D7] bg-gradient-to-b from-white to-[#FAFBF8] shadow-[0_3px_8px_-2px_rgba(28,52,43,0.04)] hover:-translate-y-0.5 hover:border-[#8CC6A7] hover:shadow-md'
                     }`}
                   >
                     <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border shadow-2xs ${isActive ? 'border-[#2F7D5B]/25 bg-white text-[#2F7D5B]' : 'border-[#DCE3D7] bg-[#F6F7F3] text-[#5A6F64]'}`} aria-hidden="true">

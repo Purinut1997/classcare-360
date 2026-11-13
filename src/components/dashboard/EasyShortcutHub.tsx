@@ -46,16 +46,16 @@ export const SHORTCUT_CATEGORIES = [
     badge: '6 ภารกิจหลักครูประจำชั้น',
     desc: 'รวม 6 ภารกิจหลักของครูประจำชั้นไว้ในที่เดียว: ทะเบียน เช็กชื่อ สุขภาพ เวร เงินออม และสรุปรายวัน',
     theme: {
-      frameBg: 'bg-white',
-      frameBorder: 'border border-[#DCE3D7] shadow-xs',
+      frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
+      frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
       topAccent: 'bg-[#2F7D5B]',
       sprigColor: '#2F7D5B',
-      headerIconBg: 'bg-[#E6F4EC] text-[#1C573D] border border-[#BFE0CD]',
+      headerIconBg: 'bg-[#E6F4EC] text-[#1C573D] border border-[#BFE0CD] shadow-xs',
       headerTitle: 'text-[#1F2A22]',
       headerBadge: 'bg-[#E6F4EC] text-[#1C573D] border-[#BFE0CD]',
       headerDesc: 'text-[#5B6A5F]',
       divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-[#2F7D5B] text-white shadow-xs ring-2 ring-[#2F7D5B]/20',
+      tabActive: 'bg-gradient-to-r from-[#2F7D5B] to-[#1C573D] text-white shadow-md shadow-[#2F7D5B]/25 ring-2 ring-white/50',
     },
   },
   {
@@ -65,16 +65,16 @@ export const SHORTCUT_CATEGORIES = [
     badge: '5 เมนูหลัก',
     desc: 'ตารางสอน สมุดคะแนน ตรวจข้อสอบ OMR ศูนย์วิชาการ และพิมพ์รายงาน ปพ.',
     theme: {
-      frameBg: 'bg-white',
-      frameBorder: 'border border-[#DCE3D7] shadow-xs',
+      frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
+      frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
       topAccent: 'bg-[#2D72A3]',
       sprigColor: '#2D72A3',
-      headerIconBg: 'bg-[#E9F3FA] text-[#1D547C] border border-[#CBE1F2]',
+      headerIconBg: 'bg-[#E9F3FA] text-[#1D547C] border border-[#CBE1F2] shadow-xs',
       headerTitle: 'text-[#1F2A22]',
       headerBadge: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]',
       headerDesc: 'text-[#5B6A5F]',
       divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-[#2D72A3] text-white shadow-xs ring-2 ring-[#2D72A3]/20',
+      tabActive: 'bg-gradient-to-r from-[#2D72A3] to-[#164264] text-white shadow-md shadow-[#2D72A3]/25 ring-2 ring-white/50',
     },
   },
   {
@@ -84,16 +84,16 @@ export const SHORTCUT_CATEGORIES = [
     badge: '3 เมนูหลัก',
     desc: 'บันทึกพฤติกรรม ประเมินคุณลักษณะ 8 ประการ และแจ้งเตือนเด็กเสี่ยงขาด/ตก',
     theme: {
-      frameBg: 'bg-white',
-      frameBorder: 'border border-[#DCE3D7] shadow-xs',
+      frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
+      frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
       topAccent: 'bg-[#C25970]',
       sprigColor: '#C25970',
-      headerIconBg: 'bg-[#FBEFF2] text-[#8E354A] border border-[#F0CFD7]',
+      headerIconBg: 'bg-[#FBEFF2] text-[#8E354A] border border-[#F0CFD7] shadow-xs',
       headerTitle: 'text-[#1F2A22]',
       headerBadge: 'bg-[#FBEFF2] text-[#8E354A] border-[#F0CFD7]',
       headerDesc: 'text-[#5B6A5F]',
       divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-[#C25970] text-white shadow-xs ring-2 ring-[#C25970]/20',
+      tabActive: 'bg-gradient-to-r from-[#C25970] to-[#8E354A] text-white shadow-md shadow-[#C25970]/25 ring-2 ring-white/50',
     },
   },
   {
@@ -103,16 +103,16 @@ export const SHORTCUT_CATEGORIES = [
     badge: '2 เมนูหลัก',
     desc: 'คลังเกมและกิจกรรมสำหรับห้องเรียน และปฏิทินโรงเรียน',
     theme: {
-      frameBg: 'bg-white',
-      frameBorder: 'border border-[#DCE3D7] shadow-xs',
+      frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
+      frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
       topAccent: 'bg-[#D98B26]',
       sprigColor: '#D98B26',
-      headerIconBg: 'bg-[#FDF4E1] text-[#8B5312] border border-[#F0D9AE]',
+      headerIconBg: 'bg-[#FDF4E1] text-[#8B5312] border border-[#F0D9AE] shadow-xs',
       headerTitle: 'text-[#1F2A22]',
       headerBadge: 'bg-[#FDF4E1] text-[#8B5312] border-[#F0D9AE]',
       headerDesc: 'text-[#5B6A5F]',
       divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-[#D98B26] text-white shadow-xs ring-2 ring-[#D98B26]/20',
+      tabActive: 'bg-gradient-to-r from-[#D98B26] to-[#A05E11] text-white shadow-md shadow-[#D98B26]/25 ring-2 ring-white/50',
     },
   },
   {
@@ -122,16 +122,16 @@ export const SHORTCUT_CATEGORIES = [
     badge: '5 เมนูหลัก',
     desc: 'ตั้งค่าโรงเรียน จัดการปีการศึกษา ล็อกงวด นำเข้า/ส่งออก และสำรองข้อมูล',
     theme: {
-      frameBg: 'bg-white',
-      frameBorder: 'border border-[#DCE3D7] shadow-xs',
+      frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
+      frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
       topAccent: 'bg-[#6B63B5]',
       sprigColor: '#6B63B5',
-      headerIconBg: 'bg-[#F1F0FA] text-[#49428B] border border-[#D8D4F2]',
+      headerIconBg: 'bg-[#F1F0FA] text-[#49428B] border border-[#D8D4F2] shadow-xs',
       headerTitle: 'text-[#1F2A22]',
       headerBadge: 'bg-[#F1F0FA] text-[#49428B] border-[#D8D4F2]',
       headerDesc: 'text-[#5B6A5F]',
       divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-[#1C342B] text-white shadow-xs ring-2 ring-[#1C342B]/20',
+      tabActive: 'bg-gradient-to-r from-[#1C342B] to-[#2F7D5B] text-white shadow-md shadow-[#1C342B]/25 ring-2 ring-white/50',
     },
   },
 ] as const;
@@ -656,16 +656,16 @@ export function EasyShortcutHub({
         key={item.id}
         externalUrl={item.externalUrl}
         to={item.path}
-        className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2F7D5B]/50 hover:bg-white hover:shadow-md active:scale-[0.99] sm:p-5`}
+        className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[#DCE3D7] bg-gradient-to-b from-white via-white to-[#F7F9F5] p-4 shadow-[0_6px_18px_-3px_rgba(28,52,43,0.06),0_2px_4px_rgba(0,0,0,0.02)] transition-all duration-200 hover:-translate-y-1 hover:border-[#8CC6A7] hover:shadow-[0_14px_30px_-5px_rgba(28,52,43,0.12)] active:scale-[0.98] sm:p-5`}
       >
         <BotanicalCardSprig className="absolute -right-2 -top-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100" color="#2F7D5B" opacity={0.18} />
         <div className="relative z-10">
           <div className="flex items-start justify-between gap-3">
-            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${item.accentColor.iconBg} shadow-xs transition-transform duration-200 group-hover:scale-105`}>
+            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${item.accentColor.iconBg} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
               <Icon size={20} aria-hidden="true" />
             </span>
             {item.badge && (
-              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${item.badgeTone || 'border-[#DCE3D7] bg-white text-[#465549]'}`}>
+              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold shadow-2xs ${item.badgeTone || 'border-[#DCE3D7] bg-white text-[#465549]'}`}>
                 {item.badge}
               </span>
             )}

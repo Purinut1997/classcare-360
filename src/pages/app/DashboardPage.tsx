@@ -1365,7 +1365,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           ) : null}
 
           <Link
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#2F7D5B] px-5 text-sm font-bold text-white shadow-xs transition hover:bg-[#235F45] active:scale-[0.98]"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2F7D5B] to-[#1C573D] px-5 text-sm font-bold text-white shadow-md shadow-[#2F7D5B]/25 transition-all hover:shadow-lg hover:brightness-105 active:scale-95"
             to="/app/dashboard?view=teacher-work"
           >
             <CalendarClock size={17} aria-hidden="true" />
@@ -1393,7 +1393,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           const conf = eventTypeConfig[primaryEvent.type] || eventTypeConfig.custom;
           const EventIcon = conf.icon;
           return (
-            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="relative mt-4 overflow-hidden rounded-2xl border border-[#F0D9AE] bg-[#FFFDF8] p-4 shadow-xs sm:px-5">
+            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="relative mt-4 overflow-hidden rounded-2xl border border-[#F0D9AE] bg-gradient-to-b from-[#FFFDF8] to-[#FFF9EE] p-4 shadow-[0_6px_20px_-3px_rgba(217,139,38,0.12)] sm:px-5">
               <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#D98B26]" />
               <BotanicalCardSprig className="absolute right-2 top-1" color="#D98B26" opacity={0.14} />
 
@@ -1449,7 +1449,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           const daysFromNow = Math.round((featuredDate.getTime() - Date.now()) / 86_400_000);
           const featuredDateLabel = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }).format(featuredDate);
           return (
-            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="relative mt-4 overflow-hidden rounded-2xl border border-[#F0D9AE] bg-[#FFFDF8] p-4 shadow-xs sm:px-5">
+            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="relative mt-4 overflow-hidden rounded-2xl border border-[#F0D9AE] bg-gradient-to-b from-[#FFFDF8] to-[#FFF9EE] p-4 shadow-[0_6px_20px_-3px_rgba(217,139,38,0.12)] sm:px-5">
               <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#D98B26]" />
               <BotanicalCardSprig className="absolute right-2 top-1" color="#D98B26" opacity={0.14} />
               <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1559,7 +1559,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
                 <Link
                   key={task.label}
                   to={task.path}
-                  className="group relative flex min-h-[98px] items-center gap-3 overflow-hidden rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-3.5 pt-4 shadow-2xs transition duration-200 hover:-translate-y-0.5 hover:border-[#2F7D5B]/50 hover:bg-white hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B]"
+                  className="group relative flex min-h-[98px] items-center gap-3 overflow-hidden rounded-2xl border border-[#DCE3D7] bg-gradient-to-b from-white to-[#FAFBF8] p-3.5 pt-4 shadow-[0_4px_14px_-2px_rgba(28,52,43,0.06)] transition-all duration-200 hover:-translate-y-1 hover:border-[#8CC6A7] hover:shadow-[0_12px_24px_-4px_rgba(28,52,43,0.12)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B]"
                 >
                   <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 h-[3px] ${accentTop}`} />
                   <BotanicalCardSprig className="absolute -right-2 -top-2" color={sprigHex} opacity={0.14} />
