@@ -174,6 +174,22 @@ const AI_FEATURES: AiFeatureItem[] = [
     icon: Bot,
     iconGradient: 'from-indigo-600 to-violet-600',
   },
+  {
+    id: 'smart-promotion-engine',
+    category: 'assistant',
+    badge: 'ระบบวิชาการ & ทะเบียน สพฐ.',
+    badgeTone: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    title: 'ระบบวิเคราะห์และคัดกรองการเลื่อนชั้น & จบการศึกษาอัตโนมัติ',
+    engTitle: 'Smart OBEC Promotion & Graduation Engine',
+    painPoint: 'ครูต้องตรวจเช็คเวลาเรียนไม่ถึง 80%, วิชาติดศูนย์, คุณลักษณะ และกิจกรรมลูกเสือของนักเรียนทั้งห้องด้วยมือ เสี่ยงคำนวณพลาดก่อนอนุมัติเลื่อนชั้น',
+    aiSolution: 'ระบบวิเคราะห์ความพร้อม สพฐ. 4 มิติอัตโนมัติ สแกนหาจุดผิดพลาดวิกฤต (เวลาเรียน/เกรด) คัดกรองผู้พร้อมเลื่อนชั้น ซ้ำชั้น หรือจบการศึกษา (ป.6/ม.3/ม.6) พร้อมส่งข้อมูลเข้าสู่ระบบ Rollover ย้ายห้องเรียนได้ในคลิกเดียว และกดย้อนกลับ (Undo) ได้ 7 วัน',
+    tags: ['เกณฑ์ สพฐ. 4 มิติ', 'ตรวจจับชั้นจบ ป.6/ม.3/ม.6', 'ล็อกข้อมูลกันแก้ไขย้อนหลัง', 'ย้ายห้องอัตโนมัติ', 'ระบบ Undo 7 วัน'],
+    ctaLabel: 'ไปที่ศูนย์วิชาการและเลื่อนชั้น',
+    targetPath: '/app/dashboard?view=academic-hub',
+    icon: GraduationCap,
+    iconGradient: 'from-emerald-600 to-teal-600',
+    isNew: true,
+  },
 ];
 
 export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {

@@ -33,6 +33,7 @@ export interface StudentPromotionStatus {
   decision: 'promoted' | 'retained' | 'graduated' | 'pending';
   targetGradeLevel?: string;
   notes?: string;
+  gpa?: number;
 }
 
 /**

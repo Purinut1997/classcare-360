@@ -27,6 +27,11 @@ import {
   type AuditIssue,
   type StudentPromotionStatus,
 } from '../../lib/termLifecycle';
+import {
+  fetchRealAcademicDataForClassroom,
+  type OBECSchoolHeader,
+} from '../../lib/obecAcademicEngine';
+import { loadSchoolReportIdentity } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
 
 interface TermClosingWizardModalProps {
@@ -72,13 +77,36 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
   const runPreClosingAudit = async () => {
     setLoading(true);
     try {
+      // 1. ตรวจสอบสถานะการล็อกเดิมจากฐานข้อมูล term_closing_audits
+      if (supabase && workspaceId && currentClassroomId) {
+        try {
+          const { data: existingAudit } = await supabase
+            .from('term_closing_audits')
+            .select('*')
+            .eq('workspace_id', workspaceId)
+            .eq('classroom_id', currentClassroomId)
+            .eq('academic_year', academicYear)
+            .eq('term', term)
+            .maybeSingle();
+
+          if (existingAudit && existingAudit.status === 'locked') {
+            setIsLocked(true);
+            setLockTimestamp(existingAudit.locked_at);
+          } else {
+            setIsLocked(false);
+            setLockTimestamp(null);
+          }
+        } catch (auditCheckErr) {
+          console.warn('Check existing audit failed:', auditCheckErr);
+        }
+      }
+
       if (isDemo || !isSupabaseReady || !workspaceId) {
-        // Load genuine students from master template for this classroom (P.4: 16 คน, P.5: 20 คน, P.6: 16 คน)
+        // โหมดตัวอย่าง: คำนวณจาก Master Data และจำลองกรณีขอบเกณฑ์
         const master = getPrimaryMasterData(currentClassroomName);
         const issues: AuditIssue[] = [];
 
         const calculated: StudentPromotionStatus[] = master.students.map((st, idx) => {
-          // Add realistic simulation: one student has borderline attendance to demonstrate pre-closing audit
           const isBorderline = idx === master.students.length - 1 && master.students.length > 5;
           const attPct = isBorderline ? 78 : 88 + ((idx * 7) % 12);
           const failSub = 0;
@@ -127,6 +155,7 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
             decision: evalRes.decision,
             targetGradeLevel: evalRes.targetGradeLevel,
             notes: evalRes.reasons.join(', '),
+            gpa: Number((2.8 + ((idx * 3) % 12) * 0.1).toFixed(2)),
           };
         });
 
@@ -136,12 +165,126 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
         return;
       }
 
-      // Production fetch from Supabase
+      // โหมดจริง: ดึงข้อมูลการประเมินวิชาการจริงจาก Supabase
       if (!supabase) {
         setLoading(false);
         return;
       }
 
+      const identity = loadSchoolReportIdentity(workspaceId);
+      const schoolHeader: OBECSchoolHeader = {
+        schoolName: identity.schoolName || session.workspace?.schoolName || session.workspace?.name || 'โรงเรียน',
+        district: identity.district || '',
+        province: identity.province || '',
+        jurisdiction: identity.jurisdiction || '',
+        directorName: identity.directorName || '',
+        directorPosition: identity.directorPosition || '',
+        academicHeadName: identity.academicHeadName || '',
+        registrarName: identity.registrarName || '',
+        homeroomTeacherName: identity.teacherName || session.profile?.displayName || 'ครูประจำชั้น',
+        schoolLogoDataUrl: identity.useGarudaInsteadOfLogo ? '' : identity.schoolLogoDataUrl,
+        useGarudaInsteadOfLogo: identity.useGarudaInsteadOfLogo,
+      };
+
+      const realData = await fetchRealAcademicDataForClassroom(
+        supabase,
+        workspaceId,
+        currentClassroomId || '',
+        gradeLevel,
+        currentClassroomName,
+        academicYear,
+        schoolHeader
+      );
+
+      if (realData && realData.students.length > 0) {
+        const issues: AuditIssue[] = [];
+        const calculated: StudentPromotionStatus[] = realData.students.map((st, idx) => {
+          const summary = realData.classSummaryScores.find((cs) => cs.studentId === st.id);
+          const report = realData.studentReports[st.id];
+
+          const attPct = summary ? summary.attendancePercent : 100;
+          const gpaVal = summary ? summary.gpa : 0;
+          const coreSubjects = (report?.subjects || []).filter((sub) => sub.category === 'core');
+          const failedCore = coreSubjects.filter((sub) => sub.isPassed === false);
+          const passTrait = report ? report.evaluations.characteristicsOverall !== 'ไม่ผ่าน' : true;
+          const passAct = report ? report.evaluations.activitiesOverall !== 'ไม่ผ่าน' : true;
+
+          const evalRes = evaluatePromotionDecision({
+            attendancePercentage: attPct,
+            failedBasicSubjectCount: failedCore.length,
+            hasPassedCharacteristics: passTrait,
+            hasPassedActivities: passAct,
+            currentGradeLevel: gradeLevel,
+          });
+
+          if (attPct < 80) {
+            issues.push({
+              type: 'critical',
+              category: 'attendance',
+              studentId: st.id,
+              studentName: `${st.first_name} ${st.last_name}`,
+              classroomName: currentClassroomName,
+              message: `เวลาเรียนต่ำกว่าเกณฑ์ สพฐ. 80% (ได้ ${attPct}%)`,
+            });
+          }
+
+          if (failedCore.length > 0) {
+            issues.push({
+              type: 'critical',
+              category: 'score',
+              studentId: st.id,
+              studentName: `${st.first_name} ${st.last_name}`,
+              classroomName: currentClassroomName,
+              message: `มีวิชาพื้นฐานไม่ผ่านเกณฑ์ ${failedCore.length} วิชา (${failedCore.map((f) => f.name).join(', ')})`,
+            });
+          }
+
+          if (!passTrait) {
+            issues.push({
+              type: 'warning',
+              category: 'characteristic',
+              studentId: st.id,
+              studentName: `${st.first_name} ${st.last_name}`,
+              classroomName: currentClassroomName,
+              message: 'คุณลักษณะอันพึงประสงค์ไม่ผ่านเกณฑ์',
+            });
+          }
+
+          if (!passAct) {
+            issues.push({
+              type: 'warning',
+              category: 'activity',
+              studentId: st.id,
+              studentName: `${st.first_name} ${st.last_name}`,
+              classroomName: currentClassroomName,
+              message: 'กิจกรรมพัฒนาผู้เรียนไม่ผ่านเกณฑ์ (มผ)',
+            });
+          }
+
+          return {
+            studentId: st.id,
+            studentCode: st.student_code || String(idx + 1),
+            studentName: `${st.first_name} ${st.last_name}`,
+            currentClassroom: currentClassroomName,
+            currentGradeLevel: gradeLevel,
+            attendancePercentage: attPct,
+            hasPassedAllBasicSubjects: failedCore.length === 0,
+            hasPassedCharacteristics: passTrait,
+            hasPassedActivities: passAct,
+            decision: evalRes.decision,
+            targetGradeLevel: evalRes.targetGradeLevel,
+            notes: evalRes.reasons.join(', '),
+            gpa: gpaVal,
+          };
+        });
+
+        setStudentsStatus(calculated);
+        setAuditIssues(issues);
+        setLoading(false);
+        return;
+      }
+
+      // กรณีห้องเรียนยังไม่มีการบันทึกคะแนนสอบ: ดึงรายชื่อนักเรียนพื้นฐาน
       const { data: stData } = await supabase
         .from('students')
         .select('*')
@@ -152,50 +295,23 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
       const realStudents = (stData || []) as any[];
 
       if (realStudents.length === 0) {
-        if (isDemoSession(session)) {
-          // Fallback to Master Template of current classroom if demo session
-          const master = getPrimaryMasterData(currentClassroomName);
-          const calculated: StudentPromotionStatus[] = master.students.map((st, idx) => {
-            const attPct = 88 + ((idx * 7) % 12);
-            const evalRes = evaluatePromotionDecision({
-              attendancePercentage: attPct,
-              failedBasicSubjectCount: 0,
-              hasPassedCharacteristics: true,
-              hasPassedActivities: true,
-              currentGradeLevel: gradeLevel,
-            });
-
-            return {
-              studentId: `st-${st.student_code}`,
-              studentCode: st.student_code,
-              studentName: `${st.title}${st.first_name} ${st.last_name}`,
-              currentClassroom: currentClassroomName,
-              currentGradeLevel: gradeLevel,
-              attendancePercentage: attPct,
-              hasPassedAllBasicSubjects: true,
-              hasPassedCharacteristics: true,
-              hasPassedActivities: true,
-              decision: evalRes.decision,
-              targetGradeLevel: evalRes.targetGradeLevel,
-              notes: evalRes.reasons.join(', '),
-            };
-          });
-
-          setStudentsStatus(calculated);
-          setAuditIssues([]);
-          setLoading(false);
-          return;
-        }
-
-        // Real workspace with 0 students in classroom
         setStudentsStatus([]);
         setAuditIssues([]);
         setLoading(false);
         return;
       }
 
+      const issues: AuditIssue[] = [
+        {
+          type: 'warning',
+          category: 'score',
+          classroomName: currentClassroomName,
+          message: 'ยังไม่พบการบันทึกคะแนนสอบอย่างเป็นทางการในภาคเรียนนี้ ระบบใช้ข้อมูลเวลาเรียนเบื้องต้นในการประเมิน',
+        },
+      ];
+
       const calculated: StudentPromotionStatus[] = realStudents.map((st, idx) => {
-        const attPct = 90;
+        const attPct = 100;
         const evalRes = evaluatePromotionDecision({
           attendancePercentage: attPct,
           failedBasicSubjectCount: 0,
@@ -216,12 +332,13 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
           hasPassedActivities: true,
           decision: evalRes.decision,
           targetGradeLevel: evalRes.targetGradeLevel,
-          notes: evalRes.reasons.join(', '),
+          notes: 'รอการบันทึกผลสอบทางการ',
+          gpa: 0,
         };
       });
 
       setStudentsStatus(calculated);
-      setAuditIssues([]);
+      setAuditIssues(issues);
     } catch (err) {
       console.error('Audit failed:', err);
     } finally {
@@ -233,6 +350,97 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
     setLoading(true);
     try {
       const nowIso = new Date().toISOString();
+
+      // บันทึกลงฐานข้อมูล Supabase เมื่ออยู่ในโหมดจริง
+      if (supabase && workspaceId && currentClassroomId) {
+        // 1. บันทึกผลการ Audit ลงตาราง term_closing_audits
+        try {
+          await supabase
+            .from('term_closing_audits')
+            .upsert(
+              {
+                workspace_id: workspaceId,
+                classroom_id: currentClassroomId,
+                academic_year: academicYear,
+                term: term,
+                status: 'locked',
+                total_students: studentsStatus.length,
+                promoted_count: studentsStatus.filter((s) => s.decision === 'promoted').length,
+                retained_count: studentsStatus.filter((s) => s.decision === 'retained').length,
+                graduated_count: studentsStatus.filter((s) => s.decision === 'graduated').length,
+                pending_count: studentsStatus.filter((s) => s.decision === 'pending').length,
+                audit_issues: auditIssues,
+                audit_summary: {
+                  lockedAt: nowIso,
+                  lockedBy: session.profile?.displayName || session.profile?.id,
+                  classroomName: currentClassroomName,
+                },
+                locked_at: nowIso,
+                locked_by: session.profile?.id,
+                updated_at: nowIso,
+              },
+              { onConflict: 'workspace_id,classroom_id,academic_year,term' }
+            );
+        } catch (auditErr) {
+          console.warn('Upsert term_closing_audits warning:', auditErr);
+        }
+
+        // 2. บันทึกผลการตัดสินรายบุคคลลงตาราง student_promotions
+        try {
+          const promotionRows = studentsStatus.map((st) => ({
+            workspace_id: workspaceId,
+            student_id: st.studentId,
+            classroom_id: currentClassroomId,
+            academic_year: academicYear,
+            term: term,
+            decision: st.decision === 'pending' ? 'pending_remedial' : st.decision,
+            from_grade_level: gradeLevel,
+            to_grade_level: st.targetGradeLevel || null,
+            attendance_rate: st.attendancePercentage,
+            gpa: st.gpa || null,
+            desirable_traits_result: st.hasPassedCharacteristics ? 'ผ่าน' : 'ไม่ผ่าน',
+            reading_writing_result: 'ผ่าน',
+            activities_result: st.hasPassedActivities ? 'ผ่าน' : 'ไม่ผ่าน',
+            remarks: st.notes || null,
+            decided_by: session.profile?.id,
+            decided_at: nowIso,
+            updated_at: nowIso,
+          }));
+
+          if (promotionRows.length > 0) {
+            await supabase
+              .from('student_promotions')
+              .upsert(promotionRows, { onConflict: 'workspace_id,student_id,academic_year,term' });
+          }
+        } catch (promErr) {
+          console.warn('Upsert student_promotions warning:', promErr);
+        }
+
+        // 3. สั่งล็อก Period Lock ผ่าน RPC เพื่อป้องกันการแก้ไขคะแนนและเวลาเรียนย้อนหลัง
+        try {
+          const yearNum = parseInt(academicYear, 10);
+          const cYear = yearNum > 2500 ? yearNum - 543 : 2025;
+          const sampleMonth = `${cYear}-${term === '1' ? '10' : '03'}-01`;
+
+          await supabase.rpc('set_period_lock', {
+            target_workspace_id: workspaceId,
+            target_classroom_id: currentClassroomId,
+            target_month: sampleMonth,
+            target_module: 'scores',
+            lock_reason: `ปิดภาคเรียนที่ ${term}/${academicYear} โดยงานวิชาการ`,
+          });
+          await supabase.rpc('set_period_lock', {
+            target_workspace_id: workspaceId,
+            target_classroom_id: currentClassroomId,
+            target_month: sampleMonth,
+            target_module: 'attendance',
+            lock_reason: `ปิดภาคเรียนที่ ${term}/${academicYear} โดยงานวิชาการ`,
+          });
+        } catch (lockRpcErr) {
+          console.warn('Set period lock warning:', lockRpcErr);
+        }
+      }
+
       setIsLocked(true);
       setLockTimestamp(nowIso);
 
@@ -248,6 +456,7 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
           studentCount: studentsStatus.length,
           promotedCount: studentsStatus.filter((s) => s.decision === 'promoted').length,
           retainedCount: studentsStatus.filter((s) => s.decision === 'retained').length,
+          graduatedCount: studentsStatus.filter((s) => s.decision === 'graduated').length,
         },
       });
 

@@ -381,9 +381,46 @@ export async function fetchRealAcademicDataForClassroom(
       .eq('workspace_id', workspaceId)
       .order('student_code', { ascending: true });
 
-    if (stErr || !rawStData || rawStData.length === 0) return null;
+    let stData = rawStData || [];
 
-    const stData = rawStData;
+    // 1.1 หากห้องเรียนถูกปิด/เลื่อนชั้นไปแล้ว (archived) ให้ดึงรายชื่อจากประวัติการปิดชั้นหรือ Snapshot
+    if (stData.length === 0) {
+      const { data: transData } = await supabaseClient
+        .from('student_year_transitions')
+        .select('student_id')
+        .eq('from_classroom_id', classroomId)
+        .eq('workspace_id', workspaceId);
+
+      if (transData && transData.length > 0) {
+        const studentIdsFromTrans = transData.map((t: any) => t.student_id);
+        const { data: archivedStudents } = await supabaseClient
+          .from('students')
+          .select('*')
+          .in('id', studentIdsFromTrans)
+          .eq('workspace_id', workspaceId)
+          .order('student_code', { ascending: true });
+
+        if (archivedStudents && archivedStudents.length > 0) {
+          stData = archivedStudents;
+        }
+      }
+
+      if (stData.length === 0) {
+        const { data: snapData } = await supabaseClient
+          .from('academic_year_snapshots')
+          .select('snapshot_data')
+          .eq('classroom_id', classroomId)
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (snapData && snapData.length > 0 && snapData[0].snapshot_data?.students) {
+          stData = snapData[0].snapshot_data.students;
+        }
+      }
+    }
+
+    if (stErr || !stData || stData.length === 0) return null;
     const studentIds = stData.map((s: any) => s.id);
 
     // 2. ดึง Assessments, Attendance Sessions & Records, Health, Guardians และ Desirable records จริง

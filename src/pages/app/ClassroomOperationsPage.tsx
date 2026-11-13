@@ -2415,6 +2415,7 @@ export function ClassroomOperationsPage({
           students={students}
           transitions={transitions}
           onTransition={updateTransition}
+          session={session}
         />
       ) : null}
       {tab === "archive" ? (
@@ -3110,6 +3111,7 @@ function RolloverPanel({
   students,
   transitions,
   onTransition,
+  session,
 }: {
   busy: boolean;
   classroomId: string;
@@ -3135,6 +3137,7 @@ function RolloverPanel({
   students: Student[];
   transitions: YearTransition[];
   onTransition: (transition: YearTransition, nextType: YearTransition["transition_type"]) => void;
+  session: AppSessionContext;
 }) {
   const currentClassroom = classrooms.find((c) => c.id === classroomId);
   const roomStudents = students.filter((s) => s.classroom_id === classroomId);
@@ -3174,6 +3177,63 @@ function RolloverPanel({
   const [studentOverrides, setStudentOverrides] = useState<Record<string, YearTransition["transition_type"]>>({});
   const [studentSearch, setStudentSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | YearTransition["transition_type"]>("all");
+  const [academicPromotionsLoaded, setAcademicPromotionsLoaded] = useState(false);
+  const [promotionsSummary, setPromotionsSummary] = useState<{ promoted: number; retained: number; graduated: number } | null>(null);
+
+  // โหลดผลการตัดสินเลื่อนชั้นจากระบบงานวิชาการ (student_promotions) อัตโนมัติ
+  useEffect(() => {
+    const currentWorkspaceId = session.workspace?.id;
+    if (!classroomId || !currentWorkspaceId || !supabase) return;
+
+    let isMounted = true;
+    async function loadAcademicDecisions() {
+      const client = supabase;
+      if (!client) return;
+      try {
+        const { data: promData } = await client
+          .from("student_promotions")
+          .select("student_id, decision, to_grade_level")
+          .eq("classroom_id", classroomId)
+          .eq("workspace_id", currentWorkspaceId);
+
+        if (!isMounted) return;
+
+        if (promData && promData.length > 0) {
+          const autoMap: Record<string, YearTransition["transition_type"]> = {};
+          let pCount = 0;
+          let rCount = 0;
+          let gCount = 0;
+
+          promData.forEach((p: any) => {
+            if (p.decision === "graduated") {
+              autoMap[p.student_id] = "graduated";
+              gCount++;
+            } else if (p.decision === "retained" || p.decision === "pending_remedial") {
+              autoMap[p.student_id] = "retained";
+              rCount++;
+            } else {
+              autoMap[p.student_id] = "promoted";
+              pCount++;
+            }
+          });
+
+          setStudentOverrides(autoMap);
+          setAcademicPromotionsLoaded(true);
+          setPromotionsSummary({ promoted: pCount, retained: rCount, graduated: gCount });
+        } else {
+          setAcademicPromotionsLoaded(false);
+          setPromotionsSummary(null);
+        }
+      } catch (err) {
+        console.warn("Failed to load academic promotions:", err);
+      }
+    }
+
+    loadAcademicDecisions();
+    return () => {
+      isMounted = false;
+    };
+  }, [classroomId, session.workspace?.id]);
 
   const defaultType: YearTransition["transition_type"] = predicted.isGraduating ? "graduated" : "promoted";
 
@@ -3285,6 +3345,28 @@ function RolloverPanel({
           </div>
         </div>
       </div>
+
+      {/* 🎓 Academic Decision Hand-off Banner */}
+      {academicPromotionsLoaded && promotionsSummary && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-800/40 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white font-black">
+              <CheckCircle2 size={20} />
+            </span>
+            <div>
+              <p className="text-sm font-black text-emerald-950 dark:text-emerald-200">
+                ดึงผลการตัดสินเลื่อนชั้นจากระบบงานวิชาการอัตโนมัติแล้ว
+              </p>
+              <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                พร้อมเลื่อนชั้น {promotionsSummary.promoted} คน · ซ้ำชั้น {promotionsSummary.retained} คน · จบการศึกษา {promotionsSummary.graduated} คน
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center rounded-xl bg-white px-3 py-1.5 text-xs font-black text-emerald-800 shadow-sm border border-emerald-100 dark:bg-emerald-900/60 dark:text-emerald-200 dark:border-emerald-800">
+            ระบบจัดสรรสถานะตั้งต้นให้อัตโนมัติ
+          </span>
+        </div>
+      )}
 
       {/* 🚀 Active Closure Alert (If previously prepared) */}
       {activeRoomClosure && (

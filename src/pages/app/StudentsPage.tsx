@@ -3978,8 +3978,8 @@ export function StudentsPage({ session }: StudentsPageProps) {
               <option value="all">ทุกสถานะ</option>
               <option value="archived">เก็บถาวร</option>
               <option value="inactive">พักใช้งาน</option>
-              <option value="transferred">ย้ายออก</option>
-              <option value="graduated">จบแล้ว</option>
+              <option value="graduated">จบการศึกษา / ศิษย์เก่า</option>
+              <option value="transferred">ย้ายสถานศึกษา</option>
             </select>
 
             <div className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-3 text-xs font-black text-slate-600">
