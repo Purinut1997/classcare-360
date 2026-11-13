@@ -1136,72 +1136,108 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
 
   return (
     <main className="app-page space-y-4 sm:space-y-5 pb-32 sm:pb-12">
-      {/* 🖥️ Desktop Only Hero Section & Stats */}
-      <div className="hidden lg:block space-y-5">
-        <section className="nexus-card overflow-hidden">
-          <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="p-5 sm:p-7">
-              <span className="nexus-kicker">
-                <CalendarDays size={16} aria-hidden="true" />
-                School Calendar
-              </span>
-              <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">ปฏิทินภาพรวมโรงเรียน</h1>
-              <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">รวมวันหยุด วันสอบ กิจกรรม และวันเรียนชดเชย เพื่อให้เช็กชื่อ ตารางสอน และรายงานใช้ข้อมูลวันเดียวกัน ไม่ต้องเดาจากหลายเมนู</p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs" onClick={printCalendarReport} type="button">
-                  <Printer size={17} aria-hidden="true" />
-                  พิมพ์ปฏิทิน
-                </button>
-                <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('classcare:open-ai-chat'));
-                  }}
-                  type="button"
-                  title="ปรึกษาหรือถามกิจกรรมปฏิทินโรงเรียนกับน้องแคร์ AI"
-                >
-                  <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
-                  <span>ปรึกษาปฏิทินด้วย AI</span>
-                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
-                </button>
-                {canEditCalendar && (
-                  <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] px-4 text-sm font-black text-white shadow-sm hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                    onClick={() => setShowAiHolidayModal(true)}
-                    type="button"
-                    title="AI ช่วยนำเข้าวันหยุดราชการไทย ทั้งปีนี้และล่วงหน้า 1 ปี"
-                  >
-                    <Sparkles size={16} aria-hidden="true" className="text-amber-200" />
-                    <span>AI นำเข้าวันหยุดล่วงหน้า 1 ปี</span>
-                  </button>
-                )}
+      {/* 🖥️ Desktop Executive Command Header (Hidden on Mobile) */}
+      <div className="hidden lg:block mb-4">
+        <div className="rounded-3xl border border-slate-200/90 bg-white/95 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Left: Title & School Context */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700 shadow-xs dark:bg-cyan-950/50 dark:text-cyan-400">
+                  <CalendarDays size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-black text-slate-950 dark:text-white">
+                      ปฏิทินภาพรวมโรงเรียน
+                    </h1>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      {session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียน'}
+                    </span>
+                    {sync.status === 'synced' ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        ซิงค์ฐานข้อมูลแล้ว
+                      </span>
+                    ) : sync.status === 'loading' ? (
+                      <span className="text-xs text-slate-500"><NexusAuroraInline label={sync.message} /></span>
+                    ) : sync.status === 'missing_sql' || sync.status === 'error' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+                        {sync.message}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                    รวมวันหยุด วันสอบ กิจกรรม และวันเรียนชดเชย เชื่อมโยงกับระบบเช็กชื่อ ตารางสอน และรายงานอัตโนมัติ
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="bg-slate-950 p-5 text-white sm:p-7">
-              <p className="text-sm font-black text-cyan-200">{session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียน'}</p>
-              <p className="mt-2 text-5xl font-black">{currentMonthText}</p>
-              <div className="mt-5 grid gap-2">
-                {['ใช้วันหยุดกับรายงานเวลาเรียน', 'เตือนครูก่อนเช็กชื่อในวันสอบ/กิจกรรม', 'เป็นฐานข้อมูลให้ตารางสอนและรายงานรายเดือน'].map((item) => (
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-sm font-bold" key={item}>
-                    <CheckCircle2 className="mr-2 inline text-cyan-200" size={16} aria-hidden="true" />
-                    {item}
-                  </div>
-                ))}
-              </div>
+
+            {/* Center: Quick Month Stats Strip */}
+            <div className="hidden xl:flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-white">
+                <span className="text-slate-500">วันพิเศษ:</span>
+                <span className="font-black text-cyan-700 dark:text-cyan-400">{stats.total}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-rose-700 bg-rose-50/70 dark:bg-rose-950/40 dark:text-rose-300">
+                <span>หยุดเรียน:</span>
+                <span className="font-black">{stats.holiday}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-indigo-700 bg-indigo-50/70 dark:bg-indigo-950/40 dark:text-indigo-300">
+                <span>วันสอบ:</span>
+                <span className="font-black">{stats.exam}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-emerald-700 bg-emerald-50/70 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <span>กิจกรรม:</span>
+                <span className="font-black">{stats.activity}</span>
+              </span>
+              {stats.attendanceImpact > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-amber-800 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300">
+                  <span>กระทบเช็กชื่อ:</span>
+                  <span className="font-black">{stats.attendanceImpact}</span>
+                </span>
+              ) : null}
+            </div>
+
+            {/* Right: Primary Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-black text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all"
+                onClick={printCalendarReport}
+                type="button"
+                title="พิมพ์ปฏิทินโรงเรียน"
+              >
+                <Printer size={14} aria-hidden="true" />
+                <span>พิมพ์ปฏิทิน</span>
+              </button>
+
+              <button
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-sm shadow-violet-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('classcare:open-ai-chat'));
+                }}
+                type="button"
+                title="ปรึกษาหรือถามกิจกรรมปฏิทินโรงเรียนกับน้องแคร์ AI"
+              >
+                <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                <span>ปรึกษา AI</span>
+                <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-black uppercase">AI</span>
+              </button>
+
+              {canEditCalendar && (
+                <button
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] px-3.5 text-xs font-black text-white shadow-sm hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  onClick={() => setShowAiHolidayModal(true)}
+                  type="button"
+                  title="AI ช่วยนำเข้าวันหยุดราชการไทย ทั้งปีนี้และล่วงหน้า 1 ปี"
+                >
+                  <Sparkles size={14} aria-hidden="true" className="text-amber-200" />
+                  <span>AI นำเข้าวันหยุด 1 ปี</span>
+                </button>
+              )}
             </div>
           </div>
-        </section>
-
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard label="วันพิเศษ" value={stats.total} detail="ทั้งหมดในเดือนนี้" />
-          <StatCard label="วันหยุด" value={stats.holiday} detail="ไม่นับหรือเตือนเช็กชื่อ" />
-          <StatCard label="วันสอบ" value={stats.exam} detail="เตือนก่อนบันทึกเวลาเรียน" />
-          <StatCard label="กิจกรรม/ชดเชย" value={stats.activity} detail="ใช้กับตารางและรายงาน" />
-          <StatCard label="กระทบเช็กชื่อ" value={stats.attendanceImpact} detail="ต้องตรวจนโยบาย" />
-        </section>
-
-        <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${sync.status === 'synced' ? 'border-teal-200 bg-teal-50 text-teal-800' : sync.status === 'missing_sql' || sync.status === 'error' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-[#ead8bd] bg-white/80 text-slate-600'}`}>
-          {sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : sync.message}
         </div>
       </div>
 
