@@ -1,4 +1,4 @@
-import { Calendar, CalendarDays, CalendarRange, ClipboardList, Clock, FileCheck2, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Pencil, Pin, Plus, Printer, RefreshCw, Sparkles, Star, Trash2, Umbrella, X, type LucideIcon } from 'lucide-react';
+import { BarChart3, Calendar, CalendarDays, CalendarRange, ClipboardList, Clock, FileCheck2, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Pencil, Pin, Plus, Printer, RefreshCw, Sparkles, Star, Trash2, Umbrella, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
@@ -405,6 +405,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
   const [showAiHolidayModal, setShowAiHolidayModal] = useState(false);
   const [aiImportYearMode, setAiImportYearMode] = useState<'next_year' | 'current_year' | 'both_years' | 'custom'>('next_year');
   const [aiCustomYear, setAiCustomYear] = useState(() => currentMonth.getFullYear() + 1);
+  const [mobileTab, setMobileTab] = useState<'events' | 'stats'>('events');
 
   const loadEvents = async () => {
     if (!supabase || !session.workspace?.id || isDemoSession(session)) {
@@ -504,6 +505,21 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       exam: allMonthEvents.filter((event) => event.type === 'exam').length,
       activity: allMonthEvents.filter((event) => event.type === 'activity' || event.type === 'makeup').length,
       attendanceImpact: allMonthEvents.filter((event) => event.attendancePolicy !== 'normal').length,
+    };
+  }, [currentMonth, events]);
+
+  const categoryCounts = useMemo(() => {
+    const monthEvs = events.filter((event) => {
+      const date = new Date(`${event.date}T00:00:00`);
+      return date.getFullYear() === currentMonth.getFullYear() && date.getMonth() === currentMonth.getMonth();
+    });
+    return {
+      all: monthEvs.length,
+      holiday: monthEvs.filter((event) => event.type === 'holiday').length,
+      exam: monthEvs.filter((event) => event.type === 'exam').length,
+      activity: monthEvs.filter((event) => event.type === 'activity').length,
+      makeup: monthEvs.filter((event) => event.type === 'makeup').length,
+      custom: monthEvs.filter((event) => event.type === 'custom').length,
     };
   }, [currentMonth, events]);
 
@@ -1035,71 +1051,159 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
     notifyCalendarUpdated();
   };
 
-  return (
-    <main className="app-page space-y-5">
-      <section className="nexus-card overflow-hidden">
-        <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="p-5 sm:p-7">
-            <span className="nexus-kicker">
-              <CalendarDays size={16} aria-hidden="true" />
-              School Calendar
-            </span>
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">ปฏิทินภาพรวมโรงเรียน</h1>
-            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">รวมวันหยุด วันสอบ กิจกรรม และวันเรียนชดเชย เพื่อให้เช็กชื่อ ตารางสอน และรายงานใช้ข้อมูลวันเดียวกัน ไม่ต้องเดาจากหลายเมนู</p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs" onClick={printCalendarReport} type="button">
-                <Printer size={17} aria-hidden="true" />
-                พิมพ์ปฏิทิน
-              </button>
-              <button
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('classcare:open-ai-chat'));
-                }}
-                type="button"
-                title="ปรึกษาหรือถามกิจกรรมปฏิทินโรงเรียนกับน้องแคร์ AI"
-              >
-                <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
-                <span>ปรึกษาปฏิทินด้วย AI</span>
-                <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
-              </button>
+  const openAddEventQuick = () => {
+    const isCurrentMonthNow = today.getFullYear() === currentMonth.getFullYear() && today.getMonth() === currentMonth.getMonth();
+    openDayDialog(isCurrentMonthNow ? today : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+  };
+
+  const renderEventCards = () => {
+    if (!monthEvents.length) {
+      return (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center text-xs font-bold text-slate-500">
+          <CalendarDays size={28} className="text-slate-300 mb-2" />
+          ไม่มีรายการตามตัวกรองนี้ในเดือนที่เลือก
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        {monthEvents.map((event) => {
+          const conf = typeConfig[event.type] || typeConfig.custom;
+          const evDate = new Date(`${event.date}T00:00:00`);
+          const dayNumber = evDate.getDate();
+          const monthShort = thaiMonthNames[evDate.getMonth()]?.slice(0, 3) || '';
+          const dayOfWeekShort = thaiWeekDayThemes[(evDate.getDay() + 6) % 7]?.short || '';
+          const EventIcon = conf.icon;
+
+          return (
+            <div
+              key={event.id}
+              className={`group relative flex items-center gap-3 rounded-2xl border border-slate-200/90 bg-white p-2.5 sm:p-3 transition-all hover:shadow-md hover:border-slate-300 ${conf.borderLeft}`}
+            >
+              {/* Compact Date Box */}
+              <div className="flex flex-col items-center justify-center rounded-xl bg-slate-100 px-2.5 py-1 text-center shrink-0 min-w-[46px]">
+                <span className="text-[10px] font-black text-slate-500 leading-tight">{dayOfWeekShort}</span>
+                <span className="text-base font-black text-slate-900 leading-none">{dayNumber}</span>
+                <span className="text-[9.5px] font-bold text-slate-400 leading-tight">{monthShort}</span>
+              </div>
+
+              {/* Event Info */}
+              <div className="min-w-0 flex-1">
+                <h4 className="flex items-center gap-1.5 text-sm font-black text-[#1C342B] truncate" title={event.title}>
+                  <EventIcon size={14} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />
+                  <span className="truncate">{event.title}</span>
+                </h4>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${conf.badge}`}>
+                    {typeLabels[event.type]}
+                  </span>
+                  <span className="rounded-full border border-[#DCE3D7] bg-[#F6F7F3] px-2 py-0.5 text-[10px] font-bold text-[#5A6F64]">
+                    {policyLabels[event.attendancePolicy]}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
               {canEditCalendar && (
-                <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] px-4 text-sm font-black text-white shadow-sm hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  onClick={() => setShowAiHolidayModal(true)}
-                  type="button"
-                  title="AI ช่วยนำเข้าวันหยุดราชการไทย ทั้งปีนี้และล่วงหน้า 1 ปี"
-                >
-                  <Sparkles size={16} aria-hidden="true" className="text-amber-200" />
-                  <span>AI นำเข้าวันหยุดล่วงหน้า 1 ปี</span>
-                </button>
+                <div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100 sm:opacity-70 transition">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(event)}
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+                    title={`แก้ไข ${event.title}`}
+                    aria-label={`แก้ไข ${event.title}`}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void removeEvent(event.id)}
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition"
+                    title={`ลบ ${event.title}`}
+                    aria-label={`ลบ ${event.title}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               )}
             </div>
-          </div>
-          <div className="bg-slate-950 p-5 text-white sm:p-7">
-            <p className="text-sm font-black text-cyan-200">{session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียน'}</p>
-            <p className="mt-2 text-5xl font-black">{currentMonthText}</p>
-            <div className="mt-5 grid gap-2">
-              {['ใช้วันหยุดกับรายงานเวลาเรียน', 'เตือนครูก่อนเช็กชื่อในวันสอบ/กิจกรรม', 'เป็นฐานข้อมูลให้ตารางสอนและรายงานรายเดือน'].map((item) => (
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-sm font-bold" key={item}>
-                  <CheckCircle2 className="mr-2 inline text-cyan-200" size={16} aria-hidden="true" />
-                  {item}
-                </div>
-              ))}
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <main className="app-page space-y-4 sm:space-y-5 pb-32 sm:pb-12">
+      {/* 🖥️ Desktop Only Hero Section & Stats */}
+      <div className="hidden lg:block space-y-5">
+        <section className="nexus-card overflow-hidden">
+          <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="p-5 sm:p-7">
+              <span className="nexus-kicker">
+                <CalendarDays size={16} aria-hidden="true" />
+                School Calendar
+              </span>
+              <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">ปฏิทินภาพรวมโรงเรียน</h1>
+              <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">รวมวันหยุด วันสอบ กิจกรรม และวันเรียนชดเชย เพื่อให้เช็กชื่อ ตารางสอน และรายงานใช้ข้อมูลวันเดียวกัน ไม่ต้องเดาจากหลายเมนู</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs" onClick={printCalendarReport} type="button">
+                  <Printer size={17} aria-hidden="true" />
+                  พิมพ์ปฏิทิน
+                </button>
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 text-sm font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('classcare:open-ai-chat'));
+                  }}
+                  type="button"
+                  title="ปรึกษาหรือถามกิจกรรมปฏิทินโรงเรียนกับน้องแคร์ AI"
+                >
+                  <Sparkles size={16} aria-hidden="true" className="text-amber-300 animate-pulse" />
+                  <span>ปรึกษาปฏิทินด้วย AI</span>
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-xs border border-white/25">AI</span>
+                </button>
+                {canEditCalendar && (
+                  <button
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] px-4 text-sm font-black text-white shadow-sm hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    onClick={() => setShowAiHolidayModal(true)}
+                    type="button"
+                    title="AI ช่วยนำเข้าวันหยุดราชการไทย ทั้งปีนี้และล่วงหน้า 1 ปี"
+                  >
+                    <Sparkles size={16} aria-hidden="true" className="text-amber-200" />
+                    <span>AI นำเข้าวันหยุดล่วงหน้า 1 ปี</span>
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="bg-slate-950 p-5 text-white sm:p-7">
+              <p className="text-sm font-black text-cyan-200">{session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียน'}</p>
+              <p className="mt-2 text-5xl font-black">{currentMonthText}</p>
+              <div className="mt-5 grid gap-2">
+                {['ใช้วันหยุดกับรายงานเวลาเรียน', 'เตือนครูก่อนเช็กชื่อในวันสอบ/กิจกรรม', 'เป็นฐานข้อมูลให้ตารางสอนและรายงานรายเดือน'].map((item) => (
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-sm font-bold" key={item}>
+                    <CheckCircle2 className="mr-2 inline text-cyan-200" size={16} aria-hidden="true" />
+                    {item}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <StatCard label="วันพิเศษ" value={stats.total} detail="ทั้งหมดในเดือนนี้" />
+          <StatCard label="วันหยุด" value={stats.holiday} detail="ไม่นับหรือเตือนเช็กชื่อ" />
+          <StatCard label="วันสอบ" value={stats.exam} detail="เตือนก่อนบันทึกเวลาเรียน" />
+          <StatCard label="กิจกรรม/ชดเชย" value={stats.activity} detail="ใช้กับตารางและรายงาน" />
+          <StatCard label="กระทบเช็กชื่อ" value={stats.attendanceImpact} detail="ต้องตรวจนโยบาย" />
+        </section>
+
+        <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${sync.status === 'synced' ? 'border-teal-200 bg-teal-50 text-teal-800' : sync.status === 'missing_sql' || sync.status === 'error' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-[#ead8bd] bg-white/80 text-slate-600'}`}>
+          {sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : sync.message}
         </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="วันพิเศษ" value={stats.total} detail="ทั้งหมดในเดือนนี้" />
-        <StatCard label="วันหยุด" value={stats.holiday} detail="ไม่นับหรือเตือนเช็กชื่อ" />
-        <StatCard label="วันสอบ" value={stats.exam} detail="เตือนก่อนบันทึกเวลาเรียน" />
-        <StatCard label="กิจกรรม/ชดเชย" value={stats.activity} detail="ใช้กับตารางและรายงาน" />
-        <StatCard label="กระทบเช็กชื่อ" value={stats.attendanceImpact} detail="ต้องตรวจนโยบาย" />
-      </section>
-
-      <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${sync.status === 'synced' ? 'border-teal-200 bg-teal-50 text-teal-800' : sync.status === 'missing_sql' || sync.status === 'error' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-[#ead8bd] bg-white/80 text-slate-600'}`}>{sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : sync.message}</div>
+      </div>
 
       <section className="grid gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,0.45fr)]">
         <div className="app-panel-pad">
@@ -1272,24 +1376,35 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     </button>
                   </div>
 
-                  {/* AI Quick Button right beside navigation */}
+                  {/* Quick Add Button on Mobile & AI Quick Button on Tablet/Desktop */}
                   {canEditCalendar && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAiHolidayModal(true)}
-                      className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50/90 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 transition shadow-2xs active:scale-95"
-                      title="AI นำเข้าวันหยุดราชการล่วงหน้า 1 ปี"
-                    >
-                      <Sparkles size={14} className="text-rose-600 animate-pulse" />
-                      <span>AI วันหยุดล่วงหน้า 1 ปี</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={openAddEventQuick}
+                        className="sm:hidden grid h-8 w-8 place-items-center rounded-xl bg-slate-900 text-white shadow-2xs active:scale-95 transition"
+                        title="เพิ่มกิจกรรมใหม่ในเดือนนี้"
+                        aria-label="เพิ่มกิจกรรมใหม่ในเดือนนี้"
+                      >
+                        <Plus size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAiHolidayModal(true)}
+                        className="hidden sm:inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50/90 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 transition shadow-2xs active:scale-95"
+                        title="AI นำเข้าวันหยุดราชการล่วงหน้า 1 ปี"
+                      >
+                        <Sparkles size={14} className="text-rose-600 animate-pulse" />
+                        <span>AI วันหยุดล่วงหน้า 1 ปี</span>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            {/* Category Filter Pills (Horizontal scrollable on mobile, wrap on sm) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] -mx-1 px-1 sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
               {(['all', 'holiday', 'exam', 'activity', 'makeup'] as Array<'all' | CalendarType>).map((item) => {
                 const isActive = filter === item;
                 const activeCls = item === 'all'
@@ -1297,9 +1412,10 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                   : typeConfig[item].filterActive;
 
                 const FilterIcon = item !== 'all' ? typeConfig[item].icon : null;
+                const count = categoryCounts[item];
                 return (
                   <button
-                    className={`inline-flex items-center gap-1.5 rounded-2xl border px-3 sm:px-3.5 py-1.5 text-xs font-black transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-2xl border px-2.5 sm:px-3.5 py-1.5 text-xs font-black transition-all shrink-0 ${
                       isActive
                         ? activeCls
                         : 'border-[#DCE3D7] bg-white text-[#5A6F64] hover:bg-[#FAFBF8]'
@@ -1309,7 +1425,14 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                     type="button"
                   >
                     {FilterIcon ? <FilterIcon size={13} aria-hidden="true" /> : null}
-                    {item === 'all' ? 'ทั้งหมด' : typeLabels[item]}
+                    <span>{item === 'all' ? 'ทั้งหมด' : typeLabels[item]}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
                   </button>
                 );
               })}
@@ -1517,10 +1640,174 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-emerald-200" /> กิจกรรม</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500 ring-1 ring-amber-200" /> เรียนชดเชย</span>
           </div>
+
+          {/* 📱 Mobile & Tablet Sub-view Section (Below Calendar Grid on < 2xl) */}
+          <div className="mt-5 border-t border-slate-100 pt-4 2xl:hidden space-y-4">
+            {/* Segmented Control Buttons */}
+            <div className="grid grid-cols-2 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setMobileTab('events')}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-black transition-all ${
+                  mobileTab === 'events'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CalendarDays size={14} className={mobileTab === 'events' ? 'text-cyan-700' : ''} />
+                <span>รายการเดือนนี้ ({monthEvents.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileTab('stats')}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-black transition-all ${
+                  mobileTab === 'stats'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BarChart3 size={14} className={mobileTab === 'stats' ? 'text-purple-600' : ''} />
+                <span>สรุปสถิติ & จัดการ AI</span>
+              </button>
+            </div>
+
+            {/* Sub-view 1: Event List */}
+            {mobileTab === 'events' && (
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-950">
+                      กิจกรรมในเดือน ({monthEvents.length})
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-600">
+                      {filter === 'all' ? 'ทั้งหมด' : typeLabels[filter]}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {canEditCalendar && (
+                      <button
+                        type="button"
+                        onClick={openAddEventQuick}
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-xl bg-slate-900 px-2.5 text-xs font-black text-white hover:bg-slate-800 transition"
+                      >
+                        <Plus size={13} />
+                        <span>เพิ่ม</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void loadEvents()}
+                      className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      <RefreshCw size={13} />
+                      <span className="hidden sm:inline">รีเฟรช</span>
+                    </button>
+                  </div>
+                </div>
+
+                {renderEventCards()}
+              </div>
+            )}
+
+            {/* Sub-view 2: Stats & AI Management */}
+            {mobileTab === 'stats' && (
+              <div className="space-y-4">
+                {/* 5 Stats in Responsive Grid */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <StatCard label="วันพิเศษ" value={stats.total} detail="ทั้งหมดในเดือนนี้" />
+                  <StatCard label="วันหยุด" value={stats.holiday} detail="ไม่นับหรือเตือนเช็กชื่อ" />
+                  <StatCard label="วันสอบ" value={stats.exam} detail="เตือนก่อนบันทึกเวลาเรียน" />
+                  <StatCard label="กิจกรรม/ชดเชย" value={stats.activity} detail="ใช้กับตารางและรายงาน" />
+                  <div className="col-span-2 sm:col-span-1">
+                    <StatCard label="กระทบเช็กชื่อ" value={stats.attendanceImpact} detail="ต้องตรวจนโยบาย" />
+                  </div>
+                </div>
+
+                {/* AI & Quick Action Buttons */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-2.5">
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">เครื่องมือจัดการปฏิทิน</p>
+                  
+                  {canEditCalendar && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAiHolidayModal(true)}
+                      className="w-full flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#2F7D5B] to-[#1C342B] p-3.5 text-left text-white shadow-sm hover:opacity-95 transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-amber-200">
+                          <Sparkles size={18} />
+                        </span>
+                        <div>
+                          <p className="text-xs font-black">AI นำเข้าวันหยุดล่วงหน้า 1 ปี</p>
+                          <p className="text-[11px] font-bold text-emerald-100/80">คำนวณวันหยุดราชการไทยอัตโนมัติ</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-white/70" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('classcare:open-ai-chat'));
+                    }}
+                    className="w-full flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-3.5 text-left text-white shadow-sm hover:opacity-95 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-amber-300">
+                        <Sparkles size={18} className="animate-pulse" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-black">ปรึกษาปฏิทินด้วย AI</p>
+                        <p className="text-[11px] font-bold text-violet-100/80">ถามตาราง วันหยุด หรือนโยบายเช็กชื่อ</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-white/70" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={printCalendarReport}
+                    className="w-full flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-left text-slate-800 hover:bg-slate-100 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-slate-700 border border-slate-200">
+                        <Printer size={16} />
+                      </span>
+                      <div>
+                        <p className="text-xs font-black">พิมพ์ปฏิทิน (รายงานทางการ)</p>
+                        <p className="text-[11px] font-bold text-slate-500">พิมพ์เอกสารพร้อมลายเซ็นอนุมัติ</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-400" />
+                  </button>
+                </div>
+
+                {/* Sync status */}
+                <div className={`rounded-2xl border px-3.5 py-2.5 text-xs font-bold ${sync.status === 'synced' ? 'border-teal-200 bg-teal-50 text-teal-800' : sync.status === 'missing_sql' || sync.status === 'error' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                  {sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : sync.message}
+                </div>
+
+                {/* School Calendar Policy Card */}
+                <div className="rounded-2xl bg-slate-950 p-4 text-white space-y-2">
+                  <p className="text-xs font-black text-cyan-200">{session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียน'}</p>
+                  <p className="text-lg font-black">{currentMonthText}</p>
+                  <div className="grid gap-1.5 pt-1">
+                    {['ใช้วันหยุดกับรายงานเวลาเรียน', 'เตือนครูก่อนเช็กชื่อในวันสอบ/กิจกรรม', 'เป็นฐานข้อมูลให้ตารางสอนและรายงานรายเดือน'].map((item) => (
+                      <div className="rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-xs font-bold" key={item}>
+                        <CheckCircle2 className="mr-1.5 inline text-cyan-200" size={14} aria-hidden="true" />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right Column: Month Events List (Non-stretching, Contained with Scrollbar) */}
-        <div className="flex flex-col h-full max-h-[660px] rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
+        {/* 🖥️ Desktop 2XL Right Column: Month Events List */}
+        <div className="hidden 2xl:flex flex-col h-full max-h-[660px] rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 shrink-0">
             <div>
               <p className="text-xs font-black uppercase tracking-wider text-cyan-700">รายการเดือนนี้</p>
@@ -1531,92 +1818,33 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
                 </span>
               </div>
             </div>
-            <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-              onClick={() => void loadEvents()}
-              type="button"
-              title="รีเฟรชข้อมูลปฏิทิน"
-            >
-              <RefreshCw size={14} aria-hidden="true" />
-              <span>รีเฟรช</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              {canEditCalendar && (
+                <button
+                  type="button"
+                  onClick={openAddEventQuick}
+                  className="inline-flex h-9 items-center justify-center gap-1 rounded-xl bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-800 transition"
+                  title="เพิ่มกิจกรรมใหม่"
+                >
+                  <Plus size={14} />
+                  <span>เพิ่ม</span>
+                </button>
+              )}
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                onClick={() => void loadEvents()}
+                type="button"
+                title="รีเฟรชข้อมูลปฏิทิน"
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                <span>รีเฟรช</span>
+              </button>
+            </div>
           </div>
 
           {/* Scrollable Event List */}
-          <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1 min-h-0 [scrollbar-width:thin]">
-            {monthEvents.length ? (
-              monthEvents.map((event) => {
-                const conf = typeConfig[event.type] || typeConfig.custom;
-                const evDate = new Date(`${event.date}T00:00:00`);
-                const dayNumber = evDate.getDate();
-                const monthShort = thaiMonthNames[evDate.getMonth()]?.slice(0, 3) || '';
-                const dayOfWeekShort = thaiWeekDayThemes[(evDate.getDay() + 6) % 7]?.short || '';
-
-                return (
-                  <div
-                    key={event.id}
-                    className={`group relative flex items-center gap-3 rounded-2xl border border-slate-200/90 bg-white p-2.5 sm:p-3 transition-all hover:shadow-md hover:border-slate-300 ${conf.borderLeft}`}
-                  >
-                    {/* Compact Date Box */}
-                    <div className="flex flex-col items-center justify-center rounded-xl bg-slate-100 px-2.5 py-1 text-center shrink-0 min-w-[46px]">
-                      <span className="text-[10px] font-black text-slate-500 leading-tight">{dayOfWeekShort}</span>
-                      <span className="text-base font-black text-slate-900 leading-none">{dayNumber}</span>
-                      <span className="text-[9.5px] font-bold text-slate-400 leading-tight">{monthShort}</span>
-                    </div>
-
-                    {/* Event Info */}
-                    {(() => {
-                      const EventIcon = conf.icon;
-                      return (
-                        <div className="min-w-0 flex-1">
-                          <h4 className="flex items-center gap-1.5 text-sm font-black text-[#1C342B] truncate" title={event.title}>
-                            <EventIcon size={14} className="shrink-0 text-[#2F7D5B]" aria-hidden="true" />
-                            <span className="truncate">{event.title}</span>
-                          </h4>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${conf.badge}`}>
-                              {typeLabels[event.type]}
-                            </span>
-                            <span className="rounded-full border border-[#DCE3D7] bg-[#F6F7F3] px-2 py-0.5 text-[10px] font-bold text-[#5A6F64]">
-                              {policyLabels[event.attendancePolicy]}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Quick Actions */}
-                    {canEditCalendar && (
-                      <div className="flex shrink-0 items-center gap-1 opacity-70 group-hover:opacity-100 transition">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(event)}
-                          className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
-                          title={`แก้ไข ${event.title}`}
-                          aria-label={`แก้ไข ${event.title}`}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void removeEvent(event.id)}
-                          className="grid h-8 w-8 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition"
-                          title={`ลบ ${event.title}`}
-                          aria-label={`ลบ ${event.title}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center text-xs font-bold text-slate-500">
-                <CalendarDays size={28} className="text-slate-300 mb-2" />
-                ไม่มีรายการตามตัวกรองนี้ในเดือนที่เลือก
-              </div>
-            )}
+          <div className="mt-3 flex-1 overflow-y-auto pr-1 min-h-0 [scrollbar-width:thin]">
+            {renderEventCards()}
           </div>
         </div>
       </section>
