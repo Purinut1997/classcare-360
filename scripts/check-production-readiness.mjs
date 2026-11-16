@@ -89,6 +89,8 @@ const requiredMigrations = [
   '0081_teacher_notification_preferences.sql',
   '0082_teacher_telegram_connections.sql',
   '0083_teacher_notification_delivery_log.sql',
+  '0084_promotion_graduation_refinements.sql',
+  '0085_direct_savings_transaction_edit.sql',
 ];
 
 const requiredFunctions = [
