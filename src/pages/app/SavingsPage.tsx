@@ -321,17 +321,21 @@ export function SavingsPage({ session }: SavingsPageProps) {
     const balances = classroomStudents.map((student) => accountByStudent.get(student.id)?.balance || 0);
     const totalBalance = balances.reduce((sum, balance) => sum + balance, 0);
 
-    // Opening balances sum from metadata
-    const openingTotal = classroomStudents.reduce((sum, student) => {
-      const acc = accountByStudent.get(student.id);
-      return sum + Number(acc?.metadata?.opening_balance || 0);
-    }, 0);
-
     const activeTransactions = transactions.filter(
       (transaction) =>
         transaction.metadata?.correction_role !== 'reversal' &&
         (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)),
     );
+
+    // Opening balances sum from metadata or opening adjustment transactions
+    const openingTotal = classroomStudents.reduce((sum, student) => {
+      const acc = accountByStudent.get(student.id);
+      const meta = Number(acc?.metadata?.opening_balance || 0);
+      const txOpening = activeTransactions
+        .filter((tx) => tx.student_id === student.id && (tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา'))))
+        .reduce((s, tx) => s + Number(tx.amount || 0), 0);
+      return sum + Math.max(meta, txOpening);
+    }, 0);
 
     const deposits = activeTransactions
       .filter((transaction) => transaction.transaction_type === 'deposit')
@@ -1803,7 +1807,11 @@ export function SavingsPage({ session }: SavingsPageProps) {
                     <tbody className="divide-y divide-[#f0e8dc] text-xs sm:text-sm">
                       {filteredStudents.map((student, idx) => {
                         const account = accountByStudent.get(student.id);
-                        const opening = Number(account?.metadata?.opening_balance || 0);
+                        const metaOpening = Number(account?.metadata?.opening_balance || 0);
+                        const txOpening = transactions
+                          .filter((tx) => tx.student_id === student.id && (tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา'))))
+                          .reduce((s, tx) => s + Number(tx.amount || 0), 0);
+                        const opening = Math.max(metaOpening, txOpening);
                         const isSelected = selectedStudentId === student.id;
                         return (
                           <tr
@@ -2050,7 +2058,17 @@ export function SavingsPage({ session }: SavingsPageProps) {
                 </div>
                 <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">ยอดยกมา</p>
-                  <p className="mt-1 text-lg font-black text-amber-900">{formatBaht(Number(accountByStudent.get(viewingStudent.id)?.metadata?.opening_balance || 0))} บาท</p>
+                  <p className="mt-1 text-lg font-black text-amber-900">
+                    {formatBaht(
+                      Math.max(
+                        Number(accountByStudent.get(viewingStudent.id)?.metadata?.opening_balance || 0),
+                        viewingStudentTransactions
+                          .filter((tx) => tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา')))
+                          .reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+                      ),
+                    )}{' '}
+                    บาท
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">จำนวนรายการ</p>

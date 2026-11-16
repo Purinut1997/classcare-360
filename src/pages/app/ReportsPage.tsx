@@ -154,6 +154,11 @@ interface SavingsAccountRow {
   id: string;
   status: 'active' | 'frozen' | 'closed';
   student_id: string;
+  metadata?: {
+    opening_balance?: number;
+    source_grade?: string;
+    opening_date?: string;
+  } | null;
 }
 
 interface SavingsTransactionRow {
@@ -164,6 +169,13 @@ interface SavingsTransactionRow {
   student_id: string;
   transaction_date: string;
   transaction_type: 'deposit' | 'withdrawal' | 'adjustment';
+  metadata?: {
+    is_opening_balance?: boolean;
+    source_grade?: string;
+    correction_id?: string;
+    correction_role?: string;
+    [key: string]: any;
+  } | null;
 }
 
 interface ScoreAssessmentRow {
@@ -1137,6 +1149,7 @@ interface MonthlySavingsRow {
   dailyAmounts: Record<string, number>;
   depositsInPeriod: number;
   monthlyNet: Record<string, number>;
+  openingBalance: number;
   student: StudentRow;
   studentCode: string;
   studentId: string;
@@ -1155,6 +1168,7 @@ interface MonthlySavingsGrid {
   rows: MonthlySavingsRow[];
   totalActiveSavingsStudents: number;
   totalCumulativeBalance: number;
+  totalOpeningBalance: number;
   totalPeriodDeposits: number;
   totalPeriodNet: number;
   totalPeriodWithdrawals: number;
@@ -1186,13 +1200,39 @@ function buildSavingsGrid({
   let totalPeriodDeposits = 0;
   let totalPeriodWithdrawals = 0;
   let totalCumulativeBalance = 0;
+  let totalOpeningBalance = 0;
   let totalActiveSavingsStudents = 0;
 
   const rows: MonthlySavingsRow[] = students.map((student) => {
     const account = savingsAccountByStudent.get(student.id);
-    const studentTxs = savingsTransactions.filter(
-      (tx) => tx.student_id === student.id && tx.transaction_date >= dateFrom && tx.transaction_date <= dateTo,
+    const metaOpening = Number(account?.metadata?.opening_balance || 0);
+
+    // Active transactions (excluding reversals and superseded ones)
+    const allStudentTxs = savingsTransactions.filter(
+      (tx) =>
+        tx.student_id === student.id &&
+        tx.metadata?.correction_role !== 'reversal' &&
+        (!tx.metadata?.correction_id || !savingsTransactions.some((t) => t.id === tx.metadata?.correction_id)),
     );
+
+    let openingTxTotal = 0;
+    const periodRegularTxs: SavingsTransactionRow[] = [];
+
+    allStudentTxs.forEach((tx) => {
+      const isOpening =
+        tx.transaction_type === 'adjustment' ||
+        Boolean(tx.metadata?.is_opening_balance) ||
+        (typeof tx.note === 'string' && (tx.note.includes('ยอดยกมา') || tx.note.includes('เปิดบัญชีต้นงวด')));
+
+      if (isOpening) {
+        openingTxTotal += Number(tx.amount || 0);
+      } else if (tx.transaction_date >= dateFrom && tx.transaction_date <= dateTo) {
+        periodRegularTxs.push(tx);
+      }
+    });
+
+    const openingBalance = metaOpening > 0 ? metaOpening : openingTxTotal;
+    totalOpeningBalance += openingBalance;
 
     const dailyAmounts: Record<string, number> = {};
     const monthlyNet: Record<string, number> = {};
@@ -1204,12 +1244,11 @@ function buildSavingsGrid({
     let withdrawalsInPeriod = 0;
     let rowNet = 0;
 
-    studentTxs.forEach((tx) => {
+    periodRegularTxs.forEach((tx) => {
       const amt = Number(tx.amount || 0);
       const delta = tx.transaction_type === 'withdrawal' ? -amt : amt;
-      if (tx.transaction_type === 'deposit') depositsInPeriod += amt;
-      else if (tx.transaction_type === 'withdrawal') withdrawalsInPeriod += amt;
-      else if (delta > 0) depositsInPeriod += delta;
+      if (tx.transaction_type === 'withdrawal') withdrawalsInPeriod += amt;
+      else depositsInPeriod += amt;
 
       rowNet += delta;
       dailyAmounts[tx.transaction_date] = (dailyAmounts[tx.transaction_date] || 0) + delta;
@@ -1228,13 +1267,13 @@ function buildSavingsGrid({
       }
     });
 
-    const totalBalance = account !== undefined ? Number(account.balance || 0) : Math.max(0, rowNet);
+    const totalBalance = account !== undefined ? Number(account.balance || 0) : Math.max(0, openingBalance + rowNet);
     totalCumulativeBalance += totalBalance;
     totalPeriodNet += rowNet;
     totalPeriodDeposits += depositsInPeriod;
     totalPeriodWithdrawals += withdrawalsInPeriod;
 
-    if (rowNet > 0 || totalBalance > 0) {
+    if (rowNet > 0 || totalBalance > 0 || openingBalance > 0) {
       totalActiveSavingsStudents += 1;
     }
 
@@ -1242,13 +1281,14 @@ function buildSavingsGrid({
       dailyAmounts,
       depositsInPeriod,
       monthlyNet,
+      openingBalance,
       student,
       studentCode: student.student_code || '-',
       studentId: student.id,
       studentName: getStudentFullName(student),
       totalBalance,
       totalPeriodNet: rowNet,
-      transactionCount: studentTxs.length,
+      transactionCount: periodRegularTxs.length + (openingBalance > 0 ? 1 : 0),
       withdrawalsInPeriod,
     };
   });
@@ -1261,6 +1301,7 @@ function buildSavingsGrid({
     rows,
     totalActiveSavingsStudents,
     totalCumulativeBalance,
+    totalOpeningBalance,
     totalPeriodDeposits,
     totalPeriodNet,
     totalPeriodWithdrawals,
@@ -1494,6 +1535,7 @@ function buildPrintableSavingsReportHtml({
         <th class="number">ที่</th>
         <th class="code">รหัส</th>
         <th class="name">ชื่อ - นามสกุล</th>
+        <th class="sum opening-col">ยอดยกมา</th>
         ${savingsGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}</th>`).join('')}
         <th class="sum month-total">ฝากรวม</th>
         <th class="sum month-total">ถอนรวม</th>
@@ -1502,8 +1544,9 @@ function buildPrintableSavingsReportHtml({
     : `<tr>
         <th class="number">ที่</th>
         <th class="name">ชื่อ - นามสกุล</th>
+        <th class="sum opening-col">ยอดยกมา</th>
         ${days.map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`).join('')}
-        <th class="sum month-total">ออมเดือนนี้</th>
+        <th class="sum month-total">รวมเดือนนี้</th>
         <th class="sum balance-total">ยอดสะสมคงเหลือ</th>
       </tr>`;
 
@@ -1522,6 +1565,7 @@ function buildPrintableSavingsReportHtml({
                 <td class="number">${index + 1}</td>
                 <td class="code">${escapeHtml(row.studentCode)}</td>
                 <td class="name">${escapeHtml(row.studentName)}</td>
+                <td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>
                 ${monthCells}
                 <td class="sum month-total">${row.depositsInPeriod.toLocaleString('th-TH')}</td>
                 <td class="sum month-total">${row.withdrawalsInPeriod.toLocaleString('th-TH')}</td>
@@ -1539,17 +1583,19 @@ function buildPrintableSavingsReportHtml({
             return `<tr>
               <td class="number">${index + 1}</td>
               <td class="name">${escapeHtml(row.studentName)}</td>
+              <td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>
               ${dayCells}
               <td class="sum month-total">${row.totalPeriodNet ? row.totalPeriodNet.toLocaleString('th-TH') : '0'}</td>
               <td class="sum balance-total">${row.totalBalance.toLocaleString('th-TH')}</td>
             </tr>`;
           })
           .join('')
-      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length + 6 : days.length + 4}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
+      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length + 7 : days.length + 5}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
 
   const tfootHtml = isMultiMonth
     ? `<tr>
         <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">รวมทั้งสิ้น (บาท)</td>
+        <td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>
         ${savingsGrid.monthBuckets.map((mb) => `<td class="total">${savingsGrid.monthTotals[mb.key] ? savingsGrid.monthTotals[mb.key].toLocaleString('th-TH') : '-'}</td>`).join('')}
         <td class="total">${savingsGrid.totalPeriodDeposits.toLocaleString('th-TH')}</td>
         <td class="total">${savingsGrid.totalPeriodWithdrawals.toLocaleString('th-TH')}</td>
@@ -1558,6 +1604,7 @@ function buildPrintableSavingsReportHtml({
     : `<tr>
         <td></td>
         <td class="name">รวมทั้งสิ้น (บาท)</td>
+        <td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>
         ${days.map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`).join('')}
         <td class="total">${savingsGrid.totalPeriodNet.toLocaleString('th-TH')}</td>
         <td class="total">${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
@@ -1583,6 +1630,7 @@ function buildPrintableSavingsReportHtml({
           .day { width: auto; }
           .weekend { background: #f1f5f9 !important; color: #94a3b8; }
           .sum { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
+          .opening-col { width: 16mm; }
           .month-total { width: 16mm; }
           .balance-total { width: 20mm; }
           .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
@@ -1604,7 +1652,7 @@ function buildPrintableSavingsReportHtml({
           })}
           <section class="summary-grid">
             <div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>
-            <div class="summary-card"><span>มีบัญชี/เคลื่อนไหว</span><strong>${savingsGrid.totalActiveSavingsStudents} คน</strong></div>
+            <div class="summary-card"><span>ยอดยกมารวม</span><strong>${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong></div>
             <div class="summary-card"><span>ออมสุทธิช่วงนี้</span><strong>${savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong></div>
             <div class="summary-card"><span>ยอดสะสมคงเหลือรวม</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
           </section>
@@ -2665,12 +2713,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
           .limit(1000),
         supabase
           .from('savings_accounts')
-          .select('id,student_id,balance,status')
+          .select('id,student_id,balance,status,metadata')
           .eq('workspace_id', session.workspace.id)
           .limit(2000),
         supabase
           .from('savings_transactions')
-          .select('id,student_id,transaction_type,amount,transaction_date,note,created_at')
+          .select('id,student_id,transaction_type,amount,transaction_date,note,created_at,metadata')
           .eq('workspace_id', session.workspace.id)
           .gte('transaction_date', dateFrom)
           .lte('transaction_date', dateTo)
@@ -3620,11 +3668,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         `${row.attendancePercent}%`,
       ]);
     } else if (reportView === 'savings') {
-      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
+      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ยอดยกมา', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
       lines = savingsGrid.rows.map((row, idx) => [
         String(idx + 1),
         row.studentCode,
         row.studentName,
+        String(row.openingBalance),
         String(row.depositsInPeriod),
         String(row.withdrawalsInPeriod),
         String(row.totalPeriodNet),
@@ -3634,6 +3683,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         '',
         '',
         'รวมทั้งสิ้น',
+        String(savingsGrid.totalOpeningBalance),
         String(savingsGrid.totalPeriodDeposits),
         String(savingsGrid.totalPeriodWithdrawals),
         String(savingsGrid.totalPeriodNet),
@@ -3828,11 +3878,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         title: `รายงานเวลาเรียน ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'savings') {
-      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
+      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ยอดยกมา', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
       const lines = savingsGrid.rows.map((row, idx) => [
         String(idx + 1),
         row.studentCode,
         row.studentName,
+        String(row.openingBalance),
         String(row.depositsInPeriod),
         String(row.withdrawalsInPeriod),
         String(row.totalPeriodNet),
@@ -3842,6 +3893,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         '',
         '',
         'รวมทั้งสิ้น',
+        String(savingsGrid.totalOpeningBalance),
         String(savingsGrid.totalPeriodDeposits),
         String(savingsGrid.totalPeriodWithdrawals),
         String(savingsGrid.totalPeriodNet),
@@ -5403,22 +5455,22 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                   {/* 3: Savings on A4 */}
                   {reportView === 'savings' && (
                     <div>
-                      <div className="mb-3 grid grid-cols-4 gap-2 text-center text-xs">
+                      <div className="mb-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
                         <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
                           <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
                           <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
-                          <span className="block font-bold text-slate-500">มีบัญชี/ออมเงิน</span>
-                          <strong className="text-base font-black text-cyan-700">{savingsGrid.totalActiveSavingsStudents} คน</strong>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/70 py-1.5">
+                          <span className="block font-bold text-amber-800">ยอดยกมารวม</span>
+                          <strong className="text-base font-black text-amber-950">{savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
-                          <span className="block font-bold text-slate-500">ออมสุทธิช่วงนี้</span>
-                          <strong className="text-base font-black text-teal-700">{savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong>
+                        <div className="rounded-lg border border-teal-200 bg-teal-50/70 py-1.5">
+                          <span className="block font-bold text-teal-800">ออมสุทธิช่วงนี้</span>
+                          <strong className="text-base font-black text-teal-900">{savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
-                          <span className="block font-bold text-slate-500">ยอดสะสมคงเหลือรวม</span>
-                          <strong className="text-base font-black text-emerald-700">{savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 py-1.5">
+                          <span className="block font-bold text-emerald-800">ยอดสะสมคงเหลือรวม</span>
+                          <strong className="text-base font-black text-emerald-950">{savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong>
                         </div>
                       </div>
 
@@ -5429,6 +5481,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
                               <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
                               <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
+                              <th className="border border-slate-300 bg-amber-50 px-2 py-2 text-right w-20">ยอดยกมา</th>
                               {savingsGrid.monthBuckets.map((mb) => (
                                 <th className="border border-slate-300 px-1 py-2 text-center" key={mb.key}>
                                   {mb.shortLabel}
@@ -5445,6 +5498,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                 <td className="border border-slate-300 px-1 py-1.5 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-1.5 py-1.5 text-center font-bold">{row.studentCode}</td>
                                 <td className="border border-slate-300 px-2 py-1.5 font-bold">{row.studentName}</td>
+                                <td className="border border-slate-300 bg-amber-50/40 px-2 py-1.5 text-right font-bold text-amber-900">
+                                  {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
+                                </td>
                                 {savingsGrid.monthBuckets.map((mb) => {
                                   const net = row.monthlyNet[mb.key] || 0;
                                   return (
@@ -5467,8 +5523,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                           </tbody>
                           <tfoot>
                             <tr className="bg-slate-100 font-black text-slate-900">
-                              <td colSpan={3} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black text-slate-900">
+                              <td colSpan={3} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-right font-black text-slate-900">
                                 รวมทั้งสิ้น
+                              </td>
+                              <td className="border border-slate-300 bg-amber-100 px-2 py-1.5 text-right font-black text-amber-950">
+                                {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
                               </td>
                               {savingsGrid.monthBuckets.map((mb) => {
                                 const net = savingsGrid.monthTotals[mb.key] || 0;
@@ -5496,6 +5555,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                             <tr className="bg-cyan-50 text-slate-900">
                               <th className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
                               <th className="border border-slate-300 px-2 py-1.5 text-left w-44">ชื่อ - นามสกุล</th>
+                              <th className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">ยอดยกมา</th>
                               {monthContext.days.map((day) => (
                                 <th
                                   className={`border border-slate-300 px-0.5 py-1.5 text-center ${
@@ -5515,6 +5575,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <tr className="even:bg-slate-50/70" key={row.studentId}>
                                 <td className="border border-slate-300 px-1 py-1 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-2 py-1 font-bold whitespace-nowrap">{row.studentName}</td>
+                                <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1 text-right font-bold text-amber-900">
+                                  {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
+                                </td>
                                 {monthContext.days.map((day) => {
                                   const amt = row.dailyAmounts[day.dateKey];
                                   return (
@@ -5541,6 +5604,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                             <tr className="bg-slate-100 font-black text-slate-900">
                               <td colSpan={2} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black whitespace-nowrap text-slate-900">
                                 รวมเงินออมแต่ละวัน
+                              </td>
+                              <td className="border border-slate-300 bg-amber-100 px-1.5 py-1 text-right font-black text-amber-950">
+                                {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
                               </td>
                               {monthContext.days.map((day) => {
                                 const dayTotal = savingsGrid.dayTotals[day.day];
