@@ -11,7 +11,10 @@ import {
   ChevronDown,
   Clock,
   FileText,
+  Grid3X3,
   Home,
+  LayoutGrid,
+  List,
   MoreHorizontal,
   Pencil,
   Printer,
@@ -285,6 +288,21 @@ export function AttendancePage({ session }: AttendancePageProps) {
   );
   const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [cardDensity, setCardDensity] = useState<'compact' | 'spacious' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('classcare_attendance_view_density');
+      if (saved === 'spacious' || saved === 'list' || saved === 'compact') return saved;
+    }
+    return 'compact';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('classcare_attendance_view_density', cardDensity);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [cardDensity]);
 
   function updateMarks(updater: (previous: Record<string, AttendanceStatus | undefined>) => Record<string, AttendanceStatus | undefined>) {
     setUndoMarks(marks);
@@ -1313,47 +1331,92 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         )}
 
-        {/* Quick action buttons row with tactile gradients and soft shadows */}
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#DCE3D7]">
-          <button
-            type="button"
-            onClick={() => markAll('present')}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#8CC6A7] bg-gradient-to-b from-[#FAFBF8] to-[#E9F0EA] px-3.5 py-1.5 text-xs sm:text-sm font-bold text-[#1C573D] hover:shadow-md active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            <Check size={14} className="text-[#1C573D] stroke-[3]" />
-            <span>ตั้งทุกคนเป็น “มา”</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsQuickRollOpen((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs sm:text-sm font-bold transition-all active:scale-95 shadow-xs cursor-pointer ${
-              isQuickRollOpen
-                ? 'border-amber-400 bg-amber-200 text-amber-950 shadow-inner'
-                : 'border-amber-300 bg-gradient-to-b from-amber-50 to-amber-100/70 text-amber-900 hover:shadow-md'
-            }`}
-          >
-            <UserCheck size={14} className="text-amber-700" />
-            <span>คีย์เลขที่</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsOcrModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-gradient-to-b from-sky-50 to-sky-100/70 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-sky-950 hover:shadow-md active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            <Camera size={14} className="text-sky-700" />
-            <span>สแกน AI</span>
-          </button>
-          {alertStudents.length > 0 && (
+        {/* Quick action buttons row with view mode toggle */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-[#DCE3D7]">
+          {/* View mode toggle: compact grid (4-col on mobile), spacious grid (3-col on mobile), or row-by-row list */}
+          <div className="inline-flex items-center rounded-xl bg-stone-100/90 p-1 border border-stone-200/80 shadow-2xs">
             <button
               type="button"
-              onClick={() => void notifyGuardians()}
-              disabled={isNotifying}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-gradient-to-b from-rose-50 to-rose-100/70 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-rose-950 hover:shadow-md active:scale-95 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              onClick={() => setCardDensity('compact')}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                cardDensity === 'compact'
+                  ? 'bg-white text-stone-900 shadow-xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+              title="มุมมองการ์ดกะทัดรัด (4 คอลัมน์บนมือถือ)"
             >
-              <Send size={14} className="text-rose-700" />
-              <span>แจ้งผู้ปกครอง ({alertStudents.length})</span>
+              <LayoutGrid size={13} />
+              <span>การ์ด</span>
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => setCardDensity('spacious')}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                cardDensity === 'spacious'
+                  ? 'bg-white text-stone-900 shadow-xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+              title="มุมมองการ์ดใหญ่ (3 คอลัมน์บนมือถือ แสดงชื่อตัวใหญ่)"
+            >
+              <Grid3X3 size={13} />
+              <span>การ์ดใหญ่</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCardDensity('list')}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                cardDensity === 'list'
+                  ? 'bg-white text-stone-900 shadow-xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+              title="มุมมองรายชื่อแถวเดียว"
+            >
+              <List size={13} />
+              <span>รายชื่อ</span>
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => markAll('present')}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#8CC6A7] bg-gradient-to-b from-[#FAFBF8] to-[#E9F0EA] px-3.5 py-1.5 text-xs sm:text-sm font-bold text-[#1C573D] hover:shadow-md active:scale-95 transition-all shadow-xs cursor-pointer"
+            >
+              <Check size={14} className="text-[#1C573D] stroke-[3]" />
+              <span>ตั้งทุกคนเป็น “มา”</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsQuickRollOpen((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs sm:text-sm font-bold transition-all active:scale-95 shadow-xs cursor-pointer ${
+                isQuickRollOpen
+                  ? 'border-amber-400 bg-amber-200 text-amber-950 shadow-inner'
+                  : 'border-amber-300 bg-gradient-to-b from-amber-50 to-amber-100/70 text-amber-900 hover:shadow-md'
+              }`}
+            >
+              <UserCheck size={14} className="text-amber-700" />
+              <span>คีย์เลขที่</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsOcrModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-gradient-to-b from-sky-50 to-sky-100/70 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-sky-950 hover:shadow-md active:scale-95 transition-all shadow-xs cursor-pointer"
+            >
+              <Camera size={14} className="text-sky-700" />
+              <span>สแกน AI</span>
+            </button>
+            {alertStudents.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void notifyGuardians()}
+                disabled={isNotifying}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-gradient-to-b from-rose-50 to-rose-100/70 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-rose-950 hover:shadow-md active:scale-95 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                <Send size={14} className="text-rose-700" />
+                <span>แจ้งผู้ปกครอง ({alertStudents.length})</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Quick roll numbers drawer */}
@@ -1405,82 +1468,242 @@ export function AttendancePage({ session }: AttendancePageProps) {
         )}
 
         {/* ======================================================== */}
-        {/* SOFT 3D CLAY STUDENT GRID                                */}
+        {/* STUDENT ATTENDANCE SECTION (CLAY CARDS OR DETAILED LIST) */}
         {/* ======================================================== */}
         <section className="mt-6">
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-4 pt-2">
-            {classroomStudents.map((student, idx) => {
-              const rollNumber = idx + 1;
-              const mark = marks[student.id];
-              const tone = mark ? postItTone[mark] : null;
-              const clayClass = tone ? tone.clayClass : 'clay-card-unmarked';
-              const isPresent = mark === 'present';
-              const displayName = isPresent
-                ? student.nickname || student.first_name
-                : mark ? statusLabels[mark] : 'ยังไม่เช็ก';
-              const hasNote = Boolean(notes[student.id]?.trim());
+          {cardDensity === 'list' ? (
+            /* LIST VIEW: Detailed row-by-row with direct status action pills */
+            <div className="space-y-2 pt-2">
+              {classroomStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const mark = marks[student.id];
+                const tone = mark ? postItTone[mark] : null;
+                const hasNote = Boolean(notes[student.id]?.trim());
+                const rawNickname = student.nickname?.trim();
+                const hasNickname = Boolean(
+                  rawNickname &&
+                  rawNickname !== 'ยังไม่มีชื่อเล่น' &&
+                  rawNickname !== '-' &&
+                  rawNickname.length > 0,
+                );
 
-              return (
-                <div
-                  key={student.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleStudentTap(student.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                return (
+                  <div
+                    key={student.id}
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl border transition-all ${
+                      tone
+                        ? `${tone.clayClass} border-transparent`
+                        : 'bg-white border-[#DCE3D7] hover:border-[#8CC6A7] shadow-xs'
+                    }`}
+                  >
+                    {/* Left: Roll Number & Full Student Identity */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-extrabold text-sm border shadow-2xs ${
+                        tone ? `bg-white/80 ${tone.text} border-white/60` : 'bg-stone-100 text-[#1C342B] border-stone-200/80'
+                      }`}>
+                        {rollNumber}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`font-extrabold text-sm sm:text-base truncate ${tone?.text || 'text-[#1C342B]'}`}>
+                            {student.first_name} {student.last_name}
+                          </p>
+                          {hasNickname && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-200">
+                              น้อง{rawNickname!.replace(/^น้อง/, '')}
+                            </span>
+                          )}
+                        </div>
+                        {student.student_code && (
+                          <p className="text-[11px] text-stone-500 font-medium">
+                            รหัส: {student.student_code}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: Quick Status Buttons & Note/Details Sheet */}
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                      {(['present', 'absent', 'leave', 'late'] as AttendanceStatus[]).map((st) => {
+                        const isSelected = mark === st;
+                        const statusTone = postItTone[st];
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => updateMarks((prev) => ({ ...prev, [student.id]: st }))}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all active:scale-95 cursor-pointer ${
+                              isSelected
+                                ? `${statusTone.clayClass} ${statusTone.text} shadow-xs border border-white/80 ring-2 ring-emerald-600/30`
+                                : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200'
+                            }`}
+                          >
+                            {statusLabels[st]}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        aria-label={`แก้ไขรายละเอียดและหมายเหตุของเลขที่ ${rollNumber} ${student.first_name}`}
+                        onClick={() => setSheetStudentId(student.id)}
+                        className={`relative p-2 rounded-xl border transition-all cursor-pointer ${
+                          hasNote
+                            ? 'bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-amber-400/50'
+                            : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border-stone-200'
+                        }`}
+                        title={hasNote ? `หมายเหตุ: "${notes[student.id]}" (กดเพื่อแก้ไข)` : 'แก้ไขเพิ่มเติม / ใส่หมายเหตุ'}
+                      >
+                        <Pencil size={14} />
+                        {hasNote && (
+                          <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* GRID VIEW: Soft 3D Clay Student Cards with prominent names, roll numbers & statuses */
+            <div
+              className={
+                cardDensity === 'spacious'
+                  ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4 pt-2'
+                  : 'grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2.5 sm:gap-3.5 pt-2'
+              }
+            >
+              {classroomStudents.map((student, idx) => {
+                const rollNumber = idx + 1;
+                const mark = marks[student.id];
+                const tone = mark ? postItTone[mark] : null;
+                const clayClass = tone ? tone.clayClass : 'clay-card-unmarked';
+                const hasNote = Boolean(notes[student.id]?.trim());
+
+                const rawNickname = student.nickname?.trim();
+                const hasNickname = Boolean(
+                  rawNickname &&
+                  rawNickname !== 'ยังไม่มีชื่อเล่น' &&
+                  rawNickname !== '-' &&
+                  rawNickname.length > 0,
+                );
+                const formattedNickname = hasNickname
+                  ? (rawNickname!.startsWith('น้อง') ? rawNickname! : `น้อง${rawNickname}`)
+                  : null;
+
+                // Primary Name: prefer Nickname if present, otherwise First Name
+                const primaryName = formattedNickname || student.first_name;
+                // Secondary Name: if nickname present, show First Name; otherwise show Last Name
+                const secondaryName = formattedNickname ? student.first_name : student.last_name;
+
+                return (
+                  <div
+                    key={student.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleStudentTap(student.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleStudentTap(student.id);
+                      }
+                    }}
+                    onPointerDown={() => handlePointerDown(student.id)}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
+                    onContextMenu={(e) => {
                       e.preventDefault();
-                      handleStudentTap(student.id);
-                    }
-                  }}
-                  onPointerDown={() => handlePointerDown(student.id)}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerCancel}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setSheetStudentId(student.id);
-                  }}
-                  className={`group relative flex flex-col items-center justify-center rounded-2xl p-2 sm:p-2.5 min-h-[72px] sm:min-h-[80px] transition-all select-none cursor-pointer duration-150 hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 ${clayClass}`}
-                  title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${mark ? statusLabels[mark] : 'ยังไม่เช็ก'}) — แตะเพื่อเลือกสถานะ`}
-                >
-                  {/* Cute Edit / Note Button */}
-                  <button
-                    type="button"
-                    aria-label={`แก้ไขรายละเอียดและหมายเหตุของเลขที่ ${rollNumber} ${student.first_name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
                       setSheetStudentId(student.id);
                     }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onPointerUp={(e) => e.stopPropagation()}
-                    className={`absolute top-1 right-1 flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded-full transition-all cursor-pointer z-20 shadow-xs ${
-                      hasNote
-                        ? 'bg-amber-100 text-amber-900 border border-amber-300 ring-2 ring-amber-400/50'
-                        : 'bg-white/80 hover:bg-white text-stone-600 hover:text-stone-900 border border-white/70'
-                    } hover:scale-115 active:scale-90`}
-                    title={hasNote ? `หมายเหตุ: "${notes[student.id]}" (กดเพื่อแก้ไข)` : 'กดเพื่อดูรายละเอียด / ใส่หมายเหตุ'}
+                    className={`group relative flex flex-col justify-between rounded-2xl p-2 sm:p-2.5 min-h-[92px] sm:min-h-[98px] transition-all select-none cursor-pointer duration-150 hover:scale-[1.03] hover:-translate-y-0.5 hover:z-10 ${clayClass}`}
+                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${mark ? statusLabels[mark] : 'ยังไม่เช็ก'}) — แตะเพื่อเลือกสถานะ`}
                   >
-                    <Pencil className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                    {hasNote && (
-                      <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                    {/* Top Row: Roll Number Badge & Note/Edit Pencil Button */}
+                    <div className="flex items-center justify-between w-full">
+                      <span
+                        className={`inline-flex h-5 min-w-[20px] px-1 items-center justify-center rounded-lg text-[11px] sm:text-xs font-black shadow-2xs ${
+                          mark ? `bg-white/80 ${tone?.text || 'text-stone-800'}` : 'bg-stone-200/80 text-stone-700'
+                        }`}
+                      >
+                        {rollNumber}
                       </span>
-                    )}
-                  </button>
 
-                  {/* Large Roll Number */}
-                  <span className={`text-2xl sm:text-3xl font-extrabold leading-none tracking-tight ${tone?.text || 'text-[#5B6A5F]'}`}>
-                    {rollNumber}
-                  </span>
+                      <button
+                        type="button"
+                        aria-label={`แก้ไขรายละเอียดและหมายเหตุของเลขที่ ${rollNumber} ${student.first_name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSheetStudentId(student.id);
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        className={`relative flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded-full transition-all cursor-pointer z-20 shadow-xs ${
+                          hasNote
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300 ring-2 ring-amber-400/50'
+                            : 'bg-white/80 hover:bg-white text-stone-600 hover:text-stone-900 border border-white/70'
+                        } hover:scale-115 active:scale-90`}
+                        title={hasNote ? `หมายเหตุ: "${notes[student.id]}" (กดเพื่อแก้ไข)` : 'กดเพื่อดูรายละเอียด / ใส่หมายเหตุ'}
+                      >
+                        <Pencil className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                        {hasNote && (
+                          <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                          </span>
+                        )}
+                      </button>
+                    </div>
 
-                  {/* Student Name / Status */}
-                  <span className={`text-xs sm:text-sm font-bold truncate mt-1 max-w-full text-center px-0.5 ${tone?.text || 'text-[#5B6A5F]'}`}>
-                    {displayName}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                    {/* Center: Student Name (Always clearly visible!) */}
+                    <div className="my-auto flex flex-col items-center justify-center text-center w-full min-w-0 px-0.5 py-0.5">
+                      <span
+                        className={`text-xs sm:text-sm font-black truncate max-w-full leading-tight tracking-tight ${
+                          tone?.text || 'text-[#1C342B]'
+                        }`}
+                      >
+                        {primaryName}
+                      </span>
+                      {secondaryName && (
+                        <span
+                          className={`text-[10px] font-medium truncate max-w-full leading-none mt-0.5 opacity-70 ${
+                            tone?.text || 'text-stone-500'
+                          }`}
+                        >
+                          {secondaryName}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Bottom Row: Attendance Status Pill */}
+                    <div className="flex items-center justify-center w-full mt-auto pt-1">
+                      {mark ? (
+                        <span
+                          className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-white/85 shadow-2xs leading-none ${
+                            tone?.text || 'text-[#1C342B]'
+                          }`}
+                        >
+                          {mark === 'present' && <Check className="h-2.5 w-2.5 stroke-[3] text-emerald-700" />}
+                          {mark === 'absent' && <X className="h-2.5 w-2.5 stroke-[3] text-rose-700" />}
+                          {mark === 'late' && <Clock className="h-2.5 w-2.5 text-amber-700" />}
+                          {mark === 'leave' && <FileText className="h-2.5 w-2.5 text-sky-700" />}
+                          {mark === 'sick' && <Thermometer className="h-2.5 w-2.5 text-purple-700" />}
+                          {mark === 'activity' && <Award className="h-2.5 w-2.5 text-emerald-700" />}
+                          <span>{statusLabels[mark]}</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold text-stone-400 bg-stone-100/90 border border-stone-200/60 leading-none">
+                          ยังไม่เช็ก
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Empty State */}
           {classroomStudents.length === 0 && !isLoading && (
