@@ -7,6 +7,7 @@ import {
   Archive,
   Camera,
   CheckCircle2,
+  Copy,
   Edit3,
   Eye,
   FileSpreadsheet,
@@ -5461,7 +5462,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     rows: [
                       ['คำนำหน้า', selectedStudent.metadata?.dmc_prefix],
                       ['เพศ', selectedStudent.gender === 'male' ? 'ชาย' : selectedStudent.gender === 'female' ? 'หญิง' : selectedStudent.gender],
-                      ['วันเกิด', selectedStudent.birth_date],
+                      ['วันเกิด', selectedStudent.birth_date ? formatThaiOfficialDate(selectedStudent.birth_date) : '-'],
                       ['เลขบัตรประชาชน', selectedStudent.metadata?.dmc_id_card],
                       ['น้ำหนัก', selectedStudent.health_flags?.weight_kg ? `${selectedStudent.health_flags.weight_kg} กก.` : null],
                       ['ส่วนสูง', selectedStudent.health_flags?.height_cm ? `${selectedStudent.health_flags.height_cm} ซม.` : null],
@@ -6670,11 +6671,44 @@ export function StudentsPage({ session }: StudentsPageProps) {
         const bmi = calculateBmi(textValue(healthFlags.weight_kg), textValue(healthFlags.height_cm));
         const age = calculateAge(student.birth_date);
 
+        const dmcFather = objectValue(metadata.dmc_father);
+        const dmcMother = objectValue(metadata.dmc_mother);
+
+        // วันเกิดรูปแบบปฏิทินไทย เช่น 31 พฤษภาคม 2558
+        const thaiBirthDate = student.birth_date ? formatThaiOfficialDate(student.birth_date) : '-';
+
+        // จัดรูปแบบเลขบัตรประชาชน 13 หลักให้อ่านง่าย (X-XXXX-XXXXX-XX-X)
+        const rawCitizenId = textValue(metadata.dmc_id_card) || '';
+        const formattedCitizenId = (() => {
+          const digits = rawCitizenId.replace(/\D/g, '');
+          if (digits.length === 13) {
+            return `${digits.slice(0, 1)}-${digits.slice(1, 5)}-${digits.slice(5, 10)}-${digits.slice(10, 12)}-${digits.slice(12)}`;
+          }
+          return rawCitizenId || '-';
+        })();
+
         const guardianDisplayName = [
           textValue(dmcGuardian.prefix),
           textValue(dmcGuardian.first_name),
           textValue(dmcGuardian.last_name),
         ].filter(Boolean).join(' ') || primaryGuardian?.display_name || '-';
+
+        const guardianOccupation = textValue(dmcGuardian.occupation);
+        const guardianRelation = textValue(dmcGuardian.relation) || textValue(metadata.parent_relation) || 'ผู้ปกครอง';
+
+        const fatherDisplayName = [
+          textValue(dmcFather.prefix),
+          textValue(dmcFather.first_name),
+          textValue(dmcFather.last_name),
+        ].filter(Boolean).join(' ') || textValue(metadata.father_name) || '';
+        const fatherOccupation = textValue(dmcFather.occupation);
+
+        const motherDisplayName = [
+          textValue(dmcMother.prefix),
+          textValue(dmcMother.first_name),
+          textValue(dmcMother.last_name),
+        ].filter(Boolean).join(' ') || textValue(metadata.mother_name) || '';
+        const motherOccupation = textValue(dmcMother.occupation);
 
         const addressString = [
           textValue(dmcAddress.house_no) ? `บ้านเลขที่ ${textValue(dmcAddress.house_no)}` : '',
@@ -6717,19 +6751,19 @@ export function StudentsPage({ session }: StudentsPageProps) {
                           {student.first_name} {student.last_name}
                         </h3>
                         {student.nickname ? (
-                          <span className="rounded-full bg-amber-100/90 px-2.5 py-0.5 text-xs font-black text-amber-900 border border-amber-200">
-                            {student.nickname}
+                          <span className="rounded-full bg-amber-100/90 px-2.5 py-0.5 text-xs font-black text-amber-900 border border-amber-200 shadow-2xs">
+                            น้อง{student.nickname.replace(/^น้อง/, '')}
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="rounded-lg bg-white/90 px-2 py-0.5 font-mono font-black text-slate-700 shadow-2xs border border-slate-200/60 dark:bg-slate-800 dark:text-slate-300">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-lg bg-white/95 px-2.5 py-0.5 font-mono font-black text-slate-700 shadow-2xs border border-slate-200/80 dark:bg-slate-800 dark:text-slate-300">
                           รหัส: {student.student_code || '-'}
                         </span>
-                        <span className="rounded-lg bg-emerald-100/80 px-2 py-0.5 font-black text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-400">
+                        <span className="rounded-lg bg-emerald-100/80 px-2.5 py-0.5 font-black text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-400">
                           ห้อง: {studentClassroom?.name || 'ยังไม่ผูกห้อง'}
                         </span>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 font-black text-emerald-800 border border-emerald-200/70">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 font-black text-emerald-800 border border-emerald-200/80">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           {statusLabels[student.status]}
                         </span>
@@ -6738,7 +6772,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   </div>
 
                   <button
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700 shadow-2xs border border-slate-200/60 cursor-pointer"
                     onClick={() => setViewingStudent(null)}
                     type="button"
                     title="ปิดหน้าต่าง"
@@ -6750,154 +6784,295 @@ export function StudentsPage({ session }: StudentsPageProps) {
 
               {/* Body */}
               <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
-                {/* หมวดที่ 1: ข้อมูลทั่วไป */}
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
-                    <UserRound size={15} className="text-emerald-600" />
-                    <span>ข้อมูลส่วนตัว & ประจำตัว</span>
+                {/* หมวดที่ 1: ข้อมูลส่วนตัว & ประจำตัว */}
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-slate-800 dark:bg-slate-850">
+                  <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-100/80 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                      <UserRound size={15} />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                      ข้อมูลส่วนตัว & ประจำตัว
+                    </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span className="text-slate-400 block font-medium">เลขประจำตัวประชาชน</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-mono text-xs font-black">
-                        {textValue(metadata.dmc_id_card) || '-'}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                    {/* เลขบัตรประชาชน */}
+                    <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-200/60 dark:bg-slate-800/50 dark:border-slate-700/60">
+                      <span className="text-slate-400 block font-medium text-[11px]">เลขประจำตัวประชาชน</span>
+                      <strong className="mt-0.5 block text-slate-900 dark:text-slate-100 font-mono text-xs font-black tracking-wide">
+                        {formattedCitizenId}
                       </strong>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">เพศ</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'ไม่ระบุ'}
-                      </strong>
+
+                    {/* วันเกิด / อายุ (ปฏิทินไทย) */}
+                    <div className="rounded-xl bg-amber-50/60 p-2.5 border border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-900/40">
+                      <span className="text-amber-800/80 dark:text-amber-400 block font-medium text-[11px]">วันเกิด / อายุ (ปฏิทินไทย)</span>
+                      <div className="mt-0.5">
+                        <strong className="block text-slate-900 dark:text-slate-100 font-black text-xs">
+                          {thaiBirthDate}
+                        </strong>
+                        {age && (
+                          <span className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-200/80">
+                            อายุ {age}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">วันเกิด / อายุ</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {student.birth_date ? `${student.birth_date} (${age})` : '-'}
-                      </strong>
+
+                    {/* เพศ */}
+                    <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-200/60 dark:bg-slate-800/50 dark:border-slate-700/60">
+                      <span className="text-slate-400 block font-medium text-[11px]">เพศ</span>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 text-[11px] font-black border ${
+                          student.gender === 'female'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : student.gender === 'male'
+                            ? 'bg-sky-50 text-sky-800 border-sky-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {student.gender === 'female' ? '👧 หญิง' : student.gender === 'male' ? '👦 ชาย' : 'ไม่ระบุ'}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">สัญชาติ / เชื้อชาติ</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+
+                    {/* สัญชาติ / เชื้อชาติ */}
+                    <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-200/60 dark:bg-slate-800/50 dark:border-slate-700/60">
+                      <span className="text-slate-400 block font-medium text-[11px]">สัญชาติ / เชื้อชาติ</span>
+                      <strong className="mt-0.5 block text-slate-800 dark:text-slate-200 font-black">
                         {textValue(metadata.dmc_nationality) || 'ไทย'} / {textValue(metadata.dmc_ethnicity) || 'ไทย'}
                       </strong>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">ศาสนา</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
+
+                    {/* ศาสนา */}
+                    <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-200/60 dark:bg-slate-800/50 dark:border-slate-700/60">
+                      <span className="text-slate-400 block font-medium text-[11px]">ศาสนา</span>
+                      <strong className="mt-0.5 block text-slate-800 dark:text-slate-200 font-black">
                         {textValue(metadata.dmc_religion) || 'พุทธ'}
                       </strong>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">สถานะการดูแล</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {getCareLabel(student.care_flags)}
-                      </strong>
+
+                    {/* สถานะการดูแล */}
+                    <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-200/60 dark:bg-slate-800/50 dark:border-slate-700/60">
+                      <span className="text-slate-400 block font-medium text-[11px]">สถานะการดูแล</span>
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-800 border border-emerald-200/80">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          {getCareLabel(student.care_flags)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* หมวดที่ 2: การติดต่อ & ผู้ปกครอง */}
-                <div className="rounded-2xl border border-teal-200/80 bg-teal-50/40 p-4 dark:border-teal-900/60 dark:bg-teal-950/20">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-teal-800 dark:text-teal-400 mb-3">
-                    <Phone size={15} className="text-teal-600" />
-                    <span>ข้อมูลติดต่อ & ผู้ปกครอง</span>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-3 text-xs">
-                    <div className="rounded-xl bg-white p-3 border border-teal-100 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
-                      <span className="text-slate-400 block font-medium">เบอร์โทรศัพท์นักเรียน</span>
-                      <div className="mt-1 flex items-center justify-between">
-                        <strong className="text-slate-900 dark:text-white font-mono text-sm font-black">
-                          {studentPhone || 'ยังไม่มีเบอร์'}
-                        </strong>
-                        {studentPhone ? (
-                          <a
-                            href={`tel:${studentPhone}`}
-                            className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2 py-1 text-[11px] font-black text-teal-700 hover:bg-teal-100 transition"
-                          >
-                            <PhoneCall size={12} /> โทร
-                          </a>
-                        ) : null}
-                      </div>
+                {/* หมวดที่ 2: ข้อมูลติดต่อ & ครอบครัว */}
+                <div className="rounded-2xl border border-teal-200/80 bg-gradient-to-b from-teal-50/40 to-white p-4.5 shadow-2xs dark:border-teal-900/60 dark:bg-slate-850">
+                  <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-teal-100 dark:border-teal-900/40">
+                    <div className="grid h-7 w-7 place-items-center rounded-lg bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-400">
+                      <Phone size={15} />
                     </div>
+                    <span className="text-xs font-black uppercase tracking-wider text-teal-950 dark:text-teal-300">
+                      ข้อมูลติดต่อ & ครอบครัว
+                    </span>
+                  </div>
 
-                    <div className="rounded-xl bg-white p-3 border border-teal-100 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
-                      <span className="text-slate-400 block font-medium">เบอร์โทรผู้ปกครอง</span>
-                      <div className="mt-1 flex items-center justify-between">
-                        <strong className="text-slate-900 dark:text-white font-mono text-sm font-black">
-                          {guardianPhone || 'ยังไม่มีเบอร์'}
-                        </strong>
+                  {/* ผู้ปกครองหลัก Card */}
+                  <div className="rounded-xl bg-white p-3.5 border border-teal-200/70 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-slate-400 text-[11px] font-bold">ผู้ปกครองหลัก:</span>
+                          <strong className="text-sm font-black text-slate-900 dark:text-white">
+                            {guardianDisplayName}
+                          </strong>
+                          <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-[11px] font-black text-teal-900 border border-teal-200 dark:bg-teal-950 dark:text-teal-300">
+                            {guardianRelation}
+                          </span>
+                        </div>
+                        {guardianOccupation && (
+                          <p className="mt-1 text-xs text-slate-500 font-medium">
+                            อาชีพ: {guardianOccupation}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Phone & Call Button */}
+                      <div className="flex items-center gap-2 shrink-0">
                         {guardianPhone ? (
                           <a
                             href={`tel:${guardianPhone}`}
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-black text-white hover:bg-emerald-700 transition shadow-sm"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-emerald-700 shadow-sm transition active:scale-95 cursor-pointer"
                           >
-                            <PhoneCall size={12} /> โทรด่วน
+                            <PhoneCall size={13} />
+                            <span className="font-mono font-black">{guardianPhone}</span>
+                            <span className="text-[10px] bg-emerald-700 px-1.5 py-0.5 rounded-md ml-0.5">โทรออก</span>
                           </a>
-                        ) : null}
+                        ) : (
+                          <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">
+                            ยังไม่มีเบอร์ติดต่อ
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Subgrid: บิดา, มารดา, เบอร์ส่วนตัวนักเรียน */}
+                  <div className="mt-2.5 grid sm:grid-cols-3 gap-2.5 text-xs">
+                    {/* บิดา */}
+                    <div className="rounded-xl bg-white/90 p-2.5 border border-teal-100/80 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-medium text-[11px]">บิดา</span>
+                      <strong className="mt-0.5 block text-slate-800 dark:text-slate-200 font-bold truncate">
+                        {fatherDisplayName || '-'}
+                      </strong>
+                      {fatherOccupation && (
+                        <span className="text-[11px] text-slate-500 block truncate">
+                          ({fatherOccupation})
+                        </span>
+                      )}
+                    </div>
+
+                    {/* มารดา */}
+                    <div className="rounded-xl bg-white/90 p-2.5 border border-teal-100/80 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-medium text-[11px]">มารดา</span>
+                      <strong className="mt-0.5 block text-slate-800 dark:text-slate-200 font-bold truncate">
+                        {motherDisplayName || '-'}
+                      </strong>
+                      {motherOccupation && (
+                        <span className="text-[11px] text-slate-500 block truncate">
+                          ({motherOccupation})
+                        </span>
+                      )}
+                    </div>
+
+                    {/* เบอร์โทรศัพท์นักเรียน */}
+                    <div className="rounded-xl bg-white/90 p-2.5 border border-teal-100/80 shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-medium text-[11px]">เบอร์ส่วนตัวนักเรียน</span>
+                      <div className="mt-0.5 flex items-center justify-between">
+                        <strong className="text-slate-800 dark:text-slate-200 font-mono text-xs font-black">
+                          {studentPhone || 'ยังไม่มีเบอร์'}
+                        </strong>
+                        {studentPhone && (
+                          <a
+                            href={`tel:${studentPhone}`}
+                            className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2 py-0.5 text-[10px] font-black text-teal-700 hover:bg-teal-100 transition"
+                          >
+                            <PhoneCall size={11} /> โทร
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* หมวดที่ 3: สุขภาพ & กายภาพ */}
+                <div className="rounded-2xl border border-rose-200/80 bg-gradient-to-b from-rose-50/30 to-white p-4.5 shadow-2xs dark:border-rose-900/60 dark:bg-slate-850">
+                  <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-rose-100 dark:border-rose-900/40">
+                    <div className="grid h-7 w-7 place-items-center rounded-lg bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-400">
+                      <HeartPulse size={15} />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-wider text-rose-950 dark:text-rose-300">
+                      สุขภาพ & กายภาพ
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                    {/* ส่วนสูง */}
+                    <div className="rounded-xl border border-slate-200/80 bg-white p-3 text-center shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-bold text-[11px]">ส่วนสูง</span>
+                      <div className="mt-1 flex items-baseline justify-center gap-0.5">
+                        <span className="text-lg font-black text-slate-900 dark:text-white">
+                          {textValue(healthFlags.height_cm) || '-'}
+                        </span>
+                        {textValue(healthFlags.height_cm) && <span className="text-[11px] font-bold text-slate-500">ซม.</span>}
                       </div>
                     </div>
 
-                    <div>
-                      <span className="text-slate-400 block font-medium">ชื่อผู้ปกครองหลัก</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {guardianDisplayName}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-400 block font-medium">ความสัมพันธ์</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {textValue(dmcGuardian.relation) || 'ผู้ปกครอง'}
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-
-                {/* หมวดที่ 3: สุขภาพ & ร่างกาย */}
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
-                    <HeartPulse size={15} className="text-rose-600" />
-                    <span>สุขภาพ & กายภาพ</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div>
-                      <span className="text-slate-400 block font-medium">ส่วนสูง</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {textValue(healthFlags.height_cm) ? `${textValue(healthFlags.height_cm)} ซม.` : '-'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">น้ำหนัก</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {textValue(healthFlags.weight_kg) ? `${textValue(healthFlags.weight_kg)} กก.` : '-'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">ดัชนีมวลกาย (BMI)</span>
-                      {bmi ? (
-                        <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-black border ${bmi.tone}`}>
-                          {bmi.value} ({bmi.label})
+                    {/* น้ำหนัก */}
+                    <div className="rounded-xl border border-slate-200/80 bg-white p-3 text-center shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-bold text-[11px]">น้ำหนัก</span>
+                      <div className="mt-1 flex items-baseline justify-center gap-0.5">
+                        <span className="text-lg font-black text-slate-900 dark:text-white">
+                          {textValue(healthFlags.weight_kg) || '-'}
                         </span>
-                      ) : (
-                        <span className="text-slate-400 font-bold">-</span>
+                        {textValue(healthFlags.weight_kg) && <span className="text-[11px] font-bold text-slate-500">กก.</span>}
+                      </div>
+                    </div>
+
+                    {/* ดัชนีมวลกาย (BMI) */}
+                    <div className="rounded-xl border border-slate-200/80 bg-white p-3 text-center shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-bold text-[11px]">ดัชนีมวลกาย (BMI)</span>
+                      <div className="mt-1 flex flex-col items-center justify-center">
+                        {bmi ? (
+                          <>
+                            <span className="text-lg font-black text-slate-900 dark:text-white">{bmi.value}</span>
+                            <span className={`mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${bmi.tone}`}>
+                              {bmi.label}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-lg font-black text-slate-400">-</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* หมู่เลือด */}
+                    <div className="rounded-xl border border-slate-200/80 bg-white p-3 text-center shadow-2xs dark:bg-slate-800 dark:border-slate-700">
+                      <span className="text-slate-400 block font-bold text-[11px]">หมู่เลือด</span>
+                      <div className="mt-1 flex items-center justify-center">
+                        <span className="text-lg font-black text-rose-700 dark:text-rose-400">
+                          {textValue(healthFlags.blood_type) || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* โรคประจำตัว / การแพ้ */}
+                  {(textValue(healthFlags.congenital_disease) || textValue(healthFlags.allergies)) && (
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      {textValue(healthFlags.congenital_disease) && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 font-bold text-amber-900">
+                          ⚠️ โรคประจำตัว: {textValue(healthFlags.congenital_disease)}
+                        </div>
+                      )}
+                      {textValue(healthFlags.allergies) && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 font-bold text-rose-900">
+                          🚫 ประวัติแพ้ยา/อาหาร: {textValue(healthFlags.allergies)}
+                        </div>
                       )}
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">หมู่เลือด</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-black">
-                        {textValue(healthFlags.blood_type) || '-'}
-                      </strong>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* หมวดที่ 4: ที่อยู่ตามทะเบียน */}
-                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-                    <MapPin size={15} className="text-sky-600" />
-                    <span>ที่อยู่ตามทะเบียนราษฎร์ (DMC)</span>
+                {/* หมวดที่ 4: ที่อยู่ตามทะเบียนราษฎร์ (DMC) */}
+                <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-b from-sky-50/30 to-white p-4.5 shadow-2xs dark:border-sky-900/60 dark:bg-slate-850">
+                  <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-sky-100 dark:border-sky-900/40">
+                    <div className="flex items-center gap-2">
+                      <div className="grid h-7 w-7 place-items-center rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-400">
+                        <MapPin size={15} />
+                      </div>
+                      <span className="text-xs font-black uppercase tracking-wider text-sky-950 dark:text-sky-300">
+                        ที่อยู่ตามทะเบียนราษฎร์ (DMC)
+                      </span>
+                    </div>
+
+                    {addressString && addressString !== '-' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(addressString);
+                            setNotice('คัดลอกที่อยู่เรียบร้อยแล้ว');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-bold text-sky-800 hover:bg-sky-50 transition cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-sky-300"
+                        title="คัดลอกที่อยู่"
+                      >
+                        <Copy size={12} />
+                        <span>คัดลอก</span>
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-relaxed">
                     {addressString}
                   </p>
                 </div>
