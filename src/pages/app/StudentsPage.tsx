@@ -7,6 +7,8 @@ import {
   Archive,
   Camera,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Copy,
   Edit3,
   Eye,
@@ -1186,6 +1188,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const [viewingStudent, setViewingStudent] = useState<StudentRow | null>(null);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showParentsForm, setShowParentsForm] = useState(false);
   const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
   const [studentForm, setStudentForm] = useState(() => emptyStudentForm(useRealBackend ? '' : demoClassrooms[0].id));
   const [classroomName, setClassroomName] = useState(session.workspace?.classroomName || 'ป.5/2');
@@ -1756,6 +1759,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
   function resetStudentForm(nextClassroomId = classrooms.find((classroom) => classroom.status === 'active')?.id || '') {
     setEditingStudentId(null);
     setIsEditModalOpen(false);
+    setShowParentsForm(false);
     setStudentForm(emptyStudentForm(nextClassroomId));
   }
 
@@ -1776,6 +1780,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       studentGuardians.find((item) => item.is_primary) || studentGuardians[0] || null;
     setSelectedStudentId(student.id);
     setEditingStudentId(student.id);
+    setShowParentsForm(Boolean(father.first_name || mother.first_name));
     setStudentForm({
       bloodType: textValue(healthFlags.blood_type),
       birthDate: student.birth_date || '',
@@ -6225,7 +6230,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           role="presentation"
         >
           <div
-            className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10"
+            className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10 dark:bg-slate-900 dark:ring-slate-800"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -6238,18 +6243,25 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   {editingStudentId ? <Edit3 size={20} aria-hidden="true" /> : <UserPlus size={20} aria-hidden="true" />}
                 </span>
                 <div>
-                  <h3 className="text-lg font-black text-slate-950 dark:text-white" id="student-edit-modal-title">
-                    {editingStudentId ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียนใหม่'}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-950 dark:text-white" id="student-edit-modal-title">
+                      {editingStudentId ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียนใหม่'}
+                    </h3>
+                    {editingStudentId && (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-black text-amber-900 border border-amber-200">
+                        {studentForm.studentCode ? `รหัส ${studentForm.studentCode}` : 'กำลังแก้ไข'}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs font-bold text-slate-500">
                     {editingStudentId
-                      ? `${studentForm.firstName} ${studentForm.lastName} (${studentForm.studentCode || 'ไม่มีรหัส'})`
+                      ? `${studentForm.prefix || ''}${studentForm.firstName} ${studentForm.lastName}`.trim() || 'ข้อมูลนักเรียน'
                       : 'กรอกข้อมูลนักเรียนเพื่อบันทึกเข้าห้องเรียน'}
                   </p>
                 </div>
               </div>
               <button
-                className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700"
+                className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer"
                 onClick={() => resetStudentForm(studentForm.classroomId)}
                 type="button"
                 title="ปิดหน้าต่าง"
@@ -6259,20 +6271,32 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
 
             {/* Modal Body / Form */}
-            <form className="flex-1 overflow-y-auto p-6" onSubmit={handleStudentSubmit}>
-              <div className="grid gap-6">
-                {/* Section 1: ข้อมูลพื้นฐาน & ห้องเรียน */}
-                <div className="rounded-2xl border border-amber-200/60 bg-amber-50/40 p-4">
-                  <h4 className="flex items-center gap-2 text-sm font-black text-amber-900">
-                    <UserRound size={17} /> ข้อมูลพื้นฐาน & ห้องเรียน
-                  </h4>
+            <form className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" onSubmit={handleStudentSubmit}>
+              {/* หมวดที่ 1: ข้อมูลส่วนตัว & ประจำตัว */}
+              <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-b from-amber-50/30 to-white p-5 shadow-2xs dark:border-amber-900/40 dark:bg-slate-850">
+                <div className="flex items-center gap-2.5 pb-3 mb-4 border-b border-amber-100 dark:border-amber-900/30">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400">
+                    <UserRound size={17} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                      ข้อมูลส่วนตัว & ประจำตัว
+                    </h4>
+                    <p className="text-[11px] font-bold text-slate-400">
+                      ห้องเรียน รหัสประจำตัว เลขบัตรประชาชน และข้อมูลส่วนบุคคล
+                    </p>
+                  </div>
+                </div>
 
+                <div className="space-y-4">
                   {/* แถวที่ 1: ห้องเรียน, รหัสนักเรียน, เลขบัตรประชาชน */}
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ห้องเรียน <span className="text-rose-500">*</span>
+                  <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-1 font-bold">
+                        ห้องเรียน <span className="text-rose-500 font-bold">*</span>
+                      </span>
                       <select
-                        className="nexus-field h-10 px-3 text-sm font-bold bg-white"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, classroomId: e.target.value }))}
                         value={studentForm.classroomId}
                       >
@@ -6284,19 +6308,21 @@ export function StudentsPage({ session }: StudentsPageProps) {
                         {activeClassrooms.length === 0 ? <option value="">สร้างจากห้องเรียนปัจจุบัน</option> : null}
                       </select>
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      รหัสประจำตัวนักเรียน
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">รหัสประจำตัวนักเรียน</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, studentCode: e.target.value }))}
                         placeholder="เช่น 2428 หรือ 001"
                         value={studentForm.studentCode}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      เลขบัตรประชาชน (13 หลัก)
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">เลขบัตรประชาชน (13 หลัก)</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold font-mono tracking-wider bg-white dark:bg-slate-800"
                         maxLength={13}
                         onChange={(e) => setStudentForm((c) => ({ ...c, citizenId: e.target.value }))}
                         placeholder="1330501xxxxxx"
@@ -6306,40 +6332,47 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   </div>
 
                   {/* แถวที่ 2: คำนำหน้า, ชื่อจริง, นามสกุล, ชื่อเล่น */}
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      คำนำหน้า
+                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-12">
+                    <label className="col-span-2 lg:col-span-2 flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">คำนำหน้า</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, prefix: e.target.value }))}
-                        placeholder="ด.ช. / ด.ญ. / นาย / นางสาว"
+                        placeholder="ด.ช. / ด.ญ."
                         value={studentForm.prefix}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ชื่อนักเรียน <span className="text-rose-500">*</span>
+
+                    <label className="col-span-2 sm:col-span-1 lg:col-span-4 flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-1 font-bold">
+                        ชื่อนักเรียน <span className="text-rose-500 font-bold">*</span>
+                      </span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, firstName: e.target.value }))}
                         placeholder="ชื่อจริง"
                         required
                         value={studentForm.firstName}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      นามสกุล <span className="text-rose-500">*</span>
+
+                    <label className="col-span-2 sm:col-span-1 lg:col-span-4 flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-1 font-bold">
+                        นามสกุล <span className="text-rose-500 font-bold">*</span>
+                      </span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, lastName: e.target.value }))}
                         placeholder="นามสกุล"
                         required
                         value={studentForm.lastName}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ชื่อเล่น
+
+                    <label className="col-span-2 lg:col-span-2 flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">ชื่อเล่น</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, nickname: e.target.value }))}
                         placeholder="ชื่อเล่น"
                         value={studentForm.nickname}
@@ -6347,12 +6380,12 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     </label>
                   </div>
 
-                  {/* แถวที่ 3: เพศ, วันเกิด */}
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      เพศ
+                  {/* แถวที่ 3: เพศ, วันเกิด, เบอร์โทรศัพท์นักเรียน */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">เพศ</span>
                       <select
-                        className="nexus-field h-10 px-3 text-sm font-bold bg-white"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) =>
                           setStudentForm((c) => ({
                             ...c,
@@ -6366,165 +6399,427 @@ export function StudentsPage({ session }: StudentsPageProps) {
                         <option value="female">หญิง</option>
                       </select>
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      วันเกิด
-                      <ThaiDatePicker className="h-10 px-3 text-sm" onValueChange={(value) => setStudentForm((current) => ({ ...current, birthDate: value }))} value={studentForm.birthDate} />
-                    </label>
-                  </div>
 
-                  {/* Highlighted Phone Number Input Fields */}
-                  <div className="mt-4 grid gap-3 rounded-2xl bg-white p-3.5 ring-1 ring-amber-300 sm:grid-cols-2 shadow-sm">
-                    <label className="grid gap-1.5 text-xs font-black text-teal-900">
-                      <span className="flex items-center gap-1.5 text-teal-700">
-                        <Phone size={15} /> เบอร์โทรศัพท์นักเรียน
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">วันเกิด (ปฏิทินไทย)</span>
+                      <ThaiDatePicker
+                        className="h-10 px-3 text-sm"
+                        onValueChange={(value) => setStudentForm((current) => ({ ...current, birthDate: value }))}
+                        value={studentForm.birthDate}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Phone size={13} className="text-teal-600" /> เบอร์โทรศัพท์นักเรียน
                       </span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-teal-500"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, studentPhone: e.target.value }))}
                         placeholder="08X-XXX-XXXX"
                         type="tel"
                         value={studentForm.studentPhone}
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-black text-cyan-900">
-                      <span className="flex items-center gap-1.5 text-cyan-700">
-                        <Phone size={15} /> เบอร์โทรศัพท์ผู้ปกครอง
+                  </div>
+
+                  {/* แถวที่ 4: สัญชาติ, เชื้อชาติ, ศาสนา */}
+                  <div className="grid gap-3 sm:grid-cols-3 pt-1">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-slate-500 dark:text-slate-400">สัญชาติ</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-semibold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, nationality: e.target.value }))}
+                        placeholder="ไทย"
+                        value={studentForm.nationality}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-slate-500 dark:text-slate-400">เชื้อชาติ</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-semibold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, ethnicity: e.target.value }))}
+                        placeholder="ไทย"
+                        value={studentForm.ethnicity}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-slate-500 dark:text-slate-400">ศาสนา</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-semibold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, religion: e.target.value }))}
+                        placeholder="พุทธ / คริสต์ / อิสลาม"
+                        value={studentForm.religion}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* หมวดที่ 2: ข้อมูลผู้ปกครอง & ครอบครัว */}
+              <div className="rounded-2xl border border-sky-200/70 bg-gradient-to-b from-sky-50/30 to-white p-5 shadow-2xs dark:border-sky-900/40 dark:bg-slate-850">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-sky-100 dark:border-sky-900/30">
+                  <div className="flex items-center gap-2.5">
+                    <div className="grid h-8 w-8 place-items-center rounded-xl bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-400">
+                      <Users size={17} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        ข้อมูลผู้ปกครอง & ครอบครัว
+                      </h4>
+                      <p className="text-[11px] font-bold text-slate-400">
+                        ผู้ปกครองหลักที่ติดต่อได้ และข้อมูลบิดา-มารดา (DMC)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* การ์ดผู้ปกครองหลัก */}
+                <div className="rounded-xl border border-sky-200/80 bg-white/80 p-4 shadow-2xs dark:border-sky-900/50 dark:bg-slate-800/80">
+                  <div className="text-xs font-black text-sky-950 dark:text-sky-300 mb-3 flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-sky-500"></span>
+                    <span>ผู้ปกครองหลัก</span>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">คำนำหน้า</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianPrefix: e.target.value }))}
+                        placeholder="นาย / นาง / นางสาว"
+                        value={studentForm.guardianPrefix}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">ชื่อผู้ปกครอง</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianFirstName: e.target.value }))}
+                        placeholder="ชื่อผู้ปกครอง"
+                        value={studentForm.guardianFirstName}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">นามสกุลผู้ปกครอง</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianLastName: e.target.value }))}
+                        placeholder="นามสกุล"
+                        value={studentForm.guardianLastName}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">ความสัมพันธ์</span>
+                      <input
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianRelation: e.target.value }))}
+                        placeholder="เช่น มารดา, บิดา, ป้า"
+                        value={studentForm.guardianRelation}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-1.5 font-bold text-sky-900 dark:text-sky-300">
+                        <Phone size={13} className="text-sky-600" /> เบอร์โทรศัพท์ผู้ปกครอง
                       </span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-cyan-500"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800 text-sky-950 dark:text-sky-100"
                         onChange={(e) => setStudentForm((c) => ({ ...c, guardianPhone: e.target.value }))}
                         placeholder="08X-XXX-XXXX"
                         type="tel"
                         value={studentForm.guardianPhone}
                       />
                     </label>
-                  </div>
-                </div>
 
-                {/* Section 2: ข้อมูลผู้ปกครองหลัก */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                  <h4 className="flex items-center gap-2 text-sm font-black text-slate-900">
-                    <Users size={17} /> ข้อมูลผู้ปกครองหลัก
-                  </h4>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      คำนำหน้าผู้ปกครอง
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">อาชีพผู้ปกครอง</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianPrefix: e.target.value }))}
-                        placeholder="นาย / นาง / นางสาว"
-                        value={studentForm.guardianPrefix}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ชื่อผู้ปกครอง
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianFirstName: e.target.value }))}
-                        placeholder="ชื่อผู้ปกครอง"
-                        value={studentForm.guardianFirstName}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      นามสกุลผู้ปกครอง
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianLastName: e.target.value }))}
-                        placeholder="นามสกุล"
-                        value={studentForm.guardianLastName}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ความสัมพันธ์
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianRelation: e.target.value }))}
-                        placeholder="บิดา / มารดา / ปู่ / ย่า"
-                        value={studentForm.guardianRelation}
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, guardianOccupation: e.target.value }))}
+                        placeholder="เช่น รับจ้าง, ค้าขาย, เกษตรกรรม"
+                        value={studentForm.guardianOccupation}
                       />
                     </label>
                   </div>
                 </div>
 
-                {/* Section 3: ที่อยู่ DMC & สุขภาพ */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                  <h4 className="flex items-center gap-2 text-sm font-black text-slate-900">
-                    <MapPin size={17} /> ที่อยู่ DMC & สุขภาพพื้นฐาน
-                  </h4>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      บ้านเลขที่
+                {/* บิดา & มารดา (DMC) Toggle & Form */}
+                <div className="mt-4 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowParentsForm((prev) => !prev)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3.5 py-2 text-xs font-bold text-sky-900 hover:bg-sky-50 transition cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-sky-300"
+                  >
+                    {showParentsForm ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    <span>{showParentsForm ? 'ซ่อนข้อมูลบิดา-มารดา (DMC)' : 'แสดง/แก้ไขข้อมูลบิดา-มารดา (DMC)'}</span>
+                    {(studentForm.fatherFirstName || studentForm.motherFirstName) && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        มีข้อมูล
+                      </span>
+                    )}
+                  </button>
+
+                  {showParentsForm && (
+                    <div className="mt-3 grid gap-4 lg:grid-cols-2 pt-1 animate-fadeIn">
+                      {/* บิดา */}
+                      <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-2xs dark:border-slate-700 dark:bg-slate-800/60">
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200 block mb-3">
+                          👨 ข้อมูลบิดา (DMC)
+                        </span>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-12 gap-2">
+                            <label className="col-span-4 flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>คำนำหน้า</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, fatherPrefix: e.target.value }))}
+                                placeholder="นาย"
+                                value={studentForm.fatherPrefix}
+                              />
+                            </label>
+                            <label className="col-span-8 flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>ชื่อบิดา</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, fatherFirstName: e.target.value }))}
+                                placeholder="ชื่อบิดา"
+                                value={studentForm.fatherFirstName}
+                              />
+                            </label>
+                          </div>
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>นามสกุลบิดา</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, fatherLastName: e.target.value }))}
+                                placeholder="นามสกุล"
+                                value={studentForm.fatherLastName}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>อาชีพบิดา</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, fatherOccupation: e.target.value }))}
+                                placeholder="เช่น เกษตรกรรม"
+                                value={studentForm.fatherOccupation}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* มารดา */}
+                      <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-2xs dark:border-slate-700 dark:bg-slate-800/60">
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200 block mb-3">
+                          👩 ข้อมูลมารดา (DMC)
+                        </span>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-12 gap-2">
+                            <label className="col-span-4 flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>คำนำหน้า</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, motherPrefix: e.target.value }))}
+                                placeholder="นาง / น.ส."
+                                value={studentForm.motherPrefix}
+                              />
+                            </label>
+                            <label className="col-span-8 flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>ชื่อมารดา</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, motherFirstName: e.target.value }))}
+                                placeholder="ชื่อมารดา"
+                                value={studentForm.motherFirstName}
+                              />
+                            </label>
+                          </div>
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>นามสกุลมารดา</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, motherLastName: e.target.value }))}
+                                placeholder="นามสกุล"
+                                value={studentForm.motherLastName}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>อาชีพมารดา</span>
+                              <input
+                                className="nexus-field h-9 px-2.5 text-xs font-bold bg-white dark:bg-slate-800"
+                                onChange={(e) => setStudentForm((c) => ({ ...c, motherOccupation: e.target.value }))}
+                                placeholder="เช่น ค้าขาย"
+                                value={studentForm.motherOccupation}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* หมวดที่ 3: สุขภาพ & กายภาพ */}
+              <div className="rounded-2xl border border-rose-200/70 bg-gradient-to-b from-rose-50/30 to-white p-5 shadow-2xs dark:border-rose-900/40 dark:bg-slate-850">
+                <div className="flex items-center gap-2.5 pb-3 mb-4 border-b border-rose-100 dark:border-rose-900/30">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400">
+                    <HeartPulse size={17} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                      สุขภาพ & การเจริญเติบโต
+                    </h4>
+                    <p className="text-[11px] font-bold text-slate-400">
+                      ส่วนสูง น้ำหนัก ดัชนีมวลกาย และหมู่เลือด
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                  <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold">ส่วนสูง (ซม.)</span>
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                      onChange={(e) => setStudentForm((c) => ({ ...c, heightCm: e.target.value }))}
+                      placeholder="เช่น 146"
+                      value={studentForm.heightCm}
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold">น้ำหนัก (กก.)</span>
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                      onChange={(e) => setStudentForm((c) => ({ ...c, weightKg: e.target.value }))}
+                      placeholder="เช่น 36"
+                      value={studentForm.weightKg}
+                    />
+                  </label>
+
+                  <div className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold text-slate-500 dark:text-slate-400">ดัชนีมวลกาย (BMI)</span>
+                    <div className="flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-800">
+                      {(() => {
+                        const bmiInfo = calculateBmi(studentForm.weightKg, studentForm.heightCm);
+                        if (bmiInfo) {
+                          return (
+                            <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-black border ${bmiInfo.tone}`}>
+                              <span>{bmiInfo.value}</span>
+                              <span className="text-[10px] font-bold hidden sm:inline">({bmiInfo.label})</span>
+                            </span>
+                          );
+                        }
+                        return <span className="text-[11px] font-medium text-slate-400">คำนวณอัตโนมัติ</span>;
+                      })()}
+                    </div>
+                  </div>
+
+                  <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold">หมู่เลือด</span>
+                    <select
+                      className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                      onChange={(e) => setStudentForm((c) => ({ ...c, bloodType: e.target.value }))}
+                      value={studentForm.bloodType}
+                    >
+                      <option value="">ไม่ระบุ</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="O">O</option>
+                      <option value="AB">AB</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {/* หมวดที่ 4: ที่อยู่ตามทะเบียนราษฎร์ (DMC) */}
+              <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/30 to-white p-5 shadow-2xs dark:border-emerald-900/40 dark:bg-slate-850">
+                <div className="flex items-center gap-2.5 pb-3 mb-4 border-b border-emerald-100 dark:border-emerald-900/30">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
+                    <MapPin size={17} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                      ที่อยู่ตามทะเบียนราษฎร์ (DMC)
+                    </h4>
+                    <p className="text-[11px] font-bold text-slate-400">
+                      ข้อมูลที่อยู่ตามทะเบียนบ้านที่ระบุในฐานข้อมูล DMC
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">บ้านเลขที่</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, houseNo: e.target.value }))}
-                        placeholder="163"
+                        placeholder="เช่น 163"
                         value={studentForm.houseNo}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      หมู่ที่
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">หมู่ที่</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
                         onChange={(e) => setStudentForm((c) => ({ ...c, villageNo: e.target.value }))}
-                        placeholder="4"
+                        placeholder="เช่น 4"
                         value={studentForm.villageNo}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ตำบล / แขวง
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">ถนน / ซอย</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, subdistrict: e.target.value }))}
-                        placeholder="กันทรารมย์"
-                        value={studentForm.subdistrict}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      อำเภอ / เขต
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, district: e.target.value }))}
-                        placeholder="ขุขันธ์"
-                        value={studentForm.district}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      จังหวัด
-                      <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, province: e.target.value }))}
-                        placeholder="ศรีสะเกษ"
-                        value={studentForm.province}
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, roadOrSoi: e.target.value }))}
+                        placeholder="เช่น ซอย 5 หรือ สุขุมวิท"
+                        value={studentForm.roadOrSoi}
                       />
                     </label>
                   </div>
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      ส่วนสูง (ซม.)
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">ตำบล / แขวง</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, heightCm: e.target.value }))}
-                        placeholder="145"
-                        value={studentForm.heightCm}
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, subdistrict: e.target.value }))}
+                        placeholder="เช่น กันทรารมย์"
+                        value={studentForm.subdistrict}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      น้ำหนัก (กก.)
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">อำเภอ / เขต</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, weightKg: e.target.value }))}
-                        placeholder="33"
-                        value={studentForm.weightKg}
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, district: e.target.value }))}
+                        placeholder="เช่น ขุขันธ์"
+                        value={studentForm.district}
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-black text-slate-700">
-                      กลุ่มเลือด
+
+                    <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold">จังหวัด</span>
                       <input
-                        className="nexus-field h-10 px-3 text-sm font-bold"
-                        onChange={(e) => setStudentForm((c) => ({ ...c, bloodType: e.target.value }))}
-                        placeholder="A / B / O / AB"
-                        value={studentForm.bloodType}
+                        className="nexus-field h-10 px-3 text-sm font-bold bg-white dark:bg-slate-800"
+                        onChange={(e) => setStudentForm((c) => ({ ...c, province: e.target.value }))}
+                        placeholder="เช่น ศรีสะเกษ"
+                        value={studentForm.province}
                       />
                     </label>
                   </div>
@@ -6532,26 +6827,31 @@ export function StudentsPage({ session }: StudentsPageProps) {
               </div>
 
               {/* Modal Footer Buttons */}
-              <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4">
-                <button
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-700 hover:bg-slate-100 transition"
-                  onClick={() => resetStudentForm(studentForm.classroomId)}
-                  type="button"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition hover:-translate-y-0.5 ${
-                    editingStudentId
-                      ? 'amber-action'
-                      : 'bg-[#2F7D5B] text-white hover:bg-[#27684c] shadow-sm'
-                  } disabled:opacity-50`}
-                  disabled={isSubmitting || !canWriteRoster}
-                  type="submit"
-                >
-                  <Save size={18} aria-hidden="true" />
-                  {isSubmitting ? 'กำลังบันทึก...' : editingStudentId ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลนักเรียน'}
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3.5 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 rounded-b-3xl dark:border-slate-800 dark:bg-slate-800/60">
+                <span className="text-xs font-bold text-slate-400">
+                  เครื่องหมาย <span className="text-rose-500 font-bold">*</span> จำเป็นต้องกรอก
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-700 hover:bg-slate-100 transition cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                    onClick={() => resetStudentForm(studentForm.classroomId)}
+                    type="button"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition hover:-translate-y-0.5 cursor-pointer shadow-sm ${
+                      editingStudentId
+                        ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-amber-500/20'
+                        : 'bg-[#2F7D5B] text-white hover:bg-[#27684c] shadow-emerald-500/20'
+                    } disabled:opacity-50`}
+                    disabled={isSubmitting || !canWriteRoster}
+                    type="submit"
+                  >
+                    <Save size={18} aria-hidden="true" />
+                    {isSubmitting ? 'กำลังบันทึก...' : editingStudentId ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลนักเรียน'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
