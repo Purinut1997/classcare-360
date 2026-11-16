@@ -3630,6 +3630,15 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         String(row.totalPeriodNet),
         String(row.totalBalance),
       ]);
+      lines.push([
+        '',
+        '',
+        'รวมทั้งสิ้น',
+        String(savingsGrid.totalPeriodDeposits),
+        String(savingsGrid.totalPeriodWithdrawals),
+        String(savingsGrid.totalPeriodNet),
+        String(savingsGrid.totalCumulativeBalance),
+      ]);
     } else if (reportView === 'scores') {
       headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', ...scoreSubjectOptions, 'เกรดเฉลี่ย (GPA)', 'งานค้างรวม'];
       lines = studentCrossSubjectRows.map((row, idx) => [
@@ -3828,6 +3837,15 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         String(row.withdrawalsInPeriod),
         String(row.totalPeriodNet),
         String(row.totalBalance),
+      ]);
+      lines.push([
+        '',
+        '',
+        'รวมทั้งสิ้น',
+        String(savingsGrid.totalPeriodDeposits),
+        String(savingsGrid.totalPeriodWithdrawals),
+        String(savingsGrid.totalPeriodNet),
+        String(savingsGrid.totalCumulativeBalance),
       ]);
       sheets.push({
         columns: headers,
@@ -5447,6 +5465,30 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               </tr>
                             ))}
                           </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-100 font-black text-slate-900">
+                              <td colSpan={3} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black text-slate-900">
+                                รวมทั้งสิ้น
+                              </td>
+                              {savingsGrid.monthBuckets.map((mb) => {
+                                const net = savingsGrid.monthTotals[mb.key] || 0;
+                                return (
+                                  <td className="border border-slate-300 px-1 py-1.5 text-center font-black text-slate-900" key={mb.key}>
+                                    {net !== 0 ? net.toLocaleString('th-TH') : '-'}
+                                  </td>
+                                );
+                              })}
+                              <td className="border border-slate-300 bg-teal-100 px-2 py-1.5 text-right font-black text-teal-950">
+                                {savingsGrid.totalPeriodDeposits.toLocaleString('th-TH')}
+                              </td>
+                              <td className="border border-slate-300 bg-rose-100 px-2 py-1.5 text-right font-black text-rose-950">
+                                {savingsGrid.totalPeriodWithdrawals.toLocaleString('th-TH')}
+                              </td>
+                              <td className="border border-slate-300 bg-emerald-100 px-2 py-1.5 text-right font-black text-emerald-950">
+                                {savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}
+                              </td>
+                            </tr>
+                          </tfoot>
                         </table>
                       ) : (
                         <table className="w-full border-collapse border border-slate-300 text-[11px]">
@@ -5495,6 +5537,32 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               </tr>
                             ))}
                           </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-100 font-black text-slate-900">
+                              <td colSpan={2} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black whitespace-nowrap text-slate-900">
+                                รวมเงินออมแต่ละวัน
+                              </td>
+                              {monthContext.days.map((day) => {
+                                const dayTotal = savingsGrid.dayTotals[day.day];
+                                return (
+                                  <td
+                                    className={`border border-slate-300 px-0.5 py-1 text-center font-black ${
+                                      day.isWeekend ? 'bg-slate-200/70 text-slate-500' : 'text-teal-900 bg-teal-50/60'
+                                    }`}
+                                    key={day.day}
+                                  >
+                                    {dayTotal ? dayTotal.toLocaleString('th-TH') : ''}
+                                  </td>
+                                );
+                              })}
+                              <td className="border border-slate-300 bg-cyan-100 px-2 py-1 text-right font-black text-cyan-950">
+                                {savingsGrid.totalPeriodNet.toLocaleString('th-TH')}
+                              </td>
+                              <td className="border border-slate-300 bg-emerald-100 px-2 py-1 text-right font-black text-emerald-950">
+                                {savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}
+                              </td>
+                            </tr>
+                          </tfoot>
                         </table>
                       )}
                     </div>
