@@ -1147,6 +1147,13 @@ function calculateBmi(weightKgStr?: string | null, heightCmStr?: string | null) 
 
 function getStudentGender(student: StudentRow): 'male' | 'female' | 'other' {
   if (student.gender === 'male' || student.gender === 'female') return student.gender;
+  const prefix = String(student.metadata?.dmc_prefix || '').trim();
+  if (prefix.includes('ชาย') || prefix === 'ด.ช.' || prefix === 'นาย') {
+    return 'male';
+  }
+  if (prefix.includes('หญิง') || prefix === 'ด.ญ.' || prefix === 'นางสาว' || prefix === 'น.ส.' || prefix === 'นาง') {
+    return 'female';
+  }
   const name = (student.first_name || '').trim();
   if (name.startsWith('เด็กชาย') || name.startsWith('ด.ช.') || name.startsWith('นาย')) {
     return 'male';
@@ -4252,6 +4259,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             {filteredStudents.map((student) => {
               const classroom = classrooms.find((item) => item.id === student.classroom_id);
               const isSelected = selectedStudent?.id === student.id;
+              const gender = getStudentGender(student);
 
               return (
                 <div
@@ -4299,14 +4307,16 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       onClick={() => setViewingStudent(student)}
                       className="flex items-center gap-3 text-left flex-1"
                     >
-                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-xs font-black shadow-2xs border ${
-                        student.gender === 'female'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/50'
-                          : student.gender === 'male'
-                          ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/50'
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-2xs border ${
+                        gender === 'female'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/60'
+                          : gender === 'male'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/60'
                           : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                       }`}>
-                        {student.first_name ? student.first_name.slice(0, 2) : 'นร'}
+                        <span className="text-xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
+                          {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
+                        </span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -4319,9 +4329,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 text-xs font-medium text-slate-500">
-                          {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'นักเรียน'}{classroom?.name ? ` · ห้อง ${classroom.name}` : ''}
-                        </p>
+                        <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                          <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.2 text-[10px] font-black border ${
+                            gender === 'female'
+                              ? 'bg-rose-50/80 text-rose-700 border-rose-200/70'
+                              : gender === 'male'
+                              ? 'bg-sky-50/80 text-sky-700 border-sky-200/70'
+                              : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            {gender === 'female' ? '👧 หญิง' : gender === 'male' ? '👦 ชาย' : '🧑 ไม่ระบุ'}
+                          </span>
+                          {classroom?.name ? <span>· ห้อง {classroom.name}</span> : null}
+                        </div>
                       </div>
                     </button>
                     {classroom?.name && (
@@ -4430,6 +4449,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 {filteredStudents.map((student) => {
                   const classroom = classrooms.find((item) => item.id === student.classroom_id);
                   const isSelected = selectedStudent?.id === student.id;
+                  const gender = getStudentGender(student);
 
                   return (
                     <tr
@@ -4470,14 +4490,16 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       </td>
                       <td className="px-3.5 py-3">
                         <div className="flex items-center gap-3 text-left group-hover:translate-x-0.5 transition-transform">
-                          <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black shadow-2xs border ${
-                            student.gender === 'female'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/50'
-                              : student.gender === 'male'
-                              ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/50'
+                          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-2xs border ${
+                            gender === 'female'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/60'
+                              : gender === 'male'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/60'
                               : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                           }`}>
-                            {student.first_name ? student.first_name.slice(0, 2) : 'นร'}
+                            <span className="text-xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
+                              {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
+                            </span>
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -4490,9 +4512,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
                                 </span>
                               ) : null}
                             </div>
-                            <p className="text-[11px] font-medium text-slate-400">
-                              {student.gender === 'female' ? 'หญิง' : student.gender === 'male' ? 'ชาย' : 'นักเรียน'} · รหัส {student.student_code || '-'}
-                            </p>
+                            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                              <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.2 text-[10px] font-black border ${
+                                gender === 'female'
+                                  ? 'bg-rose-50/80 text-rose-700 border-rose-200/70'
+                                  : gender === 'male'
+                                  ? 'bg-sky-50/80 text-sky-700 border-sky-200/70'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                              }`}>
+                                {gender === 'female' ? '👧 หญิง' : gender === 'male' ? '👦 ชาย' : '🧑 ไม่ระบุ'}
+                              </span>
+                              <span>· รหัส {student.student_code || '-'}</span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -5466,7 +5497,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     title: 'พื้นฐานและสุขภาพ',
                     rows: [
                       ['คำนำหน้า', selectedStudent.metadata?.dmc_prefix],
-                      ['เพศ', selectedStudent.gender === 'male' ? 'ชาย' : selectedStudent.gender === 'female' ? 'หญิง' : selectedStudent.gender],
+                      ['เพศ', selectedStudent.gender === 'male' ? '👦 ชาย' : selectedStudent.gender === 'female' ? '👧 หญิง' : selectedStudent.gender || '-'],
                       ['วันเกิด', selectedStudent.birth_date ? formatThaiOfficialDate(selectedStudent.birth_date) : '-'],
                       ['เลขบัตรประชาชน', selectedStudent.metadata?.dmc_id_card],
                       ['น้ำหนัก', selectedStudent.health_flags?.weight_kg ? `${selectedStudent.health_flags.weight_kg} กก.` : null],
@@ -6970,6 +7001,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
         const studentPhone = textValue(metadata.contact_phone);
         const bmi = calculateBmi(textValue(healthFlags.weight_kg), textValue(healthFlags.height_cm));
         const age = calculateAge(student.birth_date);
+        const gender = getStudentGender(student);
 
         const dmcFather = objectValue(metadata.dmc_father);
         const dmcMother = objectValue(metadata.dmc_mother);
@@ -7036,14 +7068,16 @@ export function StudentsPage({ session }: StudentsPageProps) {
               <div className="relative border-b border-slate-100 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-sky-50/80 px-6 py-5 dark:border-slate-800 dark:from-slate-850 dark:to-slate-900">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3.5">
-                    <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-base font-black shadow-md border ${
-                      student.gender === 'female'
+                    <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl shadow-md border ${
+                      gender === 'female'
                         ? 'bg-rose-50 text-rose-700 border-rose-200 ring-4 ring-rose-100/60'
-                        : student.gender === 'male'
+                        : gender === 'male'
                         ? 'bg-sky-50 text-sky-700 border-sky-200 ring-4 ring-sky-100/60'
                         : 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-4 ring-emerald-100/60'
                     }`}>
-                      {student.first_name ? student.first_name.slice(0, 2) : 'นร'}
+                      <span className="text-3xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
+                        {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
+                      </span>
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -7124,13 +7158,13 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       <span className="text-slate-400 block font-medium text-[11px]">เพศ</span>
                       <div className="mt-1">
                         <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 text-[11px] font-black border ${
-                          student.gender === 'female'
+                          gender === 'female'
                             ? 'bg-rose-50 text-rose-800 border-rose-200'
-                            : student.gender === 'male'
+                            : gender === 'male'
                             ? 'bg-sky-50 text-sky-800 border-sky-200'
                             : 'bg-slate-100 text-slate-700 border-slate-200'
                         }`}>
-                          {student.gender === 'female' ? '👧 หญิง' : student.gender === 'male' ? '👦 ชาย' : 'ไม่ระบุ'}
+                          {gender === 'female' ? '👧 หญิง' : gender === 'male' ? '👦 ชาย' : '🧑 ไม่ระบุ'}
                         </span>
                       </div>
                     </div>
