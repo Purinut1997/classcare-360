@@ -60,10 +60,12 @@ import {
   callGeminiApi,
   getSmartFallbackResponse,
   parseAssistantResponse,
+  sanitizeAssistantText,
   testGeminiApiKey,
   type ChatMessage,
   type GeminiModelId,
 } from "../../lib/geminiClient";
+import { roleLabels } from "../../lib/roles";
 import {
   deletePersonalAiConfig,
   deleteWorkspaceAiConfig,
@@ -146,14 +148,14 @@ export function SupportChat({
       // Ignore parse errors
     }
     const savedEnding = window.localStorage.getItem("classcare_ai_polite_ending");
-    const initKa = savedEnding === "male" ? "ครับ" : "ค่ะ";
-    const initNaka = savedEnding === "male" ? "นะครับ" : "นะคะ";
+    const initSuffix = savedEnding === "male" ? "ครับ" : savedEnding === "female" ? "ค่ะ" : "";
+    const greetingEnd = initSuffix ? ` ${initSuffix}` : "";
 
     return [
       {
         id: `welcome-${Date.now()}`,
         role: "assistant",
-        content: `สวัสดี${initKa}คุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการ${initKa}\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลย${initNaka}`,
+        content: `สวัสดี${greetingEnd} ยินดีต้อนรับสู่ผู้ช่วยอัจฉริยะ ClassCare AI\n\nขณะนี้ท่านกำลังใช้งานหน้า "${activeLabel}" สามารถเลือกคำสั่งลัดด้านล่าง หรือพิมพ์คำถามเกี่ยวกับการใช้งานระบบ การร่างข้อความแจ้งผู้ปกครอง และข้อมูลภายในขอบเขตสิทธิ์ของบัญชีนี้ได้ทันที${greetingEnd}`,
         timestamp: new Date().toLocaleTimeString("th-TH", {
           hour: "2-digit",
           minute: "2-digit",
@@ -337,10 +339,11 @@ export function SupportChat({
 
   // Handle manual reset chat conversation (via 🔄 button)
   const handleResetChat = useCallback(() => {
+    const suffix = politeEnding === "male" ? " ครับ" : politeEnding === "female" ? " ค่ะ" : "";
     const freshWelcome: ChatMessage = {
       id: `welcome-${Date.now()}`,
       role: "assistant",
-      content: `สวัสดีค่ะคุณครู! น้องแคร์ (AI ผู้ช่วยประจำ ClassCare 360) ยินดีให้บริการค่ะ\n\nตอนนี้คุณครูกำลังอยู่ที่หน้า **"${activeLabel}"** คุณครูสามารถเลือกกด **คำสั่งลัดสำเร็จรูป** ด้านล่าง หรือพิมพ์คำถามที่ต้องการได้เลยนะคะ`,
+      content: `สวัสดี${suffix} ยินดีต้อนรับสู่ผู้ช่วยอัจฉริยะ ClassCare AI\n\nขณะนี้ท่านกำลังใช้งานหน้า "${activeLabel}" สามารถเลือกคำสั่งลัดด้านล่าง หรือพิมพ์คำถามเกี่ยวกับการใช้งานระบบและการร่างข้อความได้ทันที${suffix}`,
       timestamp: new Date().toLocaleTimeString("th-TH", {
         hour: "2-digit",
         minute: "2-digit",
@@ -354,7 +357,7 @@ export function SupportChat({
     }
     setAiInput("");
     setIsAiLoading(false);
-  }, [activeLabel]);
+  }, [activeLabel, politeEnding]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -541,8 +544,12 @@ export function SupportChat({
           }
         );
       } else {
-        // Use smart fallback engine
-        const fallback = getSmartFallbackResponse(text, activeLabel, politeEnding);
+        // Use smart fallback engine (role & scope aware, formal tone)
+        const fallback = getSmartFallbackResponse(text, activeLabel, politeEnding, {
+          classroomName: session.workspace?.classroomName,
+          role: session.profile.role,
+          schoolName: session.workspace?.schoolName || session.workspace?.name,
+        });
         const assistantMsg: ChatMessage = {
           id: `asst-${Date.now()}`,
           role: "assistant",
@@ -572,15 +579,19 @@ export function SupportChat({
       };
 
       setAiMessages((prev) => [...prev, assistantMsg]);
-    } catch (err: any) {
-      // Graceful fallback on API error
-      const fallback = getSmartFallbackResponse(text, activeLabel, politeEnding);
+    } catch {
+      // Graceful fallback on API error (clean formal message, zero raw markdown)
+      const fallback = getSmartFallbackResponse(text, activeLabel, politeEnding, {
+        classroomName: session.workspace?.classroomName,
+        role: session.profile.role,
+        schoolName: session.workspace?.schoolName || session.workspace?.name,
+      });
       setAiMessages((prev) => [
         ...prev,
         {
           id: `asst-err-${Date.now()}`,
           role: "assistant",
-          content: `${fallback.cleanText}\n\n*(หมายเหตุ: ระบบตอบด้วยคำแนะนำอัตโนมัติเนื่องจาก: ${err.message || "การเชื่อมต่อขัดข้อง"})*`,
+          content: `${fallback.cleanText}\n\nหมายเหตุ: ระบบแสดงคำแนะนำมาตรฐานชั่วคราวเนื่องจากการเชื่อมต่อ AI ขัดข้อง`,
           timestamp: new Date().toLocaleTimeString("th-TH", {
             hour: "2-digit",
             minute: "2-digit",
@@ -840,21 +851,21 @@ export function SupportChat({
     <div className="support-widget no-print print:hidden fixed bottom-[calc(5.2rem+env(safe-area-inset-bottom))] inset-x-3 mx-auto z-[70] flex flex-col items-center pointer-events-none lg:pointer-events-auto lg:inset-x-auto lg:right-6 lg:bottom-6 lg:mx-0 lg:items-end">
       {open ? (
         <section
-          aria-label="ผู้ช่วยครูอัจฉริยะและติดต่อผู้ดูแลระบบ"
-          className="relative mb-3 flex h-[min(700px,80dvh)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[28px] border border-cyan-400/40 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-950/60 transition-all backdrop-blur-xl pointer-events-auto"
+          aria-label="ผู้ช่วยอัจฉริยะ ClassCare AI และติดต่อผู้ดูแลระบบ"
+          className="relative mb-3 flex h-[min(700px,82dvh)] w-[min(430px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[26px] border border-[#2F7D5B]/35 bg-[#142720] text-slate-100 shadow-2xl shadow-slate-950/50 transition-all backdrop-blur-xl pointer-events-auto"
         >
           {/* Header */}
-          <header className="relative overflow-hidden border-b border-white/10 px-4 py-3 sm:px-5">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(34,211,238,.25),transparent_50%)]" />
+          <header className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#142720] via-[#1C342B] to-[#0f172a] px-4 py-3.5 sm:px-5">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_0%,rgba(47,125,91,0.35),transparent_55%)]" />
             <div className="relative flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-amber-300 via-sky-400 to-indigo-500 p-0.5 shadow-md shadow-sky-950/50 ring-1 ring-white/20">
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/10 p-0.5 shadow-sm ring-1 ring-white/20">
                   <CuteCareyAvatar type={mascotType} size={34} />
-                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-950 bg-emerald-400" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#142720] bg-emerald-400" />
                 </span>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[10px] font-black uppercase tracking-[.15em] text-cyan-300">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">
                       ClassCare AI
                     </p>
                     {aiConfig?.apiKey ? (
@@ -924,14 +935,16 @@ export function SupportChat({
                         )}
                       </div>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">
-                        ผู้ช่วยแนะนำ
+                      <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-bold text-emerald-100 ring-1 ring-white/15">
+                        โหมดแนะนำ
                       </span>
                     )}
+                    <span className="inline-flex items-center rounded-full bg-black/25 px-2 py-0.5 text-[9px] font-semibold text-slate-300">
+                      {roleLabels[session.profile.role]}
+                    </span>
                   </div>
-                  <h2 className="truncate text-sm sm:text-base font-black text-white flex items-center gap-1.5">
-                    <span>{currentMascot.name}</span>
-                    <span className="text-xs font-normal text-sky-300">— ผู้ช่วยครูอัจฉริยะ</span>
+                  <h2 className="mt-0.5 truncate text-sm font-bold text-white">
+                    ผู้ช่วยบริหารจัดการห้องเรียน
                   </h2>
                 </div>
               </div>
@@ -967,19 +980,19 @@ export function SupportChat({
               </div>
             </div>
 
-            {/* Navigation Tabs (AI น้องแคร์ / ตั๋วแจ้งปัญหา) */}
-            <div className="relative mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/80 p-1 text-xs font-bold border border-white/5">
+            {/* Navigation Tabs */}
+            <div className="relative mt-3 grid grid-cols-2 gap-1 rounded-xl bg-black/25 p-1 text-xs font-bold border border-white/10">
               <button
                 type="button"
                 onClick={() => setActiveTab("ai")}
                 className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 transition-all ${
                   activeTab === "ai"
-                    ? "bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-sm font-black"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-[#2F7D5B] text-white shadow-xs font-black"
+                    : "text-slate-300 hover:text-white"
                 }`}
               >
                 <Sparkles size={13} />
-                <span>ถาม AI น้องแคร์</span>
+                <span>ผู้ช่วย AI</span>
               </button>
 
               <button
@@ -987,12 +1000,12 @@ export function SupportChat({
                 onClick={() => setActiveTab("ticket")}
                 className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 transition-all relative ${
                   activeTab === "ticket"
-                    ? "bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-sm font-black"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-[#2F7D5B] text-white shadow-xs font-black"
+                    : "text-slate-300 hover:text-white"
                 }`}
               >
                 <LifeBuoy size={13} />
-                <span>แจ้งปัญหาถึงแอดมิน</span>
+                <span>ติดต่อผู้ดูแลระบบ</span>
                 {unreadCount > 0 && (
                   <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.2 text-[9px] text-white">
                     {unreadCount}
@@ -1003,13 +1016,16 @@ export function SupportChat({
           </header>
 
           {/* Body */}
-          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 text-slate-900 flex flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] text-slate-900 flex flex-col">
             {activeTab === "ai" ? (
               /* TAB 1: AI CHAT ASSISTANT */
               <div className="flex flex-col flex-1 min-h-0">
                 {/* Chat Message Stream */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {aiMessages.map((msg, idx) => (
+                <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+                  {aiMessages.map((msg, idx) => {
+                    const cleanContent = sanitizeAssistantText(msg.content);
+                    const paragraphs = cleanContent.split(/\n{2,}/).filter(Boolean);
+                    return (
                     <div
                       key={msg.id}
                       className={`flex flex-col ${
@@ -1019,76 +1035,128 @@ export function SupportChat({
                       <div className={`flex items-end gap-2 max-w-[92%] ${msg.role === "user" ? "justify-end ml-auto" : "justify-start mr-auto"}`}>
                         {msg.role === "assistant" && (
                           <div className="shrink-0 mb-1 select-none">
-                            <CuteCareyAvatar type={mascotType} size={28} />
+                            <CuteCareyAvatar type={mascotType} size={26} />
                           </div>
                         )}
                         <div
-                          className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs ${
+                          className={`rounded-2xl px-4 py-3 text-[13px] leading-[1.65] shadow-2xs ${
                             msg.role === "user"
-                              ? "bg-indigo-600 text-white rounded-br-xs font-medium"
-                              : "bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs shadow-slate-200/50"
+                              ? "bg-[#1C342B] text-white rounded-br-sm font-medium"
+                              : "bg-white text-slate-800 border border-slate-200/90 rounded-bl-sm"
                           }`}
                         >
-                        {/* Render content with line breaks */}
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        {/* Clean Structured Formal Typography (Zero raw * or markdown) */}
+                        <div className="space-y-2">
+                          {paragraphs.map((block, bIdx) => {
+                            const lines = block.split("\n").filter((l) => l.trim().length > 0);
+                            return (
+                              <div key={bIdx} className="space-y-1">
+                                {lines.map((line, lIdx) => {
+                                  const trimmed = line.trim();
+                                  const isBullet = trimmed.startsWith("• ");
+                                  const isNumbered = /^\d+\.\s+/.test(trimmed);
+                                  if (isBullet) {
+                                    return (
+                                      <p key={lIdx} className="flex items-start gap-2 pl-0.5">
+                                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2F7D5B]" />
+                                        <span className="flex-1">{trimmed.slice(2)}</span>
+                                      </p>
+                                    );
+                                  }
+                                  if (isNumbered) {
+                                    const match = trimmed.match(/^(\d+\.)\s+(.*)$/);
+                                    return (
+                                      <p key={lIdx} className="flex items-start gap-1.5">
+                                        <span className="shrink-0 font-bold text-[#1C342B]">{match?.[1]}</span>
+                                        <span className="flex-1">{match?.[2]}</span>
+                                      </p>
+                                    );
+                                  }
+                                  const isSectionHeading =
+                                    msg.role === "assistant" &&
+                                    bIdx === 0 &&
+                                    lIdx === 0 &&
+                                    lines.length === 1 &&
+                                    paragraphs.length > 1 &&
+                                    trimmed.length <= 75;
+                                  return (
+                                    <p
+                                      key={lIdx}
+                                      className={isSectionHeading ? "font-bold text-slate-950" : undefined}
+                                    >
+                                      {trimmed}
+                                    </p>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
 
-                        {/* Interactive Action Buttons */}
-                        {msg.actions && msg.actions.length > 0 && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
-                            {msg.actions.map((act, actIdx) => (
+                        {/* Interactive Action Buttons + Inline Copy */}
+                        {msg.role === "assistant" && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                            {msg.actions?.map((act, actIdx) => (
                               <button
                                 key={actIdx}
                                 type="button"
                                 onClick={() => handleActionClick(act)}
-                                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-xs ${
+                                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all shadow-2xs ${
                                   act.type === "calendar_batch"
-                                    ? "bg-gradient-to-r from-rose-600 via-pink-600 to-amber-600 text-white hover:brightness-110 shadow-sm active:scale-95 px-3 py-1.5"
+                                    ? "bg-gradient-to-r from-[#1C342B] to-[#2F7D5B] text-white hover:brightness-110 px-3 py-1.5"
                                     : act.type === "calendar"
-                                    ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 active:scale-95"
+                                    ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
                                     : act.type === "navigate"
-                                    ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                    ? "bg-[#E9F0EA] text-[#1C342B] hover:bg-[#DCE3D7] border border-[#DCE3D7]"
                                     : act.type === "copy"
-                                    ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                                    : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                                    ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                                    : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
                                 }`}
                               >
-                                {act.type === "calendar_batch" && (
-                                  <Sparkles size={13} className="text-amber-200 animate-pulse" />
-                                )}
-                                {act.type === "calendar" && (
-                                  <CalendarDays size={12} className="text-rose-600" />
-                                )}
-                                {act.type === "navigate" && (
-                                  <ExternalLink size={12} />
-                                )}
+                                {act.type === "calendar_batch" && <Sparkles size={12} />}
+                                {act.type === "calendar" && <CalendarDays size={12} />}
+                                {act.type === "navigate" && <ExternalLink size={12} />}
                                 {act.type === "copy" && <Copy size={12} />}
-                                {act.type === "handover" && (
-                                  <LifeBuoy size={12} />
-                                )}
+                                {act.type === "handover" && <LifeBuoy size={12} />}
                                 <span>{act.label}</span>
                               </button>
                             ))}
+                            {!msg.actions?.some((a) => a.type === "copy") && idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(cleanContent);
+                                  setCopiedIndex(idx);
+                                  setTimeout(() => setCopiedIndex(null), 2000);
+                                }}
+                                className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                              >
+                                {copiedIndex === idx ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                <span>{copiedIndex === idx ? "คัดลอกแล้ว" : "คัดลอก"}</span>
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
-                    <span className="mt-0.5 px-1 text-[10px] text-slate-400 font-mono">
+                    <span className="mt-1 px-1 text-[10px] text-slate-400 font-mono">
                       {msg.timestamp}
                     </span>
                   </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Typing / Loading Indicator */}
                   {isAiLoading && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-2 rounded-2xl w-fit shadow-xs">
-                      <RefreshCw size={13} className="animate-spin text-cyan-600" />
-                      <span>น้องแคร์กำลังคิดและวิเคราะห์ข้อมูล...</span>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3.5 py-2 rounded-2xl w-fit shadow-2xs">
+                      <RefreshCw size={13} className="animate-spin text-[#2F7D5B]" />
+                      <span>กำลังประมวลผลข้อมูลตามสิทธิ์ผู้ใช้งาน...</span>
                     </div>
                   )}
 
-                  {copiedIndex && (
-                    <div className="text-center text-xs font-bold text-emerald-600 bg-emerald-50 py-1 rounded-lg">
-                      ✓ คัดลอกข้อความสำเร็จ! นำไปส่งต่อได้เลย
+                  {copiedIndex === 9999 && (
+                    <div className="text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 py-1.5 rounded-xl">
+                      ✓ คัดลอกข้อความเรียบร้อยแล้ว
                     </div>
                   )}
 
@@ -1096,18 +1164,18 @@ export function SupportChat({
                 </div>
 
                 {/* Dynamic Context Prompt Chips */}
-                <div className="border-t border-slate-200/70 bg-white/90 p-2.5">
+                <div className="border-t border-slate-200/80 bg-white p-2.5">
                   <div className="flex items-center justify-between mb-1.5 px-1">
                     <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                      <Sparkles size={11} className="text-amber-500" />
-                      คำสั่งลัดแนะนำ (คลิกถามทันที):
+                      <Sparkles size={11} className="text-[#2F7D5B]" />
+                      คำสั่งลัดแนะนำ:
                     </span>
                     <button
                       type="button"
                       onClick={() => setIsPromptLibraryOpen(true)}
-                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
+                      className="text-[10px] font-bold text-[#2F7D5B] hover:text-[#1C342B]"
                     >
-                      ดูคำสั่งทั้งหมด ➜
+                      ดูคำสั่งทั้งหมด →
                     </button>
                   </div>
 
@@ -1118,7 +1186,7 @@ export function SupportChat({
                         key={chip.id}
                         type="button"
                         onClick={() => handleSendAiMessage(chip.prompt)}
-                        className="shrink-0 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 px-3 py-1 text-xs font-medium text-slate-700 transition-all active:scale-95"
+                        className="shrink-0 rounded-full border border-slate-200 bg-slate-50 hover:bg-[#E9F0EA] hover:border-[#2F7D5B]/40 hover:text-[#1C342B] px-3 py-1 text-xs font-semibold text-slate-700 transition-all active:scale-95"
                       >
                         {chip.label}
                       </button>
@@ -1135,16 +1203,16 @@ export function SupportChat({
                   >
                     <input
                       type="text"
-                      placeholder={`ถามอะไรก็ได้ เช่น วิธีใช้, ปัญหา, ให้ช่วยสรุป...`}
+                      placeholder="พิมพ์คำถาม หรือคำสั่ง เช่น ร่างข้อความแจ้งผู้ปกครอง, สรุปข้อมูลห้องเรียน..."
                       value={aiInput}
                       onChange={(e) => setAiInput(e.target.value)}
                       disabled={isAiLoading}
-                      className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:border-cyan-500 focus:outline-none shadow-2xs"
+                      className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:border-[#2F7D5B] focus:outline-none shadow-2xs"
                     />
                     <button
                       type="submit"
                       disabled={isAiLoading || !aiInput.trim()}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-sm hover:from-cyan-400 hover:to-sky-500 disabled:opacity-50 transition"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#1C342B] text-white shadow-xs hover:bg-[#2F7D5B] disabled:opacity-40 transition"
                     >
                       <Send size={15} />
                     </button>

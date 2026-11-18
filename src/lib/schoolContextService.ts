@@ -1,4 +1,5 @@
 import { supabase, isSupabaseReady } from './supabaseClient';
+import { hasWorkspaceCapability, roleLabels } from './roles';
 import type { AppSessionContext } from '../types/core';
 import {
   buildSchedulePeriods,
@@ -8,16 +9,29 @@ import {
 } from './scheduleSettings';
 
 /**
- * Compiles comprehensive real-time 7-dimension school context directly from Supabase
- * to ground Carey AI in actual factual database records, enabling teachers to ask
- * any question across all ClassCare 360 features without hallucinations.
+ * Compiles comprehensive real-time school context directly from Supabase,
+ * strictly scoped to the authenticated user's role, assigned classrooms,
+ * and module capabilities so AI responses never leak unauthorized records.
  */
 export async function fetchLiveSchoolDataContext(
   session: AppSessionContext | null | undefined,
   activeView: string = 'dashboard'
 ): Promise<string> {
   if (!session?.workspace?.id || !isSupabaseReady || !supabase) {
-    return `[บริบทปัจจุบัน: คุณครูกำลังเปิดหน้า '${activeView}' ห้องเรียน: '${session?.workspace?.classroomName || 'ไม่ได้เลือก'}' ปีการศึกษา: '${session?.workspace?.academicYear || '2569'}']\n(หมายเหตุ: ระบบทำงานในโหมดออฟไลน์หรือยังไม่ได้เชื่อมต่อฐานข้อมูล)`;
+    return `[บริบทปัจจุบัน: หน้า '${activeView}' ห้องเรียน: '${session?.workspace?.classroomName || 'ไม่ได้เลือก'}' ปีการศึกษา: '${session?.workspace?.academicYear || '2569'}']\n(หมายเหตุ: ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล)`;
+  }
+
+  const role = session.profile.role;
+  const roleLabel = roleLabels[role] || role;
+
+  // Parent & student portals must never receive workspace-wide school records
+  if (role === 'parent' || role === 'student') {
+    return [
+      `=== [สิทธิ์และขอบเขตการเข้าถึงข้อมูลของผู้ใช้งานปัจจุบัน] ===`,
+      `• ผู้ใช้งาน: ${session.profile.displayName} (บทบาท: ${roleLabel})`,
+      `• ขอบเขตข้อมูล: เฉพาะข้อมูลพอร์ทัลส่วนตัวของผู้ใช้งานเท่านั้น (ห้ามเปิดเผยข้อมูลนักเรียนรายอื่นหรือข้อมูลภายในของโรงเรียน)`,
+      `• หน้าปัจจุบัน: ${activeView}`,
+    ].join('\n');
   }
 
   const workspaceId = session.workspace.id;
@@ -25,33 +39,54 @@ export async function fetchLiveSchoolDataContext(
   const academicYear = session.workspace.academicYear || '2569';
   const schoolName = session.workspace.schoolName || session.workspace.name || 'โรงเรียน';
   const workspaceTitle = session.workspace.name || '';
+  const isFullWorkspaceScope = role === 'superadmin' || role === 'teacher_owner';
+  const canViewSavings = isFullWorkspaceScope || hasWorkspaceCapability(session, 'savings.write');
+  const canViewSensitiveCare =
+    isFullWorkspaceScope ||
+    hasWorkspaceCapability(session, 'student_care.write') ||
+    hasWorkspaceCapability(session, 'home_visits.write');
+  const canViewGuardianContacts = role !== 'viewer';
+  const canViewAdminLocks = isFullWorkspaceScope;
 
   try {
-    // Parallel fetch across all school management dimensions
+    // Resolve assigned classroom scope for non-owner roles (teacher_member / viewer)
+    let assignedClassroomIds: Set<string> | null = null;
+    if (!isFullWorkspaceScope) {
+      const { data: scopeRows } = await supabase
+        .from('workspace_member_classrooms')
+        .select('classroom_id')
+        .eq('workspace_id', workspaceId)
+        .eq('profile_id', session.profile.id);
+      assignedClassroomIds = new Set(
+        ((scopeRows || []) as Array<{ classroom_id: string }>).map((row) => row.classroom_id),
+      );
+    }
+
+    // Parallel fetch across authorized school management dimensions
     const [
-      { data: classrooms },
-      { data: students },
-      { data: guardians },
-      { data: attendanceRecords },
-      { data: behaviorRecords },
-      { data: healthRecords },
-      { data: scoreAssessments },
-      { data: scoreEntries },
-      { data: desirableRecords },
+      { data: rawClassrooms },
+      { data: rawStudents },
+      { data: rawGuardians },
+      { data: rawAttendanceRecords },
+      { data: rawBehaviorRecords },
+      { data: rawHealthRecords },
+      { data: rawScoreAssessments },
+      { data: rawScoreEntries },
+      { data: rawDesirableRecords },
       { data: dutyTasks },
-      { data: dutyAssignments },
-      { data: savingsAccounts },
+      { data: rawDutyAssignments },
+      { data: rawSavingsAccounts },
       { data: calendarDays },
-      { data: careCases },
-      { data: homeVisits },
-      { data: earlyWarnings },
+      { data: rawCareCases },
+      { data: rawHomeVisits },
+      { data: rawEarlyWarnings },
       { data: dailyBriefs },
       { data: periodLocks },
     ] = await Promise.all([
       // 1. Classrooms
       supabase
         .from('classrooms')
-        .select('id, name, grade_level, academic_year')
+        .select('id, name, grade_level, academic_year, homeroom_teacher_profile_id')
         .eq('workspace_id', workspaceId)
         .eq('status', 'active')
         .order('name', { ascending: true }),
@@ -64,12 +99,14 @@ export async function fetchLiveSchoolDataContext(
         .eq('status', 'active')
         .order('student_code', { ascending: true }),
 
-      // 1.2 Guardians
-      supabase
-        .from('student_guardians')
-        .select('student_id, display_name, relation, phone')
-        .eq('workspace_id', workspaceId)
-        .limit(200),
+      // 1.2 Guardians (hidden for viewer role)
+      canViewGuardianContacts
+        ? supabase
+            .from('student_guardians')
+            .select('student_id, display_name, relation, phone')
+            .eq('workspace_id', workspaceId)
+            .limit(200)
+        : Promise.resolve({ data: [] }),
 
       // 2. Attendance
       (async () => {
@@ -177,12 +214,14 @@ export async function fetchLiveSchoolDataContext(
         .eq('workspace_id', workspaceId)
         .limit(100),
 
-      // 7.1 Savings
-      supabase
-        .from('savings_accounts')
-        .select('student_id, balance, metadata')
-        .eq('workspace_id', workspaceId)
-        .limit(200),
+      // 7.1 Savings (strictly gated by savings capability)
+      canViewSavings
+        ? supabase
+            .from('savings_accounts')
+            .select('student_id, balance, metadata')
+            .eq('workspace_id', workspaceId)
+            .limit(200)
+        : Promise.resolve({ data: [] }),
 
       // 7.2 Calendar days
       supabase
@@ -192,8 +231,9 @@ export async function fetchLiveSchoolDataContext(
         .order('calendar_date', { ascending: true })
         .limit(100),
 
-      // 8. Student Care Cases
+      // 8. Student Care Cases (strictly gated by student care capability)
       (async () => {
+        if (!canViewSensitiveCare) return { data: [] };
         try {
           const { data } = await supabase
             .from('student_care_cases')
@@ -206,8 +246,9 @@ export async function fetchLiveSchoolDataContext(
         }
       })(),
 
-      // 9. Home Visits
+      // 9. Home Visits (strictly gated by home visit / care capability)
       (async () => {
+        if (!canViewSensitiveCare) return { data: [] };
         try {
           const { data } = await supabase
             .from('student_home_visits')
@@ -222,6 +263,7 @@ export async function fetchLiveSchoolDataContext(
 
       // 10. Early Warning Signals
       (async () => {
+        if (!canViewSensitiveCare) return { data: [] };
         try {
           const { data } = await supabase
             .from('early_warning_signals')
@@ -250,8 +292,9 @@ export async function fetchLiveSchoolDataContext(
         }
       })(),
 
-      // 12. Period Locks
+      // 12. Period Locks (admin / workspace owner only)
       (async () => {
+        if (!canViewAdminLocks) return { data: [] };
         try {
           const { data } = await supabase
             .from('data_period_locks')
@@ -268,8 +311,48 @@ export async function fetchLiveSchoolDataContext(
     // Load timetable schedule settings from local/workspace configuration
     const scheduleSettings = loadScheduleSettings(currentClassroomName, workspaceId);
 
-    const studentList = students || [];
-    const classroomList = classrooms || [];
+    // Apply strict classroom & student scope filtering for non-owner roles
+    const allActiveClassrooms = (rawClassrooms || []) as Array<{
+      id: string;
+      name: string;
+      grade_level: string | null;
+      academic_year: string | null;
+      homeroom_teacher_profile_id?: string | null;
+    }>;
+
+    let allowedClassroomIdSet: Set<string>;
+    if (isFullWorkspaceScope) {
+      allowedClassroomIdSet = new Set(allActiveClassrooms.map((c) => c.id));
+    } else {
+      allowedClassroomIdSet = new Set(assignedClassroomIds || []);
+      // Also include any classroom where the user is explicitly the homeroom teacher
+      allActiveClassrooms.forEach((c) => {
+        if (c.homeroom_teacher_profile_id === session.profile.id) {
+          allowedClassroomIdSet.add(c.id);
+        }
+      });
+    }
+
+    const classroomList = allActiveClassrooms.filter((c) => allowedClassroomIdSet.has(c.id));
+    const studentList = (rawStudents || []).filter((s) =>
+      isFullWorkspaceScope ? true : Boolean(s.classroom_id && allowedClassroomIdSet.has(s.classroom_id)),
+    );
+    const allowedStudentIdSet = new Set(studentList.map((s) => s.id));
+
+    const guardians = (rawGuardians || []).filter((g) => allowedStudentIdSet.has(g.student_id));
+    const attendanceRecords = ((rawAttendanceRecords as any[]) || []).filter((r) => allowedStudentIdSet.has(r.student_id));
+    const behaviorRecords = (rawBehaviorRecords || []).filter((r) => allowedStudentIdSet.has(r.student_id));
+    const healthRecords = (rawHealthRecords || []).filter((r) => allowedStudentIdSet.has(r.student_id));
+    const scoreAssessments = (rawScoreAssessments || []).filter((a) =>
+      isFullWorkspaceScope ? true : Boolean(a.classroom_id && allowedClassroomIdSet.has(a.classroom_id)),
+    );
+    const scoreEntries = ((rawScoreEntries as any[]) || []).filter((e) => allowedStudentIdSet.has(e.student_id));
+    const desirableRecords = (rawDesirableRecords || []).filter((r) => allowedStudentIdSet.has(r.student_id));
+    const dutyAssignments = (rawDutyAssignments || []).filter((d) => allowedStudentIdSet.has(d.student_id));
+    const savingsAccounts = (rawSavingsAccounts || []).filter((a) => allowedStudentIdSet.has(a.student_id));
+    const careCases = (rawCareCases || []).filter((c) => allowedStudentIdSet.has(c.student_id));
+    const homeVisits = (rawHomeVisits || []).filter((h) => allowedStudentIdSet.has(h.student_id));
+    const earlyWarnings = (rawEarlyWarnings || []).filter((w) => allowedStudentIdSet.has(w.student_id));
 
     // Map classroom ID -> name
     const classroomMap = new Map<string, string>();
@@ -304,12 +387,30 @@ export async function fetchLiveSchoolDataContext(
       }
     });
 
-    // --- Build Header Context ---
-    let context = `=== [ข้อมูลจริงจากฐานข้อมูลระบบ ClassCare 360 (เชื่อมโยง 7 มิติ)] ===\n`;
-    context += `• โรงเรียน: ${schoolName}${workspaceTitle && workspaceTitle !== schoolName ? ` (ห้อง/Workspace: ${workspaceTitle})` : ''}\n`;
-    context += `• ห้องเรียนที่คุณครูกำลังโฟกัสอยู่ในปัจจุบัน: ${currentClassroomName}\n`;
+    // --- Build Header Context with Explicit Role & Access Scope ---
+    const scopeSummary = isFullWorkspaceScope
+      ? `ทุกห้องเรียนในพื้นที่ทำงานนี้ (${classroomList.length} ห้อง)`
+      : classroomList.length > 0
+        ? `เฉพาะห้องเรียนที่ได้รับมอบหมาย: ${classroomList.map((c) => c.name).join(', ')}`
+        : 'ยังไม่ได้รับมอบหมายห้องเรียน (ไม่สามารถเข้าถึงข้อมูลรายบุคคลของนักเรียนได้)';
+
+    const restrictedModules: string[] = [];
+    if (!canViewSavings) restrictedModules.push('ข้อมูลเงินออมนักเรียน');
+    if (!canViewSensitiveCare) restrictedModules.push('ข้อมูลเยี่ยมบ้าน/รายได้ครัวเรือน และเคสดูแลช่วยเหลือ');
+    if (!canViewGuardianContacts) restrictedModules.push('เบอร์โทรติดต่อผู้ปกครอง');
+    if (!canViewAdminLocks) restrictedModules.push('การตั้งค่าล็อกงวดและผู้ดูแลระบบ');
+
+    let context = `=== [สิทธิ์และขอบเขตการเข้าถึงข้อมูลของผู้ใช้งานปัจจุบัน] ===\n`;
+    context += `• ผู้ใช้งาน: ${session.profile.displayName} (บทบาท: ${roleLabel})\n`;
+    context += `• ขอบเขตห้องเรียนที่ได้รับสิทธิ์: ${scopeSummary}\n`;
+    if (restrictedModules.length > 0) {
+      context += `• ข้อมูลที่อยู่นอกสิทธิ์ของบัญชีนี้ (ห้ามเปิดเผยหรือสมมุติตัวเลข): ${restrictedModules.join(', ')}\n`;
+    }
+    context += `\n=== [ข้อมูลจริงจากฐานข้อมูลระบบ ClassCare 360 ตามสิทธิ์ของผู้ใช้งาน] ===\n`;
+    context += `• โรงเรียน: ${schoolName}${workspaceTitle && workspaceTitle !== schoolName ? ` (Workspace: ${workspaceTitle})` : ''}\n`;
+    context += `• ห้องเรียนที่กำลังเปิดดู: ${currentClassroomName}\n`;
     context += `• ปีการศึกษาปัจจุบัน: ${academicYear}\n`;
-    context += `• เมนูที่คุณครูกำลังเปิดดูอยู่: ${activeView}\n\n`;
+    context += `• เมนูปัจจุบัน: ${activeView}\n\n`;
 
     // =========================================================================
     // มิติที่ 1: ข้อมูลห้องเรียนและทะเบียนนักเรียน (Student Roster & Demographics)
