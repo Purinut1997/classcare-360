@@ -11,14 +11,12 @@ import {
   Crown,
   FileUp,
   GraduationCap,
-  KeyRound,
   MessageSquare,
   QrCode,
   RefreshCw,
   School,
   ShieldCheck,
   Trash2,
-  UserPlus,
   Users,
   XCircle,
   Megaphone,
@@ -39,6 +37,7 @@ import { clearSystemBroadcast, getSystemBroadcast, saveSystemBroadcast, type Bro
 import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 import { VipAccessManager } from './VipAccessManager';
 import { SuperadminBackupCenter } from './SuperadminBackupCenter';
+import { SuperadminUserManager } from './SuperadminUserManager';
 
 type PaymentStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'expired';
 type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'suspended' | 'cancelled' | 'refunded';
@@ -239,15 +238,6 @@ interface AdminAccessRow {
   profileId: string;
 }
 
-interface AdminCandidateRow {
-  accountStatus: string;
-  currentLevel: AdminLevel | null;
-  displayName: string;
-  email: string;
-  isAdminActive: boolean;
-  profileId: string;
-}
-
 interface WorkspaceAdminRow {
   academicYear: string;
   archivedAt: string | null;
@@ -262,25 +252,6 @@ interface WorkspaceAdminRow {
   schoolName: string;
   studentCount: number;
 }
-
-const demoAdminCandidates: AdminCandidateRow[] = [
-  {
-    accountStatus: 'active',
-    currentLevel: null,
-    displayName: 'ครูตัวอย่าง ClassCare',
-    email: 'teacher@classcare.demo',
-    isAdminActive: false,
-    profileId: 'demo-teacher-candidate',
-  },
-  {
-    accountStatus: 'active',
-    currentLevel: 'admin',
-    displayName: 'ผู้ดูแลตัวอย่าง',
-    email: 'admin@classcare.demo',
-    isAdminActive: true,
-    profileId: 'demo-admin-candidate',
-  },
-];
 
 const statusLabels: Record<PaymentStatus, string> = {
   approved: 'อนุมัติแล้ว',
@@ -534,11 +505,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       ? (requestedSection as SuperadminSection)
       : 'overview';
   const systemUsesSupabase = isSupabaseReady && !isDevelopmentDemo;
+  const [currentUserId, setCurrentUserId] = useState(isDevelopmentDemo ? 'demo-superadmin' : '');
   const [adminRows, setAdminRows] = useState<AdminAccessRow[]>([]);
-  const [adminCandidates, setAdminCandidates] = useState<AdminCandidateRow[]>(demoAdminCandidates);
-  const [adminProfileId, setAdminProfileId] = useState('');
-  const [adminLevel, setAdminLevel] = useState<AdminLevel>('admin');
-  const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const [qrForm, setQrForm] = useState({
     accountHint: '',
     accountName: 'ClassCare 360',
@@ -565,10 +533,6 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [isQrSubmitting, setIsQrSubmitting] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [workspaceActionId, setWorkspaceActionId] = useState<string | null>(null);
-  const [adminActionId, setAdminActionId] = useState<string | null>(null);
-  const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
-  const [recoveryAction, setRecoveryAction] = useState<string | null>(null);
 
   const [broadcastForm, setBroadcastForm] = useState<SystemBroadcast>(() => {
     return (
@@ -705,11 +669,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
   async function loadSuperadminData() {
     if (!supabase || isDevelopmentDemo) {
+      setCurrentUserId('demo-superadmin');
       setPayments(demoPayments);
       setQrRows(demoQrRows);
       setSubscriptions(demoSubscriptions);
       setWorkspaces(demoWorkspaces);
-      setAdminCandidates(demoAdminCandidates);
       setIsLoading(false);
       return;
     }
@@ -720,13 +684,14 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     setNotice(null);
 
     const [
+      { data: authUserData },
       { data: paymentRows, error: paymentError },
       { data: qrData, error: qrError },
       { data: subscriptionRows, error: subscriptionError },
       { data: adminData, error: adminError },
       { data: workspaceRows, error: workspaceError },
-      { data: adminCandidateData, error: adminCandidateError },
     ] = await Promise.all([
+      activeSupabase.auth.getUser(),
       activeSupabase
         .from('payment_requests')
         .select('id,workspace_id,profile_id,plan_id,status,base_amount_thb,credit_amount_thb,payable_amount_thb,created_at,review_note,workspaces(name,school_name),owner_profile:profiles!payment_requests_profile_id_fkey(display_name,email),plans(name,code,duration_days),app_files(bucket,original_filename,storage_path)')
@@ -752,8 +717,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         .select('id,name,school_name,academic_year,settings,owner_profile_id,created_at,archived_at,owner_profile:profiles!workspaces_owner_profile_id_fkey(email,display_name)')
         .order('created_at', { ascending: false })
         .limit(12),
-      activeSupabase.rpc('list_admin_access_candidates', { search_text: null }),
     ]);
+
+    if (authUserData?.user?.id) {
+      setCurrentUserId(authUserData.user.id);
+    }
 
     if (paymentError || qrError || subscriptionError || adminError || workspaceError) {
       setNotice(paymentError?.message || qrError?.message || subscriptionError?.message || adminError?.message || workspaceError?.message || 'โหลด Superadmin data ไม่สำเร็จ');
@@ -778,16 +746,6 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     setQrRows(((qrData || []) as Record<string, unknown>[]).map(mapQrRow));
     setSubscriptions(((subscriptionRows || []) as Record<string, unknown>[]).map(mapSubscriptionRow));
     setAdminRows(((adminData || []) as Record<string, unknown>[]).map(mapAdminRow));
-    if (!adminCandidateError) {
-      setAdminCandidates(((adminCandidateData || []) as Record<string, unknown>[]).map((row) => ({
-        accountStatus: String(row.account_status || ''),
-        currentLevel: row.current_level === 'admin' || row.current_level === 'superadmin' ? row.current_level : null,
-        displayName: String(row.display_name || row.email || 'ผู้ใช้ ClassCare'),
-        email: String(row.email || ''),
-        isAdminActive: Boolean(row.is_admin_active),
-        profileId: String(row.profile_id || ''),
-      })));
-    }
     const mappedWorkspaces = ((workspaceRows || []) as Record<string, unknown>[]).map(mapWorkspaceRow);
     const workspacesWithCounts = await Promise.all(
       mappedWorkspaces.map(async (workspace) => {
@@ -812,155 +770,6 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   useEffect(() => {
     void loadSuperadminData();
   }, []);
-
-  async function grantAdminAccess() {
-    if (!supabase || isDevelopmentDemo) {
-      setAdminNotice('โหมดตัวอย่าง: ตรวจขั้นตอนการเลือกผู้ใช้แล้ว โดยยังไม่เปลี่ยนสิทธิ์จริง');
-      return;
-    }
-
-    const selectedCandidate = adminCandidates.find((candidate) => candidate.profileId === adminProfileId);
-    if (!selectedCandidate) {
-      setAdminNotice('กรุณาเลือกผู้ใช้ ClassCare ที่ต้องการกำหนดสิทธิ์');
-      return;
-    }
-
-    const normalizedEmail = selectedCandidate.email.trim().toLowerCase();
-
-    setAdminNotice(null);
-
-    const { data, error: adminError } = await supabase.rpc('grant_admin_access_by_email', {
-      target_email: normalizedEmail,
-      target_level: adminLevel,
-    });
-
-    if (adminError) {
-      setAdminNotice(
-        isMissingRpcFunction(adminError)
-          ? getRoleOperationSetupNotice('เพิ่มสิทธิ์ Admin', adminError.message)
-          : adminError.message === 'not_allowed'
-            ? 'บัญชีปัจจุบันไม่มีสิทธิ์ SuperAdmin สำหรับเพิ่มผู้ดูแลระบบ'
-            : adminError.message,
-      );
-      return;
-    }
-
-    const result = data as { email?: string; granted?: boolean; reason?: string } | null;
-    if (!result?.granted) {
-      setAdminNotice(
-        result?.reason === 'profile_not_found'
-          ? 'ยังไม่พบ Profile ของอีเมลนี้ กรุณาให้ผู้ใช้สมัครและกรอกข้อมูลบัญชีให้เสร็จก่อน'
-          : `เพิ่มสิทธิ์ไม่สำเร็จ${result?.reason ? `: ${result.reason}` : ''}`,
-      );
-      return;
-    }
-
-    setAdminNotice(`เพิ่ม ${adminLevel === 'superadmin' ? 'SuperAdmin' : 'Admin'} ให้ ${result.email || normalizedEmail} สำเร็จ พร้อม VIP ตลอดชีพ`);
-    setAdminProfileId('');
-    void loadSuperadminData();
-  }
-
-  async function setAdminAccess(row: AdminAccessRow, isActive: boolean) {
-    if (!supabase) return;
-
-    setAdminActionId(row.profileId);
-    setAdminNotice(null);
-
-    const { data, error } = await supabase.rpc('set_superadmin_profile_status', {
-      next_is_active: isActive,
-      target_profile_id: row.profileId,
-    });
-
-    if (error) {
-      setAdminNotice(
-        isMissingRpcFunction(error)
-          ? getRoleOperationSetupNotice('ปรับสิทธิ์ผู้ดูแล', error.message)
-          : error.message,
-      );
-      setAdminActionId(null);
-      return;
-    }
-
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-      setAdminNotice('ปรับสิทธิ์ไม่สำเร็จ: ฐานข้อมูลไม่คืนแถวผู้ดูแลกลับมา โปรดตรวจ migration/RLS');
-      setAdminActionId(null);
-      return;
-    }
-
-    setAdminNotice(`${isActive ? 'เปิด' : 'ปิด'}สิทธิ์ ${row.email} สำเร็จ`);
-    setAdminActionId(null);
-    void loadSuperadminData();
-  }
-
-  async function sendPasswordResetEmail(emailInput?: string) {
-    if (!supabase) {
-      setRecoveryNotice('โหมดตัวอย่าง: ต้องเชื่อม Supabase ก่อนส่งอีเมลรีเซ็ตรหัสผ่าน');
-      return;
-    }
-
-    const email = (emailInput || recoveryEmail).trim().toLowerCase();
-    if (!email) {
-      setRecoveryNotice('กรุณากรอกอีเมลผู้ใช้ก่อนส่งลิงก์รีเซ็ตรหัสผ่าน');
-      return;
-    }
-
-    setRecoveryNotice(null);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    });
-
-    if (error) {
-      setRecoveryNotice(`ส่งอีเมลรีเซ็ตรหัสผ่านไม่สำเร็จ: ${error.message}`);
-      return;
-    }
-
-    setRecoveryNotice(`ส่งอีเมลรีเซ็ตรหัสผ่านไปที่ ${email} แล้ว`);
-  }
-
-  async function setProfileAccountStatus(nextAccountStatus: 'active' | 'suspended') {
-    if (!supabase) {
-      setRecoveryNotice('โหมดตัวอย่าง: ต้องเชื่อม Supabase ก่อนปรับสถานะบัญชีผู้ใช้');
-      return;
-    }
-
-    const email = recoveryEmail.trim().toLowerCase();
-    if (!email) {
-      setRecoveryNotice('กรุณากรอกอีเมลผู้ใช้ก่อนปรับสถานะบัญชี');
-      return;
-    }
-
-    const actionLabel = nextAccountStatus === 'active' ? 'กู้คืนบัญชีผู้ใช้' : 'ระงับบัญชีผู้ใช้';
-    const confirmed = window.confirm(`${actionLabel} ${email} หรือไม่?`);
-    if (!confirmed) return;
-
-    setRecoveryAction(nextAccountStatus);
-    setRecoveryNotice(null);
-
-    const { data, error } = await supabase.rpc('set_profile_account_status_by_email', {
-      next_account_status: nextAccountStatus,
-      target_email: email,
-    });
-
-    if (error) {
-      setRecoveryNotice(
-        isMissingRpcFunction(error)
-          ? getRoleOperationSetupNotice(actionLabel, error.message)
-          : `${actionLabel}ไม่สำเร็จ: ${error.message}`,
-      );
-      setRecoveryAction(null);
-      return;
-    }
-
-    const result = Array.isArray(data) ? data[0] : data;
-    if (!result) {
-      setRecoveryNotice(`${actionLabel}ไม่สำเร็จ: ฐานข้อมูลไม่คืนข้อมูลผู้ใช้กลับมา`);
-      setRecoveryAction(null);
-      return;
-    }
-
-    setRecoveryNotice(`${actionLabel}สำเร็จ: ${email} -> ${nextAccountStatus}`);
-    setRecoveryAction(null);
-  }
 
   async function grantLifetimeVip(workspace: WorkspaceAdminRow) {
     if (!supabase) {
@@ -1780,7 +1589,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </div>
                 <div className="mt-4">
                   <h3 className="text-base font-black text-slate-900">ผู้ใช้ & สิทธิ์</h3>
-                  <p className="mt-1 text-xs font-bold text-slate-500">เพิ่ม Superadmin และรีเซ็ตรหัสผ่าน</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">จัดการบัญชีผู้ใช้ ลบ รีเซ็ตรหัส และสิทธิ์แอดมิน</p>
                 </div>
               </button>
             </section>
@@ -2047,186 +1856,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
 
         {activeSection === 'users' ? (
         <>
-        <div className="mt-5 grid gap-5 xl:grid-cols-2">
-          <section className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <UserPlus size={18} aria-hidden="true" />
-              จัดการสิทธิ์ผู้ดูแล
-            </div>
-            <h2 className="mt-3 text-xl font-black text-slate-950">เพิ่มผู้ดูแลระบบ</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              เลือกบัญชีที่สมัคร ClassCare แล้วตรวจสอบชื่อและอีเมลก่อนกำหนดระดับสิทธิ์
-            </p>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(150px,0.55fr)]">
-              <label className="grid min-w-0 gap-2 text-sm font-black text-slate-700">
-                ผู้ใช้ ClassCare
-                <select
-                  className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                  onChange={(event) => setAdminProfileId(event.target.value)}
-                  value={adminProfileId}
-                >
-                  <option value="">เลือกชื่อผู้ใช้…</option>
-                  {adminCandidates.map((candidate) => (
-                    <option disabled={candidate.isAdminActive} key={candidate.profileId} value={candidate.profileId}>
-                      {candidate.displayName} · {candidate.email}{candidate.isAdminActive ? ` · เป็น ${candidate.currentLevel || 'admin'} แล้ว` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ระดับสิทธิ์
-                <select
-                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                  onChange={(event) => setAdminLevel(event.target.value as AdminLevel)}
-                  value={adminLevel}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="superadmin">SuperAdmin</option>
-                </select>
-              </label>
-              <button
-                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black md:col-span-2"
-                onClick={() => void grantAdminAccess()}
-                type="button"
-              >
-                <UserPlus size={17} aria-hidden="true" />
-                เพิ่มสิทธิ์
-              </button>
-            </div>
-
-            {adminNotice ? (
-              <div className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 p-3 text-sm font-bold leading-6 text-cyan-900" role="status">
-                {adminNotice}
-              </div>
-            ) : null}
-
-          </section>
-
-          <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
-              <div className="flex items-center gap-2 text-sm font-black text-amber-900">
-                <KeyRound size={17} aria-hidden="true" />
-                กู้คืนบัญชีผู้ใช้
-              </div>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                ส่งลิงก์ตั้งรหัสผ่านใหม่ หรือคืนสถานะบัญชีที่ถูกระงับ โดยไม่ต้องทราบรหัสผ่านเดิม
-              </p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <label className="grid min-w-0 gap-1.5 text-xs font-black text-slate-700">
-                  อีเมลบัญชีผู้ใช้
-                  <input
-                    className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
-                    onChange={(event) => setRecoveryEmail(event.target.value)}
-                    placeholder="name@example.com"
-                    type="email"
-                    value={recoveryEmail}
-                  />
-                </label>
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5"
-                  onClick={() => void sendPasswordResetEmail()}
-                  type="button"
-                >
-                  <KeyRound size={16} aria-hidden="true" />
-                  ส่งลิงก์ตั้งรหัสใหม่
-                </button>
-              </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-white px-4 text-sm font-black text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={recoveryAction === 'active'}
-                  onClick={() => void setProfileAccountStatus('active')}
-                  type="button"
-                >
-                  <CheckCircle2 size={16} aria-hidden="true" />
-                  คืนสถานะบัญชี
-                </button>
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={recoveryAction === 'suspended'}
-                  onClick={() => void setProfileAccountStatus('suspended')}
-                  type="button"
-                >
-                  <XCircle size={16} aria-hidden="true" />
-                  ระงับบัญชี
-                </button>
-              </div>
-              {recoveryNotice ? (
-                <div className="mt-3 rounded-2xl border border-amber-200 bg-white/80 p-3 text-sm font-bold leading-6 text-amber-900">
-                  {recoveryNotice}
-                </div>
-              ) : null}
-          </section>
-
-        </div>
-
-        <section className="mt-5 nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="nexus-kicker">
-                  <Users size={18} aria-hidden="true" />
-                  รายชื่อผู้ดูแล
-                </div>
-                <h2 className="mt-4 text-2xl font-black text-slate-950">ผู้ดูแลระบบ {adminRows.length} คน</h2>
-              </div>
-              <span className="nexus-pill inline-flex h-10 items-center px-3 text-xs font-black text-slate-600">
-                VIP ตลอดชีพ
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              {adminRows.map((admin) => (
-                <div className="nexus-muted-box grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_330px] md:items-center" key={admin.profileId}>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                        {admin.level === 'superadmin' ? 'SuperAdmin' : 'Admin'}
-                      </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
-                        admin.isActive
-                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
-                          : 'bg-slate-100 text-slate-500 ring-slate-200'
-                      }`}>
-                        {admin.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
-                      </span>
-                    </div>
-                    <p className="mt-2 truncate text-base font-black text-slate-950">{admin.email}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      {admin.displayName} | เพิ่มเมื่อ {formatDateTime(admin.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 md:justify-end">
-                    <button
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-100 bg-white px-4 text-sm font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-50"
-                      onClick={() => void sendPasswordResetEmail(admin.email)}
-                      type="button"
-                    >
-                      <KeyRound size={16} aria-hidden="true" />
-                      ส่งลิงก์ตั้งรหัสใหม่
-                    </button>
-                  <button
-                    className={`inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 ${
-                      admin.isActive
-                        ? 'border border-rose-100 bg-white text-rose-600 hover:bg-rose-50'
-                        : 'blue-action'
-                    }`}
-                    disabled={adminActionId === admin.profileId}
-                    onClick={() => void setAdminAccess(admin, !admin.isActive)}
-                    type="button"
-                  >
-                    {admin.isActive ? 'ปิดสิทธิ์' : 'เปิดสิทธิ์'}
-                  </button>
-                  </div>
-                </div>
-              ))}
-
-              {adminRows.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                  ยังไม่มีรายการ Admin
-                </div>
-              ) : null}
-            </div>
-          </section>
+        <SuperadminUserManager
+          currentUserId={currentUserId}
+          isDevelopmentDemo={isDevelopmentDemo}
+          onDataMutated={() => void loadSuperadminData()}
+        />
 
         <section className="mt-5 nexus-card p-4 sm:p-5">
           <div className="nexus-kicker">

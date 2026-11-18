@@ -93,6 +93,7 @@ const requiredMigrations = [
   '0085_direct_savings_transaction_edit.sql',
   '0086_clean_october_erroneous_savings_deposits.sql',
   '0087_dedupe_opening_balance_transactions.sql',
+  '0088_superadmin_user_management.sql',
 ];
 
 const requiredFunctions = [
@@ -100,6 +101,7 @@ const requiredFunctions = [
   'approve-payment-request',
   'dispatch-notification',
   'manage-telegram-account',
+  'superadmin-manage-users',
 ];
 
 const requiredSqlTests = [
