@@ -246,10 +246,11 @@ export function PackagePage({ session }: PackagePageProps) {
       setPlan((planRow || demoPlan) as PlanRow);
       const nextQr = (qrRow as PaymentQrRow | null) || null;
       setPaymentQr(nextQr);
-      if (nextQr?.app_files?.bucket && nextQr.app_files.storage_path) {
+      const qrFileRef = Array.isArray(nextQr?.app_files) ? nextQr.app_files[0] : nextQr?.app_files;
+      if (qrFileRef?.bucket && qrFileRef.storage_path) {
         const { data: signedUrlData } = await supabase.storage
-          .from(nextQr.app_files.bucket)
-          .createSignedUrl(nextQr.app_files.storage_path, 60 * 10);
+          .from(qrFileRef.bucket)
+          .createSignedUrl(qrFileRef.storage_path, 60 * 30);
         setQrImageUrl(signedUrlData?.signedUrl || null);
       } else {
         setQrImageUrl(null);
