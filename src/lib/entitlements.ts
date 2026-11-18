@@ -90,6 +90,41 @@ export function canUseModule(subscription: SubscriptionSummary | null, moduleKey
   return getEnabledModules(getEffectivePlanCode(subscription)).includes(moduleKey);
 }
 
+/**
+ * Returns true if the account has permanent / lifetime VIP access (or is superadmin),
+ * so upgrade/renewal VIP menus are not shown to them.
+ */
+export function isLifetimeVip(subscription: SubscriptionSummary | null | undefined, role?: string | null): boolean {
+  if (role === 'superadmin') return true;
+  if (!subscription) return false;
+  if (subscription.planCode !== 'VIP_YEARLY' || subscription.status !== 'active') return false;
+  if (!subscription.endsAt) return true;
+  const fiftyYearsMs = 50 * 365 * 24 * 60 * 60 * 1000;
+  return new Date(subscription.endsAt).getTime() - Date.now() > fiftyYearsMs;
+}
+
+/**
+ * Concise Thai status subtitle for the Sidebar VIP upgrade / renewal menu.
+ */
+export function getVipUpgradeMeta(subscription: SubscriptionSummary | null | undefined): {
+  label: string;
+  subtitle: string;
+} {
+  const effectivePlan = getEffectivePlanCode(subscription ?? null);
+  if (effectivePlan === 'VIP_YEARLY' && subscription?.endsAt) {
+    const endsDate = new Date(subscription.endsAt);
+    const formatted = Number.isNaN(endsDate.getTime())
+      ? 'มีกำหนดหมดอายุ'
+      : new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }).format(endsDate);
+    return { label: 'ต่ออายุ VIP', subtitle: `หมดอายุ ${formatted}` };
+  }
+  if (effectivePlan === 'TRIAL_30' && subscription?.endsAt) {
+    const daysLeft = Math.max(0, Math.ceil((new Date(subscription.endsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+    return { label: 'สมัคร VIP', subtitle: `ทดลองใช้ · เหลือ ${daysLeft} วัน` };
+  }
+  return { label: 'สมัคร VIP', subtitle: 'ปลดล็อกทุกโมดูล + AI' };
+}
+
 export function getEntitlementSummary(subscription: SubscriptionSummary | null) {
   if (!subscription) {
     return {

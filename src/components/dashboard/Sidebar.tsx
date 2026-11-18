@@ -4,7 +4,9 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  Crown,
   Heart,
+  Lock,
   PanelLeftClose,
   School,
   ServerCog,
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppNavigationLink as Link } from '../navigation/ContextLink';
 
+import { canUseModule, getVipUpgradeMeta, isLifetimeVip } from '../../lib/entitlements';
 import type { AppNavItem } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
 import { AppLogo } from '../brand/AppLogo';
@@ -102,7 +105,7 @@ const sidebarSections: SidebarSectionConfig[] = [
   },
 ];
 
-const utilityItemKeys = ['notifications', 'help-center', 'package'];
+const utilityItemKeys = ['notifications', 'help-center'];
 
 export function Sidebar({
   activeView,
@@ -113,6 +116,13 @@ export function Sidebar({
   session,
 }: SidebarProps) {
   const maintenanceSet = new Set(maintenanceKeys);
+  const isSuperadmin = session?.profile.role === 'superadmin';
+  const isItemVipLocked = (item: AppNavItem) =>
+    Boolean(session && !isSuperadmin && !canUseModule(session.subscription, item.moduleKey));
+  const showVipUpgradeMenu = Boolean(
+    session && !isLifetimeVip(session.subscription, session.profile.role),
+  );
+  const vipUpgradeMeta = getVipUpgradeMeta(session?.subscription);
   const directItems = coreDirectItemKeys
     .map((key) => navItems.find((item) => item.key === key))
     .filter((item): item is AppNavItem => Boolean(item));
@@ -141,6 +151,7 @@ export function Sidebar({
   renderedKeys.add('parent-access');
   renderedKeys.add('setup');
   renderedKeys.add('audit');
+  renderedKeys.add('package');
 
   const otherItems = navItems.filter(
     (item) => !renderedKeys.has(item.key) && item.key !== 'superadmin-dashboard',
@@ -236,6 +247,8 @@ export function Sidebar({
                   : section.key === 'school-management'
                     ? 'bg-violet-400/20 text-violet-200 border-violet-300/25'
                     : 'bg-[#2f7d5b]/40 text-[#a7f3d0] border-[#6ee7b7]/25';
+          const allItemsVipLocked =
+            section.items.length > 0 && section.items.every((item) => isItemVipLocked(item));
           return (
             <details className="app-sidebar-section mt-2.5" key={section.key} open={isSectionOpen}>
               <summary className="app-sidebar-section-summary">
@@ -249,6 +262,12 @@ export function Sidebar({
                     {section.label}
                   </span>
                 </span>
+                {allItemsVipLocked ? (
+                  <span className="mr-1 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
+                    <Lock size={8} aria-hidden="true" />
+                    VIP
+                  </span>
+                ) : null}
                 <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-[#9fc0ae]" aria-hidden="true" />
               </summary>
               <div className="grid gap-1 py-1 pl-1">
@@ -256,12 +275,14 @@ export function Sidebar({
                   const Icon = item.icon;
                   const isActive = isItemActive(item.key);
                   const isPaused = maintenanceSet.has(item.key);
+                  const isVipLocked = isItemVipLocked(item);
                   return (
                     <Link
-                      className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
+                      className={`app-sidebar-link group ${isActive ? 'is-active' : ''} ${isVipLocked ? 'opacity-80' : ''}`}
                       key={item.key}
                       onClick={onClose}
-                      externalUrl={item.externalUrl}
+                      externalUrl={isVipLocked ? undefined : item.externalUrl}
+                      title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก VIP` : undefined}
                       to={item.path}
                     >
                       <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -271,6 +292,11 @@ export function Sidebar({
                       {isPaused ? (
                         <span className="shrink-0 rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
                           ปรับปรุง
+                        </span>
+                      ) : isVipLocked ? (
+                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40">
+                          <Lock size={9} aria-hidden="true" />
+                          VIP
                         </span>
                       ) : !isActive ? (
                         <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
@@ -315,7 +341,7 @@ export function Sidebar({
           </details>
         ) : null}
 
-        {/* 🔻 Footer Utilities (แจ้งเตือน / คู่มือใช้งาน / แพ็กเกจ) */}
+        {/* 🔻 Footer Utilities (แจ้งเตือน / คู่มือใช้งาน) */}
         {utilityItems.length > 0 ? (
           <div className="mt-3 grid gap-1.5 border-t border-white/10 pt-2.5">
             {utilityItems.map((item) => {
@@ -323,12 +349,14 @@ export function Sidebar({
               const isActive =
                 item.key === activeView || (item.key === 'notifications' && activeView === 'automation');
               const isPaused = maintenanceSet.has(item.key);
+              const isVipLocked = isItemVipLocked(item);
               return (
                 <Link
-                  className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
+                  className={`app-sidebar-link group ${isActive ? 'is-active' : ''} ${isVipLocked ? 'opacity-80' : ''}`}
                   key={item.key}
                   onClick={onClose}
-                  externalUrl={item.externalUrl}
+                  externalUrl={isVipLocked ? undefined : item.externalUrl}
+                  title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก VIP` : undefined}
                   to={item.path}
                 >
                   <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -339,6 +367,11 @@ export function Sidebar({
                     <span className="shrink-0 rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
                       ปรับปรุง
                     </span>
+                  ) : isVipLocked ? (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40">
+                      <Lock size={9} aria-hidden="true" />
+                      VIP
+                    </span>
                   ) : !isActive ? (
                     <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                   ) : null}
@@ -348,6 +381,28 @@ export function Sidebar({
           </div>
         ) : null}
       </nav>
+
+      {/* 👑 Dedicated VIP Upgrade / Renewal Menu for Non-Lifetime VIP Users */}
+      {showVipUpgradeMenu ? (
+        <Link
+          className={`mt-2.5 flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition ${
+            activeView === 'package'
+              ? 'border-amber-300/70 bg-gradient-to-r from-amber-400/30 via-amber-500/25 to-yellow-400/20 text-white shadow-sm'
+              : 'border-amber-300/35 bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-transparent text-amber-100 hover:border-amber-300/60 hover:from-amber-500/30 hover:text-white'
+          }`}
+          onClick={onClose}
+          to="/app/package"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-400/25 text-amber-200 ring-1 ring-amber-300/40">
+            <Crown size={16} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <strong className="block truncate text-xs font-black text-amber-100">{vipUpgradeMeta.label}</strong>
+            <small className="block truncate text-[10px] font-semibold text-amber-200/80">{vipUpgradeMeta.subtitle}</small>
+          </span>
+          <ChevronRight size={14} className="shrink-0 text-amber-200/80" aria-hidden="true" />
+        </Link>
+      ) : null}
 
       {session?.profile.role === 'superadmin' ? (
         <Link

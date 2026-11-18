@@ -83,12 +83,12 @@ function evaluateRouteAccess({
     };
   }
 
-  if (moduleKey && !canUseModule(session.subscription, moduleKey)) {
+  if (moduleKey && session.profile.role !== 'superadmin' && !canUseModule(session.subscription, moduleKey)) {
     return {
       passed: false,
       reason: 'module-denied',
-      title: 'แพ็กเกจปัจจุบันยังไม่รวมโมดูลนี้',
-      detail: 'ข้อมูลและบัญชีของคุณยังปกติ สามารถอัปเกรด VIP หรือใช้โค้ดเพิ่มวันเพื่อเปิดโมดูลพรีเมียมของ Workspace นี้',
+      title: 'เมนูนี้จำกัดสิทธิ์เฉพาะสมาชิก VIP',
+      detail: 'แพ็กเกจปัจจุบันยังไม่รวมสิทธิ์การใช้งานเมนูนี้ ข้อมูลเดิมทั้งหมดยังคงปลอดภัย สามารถสมัครแพ็กเกจ VIP หรือกรอกโค้ด VIP เพื่อปลดล็อกทุกโมดูลและผู้ช่วย AI ได้ทันที',
     };
   }
 
@@ -166,11 +166,11 @@ export function RouteGuardNotice({
       <section className="glass-panel mx-auto max-w-5xl overflow-hidden rounded-[2rem]">
         <div className={showDemoTools ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px]' : 'grid gap-0'}>
           <div className="p-6 sm:p-8">
-            <div className="inline-flex h-11 items-center gap-2 rounded-full bg-amber-50 px-4 text-sm font-black text-amber-700 ring-1 ring-amber-100">
+            <div className="inline-flex h-11 items-center gap-2 rounded-full bg-amber-50 px-4 text-sm font-black text-amber-700 ring-1 ring-amber-200">
               <Icon size={18} aria-hidden="true" />
-              Route Guard
+              {result.reason === 'module-denied' ? 'สิทธิ์เฉพาะสมาชิก VIP' : 'ตรวจสอบสิทธิ์การใช้งาน'}
             </div>
-            <h1 className="mt-5 max-w-3xl text-3xl font-black leading-[1.08] tracking-tight text-slate-950 sm:text-5xl">
+            <h1 className="mt-5 max-w-3xl text-3xl font-black leading-[1.12] tracking-tight text-slate-950 sm:text-4xl">
               {result.title}
             </h1>
             <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-slate-600">
@@ -179,12 +179,12 @@ export function RouteGuardNotice({
 
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
-                className="blue-action inline-flex h-12 items-center justify-center rounded-2xl px-4 text-sm font-black"
+                className="blue-action inline-flex h-12 items-center justify-center rounded-2xl px-5 text-sm font-black"
                 to={primaryAction.to}
               >
-                {primaryAction.label}
+                {result.reason === 'module-denied' ? 'สมัคร VIP / ใช้โค้ดปลดล็อก' : primaryAction.label}
               </Link>
-              {result.reason !== 'signed-out' ? <SignOutButton className="h-12" /> : null}
+              {result.reason !== 'signed-out' && result.reason !== 'module-denied' ? <SignOutButton className="h-12" /> : null}
               {secondaryAction ? (
                 <Link
                   className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"

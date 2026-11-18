@@ -253,8 +253,8 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'setup' || key === 'superadmin-dashboard') return ['superadmin'] as WorkspaceRole[];
   if (key === 'workspace-switch') return workspaceSelectionRoles;
   if (key === 'period-locks') return classroomUserRoles;
-  if (key === 'workspace-settings') return reportViewerRoles;
-  if (key === 'academic-year' || key === 'import-export' || key === 'package') {
+  if (key === 'workspace-settings' || key === 'package') return reportViewerRoles;
+  if (key === 'academic-year' || key === 'import-export') {
     return ['superadmin', 'teacher_owner'] as WorkspaceRole[];
   }
   if (key === 'data-safety') return classroomUserRoles;
