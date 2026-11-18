@@ -20,6 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
+import { convertImageToWebp, IMAGE_WEBP_PRESETS } from "../../lib/imageOptimizer";
 import { supabase } from "../../lib/supabaseClient";
 import { sendTeacherReport } from "../../lib/teacherNotificationReports";
 import { hasWorkspaceCapability } from "../../lib/roles";
@@ -472,11 +473,18 @@ export function DailySchoolBriefPage({
       return;
     }
     setBusy(true);
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const preparedFile =
+      file.type === "application/pdf"
+        ? file
+        : await convertImageToWebp(file, IMAGE_WEBP_PRESETS.photo);
+    const safeName = preparedFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const storagePath = `${workspaceId}/${brief.id}/${crypto.randomUUID()}-${safeName}`;
     const uploaded = await supabase.storage
       .from("daily-briefs")
-      .upload(storagePath, file, { upsert: false });
+      .upload(storagePath, preparedFile, {
+        contentType: preparedFile.type || "image/webp",
+        upsert: false,
+      });
     if (uploaded.error)
       setNotice("อัปโหลดไฟล์ไม่สำเร็จ: " + uploaded.error.message);
     else {
@@ -484,9 +492,9 @@ export function DailySchoolBriefPage({
         brief_id: brief.id,
         workspace_id: workspaceId,
         storage_path: storagePath,
-        file_name: file.name,
-        content_type: file.type,
-        size_bytes: file.size,
+        file_name: preparedFile.name,
+        content_type: preparedFile.type || "image/webp",
+        size_bytes: preparedFile.size,
         uploaded_by: session.profile.id,
       });
       setNotice(

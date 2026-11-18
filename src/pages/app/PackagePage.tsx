@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Check,
@@ -22,6 +22,7 @@ import {
   planLabels,
   planLimits,
 } from '../../lib/entitlements';
+import { convertImageToWebp, IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
 import { canManageWorkspace } from '../../lib/roles';
 import { requestAppSessionRefresh } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -152,6 +153,9 @@ export function PackagePage({ session }: PackagePageProps) {
   const [requests, setRequests] = useState<PaymentRequestRow[]>([]);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [slipPreviewUrl, setSlipPreviewUrl] = useState<string | null>(null);
+  const [isOptimizingSlip, setIsOptimizingSlip] = useState(false);
+  const slipInputRef = useRef<HTMLInputElement | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [vipCode, setVipCode] = useState('');
   const [isRedeemingCode, setIsRedeemingCode] = useState(false);
@@ -262,13 +266,56 @@ export function PackagePage({ session }: PackagePageProps) {
     };
   }, [session.profile.id, session.workspace, useRealBackend]);
 
+  useEffect(() => {
+    return () => {
+      if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl);
+    };
+  }, [slipPreviewUrl]);
+
+  function clearSlipSelection() {
+    if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl);
+    setSlipPreviewUrl(null);
+    setSlipFile(null);
+    if (slipInputRef.current) slipInputRef.current.value = '';
+  }
+
+  async function handleSlipFileSelect(event: ChangeEvent<HTMLInputElement>) {
+    const rawFile = event.target.files?.[0];
+    if (!rawFile) return;
+
+    setNotice(null);
+    setIsOptimizingSlip(true);
+    try {
+      const preparedFile =
+        rawFile.type === 'application/pdf'
+          ? rawFile
+          : await convertImageToWebp(rawFile, IMAGE_WEBP_PRESETS.payment_slip);
+
+      if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl);
+      setSlipFile(preparedFile);
+      setSlipPreviewUrl(
+        preparedFile.type.startsWith('image/') ? URL.createObjectURL(preparedFile) : null,
+      );
+    } catch {
+      setSlipFile(rawFile);
+      setSlipPreviewUrl(null);
+    } finally {
+      setIsOptimizingSlip(false);
+    }
+  }
+
   async function uploadSlipAndCreateFileRecord(file: File) {
     if (!useRealBackend || !supabase || !session.workspace) return null;
 
+    const optimizedFile =
+      file.type === 'application/pdf'
+        ? file
+        : await convertImageToWebp(file, IMAGE_WEBP_PRESETS.payment_slip);
+
     const bucket = 'payment-slips';
-    const storagePath = getStoragePath(session.workspace.id, session.profile.id, file);
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file, {
-      contentType: file.type || 'application/octet-stream',
+    const storagePath = getStoragePath(session.workspace.id, session.profile.id, optimizedFile);
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, optimizedFile, {
+      contentType: optimizedFile.type || 'image/webp',
       upsert: false,
     });
 
@@ -280,13 +327,14 @@ export function PackagePage({ session }: PackagePageProps) {
         workspace_id: session.workspace.id,
         bucket,
         storage_path: storagePath,
-        original_filename: file.name,
-        content_type: file.type || 'application/octet-stream',
-        size_bytes: file.size,
+        original_filename: optimizedFile.name,
+        content_type: optimizedFile.type || 'image/webp',
+        size_bytes: optimizedFile.size,
         privacy_level: 'sensitive',
         owner_profile_id: session.profile.id,
         metadata: {
           purpose: 'payment_slip',
+          optimized_webp: optimizedFile.type === 'image/webp',
         },
       })
       .select('id')
@@ -307,12 +355,6 @@ export function PackagePage({ session }: PackagePageProps) {
       return;
     }
 
-    if (!paymentQr) {
-      setNotice({ tone: 'error', text: 'ช่องทางชำระเงิน QR ยังไม่เปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบหรือใช้โค้ด VIP' });
-      setIsSubmitting(false);
-      return;
-    }
-
     if (!slipFile) {
       setNotice({ tone: 'error', text: 'กรุณาแนบไฟล์สลิปการโอนเงินก่อนส่งคำขอ' });
       setIsSubmitting(false);
@@ -329,7 +371,7 @@ export function PackagePage({ session }: PackagePageProps) {
         status: 'pending_review',
       };
       setRequests((current) => [localRequest, ...current]);
-      setSlipFile(null);
+      clearSlipSelection();
       setReviewNote('');
       setNotice({ tone: 'success', text: 'ส่งหลักฐานการชำระเงินในโหมดตัวอย่างเรียบร้อยแล้ว' });
       setIsSubmitting(false);
@@ -344,7 +386,7 @@ export function PackagePage({ session }: PackagePageProps) {
           workspace_id: session.workspace.id,
           profile_id: session.profile.id,
           plan_id: plan.id,
-          qr_code_id: paymentQr.id,
+          qr_code_id: paymentQr?.id ?? null,
           status: 'pending_review',
           base_amount_thb: plan.price_thb,
           credit_amount_thb: creditAmount,
@@ -359,7 +401,7 @@ export function PackagePage({ session }: PackagePageProps) {
       if (error) throw error;
 
       setRequests((current) => [data as PaymentRequestRow, ...current]);
-      setSlipFile(null);
+      clearSlipSelection();
       setReviewNote('');
       setNotice({
         tone: 'success',
@@ -743,17 +785,35 @@ export function PackagePage({ session }: PackagePageProps) {
                 {/* Step 2: Slip Upload */}
                 <div className="mt-4">
                   <p className="text-xs font-black text-slate-700">2. แนบหลักฐานการโอนเงิน (สลิป)</p>
+                  <input
+                    ref={slipInputRef}
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    disabled={!canCreateRequest || isOptimizingSlip}
+                    onChange={(event) => void handleSlipFileSelect(event)}
+                    type="file"
+                  />
                   {slipFile ? (
                     <div className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-black text-emerald-950">{slipFile.name}</p>
-                        <p className="text-[11px] font-semibold text-emerald-700">
-                          ขนาดไฟล์ {Math.max(1, Math.ceil(slipFile.size / 1024))} KB · พร้อมส่งตรวจสอบ
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {slipPreviewUrl ? (
+                          <img
+                            src={slipPreviewUrl}
+                            alt="ตัวอย่างสลิป"
+                            className="h-12 w-12 shrink-0 rounded-xl border border-emerald-200 bg-white object-cover"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-black text-emerald-950">{slipFile.name}</p>
+                          <p className="text-[11px] font-semibold text-emerald-700">
+                            ขนาดไฟล์ {Math.max(1, Math.ceil(slipFile.size / 1024))} KB
+                            {slipFile.type === 'image/webp' ? ' (WebP คมชัด ประหยัดพื้นที่)' : ''} · พร้อมส่งตรวจสอบ
+                          </p>
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setSlipFile(null)}
+                        onClick={clearSlipSelection}
                         className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white text-slate-500 ring-1 ring-slate-200 hover:text-rose-600"
                         title="เปลี่ยนไฟล์สลิป"
                       >
@@ -761,18 +821,20 @@ export function PackagePage({ session }: PackagePageProps) {
                       </button>
                     </div>
                   ) : (
-                    <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-5 text-center transition hover:border-[#2F7D5B]/50 hover:bg-emerald-50/30">
+                    <button
+                      type="button"
+                      disabled={!canCreateRequest || isOptimizingSlip}
+                      onClick={() => slipInputRef.current?.click()}
+                      className="mt-2 flex w-full select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-5 text-center transition hover:border-[#2F7D5B]/50 hover:bg-emerald-50/30 disabled:cursor-not-allowed disabled:opacity-55"
+                    >
                       <FileUp className="text-[#2F7D5B]" size={22} aria-hidden="true" />
-                      <span className="mt-2 text-xs font-black text-slate-700">คลิกเพื่ออัปโหลดภาพสลิปหรือ PDF</span>
-                      <span className="mt-0.5 text-[11px] font-semibold text-slate-400">รองรับไฟล์ JPG, PNG, WebP หรือ PDF</span>
-                      <input
-                        accept="image/*,application/pdf"
-                        className="sr-only"
-                        disabled={!canCreateRequest || !paymentQr}
-                        onChange={(event) => setSlipFile(event.target.files?.[0] || null)}
-                        type="file"
-                      />
-                    </label>
+                      <span className="mt-2 text-xs font-black text-slate-700">
+                        {isOptimizingSlip ? 'กำลังแปลงภาพเป็น WebP และย่อขนาด...' : 'คลิกเพื่ออัปโหลดภาพสลิปหรือ PDF'}
+                      </span>
+                      <span className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                        ระบบแปลงรูปเป็น .webp และย่อขนาดอัตโนมัติโดยคงความคมชัด (รองรับ JPG, PNG, WebP, PDF)
+                      </span>
+                    </button>
                   )}
                 </div>
 
@@ -781,7 +843,7 @@ export function PackagePage({ session }: PackagePageProps) {
                   หมายเหตุเพิ่มเติม (ไม่บังคับ)
                   <input
                     className="nexus-field mt-1.5 h-10 w-full px-3 text-xs font-bold"
-                    disabled={!canCreateRequest || !paymentQr}
+                    disabled={!canCreateRequest}
                     onChange={(event) => setReviewNote(event.target.value)}
                     placeholder="เช่น ชื่อผู้โอน หรือเวลาโอนเงิน"
                     type="text"
@@ -791,7 +853,7 @@ export function PackagePage({ session }: PackagePageProps) {
 
                 <button
                   className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={isSubmitting || isLoading || !canCreateRequest || !paymentQr || !slipFile}
+                  disabled={isSubmitting || isOptimizingSlip || isLoading || !canCreateRequest || !slipFile}
                   type="submit"
                 >
                   <CreditCard size={16} aria-hidden="true" />

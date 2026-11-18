@@ -41,6 +41,7 @@ import {
 
 import { getBangkokDate } from '../../lib/date';
 import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
+import { convertImageToWebp, IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
 import {
   buildOfficialDocumentCode,
   buildOfficialFooterHtml,
@@ -812,64 +813,10 @@ function getHomeVisitStoragePath(workspaceId: string, studentId: string, photoKi
   return `${workspaceId}/home-visits/${studentId}/${photoKind}-${Date.now()}.${extension}`;
 }
 
-const HOME_VISIT_PHOTO_MAX_EDGE = 1600;
-const HOME_VISIT_PHOTO_QUALITY = 0.78;
-const HOME_VISIT_PHOTO_SKIP_BYTES = 650 * 1024;
-
-function getOptimizedPhotoName(fileName: string) {
-  const cleanName = fileName.replace(/\.[^.]+$/, '');
-  return `${cleanName || 'home-visit-photo'}-optimized.jpg`;
-}
+const HOME_VISIT_PHOTO_MAX_EDGE = IMAGE_WEBP_PRESETS.photo.maxEdge;
 
 async function optimizeHomeVisitPhoto(file: File) {
-  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
-    return file;
-  }
-
-  const objectUrl = URL.createObjectURL(file);
-
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const nextImage = new Image();
-      nextImage.onload = () => resolve(nextImage);
-      nextImage.onerror = () => reject(new Error('อ่านรูปภาพไม่สำเร็จ'));
-      nextImage.src = objectUrl;
-    });
-
-    const longestEdge = Math.max(image.naturalWidth, image.naturalHeight);
-    if (longestEdge <= HOME_VISIT_PHOTO_MAX_EDGE && file.size <= HOME_VISIT_PHOTO_SKIP_BYTES) {
-      return file;
-    }
-
-    const scale = longestEdge > HOME_VISIT_PHOTO_MAX_EDGE ? HOME_VISIT_PHOTO_MAX_EDGE / longestEdge : 1;
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext('2d');
-    if (!context) return file;
-
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', HOME_VISIT_PHOTO_QUALITY);
-    });
-
-    if (!blob || blob.size >= file.size) return file;
-
-    return new File([blob], getOptimizedPhotoName(file.name), {
-      lastModified: Date.now(),
-      type: 'image/jpeg',
-    });
-  } catch {
-    return file;
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  return convertImageToWebp(file, IMAGE_WEBP_PRESETS.photo);
 }
 
 function escapeHtml(value: unknown) {
@@ -3063,7 +3010,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       .from('app_files')
       .insert({
         bucket,
-        content_type: file.type || 'application/octet-stream',
+        content_type: optimizedFile.type || 'image/webp',
         metadata: {
           optimized_content_type: optimizedFile.type || null,
           optimized_filename: optimizedFile.name,
@@ -3074,7 +3021,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           resized_for_storage: optimizedFile !== file,
           student_id: selectedStudent.id,
         },
-        original_filename: file.name,
+        original_filename: optimizedFile.name,
         owner_profile_id: session.profile.id,
         privacy_level: 'sensitive',
         size_bytes: optimizedFile.size,
@@ -5252,7 +5199,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
 
             <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-bold leading-5 text-emerald-800">
-              ระบบจะย่อรูปอัตโนมัติก่อนอัปโหลด: ด้านยาวไม่เกิน {HOME_VISIT_PHOTO_MAX_EDGE}px และบีบอัดเป็น JPEG เพื่อประหยัดพื้นที่จัดเก็บ
+              ระบบจะย่อรูปอัตโนมัติก่อนอัปโหลด: ด้านยาวไม่เกิน {HOME_VISIT_PHOTO_MAX_EDGE}px และแปลงเป็น WebP โดยคงความคมชัดเพื่อประหยัดพื้นที่จัดเก็บ
             </div>
 
             <label className="grid gap-2 text-sm font-black text-slate-700">

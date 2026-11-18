@@ -1,3 +1,5 @@
+import { convertImageToWebpDataUrl } from './imageOptimizer';
+
 export type DayName = 'จันทร์' | 'อังคาร' | 'พุธ' | 'พฤหัสบดี' | 'ศุกร์' | 'เสาร์' | 'อาทิตย์';
 
 export interface ScheduleCell {
@@ -299,32 +301,13 @@ export function getAttendanceOptionsFromSchedule(workspaceId?: string | null) {
   return { periodOptions, subjectOptions };
 }
 
-export async function compressImageFile(file: File, maxSize = 520, quality = 0.78) {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('อ่านไฟล์รูปภาพไม่สำเร็จ'));
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.readAsDataURL(file);
+export async function compressImageFile(file: File, maxSize = 560, quality = 0.86) {
+  return convertImageToWebpDataUrl(file, {
+    maxEdge: maxSize,
+    quality,
+    preserveTransparency: true,
+    fallbackName: 'school-logo',
   });
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const element = new Image();
-    element.onerror = () => reject(new Error('โหลดรูปภาพไม่สำเร็จ'));
-    element.onload = () => resolve(element);
-    element.src = dataUrl;
-  });
-
-  const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(image.width * ratio));
-  canvas.height = Math.max(1, Math.round(image.height * ratio));
-  const context = canvas.getContext('2d');
-  if (!context) return dataUrl;
-
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', quality);
 }
 
 export function exportScheduleCsv(settings: ScheduleSettings) {

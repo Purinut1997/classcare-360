@@ -35,6 +35,7 @@ import {
   Database,
 } from 'lucide-react';
 
+import { convertImageToWebp, IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
 import { buildPromptPayPayload, dataUrlToFile, promptPayPayloadToPngDataUrl } from '../../lib/promptpay';
 import { activateWorkspace, setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -1025,10 +1026,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     }
 
     try {
+      const optimizedQrFile = await convertImageToWebp(qrFile, IMAGE_WEBP_PRESETS.payment_qr);
       const bucket = 'payment-qr-codes';
-      const storagePath = getPaymentQrStoragePath(user.id, qrFile);
-      const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, qrFile, {
-        contentType: qrFile.type || 'image/png',
+      const storagePath = getPaymentQrStoragePath(user.id, optimizedQrFile);
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, optimizedQrFile, {
+        contentType: optimizedQrFile.type || 'image/webp',
         upsert: false,
       });
 
@@ -1038,14 +1040,15 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         .from('app_files')
         .insert({
           bucket,
-          content_type: qrFile.type || 'image/png',
+          content_type: optimizedQrFile.type || 'image/webp',
           metadata: {
             purpose: 'payment_qr_code',
+            optimized_webp: optimizedQrFile.type === 'image/webp',
           },
-          original_filename: qrFile.name,
+          original_filename: optimizedQrFile.name,
           owner_profile_id: user.id,
           privacy_level: 'restricted',
-          size_bytes: qrFile.size,
+          size_bytes: optimizedQrFile.size,
           storage_path: storagePath,
           workspace_id: null,
         })
@@ -1105,7 +1108,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         identifierType: promptPayIdentifierType,
       });
       const dataUrl = await promptPayPayloadToPngDataUrl(payload);
-      const file = dataUrlToFile(dataUrl, `promptpay-${Date.now()}.png`);
+      const rawFile = dataUrlToFile(dataUrl, `promptpay-${Date.now()}.png`);
+      const file = await convertImageToWebp(rawFile, IMAGE_WEBP_PRESETS.payment_qr);
       const cleanedIdentifier = promptPayIdentifier.replace(/\D/g, '');
       const maskedIdentifier =
         cleanedIdentifier.length > 4
@@ -2728,13 +2732,25 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     <div className="flex flex-wrap items-center gap-3">
                       <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-cyan-300 bg-cyan-50/40 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-cyan-50">
                         <FileUp className="text-cyan-700" size={16} aria-hidden="true" />
-                        <span>{qrFile ? `${qrFile.name} (${Math.ceil(qrFile.size / 1024)} KB)` : 'หรืออัปโหลดรูป QR (PNG/JPG)'}</span>
+                        <span>
+                          {qrFile
+                            ? `${qrFile.name} (${Math.max(1, Math.ceil(qrFile.size / 1024))} KB)`
+                            : 'หรืออัปโหลดรูป QR (แปลงเป็น .webp อัตโนมัติ)'}
+                        </span>
                         <input
                           accept="image/png,image/jpeg,image/webp"
                           className="sr-only"
                           onChange={(event) => {
-                            setQrFile(event.target.files?.[0] || null);
-                            setPromptPayPreviewUrl(null);
+                            const selected = event.target.files?.[0];
+                            if (!selected) {
+                              setQrFile(null);
+                              setPromptPayPreviewUrl(null);
+                              return;
+                            }
+                            void convertImageToWebp(selected, IMAGE_WEBP_PRESETS.payment_qr).then((webpFile) => {
+                              setQrFile(webpFile);
+                              setPromptPayPreviewUrl(URL.createObjectURL(webpFile));
+                            });
                           }}
                           type="file"
                         />
