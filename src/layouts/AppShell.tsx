@@ -73,7 +73,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
       />
       <div className="app-shell-main">
         <div className="no-print print:hidden">
-          <GlobalBroadcastBanner />
+          <GlobalBroadcastBanner isSuperadmin={session?.profile.role === 'superadmin'} />
           <NetworkStatusBanner />
           <Topbar
             activeLabel={activeLabel}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock3, Database, ExternalLink, HardDrive, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle2, Clock3, Database, Download, ExternalLink, HardDrive, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 
 import { supabase } from '../../lib/supabaseClient';
 
@@ -12,6 +12,12 @@ interface R2Backup {
 interface BackupStatus {
   backups: R2Backup[];
   retention_days: number;
+}
+
+interface QuickWorkspaceOption {
+  id: string;
+  name: string;
+  school_name: string | null;
 }
 
 function formatDate(value?: string | null) {
@@ -44,6 +50,52 @@ export function SuperadminBackupCenter() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ message: string; workflowUrl?: string } | null>(null);
+  const [workspaces, setWorkspaces] = useState<QuickWorkspaceOption[]>([]);
+  const [snapshotWsId, setSnapshotWsId] = useState('');
+  const [isExportingSnapshot, setIsExportingSnapshot] = useState(false);
+  const [snapshotNotice, setSnapshotNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase
+      .from('workspaces')
+      .select('id,name,school_name')
+      .is('archived_at', null)
+      .order('created_at', { ascending: false })
+      .limit(100)
+      .then(({ data }) => {
+        const list = (data || []) as QuickWorkspaceOption[];
+        setWorkspaces(list);
+        if (list[0]) setSnapshotWsId((prev) => prev || list[0].id);
+      });
+  }, []);
+
+  async function downloadInstantSnapshot() {
+    if (!supabase || !snapshotWsId) return;
+    setIsExportingSnapshot(true);
+    setSnapshotNotice(null);
+    const { data, error: rpcErr } = await supabase.rpc('superadmin_export_workspace_snapshot', {
+      target_workspace_id: snapshotWsId,
+    });
+    setIsExportingSnapshot(false);
+    if (rpcErr) {
+      setSnapshotNotice({ tone: 'error', text: `ส่งออกสำรองข้อมูลไม่สำเร็จ: ${rpcErr.message}` });
+      return;
+    }
+    const ws = workspaces.find((w) => w.id === snapshotWsId);
+    const label = (ws?.school_name || ws?.name || 'workspace').replace(/[^a-zA-Z0-9ก-๙_-]+/g, '_').slice(0, 40);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `classcare-snapshot-${label}-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setSnapshotNotice({ tone: 'success', text: `ดาวน์โหลดไฟล์สำรองข้อมูลของ "${ws?.school_name || ws?.name}" สำเร็จแล้ว` });
+  }
 
   const loadBackups = useCallback(async () => {
     if (!supabase) {
@@ -104,6 +156,61 @@ export function SuperadminBackupCenter() {
 
   return (
     <section className="space-y-5" aria-labelledby="superadmin-backup-title">
+      {/* Instant Direct-DB Workspace Snapshot Backup (always works!) */}
+      <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-700 text-white">
+              <Download size={22} />
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider text-emerald-800">Instant Snapshot Backup</p>
+              <h2 className="mt-0.5 text-xl font-black text-slate-950">สำรองข้อมูลรายโรงเรียนทันที (ดาวน์โหลด .JSON)</h2>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                ดึงข้อมูลจริงจากฐานข้อมูลโดยตรง (ห้องเรียน, นักเรียน, สมาชิก, เงินออม, แพ็กเกจ) เก็บลงเครื่องทันที ไม่ต้องพึ่ง R2 หรือ Edge Function
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative flex items-center">
+              <Building2 size={15} className="pointer-events-none absolute left-3 text-slate-400" />
+              <select
+                value={snapshotWsId}
+                onChange={(e) => setSnapshotWsId(e.target.value)}
+                className="h-11 min-w-[220px] rounded-xl border border-emerald-200 bg-white pl-9 pr-3 text-xs font-black text-slate-800"
+              >
+                {workspaces.length === 0 ? <option value="">กำลังโหลดรายชื่อโรงเรียน...</option> : null}
+                {workspaces.map((ws) => (
+                  <option key={ws.id} value={ws.id}>
+                    {ws.school_name || ws.name} ({ws.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              disabled={isExportingSnapshot || !snapshotWsId}
+              onClick={() => void downloadInstantSnapshot()}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
+            >
+              {isExportingSnapshot ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
+              <span>{isExportingSnapshot ? 'กำลังสำรอง...' : 'สำรองข้อมูลเดี๋ยวนี้'}</span>
+            </button>
+          </div>
+        </div>
+        {snapshotNotice ? (
+          <p
+            className={`mt-3 rounded-2xl border p-3 text-xs font-black ${
+              snapshotNotice.tone === 'error'
+                ? 'border-rose-200 bg-rose-50 text-rose-800'
+                : 'border-emerald-200 bg-emerald-100/70 text-emerald-900'
+            }`}
+          >
+            {snapshotNotice.text}
+          </p>
+        ) : null}
+      </div>
+
       <div className="rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-5 shadow-sm sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">

@@ -15,6 +15,7 @@ import {
   QrCode,
   RefreshCw,
   School,
+  Settings2,
   ShieldCheck,
   Trash2,
   Users,
@@ -33,11 +34,21 @@ import {
 import { buildPromptPayPayload, dataUrlToFile, promptPayPayloadToPngDataUrl } from '../../lib/promptpay';
 import { activateWorkspace, setStoredActiveWorkspaceId } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
-import { clearSystemBroadcast, getSystemBroadcast, saveSystemBroadcast, type BroadcastSeverity, type SystemBroadcast } from '../../lib/systemBroadcast';
-import { SuperadminSupportInbox } from './SuperadminSupportInbox';
-import { VipAccessManager } from './VipAccessManager';
+import {
+  clearSystemBroadcastInDb,
+  fetchActiveSystemBroadcast,
+  getSystemBroadcast,
+  saveSystemBroadcastToDb,
+  type BroadcastSeverity,
+  type SystemBroadcast,
+} from '../../lib/systemBroadcast';
+import { SuperadminAuditCenter } from './SuperadminAuditCenter';
 import { SuperadminBackupCenter } from './SuperadminBackupCenter';
+import { SuperadminHealthCenter } from './SuperadminHealthCenter';
+import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 import { SuperadminUserManager } from './SuperadminUserManager';
+import { SuperadminWorkspaceModal, type WorkspaceModalTarget } from './SuperadminWorkspaceModal';
+import { VipAccessManager } from './VipAccessManager';
 
 type PaymentStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'expired';
 type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'suspended' | 'cancelled' | 'refunded';
@@ -226,6 +237,7 @@ interface SubscriptionAdminRow {
   id: string;
   planCode: string;
   status: SubscriptionStatus;
+  workspaceId?: string;
   workspaceName: string;
 }
 
@@ -249,7 +261,9 @@ interface WorkspaceAdminRow {
   name: string;
   ownerEmail: string;
   ownerName: string;
+  ownerProfileId?: string;
   schoolName: string;
+  settings?: Record<string, unknown>;
   studentCount: number;
 }
 
@@ -419,6 +433,7 @@ function mapSubscriptionRow(row: Record<string, unknown>): SubscriptionAdminRow 
     id: String(row.id),
     planCode: plan?.code || '-',
     status: String(row.status || 'trial') as SubscriptionStatus,
+    workspaceId: row.workspace_id ? String(row.workspace_id) : undefined,
     workspaceName: workspace?.name || 'ไม่ระบุ workspace',
   };
 }
@@ -438,20 +453,22 @@ function mapAdminRow(row: Record<string, unknown>): AdminAccessRow {
 
 function mapWorkspaceRow(row: Record<string, unknown>): WorkspaceAdminRow {
   const owner = row.owner_profile as { display_name?: string | null; email?: string | null } | null;
-  const settings = row.settings as { classroom_name?: string | null } | null;
+  const settings = (row.settings as Record<string, unknown> | null) || {};
 
   return {
     academicYear: String(row.academic_year || '-'),
     archivedAt: (row.archived_at as string | null) || null,
     classroomCount: 0,
-    classroomName: settings?.classroom_name || '-',
+    classroomName: String(settings?.classroom_name || '-'),
     createdAt: String(row.created_at || new Date().toISOString()),
     id: String(row.id),
     memberCount: 0,
     name: String(row.name || 'ไม่ระบุ workspace'),
     ownerEmail: owner?.email || '-',
     ownerName: owner?.display_name || 'ไม่ระบุเจ้าของ',
+    ownerProfileId: row.owner_profile_id ? String(row.owner_profile_id) : undefined,
     schoolName: String(row.school_name || 'ยังไม่ได้ระบุโรงเรียน'),
+    settings,
     studentCount: 0,
   };
 }
@@ -539,10 +556,12 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       getSystemBroadcast() || {
         createdAt: new Date().toISOString(),
         dismissible: true,
+        endsAt: null,
         id: `broadcast-${Date.now()}`,
         isActive: false,
         linkText: '',
         linkUrl: '',
+        maintenanceLock: false,
         message: '',
         severity: 'info',
         title: '',
@@ -551,14 +570,32 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     );
   });
   const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+  const [isSavingBroadcast, setIsSavingBroadcast] = useState(false);
   const [dbPingMs, setDbPingMs] = useState<number | null>(null);
   const [isPinging, setIsPinging] = useState(false);
+  const [totalUsersCount, setTotalUsersCount] = useState<number | null>(isDevelopmentDemo ? 5 : null);
+  const [orphanUsersCount, setOrphanUsersCount] = useState(0);
+  const [openSupportCount, setOpenSupportCount] = useState(0);
+  const [urgentSupportCount, setUrgentSupportCount] = useState(0);
+  const [managingWorkspace, setManagingWorkspace] = useState<WorkspaceModalTarget | null>(null);
+  const [userInspectQuery, setUserInspectQuery] = useState('');
 
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
   const archivedWorkspaceCount = workspaces.length - activeWorkspaceCount;
   const totalStudentCount = workspaces.reduce((sum, workspace) => sum + workspace.studentCount, 0);
   const totalMemberCount = workspaces.reduce((sum, workspace) => sum + workspace.memberCount, 0);
+  const activeAdminCount = adminRows.filter((a) => a.isActive).length;
   const pendingPaymentCount = payments.filter((payment) => payment.status === 'pending_review').length;
+
+  const subscriptionByWorkspaceId = useMemo(() => {
+    const map = new Map<string, SubscriptionAdminRow>();
+    subscriptions.forEach((sub) => {
+      if (sub.workspaceId && !map.has(sub.workspaceId)) {
+        map.set(sub.workspaceId, sub);
+      }
+    });
+    return map;
+  }, [subscriptions]);
 
   const filteredPayments = useMemo(
     () => (activeFilter === 'all' ? payments : payments.filter((payment) => payment.status === activeFilter)),
@@ -592,49 +629,72 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     const now = Date.now();
     const thirtyDaysMs = 30 * 86_400_000;
     return workspaces.filter((w) => {
-      const sub = subscriptions.find((s) => s.workspaceName === w.name || s.id === w.id);
-      if (!sub?.endsAt) return false;
+      if (w.archivedAt) return false;
+      const sub = subscriptionByWorkspaceId.get(w.id) || subscriptions.find((s) => !s.workspaceId && s.workspaceName === w.name);
+      if (!sub?.endsAt || sub.status === 'expired' || sub.status === 'cancelled') return false;
       const exp = new Date(sub.endsAt).getTime();
       return exp > now && exp <= now + thirtyDaysMs;
     });
-  }, [subscriptions, workspaces]);
+  }, [subscriptionByWorkspaceId, subscriptions, workspaces]);
 
-  function handleSaveBroadcast(event: FormEvent) {
+  async function handleSaveBroadcast(event: FormEvent) {
     event.preventDefault();
     if (!broadcastForm.title.trim() && broadcastForm.isActive) {
       setBroadcastNotice('กรุณากรอกหัวข้อประกาศ');
       return;
     }
-    const updated: SystemBroadcast = {
+    if (broadcastForm.maintenanceLock && broadcastForm.isActive) {
+      const ok = window.confirm(
+        'ยืนยันเปิด "โหมดปิดปรับปรุงระบบ (ล็อกผู้ใช้ทั่วไป)" หรือไม่?\n\nครูและผู้ใช้ทั่วไปทุกคนจะเห็นหน้าจอปิดปรับปรุงชั่วคราว (เฉพาะ SuperAdmin ที่ยังเข้าใช้งานได้ปกติ)',
+      );
+      if (!ok) return;
+    }
+
+    setIsSavingBroadcast(true);
+    setBroadcastNotice(null);
+    const payload: SystemBroadcast = {
       ...broadcastForm,
       title: broadcastForm.title.trim(),
       message: broadcastForm.message.trim(),
       updatedAt: new Date().toISOString(),
     };
-    saveSystemBroadcast(updated);
-    setBroadcastForm(updated);
+    const { data, error, persistedToDb } = await saveSystemBroadcastToDb(payload);
+    setIsSavingBroadcast(false);
+    if (error) {
+      setBroadcastNotice(`บันทึกประกาศลงฐานข้อมูลไม่สำเร็จ: ${error}`);
+      return;
+    }
+    if (data) setBroadcastForm(data);
     setBroadcastNotice(
-      updated.isActive
-        ? '✓ บันทึกและส่งแถบประกาศขึ้นหน้าจอทุกโรงเรียนแล้ว'
-        : '✓ ปิดการแสดงประกาศเรียบร้อยแล้ว'
+      payload.isActive
+        ? persistedToDb
+          ? payload.maintenanceLock
+            ? '✓ เปิดโหมดปิดปรับปรุงระบบลงฐานข้อมูลแล้ว — ผู้ใช้ทุกคนทุกเครื่องจะเห็นหน้าปิดปรับปรุงทันที'
+            : '✓ บันทึกประกาศลงฐานข้อมูลแล้ว — แถบประกาศจะแสดงบนหน้าจอครูและทุกโรงเรียนทันที'
+          : '✓ บันทึกประกาศโหมดตัวอย่างเรียบร้อยแล้ว'
+        : '✓ ปิดการแสดงประกาศเรียบร้อยแล้ว',
     );
   }
 
-  function handleClearBroadcast() {
-    clearSystemBroadcast();
+  async function handleClearBroadcast() {
+    setIsSavingBroadcast(true);
+    const { error } = await clearSystemBroadcastInDb();
+    setIsSavingBroadcast(false);
     setBroadcastForm({
       createdAt: new Date().toISOString(),
       dismissible: true,
+      endsAt: null,
       id: `broadcast-${Date.now()}`,
       isActive: false,
       linkText: '',
       linkUrl: '',
+      maintenanceLock: false,
       message: '',
       severity: 'info',
       title: '',
       updatedAt: new Date().toISOString(),
     });
-    setBroadcastNotice('✓ ล้างและปิดประกาศทั้งหมดเรียบร้อย');
+    setBroadcastNotice(error ? `ปิดประกาศใน DB ไม่สำเร็จ: ${error}` : '✓ ปิดประกาศและปลดล็อกโหมดปิดปรับปรุงทั่วทั้งระบบเรียบร้อย');
   }
 
   async function testDbPing() {
@@ -690,34 +750,62 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       { data: subscriptionRows, error: subscriptionError },
       { data: adminData, error: adminError },
       { data: workspaceRows, error: workspaceError },
+      liveBroadcast,
+      { data: diagData },
     ] = await Promise.all([
       activeSupabase.auth.getUser(),
       activeSupabase
         .from('payment_requests')
         .select('id,workspace_id,profile_id,plan_id,status,base_amount_thb,credit_amount_thb,payable_amount_thb,created_at,review_note,workspaces(name,school_name),owner_profile:profiles!payment_requests_profile_id_fkey(display_name,email),plans(name,code,duration_days),app_files(bucket,original_filename,storage_path)')
         .order('created_at', { ascending: false })
-        .limit(20),
+        .limit(100),
       activeSupabase
         .from('payment_qr_codes')
         .select('id,display_name,bank_name,account_name,account_hint,is_active,created_at')
         .order('created_at', { ascending: false })
-        .limit(6),
+        .limit(12),
       activeSupabase
         .from('subscriptions')
-        .select('id,status,ends_at,workspaces(name),plans(code)')
+        .select('id,workspace_id,status,ends_at,workspaces(name),plans(code)')
         .order('updated_at', { ascending: false })
-        .limit(8),
+        .limit(200),
       activeSupabase
         .from('superadmin_profiles')
         .select('profile_id,level,is_active,created_at,admin_profile:profiles!superadmin_profiles_profile_id_fkey(email,display_name)')
         .order('created_at', { ascending: false })
-        .limit(20),
+        .limit(50),
       activeSupabase
         .from('workspaces')
         .select('id,name,school_name,academic_year,settings,owner_profile_id,created_at,archived_at,owner_profile:profiles!workspaces_owner_profile_id_fkey(email,display_name)')
         .order('created_at', { ascending: false })
-        .limit(12),
+        .limit(200),
+      fetchActiveSystemBroadcast(),
+      activeSupabase.rpc('superadmin_get_system_diagnostics'),
     ]);
+
+    if (liveBroadcast) {
+      setBroadcastForm(liveBroadcast);
+    }
+
+    if (diagData && typeof diagData === 'object') {
+      const counts = (diagData as { counts?: Record<string, number> }).counts;
+      if (counts) {
+        setTotalUsersCount(Number(counts.users || 0));
+        setOrphanUsersCount(Number(counts.orphan_users || 0));
+        setOpenSupportCount(Number(counts.open_support_tickets || 0));
+        setUrgentSupportCount(Number(counts.urgent_support_tickets || 0));
+      }
+    } else {
+      // Fallback counts if migration 0091 is not yet applied
+      const [profilesCountRes, ticketsRes] = await Promise.all([
+        activeSupabase.from('profiles').select('id', { count: 'exact', head: true }),
+        activeSupabase.from('support_tickets').select('status,priority').limit(200),
+      ]);
+      if (typeof profilesCountRes.count === 'number') setTotalUsersCount(profilesCountRes.count);
+      const tRows = (ticketsRes.data || []) as Array<{ status: string; priority: string }>;
+      setOpenSupportCount(tRows.filter((t) => !['resolved', 'closed'].includes(t.status)).length);
+      setUrgentSupportCount(tRows.filter((t) => t.priority === 'urgent' && !['resolved', 'closed'].includes(t.status)).length);
+    }
 
     if (authUserData?.user?.id) {
       setCurrentUserId(authUserData.user.id);
@@ -1424,8 +1512,13 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               {[
                 { icon: Building2, label: 'Workspace ที่ใช้งาน', meta: `${archivedWorkspaceCount} เก็บถาวร`, value: activeWorkspaceCount },
                 { icon: GraduationCap, label: 'นักเรียนทั้งหมด', meta: `${activeWorkspaceCount} workspace`, value: totalStudentCount },
-                { icon: Users, label: 'สมาชิกทั้งหมด', meta: 'ทุก workspace', value: totalMemberCount },
-                { icon: ShieldCheck, label: 'ผู้ดูแลระบบ', meta: 'Admin และ Superadmin', value: adminRows.length },
+                {
+                  icon: Users,
+                  label: 'บัญชีผู้ใช้ทั้งหมด',
+                  meta: orphanUsersCount > 0 ? `${totalMemberCount} ในโรงเรียน · ${orphanUsersCount} ยังไม่มีห้อง` : `${totalMemberCount} สมาชิกในโรงเรียน`,
+                  value: totalUsersCount ?? totalMemberCount,
+                },
+                { icon: ShieldCheck, label: 'ผู้ดูแลระบบ', meta: 'Admin และ Superadmin ที่ใช้งาน', value: activeAdminCount },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -1463,7 +1556,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </button>
               </div>
 
-              <div className="grid divide-y divide-slate-200 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+              <div className="grid divide-y divide-slate-200 sm:grid-cols-2 lg:grid-cols-5 lg:divide-x lg:divide-y-0">
                 {[
                   {
                     body: pendingPaymentCount > 0 ? `มี ${pendingPaymentCount} สลิปรออนุมัติ` : 'ไม่มีสลิปค้างตรวจ',
@@ -1473,6 +1566,18 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     section: 'billing' as SuperadminSection,
                   },
                   {
+                    body:
+                      urgentSupportCount > 0
+                        ? `เร่งด่วน ${urgentSupportCount} เรื่อง`
+                        : openSupportCount > 0
+                          ? `รอตอบกลับ ${openSupportCount} เรื่อง`
+                          : 'ไม่มีเรื่องค้างตอบ',
+                    count: openSupportCount,
+                    dotClass: urgentSupportCount > 0 ? 'bg-rose-500 animate-pulse' : openSupportCount > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+                    label: 'กล่องรับเรื่องค้างตอบ',
+                    section: 'support' as SuperadminSection,
+                  },
+                  {
                     body: expiringSoonVipWorkspaces.length > 0 ? `${expiringSoonVipWorkspaces.length} โรงเรียนใน 30 วัน` : 'ไม่มีรายการใกล้หมดอายุ',
                     count: expiringSoonVipWorkspaces.length,
                     dotClass: expiringSoonVipWorkspaces.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
@@ -1480,9 +1585,13 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     section: 'billing' as SuperadminSection,
                   },
                   {
-                    body: broadcastForm.isActive ? `เปิดอยู่: ${broadcastForm.title || 'ไม่มีหัวข้อ'}` : 'ยังไม่มีประกาศ актив',
-                    count: broadcastForm.isActive ? 'เปิดใช้งาน' : 'ปิดอยู่',
-                    dotClass: broadcastForm.isActive ? 'bg-sky-500' : 'bg-slate-400',
+                    body: broadcastForm.isActive
+                      ? broadcastForm.maintenanceLock
+                        ? 'กำลังเปิดโหมดปิดปรับปรุง'
+                        : `เปิดอยู่: ${broadcastForm.title || 'ประกาศระบบ'}`
+                      : 'ยังไม่มีประกาศที่เปิดใช้งาน',
+                    count: broadcastForm.isActive ? (broadcastForm.maintenanceLock ? 'ปิดปรับปรุง' : 'เปิดใช้งาน') : 'ปิดอยู่',
+                    dotClass: broadcastForm.isActive ? (broadcastForm.maintenanceLock ? 'bg-rose-500 animate-pulse' : 'bg-sky-500') : 'bg-slate-400',
                     label: 'ประกาศทั้งระบบ',
                     section: 'broadcast' as SuperadminSection,
                   },
@@ -1671,12 +1780,18 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   <th className="px-4 py-3 text-center">ห้อง</th>
                   <th className="px-4 py-3 text-center">นักเรียน</th>
                   <th className="px-4 py-3 text-center">สมาชิก</th>
+                  <th className="px-4 py-3">แพ็กเกจ / VIP</th>
                   <th className="px-4 py-3">สถานะ</th>
                   <th className="px-4 py-3 text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {filteredWorkspaces.map((workspace) => (
+                {filteredWorkspaces.map((workspace) => {
+                  const wsSub = subscriptionByWorkspaceId.get(workspace.id);
+                  const subEndText = wsSub?.endsAt
+                    ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(wsSub.endsAt))
+                    : null;
+                  return (
                   <tr className="align-middle transition hover:bg-cyan-50/40" key={workspace.id}>
                     <td className="px-4 py-3">
                       <p className="max-w-[260px] truncate text-sm font-black text-slate-950">{workspace.schoolName}</p>
@@ -1692,6 +1807,28 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     <td className="px-4 py-3 text-center text-sm font-black tabular-nums text-slate-700">{workspace.studentCount}</td>
                     <td className="px-4 py-3 text-center text-sm font-black tabular-nums text-slate-700">{workspace.memberCount}</td>
                     <td className="px-4 py-3">
+                      {wsSub ? (
+                        <div>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black ${
+                              wsSub.status === 'active'
+                                ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+                                : wsSub.status === 'trial'
+                                  ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'
+                                  : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {wsSub.planCode}
+                          </span>
+                          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+                            {subEndText ? `ถึง ${subEndText}` : wsSub.status}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-bold text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-black ${workspace.archivedAt ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${workspace.archivedAt ? 'bg-slate-400' : 'bg-emerald-500'}`} />
                         {workspace.archivedAt ? 'เก็บถาวร' : 'ใช้งานอยู่'}
@@ -1701,6 +1838,28 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                       <div className="flex justify-end gap-1.5 whitespace-nowrap">
                         <button aria-label={`เข้าใช้งาน ${workspace.schoolName}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-cyan-50 px-3 text-xs font-black text-cyan-700 hover:bg-cyan-100" onClick={() => openWorkspace(workspace.id)} type="button">
                           <Building2 size={15} aria-hidden="true" /> เข้าใช้
+                        </button>
+                        <button
+                          aria-label={`จัดการรายละเอียด ${workspace.schoolName}`}
+                          className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                          onClick={() =>
+                            setManagingWorkspace({
+                              academicYear: workspace.academicYear,
+                              id: workspace.id,
+                              name: workspace.name,
+                              ownerEmail: workspace.ownerEmail,
+                              ownerName: workspace.ownerName,
+                              ownerProfileId: workspace.ownerProfileId,
+                              schoolName: workspace.schoolName,
+                              settings: workspace.settings,
+                              vipEndsAt: wsSub?.endsAt || null,
+                              vipStatus: wsSub ? `${wsSub.planCode} (${wsSub.status})` : null,
+                            })
+                          }
+                          title="แก้ไขข้อมูล, สมาชิก, โอนเจ้าของ, ฟีเจอร์, สำรองข้อมูล"
+                          type="button"
+                        >
+                          <Settings2 size={14} aria-hidden="true" /> จัดการ
                         </button>
                         <button aria-label={`${workspace.archivedAt ? 'กู้คืน' : 'เก็บถาวร'} ${workspace.schoolName}`} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void setWorkspaceArchived(workspace, !workspace.archivedAt)} title={workspace.archivedAt ? 'กู้คืน Workspace' : 'เก็บถาวร'} type="button">
                           <Archive size={15} aria-hidden="true" />
@@ -1714,7 +1873,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1751,6 +1911,28 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-xs font-black text-cyan-800 shadow-sm transition hover:bg-cyan-100"
+                    onClick={() => {
+                      const wsSub = subscriptionByWorkspaceId.get(workspace.id);
+                      setManagingWorkspace({
+                        academicYear: workspace.academicYear,
+                        id: workspace.id,
+                        name: workspace.name,
+                        ownerEmail: workspace.ownerEmail,
+                        ownerName: workspace.ownerName,
+                        ownerProfileId: workspace.ownerProfileId,
+                        schoolName: workspace.schoolName,
+                        settings: workspace.settings,
+                        vipEndsAt: wsSub?.endsAt || null,
+                        vipStatus: wsSub ? `${wsSub.planCode} (${wsSub.status})` : null,
+                      });
+                    }}
+                    type="button"
+                  >
+                    <Settings2 size={15} aria-hidden="true" />
+                    จัดการโรงเรียน / สมาชิก
+                  </button>
                   <button
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 text-xs font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={workspaceActionId === workspace.id}
@@ -1858,6 +2040,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         <>
         <SuperadminUserManager
           currentUserId={currentUserId}
+          initialSearch={userInspectQuery}
           isDevelopmentDemo={isDevelopmentDemo}
           onDataMutated={() => void loadSuperadminData()}
         />
@@ -2235,19 +2418,31 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         </section>
         ) : null}
 
-        {activeSection === 'support' ? <SuperadminSupportInbox /> : null}
+        {activeSection === 'support' ? (
+          <SuperadminSupportInbox
+            onInspectRequester={(email) => {
+              setUserInspectQuery(email);
+              openSection('users');
+            }}
+          />
+        ) : null}
 
         {activeSection === 'broadcast' ? (
           <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
             <div className="nexus-card p-5 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700">
-                  <Megaphone size={22} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700">
+                    <Megaphone size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-950">ประกาศทั่วทั้งระบบ & โหมดปิดปรับปรุง</h2>
+                    <p className="text-xs font-bold text-slate-500">บันทึกลงฐานข้อมูล Supabase — แสดงผลจริงบนหน้าจอครูและทุกโรงเรียนทันที</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-950">ส่งประกาศทั่วทั้งระบบ (Global Broadcast)</h2>
-                  <p className="text-xs font-bold text-slate-500">แถบประกาศจะปรากฏด้านบนสุดของหน้าจอครูและผู้ใช้ทุกคนในทุก Workspace</p>
-                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-200">
+                  เชื่อมฐานข้อมูลจริงแล้ว
+                </span>
               </div>
 
               {broadcastNotice ? (
@@ -2256,12 +2451,12 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </div>
               ) : null}
 
-              <form onSubmit={handleSaveBroadcast} className="mt-5 space-y-4">
+              <form onSubmit={(e) => void handleSaveBroadcast(e)} className="mt-5 space-y-4">
                 {/* Active Toggle Switch */}
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm">
                   <div>
                     <p className="text-sm font-black text-slate-900">สถานะการแสดงประกาศ</p>
-                    <p className="text-xs font-bold text-slate-500">เปิดสวิตช์นี้เพื่อให้แถบประกาศแสดงผลทันที</p>
+                    <p className="text-xs font-bold text-slate-500">เปิดสวิตช์นี้เพื่อให้แถบประกาศแสดงผลจริงทุกเครื่อง</p>
                   </div>
                   <label className="relative inline-flex cursor-pointer items-center">
                     <input
@@ -2271,6 +2466,32 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                       className="sr-only peer"
                     />
                     <div className="peer h-6 w-11 rounded-full bg-slate-300 peer-checked:bg-sky-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all"></div>
+                  </label>
+                </div>
+
+                {/* Maintenance Mode Lock Toggle */}
+                <div className="flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50/70 p-4 shadow-sm">
+                  <div>
+                    <p className="text-sm font-black text-rose-950">โหมดปิดปรับปรุงระบบ (Maintenance Lock)</p>
+                    <p className="text-xs font-bold text-rose-800">
+                      ล็อกหน้าจอผู้ใช้ทั่วไปชั่วคราวระหว่างอัปเดตฐานข้อมูล (เฉพาะ SuperAdmin ที่ยังเข้าใช้งานได้ปกติ)
+                    </p>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(broadcastForm.maintenanceLock)}
+                      onChange={(e) =>
+                        setBroadcastForm({
+                          ...broadcastForm,
+                          maintenanceLock: e.target.checked,
+                          severity: e.target.checked ? 'maintenance' : broadcastForm.severity,
+                          dismissible: e.target.checked ? false : broadcastForm.dismissible,
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="peer h-6 w-11 rounded-full bg-rose-200 peer-checked:bg-rose-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all"></div>
                   </label>
                 </div>
 
@@ -2351,13 +2572,30 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   </div>
                 </div>
 
+                {/* Optional End Time */}
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">เวลาสิ้นสุดประกาศ / คาดว่าเปิดระบบอีกครั้ง (ไม่บังคับ)</label>
+                  <input
+                    type="datetime-local"
+                    value={broadcastForm.endsAt ? new Date(broadcastForm.endsAt).toISOString().slice(0, 16) : ''}
+                    onChange={(e) =>
+                      setBroadcastForm({
+                        ...broadcastForm,
+                        endsAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                      })
+                    }
+                    className="w-full sm:w-72 h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  />
+                </div>
+
                 {/* Dismissible checkbox */}
                 <label className="flex items-center gap-2 cursor-pointer pt-1">
                   <input
                     type="checkbox"
-                    checked={broadcastForm.dismissible !== false}
+                    disabled={Boolean(broadcastForm.maintenanceLock)}
+                    checked={broadcastForm.dismissible !== false && !broadcastForm.maintenanceLock}
                     onChange={(e) => setBroadcastForm({ ...broadcastForm, dismissible: e.target.checked })}
-                    className="rounded text-sky-600 focus:ring-sky-500 h-4 w-4"
+                    className="rounded text-sky-600 focus:ring-sky-500 h-4 w-4 disabled:opacity-50"
                   />
                   <span className="text-xs font-bold text-slate-600">อนุญาตให้ผู้ใช้กดยุบ/ปิดแถบประกาศนี้ได้</span>
                 </label>
@@ -2366,16 +2604,18 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 <div className="flex flex-wrap gap-2.5 pt-2">
                   <button
                     type="submit"
-                    className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm"
+                    disabled={isSavingBroadcast}
+                    className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm disabled:opacity-50"
                   >
                     <Sparkles size={16} />
-                    <span>{broadcastForm.isActive ? 'บันทึกและส่งประกาศ' : 'บันทึกการตั้งค่า'}</span>
+                    <span>{isSavingBroadcast ? 'กำลังบันทึก...' : broadcastForm.isActive ? 'บันทึกและส่งประกาศจริง' : 'บันทึกการตั้งค่า'}</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleClearBroadcast}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-rose-600 hover:bg-rose-50 shadow-sm transition"
+                    disabled={isSavingBroadcast}
+                    onClick={() => void handleClearBroadcast()}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-rose-600 hover:bg-rose-50 shadow-sm transition disabled:opacity-50"
                   >
                     <Trash2 size={16} />
                     <span>ปิดและล้างประกาศ</span>
@@ -2441,156 +2681,25 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           </section>
         ) : null}
 
-        {activeSection === 'health' || activeSection === 'audit' ? (
-        <section className="mt-5 grid gap-5">
-          {activeSection === 'health' ? (
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="nexus-kicker">
-                  <Activity size={18} aria-hidden="true" />
-                  Live System Health & Telemetry
-                </div>
-                <h2 className="mt-2 text-2xl font-black text-slate-950">ตรวจสุขภาพและประสิทธิภาพระบบ</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => void testDbPing()}
-                disabled={isPinging}
-                className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-xs font-black shadow-sm"
-              >
-                <Activity size={15} className={isPinging ? 'animate-spin' : ''} />
-                <span>{isPinging ? 'กำลัง Ping...' : 'ทดสอบ Ping Latency เดี๋ยวนี้'}</span>
-              </button>
-            </div>
-
-            {/* Latency & Live Metrics */}
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-black text-slate-500">Database Latency</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <p className="text-2xl font-black text-slate-950 tabular-nums">
-                    {dbPingMs !== null ? `${dbPingMs} ms` : 'ยังไม่ได้วัด'}
-                  </p>
-                  {dbPingMs !== null ? (
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                      dbPingMs < 150 ? 'bg-emerald-100 text-emerald-800' : dbPingMs < 350 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      {dbPingMs < 150 ? 'เร็วดีเยี่ยม' : dbPingMs < 350 ? 'ปานกลาง' : 'ช้า'}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-[11px] font-bold text-slate-400">ความเร็วตอบสนองไปยัง Supabase</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-black text-slate-500">Workspaces ทั้งหมด</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <p className="text-2xl font-black text-slate-950 tabular-nums">{workspaces.length}</p>
-                  <span className="text-xs font-bold text-emerald-600">{activeWorkspaceCount} active</span>
-                </div>
-                <p className="mt-1 text-[11px] font-bold text-slate-400">{archivedWorkspaceCount} โรงเรียนเก็บถาวร</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-black text-slate-500">นักเรียนในระบบรวม</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <p className="text-2xl font-black text-slate-950 tabular-nums">{totalStudentCount.toLocaleString('th-TH')}</p>
-                  <span className="text-xs font-bold text-slate-400">คน</span>
-                </div>
-                <p className="mt-1 text-[11px] font-bold text-slate-400">จากทุกโรงเรียนที่เชื่อมต่อ</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-black text-slate-500">บัญชีผู้ดูแล (Admins)</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <p className="text-2xl font-black text-slate-950 tabular-nums">{adminRows.length}</p>
-                  <span className="text-xs font-bold text-purple-600">VIP ตลอดชีพ</span>
-                </div>
-                <p className="mt-1 text-[11px] font-bold text-slate-400">ผู้มีสิทธิ์ระดับบริหาร</p>
-              </div>
-            </div>
-
-            {/* Checklist items */}
-            <div className="mt-5 grid gap-3">
-              {[
-                { label: 'Supabase Frontend Connection', value: isSupabaseReady ? 'เชื่อมต่อเสร็จสมบูรณ์' : 'ยังไม่ได้เชื่อมต่อ', tone: isSupabaseReady ? 'ready' : 'warn' },
-                { label: 'Workspace Multi-tenant Isolation (RLS)', value: 'ตรวจสอบผ่านนโยบาย Row Level Security', tone: 'ready' },
-                { label: 'Storage Buckets (สลิป & รูปถ่ายเยี่ยมบ้าน)', value: 'home-visit-photos และ payment-slips พร้อม', tone: 'ready' },
-                { label: 'Cloudflare Pages CDN & Edge Network', value: 'Deploy อัตโนมัติและมี Cache ป้องกัน downtime', tone: 'ready' },
-              ].map((item) => (
-                <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white/86 p-3.5 shadow-sm" key={item.label}>
-                  <div>
-                    <p className="text-sm font-black text-slate-950">{item.label}</p>
-                    <p className="mt-0.5 text-xs font-bold text-slate-500">{item.value}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ring-1 ${
-                    item.tone === 'ready'
-                      ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
-                      : 'bg-amber-50 text-amber-700 ring-amber-100'
-                  }`}>
-                    {item.tone === 'ready' ? '✓ พร้อมใช้งาน' : 'ต้องตรวจ'}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <Link
-              className="blue-action mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-sm"
-              to="/app/dashboard?view=setup"
-            >
-              <span>เปิดดูรายงาน System Readiness ละเอียด</span>
-              <ArrowLeft className="rotate-180" size={17} aria-hidden="true" />
-            </Link>
-          </div>
-          ) : null}
-
-          {activeSection === 'audit' ? (
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <FileUp size={18} aria-hidden="true" />
-              Audit & Support
-            </div>
-            <h2 className="mt-4 text-2xl font-black text-slate-950">ศูนย์ช่วย debug และตรวจย้อนหลัง</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              ใช้ตรวจว่าใครลบ/เก็บถาวร/อนุมัติ/แก้สิทธิ์อะไร และเป็นจุดส่งออก log เมื่อผู้ใช้แจ้งปัญหา “ข้อมูลไม่โผล่”
-            </p>
-
-            <div className="mt-4 grid gap-3">
-              {[
-                'ใครลบหรือเก็บถาวร workspace/classroom/student',
-                'ใครอนุมัติครูเข้า workspace และให้สิทธิ์อะไร',
-                'คำขอ payment/subscription ล่าสุดและผลอนุมัติ',
-                'error ล่าสุดจาก Edge Function หรือ RLS policy',
-              ].map((item) => (
-                <div className="flex gap-3 rounded-2xl border border-slate-200 bg-white/86 p-3" key={item}>
-                  <CheckCircle2 className="mt-0.5 shrink-0 text-cyan-600" size={17} aria-hidden="true" />
-                  <p className="text-sm font-bold leading-6 text-slate-700">{item}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Link
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
-                to="/app/dashboard?view=audit"
-              >
-                เปิด Audit Center
-              </Link>
-              <button
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 shadow-sm"
-                onClick={() => setNotice('Export log จะผูกกับ Edge Function ในรอบถัดไป เพื่อรวม audit_logs, payment_requests และ workspace action แบบปลอดภัย')}
-                type="button"
-              >
-                เตรียม Export Debug Pack
-              </button>
-            </div>
-          </div>
-          ) : null}
-        </section>
+        {activeSection === 'health' ? (
+          <SuperadminHealthCenter
+            dbPingMs={dbPingMs}
+            isDevelopmentDemo={isDevelopmentDemo}
+            isPinging={isPinging}
+            onNavigateSection={(sec) => openSection(sec)}
+            onPing={testDbPing}
+          />
         ) : null}
 
+        {activeSection === 'audit' ? <SuperadminAuditCenter isDevelopmentDemo={isDevelopmentDemo} /> : null}
+
         {activeSection === 'backup' ? <div className="mt-5"><SuperadminBackupCenter /></div> : null}
+
+        <SuperadminWorkspaceModal
+          workspace={managingWorkspace}
+          onClose={() => setManagingWorkspace(null)}
+          onUpdated={() => void loadSuperadminData()}
+        />
 
         <footer className="mt-6 text-center text-xs font-bold text-slate-500">
           Created by MIKPURINUT

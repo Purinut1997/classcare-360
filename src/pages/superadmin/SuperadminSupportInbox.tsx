@@ -12,10 +12,16 @@ import {
   ExternalLink,
   Inbox,
   MessageSquare,
+  RefreshCw,
   Search,
   Send,
+  UserSearch,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+
+interface SuperadminSupportInboxProps {
+  onInspectRequester?: (email: string) => void;
+}
 
 type Ticket = {
   id: string;
@@ -47,7 +53,9 @@ const statuses = [
   ["closed", "ปิดเรื่อง"],
 ] as const;
 
-export function SuperadminSupportInbox() {
+export function SuperadminSupportInbox({
+  onInspectRequester,
+}: SuperadminSupportInboxProps = {}) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -56,9 +64,11 @@ export function SuperadminSupportInbox() {
   const [reply, setReply] = useState("");
   const [internal, setInternal] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const loadTickets = useCallback(async () => {
     if (!supabase) return;
+    setRefreshing(true);
     const { data, error } = await supabase
       .from("support_tickets")
       .select(
@@ -68,9 +78,31 @@ export function SuperadminSupportInbox() {
       .limit(100);
     if (error) setNotice("ยังโหลดกล่องรับเรื่องไม่ได้: " + error.message);
     else setTickets((data || []) as Ticket[]);
+    setRefreshing(false);
   }, []);
   useEffect(() => {
     void loadTickets();
+    if (!supabase) return;
+    const channel = supabase
+      .channel("superadmin-support-inbox")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "support_tickets" },
+        () => {
+          void loadTickets();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "support_messages" },
+        () => {
+          void loadTickets();
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase?.removeChannel(channel);
+    };
   }, [loadTickets]);
   const shown = useMemo(
     () =>
@@ -204,9 +236,19 @@ export function SuperadminSupportInbox() {
       <div className="nexus-card grid min-h-[650px] overflow-hidden xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(260px,300px)_minmax(400px,1fr)_280px]">
         <aside className="min-w-0 border-b border-slate-200 xl:border-b-0 xl:border-r">
           <div className="space-y-3 border-b border-slate-200 p-4">
-            <h2 className="flex items-center gap-2 font-black">
-              <Inbox size={18} /> กล่องรับเรื่อง
-            </h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 font-black">
+                <Inbox size={18} /> กล่องรับเรื่อง
+              </h2>
+              <button
+                type="button"
+                onClick={() => void loadTickets()}
+                disabled={refreshing}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-600 hover:bg-slate-50"
+              >
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} /> รีเฟรช
+              </button>
+            </div>
             <label className="relative block">
               <Search
                 className="absolute left-3 top-2.5 text-slate-400"
@@ -364,6 +406,15 @@ export function SuperadminSupportInbox() {
                 >
                   {selected.requester_email}
                 </a>
+                {onInspectRequester && selected.requester_email ? (
+                  <button
+                    type="button"
+                    onClick={() => onInspectRequester(selected.requester_email)}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-black text-cyan-800 hover:bg-cyan-100"
+                  >
+                    <UserSearch size={13} /> ดูบัญชีผู้ใช้รายนี้
+                  </button>
+                ) : null}
               </div>
               <div>
                 <p className="text-xs font-black text-slate-400">ความสำคัญ</p>

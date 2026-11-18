@@ -64,6 +64,7 @@ export interface ManagedUserRow {
 
 interface SuperadminUserManagerProps {
   currentUserId: string;
+  initialSearch?: string;
   isDevelopmentDemo: boolean;
   onDataMutated?: () => void;
 }
@@ -190,14 +191,18 @@ function isMissingRpc(error: { code?: string; message?: string } | null) {
   );
 }
 
-export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onDataMutated }: SuperadminUserManagerProps) {
+export function SuperadminUserManager({ currentUserId, initialSearch, isDevelopmentDemo, onDataMutated }: SuperadminUserManagerProps) {
   const [users, setUsers] = useState<ManagedUserRow[]>(isDevelopmentDemo ? demoManagedUsers : []);
   const [isLoading, setIsLoading] = useState(!isDevelopmentDemo);
   const [needsMigrationNotice, setNeedsMigrationNotice] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearch || '');
+
+  useEffect(() => {
+    if (initialSearch) setSearchTerm(initialSearch);
+  }, [initialSearch]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
