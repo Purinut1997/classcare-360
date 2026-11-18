@@ -2118,50 +2118,40 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
       {activeMainTab === 'import' && (
         <div className="mt-5 space-y-5">
-          <section className="rounded-[2rem] border border-amber-200 bg-white/95 p-4 shadow-[0_18px_50px_rgba(146,92,28,0.10)]">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <p className="text-sm font-black text-amber-700">เพิ่มรายชื่อนักเรียน</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">นำเข้าให้เสร็จจากตรงนี้ได้เลย</h2>
-                <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
-                  เลือกไฟล์ก่อน ระบบจะสร้าง preview ให้ตรวจ ถ้าแถวผ่านตรวจแล้วปุ่มนำเข้าจะกดได้ทันที
-                </p>
-              </div>
+          {/* Compact 3-Step Flow Bar */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-amber-900 ring-1 ring-amber-200/70">
+                1. อัปโหลดไฟล์ หรือวางจาก Excel
+              </span>
+              <span className="text-slate-300">→</span>
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-50 px-3 py-1.5 text-cyan-900 ring-1 ring-cyan-200/70">
+                2. ตรวจและแก้ไขใน Preview
+              </span>
+              <span className="text-slate-300">→</span>
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-1.5 text-emerald-900 ring-1 ring-emerald-200/70">
+                3. กดนำเข้าห้องเรียน
+              </span>
+            </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[620px] xl:grid-cols-4">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 hover:bg-slate-100"
+                onClick={() => setShowSchemaGuideModal(true)}
+                type="button"
+              >
+                <BookOpen size={14} aria-hidden="true" />
+                ดูโครงร่างหัวตาราง
+              </button>
+              {validPreviewRows.length > 0 ? (
                 <button
-                  className="amber-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-                  onClick={() => dmcFileInputRef.current?.click()}
-                  type="button"
-                >
-                  <FileUp size={17} aria-hidden="true" />
-                  เลือกไฟล์ Excel / DMC
-                </button>
-                <button
-                  className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
-                  onClick={() => setShowSchemaGuideModal(true)}
-                  type="button"
-                >
-                  <BookOpen size={17} aria-hidden="true" />
-                  โครงร่างหัวตาราง
-                </button>
-                <button
-                  className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"
-                  onClick={() => guardianCsvInputRef.current?.click()}
-                  type="button"
-                >
-                  <Upload size={17} aria-hidden="true" />
-                  ผู้ปกครอง CSV
-                </button>
-                <button
-                  className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white transition-all ${
+                  className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black transition-all disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-white ${
                     importMode === 'overwrite'
-                      ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-600/30'
+                      ? 'bg-rose-600 text-white hover:bg-rose-700'
                       : 'dark-action'
                   }`}
                   disabled={
                     isSubmitting ||
-                    validPreviewRows.length === 0 ||
                     (importMode === 'overwrite' && overwriteScope === 'all_workspace' && !confirmOverwriteWorkspace)
                   }
                   onClick={requestImport}
@@ -2169,62 +2159,21 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 >
                   {importMode === 'overwrite' ? (
                     <>
-                      <Trash2 size={17} aria-hidden="true" />
-                      ลบทับ & นำเข้า ({validPreviewRows.length})
+                      <Trash2 size={14} aria-hidden="true" />
+                      ลบทับ &amp; นำเข้า ({validPreviewRows.length})
                     </>
                   ) : (
                     <>
-                      <Save size={17} aria-hidden="true" />
+                      <Save size={14} aria-hidden="true" />
                       นำเข้า {validPreviewRows.length} แถว
                     </>
                   )}
                 </button>
-              </div>
+              ) : null}
             </div>
+          </div>
 
-            {/* Quick Helper Ribbon for Teachers without DMC */}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-200/80 bg-gradient-to-r from-cyan-50/90 via-sky-50/70 to-indigo-50/90 p-3.5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-600 text-white shadow-sm">
-                  <Sparkles size={18} />
-                </span>
-                <div>
-                  <p className="text-xs font-black text-slate-900">
-                    ครูไม่มีสิทธิ์เข้าถึงระบบ DMC หรือต้องการนำเข้าด่วนจาก Excel?
-                  </p>
-                  <p className="text-[11px] font-bold text-slate-600">
-                    สามารถดาวน์โหลดแม่แบบสำเร็จรูป, คัดลอกตารางมาวาง (Copy & Paste) หรืออัปโหลดไฟล์ Excel ของคุณครูได้ทันที!
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={exportExcelTemplate}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"
-                >
-                  <Download size={14} />
-                  ดาวน์โหลดฟอร์ม Excel (.xlsx)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowSchemaGuideModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-white px-3.5 py-1.5 text-xs font-black text-cyan-800 shadow-sm transition hover:bg-cyan-50"
-                >
-                  <BookOpen size={14} />
-                  ดูโครงร่างหัวตารางที่รองรับ
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2 text-sm font-bold text-slate-600 lg:grid-cols-3">
-              <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">1. อัปโหลดไฟล์ หรือวางจาก Excel</div>
-              <div className="rounded-2xl bg-cyan-50 px-4 py-3 ring-1 ring-cyan-100">2. ตรวจและแก้ไขในตาราง Preview</div>
-              <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">3. กดนำเข้ารายชื่อเข้าห้องเรียนทันที</div>
-            </div>
-          </section>
-
-          <section className="grid gap-5 lg:grid-cols-2">
+          <section className="grid gap-5 lg:grid-cols-2 lg:items-start">
           {/* Card 1: Excel / CSV / DMC Upload */}
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex items-center justify-between">
@@ -2643,75 +2592,56 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
             )}
           </div>
 
-          {/* Card 3: Download Template & Schema Info */}
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <Download size={16} aria-hidden="true" />
-              ดาวน์โหลดแบบฟอร์มนำเข้า (Template)
-            </div>
-            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
-              ดาวน์โหลดไฟล์ Excel หรือ CSV ที่ใส่หัวตารางและข้อมูลตัวอย่างไว้เรียบร้อยแล้ว นำไปกรอกแล้วอัปโหลดกลับเข้าสู่ระบบได้ทันที
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <button
-                className="emerald-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white hover:bg-emerald-700 shadow-sm"
-                onClick={exportExcelTemplate}
-                type="button"
-              >
-                <FileSpreadsheet size={18} aria-hidden="true" />
-                แบบฟอร์ม Excel (.xlsx)
-              </button>
-              <button
-                className="nexus-pill inline-flex h-12 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
-                onClick={exportCsvTemplate}
-                type="button"
-              >
-                <Download size={18} aria-hidden="true" />
-                แบบฟอร์ม CSV (.csv)
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowSchemaGuideModal(true)}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE3D7] bg-[#E9F0EA]/70 py-2.5 text-xs font-black text-[#1C342B] transition hover:bg-[#E9F0EA]"
-            >
-              <BookOpen size={15} className="text-[#2F7D5B]" />
-              คลิกเพื่อดูโครงร่างคอลัมน์ที่รองรับ (Schema Guide)
-            </button>
-          </div>
-
-          {/* Card 4: Guardian CSV */}
-          <div className="nexus-card p-4 sm:p-5">
-            <div className="nexus-kicker">
-              <FileUp size={16} aria-hidden="true" />
-              Guardian CSV
-            </div>
-            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
-              นำเข้าผู้ปกครองและสร้างคำเชิญ Parent Portal ด้วย email โดยจับคู่จาก student_code
-            </p>
-            <div className="mt-4 grid gap-3">
-              <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black" onClick={exportGuardianTemplate} type="button">
-                <Download size={17} aria-hidden="true" />
-                Template ผู้ปกครอง
-              </button>
-              <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/70 p-4 text-center transition hover:bg-white">
-                <Upload className="text-cyan-700" size={26} aria-hidden="true" />
-                <span className="mt-2 text-sm font-black text-slate-700">เลือก Guardian CSV</span>
-                <span className="mt-1 text-xs font-bold text-slate-500">student_code, guardian_email, create_portal_invite</span>
-                <input
-                  accept=".csv,text/csv"
-                  className="sr-only"
-                  onChange={(event) => void handleGuardianFileChange(event)}
-                  ref={guardianCsvInputRef}
-                  type="file"
-                />
-              </label>
-            </div>
-          </div>
-
           </section>
 
-          {/* Import Preview */}
+          {/* Compact Collapsible Guardian CSV Import (separate from student import) */}
+          <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs" open={guardianPreviewRows.length > 0}>
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-xs font-black text-slate-800">
+              <span className="inline-flex items-center gap-2">
+                <FileUp size={15} className="text-teal-700" aria-hidden="true" />
+                นำเข้าข้อมูลผู้ปกครอง &amp; เชิญ Parent Portal (Guardian CSV)
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+                {guardianPreviewRows.length > 0 ? `รอตรวจ ${guardianPreviewRows.length} แถว` : 'คลิกเพื่อเปิด'}
+              </span>
+            </summary>
+            <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-bold leading-5 text-slate-600">
+                นำเข้าผู้ปกครองและสร้างคำเชิญ Parent Portal ด้วยอีเมล โดยจับคู่จาก <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px]">student_code</code>
+              </p>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                  onClick={exportGuardianTemplate}
+                  type="button"
+                >
+                  <Download size={14} aria-hidden="true" />
+                  แบบฟอร์มผู้ปกครอง CSV
+                </button>
+                <label className="blue-action inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black">
+                  <Upload size={14} aria-hidden="true" />
+                  เลือกไฟล์ Guardian CSV
+                  <input
+                    accept=".csv,text/csv"
+                    className="sr-only"
+                    onChange={(event) => void handleGuardianFileChange(event)}
+                    ref={guardianCsvInputRef}
+                    type="file"
+                  />
+                </label>
+              </div>
+            </div>
+          </details>
+
+          {/* Smart Preview Hint when empty */}
+          {previewRows.length === 0 && guardianPreviewRows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3.5 text-center text-xs font-bold text-slate-500">
+              ตาราง Preview สำหรับตรวจสอบความถูกต้องจะปรากฏอัตโนมัติทันทีเมื่อคุณเลือกไฟล์หรือวางรายชื่อด้านบน
+            </div>
+          ) : null}
+
+          {/* Import Preview (Rendered only when there are rows!) */}
+          {previewRows.length > 0 ? (
           <div ref={previewSectionRef} className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -3040,15 +2970,11 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </tbody>
               </table>
             </div>
-
-            {previewRows.length === 0 ? (
-              <div className="mt-4 nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ยังไม่มี preview ให้เลือก CSV template ที่กรอกข้อมูลแล้วก่อน import
-              </div>
-            ) : null}
           </div>
+          ) : null}
 
-          {/* Guardian Preview */}
+          {/* Guardian Preview (Rendered only when there are rows!) */}
+          {guardianPreviewRows.length > 0 ? (
           <div className="nexus-card p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -3124,13 +3050,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </tbody>
               </table>
             </div>
-
-            {guardianPreviewRows.length === 0 ? (
-              <div className="mt-4 nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ยังไม่มี preview ผู้ปกครอง ให้เลือก Guardian CSV ก่อน import หรือสร้างคำเชิญ Portal
-              </div>
-            ) : null}
           </div>
+          ) : null}
         </div>
       )}
 
@@ -3192,58 +3113,53 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="nexus-muted-box p-4">
-                <p className="text-xs font-black uppercase text-slate-500">เก็บถาวรที่ยังไม่ตรวจ</p>
-                <p className="mt-1 text-2xl font-black text-amber-700">{archivedPendingReviewCount}</p>
-              </div>
-              <div className="nexus-muted-box p-4">
-                <p className="text-xs font-black uppercase text-slate-500">ยืนยันว่าซ้ำ</p>
-                <p className="mt-1 text-2xl font-black text-rose-700">{reviewedDuplicateCount}</p>
-              </div>
-              <div className="nexus-muted-box p-4">
-                <p className="text-xs font-black uppercase text-slate-500">มาจากอีกโรงเรียน</p>
-                <p className="mt-1 text-2xl font-black text-cyan-700">{reviewedWrongWorkspaceCount}</p>
-              </div>
+            {/* Compact Inline Review Status Summary */}
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-black">
+              <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 ring-1 ${archivedPendingReviewCount > 0 ? 'bg-amber-50 text-amber-800 ring-amber-200' : 'bg-slate-50 text-slate-500 ring-slate-200/70'}`}>
+                เก็บถาวรยังไม่ตรวจ: <strong>{archivedPendingReviewCount}</strong>
+              </span>
+              <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 ring-1 ${reviewedDuplicateCount > 0 ? 'bg-rose-50 text-rose-800 ring-rose-200' : 'bg-slate-50 text-slate-500 ring-slate-200/70'}`}>
+                ยืนยันว่าซ้ำ: <strong>{reviewedDuplicateCount}</strong>
+              </span>
+              <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 ring-1 ${reviewedWrongWorkspaceCount > 0 ? 'bg-cyan-50 text-cyan-800 ring-cyan-200' : 'bg-slate-50 text-slate-500 ring-slate-200/70'}`}>
+                มาจากอีกโรงเรียน: <strong>{reviewedWrongWorkspaceCount}</strong>
+              </span>
             </div>
 
-            <div className="mt-4 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-4">
-              <div className="flex items-start gap-3">
-                <ClipboardCheck className="mt-0.5 shrink-0 text-cyan-700" size={20} aria-hidden="true" />
-                <div>
-                  <h3 className="font-black text-slate-950">บันทึกผลตรวจรายชื่อที่เลือก</h3>
-                  <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
-                    เลือกรายชื่อแล้วกด "ลบถาวร" หรือ "เก็บถาวร" ได้ทันทีสำหรับรายชื่อที่ต้องการจัดการ (หรือระบุผลตรวจเพื่อคัดแยกข้อมูลก่อนได้)
-                  </p>
+            {selectedManagedStudentIds.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-3.5">
+                <div className="flex items-center gap-2 text-xs font-black text-cyan-950">
+                  <ClipboardCheck className="shrink-0 text-cyan-700" size={16} aria-hidden="true" />
+                  <span>บันทึกผลตรวจสำหรับ {selectedManagedStudentIds.length} รายชื่อที่เลือก</span>
+                </div>
+                <div className="mt-2.5 grid gap-2.5 xl:grid-cols-[240px_minmax(220px,1fr)_auto]">
+                  <select
+                    className="nexus-field h-10 px-3 text-xs font-bold"
+                    onChange={(event) => setReviewClassification(event.target.value as RosterReviewClassification)}
+                    value={reviewClassification}
+                  >
+                    {Object.entries(rosterReviewLabels).filter(([value]) => value !== 'pending').map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <input
+                    className="nexus-field h-10 px-3 text-xs font-bold"
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    placeholder="หมายเหตุหรือหลักฐาน (ไม่บังคับ)"
+                    value={reviewNote}
+                  />
+                  <button
+                    className="blue-action inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+                    disabled={isSubmitting || selectedManagedStudentIds.length === 0}
+                    onClick={() => void saveManagedStudentReview(selectedManagedStudentIds)}
+                    type="button"
+                  >
+                    <ClipboardCheck size={15} aria-hidden="true" />
+                    บันทึกผลตรวจ ({selectedManagedStudentIds.length})
+                  </button>
                 </div>
               </div>
-              <div className="mt-3 grid gap-3 xl:grid-cols-[260px_minmax(220px,1fr)_auto]">
-                <select
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setReviewClassification(event.target.value as RosterReviewClassification)}
-                  value={reviewClassification}
-                >
-                  {Object.entries(rosterReviewLabels).filter(([value]) => value !== 'pending').map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setReviewNote(event.target.value)}
-                  placeholder="หมายเหตุหรือหลักฐาน (ไม่บังคับ)"
-                  value={reviewNote}
-                />
-                <button
-                  className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={isSubmitting || selectedManagedStudentIds.length === 0}
-                  onClick={() => void saveManagedStudentReview(selectedManagedStudentIds)}
-                  type="button"
-                >
-                  <ClipboardCheck size={17} aria-hidden="true" />
-                  บันทึกผลตรวจ {selectedManagedStudentIds.length || ''}
-                </button>
-              </div>
-            </div>
+            ) : null}
 
             {/* หมวดหมู่ด่วน (Category Tabs) */}
             <div className="mt-5 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
@@ -3499,7 +3415,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
 
                     return (
                       <tr className={checked ? 'bg-amber-50/80' : 'hover:bg-amber-50/40'} key={student.id}>
-                        <td className="whitespace-nowrap px-3 py-3">
+                        <td className="whitespace-nowrap px-3 py-2.5">
                           <input
                             checked={checked}
                             className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
@@ -3507,28 +3423,28 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                             type="checkbox"
                           />
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">{student.student_code || '-'}</td>
-                        <td className="px-3 py-3">
+                        <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-600">{student.student_code || '-'}</td>
+                        <td className="px-3 py-2.5">
                           <p className="font-black text-slate-950">
                             {student.first_name} {student.last_name}
                           </p>
-                          <p className="text-xs font-bold text-slate-500">{student.nickname || 'ไม่มีชื่อเล่น'}</p>
+                          {student.nickname ? <p className="text-xs font-bold text-slate-500">{student.nickname}</p> : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-600">
+                        <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-600">
                           {classroomNameById[student.classroom_id || ''] || 'ยังไม่ผูกห้อง'}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3">
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200">
+                        <td className="whitespace-nowrap px-3 py-2.5">
+                          <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-black text-slate-700 ring-1 ring-slate-200">
                             {studentStatusLabels[status]}
                           </span>
                         </td>
-                        <td className="min-w-52 px-3 py-3">
-                          <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${classification === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-200' : classification === 'duplicate' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-cyan-50 text-cyan-700 ring-cyan-200'}`}>
+                        <td className="px-3 py-2.5">
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-black ring-1 ${classification === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-200' : classification === 'duplicate' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-cyan-50 text-cyan-700 ring-cyan-200'}`}>
                             {rosterReviewLabels[classification]}
                           </span>
-                          {review?.note ? <p className="mt-2 text-xs font-bold text-slate-500">{review.note}</p> : null}
+                          {review?.note ? <p className="mt-1 text-xs font-bold text-slate-500">{review.note}</p> : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3">
+                        <td className="whitespace-nowrap px-3 py-2.5">
                           <div className="flex justify-end gap-2">
                             <button
                               className="nexus-icon-button h-9 w-9"

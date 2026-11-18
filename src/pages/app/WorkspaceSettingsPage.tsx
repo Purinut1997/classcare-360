@@ -1221,18 +1221,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
       {activeSettingsTab !== 'account' && canManage ? (
       <section className="workspace-settings-workbench mt-5 grid gap-5 xl:grid-cols-12 xl:items-start">
-        <div className={`workspace-settings-forms grid gap-5 ${
-          activeSettingsTab === 'classrooms' ? 'xl:col-span-8' : 'xl:col-span-12'
-        } xl:grid-cols-2`}>
+        <div
+          className={`workspace-settings-forms grid gap-5 ${
+            activeSettingsTab === 'classrooms' || activeSettingsTab === 'members'
+              ? 'xl:col-span-5'
+              : 'xl:col-span-12'
+          }`}
+        >
           {activeSettingsTab === 'ai' && (
-            <div className="xl:col-span-2">
+            <div>
               <WorkspaceAiSettingsCard session={session} />
             </div>
           )}
 
           {activeSettingsTab === 'school' && (
             <>
-          <form id="workspace-profile" className="workspace-settings-form workspace-profile-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void saveWorkspaceSettings(event)}>
+          <form id="workspace-profile" className="workspace-settings-form workspace-profile-form scroll-mt-24 nexus-card p-4 sm:p-6" onSubmit={(event) => void saveWorkspaceSettings(event)}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
@@ -1418,7 +1422,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </button>
           </form>
 
-          <form id="public-report-policy" className="workspace-settings-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void savePublicReportPolicy(event)}>
+          <form id="public-report-policy" className="workspace-settings-form scroll-mt-24 nexus-card p-4 sm:p-6" onSubmit={(event) => void savePublicReportPolicy(event)}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
@@ -1633,7 +1637,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </div>
 
         {activeSettingsTab === 'classrooms' && (
-        <section id="workspace-classrooms" className="workspace-classroom-panel scroll-mt-24 nexus-card p-4 sm:p-5 xl:col-span-4">
+        <section id="workspace-classrooms" className="workspace-classroom-panel scroll-mt-24 nexus-card p-5 xl:col-span-7">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-black text-cyan-700">Classrooms</p>
@@ -1716,36 +1720,32 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </div>
         </section>
         )}
-      </section>
-      ) : null}
-
-      {activeSettingsTab === 'members' && canManage && (
-        <>
-          <section id="workspace-members" className="scroll-mt-24 nexus-card mt-5 p-4 sm:p-5">
+        {activeSettingsTab === 'members' && (
+          <section id="workspace-members" className="scroll-mt-24 nexus-card p-5 xl:col-span-7">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-                  <Users size={17} aria-hidden="true" />
+                <div className="flex items-center gap-2 text-xs font-black text-cyan-700">
+                  <Users size={15} aria-hidden="true" />
                   Workspace Members
                 </div>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">สมาชิกใน workspace</h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                  ครูเจ้าของ workspace ใช้งานโมดูลห้องเรียนได้เหมือนครูทั่วไป และจัดการสมาชิก/แพ็กเกจ/ตั้งค่าได้ในบัญชีเดียว
+                <h2 className="mt-1 text-xl font-black text-slate-950">สมาชิกใน workspace</h2>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                  เจ้าของ workspace ใช้งานห้องเรียนได้เหมือนครูทั่วไป และจัดการสมาชิก/สิทธิ์ได้ในบัญชีเดียว
                 </p>
               </div>
               <span className="w-fit rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-100">
-                {activeMembers.length} active | {pendingMembers.length} รออนุมัติ
+                {activeMembers.length} active · {pendingMembers.length} รออนุมัติ
               </span>
             </div>
 
             {pendingMembers.length > 0 ? (
-              <div className="mt-4 rounded-[1.75rem] border border-sky-100 bg-sky-50/70 p-4">
+              <div className="mt-4 rounded-[1.5rem] border border-sky-100 bg-sky-50/70 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-black text-sky-700">Approval Queue</p>
-                    <h3 className="mt-1 text-xl font-black text-slate-950">คำขอเข้า workspace รออนุมัติ</h3>
-                    <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                      ตรวจอีเมลและชื่อผู้ใช้ก่อนอนุมัติ เพื่อกันครูต่างโรงเรียนหรือบัญชีที่ไม่เกี่ยวข้องเข้า workspace
+                    <p className="text-xs font-black text-sky-700">Approval Queue</p>
+                    <h3 className="mt-0.5 text-lg font-black text-slate-950">คำขอเข้า workspace รออนุมัติ</h3>
+                    <p className="mt-0.5 text-xs font-bold leading-5 text-slate-600">
+                      ตรวจอีเมลและชื่อผู้ใช้ก่อนอนุมัติ เพื่อกันครูต่างโรงเรียนเข้า workspace
                     </p>
                   </div>
                   <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
@@ -1753,10 +1753,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-3">
+                <div className="mt-3 grid gap-3">
                   {pendingMembers.map((member) => (
-                    <article className="rounded-3xl bg-white/90 p-4 ring-1 ring-sky-100" key={member.profile_id}>
-                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+                    <article className="rounded-2xl bg-white/90 p-3.5 ring-1 ring-sky-100" key={member.profile_id}>
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700 ring-1 ring-sky-100">
@@ -1861,7 +1861,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               ) : null}
             </div>
           </section>
+        )}
+      </section>
+      ) : null}
 
+      {activeSettingsTab === 'members' && canManage && (
+        <>
           {canUseDestructiveActions && useRealBackend ? <MemberAccessControl classrooms={activeClassrooms} session={session} /> : null}
 
           {memberNotice ? (
