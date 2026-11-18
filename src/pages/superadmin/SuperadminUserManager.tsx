@@ -700,19 +700,26 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
         throw new Error(translateUserError(signUpErr?.message || 'สร้างบัญชีผู้ใช้ไม่สำเร็จ'));
       }
 
+      // Supabase anti-enumeration returns identities: [] when the email is already registered
+      if (Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0) {
+        throw new Error(translateUserError('email_already_in_use'));
+      }
+
       const newUserId = signUpData.user.id;
 
       if (createConfirmEmail) {
-        await supabase.rpc('superadmin_confirm_user_email', {
+        const { error: confirmErr } = await supabase.rpc('superadmin_confirm_user_email', {
           target_profile_id: newUserId,
         });
+        if (confirmErr) throw new Error(translateUserError(confirmErr.message));
       }
 
-      await supabase.rpc('superadmin_update_user_profile', {
+      const { error: profileErr } = await supabase.rpc('superadmin_update_user_profile', {
         target_profile_id: newUserId,
         next_display_name: displayName,
         next_phone: createPhone.trim() || null,
       });
+      if (profileErr) throw new Error(translateUserError(profileErr.message));
 
       const shareMessage = `บัญชีเข้าใช้งาน ClassCare 360\nชื่อ: ${displayName}\nอีเมล: ${email}\nรหัสผ่าน: ${password}\nเข้าสู่ระบบได้ที่: ${window.location.origin}/auth/login`;
       setCreatedCredentials(shareMessage);
