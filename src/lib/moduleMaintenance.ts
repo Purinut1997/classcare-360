@@ -130,14 +130,6 @@ export const SYSTEM_MAINTENANCE_MODULES: ManagedSystemModule[] = [
     path: '/app/dashboard?view=desirable-characteristics',
   },
   {
-    key: 'automation',
-    label: 'แจ้งเตือนเด็กเสี่ยง (ขาด/ตก)',
-    group: 'care',
-    groupLabel: 'ดูแลช่วยเหลือนักเรียน',
-    description: 'ระบบตรวจจับนักเรียนกลุ่มเสี่ยงและส่งแจ้งเตือนอัตโนมัติ',
-    path: '/app/dashboard?view=automation',
-  },
-  {
     key: 'parent-access',
     label: 'QR เชื่อมต่อผู้ปกครอง',
     group: 'care',
@@ -173,10 +165,10 @@ export const SYSTEM_MAINTENANCE_MODULES: ManagedSystemModule[] = [
   },
   {
     key: 'notifications',
-    label: 'แจ้งเตือน & Telegram',
+    label: 'ศูนย์แจ้งเตือน & เด็กเสี่ยง (Telegram)',
     group: 'system',
     groupLabel: 'จัดการระบบ & เครื่องมือ',
-    description: 'ตั้งค่าส่งแจ้งเตือนรายวันและเชื่อมต่อบอท Telegram',
+    description: 'งานค้างรายวัน, ระบบตรวจจับเด็กเสี่ยง (Early Warning), อนุมัติส่งผู้ปกครอง และเชื่อมต่อบอท Telegram',
     path: '/app/dashboard?view=notifications',
   },
   {

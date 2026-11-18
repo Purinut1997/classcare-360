@@ -66,11 +66,6 @@ const StudentHealthPage = lazy(() =>
     default: module.StudentHealthPage,
   })),
 );
-const AutomationCenterPage = lazy(() =>
-  import('./pages/app/AutomationCenterPage').then((module) => ({
-    default: module.AutomationCenterPage,
-  })),
-);
 const DashboardPage = lazy(() =>
   import('./pages/app/DashboardPage').then((module) => ({
     default: module.DashboardPage,
@@ -372,8 +367,8 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   if (activeNavItem.key === 'automation') {
     return (
       <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
-        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
-          <AutomationCenterPage session={session} />
+        <AppShell activeView="notifications" navItems={shellNavItems} session={session}>
+          <NotificationsPage initialTab="early-warning" session={session} />
         </AppShell>
       </RequireRouteAccess>
     );

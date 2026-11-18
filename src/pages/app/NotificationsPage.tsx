@@ -34,14 +34,16 @@ import { getBangkokDate } from '../../lib/date';
 import { formatReportDate } from '../../lib/parentReportFormat';
 import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type DayName } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
+import { AutomationCenterPage } from './AutomationCenterPage';
 
 interface NotificationsPageProps {
+  initialTab?: NotificationTab;
   session: AppSessionContext;
 }
 
 type NotificationFilter = 'all' | 'unread';
 type TelegramConnectionStatus = 'disconnected' | 'pending' | 'connected';
-type NotificationTab = 'tasks' | 'inbox' | 'activity' | 'settings';
+type NotificationTab = 'tasks' | 'early-warning' | 'inbox' | 'activity' | 'settings';
 
 interface TeacherNotificationPreferences {
   telegramEnabled: boolean;
@@ -359,20 +361,25 @@ function getPrivacyClass(level: NotificationRow['privacy_level']) {
   return 'bg-cyan-50 text-cyan-700 ring-cyan-100';
 }
 
-export function NotificationsPage({ session }: NotificationsPageProps) {
+export function NotificationsPage({ initialTab, session }: NotificationsPageProps) {
   const location = useLocation();
   const demoMode = isDemoSession(session);
   const workspaceId = session.workspace?.id || '';
 
-  // Tabs: งานค้าง | กล่องข้อความ | ตั้งค่าการเชื่อม Telegram
-  const [activeTab, setActiveTab] = useState<NotificationTab>(() => {
-    const tab = new URLSearchParams(location.search).get('tab');
-    return tab === 'settings' || tab === 'activity' || tab === 'inbox' ? tab : 'tasks';
-  });
+  const resolveTabFromUrl = (search: string): NotificationTab => {
+    const params = new URLSearchParams(search);
+    const tab = params.get('tab');
+    const view = params.get('view');
+    if (tab === 'early-warning' || tab === 'automation' || view === 'automation') return 'early-warning';
+    if (tab === 'settings' || tab === 'activity' || tab === 'inbox' || tab === 'tasks') return tab;
+    return initialTab || 'tasks';
+  };
+
+  // Tabs: งานค้าง | เด็กเสี่ยง & อนุมัติส่ง | ความเคลื่อนไหว | กล่องแจ้งเตือน | ตั้งค่ารายงาน
+  const [activeTab, setActiveTab] = useState<NotificationTab>(() => resolveTabFromUrl(location.search));
   useEffect(() => {
-    const tab = new URLSearchParams(location.search).get('tab');
-    setActiveTab(tab === 'settings' || tab === 'activity' || tab === 'inbox' ? tab : 'tasks');
-  }, [location.search]);
+    setActiveTab(resolveTabFromUrl(location.search));
+  }, [initialTab, location.search]);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isDispatching, setIsDispatching] = useState(false);
@@ -1332,6 +1339,26 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
           </button>
 
           <button
+            aria-selected={activeTab === 'early-warning'}
+            role="tab"
+            className={`inline-flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:w-auto sm:shrink-0 sm:px-3.5 ${
+              activeTab === 'early-warning'
+                ? 'bg-slate-900 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+            }`}
+            onClick={() => setActiveTab('early-warning')}
+            type="button"
+          >
+            <ShieldAlert size={15} />
+            เด็กเสี่ยง & อนุมัติส่ง
+            {earlyWarnings.length > 0 ? (
+              <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-black text-white">
+                {earlyWarnings.length}
+              </span>
+            ) : null}
+          </button>
+
+          <button
             aria-selected={activeTab === 'activity'}
             role="tab"
             className={`inline-flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700 sm:w-auto sm:shrink-0 sm:px-3.5 ${
@@ -1564,12 +1591,13 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                       <ShieldAlert className="text-amber-600" size={19} />
                       <h3 className="font-black text-slate-950">สัญญาณเตือนนักเรียน (Early Warning) ({earlyWarnings.length})</h3>
                     </div>
-                    <Link
+                    <button
                       className="text-xs font-black text-blue-600 hover:underline"
-                      to="/app/dashboard?view=automation"
+                      onClick={() => setActiveTab('early-warning')}
+                      type="button"
                     >
-                      เปิดศูนย์ Automation &rarr;
-                    </Link>
+                      เปิดแท็บเด็กเสี่ยง & อนุมัติส่ง &rarr;
+                    </button>
                   </div>
 
                   {earlyWarnings.length === 0 ? (
@@ -1589,12 +1617,13 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
                             </div>
                             <p className="mt-0.5 text-slate-600">{sig.reason}</p>
                           </div>
-                          <Link
+                          <button
                             className="inline-flex items-center gap-1 rounded-xl bg-white px-2.5 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
-                            to="/app/dashboard?view=automation"
+                            onClick={() => setActiveTab('early-warning')}
+                            type="button"
                           >
                             ตรวจสอบ <ExternalLink size={12} />
-                          </Link>
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -1683,6 +1712,11 @@ export function NotificationsPage({ session }: NotificationsPageProps) {
             </div>
           )}
         </div>
+      ) : null}
+
+      {/* TAB: ระบบติดตามเด็กเสี่ยง & คิวอนุมัติส่งผู้ปกครอง (Early Warning / Automation) */}
+      {activeTab === 'early-warning' ? (
+        <AutomationCenterPage embedded session={session} />
       ) : null}
 
       {/* TAB: ประวัติความเคลื่อนไหวของผู้ใช้ใน Workspace นี้ */}

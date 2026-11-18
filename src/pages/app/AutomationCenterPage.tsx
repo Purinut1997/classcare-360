@@ -15,7 +15,10 @@ import { hasWorkspaceCapability } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
-interface AutomationCenterPageProps { session: AppSessionContext }
+interface AutomationCenterPageProps {
+  embedded?: boolean;
+  session: AppSessionContext;
+}
 interface RuleRow {
   id: string; name: string; trigger_type: string; action_type: string;
   threshold: number; window_days: number; is_active: boolean; approval_required: boolean;
@@ -69,7 +72,7 @@ function getRuleThresholdDisplay(rule: RuleRow): string {
   return `เกณฑ์ ≥ ${rule.threshold} (ย้อนหลัง ${rule.window_days} วัน)`;
 }
 
-export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
+export function AutomationCenterPage({ embedded = false, session }: AutomationCenterPageProps) {
   const feedback = useSystemFeedback();
   const workspaceId = session.workspace?.id ?? '';
   const demoMode = isDemoSession(session);
@@ -280,8 +283,10 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
     await load();
   }
 
+  const Container = embedded ? 'div' : 'main';
+
   return (
-    <main className="page-shell automation-center">
+    <Container className={embedded ? 'automation-center mt-4' : 'page-shell automation-center'}>
       {/* 1. Executive Dark Navy Header */}
       <header className="automation-header-card">
         <div className="automation-header-info">
@@ -922,6 +927,6 @@ export function AutomationCenterPage({ session }: AutomationCenterPageProps) {
           </div>
         </div>
       ) : null}
-    </main>
+    </Container>
   );
 }

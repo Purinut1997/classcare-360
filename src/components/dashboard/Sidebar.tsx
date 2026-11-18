@@ -76,7 +76,6 @@ const sidebarSections: SidebarSectionConfig[] = [
     itemKeys: [
       'behavior',              // พฤติกรรม & บันทึกความดี
       'desirable-characteristics', // ประเมินคุณลักษณะ 8 ประการ
-      'automation',            // แจ้งเตือนเด็กเสี่ยง (ขาด/ตก)
     ],
   },
   {
@@ -141,6 +140,7 @@ export function Sidebar({
   utilityItems.forEach((item) => renderedKeys.add(item.key));
 
   // Mark alias/integrated keys as rendered so they don't leak to 'อื่น ๆ'
+  renderedKeys.add('automation');
   renderedKeys.add('workspace-switch');
   renderedKeys.add('period-locks');
   renderedKeys.add('parent-access');
