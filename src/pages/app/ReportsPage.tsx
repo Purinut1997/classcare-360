@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Award,
@@ -1145,7 +1145,7 @@ function buildAttendanceGrid({
   };
 }
 
-type SavingsDisplayMode = 'monthly' | 'cumulative';
+type SavingsDisplayMode = 'both' | 'monthly' | 'cumulative';
 
 interface MonthlySavingsRow {
   carriedForwardBeforePeriod: number;
@@ -1168,6 +1168,7 @@ interface MonthlySavingsRow {
 interface MonthlySavingsGrid {
   classroom: ClassroomRow | null;
   dayTotals: Record<number, number>;
+  hasPriorMonthsActivity: boolean;
   includeOpeningBalance: boolean;
   monthBuckets: MonthBucket[];
   monthCumulativeTotals: Record<string, number | null>;
@@ -1191,7 +1192,7 @@ function buildSavingsGrid({
   dateFrom,
   dateTo,
   includeOpeningBalance = true,
-  savingsDisplayMode = 'monthly',
+  savingsDisplayMode = 'both',
   students,
 }: {
   savingsAccounts: SavingsAccountRow[];
@@ -1375,9 +1376,12 @@ function buildSavingsGrid({
     };
   });
 
+  const hasPriorMonthsActivity = rows.some((r) => r.priorMonthsNet !== 0);
+
   return {
     classroom,
     dayTotals,
+    hasPriorMonthsActivity,
     includeOpeningBalance,
     monthBuckets,
     monthCumulativeTotals,
@@ -1616,45 +1620,64 @@ function buildPrintableSavingsReportHtml({
   const documentCode = buildOfficialDocumentCode('CC-SAV', dateFrom, classroomName);
   const isMultiMonth = periodMode !== 'month' && savingsGrid.monthBuckets.length > 1;
   const showOpening = savingsGrid.includeOpeningBalance;
-  const isCumulative = savingsGrid.savingsDisplayMode === 'cumulative';
-  const hasPriorMonthsCarry = savingsGrid.totalCarriedForwardBeforePeriod !== savingsGrid.totalOpeningBalance;
-  const showCarriedColumn = showOpening || (isCumulative && savingsGrid.totalCarriedForwardBeforePeriod > 0);
-  const carriedColLabel = hasPriorMonthsCarry ? 'ยกมาจากเดือนก่อน' : 'ยอดยกมา';
-  const balanceColLabel = showOpening ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา';
+  const displayMode = savingsGrid.savingsDisplayMode;
+  const isBothMode = displayMode === 'both';
+  const isCumulativeOnly = displayMode === 'cumulative';
+  const showPriorMonthCol = !isMultiMonth && savingsGrid.hasPriorMonthsActivity;
+  const balanceColLabel = showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมไม่รวมยกมา';
 
   const theadHtml = isMultiMonth
-    ? `<tr>
-        <th class="number">ที่</th>
-        <th class="code">รหัส</th>
-        <th class="name">ชื่อ - นามสกุล</th>
-        ${showCarriedColumn ? `<th class="sum opening-col">${carriedColLabel}</th>` : ''}
-        ${savingsGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}</th>`).join('')}
-        <th class="sum month-total">ฝากรวม</th>
-        <th class="sum month-total">ถอนรวม</th>
-        <th class="sum balance-total">${balanceColLabel}</th>
-      </tr>`
+    ? isBothMode
+      ? `<tr>
+          <th class="number" rowspan="2">ที่</th>
+          <th class="code" rowspan="2">รหัส</th>
+          <th class="name" rowspan="2">ชื่อ - นามสกุล</th>
+          ${showOpening ? '<th class="sum opening-col" rowspan="2">ยอดยกมา<br/><small>(ต้นปี)</small></th>' : ''}
+          ${savingsGrid.monthBuckets.map((mb) => `<th colspan="2">${escapeHtml(mb.shortLabel)}</th>`).join('')}
+          <th class="sum month-total" rowspan="2">ฝากรวม</th>
+          <th class="sum month-total" rowspan="2">ถอนรวม</th>
+          <th class="sum balance-total" rowspan="2">${balanceColLabel}</th>
+        </tr>
+        <tr>
+          ${savingsGrid.monthBuckets.map(() => '<th class="sub-col">ฝาก</th><th class="sub-col cum-col">สะสม</th>').join('')}
+        </tr>`
+      : `<tr>
+          <th class="number">ที่</th>
+          <th class="code">รหัส</th>
+          <th class="name">ชื่อ - นามสกุล</th>
+          ${showOpening ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
+          ${savingsGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}${isCumulativeOnly ? '<br/><small>(สะสม)</small>' : ''}</th>`).join('')}
+          <th class="sum month-total">ฝากรวม</th>
+          <th class="sum month-total">ถอนรวม</th>
+          <th class="sum balance-total">${balanceColLabel}</th>
+        </tr>`
     : `<tr>
         <th class="number">ที่</th>
         <th class="name">ชื่อ - นามสกุล</th>
-        ${showCarriedColumn ? `<th class="sum opening-col">${carriedColLabel}</th>` : ''}
+        ${showOpening ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
+        ${showPriorMonthCol ? '<th class="sum opening-col">สะสมเดือนก่อน</th>' : ''}
         ${days.map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`).join('')}
         <th class="sum month-total">รวมเดือนนี้</th>
-        <th class="sum balance-total">${balanceColLabel}</th>
+        <th class="sum balance-total">${showOpening ? 'ยอดสะสมถึงสิ้นเดือน' : 'ยอดสะสมไม่รวมยกมา'}</th>
       </tr>`;
 
   const tbodyHtml =
     savingsGrid.rows.length > 0
       ? savingsGrid.rows
           .map((row, index) => {
-            const carriedVal = hasPriorMonthsCarry ? row.carriedForwardBeforePeriod : row.openingBalance;
             if (isMultiMonth) {
               const monthCells = savingsGrid.monthBuckets
                 .map((mb) => {
-                  if (isCumulative) {
-                    const cum = row.monthlyCumulative[mb.key];
+                  const net = row.monthlyNet[mb.key] || 0;
+                  const cum = row.monthlyCumulative[mb.key];
+                  if (isBothMode) {
+                    const netStr = net !== 0 ? (net > 0 ? `+${net.toLocaleString('th-TH')}` : net.toLocaleString('th-TH')) : '-';
+                    const cumStr = cum !== null && cum > 0 ? cum.toLocaleString('th-TH') : '-';
+                    return `<td class="day">${netStr}</td><td class="day cum-col">${cumStr}</td>`;
+                  }
+                  if (isCumulativeOnly) {
                     return `<td class="day">${cum !== null && cum > 0 ? cum.toLocaleString('th-TH') : '-'}</td>`;
                   }
-                  const net = row.monthlyNet[mb.key] || 0;
                   return `<td class="day">${net !== 0 ? net.toLocaleString('th-TH') : '-'}</td>`;
                 })
                 .join('');
@@ -1662,7 +1685,7 @@ function buildPrintableSavingsReportHtml({
                 <td class="number">${index + 1}</td>
                 <td class="code">${escapeHtml(row.studentCode)}</td>
                 <td class="name">${escapeHtml(row.studentName)}</td>
-                ${showCarriedColumn ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${carriedVal > 0 ? carriedVal.toLocaleString('th-TH') : '-'}</td>` : ''}
+                ${showOpening ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
                 ${monthCells}
                 <td class="sum month-total">${row.depositsInPeriod.toLocaleString('th-TH')}</td>
                 <td class="sum month-total">${row.withdrawalsInPeriod.toLocaleString('th-TH')}</td>
@@ -1680,28 +1703,33 @@ function buildPrintableSavingsReportHtml({
             return `<tr>
               <td class="number">${index + 1}</td>
               <td class="name">${escapeHtml(row.studentName)}</td>
-              ${showCarriedColumn ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${carriedVal > 0 ? carriedVal.toLocaleString('th-TH') : '-'}</td>` : ''}
+              ${showOpening ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
+              ${showPriorMonthCol ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}</td>` : ''}
               ${dayCells}
               <td class="sum month-total">${row.totalPeriodNet ? row.totalPeriodNet.toLocaleString('th-TH') : '0'}</td>
               <td class="sum balance-total">${row.totalBalance.toLocaleString('th-TH')}</td>
             </tr>`;
           })
           .join('')
-      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length + (showCarriedColumn ? 7 : 6) : days.length + (showCarriedColumn ? 5 : 4)}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
-
-  const totalCarriedFooter = hasPriorMonthsCarry ? savingsGrid.totalCarriedForwardBeforePeriod : savingsGrid.totalOpeningBalance;
+      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length * (isBothMode ? 2 : 1) + (showOpening ? 7 : 6) : days.length + (showOpening ? 5 : 4) + (showPriorMonthCol ? 1 : 0)}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
 
   const tfootHtml = isMultiMonth
     ? `<tr>
-        <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">${isCumulative ? 'รวมยอดสะสมแต่ละเดือน (บาท)' : 'รวมทั้งสิ้น (บาท)'}</td>
-        ${showCarriedColumn ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${totalCarriedFooter.toLocaleString('th-TH')}</td>` : ''}
+        <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">รวมทั้งสิ้น (บาท)</td>
+        ${showOpening ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
         ${savingsGrid.monthBuckets
           .map((mb) => {
-            if (isCumulative) {
-              const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
+            const net = savingsGrid.monthTotals[mb.key] || 0;
+            const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
+            if (isBothMode) {
+              const netStr = net !== 0 ? (net > 0 ? `+${net.toLocaleString('th-TH')}` : net.toLocaleString('th-TH')) : '-';
+              const cumStr = cumTotal !== null && cumTotal > 0 ? cumTotal.toLocaleString('th-TH') : '-';
+              return `<td class="total">${netStr}</td><td class="total cum-col">${cumStr}</td>`;
+            }
+            if (isCumulativeOnly) {
               return `<td class="total">${cumTotal !== null && cumTotal > 0 ? cumTotal.toLocaleString('th-TH') : '-'}</td>`;
             }
-            return `<td class="total">${savingsGrid.monthTotals[mb.key] ? savingsGrid.monthTotals[mb.key].toLocaleString('th-TH') : '-'}</td>`;
+            return `<td class="total">${net !== 0 ? net.toLocaleString('th-TH') : '-'}</td>`;
           })
           .join('')}
         <td class="total">${savingsGrid.totalPeriodDeposits.toLocaleString('th-TH')}</td>
@@ -1711,7 +1739,8 @@ function buildPrintableSavingsReportHtml({
     : `<tr>
         <td></td>
         <td class="name">รวมเงินออมแต่ละวัน</td>
-        ${showCarriedColumn ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${totalCarriedFooter.toLocaleString('th-TH')}</td>` : ''}
+        ${showOpening ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
+        ${showPriorMonthCol ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}</td>` : ''}
         ${days.map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`).join('')}
         <td class="total">${savingsGrid.totalPeriodNet.toLocaleString('th-TH')}</td>
         <td class="total">${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
@@ -1740,6 +1769,8 @@ function buildPrintableSavingsReportHtml({
           .opening-col { width: 16mm; }
           .month-total { width: 16mm; }
           .balance-total { width: 20mm; }
+          .sub-col { font-size: 7.2pt !important; padding: 1px !important; }
+          .cum-col { background: #ecfeff !important; font-weight: 700; color: #0f2742; }
           .total { background: #e6f7fb !important; font-weight: 700; color: #0f2742 !important; }
         </style>
       </head>
@@ -1753,19 +1784,23 @@ function buildPrintableSavingsReportHtml({
             identity: { ...reportIdentity, academicYear },
             schoolName,
             subtitle: isMultiMonth
-              ? `สรุปรายการออมเงิน${isCumulative ? ' (ยอดสะสมต่อเนื่องรายเดือน)' : ''} (${formatThaiOfficialShortDate(dateFrom)} ถึง ${formatThaiOfficialShortDate(dateTo)})`
-              : `ประจำเดือน${monthLabel}${isCumulative ? ' (สะสมต่อเนื่องถึงสิ้นเดือน)' : ''}`,
+              ? `สรุปรายการออมเงิน${isBothMode ? ' (ฝากรายเดือน + สะสมต่อเนื่อง)' : isCumulativeOnly ? ' (ยอดสะสมต่อเนื่องรายเดือน)' : ''} (${formatThaiOfficialShortDate(dateFrom)} ถึง ${formatThaiOfficialShortDate(dateTo)})`
+              : `ประจำเดือน${monthLabel}`,
             title: `รายงานการออมเงินระดับชั้น ${classroomName}`,
           })}
           <section class="summary-grid">
-            <div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>
             ${
-              showCarriedColumn
-                ? `<div class="summary-card"><span>${hasPriorMonthsCarry ? 'ยอดยกมาถึงเดือนก่อน' : 'ยอดยกมารวม'}</span><strong>${totalCarriedFooter.toLocaleString('th-TH')} บาท</strong></div>`
+              showPriorMonthCol
+                ? `<div class="summary-card"><span>${showOpening ? 'ยอดยกมาต้นปี / ถึงเดือนก่อน' : 'ยอดสะสมถึงเดือนก่อน'}</span><strong>${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')} บาท</strong></div>`
+                : `<div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>`
+            }
+            ${
+              showOpening
+                ? `<div class="summary-card"><span>ยอดยกมาต้นปี</span><strong>${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong></div>`
                 : `<div class="summary-card"><span>ออมเงินช่วงนี้</span><strong>${savingsGrid.totalActiveSavingsStudents} คน</strong></div>`
             }
             <div class="summary-card"><span>ออมสุทธิช่วงนี้</span><strong>${savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong></div>
-            <div class="summary-card"><span>${showOpening ? 'ยอดสะสมคงเหลือรวม' : 'ยอดสะสมรวม (ไม่รวมยกมา)'}</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
+            <div class="summary-card"><span>${showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมรวม (ไม่รวมยกมา)'}</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
           </section>
           <table>
             <thead>${theadHtml}</thead>
@@ -2587,9 +2622,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
   const [savingsDisplayMode, setSavingsDisplayMode] = useState<SavingsDisplayMode>(() => {
     try {
       const saved = window.localStorage.getItem(`classcare.reports.savingsDisplayMode.${session.workspace?.id || 'default'}`);
-      return saved === 'cumulative' ? 'cumulative' : 'monthly';
+      if (saved === 'monthly' || saved === 'cumulative' || saved === 'both') return saved;
+      return 'both';
     } catch {
-      return 'monthly';
+      return 'both';
     }
   });
 
@@ -3818,16 +3854,22 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       ]);
     } else if (reportView === 'savings') {
       const showOpening = savingsGrid.includeOpeningBalance;
-      const isCumulative = savingsGrid.savingsDisplayMode === 'cumulative';
+      const mode = savingsGrid.savingsDisplayMode;
+      const showPriorCol = !isMultiMonthMode && savingsGrid.hasPriorMonthsActivity;
       const monthColHeaders = isMultiMonthMode
-        ? savingsGrid.monthBuckets.map((mb) => (isCumulative ? `${mb.shortLabel} (สะสม)` : mb.shortLabel))
+        ? savingsGrid.monthBuckets.flatMap((mb) =>
+            mode === 'both'
+              ? [`${mb.shortLabel} (ฝาก)`, `${mb.shortLabel} (สะสม)`]
+              : [mode === 'cumulative' ? `${mb.shortLabel} (สะสม)` : mb.shortLabel],
+          )
         : [];
-      const balanceHeader = showOpening ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสม (ไม่รวมยกมา)';
+      const balanceHeader = showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสม (ไม่รวมยกมา)';
       headers = [
         'ที่',
         'รหัส',
         'ชื่อ-นามสกุล',
-        ...(showOpening ? ['ยอดยกมา'] : []),
+        ...(showOpening ? ['ยอดยกมา (ต้นปี)'] : []),
+        ...(showPriorCol ? ['สะสมถึงเดือนก่อน'] : []),
         ...monthColHeaders,
         'ฝากรวมช่วงนี้',
         'ถอนรวมช่วงนี้',
@@ -3839,13 +3881,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         row.studentCode,
         row.studentName,
         ...(showOpening ? [String(row.openingBalance)] : []),
+        ...(showPriorCol ? [String(row.carriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
-          ? savingsGrid.monthBuckets.map((mb) => {
-              if (isCumulative) {
-                const cum = row.monthlyCumulative[mb.key];
-                return cum !== null ? String(cum) : '';
-              }
-              return String(row.monthlyNet[mb.key] || 0);
+          ? savingsGrid.monthBuckets.flatMap((mb) => {
+              const net = row.monthlyNet[mb.key] || 0;
+              const cum = row.monthlyCumulative[mb.key];
+              if (mode === 'both') return [String(net), cum !== null ? String(cum) : ''];
+              if (mode === 'cumulative') return [cum !== null ? String(cum) : ''];
+              return [String(net)];
             })
           : []),
         String(row.depositsInPeriod),
@@ -3858,13 +3901,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         '',
         'รวมทั้งสิ้น',
         ...(showOpening ? [String(savingsGrid.totalOpeningBalance)] : []),
+        ...(showPriorCol ? [String(savingsGrid.totalCarriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
-          ? savingsGrid.monthBuckets.map((mb) => {
-              if (isCumulative) {
-                const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
-                return cumTotal !== null ? String(cumTotal) : '';
-              }
-              return String(savingsGrid.monthTotals[mb.key] || 0);
+          ? savingsGrid.monthBuckets.flatMap((mb) => {
+              const net = savingsGrid.monthTotals[mb.key] || 0;
+              const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
+              if (mode === 'both') return [String(net), cumTotal !== null ? String(cumTotal) : ''];
+              if (mode === 'cumulative') return [cumTotal !== null ? String(cumTotal) : ''];
+              return [String(net)];
             })
           : []),
         String(savingsGrid.totalPeriodDeposits),
@@ -4062,16 +4106,22 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
       });
     } else if (reportView === 'savings') {
       const showOpening = savingsGrid.includeOpeningBalance;
-      const isCumulative = savingsGrid.savingsDisplayMode === 'cumulative';
+      const mode = savingsGrid.savingsDisplayMode;
+      const showPriorCol = !isMultiMonthMode && savingsGrid.hasPriorMonthsActivity;
       const monthColHeaders = isMultiMonthMode
-        ? savingsGrid.monthBuckets.map((mb) => (isCumulative ? `${mb.shortLabel} (สะสม)` : mb.shortLabel))
+        ? savingsGrid.monthBuckets.flatMap((mb) =>
+            mode === 'both'
+              ? [`${mb.shortLabel} (ฝาก)`, `${mb.shortLabel} (สะสม)`]
+              : [mode === 'cumulative' ? `${mb.shortLabel} (สะสม)` : mb.shortLabel],
+          )
         : [];
-      const balanceHeader = showOpening ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสม (ไม่รวมยกมา)';
+      const balanceHeader = showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสม (ไม่รวมยกมา)';
       const headers = [
         'ที่',
         'รหัส',
         'ชื่อ-นามสกุล',
-        ...(showOpening ? ['ยอดยกมา'] : []),
+        ...(showOpening ? ['ยอดยกมา (ต้นปี)'] : []),
+        ...(showPriorCol ? ['สะสมถึงเดือนก่อน'] : []),
         ...monthColHeaders,
         'ฝากรวมช่วงนี้',
         'ถอนรวมช่วงนี้',
@@ -4083,13 +4133,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         row.studentCode,
         row.studentName,
         ...(showOpening ? [String(row.openingBalance)] : []),
+        ...(showPriorCol ? [String(row.carriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
-          ? savingsGrid.monthBuckets.map((mb) => {
-              if (isCumulative) {
-                const cum = row.monthlyCumulative[mb.key];
-                return cum !== null ? String(cum) : '';
-              }
-              return String(row.monthlyNet[mb.key] || 0);
+          ? savingsGrid.monthBuckets.flatMap((mb) => {
+              const net = row.monthlyNet[mb.key] || 0;
+              const cum = row.monthlyCumulative[mb.key];
+              if (mode === 'both') return [String(net), cum !== null ? String(cum) : ''];
+              if (mode === 'cumulative') return [cum !== null ? String(cum) : ''];
+              return [String(net)];
             })
           : []),
         String(row.depositsInPeriod),
@@ -4102,13 +4153,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         '',
         'รวมทั้งสิ้น',
         ...(showOpening ? [String(savingsGrid.totalOpeningBalance)] : []),
+        ...(showPriorCol ? [String(savingsGrid.totalCarriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
-          ? savingsGrid.monthBuckets.map((mb) => {
-              if (isCumulative) {
-                const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
-                return cumTotal !== null ? String(cumTotal) : '';
-              }
-              return String(savingsGrid.monthTotals[mb.key] || 0);
+          ? savingsGrid.monthBuckets.flatMap((mb) => {
+              const net = savingsGrid.monthTotals[mb.key] || 0;
+              const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
+              if (mode === 'both') return [String(net), cumTotal !== null ? String(cumTotal) : ''];
+              if (mode === 'cumulative') return [cumTotal !== null ? String(cumTotal) : ''];
+              return [String(net)];
             })
           : []),
         String(savingsGrid.totalPeriodDeposits),
@@ -4788,39 +4840,39 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               {/* Toggle 2: Monthly vs Running Cumulative Mode */}
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-200/80 bg-white/80 px-3.5 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-black text-slate-900 sm:text-sm">รูปแบบตัวเลขแต่ละเดือน</p>
+                  <p className="text-xs font-black text-slate-900 sm:text-sm">รูปแบบความเคลื่อนไหวแต่ละเดือน</p>
                   <p className="mt-0.5 text-[11px] font-semibold text-slate-600">
-                    {savingsDisplayMode === 'cumulative'
-                      ? 'สะสมต่อเนื่อง: เดือนก่อน + เดือนนี้ บวกทบไปเรื่อยๆ เป็นลำดับ'
-                      : 'ยอดเฉพาะเดือน: แสดงยอดฝาก–ถอนสุทธิของเดือนนั้นๆ'}
+                    {savingsDisplayMode === 'both'
+                      ? 'แสดงคู่ 2 ช่องต่อเดือน: ยอดฝากเดือนนั้น + ยอดสะสมรวมถึงเดือนนั้น (เดือนก่อน + เดือนนี้)'
+                      : savingsDisplayMode === 'cumulative'
+                        ? 'แสดงเฉพาะยอดสะสมต่อเนื่อง (เดือนก่อน + เดือนนี้ บวกทบไปเรื่อยๆ)'
+                        : 'แสดงเฉพาะยอดฝาก–ถอนสุทธิของเดือนนั้นๆ'}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => updateSavingsDisplayMode('monthly')}
-                      className={`rounded-lg px-2.5 py-1.5 text-xs font-black transition ${
-                        savingsDisplayMode === 'monthly'
-                          ? 'bg-white text-slate-950 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      เฉพาะเดือน
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateSavingsDisplayMode('cumulative')}
-                      className={`rounded-lg px-2.5 py-1.5 text-xs font-black transition ${
-                        savingsDisplayMode === 'cumulative'
-                          ? 'bg-cyan-700 text-white shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      สะสมต่อเนื่อง
-                    </button>
+                    {(
+                      [
+                        ['both', 'ฝาก + สะสม'],
+                        ['monthly', 'เฉพาะเดือน'],
+                        ['cumulative', 'สะสมล้วน'],
+                      ] as const
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => updateSavingsDisplayMode(mode)}
+                        className={`rounded-lg px-2.5 py-1.5 text-xs font-black transition ${
+                          savingsDisplayMode === mode
+                            ? 'bg-cyan-700 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                  {savingsDisplayMode === 'cumulative' && !isMultiMonthMode ? (
+                  {!isMultiMonthMode ? (
                     <button
                       type="button"
                       onClick={() => updateReportSearch({ reportPeriod: 'term' })}
@@ -5379,13 +5431,29 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                     {isMultiMonthMode ? (
                       <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 text-[11px] font-bold">
                         {savingsGrid.monthBuckets.map((mb) => {
-                          const isCum = savingsGrid.savingsDisplayMode === 'cumulative';
-                          const val = isCum ? row.monthlyCumulative[mb.key] : row.monthlyNet[mb.key];
+                          const mode = savingsGrid.savingsDisplayMode;
+                          const net = row.monthlyNet[mb.key] || 0;
+                          const cum = row.monthlyCumulative[mb.key];
+                          if (mode === 'both') {
+                            if (cum === null && net === 0) return null;
+                            return (
+                              <span
+                                key={mb.key}
+                                className="rounded-lg border border-cyan-100 bg-cyan-50/70 px-2 py-0.5 text-cyan-950"
+                              >
+                                {mb.shortLabel}:{' '}
+                                <span className="text-teal-700">{net > 0 ? `+${net.toLocaleString('th-TH')}` : net.toLocaleString('th-TH')}</span>
+                                {' · รวม '}
+                                <strong>{cum !== null ? cum.toLocaleString('th-TH') : '-'}</strong>
+                              </span>
+                            );
+                          }
+                          const val = mode === 'cumulative' ? cum : net;
                           if (val === null || val === 0) return null;
                           return (
                             <span
                               key={mb.key}
-                              className={`rounded-lg px-2 py-0.5 ${isCum ? 'bg-cyan-50 text-cyan-900 border border-cyan-100' : 'bg-slate-100 text-slate-700'}`}
+                              className={`rounded-lg px-2 py-0.5 ${mode === 'cumulative' ? 'bg-cyan-50 text-cyan-900 border border-cyan-100' : 'bg-slate-100 text-slate-700'}`}
                             >
                               {mb.shortLabel}: {val.toLocaleString('th-TH')}
                             </span>
@@ -5791,23 +5859,30 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
 
                   {/* 3: Savings on A4 */}
                   {reportView === 'savings' && (() => {
-                    const isCumulative = savingsGrid.savingsDisplayMode === 'cumulative';
-                    const hasPriorMonthsCarry = savingsGrid.totalCarriedForwardBeforePeriod !== savingsGrid.totalOpeningBalance;
-                    const showCarriedCol = savingsGrid.includeOpeningBalance || (isCumulative && savingsGrid.totalCarriedForwardBeforePeriod > 0);
-                    const carriedColTitle = hasPriorMonthsCarry ? 'ยกมาจากเดือนก่อน' : 'ยอดยกมา';
-                    const totalCarriedVal = hasPriorMonthsCarry ? savingsGrid.totalCarriedForwardBeforePeriod : savingsGrid.totalOpeningBalance;
+                    const mode = savingsGrid.savingsDisplayMode;
+                    const isBothMode = mode === 'both';
+                    const isCumulativeOnly = mode === 'cumulative';
+                    const showOpening = savingsGrid.includeOpeningBalance;
+                    const showPriorMonthCol = !isMultiMonthMode && savingsGrid.hasPriorMonthsActivity;
 
                     return (
                     <div>
                       <div className="mb-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
-                          <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
-                          <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
-                        </div>
-                        {showCarriedCol ? (
+                        {showPriorMonthCol ? (
+                          <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 py-1.5">
+                            <span className="block font-bold text-indigo-800">ยอดสะสมถึงเดือนก่อน</span>
+                            <strong className="text-base font-black text-indigo-950">{savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')} บาท</strong>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                            <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
+                            <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
+                          </div>
+                        )}
+                        {showOpening ? (
                           <div className="rounded-lg border border-amber-200 bg-amber-50/70 py-1.5">
-                            <span className="block font-bold text-amber-800">{hasPriorMonthsCarry ? 'ยอดยกมาถึงเดือนก่อน' : 'ยอดยกมารวม'}</span>
-                            <strong className="text-base font-black text-amber-950">{totalCarriedVal.toLocaleString('th-TH')} บาท</strong>
+                            <span className="block font-bold text-amber-800">ยอดยกมา (ต้นปี)</span>
+                            <strong className="text-base font-black text-amber-950">{savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong>
                           </div>
                         ) : (
                           <div className="rounded-lg border border-sky-200 bg-sky-50/70 py-1.5">
@@ -5816,71 +5891,104 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                           </div>
                         )}
                         <div className="rounded-lg border border-teal-200 bg-teal-50/70 py-1.5">
-                          <span className="block font-bold text-teal-800">ออมสุทธิช่วงนี้</span>
+                          <span className="block font-bold text-teal-800">{isMultiMonthMode ? 'ออมสุทธิช่วงนี้' : 'ฝากสุทธิเดือนนี้'}</span>
                           <strong className="text-base font-black text-teal-900">{savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong>
                         </div>
                         <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 py-1.5">
                           <span className="block font-bold text-emerald-800">
-                            {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือรวม' : 'ยอดสะสมรวม (ไม่รวมยกมา)'}
+                            {showOpening ? (isMultiMonthMode ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมถึงสิ้นเดือน') : 'ยอดสะสมรวม (ไม่รวมยกมา)'}
                           </span>
                           <strong className="text-base font-black text-emerald-950">{savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong>
                         </div>
                       </div>
 
                       {isMultiMonthMode ? (
-                        <table className="w-full border-collapse border border-slate-300 text-xs">
+                        <table className={`w-full border-collapse border border-slate-300 ${isBothMode ? 'text-[11px]' : 'text-xs'}`}>
                           <thead>
-                            <tr className="bg-cyan-50 text-slate-900">
-                              <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
-                              <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
-                              <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
-                              {showCarriedCol ? (
-                                <th className="border border-slate-300 bg-amber-50 px-2 py-2 text-right w-20">{carriedColTitle}</th>
-                              ) : null}
-                              {savingsGrid.monthBuckets.map((mb) => (
-                                <th className={`border border-slate-300 px-1 py-2 text-center ${isCumulative ? 'bg-cyan-100/70' : ''}`} key={mb.key}>
-                                  <span className="block">{mb.shortLabel}</span>
-                                  {isCumulative ? <span className="block text-[9px] font-bold text-cyan-800">สะสม</span> : null}
+                            {isBothMode ? (
+                              <>
+                                <tr className="bg-cyan-50 text-slate-900">
+                                  <th rowSpan={2} className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
+                                  <th rowSpan={2} className="border border-slate-300 px-1.5 py-1.5 text-center w-14">รหัส</th>
+                                  <th rowSpan={2} className="border border-slate-300 px-2 py-1.5 text-left">ชื่อ - นามสกุล</th>
+                                  {showOpening ? (
+                                    <th rowSpan={2} className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">
+                                      <span className="block">ยอดยกมา</span>
+                                      <span className="block text-[9px] font-bold text-amber-700">(ต้นปี)</span>
+                                    </th>
+                                  ) : null}
+                                  {savingsGrid.monthBuckets.map((mb) => (
+                                    <th colSpan={2} className="border border-slate-300 bg-cyan-100/60 px-1 py-1 text-center font-black" key={mb.key}>
+                                      {mb.shortLabel}
+                                    </th>
+                                  ))}
+                                  <th rowSpan={2} className="border border-slate-300 bg-teal-50 px-1.5 py-1.5 text-right">ฝากรวม</th>
+                                  <th rowSpan={2} className="border border-slate-300 bg-rose-50 px-1.5 py-1.5 text-right">ถอนรวม</th>
+                                  <th rowSpan={2} className="border border-slate-300 bg-emerald-100 px-1.5 py-1.5 text-right font-black">
+                                    {showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมไม่รวมยกมา'}
+                                  </th>
+                                </tr>
+                                <tr className="bg-slate-50 text-[10px] font-black text-slate-700">
+                                  {savingsGrid.monthBuckets.map((mb) => (
+                                    <Fragment key={`${mb.key}-sub`}>
+                                      <th className="border border-slate-300 bg-teal-50/60 px-1 py-1 text-center text-teal-800">ฝาก</th>
+                                      <th className="border border-slate-300 bg-cyan-50 px-1 py-1 text-center text-cyan-900">สะสม</th>
+                                    </Fragment>
+                                  ))}
+                                </tr>
+                              </>
+                            ) : (
+                              <tr className="bg-cyan-50 text-slate-900">
+                                <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
+                                <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
+                                <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
+                                {showOpening ? (
+                                  <th className="border border-slate-300 bg-amber-50 px-2 py-2 text-right w-20">ยอดยกมา</th>
+                                ) : null}
+                                {savingsGrid.monthBuckets.map((mb) => (
+                                  <th className={`border border-slate-300 px-1 py-2 text-center ${isCumulativeOnly ? 'bg-cyan-100/70' : ''}`} key={mb.key}>
+                                    <span className="block">{mb.shortLabel}</span>
+                                    {isCumulativeOnly ? <span className="block text-[9px] font-bold text-cyan-800">สะสม</span> : null}
+                                  </th>
+                                ))}
+                                <th className="border border-slate-300 bg-teal-50 px-2 py-2 text-right">ฝากรวม</th>
+                                <th className="border border-slate-300 bg-rose-50 px-2 py-2 text-right">ถอนรวม</th>
+                                <th className="border border-slate-300 bg-emerald-100 px-2 py-2 text-right font-black">
+                                  {showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมไม่รวมยกมา'}
                                 </th>
-                              ))}
-                              <th className="border border-slate-300 bg-teal-50 px-2 py-2 text-right">ฝากรวม</th>
-                              <th className="border border-slate-300 bg-rose-50 px-2 py-2 text-right">ถอนรวม</th>
-                              <th className="border border-slate-300 bg-emerald-100 px-2 py-2 text-right font-black">
-                                {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา'}
-                              </th>
-                            </tr>
+                              </tr>
+                            )}
                           </thead>
                           <tbody>
-                            {savingsGrid.rows.map((row, idx) => {
-                              const carriedVal = hasPriorMonthsCarry ? row.carriedForwardBeforePeriod : row.openingBalance;
-                              return (
+                            {savingsGrid.rows.map((row, idx) => (
                               <tr className="even:bg-slate-50/70" key={row.studentId}>
                                 <td className="border border-slate-300 px-1 py-1.5 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-1.5 py-1.5 text-center font-bold">{row.studentCode}</td>
-                                <td className="border border-slate-300 px-2 py-1.5 font-bold">{row.studentName}</td>
-                                {showCarriedCol ? (
-                                  <td className="border border-slate-300 bg-amber-50/40 px-2 py-1.5 text-right font-bold text-amber-900">
-                                    {carriedVal > 0 ? carriedVal.toLocaleString('th-TH') : '-'}
+                                <td className="border border-slate-300 px-2 py-1.5 font-bold whitespace-nowrap">{row.studentName}</td>
+                                {showOpening ? (
+                                  <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1.5 text-right font-bold text-amber-900">
+                                    {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
                                   </td>
                                 ) : null}
                                 {savingsGrid.monthBuckets.map((mb) => {
                                   const net = row.monthlyNet[mb.key] || 0;
-                                  if (isCumulative) {
-                                    const cum = row.monthlyCumulative[mb.key];
+                                  const cum = row.monthlyCumulative[mb.key];
+                                  if (isBothMode) {
                                     return (
-                                      <td className="border border-slate-300 px-1 py-1.5 text-center font-bold" key={mb.key}>
-                                        {cum !== null && cum > 0 ? (
-                                          <>
-                                            <span className="block text-slate-900">{cum.toLocaleString('th-TH')}</span>
-                                            {net !== 0 ? (
-                                              <span className={`block text-[9px] font-black ${net > 0 ? 'text-teal-600' : 'text-rose-600'}`}>
-                                                {net > 0 ? `+${net.toLocaleString('th-TH')}` : net.toLocaleString('th-TH')}
-                                              </span>
-                                            ) : null}
-                                          </>
-                                        ) : (
-                                          '-'
-                                        )}
+                                      <Fragment key={mb.key}>
+                                        <td className={`border border-slate-300 px-1 py-1.5 text-center font-bold ${net > 0 ? 'text-teal-700' : net < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                          {net !== 0 ? (net > 0 ? `+${net.toLocaleString('th-TH')}` : net.toLocaleString('th-TH')) : '-'}
+                                        </td>
+                                        <td className="border border-slate-300 bg-cyan-50/40 px-1 py-1.5 text-right font-black text-slate-900">
+                                          {cum !== null && cum > 0 ? cum.toLocaleString('th-TH') : '-'}
+                                        </td>
+                                      </Fragment>
+                                    );
+                                  }
+                                  if (isCumulativeOnly) {
+                                    return (
+                                      <td className="border border-slate-300 bg-cyan-50/30 px-1 py-1.5 text-center font-bold text-slate-900" key={mb.key}>
+                                        {cum !== null && cum > 0 ? cum.toLocaleString('th-TH') : '-'}
                                       </td>
                                     );
                                   }
@@ -5890,52 +5998,63 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                     </td>
                                   );
                                 })}
-                                <td className="border border-slate-300 px-2 py-1.5 text-right font-bold text-teal-700">
+                                <td className="border border-slate-300 px-1.5 py-1.5 text-right font-bold text-teal-700">
                                   {row.depositsInPeriod.toLocaleString('th-TH')}
                                 </td>
-                                <td className="border border-slate-300 px-2 py-1.5 text-right font-bold text-rose-700">
+                                <td className="border border-slate-300 px-1.5 py-1.5 text-right font-bold text-rose-700">
                                   {row.withdrawalsInPeriod.toLocaleString('th-TH')}
                                 </td>
-                                <td className="border border-slate-300 bg-emerald-50/50 px-2 py-1.5 text-right font-black text-emerald-800">
+                                <td className="border border-slate-300 bg-emerald-50/50 px-1.5 py-1.5 text-right font-black text-emerald-800">
                                   {row.totalBalance.toLocaleString('th-TH')}
                                 </td>
                               </tr>
-                              );
-                            })}
+                            ))}
                           </tbody>
                           <tfoot>
                             <tr className="bg-slate-100 font-black text-slate-900">
                               <td colSpan={3} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-right font-black text-slate-900">
-                                {isCumulative ? 'รวมยอดสะสมแต่ละเดือน' : 'รวมทั้งสิ้น'}
+                                รวมทั้งสิ้น
                               </td>
-                              {showCarriedCol ? (
-                                <td className="border border-slate-300 bg-amber-100 px-2 py-1.5 text-right font-black text-amber-950">
-                                  {totalCarriedVal.toLocaleString('th-TH')}
+                              {showOpening ? (
+                                <td className="border border-slate-300 bg-amber-100 px-1.5 py-1.5 text-right font-black text-amber-950">
+                                  {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
                                 </td>
                               ) : null}
                               {savingsGrid.monthBuckets.map((mb) => {
-                                if (isCumulative) {
-                                  const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
+                                const net = savingsGrid.monthTotals[mb.key] || 0;
+                                const cumTotal = savingsGrid.monthCumulativeTotals[mb.key];
+                                if (isBothMode) {
+                                  return (
+                                    <Fragment key={mb.key}>
+                                      <td className="border border-slate-300 bg-teal-50 px-1 py-1.5 text-center font-black text-teal-900">
+                                        {net !== 0 ? (net > 0 ? `+${net.toLocaleString('th-TH')}` : net.toLocaleString('th-TH')) : '-'}
+                                      </td>
+                                      <td className="border border-slate-300 bg-cyan-100/80 px-1 py-1.5 text-right font-black text-cyan-950">
+                                        {cumTotal !== null && cumTotal > 0 ? cumTotal.toLocaleString('th-TH') : '-'}
+                                      </td>
+                                    </Fragment>
+                                  );
+                                }
+                                if (isCumulativeOnly) {
                                   return (
                                     <td className="border border-slate-300 bg-cyan-100/70 px-1 py-1.5 text-center font-black text-cyan-950" key={mb.key}>
                                       {cumTotal !== null && cumTotal > 0 ? cumTotal.toLocaleString('th-TH') : '-'}
                                     </td>
                                   );
                                 }
-                                const net = savingsGrid.monthTotals[mb.key] || 0;
                                 return (
                                   <td className="border border-slate-300 px-1 py-1.5 text-center font-black text-slate-900" key={mb.key}>
                                     {net !== 0 ? net.toLocaleString('th-TH') : '-'}
                                   </td>
                                 );
                               })}
-                              <td className="border border-slate-300 bg-teal-100 px-2 py-1.5 text-right font-black text-teal-950">
+                              <td className="border border-slate-300 bg-teal-100 px-1.5 py-1.5 text-right font-black text-teal-950">
                                 {savingsGrid.totalPeriodDeposits.toLocaleString('th-TH')}
                               </td>
-                              <td className="border border-slate-300 bg-rose-100 px-2 py-1.5 text-right font-black text-rose-950">
+                              <td className="border border-slate-300 bg-rose-100 px-1.5 py-1.5 text-right font-black text-rose-950">
                                 {savingsGrid.totalPeriodWithdrawals.toLocaleString('th-TH')}
                               </td>
-                              <td className="border border-slate-300 bg-emerald-100 px-2 py-1.5 text-right font-black text-emerald-950">
+                              <td className="border border-slate-300 bg-emerald-100 px-1.5 py-1.5 text-right font-black text-emerald-950">
                                 {savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}
                               </td>
                             </tr>
@@ -5947,8 +6066,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                             <tr className="bg-cyan-50 text-slate-900">
                               <th className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
                               <th className="border border-slate-300 px-2 py-1.5 text-left w-44">ชื่อ - นามสกุล</th>
-                              {showCarriedCol ? (
-                                <th className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">{carriedColTitle}</th>
+                              {showOpening ? (
+                                <th className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">ยอดยกมา</th>
+                              ) : null}
+                              {showPriorMonthCol ? (
+                                <th className="border border-slate-300 bg-indigo-50 px-1.5 py-1.5 text-right w-18">สะสมเดือนก่อน</th>
                               ) : null}
                               {monthContext.days.map((day) => (
                                 <th
@@ -5962,20 +6084,23 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               ))}
                               <th className="border border-slate-300 bg-cyan-100 px-2 py-1.5 text-right">รวมเดือนนี้</th>
                               <th className="border border-slate-300 bg-emerald-100 px-2 py-1.5 text-right">
-                                {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา'}
+                                {showOpening ? 'ยอดสะสมถึงสิ้นเดือน' : 'ยอดสะสมไม่รวมยกมา'}
                               </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {savingsGrid.rows.map((row, idx) => {
-                              const carriedVal = hasPriorMonthsCarry ? row.carriedForwardBeforePeriod : row.openingBalance;
-                              return (
+                            {savingsGrid.rows.map((row, idx) => (
                               <tr className="even:bg-slate-50/70" key={row.studentId}>
                                 <td className="border border-slate-300 px-1 py-1 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-2 py-1 font-bold whitespace-nowrap">{row.studentName}</td>
-                                {showCarriedCol ? (
+                                {showOpening ? (
                                   <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1 text-right font-bold text-amber-900">
-                                    {carriedVal > 0 ? carriedVal.toLocaleString('th-TH') : '-'}
+                                    {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
+                                  </td>
+                                ) : null}
+                                {showPriorMonthCol ? (
+                                  <td className="border border-slate-300 bg-indigo-50/40 px-1.5 py-1 text-right font-bold text-indigo-900">
+                                    {row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}
                                   </td>
                                 ) : null}
                                 {monthContext.days.map((day) => {
@@ -5998,17 +6123,21 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                   {row.totalBalance.toLocaleString('th-TH')}
                                 </td>
                               </tr>
-                              );
-                            })}
+                            ))}
                           </tbody>
                           <tfoot>
                             <tr className="bg-slate-100 font-black text-slate-900">
                               <td colSpan={2} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black whitespace-nowrap text-slate-900">
                                 รวมเงินออมแต่ละวัน
                               </td>
-                              {showCarriedCol ? (
+                              {showOpening ? (
                                 <td className="border border-slate-300 bg-amber-100 px-1.5 py-1 text-right font-black text-amber-950">
-                                  {totalCarriedVal.toLocaleString('th-TH')}
+                                  {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
+                                </td>
+                              ) : null}
+                              {showPriorMonthCol ? (
+                                <td className="border border-slate-300 bg-indigo-100 px-1.5 py-1 text-right font-black text-indigo-950">
+                                  {savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}
                                 </td>
                               ) : null}
                               {monthContext.days.map((day) => {
