@@ -603,9 +603,25 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const pendingPaymentCount = payments.filter((payment) => payment.status === 'pending_review').length;
 
   const subscriptionByWorkspaceId = useMemo(() => {
+    const nowMs = Date.now();
+    const twentyYearsMs = 365 * 20 * 86_400_000;
+    const rankSub = (sub: SubscriptionAdminRow) => {
+      const endsMs = sub.endsAt ? new Date(sub.endsAt).getTime() : null;
+      const isValidEnd = endsMs !== null && !Number.isNaN(endsMs);
+      if (sub.status === 'active' && sub.planCode === 'VIP_YEARLY') {
+        if (!isValidEnd || endsMs > nowMs + twentyYearsMs) return 4; // Active Lifetime VIP
+        if (endsMs > nowMs) return 3; // Active timed VIP
+      }
+      if (sub.status === 'active' && (!isValidEnd || endsMs > nowMs)) return 3;
+      if (sub.status === 'trial' && (!isValidEnd || endsMs > nowMs)) return 2;
+      return 1; // Expired / cancelled fallback
+    };
+
     const map = new Map<string, SubscriptionAdminRow>();
     subscriptions.forEach((sub) => {
-      if (sub.workspaceId && !map.has(sub.workspaceId)) {
+      if (!sub.workspaceId) return;
+      const existing = map.get(sub.workspaceId);
+      if (!existing || rankSub(sub) > rankSub(existing)) {
         map.set(sub.workspaceId, sub);
       }
     });
@@ -1899,8 +1915,21 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               <tbody className="divide-y divide-slate-200 bg-white">
                 {filteredWorkspaces.map((workspace) => {
                   const wsSub = subscriptionByWorkspaceId.get(workspace.id);
-                  const subEndText = wsSub?.endsAt
-                    ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(wsSub.endsAt))
+                  const wsEndsMs = wsSub?.endsAt ? new Date(wsSub.endsAt).getTime() : null;
+                  const wsIsLifetime = Boolean(
+                    wsSub &&
+                      wsSub.status === 'active' &&
+                      wsSub.planCode === 'VIP_YEARLY' &&
+                      (wsEndsMs === null || wsEndsMs > Date.now() + 365 * 20 * 86_400_000),
+                  );
+                  const wsIsActive = Boolean(
+                    wsIsLifetime ||
+                      (wsSub &&
+                        (wsSub.status === 'active' || wsSub.status === 'trial') &&
+                        (wsEndsMs === null || wsEndsMs > Date.now())),
+                  );
+                  const subEndText = wsEndsMs
+                    ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(wsEndsMs))
                     : null;
                   return (
                   <tr className="align-middle transition hover:bg-cyan-50/40" key={workspace.id}>
@@ -1922,17 +1951,25 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                         <div>
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black ${
-                              wsSub.status === 'active'
-                                ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
-                                : wsSub.status === 'trial'
-                                  ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'
-                                  : 'bg-slate-100 text-slate-500'
+                              wsIsLifetime
+                                ? 'bg-purple-50 text-purple-800 ring-1 ring-purple-200'
+                                : wsIsActive && wsSub.status === 'active'
+                                  ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+                                  : wsIsActive && wsSub.status === 'trial'
+                                    ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'
+                                    : 'bg-slate-100 text-slate-500'
                             }`}
                           >
-                            {wsSub.planCode}
+                            {wsIsLifetime
+                              ? 'VIP ตลอดชีพ'
+                              : wsIsActive && wsSub.planCode === 'VIP_YEARLY'
+                                ? 'VIP'
+                                : wsIsActive && wsSub.status === 'trial'
+                                  ? 'ทดลองใช้'
+                                  : 'Free / หมดอายุ'}
                           </span>
                           <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-                            {subEndText ? `ถึง ${subEndText}` : wsSub.status}
+                            {wsIsLifetime ? 'ไม่มีวันหมดอายุ' : subEndText ? `ถึง ${subEndText}` : '—'}
                           </p>
                         </div>
                       ) : (
@@ -2226,10 +2263,21 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           });
           const schoolVipRows = activeWorkspacesList.map((ws) => {
             const sub = subscriptionByWorkspaceId.get(ws.id) || null;
-            const endsMs = sub?.endsAt ? new Date(sub.endsAt).getTime() : null;
-            const daysLeft = endsMs !== null ? Math.ceil((endsMs - nowMs) / 86_400_000) : null;
-            const isLifetime = Boolean(endsMs && endsMs > nowMs + 365 * 20 * 86_400_000);
-            const isExpired = !sub || sub.status === 'expired' || sub.status === 'cancelled' || (endsMs !== null && endsMs <= nowMs);
+            const rawEndsMs = sub?.endsAt ? new Date(sub.endsAt).getTime() : null;
+            const endsMs = rawEndsMs !== null && !Number.isNaN(rawEndsMs) ? rawEndsMs : null;
+            const daysLeft = endsMs !== null ? Math.max(0, Math.ceil((endsMs - nowMs) / 86_400_000)) : null;
+            const isActiveStatus = sub?.status === 'active';
+            const isTrialStatus = sub?.status === 'trial';
+            const isLifetime = Boolean(
+              sub &&
+                isActiveStatus &&
+                sub.planCode === 'VIP_YEARLY' &&
+                (endsMs === null || endsMs > nowMs + 365 * 20 * 86_400_000),
+            );
+            const isExpired =
+              !sub ||
+              (!isActiveStatus && !isTrialStatus) ||
+              (!isLifetime && endsMs !== null && endsMs <= nowMs);
             const isExpiring = !isExpired && !isLifetime && endsMs !== null && endsMs <= nowMs + thirtyDaysMs;
             const state: 'lifetime' | 'active' | 'expiring' | 'expired' = isLifetime
               ? 'lifetime'
@@ -2466,7 +2514,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                                 {state === 'lifetime'
                                   ? 'VIP ตลอดชีพ'
                                   : state === 'active'
-                                    ? `${sub?.planCode || 'VIP'} · ใช้งานอยู่`
+                                    ? sub?.status === 'trial'
+                                      ? `ทดลองใช้ · เหลือ ${daysLeft ?? '-'} วัน`
+                                      : daysLeft !== null
+                                        ? `VIP · เหลือ ${daysLeft.toLocaleString('th-TH')} วัน`
+                                        : 'VIP · ใช้งานอยู่'
                                     : state === 'expiring'
                                       ? `ใกล้หมดอายุ (${daysLeft} วัน)`
                                       : 'หมดอายุ / ไม่มี VIP'}
