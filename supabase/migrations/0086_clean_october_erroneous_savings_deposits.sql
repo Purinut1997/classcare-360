@@ -32,11 +32,13 @@ begin
         or note ilike '%ย้อนรายการเดิม%'
       );
 
-    -- Ensure opening balance is set to 2896 in savings_accounts
+    -- Preserve existing opening_balance if already set; only initialize to 2896 if missing/zero
     update public.savings_accounts
     set
-      balance = 2896,
-      metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{opening_balance}', '2896'::jsonb)
+      metadata = case
+        when coalesce((metadata->>'opening_balance')::numeric, 0) > 0 then metadata
+        else jsonb_set(coalesce(metadata, '{}'::jsonb), '{opening_balance}', '2896'::jsonb)
+      end
     where student_id = s1_id;
   end if;
 
@@ -52,23 +54,14 @@ begin
         or (transaction_type = 'withdrawal' and amount = 2983)
       );
 
-    -- Ensure opening balance is set to 3013 in savings_accounts
+    -- Preserve existing opening_balance if already set; only initialize to 2983 if missing/zero
     update public.savings_accounts
     set
-      balance = 3013,
-      metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{opening_balance}', '3013'::jsonb)
+      metadata = case
+        when coalesce((metadata->>'opening_balance')::numeric, 0) > 0 then metadata
+        else jsonb_set(coalesce(metadata, '{}'::jsonb), '{opening_balance}', '2983'::jsonb)
+      end
     where student_id = s2_id;
-
-    -- If there's an adjustment/opening transaction for student 2, ensure it has amount 3013
-    update public.savings_transactions
-    set amount = 3013
-    where student_id = s2_id
-      and (
-        transaction_type = 'adjustment'
-        or (metadata->>'is_opening_balance')::boolean = true
-        or note ilike '%เปิดบัญชีต้นงวด%'
-        or note ilike '%ยอดยกมา%'
-      );
   end if;
 
   -- 3. Resynchronize balance for all savings accounts in the workspace

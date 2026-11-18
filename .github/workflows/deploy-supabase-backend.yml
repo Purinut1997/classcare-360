@@ -1,0 +1,58 @@
+name: Deploy Supabase migrations & admin functions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Push database migrations and deploy superadmin-manage-users
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+
+      - name: Check deployment settings
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_ACCESS_TOKEN:?Add the Supabase access token secret}"
+          : "${SUPABASE_DB_PASSWORD:?Add the Supabase database password secret}"
+          : "${SUPABASE_PROJECT_REF:?Add the Supabase project reference variable}"
+
+      - name: Apply pending database migrations
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          database_url="$(python3 - <<'PY'
+          import os
+          from urllib.parse import quote
+
+          project_ref = os.environ["SUPABASE_PROJECT_REF"]
+          password = quote(os.environ["SUPABASE_DB_PASSWORD"], safe="")
+          pooler_host = "aws-1-ap-southeast-1.pooler.supabase.com"
+          print(f"postgresql://postgres.{project_ref}:{password}@{pooler_host}:5432/postgres")
+          PY
+          )"
+          supabase db push --db-url "$database_url" --yes
+
+      - name: Deploy superadmin-manage-users edge function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy superadmin-manage-users --project-ref "$SUPABASE_PROJECT_REF"
