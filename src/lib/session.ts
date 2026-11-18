@@ -142,20 +142,9 @@ function getPreferredRole(metadata: ProfileRow['metadata']): WorkspaceRole {
 async function loadWorkspaceMemberships(profileId: string): Promise<MembershipRow[]> {
   if (!supabase) return [];
 
-  const joinedResult = await supabase
-    .from('workspace_memberships')
-    .select('workspace_id,role,permissions,workspaces(id,name,school_name,academic_year,settings)')
-    .eq('profile_id', profileId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: true })
-    .returns<MembershipRow[]>();
-
-  if (!joinedResult.error) return joinedResult.data || [];
-
-  // Older PostgREST schema caches can fail to resolve the embedded workspace
-  // relationship even while both tables and the user's membership are valid.
-  // Retry as two RLS-protected reads; this never grants access from a preference
-  // or a client-supplied workspace id.
+  // Query memberships and workspaces separately to avoid PostgREST ambiguous
+  // relationship errors ("more than one relationship was found") and always
+  // exclude archived workspaces.
   const membershipResult = await supabase
     .from('workspace_memberships')
     .select('workspace_id,role,permissions')

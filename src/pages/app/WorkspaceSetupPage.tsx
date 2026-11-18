@@ -23,17 +23,19 @@ interface WorkspaceOption {
   schoolName: string;
 }
 
-interface MembershipWorkspaceRow {
+interface MembershipRowLite {
   role: Exclude<WorkspaceRole, 'superadmin'>;
   workspace_id: string;
-  workspaces: {
-    academic_year: string | null;
-    id: string;
-    name: string;
-    school_name: string | null;
-    settings: {
-      classroom_name?: string;
-    } | null;
+}
+
+interface WorkspaceRecordLite {
+  academic_year: string | null;
+  id: string;
+  name: string;
+  owner_profile_id: string | null;
+  school_name: string | null;
+  settings: {
+    classroom_name?: string;
   } | null;
 }
 
@@ -132,37 +134,72 @@ export function WorkspaceSetupPage({ session }: WorkspaceSetupPageProps) {
       setIsLoadingWorkspaces(true);
 
       const [
-        { data, error },
+        { data: membershipRows, error: membershipError },
+        { data: ownedWorkspaces, error: ownedError },
         { data: invitationRows, error: invitationError },
       ] = await Promise.all([
         supabase
           .from('workspace_memberships')
-          .select('workspace_id,role,workspaces(id,name,school_name,academic_year,settings)')
+          .select('workspace_id,role')
           .eq('profile_id', session.profile.id)
           .eq('status', 'active')
           .order('created_at', { ascending: true })
-          .returns<MembershipWorkspaceRow[]>(),
+          .returns<MembershipRowLite[]>(),
+        supabase
+          .from('workspaces')
+          .select('id,name,school_name,academic_year,settings,owner_profile_id')
+          .eq('owner_profile_id', session.profile.id)
+          .is('archived_at', null)
+          .order('created_at', { ascending: true })
+          .returns<WorkspaceRecordLite[]>(),
         supabase.rpc('list_my_workspace_teacher_invitations').returns<TeacherInvitationRow[]>(),
       ]);
 
       if (!isMounted) return;
 
-      if (error) {
-        setNotice(error.message);
+      if (membershipError && ownedError) {
+        setNotice(membershipError.message || ownedError.message);
         setAvailableWorkspaces([]);
         setIsLoadingWorkspaces(false);
         return;
       }
 
-      const allWorkspaces = (data || [])
-        .filter((membership) => membership.workspaces)
-        .map((membership) => ({
-          academicYear: membership.workspaces?.academic_year || 'ยังไม่ได้ระบุปีการศึกษา',
-          classroomName: membership.workspaces?.settings?.classroom_name || 'ยังไม่ได้ระบุห้องเรียน',
-          id: membership.workspace_id,
-          name: membership.workspaces?.name || 'ไม่ระบุ workspace',
-          role: membership.role,
-          schoolName: membership.workspaces?.school_name || 'ยังไม่ได้ระบุโรงเรียน',
+      const roleByWorkspaceId = new Map<string, Exclude<WorkspaceRole, 'superadmin'>>();
+      (membershipRows || []).forEach((m) => {
+        roleByWorkspaceId.set(m.workspace_id, m.role);
+      });
+
+      const workspaceMap = new Map<string, WorkspaceRecordLite>();
+      (ownedWorkspaces || []).forEach((ws) => {
+        workspaceMap.set(ws.id, ws);
+        if (!roleByWorkspaceId.has(ws.id)) {
+          roleByWorkspaceId.set(ws.id, 'teacher_owner');
+        }
+      });
+
+      const missingMemberWorkspaceIds = [...roleByWorkspaceId.keys()].filter((id) => !workspaceMap.has(id));
+      if (missingMemberWorkspaceIds.length > 0) {
+        const { data: extraWorkspaces, error: extraError } = await supabase
+          .from('workspaces')
+          .select('id,name,school_name,academic_year,settings,owner_profile_id')
+          .in('id', missingMemberWorkspaceIds)
+          .is('archived_at', null)
+          .returns<WorkspaceRecordLite[]>();
+
+        if (!isMounted) return;
+        if (!extraError && extraWorkspaces) {
+          extraWorkspaces.forEach((ws) => workspaceMap.set(ws.id, ws));
+        }
+      }
+
+      const allWorkspaces: WorkspaceOption[] = [...workspaceMap.values()]
+        .map((ws) => ({
+          academicYear: ws.academic_year || 'ยังไม่ได้ระบุปีการศึกษา',
+          classroomName: ws.settings?.classroom_name || 'ยังไม่ได้ระบุห้องเรียน',
+          id: ws.id,
+          name: ws.name || 'ไม่ระบุ workspace',
+          role: roleByWorkspaceId.get(ws.id) || (ws.owner_profile_id === session.profile.id ? 'teacher_owner' : 'teacher_member'),
+          schoolName: ws.school_name || 'ยังไม่ได้ระบุโรงเรียน',
         }))
         .sort((left, right) => {
           const leftPrimary = left.id === session.primaryWorkspaceId ? 0 : 1;
