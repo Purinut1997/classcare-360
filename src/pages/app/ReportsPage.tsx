@@ -1623,7 +1623,9 @@ function buildPrintableSavingsReportHtml({
   const displayMode = savingsGrid.savingsDisplayMode;
   const isBothMode = displayMode === 'both';
   const isCumulativeOnly = displayMode === 'cumulative';
-  const showPriorMonthCol = !isMultiMonth && savingsGrid.hasPriorMonthsActivity;
+  const showPriorCol = savingsGrid.hasPriorMonthsActivity;
+  const showOpeningCol = showOpening && !showPriorCol;
+  const hasStartingCol = showOpeningCol || showPriorCol;
   const balanceColLabel = showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมไม่รวมยกมา';
 
   const theadHtml = isMultiMonth
@@ -1632,7 +1634,8 @@ function buildPrintableSavingsReportHtml({
           <th class="number" rowspan="2">ที่</th>
           <th class="code" rowspan="2">รหัส</th>
           <th class="name" rowspan="2">ชื่อ - นามสกุล</th>
-          ${showOpening ? '<th class="sum opening-col" rowspan="2">ยอดยกมา<br/><small>(ต้นปี)</small></th>' : ''}
+          ${showOpeningCol ? '<th class="sum opening-col" rowspan="2">ยอดยกมา<br/><small>(ต้นปี)</small></th>' : ''}
+          ${showPriorCol ? '<th class="sum opening-col" rowspan="2">สะสมก่อนช่วงนี้</th>' : ''}
           ${savingsGrid.monthBuckets.map((mb) => `<th colspan="2">${escapeHtml(mb.shortLabel)}</th>`).join('')}
           <th class="sum month-total" rowspan="2">ฝากรวม</th>
           <th class="sum month-total" rowspan="2">ถอนรวม</th>
@@ -1645,7 +1648,8 @@ function buildPrintableSavingsReportHtml({
           <th class="number">ที่</th>
           <th class="code">รหัส</th>
           <th class="name">ชื่อ - นามสกุล</th>
-          ${showOpening ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
+          ${showOpeningCol ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
+          ${showPriorCol ? '<th class="sum opening-col">สะสมก่อนช่วงนี้</th>' : ''}
           ${savingsGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}${isCumulativeOnly ? '<br/><small>(สะสม)</small>' : ''}</th>`).join('')}
           <th class="sum month-total">ฝากรวม</th>
           <th class="sum month-total">ถอนรวม</th>
@@ -1654,8 +1658,8 @@ function buildPrintableSavingsReportHtml({
     : `<tr>
         <th class="number">ที่</th>
         <th class="name">ชื่อ - นามสกุล</th>
-        ${showOpening ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
-        ${showPriorMonthCol ? '<th class="sum opening-col">สะสมเดือนก่อน</th>' : ''}
+        ${showOpeningCol ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
+        ${showPriorCol ? '<th class="sum opening-col">สะสมเดือนก่อน</th>' : ''}
         ${days.map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`).join('')}
         <th class="sum month-total">รวมเดือนนี้</th>
         <th class="sum balance-total">${showOpening ? 'ยอดสะสมถึงสิ้นเดือน' : 'ยอดสะสมไม่รวมยกมา'}</th>
@@ -1685,7 +1689,8 @@ function buildPrintableSavingsReportHtml({
                 <td class="number">${index + 1}</td>
                 <td class="code">${escapeHtml(row.studentCode)}</td>
                 <td class="name">${escapeHtml(row.studentName)}</td>
-                ${showOpening ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
+                ${showOpeningCol ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
+                ${showPriorCol ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}</td>` : ''}
                 ${monthCells}
                 <td class="sum month-total">${row.depositsInPeriod.toLocaleString('th-TH')}</td>
                 <td class="sum month-total">${row.withdrawalsInPeriod.toLocaleString('th-TH')}</td>
@@ -1703,20 +1708,21 @@ function buildPrintableSavingsReportHtml({
             return `<tr>
               <td class="number">${index + 1}</td>
               <td class="name">${escapeHtml(row.studentName)}</td>
-              ${showOpening ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
-              ${showPriorMonthCol ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}</td>` : ''}
+              ${showOpeningCol ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
+              ${showPriorCol ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}</td>` : ''}
               ${dayCells}
               <td class="sum month-total">${row.totalPeriodNet ? row.totalPeriodNet.toLocaleString('th-TH') : '0'}</td>
               <td class="sum balance-total">${row.totalBalance.toLocaleString('th-TH')}</td>
             </tr>`;
           })
           .join('')
-      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length * (isBothMode ? 2 : 1) + (showOpening ? 7 : 6) : days.length + (showOpening ? 5 : 4) + (showPriorMonthCol ? 1 : 0)}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
+      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length * (isBothMode ? 2 : 1) + (hasStartingCol ? 7 : 6) : days.length + (hasStartingCol ? 5 : 4)}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
 
   const tfootHtml = isMultiMonth
     ? `<tr>
         <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">รวมทั้งสิ้น (บาท)</td>
-        ${showOpening ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
+        ${showOpeningCol ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
+        ${showPriorCol ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}</td>` : ''}
         ${savingsGrid.monthBuckets
           .map((mb) => {
             const net = savingsGrid.monthTotals[mb.key] || 0;
@@ -1739,8 +1745,8 @@ function buildPrintableSavingsReportHtml({
     : `<tr>
         <td></td>
         <td class="name">รวมเงินออมแต่ละวัน</td>
-        ${showOpening ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
-        ${showPriorMonthCol ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}</td>` : ''}
+        ${showOpeningCol ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
+        ${showPriorCol ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}</td>` : ''}
         ${days.map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`).join('')}
         <td class="total">${savingsGrid.totalPeriodNet.toLocaleString('th-TH')}</td>
         <td class="total">${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
@@ -1789,18 +1795,16 @@ function buildPrintableSavingsReportHtml({
             title: `รายงานการออมเงินระดับชั้น ${classroomName}`,
           })}
           <section class="summary-grid">
+            <div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>
             ${
-              showPriorMonthCol
-                ? `<div class="summary-card"><span>${showOpening ? 'ยอดยกมาต้นปี / ถึงเดือนก่อน' : 'ยอดสะสมถึงเดือนก่อน'}</span><strong>${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')} บาท</strong></div>`
-                : `<div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>`
+              showPriorCol
+                ? `<div class="summary-card"><span>${isMultiMonth ? 'ยอดสะสมก่อนช่วงนี้' : 'ยอดสะสมถึงเดือนก่อน'}</span><strong>${savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')} บาท</strong></div>`
+                : showOpeningCol
+                  ? `<div class="summary-card"><span>ยอดยกมา (ต้นปี)</span><strong>${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong></div>`
+                  : `<div class="summary-card"><span>ออมเงินช่วงนี้</span><strong>${savingsGrid.totalActiveSavingsStudents} คน</strong></div>`
             }
-            ${
-              showOpening
-                ? `<div class="summary-card"><span>ยอดยกมาต้นปี</span><strong>${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong></div>`
-                : `<div class="summary-card"><span>ออมเงินช่วงนี้</span><strong>${savingsGrid.totalActiveSavingsStudents} คน</strong></div>`
-            }
-            <div class="summary-card"><span>ออมสุทธิช่วงนี้</span><strong>${savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong></div>
-            <div class="summary-card"><span>${showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมรวม (ไม่รวมยกมา)'}</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
+            <div class="summary-card"><span>${isMultiMonth ? 'ออมสุทธิช่วงนี้' : 'ฝากสุทธิเดือนนี้'}</span><strong>${savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong></div>
+            <div class="summary-card"><span>${showOpening ? (isMultiMonth ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมถึงสิ้นเดือน') : 'ยอดสะสมรวม (ไม่รวมยกมา)'}</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
           </section>
           <table>
             <thead>${theadHtml}</thead>
@@ -3855,7 +3859,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     } else if (reportView === 'savings') {
       const showOpening = savingsGrid.includeOpeningBalance;
       const mode = savingsGrid.savingsDisplayMode;
-      const showPriorCol = !isMultiMonthMode && savingsGrid.hasPriorMonthsActivity;
+      const showPriorCol = savingsGrid.hasPriorMonthsActivity;
+      const showOpeningCol = showOpening && !showPriorCol;
       const monthColHeaders = isMultiMonthMode
         ? savingsGrid.monthBuckets.flatMap((mb) =>
             mode === 'both'
@@ -3863,13 +3868,13 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               : [mode === 'cumulative' ? `${mb.shortLabel} (สะสม)` : mb.shortLabel],
           )
         : [];
-      const balanceHeader = showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสม (ไม่รวมยกมา)';
+      const balanceHeader = showOpening ? (isMultiMonthMode ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมถึงสิ้นเดือน') : 'ยอดสะสม (ไม่รวมยกมา)';
       headers = [
         'ที่',
         'รหัส',
         'ชื่อ-นามสกุล',
-        ...(showOpening ? ['ยอดยกมา (ต้นปี)'] : []),
-        ...(showPriorCol ? ['สะสมถึงเดือนก่อน'] : []),
+        ...(showOpeningCol ? ['ยอดยกมา (ต้นปี)'] : []),
+        ...(showPriorCol ? [isMultiMonthMode ? 'สะสมก่อนช่วงนี้' : 'สะสมเดือนก่อน'] : []),
         ...monthColHeaders,
         'ฝากรวมช่วงนี้',
         'ถอนรวมช่วงนี้',
@@ -3880,7 +3885,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         String(idx + 1),
         row.studentCode,
         row.studentName,
-        ...(showOpening ? [String(row.openingBalance)] : []),
+        ...(showOpeningCol ? [String(row.openingBalance)] : []),
         ...(showPriorCol ? [String(row.carriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
           ? savingsGrid.monthBuckets.flatMap((mb) => {
@@ -3900,7 +3905,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         '',
         '',
         'รวมทั้งสิ้น',
-        ...(showOpening ? [String(savingsGrid.totalOpeningBalance)] : []),
+        ...(showOpeningCol ? [String(savingsGrid.totalOpeningBalance)] : []),
         ...(showPriorCol ? [String(savingsGrid.totalCarriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
           ? savingsGrid.monthBuckets.flatMap((mb) => {
@@ -4107,7 +4112,8 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     } else if (reportView === 'savings') {
       const showOpening = savingsGrid.includeOpeningBalance;
       const mode = savingsGrid.savingsDisplayMode;
-      const showPriorCol = !isMultiMonthMode && savingsGrid.hasPriorMonthsActivity;
+      const showPriorCol = savingsGrid.hasPriorMonthsActivity;
+      const showOpeningCol = showOpening && !showPriorCol;
       const monthColHeaders = isMultiMonthMode
         ? savingsGrid.monthBuckets.flatMap((mb) =>
             mode === 'both'
@@ -4115,13 +4121,13 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
               : [mode === 'cumulative' ? `${mb.shortLabel} (สะสม)` : mb.shortLabel],
           )
         : [];
-      const balanceHeader = showOpening ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสม (ไม่รวมยกมา)';
+      const balanceHeader = showOpening ? (isMultiMonthMode ? 'ยอดสะสมถึงสิ้นช่วง' : 'ยอดสะสมถึงสิ้นเดือน') : 'ยอดสะสม (ไม่รวมยกมา)';
       const headers = [
         'ที่',
         'รหัส',
         'ชื่อ-นามสกุล',
-        ...(showOpening ? ['ยอดยกมา (ต้นปี)'] : []),
-        ...(showPriorCol ? ['สะสมถึงเดือนก่อน'] : []),
+        ...(showOpeningCol ? ['ยอดยกมา (ต้นปี)'] : []),
+        ...(showPriorCol ? [isMultiMonthMode ? 'สะสมก่อนช่วงนี้' : 'สะสมเดือนก่อน'] : []),
         ...monthColHeaders,
         'ฝากรวมช่วงนี้',
         'ถอนรวมช่วงนี้',
@@ -4132,7 +4138,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         String(idx + 1),
         row.studentCode,
         row.studentName,
-        ...(showOpening ? [String(row.openingBalance)] : []),
+        ...(showOpeningCol ? [String(row.openingBalance)] : []),
         ...(showPriorCol ? [String(row.carriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
           ? savingsGrid.monthBuckets.flatMap((mb) => {
@@ -4152,7 +4158,7 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         '',
         '',
         'รวมทั้งสิ้น',
-        ...(showOpening ? [String(savingsGrid.totalOpeningBalance)] : []),
+        ...(showOpeningCol ? [String(savingsGrid.totalOpeningBalance)] : []),
         ...(showPriorCol ? [String(savingsGrid.totalCarriedForwardBeforePeriod)] : []),
         ...(isMultiMonthMode
           ? savingsGrid.monthBuckets.flatMap((mb) => {
@@ -5406,13 +5412,15 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                         <strong className="text-base font-black text-emerald-700">{row.totalBalance.toLocaleString('th-TH')} ฿</strong>
                       </div>
                     </div>
-                    <div className={`mt-2.5 grid gap-2 text-center text-xs font-bold ${savingsGrid.includeOpeningBalance || (savingsGrid.savingsDisplayMode === 'cumulative' && row.carriedForwardBeforePeriod > 0) ? 'grid-cols-4' : 'grid-cols-3'}`}>
-                      {savingsGrid.includeOpeningBalance || (savingsGrid.savingsDisplayMode === 'cumulative' && row.carriedForwardBeforePeriod > 0) ? (
-                        <div className="rounded-xl bg-amber-50 p-2">
-                          <span className="block text-[10px] text-amber-700">
-                            {row.priorMonthsNet !== 0 ? 'ยกมาถึงเดือนก่อน' : 'ยอดยกมา'}
+                    <div className={`mt-2.5 grid gap-2 text-center text-xs font-bold ${savingsGrid.includeOpeningBalance || savingsGrid.hasPriorMonthsActivity ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                      {savingsGrid.includeOpeningBalance || savingsGrid.hasPriorMonthsActivity ? (
+                        <div className={`rounded-xl p-2 ${savingsGrid.hasPriorMonthsActivity ? 'bg-indigo-50' : 'bg-amber-50'}`}>
+                          <span className={`block text-[10px] ${savingsGrid.hasPriorMonthsActivity ? 'text-indigo-700' : 'text-amber-700'}`}>
+                            {savingsGrid.hasPriorMonthsActivity ? (isMultiMonthMode ? 'สะสมก่อนช่วงนี้' : 'สะสมเดือนก่อน') : 'ยอดยกมา'}
                           </span>
-                          <strong className="text-amber-900">{row.carriedForwardBeforePeriod.toLocaleString('th-TH')}</strong>
+                          <strong className={savingsGrid.hasPriorMonthsActivity ? 'text-indigo-900' : 'text-amber-900'}>
+                            {row.carriedForwardBeforePeriod.toLocaleString('th-TH')}
+                          </strong>
                         </div>
                       ) : null}
                       <div className="rounded-xl bg-slate-50 p-2">
@@ -5863,23 +5871,22 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                     const isBothMode = mode === 'both';
                     const isCumulativeOnly = mode === 'cumulative';
                     const showOpening = savingsGrid.includeOpeningBalance;
-                    const showPriorMonthCol = !isMultiMonthMode && savingsGrid.hasPriorMonthsActivity;
+                    const showPriorCol = savingsGrid.hasPriorMonthsActivity;
+                    const showOpeningCol = showOpening && !showPriorCol;
 
                     return (
                     <div>
                       <div className="mb-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
-                        {showPriorMonthCol ? (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
+                          <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
+                          <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
+                        </div>
+                        {showPriorCol ? (
                           <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 py-1.5">
-                            <span className="block font-bold text-indigo-800">ยอดสะสมถึงเดือนก่อน</span>
+                            <span className="block font-bold text-indigo-800">{isMultiMonthMode ? 'ยอดสะสมก่อนช่วงนี้' : 'ยอดสะสมถึงเดือนก่อน'}</span>
                             <strong className="text-base font-black text-indigo-950">{savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')} บาท</strong>
                           </div>
-                        ) : (
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 py-1.5">
-                            <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
-                            <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
-                          </div>
-                        )}
-                        {showOpening ? (
+                        ) : showOpeningCol ? (
                           <div className="rounded-lg border border-amber-200 bg-amber-50/70 py-1.5">
                             <span className="block font-bold text-amber-800">ยอดยกมา (ต้นปี)</span>
                             <strong className="text-base font-black text-amber-950">{savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong>
@@ -5911,10 +5918,15 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                   <th rowSpan={2} className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
                                   <th rowSpan={2} className="border border-slate-300 px-1.5 py-1.5 text-center w-14">รหัส</th>
                                   <th rowSpan={2} className="border border-slate-300 px-2 py-1.5 text-left">ชื่อ - นามสกุล</th>
-                                  {showOpening ? (
+                                  {showOpeningCol ? (
                                     <th rowSpan={2} className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">
                                       <span className="block">ยอดยกมา</span>
                                       <span className="block text-[9px] font-bold text-amber-700">(ต้นปี)</span>
+                                    </th>
+                                  ) : null}
+                                  {showPriorCol ? (
+                                    <th rowSpan={2} className="border border-slate-300 bg-indigo-50 px-1.5 py-1.5 text-right w-18">
+                                      สะสมก่อนช่วงนี้
                                     </th>
                                   ) : null}
                                   {savingsGrid.monthBuckets.map((mb) => (
@@ -5942,8 +5954,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                 <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
                                 <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
                                 <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
-                                {showOpening ? (
+                                {showOpeningCol ? (
                                   <th className="border border-slate-300 bg-amber-50 px-2 py-2 text-right w-20">ยอดยกมา</th>
+                                ) : null}
+                                {showPriorCol ? (
+                                  <th className="border border-slate-300 bg-indigo-50 px-2 py-2 text-right w-20">สะสมก่อนช่วงนี้</th>
                                 ) : null}
                                 {savingsGrid.monthBuckets.map((mb) => (
                                   <th className={`border border-slate-300 px-1 py-2 text-center ${isCumulativeOnly ? 'bg-cyan-100/70' : ''}`} key={mb.key}>
@@ -5965,9 +5980,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                 <td className="border border-slate-300 px-1 py-1.5 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-1.5 py-1.5 text-center font-bold">{row.studentCode}</td>
                                 <td className="border border-slate-300 px-2 py-1.5 font-bold whitespace-nowrap">{row.studentName}</td>
-                                {showOpening ? (
+                                {showOpeningCol ? (
                                   <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1.5 text-right font-bold text-amber-900">
                                     {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
+                                  </td>
+                                ) : null}
+                                {showPriorCol ? (
+                                  <td className="border border-slate-300 bg-indigo-50/40 px-1.5 py-1.5 text-right font-bold text-indigo-900">
+                                    {row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}
                                   </td>
                                 ) : null}
                                 {savingsGrid.monthBuckets.map((mb) => {
@@ -6015,9 +6035,14 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <td colSpan={3} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-right font-black text-slate-900">
                                 รวมทั้งสิ้น
                               </td>
-                              {showOpening ? (
+                              {showOpeningCol ? (
                                 <td className="border border-slate-300 bg-amber-100 px-1.5 py-1.5 text-right font-black text-amber-950">
                                   {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
+                                </td>
+                              ) : null}
+                              {showPriorCol ? (
+                                <td className="border border-slate-300 bg-indigo-100 px-1.5 py-1.5 text-right font-black text-indigo-950">
+                                  {savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}
                                 </td>
                               ) : null}
                               {savingsGrid.monthBuckets.map((mb) => {
@@ -6066,10 +6091,10 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                             <tr className="bg-cyan-50 text-slate-900">
                               <th className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
                               <th className="border border-slate-300 px-2 py-1.5 text-left w-44">ชื่อ - นามสกุล</th>
-                              {showOpening ? (
+                              {showOpeningCol ? (
                                 <th className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">ยอดยกมา</th>
                               ) : null}
-                              {showPriorMonthCol ? (
+                              {showPriorCol ? (
                                 <th className="border border-slate-300 bg-indigo-50 px-1.5 py-1.5 text-right w-18">สะสมเดือนก่อน</th>
                               ) : null}
                               {monthContext.days.map((day) => (
@@ -6093,12 +6118,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <tr className="even:bg-slate-50/70" key={row.studentId}>
                                 <td className="border border-slate-300 px-1 py-1 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-2 py-1 font-bold whitespace-nowrap">{row.studentName}</td>
-                                {showOpening ? (
+                                {showOpeningCol ? (
                                   <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1 text-right font-bold text-amber-900">
                                     {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
                                   </td>
                                 ) : null}
-                                {showPriorMonthCol ? (
+                                {showPriorCol ? (
                                   <td className="border border-slate-300 bg-indigo-50/40 px-1.5 py-1 text-right font-bold text-indigo-900">
                                     {row.carriedForwardBeforePeriod > 0 ? row.carriedForwardBeforePeriod.toLocaleString('th-TH') : '-'}
                                   </td>
@@ -6130,12 +6155,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <td colSpan={2} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black whitespace-nowrap text-slate-900">
                                 รวมเงินออมแต่ละวัน
                               </td>
-                              {showOpening ? (
+                              {showOpeningCol ? (
                                 <td className="border border-slate-300 bg-amber-100 px-1.5 py-1 text-right font-black text-amber-950">
                                   {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
                                 </td>
                               ) : null}
-                              {showPriorMonthCol ? (
+                              {showPriorCol ? (
                                 <td className="border border-slate-300 bg-indigo-100 px-1.5 py-1 text-right font-black text-indigo-950">
                                   {savingsGrid.totalCarriedForwardBeforePeriod.toLocaleString('th-TH')}
                                 </td>
