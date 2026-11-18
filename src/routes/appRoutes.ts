@@ -143,14 +143,14 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'import-export',
-    label: 'นำเข้า & ส่งออกข้อมูล',
+    label: 'นำเข้า / ส่งออกข้อมูล',
     icon: Archive,
     moduleKey: 'import_export',
     path: '/app/dashboard?view=import-export',
   },
   {
     key: 'data-safety',
-    label: 'สำรองข้อมูล & กู้คืน',
+    label: 'สำรองข้อมูล & ถังขยะ',
     icon: DatabaseZap,
     moduleKey: 'support',
     path: '/app/dashboard?view=data-safety',
@@ -164,7 +164,7 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'workspace-settings',
-    label: 'ศูนย์จัดการโรงเรียน',
+    label: 'ตั้งค่าโรงเรียน & ครู',
     icon: School,
     moduleKey: 'support',
     path: '/app/dashboard?view=workspace-settings',
@@ -178,7 +178,7 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'academic-year',
-    label: 'ปิดชั้นและคลังปีการศึกษา',
+    label: 'ปีการศึกษา & ล็อกงวด',
     icon: CalendarCheck,
     moduleKey: 'support',
     path: '/app/dashboard?view=academic-year',

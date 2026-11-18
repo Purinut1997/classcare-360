@@ -891,6 +891,8 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   const [studentManageReview, setStudentManageReview] = useState<RosterReviewClassification | 'all'>('all');
   const [activeCategoryTab, setActiveCategoryTab] = useState<'all' | 'active' | 'archived' | 'duplicate' | 'unassigned'>('all');
   const [selectedManagedStudentIds, setSelectedManagedStudentIds] = useState<string[]>([]);
+  const [managedPage, setManagedPage] = useState(1);
+  const MANAGED_PAGE_SIZE = 20;
   const [reviewClassification, setReviewClassification] = useState<RosterReviewClassification>('belongs_here');
   const [reviewNote, setReviewNote] = useState('');
   const [activeMainTab, setActiveMainTab] = useState<'import' | 'roster' | 'export_backup'>('import');
@@ -980,6 +982,17 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       return haystack.includes(normalizedQuery);
     });
   }, [activeCategoryTab, classroomNameById, rosterReviewByStudentId, studentManageClassroomId, studentManageQuery, studentManageReview, studentManageStatus, students]);
+  const managedTotalPages = Math.max(1, Math.ceil(managedStudents.length / MANAGED_PAGE_SIZE));
+  const safeManagedPage = Math.min(managedPage, managedTotalPages);
+  const paginatedManagedStudents = useMemo(() => {
+    const start = (safeManagedPage - 1) * MANAGED_PAGE_SIZE;
+    return managedStudents.slice(start, start + MANAGED_PAGE_SIZE);
+  }, [managedStudents, safeManagedPage]);
+
+  useEffect(() => {
+    setManagedPage(1);
+  }, [activeCategoryTab, studentManageClassroomId, studentManageQuery, studentManageReview, studentManageStatus]);
+
   const archivedPendingReviewCount = students.filter(
     (student) => (student.status || 'active') === 'archived' && !rosterReviewByStudentId.has(student.id),
   ).length;
@@ -3697,20 +3710,20 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                       <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
                         <input
                           checked={
-                            managedStudents.length > 0 &&
-                            managedStudents.every((student) => selectedManagedStudentIds.includes(student.id))
+                            paginatedManagedStudents.length > 0 &&
+                            paginatedManagedStudents.every((student) => selectedManagedStudentIds.includes(student.id))
                           }
                           className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                           onChange={() => {
                             const allVisibleSelected =
-                              managedStudents.length > 0 &&
-                              managedStudents.every((student) => selectedManagedStudentIds.includes(student.id));
+                              paginatedManagedStudents.length > 0 &&
+                              paginatedManagedStudents.every((student) => selectedManagedStudentIds.includes(student.id));
 
                             if (allVisibleSelected) {
-                              const visibleIds = new Set(managedStudents.map((s) => s.id));
+                              const visibleIds = new Set(paginatedManagedStudents.map((s) => s.id));
                               setSelectedManagedStudentIds((current) => current.filter((id) => !visibleIds.has(id)));
                             } else {
-                              const visibleIds = managedStudents.map((s) => s.id);
+                              const visibleIds = paginatedManagedStudents.map((s) => s.id);
                               setSelectedManagedStudentIds((current) => Array.from(new Set([...current, ...visibleIds])));
                             }
                           }}
@@ -3729,7 +3742,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {managedStudents.map((student) => {
+                  {paginatedManagedStudents.map((student) => {
                     const status = student.status || 'active';
                     const checked = selectedManagedStudentIds.includes(student.id);
                     const review = rosterReviewByStudentId.get(student.id);
@@ -3793,6 +3806,32 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                 </tbody>
               </table>
             </div>
+
+            {managedStudents.length > MANAGED_PAGE_SIZE ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs font-black text-slate-600">
+                <span>
+                  แสดง {(safeManagedPage - 1) * MANAGED_PAGE_SIZE + 1}–{Math.min(safeManagedPage * MANAGED_PAGE_SIZE, managedStudents.length)} จาก {managedStudents.length} รายการ (หน้า {safeManagedPage}/{managedTotalPages})
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={safeManagedPage <= 1}
+                    onClick={() => setManagedPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    ← ก่อนหน้า
+                  </button>
+                  <button
+                    type="button"
+                    disabled={safeManagedPage >= managedTotalPages}
+                    onClick={() => setManagedPage((p) => Math.min(managedTotalPages, p + 1))}
+                    className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    ถัดไป →
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {managedStudents.length === 0 ? (
               <div className="nexus-muted-box mt-4 p-4 text-sm font-bold text-slate-600">

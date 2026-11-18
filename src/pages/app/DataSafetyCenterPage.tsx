@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Search,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -183,6 +184,12 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   // Action busy flags
   const [fixingIssueId, setFixingIssueId] = useState<string | null>(null);
   const [busyTrashId, setBusyTrashId] = useState<string | null>(null);
+  const [isBulkTrashBusy, setIsBulkTrashBusy] = useState(false);
+  const [trashSearch, setTrashSearch] = useState('');
+  const [trashKindFilter, setTrashKindFilter] = useState<'all' | 'student' | 'classroom' | 'other'>('all');
+  const [trashPage, setTrashPage] = useState(1);
+  const [selectedTrashIds, setSelectedTrashIds] = useState<string[]>([]);
+  const TRASH_PAGE_SIZE = 10;
   const [copiedTplId, setCopiedTplId] = useState<string | null>(null);
   const [isSavingTpl, setIsSavingTpl] = useState(false);
   const [templateDraft, setTemplateDraft] = useState({
@@ -229,7 +236,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           .eq('workspace_id', workspaceId)
           .neq('restore_status', 'purged')
           .order('deleted_at', { ascending: false })
-          .limit(100),
+          .limit(300),
         supabase
           .from('message_templates')
           .select('id,template_type,title,body,channel')
@@ -465,6 +472,40 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   }, [loadLiveSafetyData]);
 
   const activeTrashCount = useMemo(() => trashItems.filter((item) => !item.restored).length, [trashItems]);
+
+  const filteredTrashItems = useMemo(() => {
+    const q = trashSearch.trim().toLowerCase();
+    return trashItems.filter((item) => {
+      if (trashKindFilter === 'student' && item.kind !== 'student') return false;
+      if (trashKindFilter === 'classroom' && item.kind !== 'classroom') return false;
+      if (trashKindFilter === 'other' && (item.kind === 'student' || item.kind === 'classroom')) return false;
+      if (!q) return true;
+      return `${item.title} ${item.detail} ${trashKindLabels[item.kind]}`.toLowerCase().includes(q);
+    });
+  }, [trashItems, trashKindFilter, trashSearch]);
+
+  useEffect(() => {
+    setTrashPage(1);
+  }, [trashSearch, trashKindFilter]);
+
+  const trashTotalPages = Math.max(1, Math.ceil(filteredTrashItems.length / TRASH_PAGE_SIZE));
+  const safeTrashPage = Math.min(trashPage, trashTotalPages);
+  const paginatedTrashItems = useMemo(() => {
+    const start = (safeTrashPage - 1) * TRASH_PAGE_SIZE;
+    return filteredTrashItems.slice(start, start + TRASH_PAGE_SIZE);
+  }, [filteredTrashItems, safeTrashPage]);
+
+  const trashKindCounts = useMemo(() => {
+    let student = 0;
+    let classroom = 0;
+    let other = 0;
+    trashItems.forEach((item) => {
+      if (item.kind === 'student') student += 1;
+      else if (item.kind === 'classroom') classroom += 1;
+      else other += 1;
+    });
+    return { all: trashItems.length, student, classroom, other };
+  }, [trashItems]);
 
   // --- Action 1: REAL Full Workspace JSON Backup ---
   async function handleExportBackup() {
@@ -747,7 +788,92 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     if (error) {
       setNotice({ tone: 'error', text: `ลบถาวรไม่สำเร็จ: ${error.message}` });
     } else {
+      setSelectedTrashIds((prev) => prev.filter((id) => id !== item.id));
       setNotice({ tone: 'success', text: `ลบ "${item.title}" ออกจากถังขยะถาวรแล้ว` });
+      await loadLiveSafetyData();
+    }
+  }
+
+  function toggleTrashSelection(id: string) {
+    setSelectedTrashIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function handleBulkRestoreTrash() {
+    if (!supabase || !workspaceId || !canManageSafety || selectedTrashIds.length === 0) return;
+    const targets = trashItems.filter((item) => selectedTrashIds.includes(item.id) && !item.restored);
+    if (targets.length === 0) {
+      setNotice({ tone: 'info', text: 'รายการที่เลือกถูกกู้คืนไปแล้วทั้งหมด' });
+      return;
+    }
+    if (!window.confirm(`ยืนยันกู้คืนรายการที่เลือก ${targets.length} รายการกลับเข้าระบบหรือไม่?`)) return;
+
+    setIsBulkTrashBusy(true);
+    setNotice(null);
+    try {
+      const studentPayloads = targets
+        .filter((item) => item.kind === 'student' && item.payload?.first_name)
+        .map((item) => {
+          const p = item.payload;
+          return {
+            id: String(p.id || item.id),
+            workspace_id: workspaceId,
+            classroom_id: (p.classroom_id as string | null) || primaryClassroomId || null,
+            student_code: (p.student_code as string | null) || null,
+            first_name: String(p.first_name),
+            last_name: String(p.last_name || ''),
+            nickname: (p.nickname as string | null) || null,
+            gender: (p.gender as string | null) || 'other',
+            status: 'active',
+          };
+        });
+      if (studentPayloads.length > 0) {
+        const { error: stuErr } = await supabase.from('students').upsert(studentPayloads);
+        if (stuErr) throw new Error(stuErr.message);
+      }
+
+      const { error } = await supabase
+        .from('trash_items')
+        .update({
+          restore_status: 'restored',
+          restored_by: session.profile.id,
+          restored_at: new Date().toISOString(),
+        })
+        .eq('workspace_id', workspaceId)
+        .in('id', targets.map((t) => t.id));
+      if (error) throw new Error(error.message);
+
+      setSelectedTrashIds([]);
+      setNotice({ tone: 'success', text: `✓ กู้คืน ${targets.length} รายการกลับเข้าระบบเรียบร้อยแล้ว` });
+      await loadLiveSafetyData();
+    } catch (err) {
+      setNotice({ tone: 'error', text: `กู้คืนแบบกลุ่มไม่สำเร็จ: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'}` });
+    } finally {
+      setIsBulkTrashBusy(false);
+    }
+  }
+
+  async function handleBulkPurgeTrash(idsToPurge: string[], label: string) {
+    if (!supabase || !workspaceId || !canManageSafety || idsToPurge.length === 0) return;
+    if (!window.confirm(`ยืนยัน${label} (${idsToPurge.length} รายการ) ถาวรหรือไม่? เมื่อลบแล้วไม่สามารถกู้คืนได้อีก`)) return;
+
+    setIsBulkTrashBusy(true);
+    setNotice(null);
+    const { error } = await supabase
+      .from('trash_items')
+      .update({
+        restore_status: 'purged',
+        purged_by: session.profile.id,
+        purged_at: new Date().toISOString(),
+      })
+      .eq('workspace_id', workspaceId)
+      .in('id', idsToPurge);
+    setIsBulkTrashBusy(false);
+
+    if (error) {
+      setNotice({ tone: 'error', text: `ล้างถังขยะไม่สำเร็จ: ${error.message}` });
+    } else {
+      setSelectedTrashIds([]);
+      setNotice({ tone: 'success', text: `✓ ${label} (${idsToPurge.length} รายการ) เรียบร้อยแล้ว` });
       await loadLiveSafetyData();
     }
   }
@@ -1122,10 +1248,24 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       {/* TAB 3: REAL TRASH & RESTORE */}
       {!isLoading && activeTab === 'trash' ? (
         <section className="nexus-card mt-5 p-5 sm:p-6">
-          <h2 className="text-xl font-black text-slate-950">ถังขยะและกู้คืนข้อมูล</h2>
-          <p className="mt-0.5 text-xs font-semibold text-slate-500">
-            รายการที่ถูกลบจากระบบจะเก็บไว้ที่นี่เพื่อให้ครูกู้คืนได้ทันทีหากลบผิด หรือกดลบถาวรเพื่อล้างพื้นที่
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-xl font-black text-slate-950">ถังขยะและกู้คืนข้อมูล ({trashItems.length} รายการ)</h2>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                รายการที่ถูกลบจากระบบจะเก็บไว้ที่นี่เพื่อให้ครูกู้คืนได้ทันทีหากลบผิด หรือกดลบถาวรเพื่อล้างพื้นที่
+              </p>
+            </div>
+            {trashItems.length > 0 && canManageSafety ? (
+              <button
+                type="button"
+                disabled={isBulkTrashBusy}
+                onClick={() => void handleBulkPurgeTrash(trashItems.map((i) => i.id), 'ล้างถังขยะทั้งหมด')}
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+              >
+                <Trash2 size={14} /> ล้างถังขยะทั้งหมด ({trashItems.length})
+              </button>
+            ) : null}
+          </div>
 
           {trashItems.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-8 text-center">
@@ -1134,43 +1274,203 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
               <p className="mt-1 text-xs font-semibold text-slate-400">ยังไม่มีรายการนักเรียน ห้องเรียน หรือชุดคะแนนที่ถูกลบในพื้นที่ทำงานนี้</p>
             </div>
           ) : (
-            <div className="mt-4 space-y-3">
-              {trashItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                    item.restored ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700">
-                      {trashKindLabels[item.kind]} {item.restored ? '· กู้คืนแล้ว' : ''}
-                    </span>
-                    <h3 className="mt-0.5 text-base font-black text-slate-950">{item.title}</h3>
-                    {item.detail ? <p className="mt-0.5 text-xs font-semibold text-slate-500">{item.detail}</p> : null}
-                    <p className="mt-1 text-[11px] font-bold text-slate-400">ลบเมื่อ: {formatThaiDateTime(item.deletedAt)}</p>
+            <>
+              {/* Search & Kind Filter Toolbar */}
+              <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: 'all' as const, label: 'ทั้งหมด', count: trashKindCounts.all },
+                    { id: 'student' as const, label: 'นักเรียน', count: trashKindCounts.student },
+                    { id: 'classroom' as const, label: 'ห้องเรียน', count: trashKindCounts.classroom },
+                    { id: 'other' as const, label: 'อื่น ๆ', count: trashKindCounts.other },
+                  ].map((pill) => {
+                    const active = trashKindFilter === pill.id;
+                    return (
+                      <button
+                        key={pill.id}
+                        type="button"
+                        onClick={() => setTrashKindFilter(pill.id)}
+                        className={`inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-black transition ${
+                          active
+                            ? 'bg-slate-950 text-white shadow-xs'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{pill.label}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                          {pill.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <label className="relative block w-full lg:w-72">
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={trashSearch}
+                    onChange={(e) => setTrashSearch(e.target.value)}
+                    placeholder="ค้นหาชื่อรายการในถังขยะ..."
+                    className="nexus-field h-9 w-full pl-9 pr-3 text-xs font-bold"
+                  />
+                </label>
+              </div>
+
+              {/* Bulk Selection Bar */}
+              {canManageSafety && filteredTrashItems.length > 0 ? (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2 font-black text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={
+                          paginatedTrashItems.length > 0 &&
+                          paginatedTrashItems.every((i) => selectedTrashIds.includes(i.id))
+                        }
+                        onChange={() => {
+                          const allOnPageSelected =
+                            paginatedTrashItems.length > 0 &&
+                            paginatedTrashItems.every((i) => selectedTrashIds.includes(i.id));
+                          if (allOnPageSelected) {
+                            const pageIds = new Set(paginatedTrashItems.map((i) => i.id));
+                            setSelectedTrashIds((prev) => prev.filter((id) => !pageIds.has(id)));
+                          } else {
+                            setSelectedTrashIds((prev) =>
+                              Array.from(new Set([...prev, ...paginatedTrashItems.map((i) => i.id)])),
+                            );
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-cyan-600"
+                      />
+                      <span>เลือกหน้านี้ ({paginatedTrashItems.length})</span>
+                    </label>
+                    {selectedTrashIds.length > 0 ? (
+                      <>
+                        <span className="rounded-full bg-cyan-100 px-2.5 py-0.5 text-[11px] font-black text-cyan-900">
+                          เลือกแล้ว {selectedTrashIds.length} รายการ
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTrashIds([])}
+                          className="font-black text-slate-500 underline hover:text-slate-800"
+                        >
+                          ยกเลิกเลือก
+                        </button>
+                      </>
+                    ) : null}
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  {selectedTrashIds.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isBulkTrashBusy}
+                        onClick={() => void handleBulkRestoreTrash()}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-black text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                      >
+                        <RotateCcw size={13} /> กู้คืนที่เลือก ({selectedTrashIds.length})
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkTrashBusy}
+                        onClick={() => void handleBulkPurgeTrash(selectedTrashIds, 'ลบรายการที่เลือกออกจากถังขยะ')}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-rose-600 px-3 text-[11px] font-black text-white hover:bg-rose-700 disabled:opacity-40"
+                      >
+                        <Trash2 size={13} /> ลบถาวรที่เลือก ({selectedTrashIds.length})
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {paginatedTrashItems.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-center text-xs font-bold text-slate-500">
+                  ไม่พบรายการในถังขยะที่ตรงกับคำค้นหา “{trashSearch}”
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2.5">
+                  {paginatedTrashItems.map((item) => {
+                    const isChecked = selectedTrashIds.includes(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex flex-col gap-3 rounded-2xl border p-3.5 sm:flex-row sm:items-center sm:justify-between ${
+                          item.restored
+                            ? 'border-emerald-200 bg-emerald-50/70'
+                            : isChecked
+                              ? 'border-cyan-300 bg-cyan-50/50'
+                              : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {canManageSafety ? (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleTrashSelection(item.id)}
+                              className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-cyan-600"
+                            />
+                          ) : null}
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700">
+                              {trashKindLabels[item.kind]} {item.restored ? '· กู้คืนแล้ว' : ''}
+                            </span>
+                            <h3 className="mt-0.5 text-sm font-black text-slate-950">{item.title}</h3>
+                            {item.detail ? <p className="mt-0.5 text-xs font-semibold text-slate-500">{item.detail}</p> : null}
+                            <p className="mt-0.5 text-[11px] font-bold text-slate-400">ลบเมื่อ: {formatThaiDateTime(item.deletedAt)}</p>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            type="button"
+                            disabled={item.restored || busyTrashId === item.id || isBulkTrashBusy || !canManageSafety}
+                            onClick={() => void handleRestoreTrash(item)}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                          >
+                            <RotateCcw size={14} /> กู้คืน
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyTrashId === item.id || isBulkTrashBusy || !canManageSafety}
+                            onClick={() => void handlePurgeTrash(item)}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                          >
+                            <Trash2 size={14} /> ลบถาวร
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination Bar */}
+              {filteredTrashItems.length > TRASH_PAGE_SIZE ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs font-black text-slate-600">
+                  <span>
+                    แสดง {(safeTrashPage - 1) * TRASH_PAGE_SIZE + 1}–{Math.min(safeTrashPage * TRASH_PAGE_SIZE, filteredTrashItems.length)} จาก {filteredTrashItems.length} รายการ (หน้า {safeTrashPage}/{trashTotalPages})
+                  </span>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={item.restored || busyTrashId === item.id || !canManageSafety}
-                      onClick={() => void handleRestoreTrash(item)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                      disabled={safeTrashPage <= 1}
+                      onClick={() => setTrashPage((p) => Math.max(1, p - 1))}
+                      className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                     >
-                      <RotateCcw size={14} /> กู้คืน
+                      ← ก่อนหน้า
                     </button>
                     <button
                       type="button"
-                      disabled={busyTrashId === item.id || !canManageSafety}
-                      onClick={() => void handlePurgeTrash(item)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                      disabled={safeTrashPage >= trashTotalPages}
+                      onClick={() => setTrashPage((p) => Math.min(trashTotalPages, p + 1))}
+                      className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                     >
-                      <Trash2 size={14} /> ลบถาวร
+                      ถัดไป →
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              ) : null}
+            </>
           )}
         </section>
       ) : null}

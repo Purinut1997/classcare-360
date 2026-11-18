@@ -1834,22 +1834,35 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         <section className="mt-5 grid gap-5 xl:grid-cols-2">
           {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && (
             <div id="workspace-backup" className={`scroll-mt-24 nexus-card p-4 sm:p-5 ${activeSettingsTab === 'profile' ? 'xl:col-span-2' : ''}`}>
-              <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-                <Download size={17} aria-hidden="true" />
-                Backup & Debug Snapshot
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-black text-cyan-700">
+                    <Download size={15} aria-hidden="true" />
+                    ทางลัดจัดการข้อมูลโรงเรียน
+                  </div>
+                  <h2 className="mt-1 text-lg font-black text-slate-950">สำรองข้อมูล กู้คืนถังขยะ และนำเข้า-ส่งออกรายชื่อ</h2>
+                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                    งานสำรองข้อมูลเต็มรูปแบบ ตรวจสุขภาพข้อมูล และกู้คืนถังขยะรวมอยู่ที่เมนู “สำรองข้อมูล &amp; ถังขยะ”
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <Link
+                    to="/app/dashboard?view=data-safety"
+                    className="blue-action inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black"
+                  >
+                    <ShieldCheck size={15} aria-hidden="true" />
+                    ไปหน้าสำรองข้อมูล &amp; ถังขยะ
+                  </Link>
+                  <button
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                    onClick={exportSettingsSnapshot}
+                    type="button"
+                  >
+                    <Download size={14} aria-hidden="true" />
+                    Export ตั้งค่า (.JSON)
+                  </button>
+                </div>
               </div>
-              <h2 className="mt-2 text-2xl font-black text-slate-950">สำรองข้อมูลตั้งค่า workspace</h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                ดาวน์โหลด snapshot สำหรับตรวจโรงเรียน ห้องเรียน สมาชิก และจำนวนเด็กต่อห้อง ใช้ส่ง debug ได้เมื่อเจอปัญหาข้อมูลไม่โผล่หรือ workspace ซ้ำ
-              </p>
-              <button
-                className="blue-action mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-                onClick={exportSettingsSnapshot}
-                type="button"
-              >
-                Export settings snapshot
-                <Download size={17} aria-hidden="true" />
-              </button>
             </div>
           )}
 

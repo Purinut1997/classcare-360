@@ -165,6 +165,8 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
   const [query, setQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState<AuditRiskFilter>('all');
   const [actionFilter, setActionFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const AUDIT_PAGE_SIZE = 20;
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration audit เพื่ออ่านประวัติจาก Supabase จริง',
@@ -249,6 +251,17 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
     }),
     [logs],
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, riskFilter, actionFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / AUDIT_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedLogs = useMemo(() => {
+    const start = (safePage - 1) * AUDIT_PAGE_SIZE;
+    return filteredLogs.slice(start, start + AUDIT_PAGE_SIZE);
+  }, [filteredLogs, safePage]);
 
   function exportCsv() {
     const rows = [
@@ -375,8 +388,8 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
         <div className="mt-4 grid gap-3">
           {isLoading ? (
             <NexusAuroraLoader message="กำลังรวบรวมประวัติการทำงานและความเสี่ยงล่าสุด" title="กำลังโหลด Audit Log" />
-          ) : filteredLogs.length > 0 ? (
-            filteredLogs.map((log) => (
+          ) : paginatedLogs.length > 0 ? (
+            paginatedLogs.map((log) => (
               <article className="rounded-3xl bg-white/85 p-4 ring-1 ring-slate-100" key={log.id}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -411,6 +424,32 @@ export function AuditCenterPage({ session }: AuditCenterPageProps) {
             </div>
           )}
         </div>
+
+        {!isLoading && filteredLogs.length > AUDIT_PAGE_SIZE ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs font-black text-slate-600">
+            <span>
+              แสดง {(safePage - 1) * AUDIT_PAGE_SIZE + 1}–{Math.min(safePage * AUDIT_PAGE_SIZE, filteredLogs.length)} จาก {filteredLogs.length} รายการ (หน้า {safePage}/{totalPages})
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                ← ก่อนหน้า
+              </button>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                ถัดไป →
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="mt-5 rounded-3xl bg-slate-950 p-5 text-white shadow-[0_24px_70px_rgba(2,6,23,0.18)]">

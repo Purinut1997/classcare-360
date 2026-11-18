@@ -94,11 +94,10 @@ const sidebarSections: SidebarSectionConfig[] = [
     icon: School,
     defaultOpen: false,
     itemKeys: [
-      'workspace-settings',    // ศูนย์จัดการโรงเรียน
-      'academic-year',         // ปิดชั้นและคลังปีการศึกษา
-      'period-locks',          // ล็อกงวดข้อมูล
-      'import-export',         // นำเข้า & ส่งออกข้อมูล
-      'data-safety',           // สำรองข้อมูล & กู้คืน
+      'workspace-settings',    // ตั้งค่าโรงเรียน & ครู
+      'academic-year',         // ปีการศึกษา & ล็อกงวด (รวมล็อกงวดข้อมูลไว้ในแท็บ 1 แล้ว)
+      'import-export',         // นำเข้า / ส่งออกข้อมูล
+      'data-safety',           // สำรองข้อมูล & ถังขยะ
     ],
   },
 ];
@@ -122,11 +121,7 @@ export function Sidebar({
 
   const secondarySections = sidebarSections
     .map((section) => {
-      let keys = section.itemKeys;
-      if (section.key === 'school-management' && session?.profile.role === 'superadmin') {
-        keys = [...keys, 'setup', 'audit'];
-      }
-      const items = keys
+      const items = section.itemKeys
         .map((key) => navItems.find((item) => item.key === key))
         .filter((item): item is AppNavItem => Boolean(item));
       items.forEach((item) => renderedKeys.add(item.key));
@@ -226,7 +221,9 @@ export function Sidebar({
 
         {/* Secondary Collapsible Groups */}
         {secondarySections.map((section) => {
-          const hasActiveItem = section.items.some((item) => item.key === activeView);
+          const isItemActive = (key: string) =>
+            key === activeView || (key === 'academic-year' && activeView === 'period-locks');
+          const hasActiveItem = section.items.some((item) => isItemActive(item.key));
           const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
           const SectionIcon = section.icon;
           const badgeTone =
@@ -257,7 +254,7 @@ export function Sidebar({
               <div className="grid gap-1 py-1 pl-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive = item.key === activeView;
+                  const isActive = isItemActive(item.key);
                   const isPaused = maintenanceSet.has(item.key);
                   return (
                     <Link
@@ -323,7 +320,9 @@ export function Sidebar({
           <div className="mt-3 grid gap-1.5 border-t border-white/10 pt-2.5">
             {utilityItems.map((item) => {
               const Icon = item.icon;
-              const isActive = item.key === activeView;
+              const isActive =
+                item.key === activeView || (item.key === 'notifications' && activeView === 'automation');
+              const isPaused = maintenanceSet.has(item.key);
               return (
                 <Link
                   className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
@@ -335,10 +334,14 @@ export function Sidebar({
                   <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
                     <Icon size={15} aria-hidden="true" />
                   </div>
-                  <span className="truncate">{item.label}</span>
-                  {!isActive && (
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {isPaused ? (
+                    <span className="shrink-0 rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
+                      ปรับปรุง
+                    </span>
+                  ) : !isActive ? (
                     <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
-                  )}
+                  ) : null}
                 </Link>
               );
             })}
