@@ -167,13 +167,13 @@ export function Sidebar({
   const content = (
     <>
       <div className="app-sidebar-brand">
-        <AppLogo className="h-10 w-10 rounded-xl bg-white p-0.5 ring-1 ring-[#86efac]/30 shadow-xs" />
-        <div className="min-w-0">
+        <AppLogo className="h-10 w-10 shrink-0 rounded-xl bg-white p-0.5 ring-1 ring-[#86efac]/30 shadow-xs" />
+        <div className="min-w-0 flex-1">
           <p className="truncate font-display text-base font-extrabold tracking-tight text-white">ClassCare 360</p>
           <p className="truncate text-[11px] font-semibold text-[#b7d9c6]">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
         </div>
         <button
-          className="ml-auto grid h-9 w-9 place-items-center rounded-xl text-[#c5ddd0] hover:bg-white/10 hover:text-white lg:hidden"
+          className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[#c5ddd0] hover:bg-white/10 hover:text-white lg:hidden"
           aria-label="ปิดเมนู"
           onClick={onClose}
           type="button"
@@ -184,9 +184,9 @@ export function Sidebar({
 
       {/* Top Workspace Selector Card */}
       {session?.workspace ? (
-        <div className="pb-1 pt-2.5">
+        <div className="shrink-0 pb-1 pt-2.5">
           <Link
-            className="flex items-center gap-2.5 rounded-2xl bg-white/[0.08] p-2.5 text-left ring-1 ring-white/15 transition hover:bg-white/[0.14] group"
+            className="flex w-full min-w-0 items-center gap-2.5 rounded-2xl bg-white/[0.08] p-2.5 text-left ring-1 ring-white/15 transition hover:bg-white/[0.14] group"
             onClick={onClose}
             to="/app/select-workspace"
             title="คลิกเพื่อสลับโรงเรียน / พื้นที่ทำงาน"
@@ -208,7 +208,7 @@ export function Sidebar({
 
       <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
         {/* Core Direct 1-Click Teacher Items */}
-        <div className="grid gap-1.5">
+        <div className="flex w-full min-w-0 shrink-0 flex-col gap-1.5">
           {directItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.key === activeView;
@@ -225,12 +225,12 @@ export function Sidebar({
                 </div>
                 <span className="min-w-0 flex-1 truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
                 {item.key === 'overview' && (
-                  <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-bold text-[#d1fae5]">
+                  <span className="shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-[#d1fae5]">
                     หลัก
                   </span>
                 )}
                 {!isActive && item.key !== 'overview' && (
-                  <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-[#b7d9c6] group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-[#b7d9c6] group-hover:translate-x-0.5 transition-all" />
                 )}
               </Link>
             );
@@ -257,11 +257,11 @@ export function Sidebar({
           const allItemsVipLocked =
             section.items.length > 0 && section.items.every((item) => isItemVipLocked(item));
           return (
-            <details className="app-sidebar-section mt-2.5" key={section.key} open={isSectionOpen}>
+            <details className="app-sidebar-section mt-2" key={section.key} open={isSectionOpen}>
               <summary className="app-sidebar-section-summary">
                 <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                   {SectionIcon && (
-                    <span className={`grid h-5 w-5 place-items-center rounded-md border ${badgeTone}`}>
+                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border ${badgeTone}`}>
                       <SectionIcon size={12} aria-hidden="true" />
                     </span>
                   )}
@@ -270,14 +270,14 @@ export function Sidebar({
                   </span>
                 </span>
                 {allItemsVipLocked ? (
-                  <span className="mr-1 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
+                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
                     <Lock size={8} aria-hidden="true" />
                     {vipBadgeLabel}
                   </span>
                 ) : null}
                 <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-[#9fc0ae]" aria-hidden="true" />
               </summary>
-              <div className="grid gap-1 py-1 pl-1">
+              <div className="flex w-full min-w-0 flex-col gap-1 py-1 pl-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = isItemActive(item.key);
@@ -289,7 +289,7 @@ export function Sidebar({
                       key={item.key}
                       onClick={onClose}
                       externalUrl={isVipLocked ? undefined : item.externalUrl}
-                      title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก VIP` : undefined}
+                      title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก ${vipBadgeLabel}` : item.label}
                       to={item.path}
                     >
                       <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -306,7 +306,7 @@ export function Sidebar({
                           {vipBadgeLabel}
                         </span>
                       ) : !isActive ? (
-                        <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                        <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                       ) : null}
                     </Link>
                   );
@@ -317,12 +317,12 @@ export function Sidebar({
         })}
 
         {otherItems.length > 0 ? (
-          <details className="app-sidebar-section mt-2.5" open={otherItems.some((item) => item.key === activeView)}>
+          <details className="app-sidebar-section mt-2" open={otherItems.some((item) => item.key === activeView)}>
             <summary className="app-sidebar-section-summary">
               <span className="font-black">อื่น ๆ</span>
-              <ChevronDown size={14} className="app-sidebar-chevron text-slate-400" aria-hidden="true" />
+              <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-slate-400" aria-hidden="true" />
             </summary>
-            <div className="grid gap-1 py-1 pl-1">
+            <div className="flex w-full min-w-0 flex-col gap-1 py-1 pl-1">
               {otherItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = item.key === activeView;
@@ -337,9 +337,9 @@ export function Sidebar({
                     <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
                       <Icon size={15} aria-hidden="true" />
                     </div>
-                    <span className="truncate">{item.label}</span>
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     {!isActive && (
-                      <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                      <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                     )}
                   </Link>
                 );
@@ -350,7 +350,7 @@ export function Sidebar({
 
         {/* 🔻 Footer Utilities (แจ้งเตือน / คู่มือใช้งาน) */}
         {utilityItems.length > 0 ? (
-          <div className="mt-3 grid gap-1.5 border-t border-white/10 pt-2.5">
+          <div className="mt-2.5 flex w-full min-w-0 shrink-0 flex-col gap-1 border-t border-white/10 pt-2.5">
             {utilityItems.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -363,7 +363,7 @@ export function Sidebar({
                   key={item.key}
                   onClick={onClose}
                   externalUrl={isVipLocked ? undefined : item.externalUrl}
-                  title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก VIP` : undefined}
+                  title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก ${vipBadgeLabel}` : item.label}
                   to={item.path}
                 >
                   <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
@@ -377,10 +377,10 @@ export function Sidebar({
                   ) : isVipLocked ? (
                     <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40">
                       <Lock size={9} aria-hidden="true" />
-                      VIP
+                      {vipBadgeLabel}
                     </span>
                   ) : !isActive ? (
-                    <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                    <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                   ) : null}
                 </Link>
               );
@@ -392,7 +392,7 @@ export function Sidebar({
       {/* 👑 Dedicated VIP Upgrade / Renewal Menu for Non-Lifetime VIP Users */}
       {showVipUpgradeMenu ? (
         <Link
-          className={`mt-2.5 flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition ${
+          className={`mt-2.5 flex w-full min-w-0 shrink-0 items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition ${
             activeView === 'package'
               ? 'border-amber-300/70 bg-gradient-to-r from-amber-400/30 via-amber-500/25 to-yellow-400/20 text-white shadow-sm'
               : 'border-amber-300/35 bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-transparent text-amber-100 hover:border-amber-300/60 hover:from-amber-500/30 hover:text-white'
@@ -413,21 +413,21 @@ export function Sidebar({
 
       {session?.profile.role === 'superadmin' ? (
         <Link
-          className="app-admin-shortcut"
+          className="app-admin-shortcut w-full min-w-0 shrink-0"
           onClick={onClose}
           to="/app/dashboard?view=superadmin-dashboard"
         >
-          <ServerCog size={18} aria-hidden="true" />
-          <span>
-            <strong>Superadmin</strong>
-            <small>ศูนย์ควบคุมระบบ</small>
+          <ServerCog size={18} className="shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <strong className="truncate">Superadmin</strong>
+            <small className="truncate">ศูนย์ควบคุมระบบ</small>
           </span>
         </Link>
       ) : null}
 
-      <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-3 text-[10px] font-bold text-slate-400">
-        <span>Created by MIKPURINUT</span>
-        <PanelLeftClose size={16} aria-hidden="true" />
+      <div className="mt-2.5 flex shrink-0 items-center justify-between border-t border-white/10 pt-2.5 text-[10px] font-bold text-slate-400">
+        <span className="truncate">Created by MIKPURINUT</span>
+        <PanelLeftClose size={15} className="shrink-0" aria-hidden="true" />
       </div>
     </>
   );
@@ -460,7 +460,7 @@ export function Sidebar({
       </div>
 
       {/* Desktop Static Sidebar */}
-      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[232px]">
+      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[260px]">
         {content}
       </aside>
     </>
