@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { AppNavigationLink as Link } from '../navigation/ContextLink';
 
-import { getVipUpgradeMeta, isLifetimeVip } from '../../lib/entitlements';
+import { getVipBadgeInfo, getVipUpgradeMeta, isLifetimeVip } from '../../lib/entitlements';
 import {
   canAccessViewByPlan,
   getRequiredTierBadgeLabel,
@@ -130,6 +130,7 @@ export function Sidebar({
     session && !isLifetimeVip(session.subscription, session.profile.role),
   );
   const vipUpgradeMeta = getVipUpgradeMeta(session?.subscription);
+  const vipBadgeInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
   const directItems = coreDirectItemKeys
     .map((key) => navItems.find((item) => item.key === key))
     .filter((item): item is AppNavItem => Boolean(item));
@@ -195,11 +196,27 @@ export function Sidebar({
               <Building2 size={16} aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-bold text-white group-hover:text-[#a7f3d0]">
-                {session.workspace.schoolName || session.workspace.name}
-              </p>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="min-w-0 flex-1 truncate text-xs font-bold text-white group-hover:text-[#a7f3d0]">
+                  {session.workspace.schoolName || session.workspace.name}
+                </p>
+                {vipBadgeInfo?.isVip ? (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40"
+                    title={vipBadgeInfo.tooltip}
+                  >
+                    <Crown size={9} className="fill-amber-300/35" aria-hidden="true" />
+                    VIP
+                  </span>
+                ) : null}
+              </div>
               <p className="truncate text-[10px] font-medium text-[#c5ddd0]">
-                ปี {session.workspace.academicYear || 'ปัจจุบัน'} · สลับห้องเรียน
+                ปี {session.workspace.academicYear || 'ปัจจุบัน'}
+                {vipBadgeInfo?.isVip
+                  ? ` · ${vipBadgeInfo.daysText}`
+                  : vipBadgeInfo?.tier === 'trial'
+                    ? ` · ${vipBadgeInfo.shortLabel}`
+                    : ' · สลับห้องเรียน'}
               </p>
             </div>
           </Link>

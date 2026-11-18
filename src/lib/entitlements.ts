@@ -113,16 +113,142 @@ export function getVipUpgradeMeta(subscription: SubscriptionSummary | null | und
   const effectivePlan = getEffectivePlanCode(subscription ?? null);
   if (effectivePlan === 'VIP_YEARLY' && subscription?.endsAt) {
     const endsDate = new Date(subscription.endsAt);
-    const formatted = Number.isNaN(endsDate.getTime())
+    const valid = !Number.isNaN(endsDate.getTime());
+    const daysLeft = valid
+      ? Math.max(1, Math.ceil((endsDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : null;
+    const formatted = !valid
       ? 'มีกำหนดหมดอายุ'
       : new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }).format(endsDate);
-    return { label: 'ต่ออายุ VIP', subtitle: `หมดอายุ ${formatted}` };
+    return {
+      label: 'ต่ออายุ VIP',
+      subtitle: daysLeft !== null ? `เหลือ ${daysLeft.toLocaleString('th-TH')} วัน · หมดอายุ ${formatted}` : `หมดอายุ ${formatted}`,
+    };
   }
   if (effectivePlan === 'TRIAL_30' && subscription?.endsAt) {
-    const daysLeft = Math.max(0, Math.ceil((new Date(subscription.endsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+    const daysLeft = Math.max(1, Math.ceil((new Date(subscription.endsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
     return { label: 'สมัคร VIP', subtitle: `ทดลองใช้ · เหลือ ${daysLeft} วัน` };
   }
   return { label: 'สมัคร VIP', subtitle: 'ปลดล็อกทุกโมดูล + AI' };
+}
+
+export interface VipBadgeInfo {
+  tier: 'lifetime_vip' | 'temp_vip' | 'trial' | 'free';
+  isVip: boolean;
+  isLifetime: boolean;
+  isExpiringSoon: boolean;
+  daysRemaining: number | null;
+  badgeText: string;
+  daysText: string;
+  shortLabel: string;
+  tooltip: string;
+  expiresAtLabel: string | null;
+}
+
+/**
+ * Returns structured VIP badge and remaining-day metadata for Topbar, Sidebar, and Dashboard greeting.
+ */
+export function getVipBadgeInfo(
+  subscription: SubscriptionSummary | null | undefined,
+  role?: string | null,
+): VipBadgeInfo {
+  const effectivePlan = getEffectivePlanCode(subscription ?? null);
+  const fiftyYearsMs = 50 * 365 * 24 * 60 * 60 * 1000;
+
+  if (effectivePlan === 'VIP_YEARLY') {
+    const endsDate = subscription?.endsAt ? new Date(subscription.endsAt) : null;
+    const validEnd = endsDate && !Number.isNaN(endsDate.getTime()) ? endsDate : null;
+    const isPermanent = !validEnd || validEnd.getTime() - Date.now() > fiftyYearsMs;
+
+    if (isPermanent) {
+      return {
+        tier: 'lifetime_vip',
+        isVip: true,
+        isLifetime: true,
+        isExpiringSoon: false,
+        daysRemaining: null,
+        badgeText: 'VIP',
+        daysText: 'ตลอดชีพ',
+        shortLabel: 'VIP ตลอดชีพ',
+        tooltip: 'สมาชิก ClassCare 360 VIP ถาวร (ไม่มีวันหมดอายุ)',
+        expiresAtLabel: null,
+      };
+    }
+
+    const daysRemaining = Math.max(1, Math.ceil((validEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+    const expiresAtLabel = new Intl.DateTimeFormat('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(validEnd);
+    const daysFormatted = daysRemaining.toLocaleString('th-TH');
+
+    return {
+      tier: 'temp_vip',
+      isVip: true,
+      isLifetime: false,
+      isExpiringSoon: daysRemaining <= 14,
+      daysRemaining,
+      badgeText: 'VIP',
+      daysText: `เหลือ ${daysFormatted} วัน`,
+      shortLabel: `VIP · ${daysFormatted} วัน`,
+      tooltip: `สมาชิก ClassCare 360 VIP · คงเหลือ ${daysFormatted} วัน (หมดอายุ ${expiresAtLabel})`,
+      expiresAtLabel,
+    };
+  }
+
+  if (role === 'superadmin') {
+    return {
+      tier: 'lifetime_vip',
+      isVip: true,
+      isLifetime: true,
+      isExpiringSoon: false,
+      daysRemaining: null,
+      badgeText: 'VIP',
+      daysText: 'ตลอดชีพ',
+      shortLabel: 'VIP ตลอดชีพ',
+      tooltip: 'สิทธิ์ผู้ดูแลระบบ · ClassCare 360 VIP ถาวร',
+      expiresAtLabel: null,
+    };
+  }
+
+  if (effectivePlan === 'TRIAL_30' && subscription?.endsAt) {
+    const endsDate = new Date(subscription.endsAt);
+    const validEnd = !Number.isNaN(endsDate.getTime()) ? endsDate : null;
+    const daysRemaining = validEnd
+      ? Math.max(1, Math.ceil((validEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : 30;
+    const expiresAtLabel = validEnd
+      ? new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(validEnd)
+      : null;
+    return {
+      tier: 'trial',
+      isVip: false,
+      isLifetime: false,
+      isExpiringSoon: daysRemaining <= 7,
+      daysRemaining,
+      badgeText: 'ทดลองใช้',
+      daysText: `เหลือ ${daysRemaining} วัน`,
+      shortLabel: `ทดลองใช้ · ${daysRemaining} วัน`,
+      tooltip: expiresAtLabel
+        ? `ช่วงทดลองใช้งาน · คงเหลือ ${daysRemaining} วัน (สิ้นสุด ${expiresAtLabel})`
+        : `ช่วงทดลองใช้งาน · คงเหลือ ${daysRemaining} วัน`,
+      expiresAtLabel,
+    };
+  }
+
+  return {
+    tier: 'free',
+    isVip: false,
+    isLifetime: false,
+    isExpiringSoon: false,
+    daysRemaining: null,
+    badgeText: 'Free',
+    daysText: '',
+    shortLabel: 'Free',
+    tooltip: 'แพ็กเกจ Free · คลิกเพื่ออัปเกรดเป็น VIP',
+    expiresAtLabel: null,
+  };
 }
 
 export function getEntitlementSummary(subscription: SubscriptionSummary | null) {

@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Clock,
+  Crown,
   FileSpreadsheet,
   HeartHandshake,
   NotebookPen,
@@ -34,6 +35,7 @@ import { BotanicalCardSprig, BotanicalCornerWatermark } from '../../components/s
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
+import { getVipBadgeInfo } from '../../lib/entitlements';
 import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
 import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type ScheduleSettings } from '../../lib/scheduleSettings';
@@ -1279,9 +1281,41 @@ export function DashboardPage({ session }: DashboardPageProps) {
               <Sun size={13} aria-hidden="true" />
               ภาพรวมประจำวัน · {formatThaiRecordDate(getBangkokDate())}
             </p>
-            <h1 className="mt-0.5 font-display text-xl font-bold tracking-tight text-[#1F2A22] sm:text-2xl">
-              สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'}
-            </h1>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-xl font-bold tracking-tight text-[#1F2A22] sm:text-2xl">
+                สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'}
+              </h1>
+              {(() => {
+                const vipBadge = getVipBadgeInfo(session.subscription, session.profile.role);
+                if (!vipBadge.isVip && vipBadge.tier !== 'trial') return null;
+                return (
+                  <Link
+                    to="/app/package"
+                    title={vipBadge.tooltip}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold shadow-2xs transition hover:brightness-[0.98] ${
+                      vipBadge.isVip
+                        ? vipBadge.isExpiringSoon
+                          ? 'border-rose-300 bg-rose-50 text-rose-800'
+                          : 'border-amber-300/90 bg-gradient-to-r from-[#fff8e1] to-[#fef3c7] text-[#78490a]'
+                        : 'border-sky-200 bg-sky-50 text-sky-800'
+                    }`}
+                  >
+                    <Crown
+                      size={12}
+                      className={vipBadge.isVip ? 'fill-amber-400/40 text-amber-600' : 'text-sky-600'}
+                      aria-hidden="true"
+                    />
+                    <span className="font-black">{vipBadge.badgeText}</span>
+                    {vipBadge.daysText ? (
+                      <>
+                        <span className="opacity-40">·</span>
+                        <span>{vipBadge.daysText}</span>
+                      </>
+                    ) : null}
+                  </Link>
+                );
+              })()}
+            </div>
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#5B6A5F]">
               <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
               <span>·</span>

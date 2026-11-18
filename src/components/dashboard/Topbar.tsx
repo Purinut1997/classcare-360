@@ -1,8 +1,9 @@
-import { Activity, Bell, Building2, Check, ChevronDown, Compass, Menu, Settings2, X } from 'lucide-react';
+import { Activity, Bell, Building2, Check, ChevronDown, Compass, Crown, Menu, Settings2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { isDemoSession, withDemoContext } from '../../lib/auth';
+import { getVipBadgeInfo } from '../../lib/entitlements';
 import { supabase } from '../../lib/supabaseClient';
 import { roleLabels } from '../../lib/roles';
 import type { AppSessionContext } from '../../types/core';
@@ -74,6 +75,7 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
     };
   }, [isNotificationOpen]);
   const workspace = session?.workspace;
+  const vipInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
   const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
   const workspaceSummary = (
     <>
@@ -191,13 +193,54 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         )}
       </div>
 
+      {vipInfo && (vipInfo.isVip || vipInfo.tier === 'trial') ? (
+        <Link
+          to={withDemoContext('/app/package', location.search)}
+          title={vipInfo.tooltip}
+          className={`hidden h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-bold shadow-2xs transition active:scale-95 sm:inline-flex ${
+            vipInfo.isVip
+              ? vipInfo.isExpiringSoon
+                ? 'border-rose-300/90 bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 text-rose-900 hover:border-rose-400'
+                : 'border-amber-300/85 bg-gradient-to-r from-[#fff8e1] via-[#fef3c7]/80 to-[#fffbeb] text-[#78490a] hover:border-amber-400 hover:brightness-[0.98]'
+              : 'border-sky-200 bg-sky-50/90 text-sky-900 hover:border-sky-300'
+          }`}
+        >
+          <span
+            className={`grid h-5 w-5 shrink-0 place-items-center rounded-md ${
+              vipInfo.isVip
+                ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-2xs'
+                : 'bg-sky-500/15 text-sky-700'
+            }`}
+          >
+            <Crown size={12} className={vipInfo.isVip ? 'fill-white/25' : ''} aria-hidden="true" />
+          </span>
+          <span className="font-black tracking-tight">{vipInfo.badgeText}</span>
+          {vipInfo.daysText ? (
+            <>
+              <span className={`h-3 w-px ${vipInfo.isVip ? 'bg-amber-300/80' : 'bg-sky-200'}`} aria-hidden="true" />
+              <span className={`whitespace-nowrap text-[11px] font-bold ${vipInfo.isExpiringSoon ? 'text-rose-700' : vipInfo.isVip ? 'text-[#92580e]' : 'text-sky-700'}`}>
+                {vipInfo.daysText}
+              </span>
+            </>
+          ) : null}
+        </Link>
+      ) : null}
+
       <Link
         className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-[#e6f4ec]/70"
         title="ตั้งค่าบัญชีส่วนตัว & เปลี่ยนรหัสผ่าน"
         to={withDemoContext('/app/dashboard?view=workspace-settings&tab=account', location.search)}
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#e6f4ec] text-xs font-bold text-[#1c573d] ring-1 ring-[#2f7d5b]/20">
+        <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#e6f4ec] text-xs font-bold text-[#1c573d] ring-1 ring-[#2f7d5b]/20">
           {getInitials(session?.profile.displayName)}
+          {vipInfo?.isVip ? (
+            <span
+              className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white ring-2 ring-white shadow-2xs"
+              title={vipInfo.tooltip}
+            >
+              <Crown size={9} className="fill-white/30" aria-hidden="true" />
+            </span>
+          ) : null}
         </span>
         <span className="hidden min-w-0 xl:block">
           <span className="block max-w-40 truncate text-xs font-bold text-[#1f2a22]">
