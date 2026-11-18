@@ -1,7 +1,27 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CreditCard, FileUp, KeyRound, ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Crown,
+  FileUp,
+  KeyRound,
+  Lock,
+  ReceiptText,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react';
 
-import { planLabels } from '../../lib/entitlements';
+import {
+  getEffectivePlanCode,
+  getVipUpgradeMeta,
+  isLifetimeVip,
+  planLabels,
+  planLimits,
+} from '../../lib/entitlements';
 import { canManageWorkspace } from '../../lib/roles';
 import { requestAppSessionRefresh } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -54,10 +74,10 @@ const demoPlan: PlanRow = {
 };
 
 const demoQr: PaymentQrRow = {
-  account_hint: 'ตั้งค่าโดย Superadmin เท่านั้น',
+  account_hint: 'พร้อมเพย์สำหรับชำระค่าแพ็กเกจรายปี',
   account_name: 'ClassCare 360',
-  bank_name: 'Demo Bank',
-  display_name: 'QR ชำระเงินตัวอย่าง',
+  bank_name: 'ธนาคารกสิกรไทย',
+  display_name: 'PromptPay QR ClassCare 360',
   id: 'demo-qr',
 };
 
@@ -69,10 +89,47 @@ const requestStatusLabels: Record<PaymentRequestRow['status'], string> = {
   cancelled: 'ยกเลิก',
   draft: 'แบบร่าง',
   expired: 'หมดอายุ',
-  pending_review: 'รอตรวจสลิป',
+  pending_review: 'รอตรวจสอบสลิป',
   refunded: 'คืนเงินแล้ว',
   rejected: 'ไม่อนุมัติ',
 };
+
+const requestStatusTones: Record<PaymentRequestRow['status'], string> = {
+  approved: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  cancelled: 'bg-slate-100 text-slate-600 ring-slate-200',
+  draft: 'bg-slate-100 text-slate-600 ring-slate-200',
+  expired: 'bg-slate-100 text-slate-500 ring-slate-200',
+  pending_review: 'bg-amber-50 text-amber-800 ring-amber-200',
+  refunded: 'bg-cyan-50 text-cyan-800 ring-cyan-200',
+  rejected: 'bg-rose-50 text-rose-700 ring-rose-200',
+};
+
+const VIP_HIGHLIGHTS = [
+  {
+    title: 'ครบทุกโมดูลวิชาการและเอกสาร ปพ.',
+    detail: 'สมุดคะแนน ตัดเกรด 8 ระดับ ตรวจข้อสอบ OMR คุณลักษณะ 8 ประการ และพิมพ์รายงาน A4 / Excel',
+  },
+  {
+    title: 'ดูแลนักเรียนและเงินออมครบวงจร',
+    detail: 'สมุดเงินออม พฤติกรรม เยี่ยมบ้าน กสศ.01 ตารางเวรทำความสะอาด และรายงานสรุปประจำวัน',
+  },
+  {
+    title: 'ผู้ช่วยอัจฉริยะ ClassCare AI (Gemini)',
+    detail: 'วิเคราะห์ข้อมูลห้องเรียนตามสิทธิ์จริง ร่างเอกสารแจ้งผู้ปกครอง และสแกน OCR อัตโนมัติ',
+  },
+  {
+    title: 'ขยายโควตารองรับทั้งโรงเรียน',
+    detail: 'รองรับสูงสุด 100 ห้องเรียน นักเรียน 5,000 คน และเชิญครูร่วมงานได้สูงสุด 100 บัญชี',
+  },
+  {
+    title: 'นำเข้า-ส่งออกและแจ้งเตือนเชิงรุก',
+    detail: 'นำเข้าไฟล์ DMC / Excel แจ้งเตือนนักเรียนกลุ่มเสี่ยง และพอร์ทัลผู้ปกครองครบระบบ',
+  },
+  {
+    title: 'สมัครครั้งเดียว ใช้ร่วมกันได้ทั้งโรงเรียน',
+    detail: 'ครูทุกคนที่ได้รับเชิญเข้าพื้นที่ทำงานนี้จะได้รับสิทธิ์ VIP ร่วมกันโดยไม่ต้องชำระเพิ่ม',
+  },
+];
 
 function formatBaht(value: number) {
   return new Intl.NumberFormat('th-TH', {
@@ -98,13 +155,16 @@ export function PackagePage({ session }: PackagePageProps) {
   const [reviewNote, setReviewNote] = useState('');
   const [vipCode, setVipCode] = useState('');
   const [isRedeemingCode, setIsRedeemingCode] = useState(false);
-  const [codeNotice, setCodeNotice] = useState<string | null>(null);
+  const [codeNotice, setCodeNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [notice, setNotice] = useState<string | null>(
-    isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อสร้าง payment request จริง',
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(
+    isSupabaseReady ? null : { tone: 'info', text: 'โหมดตัวอย่าง: แสดงข้อมูลจำลองสำหรับการทดสอบหน้าชำระเงิน' },
   );
 
+  const effectivePlanCode = getEffectivePlanCode(session.subscription);
+  const hasLifetimeVip = isLifetimeVip(session.subscription, session.profile.role);
+  const vipMeta = getVipUpgradeMeta(session.subscription);
   const availableCredit = useMemo(
     () => credits.filter((credit) => credit.status === 'available').reduce((sum, credit) => sum + credit.amount_thb, 0),
     [credits],
@@ -112,6 +172,8 @@ export function PackagePage({ session }: PackagePageProps) {
   const creditAmount = Math.min(Math.max(availableCredit, 0), plan.price_thb);
   const payableAmount = Math.max(plan.price_thb - creditAmount, 0);
   const canCreateRequest = canManageWorkspace(session.profile.role);
+  const durationDays = plan.duration_days || 365;
+  const monthlyApprox = Math.max(1, Math.round(plan.price_thb / Math.max(1, Math.round(durationDays / 30))));
 
   useEffect(() => {
     let isMounted = true;
@@ -121,7 +183,7 @@ export function PackagePage({ session }: PackagePageProps) {
         setPlan(demoPlan);
         setPaymentQr(demoQr);
         setQrImageUrl(null);
-        setCredits([{ amount_thb: 20, id: 'demo-credit', status: 'available' }]);
+        setCredits([]);
         setRequests([]);
         setIsLoading(false);
         return;
@@ -141,7 +203,7 @@ export function PackagePage({ session }: PackagePageProps) {
           .select('id,name,price_thb,duration_days')
           .eq('code', 'VIP_YEARLY')
           .eq('is_active', true)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('payment_qr_codes')
           .select('id,display_name,bank_name,account_name,account_hint,app_files(bucket,storage_path,original_filename)')
@@ -164,7 +226,15 @@ export function PackagePage({ session }: PackagePageProps) {
       if (!isMounted) return;
 
       if (planError || qrError || creditError || requestError) {
-        setNotice(planError?.message || qrError?.message || creditError?.message || requestError?.message || 'โหลดข้อมูลแพ็กเกจไม่สำเร็จ');
+        setNotice({
+          tone: 'error',
+          text:
+            planError?.message ||
+            qrError?.message ||
+            creditError?.message ||
+            requestError?.message ||
+            'ไม่สามารถโหลดข้อมูลแพ็กเกจได้ในขณะนี้',
+        });
         setIsLoading(false);
         return;
       }
@@ -232,13 +302,19 @@ export function PackagePage({ session }: PackagePageProps) {
     setNotice(null);
 
     if (!canCreateRequest) {
-      setNotice('เฉพาะครูเจ้าของ workspace เท่านั้นที่สร้างคำขอชำระเงินได้');
+      setNotice({ tone: 'error', text: 'เฉพาะเจ้าของพื้นที่ทำงานเท่านั้นที่สามารถส่งคำขอชำระเงินได้' });
       setIsSubmitting(false);
       return;
     }
 
     if (!paymentQr) {
-      setNotice('ยังไม่มี QR ชำระเงินที่ active โปรดให้ Superadmin ตั้งค่า Payment QR ก่อน');
+      setNotice({ tone: 'error', text: 'ช่องทางชำระเงิน QR ยังไม่เปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบหรือใช้โค้ด VIP' });
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!slipFile) {
+      setNotice({ tone: 'error', text: 'กรุณาแนบไฟล์สลิปการโอนเงินก่อนส่งคำขอ' });
       setIsSubmitting(false);
       return;
     }
@@ -250,16 +326,18 @@ export function PackagePage({ session }: PackagePageProps) {
         credit_amount_thb: creditAmount,
         id: `demo-payment-${Date.now()}`,
         payable_amount_thb: payableAmount,
-        status: slipFile ? 'pending_review' : 'draft',
+        status: 'pending_review',
       };
       setRequests((current) => [localRequest, ...current]);
-      setNotice(slipFile ? 'สร้างคำขอและแนบสลิปในโหมดตัวอย่างแล้ว' : 'สร้างแบบร่างในโหมดตัวอย่างแล้ว');
+      setSlipFile(null);
+      setReviewNote('');
+      setNotice({ tone: 'success', text: 'ส่งหลักฐานการชำระเงินในโหมดตัวอย่างเรียบร้อยแล้ว' });
       setIsSubmitting(false);
       return;
     }
 
     try {
-      const slipFileId = slipFile ? await uploadSlipAndCreateFileRecord(slipFile) : null;
+      const slipFileId = await uploadSlipAndCreateFileRecord(slipFile);
       const { data, error } = await supabase
         .from('payment_requests')
         .insert({
@@ -267,12 +345,12 @@ export function PackagePage({ session }: PackagePageProps) {
           profile_id: session.profile.id,
           plan_id: plan.id,
           qr_code_id: paymentQr.id,
-          status: slipFileId ? 'pending_review' : 'draft',
+          status: 'pending_review',
           base_amount_thb: plan.price_thb,
           credit_amount_thb: creditAmount,
           payable_amount_thb: payableAmount,
           slip_file_id: slipFileId,
-          submitted_at: slipFileId ? new Date().toISOString() : null,
+          submitted_at: new Date().toISOString(),
           review_note: reviewNote.trim() || null,
         })
         .select('id,status,base_amount_thb,credit_amount_thb,payable_amount_thb,created_at')
@@ -283,9 +361,15 @@ export function PackagePage({ session }: PackagePageProps) {
       setRequests((current) => [data as PaymentRequestRow, ...current]);
       setSlipFile(null);
       setReviewNote('');
-      setNotice(slipFileId ? 'ส่งคำขอตรวจสลิปสำเร็จ รอ Superadmin อนุมัติ' : 'สร้างแบบร่างคำขอชำระเงินสำเร็จ');
+      setNotice({
+        tone: 'success',
+        text: 'ส่งหลักฐานการชำระเงินเรียบร้อยแล้ว ทีมผู้ดูแลระบบจะตรวจสอบและเปิดสิทธิ์ VIP ให้โดยเร็วที่สุด',
+      });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'สร้างคำขอชำระเงินไม่สำเร็จ');
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : 'ไม่สามารถส่งคำขอชำระเงินได้ กรุณาลองใหม่อีกครั้ง',
+      });
     }
 
     setIsSubmitting(false);
@@ -295,17 +379,17 @@ export function PackagePage({ session }: PackagePageProps) {
     event.preventDefault();
     setCodeNotice(null);
     if (!canCreateRequest || !session.workspace) {
-      setCodeNotice('เฉพาะเจ้าของ Workspace เท่านั้นที่ใช้โค้ดเพิ่มวัน VIP ได้');
+      setCodeNotice({ tone: 'error', text: 'เฉพาะเจ้าของพื้นที่ทำงานเท่านั้นที่สามารถใช้โค้ด VIP ได้' });
       return;
     }
     if (!vipCode.trim()) {
-      setCodeNotice('กรุณากรอกโค้ด VIP');
+      setCodeNotice({ tone: 'error', text: 'กรุณากรอกรหัสโค้ด VIP' });
       return;
     }
 
     setIsRedeemingCode(true);
     if (!useRealBackend || !supabase) {
-      setCodeNotice('โหมดตัวอย่าง: ตรวจรูปแบบโค้ดแล้ว โดยยังไม่เพิ่มวันจริง');
+      setCodeNotice({ tone: 'success', text: 'ตรวจสอบรูปแบบโค้ดในโหมดตัวอย่างเรียบร้อยแล้ว' });
       setVipCode('');
       setIsRedeemingCode(false);
       return;
@@ -317,19 +401,24 @@ export function PackagePage({ session }: PackagePageProps) {
     });
     if (error) {
       const messages: Record<string, string> = {
-        vip_code_already_redeemed: 'Workspace นี้เคยใช้โค้ดนี้แล้ว',
-        vip_code_expired: 'โค้ดนี้หมดอายุแล้ว',
-        vip_code_fully_redeemed: 'โค้ดนี้ถูกใช้ครบจำนวนแล้ว',
-        vip_code_inactive: 'โค้ดนี้ถูกปิดใช้งานแล้ว',
-        vip_code_invalid: 'ไม่พบโค้ดนี้ กรุณาตรวจตัวอักษรอีกครั้ง',
-        workspace_has_lifetime_vip: 'Workspace นี้มี VIP ตลอดชีพอยู่แล้ว ไม่จำเป็นต้องเพิ่มวัน',
-        workspace_owner_required: 'เฉพาะเจ้าของ Workspace เท่านั้นที่ใช้โค้ดได้',
+        vip_code_already_redeemed: 'พื้นที่ทำงานนี้เคยใช้โค้ดนี้ไปแล้ว',
+        vip_code_expired: 'โค้ดนี้หมดอายุการใช้งานแล้ว',
+        vip_code_fully_redeemed: 'โค้ดนี้ถูกใช้งานครบตามจำนวนสิทธิ์แล้ว',
+        vip_code_inactive: 'โค้ดนี้ถูกปิดการใช้งานแล้ว',
+        vip_code_invalid: 'ไม่พบรหัสโค้ดนี้ กรุณาตรวจสอบตัวอักษรอีกครั้ง',
+        workspace_has_lifetime_vip: 'พื้นที่ทำงานนี้มีสิทธิ์ VIP ตลอดชีพอยู่แล้ว',
+        workspace_owner_required: 'เฉพาะเจ้าของพื้นที่ทำงานเท่านั้นที่สามารถใช้โค้ดได้',
       };
-      setCodeNotice(messages[error.message] || error.message);
+      setCodeNotice({ tone: 'error', text: messages[error.message] || error.message });
     } else {
       const result = data as { duration_days?: number; ends_at?: string } | null;
-      const endLabel = result?.ends_at ? new Date(result.ends_at).toLocaleDateString('th-TH', { dateStyle: 'long' }) : '-';
-      setCodeNotice(`รับ VIP เพิ่ม ${result?.duration_days || 0} วันสำเร็จ ใช้ได้ถึง ${endLabel}`);
+      const endLabel = result?.ends_at
+        ? new Date(result.ends_at).toLocaleDateString('th-TH', { dateStyle: 'long' })
+        : '-';
+      setCodeNotice({
+        tone: 'success',
+        text: `เปิดสิทธิ์ VIP เพิ่ม ${result?.duration_days || 0} วันสำเร็จ ใช้งานได้ถึงวันที่ ${endLabel}`,
+      });
       setVipCode('');
       requestAppSessionRefresh();
     }
@@ -338,216 +427,429 @@ export function PackagePage({ session }: PackagePageProps) {
 
   return (
     <main className="app-page">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      {/* Executive Page Header */}
+      <div className="app-page-header">
         <div>
-          <div className="inline-flex h-10 items-center gap-2 rounded-full bg-amber-50/90 px-4 text-xs font-black text-amber-700 ring-1 ring-amber-100">
-            <Sparkles size={18} aria-hidden="true" />
-            Package
-          </div>
-          <h1 className="app-page-title">
-            อัปเกรดเป็น ClassCare 360 VIP
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800 ring-1 ring-amber-200">
+            <Crown size={14} aria-hidden="true" />
+            แพ็กเกจและการสมัครสมาชิก
+          </span>
+          <h1 className="app-page-title mt-2">
+            {hasLifetimeVip ? 'สถานะสมาชิก ClassCare 360 VIP' : 'อัปเกรดเป็น ClassCare 360 VIP'}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
-            ใช้คำว่า VIP เฉพาะบริบทแพ็กเกจพรีเมียมเท่านั้น และทุกสลิปต้องเก็บเป็นไฟล์ private/sensitive ไม่ใช่ base64
+          <p className="app-page-description">
+            ปลดล็อกเครื่องมือบริหารจัดการห้องเรียนครบทุกโมดูล รองรับครูทุกคนในพื้นที่ทำงานเดียวกัน พร้อมผู้ช่วยอัจฉริยะ ClassCare AI
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:min-w-[520px]">
-          {[
-            { label: 'ราคา', value: formatBaht(plan.price_thb) },
-            { label: 'เครดิต', value: formatBaht(creditAmount) },
-            { label: 'ชำระจริง', value: formatBaht(payableAmount) },
-          ].map((item) => (
-            <div className="nexus-card p-3 text-center transition hover:-translate-y-1" key={item.label}>
-              <p className="text-lg font-black text-slate-950 sm:text-xl">{item.value}</p>
-              <p className="mt-1 text-xs font-black text-slate-500">{item.label}</p>
+        {/* Live Current Subscription Status Pill */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-2xs">
+            <span
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
+                effectivePlanCode === 'VIP_YEARLY'
+                  ? 'bg-amber-100 text-amber-700'
+                  : effectivePlanCode === 'TRIAL_30'
+                    ? 'bg-sky-100 text-sky-700'
+                    : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {effectivePlanCode === 'VIP_YEARLY' ? <Crown size={18} /> : <Sparkles size={18} />}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-slate-500">
+                แพ็กเกจปัจจุบัน · {session.workspace?.schoolName || 'พื้นที่ทำงานหลัก'}
+              </p>
+              <p className="text-sm font-black text-slate-950">
+                {hasLifetimeVip ? 'ClassCare 360 VIP (ตลอดชีพ)' : planLabels[effectivePlanCode]}
+                {!hasLifetimeVip && effectivePlanCode !== 'FREE_LOGIN' ? (
+                  <span className="ml-1.5 text-xs font-bold text-amber-700">· {vipMeta.subtitle}</span>
+                ) : null}
+              </p>
             </div>
-          ))}
+          </div>
         </div>
       </div>
 
-      <section className="mt-5 grid gap-5">
-        <div className="nexus-card overflow-hidden p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-sm font-black text-amber-700">{planLabels.VIP_YEARLY}</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">{plan.name}</h2>
-              <p className="mt-3 max-w-2xl text-sm font-bold leading-7 text-slate-600">
-                เปิดใช้โมดูลหลักทั้งหมด เช่น Student 360, Attendance, Reports, Import/Export, Backup, Parent Portal และฟีเจอร์พรีเมียมอื่นตาม Prompt
-              </p>
-            </div>
-            <div className="rounded-[24px] bg-slate-950 p-4 text-white shadow-[0_18px_42px_rgba(2,6,23,0.22)] lg:min-w-[260px]">
-              <p className="text-xs font-black text-amber-200">ระยะเวลา</p>
-              <p className="mt-1 text-3xl font-black">{plan.duration_days || 365} วัน</p>
-              <p className="mt-3 text-xs font-bold leading-5 text-slate-300">การอนุมัติจริงต้องทำผ่าน Superadmin/Edge Function</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {[
-              'ไม่ hard-code QR ใน frontend',
-              'สลิปเก็บใน private bucket',
-              'อนุมัติสิทธิ์ผ่าน backend เท่านั้น',
-            ].map((item) => (
-              <div className="flex gap-2 rounded-2xl bg-cyan-50/90 p-3 text-sm font-black text-cyan-800 ring-1 ring-cyan-100" key={item}>
-                <CheckCircle2 className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <form className="nexus-card p-4 sm:p-5" onSubmit={handleRedeemVipCode}>
-          <div className="nexus-kicker"><KeyRound size={16} aria-hidden="true" /> VIP Code</div>
-          <h2 className="mt-3 text-xl font-black text-slate-950">มีโค้ดเพิ่มวัน VIP?</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">โค้ดจะเพิ่มสิทธิ์ให้ Workspace นี้ ครูที่ได้รับเชิญไม่ต้องใช้โค้ดซ้ำและใช้สิทธิ์ตาม Workspace ร่วมกัน</p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <input
-              autoCapitalize="characters"
-              className="nexus-field h-11 min-w-0 flex-1 px-3 font-black uppercase"
-              disabled={!canCreateRequest || isRedeemingCode}
-              onChange={(event) => setVipCode(event.target.value.toUpperCase())}
-              placeholder="CC360-XXXXXXXXXXXX"
-              value={vipCode}
-            />
-            <button className="blue-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300" disabled={!canCreateRequest || isRedeemingCode} type="submit">
-              <KeyRound size={16} aria-hidden="true" />
-              {isRedeemingCode ? 'กำลังตรวจโค้ด' : 'รับสิทธิ์'}
-            </button>
-          </div>
-          {codeNotice ? <div className="mt-3 rounded-2xl bg-cyan-50 p-3 text-sm font-bold leading-6 text-cyan-900 ring-1 ring-cyan-100">{codeNotice}</div> : null}
-        </form>
-
-        <form className="nexus-card p-4 sm:p-5" onSubmit={handleCreatePaymentRequest}>
-          <div className="nexus-kicker">
-            <CreditCard size={16} aria-hidden="true" />
-            คำขอชำระเงิน
-          </div>
-
-          <div className="nexus-muted-box mt-4 p-3">
-            <p className="text-sm font-black text-slate-700">QR ชำระเงินที่ active</p>
-            {paymentQr ? (
-              <div className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                {qrImageUrl ? (
-                  <div className="mb-3 overflow-hidden rounded-3xl border border-slate-100 bg-white p-3 shadow-sm">
-                    <img
-                      alt={paymentQr.display_name}
-                      className="mx-auto aspect-square max-h-64 w-full max-w-64 rounded-2xl object-contain"
-                      src={qrImageUrl}
-                    />
-                  </div>
-                ) : null}
-                <p>{paymentQr.display_name}</p>
-                <p>{paymentQr.bank_name || 'ไม่ระบุธนาคาร'} | {paymentQr.account_name || 'ไม่ระบุชื่อบัญชี'}</p>
-                <p className="text-xs text-slate-500">{paymentQr.account_hint || 'ไม่มีรายละเอียดเพิ่มเติม'}</p>
-              </div>
-            ) : (
-              <p className="mt-2 text-sm font-bold leading-6 text-rose-700">
-                ยังไม่มี Payment QR ที่ active
-              </p>
-            )}
-          </div>
-
-          <label className="mt-4 grid gap-2 text-sm font-black text-slate-700">
-            แนบสลิป
-            <span className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-sky-200 bg-white/80 p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:bg-white">
-              <FileUp className="text-teal-600" size={24} aria-hidden="true" />
-              <span className="mt-2 text-xs font-bold text-slate-500">
-                {slipFile ? `${slipFile.name} (${Math.ceil(slipFile.size / 1024)} KB)` : 'เลือกไฟล์ภาพ/PDF สลิป'}
-              </span>
-              <input
-                accept="image/*,application/pdf"
-                className="sr-only"
-                onChange={(event) => setSlipFile(event.target.files?.[0] || null)}
-                type="file"
-              />
-            </span>
-          </label>
-
-          <label className="mt-4 grid gap-2 text-sm font-black text-slate-700">
-            หมายเหตุถึงผู้ตรวจ
-            <textarea
-              className="nexus-field min-h-20 px-3 py-2"
-              onChange={(event) => setReviewNote(event.target.value)}
-              value={reviewNote}
-            />
-          </label>
-
-          <button
-            className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={isSubmitting || isLoading || !canCreateRequest}
-            type="submit"
-          >
-            {isSubmitting ? 'กำลังสร้างคำขอ' : slipFile ? 'ส่งคำขอตรวจสลิป' : 'สร้างแบบร่าง'}
-            <CreditCard size={17} aria-hidden="true" />
-          </button>
-
-          {!canCreateRequest ? (
-            <p className="mt-3 text-xs font-bold leading-5 text-rose-700">
-              เฉพาะครูเจ้าของ workspace เท่านั้นที่สร้างคำขอชำระเงินได้
-            </p>
-          ) : null}
-        </form>
-      </section>
-
-      <section className="mt-5 grid gap-5">
-        <div className="nexus-card p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-black text-teal-700">Payment Requests</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">ประวัติคำขอ</h2>
-            </div>
-            <ShieldCheck className="text-teal-600" size={28} aria-hidden="true" />
-          </div>
-
-          <div className="mt-4 grid gap-3">
-            {requests.map((request) => (
-              <div className="nexus-muted-box p-3" key={request.id}>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-black text-slate-950">{requestStatusLabels[request.status]}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{new Date(request.created_at).toLocaleString('th-TH')}</p>
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <p className="font-black text-slate-950">{formatBaht(request.payable_amount_thb)}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">เครดิต {formatBaht(request.credit_amount_thb)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {requests.length === 0 ? (
-              <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">
-                ยังไม่มีคำขอชำระเงินใน workspace นี้
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="nexus-card p-4 sm:p-5">
-          <div className="nexus-pill inline-flex items-center gap-2 px-3 py-2 text-xs font-black text-slate-600">
-            <ShieldCheck size={16} className="text-teal-600" aria-hidden="true" />
-            Security checklist
-          </div>
-          <ul className="mt-4 grid gap-3 text-sm font-bold leading-6 text-slate-600">
-            <li>สลิปต้องอัปโหลดเป็นไฟล์ใน bucket `payment-slips`</li>
-            <li>ตาราง `app_files` เก็บ metadata เท่านั้น ไม่เก็บ base64</li>
-            <li>สถานะ `approved` ต้องให้ Superadmin หรือ Edge Function เปลี่ยนเท่านั้น</li>
-            <li>QR ที่แสดงมาจาก `payment_qr_codes` ไม่ hard-code ใน frontend</li>
-          </ul>
-        </div>
-      </section>
-
+      {/* Global Feedback Banner */}
       {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
-          <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-          <p>{notice}</p>
+        <div
+          className={`mt-5 flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-xs font-black shadow-2xs ${
+            notice.tone === 'error'
+              ? 'border-rose-200 bg-rose-50 text-rose-800'
+              : notice.tone === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-cyan-200 bg-cyan-50 text-cyan-900'
+          }`}
+        >
+          {notice.tone === 'error' ? (
+            <AlertTriangle size={16} className="shrink-0" />
+          ) : (
+            <CheckCircle2 size={16} className="shrink-0" />
+          )}
+          <span>{notice.text}</span>
         </div>
       ) : null}
 
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-        Created by MIKPURINUT
-      </footer>
+      {/* Main 2-Column Balanced Executive Grid */}
+      <div className="mt-5 grid gap-6 xl:grid-cols-12 xl:items-start">
+        {/* LEFT COLUMN (7 cols): Plan Details, Benefits, Comparison & History */}
+        <div className="space-y-5 xl:col-span-7">
+          {/* Premium VIP Plan Showcase Card */}
+          <section className="overflow-hidden rounded-[26px] border border-slate-200/90 bg-white shadow-sm">
+            {/* Dark Forest-Green Hero Strip */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#142720] via-[#1C342B] to-[#0f172a] p-6 text-white">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(251,191,36,0.22),transparent_55%)]" />
+              <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-black text-amber-200 ring-1 ring-amber-300/35">
+                    <Crown size={13} aria-hidden="true" />
+                    แพ็กเกจแนะนำสำหรับครูและสถานศึกษา
+                  </span>
+                  <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{plan.name}</h2>
+                  <p className="mt-1.5 max-w-md text-xs font-semibold leading-5 text-emerald-100/80">
+                    ใช้งานได้ครบทุกฟีเจอร์ตลอด {durationDays} วันเต็ม สิทธิ์ครอบคลุมทั้งพื้นที่ทำงาน
+                  </p>
+                </div>
+
+                <div className="shrink-0 rounded-2xl border border-white/15 bg-white/10 px-5 py-3.5 text-left backdrop-blur-sm sm:text-right">
+                  {creditAmount > 0 ? (
+                    <p className="text-xs font-bold text-slate-300 line-through">{formatBaht(plan.price_thb)}</p>
+                  ) : null}
+                  <div className="flex items-baseline gap-1.5 sm:justify-end">
+                    <span className="text-3xl font-black tracking-tight text-amber-300">
+                      {formatBaht(payableAmount)}
+                    </span>
+                    <span className="text-xs font-bold text-emerald-100/80">/ {durationDays} วัน</span>
+                  </div>
+                  <p className="mt-1 text-[11px] font-semibold text-emerald-200/90">
+                    เฉลี่ยเพียง {formatBaht(monthlyApprox)} ต่อเดือน
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 6 Clear VIP Benefits Grid */}
+            <div className="p-5 sm:p-6">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-400">
+                สิทธิประโยชน์ที่ได้รับในแพ็กเกจ VIP
+              </p>
+              <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
+                {VIP_HIGHLIGHTS.map((item) => (
+                  <div
+                    key={item.title}
+                    className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5"
+                  >
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <Check size={14} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-slate-900">{item.title}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold leading-5 text-slate-500">{item.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Clean Free vs VIP Comparison Table */}
+          <section className="nexus-card overflow-hidden p-5 sm:p-6">
+            <h3 className="text-base font-black text-slate-950">เปรียบเทียบสิทธิ์การใช้งาน</h3>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">
+              ข้อมูลเดิมทั้งหมดจะยังคงอยู่ครบถ้วนเมื่ออัปเกรดเป็น VIP
+            </p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-left text-xs">
+                <thead>
+                  <tr className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="py-2.5 pr-4">รายการสิทธิ์</th>
+                    <th className="px-4 py-2.5 text-center">แพ็กเกจ Free</th>
+                    <th className="pl-4 py-2.5 text-center text-amber-700">ClassCare 360 VIP</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
+                  <tr>
+                    <td className="py-2.5 pr-4">จำนวนห้องเรียนที่ใช้งานได้</td>
+                    <td className="px-4 py-2.5 text-center text-slate-500">{planLimits.FREE_LOGIN.activeClassrooms} ห้อง</td>
+                    <td className="pl-4 py-2.5 text-center font-black text-emerald-700">
+                      สูงสุด {planLimits.VIP_YEARLY.activeClassrooms} ห้อง
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-4">จำนวนนักเรียนในระบบ</td>
+                    <td className="px-4 py-2.5 text-center text-slate-500">{planLimits.FREE_LOGIN.activeStudents} คน</td>
+                    <td className="pl-4 py-2.5 text-center font-black text-emerald-700">
+                      สูงสุด {planLimits.VIP_YEARLY.activeStudents.toLocaleString('th-TH')} คน
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-4">จำนวนครูผู้ร่วมงานในโรงเรียน</td>
+                    <td className="px-4 py-2.5 text-center text-slate-500">{planLimits.FREE_LOGIN.collaborators} บัญชี</td>
+                    <td className="pl-4 py-2.5 text-center font-black text-emerald-700">
+                      สูงสุด {planLimits.VIP_YEARLY.collaborators} บัญชี
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-4">คะแนน ตัดเกรด OMR เงินออม พฤติกรรม &amp; ปพ.</td>
+                    <td className="px-4 py-2.5 text-center text-slate-400">จำกัดเฉพาะเช็กชื่อพื้นฐาน</td>
+                    <td className="pl-4 py-2.5 text-center font-black text-emerald-700">เปิดใช้งานครบทุกโมดูล</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-4">ผู้ช่วยอัจฉริยะ ClassCare AI (Gemini) &amp; OCR</td>
+                    <td className="px-4 py-2.5 text-center text-slate-400">โหมดแนะนำการใช้งานเท่านั้น</td>
+                    <td className="pl-4 py-2.5 text-center font-black text-emerald-700">ปลดล็อกเต็มรูปแบบ</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Payment Request History */}
+          <section className="nexus-card p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-950">ประวัติการแจ้งชำระเงิน</h3>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                  ติดตามสถานะการตรวจสอบสลิปและการต่ออายุของพื้นที่ทำงานนี้
+                </p>
+              </div>
+              <ReceiptText size={20} className="text-slate-400" aria-hidden="true" />
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              {requests.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-5 text-center text-xs font-bold text-slate-500">
+                  ยังไม่มีประวัติการแจ้งชำระเงินในพื้นที่ทำงานนี้
+                </div>
+              ) : (
+                requests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ring-1 ${requestStatusTones[request.status]}`}
+                      >
+                        {request.status === 'pending_review' ? <Clock3 size={11} /> : null}
+                        {requestStatusLabels[request.status]}
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">
+                        {new Date(request.created_at).toLocaleString('th-TH', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </span>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-sm font-black text-slate-950">{formatBaht(request.payable_amount_thb)}</p>
+                      {request.credit_amount_thb > 0 ? (
+                        <p className="text-[11px] font-bold text-emerald-700">
+                          ใช้ส่วนลดเครดิต {formatBaht(request.credit_amount_thb)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* RIGHT COLUMN (5 cols): Sticky Checkout + VIP Code Redemption */}
+        <div className="space-y-5 xl:col-span-5 xl:sticky xl:top-20">
+          {!canCreateRequest ? (
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-5 text-amber-900">
+              <Lock size={16} className="mt-0.5 shrink-0 text-amber-600" />
+              <p>
+                การชำระเงินและการใช้โค้ด VIP ดำเนินการโดย<strong>เจ้าของพื้นที่ทำงาน</strong> เมื่อเปิดสิทธิ์แล้ว ครูทุกคนในโรงเรียนจะได้รับสิทธิ์ VIP ร่วมกันโดยอัตโนมัติ
+              </p>
+            </div>
+          ) : null}
+
+          {hasLifetimeVip ? (
+            <section className="nexus-card border-amber-200 bg-gradient-to-br from-amber-50/80 to-white p-6 text-center">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-amber-100 text-amber-700">
+                <Crown size={24} />
+              </span>
+              <h2 className="mt-3 text-lg font-black text-slate-950">บัญชีนี้ได้รับสิทธิ์ VIP ตลอดชีพแล้ว</h2>
+              <p className="mt-1.5 text-xs font-semibold leading-6 text-slate-600">
+                พื้นที่ทำงานของคุณสามารถใช้งานครบทุกโมดูลและผู้ช่วยอัจฉริยะ ClassCare AI ได้อย่างไม่จำกัดระยะเวลา โดยไม่จำเป็นต้องต่ออายุเพิ่มเติม
+              </p>
+            </section>
+          ) : (
+            <>
+              {/* Checkout Card: QR Payment & Slip Upload */}
+              <form className="nexus-card p-5 sm:p-6" onSubmit={handleCreatePaymentRequest}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-black text-[#1C342B]">
+                    <CreditCard size={16} className="text-[#2F7D5B]" aria-hidden="true" />
+                    ชำระเงินผ่าน QR และแนบสลิป
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">
+                    ยืนยันภายใน 24 ชม.
+                  </span>
+                </div>
+
+                {/* Price Breakdown Summary */}
+                <div className="mt-4 space-y-1.5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 text-xs">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span className="font-semibold">ค่าแพ็กเกจ ({durationDays} วัน)</span>
+                    <span className="font-bold">{formatBaht(plan.price_thb)}</span>
+                  </div>
+                  {creditAmount > 0 ? (
+                    <div className="flex items-center justify-between text-emerald-700">
+                      <span className="font-semibold">ส่วนลดเครดิตแนะนำ</span>
+                      <span className="font-bold">-{formatBaht(creditAmount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between border-t border-slate-200/80 pt-2 text-sm">
+                    <span className="font-black text-slate-900">ยอดโอนชำระสุทธิ</span>
+                    <span className="text-lg font-black text-[#1C342B]">{formatBaht(payableAmount)}</span>
+                  </div>
+                </div>
+
+                {/* Step 1: Payment QR Box */}
+                <div className="mt-4">
+                  <p className="text-xs font-black text-slate-700">1. ช่องทางการโอนเงิน</p>
+                  {paymentQr ? (
+                    <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                      {qrImageUrl ? (
+                        <img
+                          alt={paymentQr.display_name}
+                          className="mx-auto mb-3 aspect-square max-h-56 w-full max-w-56 rounded-xl border border-slate-100 object-contain p-1"
+                          src={qrImageUrl}
+                        />
+                      ) : null}
+                      <p className="text-sm font-black text-slate-950">{paymentQr.display_name}</p>
+                      <p className="mt-0.5 text-xs font-bold text-slate-600">
+                        {paymentQr.bank_name || 'พร้อมเพย์'} · {paymentQr.account_name || 'ClassCare 360'}
+                      </p>
+                      {paymentQr.account_hint ? (
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">{paymentQr.account_hint}</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs font-semibold leading-5 text-amber-900">
+                      <p className="font-black">ช่องทางชำระเงิน QR อยู่ระหว่างอัปเดตข้อมูลบัญชี</p>
+                      <p className="mt-1 text-amber-800">
+                        ท่านสามารถกรอกโค้ด VIP ด้านล่างเพื่อเปิดสิทธิ์ทันที หรือติดต่อผู้ดูแลระบบผ่านปุ่มแชทมุมขวาล่างเพื่อสอบถามเลขบัญชีโอนเงิน
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2: Slip Upload */}
+                <div className="mt-4">
+                  <p className="text-xs font-black text-slate-700">2. แนบหลักฐานการโอนเงิน (สลิป)</p>
+                  {slipFile ? (
+                    <div className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-black text-emerald-950">{slipFile.name}</p>
+                        <p className="text-[11px] font-semibold text-emerald-700">
+                          ขนาดไฟล์ {Math.max(1, Math.ceil(slipFile.size / 1024))} KB · พร้อมส่งตรวจสอบ
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSlipFile(null)}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white text-slate-500 ring-1 ring-slate-200 hover:text-rose-600"
+                        title="เปลี่ยนไฟล์สลิป"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-5 text-center transition hover:border-[#2F7D5B]/50 hover:bg-emerald-50/30">
+                      <FileUp className="text-[#2F7D5B]" size={22} aria-hidden="true" />
+                      <span className="mt-2 text-xs font-black text-slate-700">คลิกเพื่ออัปโหลดภาพสลิปหรือ PDF</span>
+                      <span className="mt-0.5 text-[11px] font-semibold text-slate-400">รองรับไฟล์ JPG, PNG, WebP หรือ PDF</span>
+                      <input
+                        accept="image/*,application/pdf"
+                        className="sr-only"
+                        disabled={!canCreateRequest || !paymentQr}
+                        onChange={(event) => setSlipFile(event.target.files?.[0] || null)}
+                        type="file"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Optional Note */}
+                <label className="mt-3.5 block text-xs font-black text-slate-700">
+                  หมายเหตุเพิ่มเติม (ไม่บังคับ)
+                  <input
+                    className="nexus-field mt-1.5 h-10 w-full px-3 text-xs font-bold"
+                    disabled={!canCreateRequest || !paymentQr}
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    placeholder="เช่น ชื่อผู้โอน หรือเวลาโอนเงิน"
+                    type="text"
+                    value={reviewNote}
+                  />
+                </label>
+
+                <button
+                  className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={isSubmitting || isLoading || !canCreateRequest || !paymentQr || !slipFile}
+                  type="submit"
+                >
+                  <CreditCard size={16} aria-hidden="true" />
+                  {isSubmitting
+                    ? 'กำลังส่งหลักฐานการชำระเงิน...'
+                    : `ยืนยันการชำระเงิน (${formatBaht(payableAmount)})`}
+                </button>
+
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] font-semibold text-slate-400">
+                  <ShieldCheck size={13} className="shrink-0 text-emerald-600" aria-hidden="true" />
+                  หลักฐานการโอนเงินถูกเก็บรักษาอย่างปลอดภัยและตรวจสอบโดยเจ้าหน้าที่
+                </p>
+              </form>
+
+              {/* VIP Code Redemption Card */}
+              <form className="nexus-card p-5" onSubmit={handleRedeemVipCode}>
+                <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+                  <KeyRound size={15} className="text-amber-600" aria-hidden="true" />
+                  เปิดสิทธิ์ด้วยโค้ด VIP
+                </div>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                  หากได้รับรหัสโค้ดจากโครงการหรือผู้ดูแลระบบ สามารถกรอกเพื่อเพิ่มวันใช้งาน VIP ได้ทันที
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    autoCapitalize="characters"
+                    className="nexus-field h-10 min-w-0 flex-1 px-3 font-mono text-xs font-black uppercase tracking-wider"
+                    disabled={!canCreateRequest || isRedeemingCode}
+                    onChange={(event) => setVipCode(event.target.value.toUpperCase())}
+                    placeholder="CC360-XXXXXXXXXXXX"
+                    value={vipCode}
+                  />
+                  <button
+                    className="dark-action inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black disabled:opacity-45"
+                    disabled={!canCreateRequest || isRedeemingCode || !vipCode.trim()}
+                    type="submit"
+                  >
+                    <KeyRound size={14} aria-hidden="true" />
+                    {isRedeemingCode ? 'กำลังตรวจ...' : 'ใช้โค้ด'}
+                  </button>
+                </div>
+                {codeNotice ? (
+                  <div
+                    className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black ${
+                      codeNotice.tone === 'error'
+                        ? 'border-rose-200 bg-rose-50 text-rose-800'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    }`}
+                  >
+                    {codeNotice.tone === 'error' ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+                    <span>{codeNotice.text}</span>
+                  </div>
+                ) : null}
+              </form>
+            </>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
