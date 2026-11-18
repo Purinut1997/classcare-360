@@ -42,29 +42,60 @@ begin
   end if;
 
   return query
-  with membership_agg as (
+  with combined_memberships as (
     select
       wm.profile_id,
-      count(distinct wm.workspace_id)::integer as ws_count,
-      count(distinct case when w.owner_profile_id = wm.profile_id then wm.workspace_id end)::integer as owned_count,
+      w.id as workspace_id,
+      w.name as workspace_name,
+      coalesce(nullif(trim(w.school_name), ''), w.name) as school_name,
+      wm.role,
+      wm.status,
+      (w.owner_profile_id = wm.profile_id) as is_owner,
+      w.created_at as ws_created_at
+    from public.workspace_memberships wm
+    join public.workspaces w on w.id = wm.workspace_id
+    where wm.status <> 'removed'
+      and w.archived_at is null
+    union
+    select
+      w.owner_profile_id as profile_id,
+      w.id as workspace_id,
+      w.name as workspace_name,
+      coalesce(nullif(trim(w.school_name), ''), w.name) as school_name,
+      'teacher_owner'::text as role,
+      'active'::text as status,
+      true as is_owner,
+      w.created_at as ws_created_at
+    from public.workspaces w
+    where w.archived_at is null
+      and not exists (
+        select 1 from public.workspace_memberships wm2
+        where wm2.workspace_id = w.id
+          and wm2.profile_id = w.owner_profile_id
+          and wm2.status <> 'removed'
+      )
+  ),
+  membership_agg as (
+    select
+      cm.profile_id,
+      count(distinct cm.workspace_id)::integer as ws_count,
+      count(distinct case when cm.is_owner then cm.workspace_id end)::integer as owned_count,
       coalesce(
         jsonb_agg(
           jsonb_build_object(
-            'workspace_id', w.id,
-            'workspace_name', w.name,
-            'school_name', coalesce(nullif(trim(w.school_name), ''), w.name),
-            'role', wm.role,
-            'status', wm.status,
-            'is_owner', (w.owner_profile_id = wm.profile_id)
+            'workspace_id', cm.workspace_id,
+            'workspace_name', cm.workspace_name,
+            'school_name', cm.school_name,
+            'role', cm.role,
+            'status', cm.status,
+            'is_owner', cm.is_owner
           )
-          order by (w.owner_profile_id = wm.profile_id) desc, w.created_at asc
-        ) filter (where w.id is not null),
+          order by cm.is_owner desc, cm.ws_created_at asc
+        ),
         '[]'::jsonb
       ) as ws_list
-    from public.workspace_members wm
-    join public.workspaces w on w.id = wm.workspace_id
-    where wm.status <> 'removed'
-    group by wm.profile_id
+    from combined_memberships cm
+    group by cm.profile_id
   )
   select
     p.id as profile_id,
@@ -368,14 +399,14 @@ begin
     raise exception 'cannot_remove_workspace_owner';
   end if;
 
-  delete from public.workspace_members
+  delete from public.workspace_memberships
   where profile_id = target_profile_id
     and workspace_id = target_workspace_id;
 
   insert into public.audit_logs (
     workspace_id, actor_profile_id, entity_table, entity_id, action, risk_level, metadata
   ) values (
-    target_workspace_id, auth.uid(), 'workspace_members', target_profile_id,
+    target_workspace_id, auth.uid(), 'workspace_memberships', target_profile_id,
     'superadmin_workspace_member_removed', 'high',
     jsonb_build_object('target_profile_id', target_profile_id, 'target_workspace_id', target_workspace_id)
   );
@@ -464,7 +495,7 @@ begin
       set owner_profile_id = actor_id, updated_at = now()
       where id = owned_ws.id;
 
-      insert into public.workspace_members (workspace_id, profile_id, role, status)
+      insert into public.workspace_memberships (workspace_id, profile_id, role, status)
       values (owned_ws.id, actor_id, 'teacher_owner', 'active')
       on conflict (workspace_id, profile_id)
       do update set role = 'teacher_owner', status = 'active';
@@ -473,7 +504,7 @@ begin
 
   -- Clean up satellite user-owned rows that should not be reassigned
   delete from public.superadmin_profiles where profile_id = target_profile_id;
-  delete from public.workspace_members where profile_id = target_profile_id;
+  delete from public.workspace_memberships where profile_id = target_profile_id;
   if to_regclass('public.referrals') is not null then
     execute 'delete from public.referrals where referrer_profile_id = $1 or referred_profile_id = $1' using target_profile_id;
   end if;

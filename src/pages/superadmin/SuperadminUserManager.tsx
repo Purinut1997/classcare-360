@@ -151,8 +151,8 @@ function generateStrongPassword(length = 12) {
 
 function getWorkspaceRoleLabel(role: string, isOwner: boolean) {
   if (isOwner || role === 'teacher_owner') return 'เจ้าของ';
-  if (role === 'teacher_editor') return 'ครูร่วมสอน';
-  if (role === 'teacher_viewer') return 'ผู้ดูข้อมูล';
+  if (role === 'teacher_member' || role === 'teacher_editor') return 'ครูร่วมสอน';
+  if (role === 'viewer' || role === 'teacher_viewer') return 'ผู้ดูข้อมูล';
   if (role === 'parent') return 'ผู้ปกครอง';
   if (role === 'student') return 'นักเรียน';
   return role;
@@ -304,22 +304,34 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
     const [candidatesRes, profilesRes, membersRes, workspacesRes] = await Promise.all([
       supabase.rpc('list_admin_access_candidates', { search_text: null }),
       supabase.from('profiles').select('id,email,display_name,phone,account_status,created_at,last_login_at').limit(500),
-      supabase.from('workspace_members').select('workspace_id,profile_id,role,status').limit(1000),
-      supabase.from('workspaces').select('id,name,school_name,owner_profile_id').limit(500),
+      supabase.from('workspace_memberships').select('workspace_id,profile_id,role,status').limit(1000),
+      supabase.from('workspaces').select('id,name,school_name,owner_profile_id,archived_at').limit(500),
     ]);
 
-    const wsById = new Map(
-      ((workspacesRes.data || []) as Array<{ id: string; name: string; school_name: string | null; owner_profile_id: string }>).map(
-        (w) => [w.id, w],
-      ),
-    );
+    const activeWorkspaces = (
+      (workspacesRes.data || []) as Array<{
+        id: string;
+        name: string;
+        school_name: string | null;
+        owner_profile_id: string;
+        archived_at?: string | null;
+      }>
+    ).filter((w) => !w.archived_at);
+
+    const wsById = new Map(activeWorkspaces.map((w) => [w.id, w]));
     const membersByProfile = new Map<string, ManagedUserWorkspace[]>();
+    const addMembership = (profileId: string, item: ManagedUserWorkspace) => {
+      const list = membersByProfile.get(profileId) || [];
+      if (list.some((existing) => existing.workspace_id === item.workspace_id)) return;
+      list.push(item);
+      membersByProfile.set(profileId, list);
+    };
+
     ((membersRes.data || []) as Array<{ workspace_id: string; profile_id: string; role: string; status: string }>).forEach((m) => {
       if (m.status === 'removed') return;
       const ws = wsById.get(m.workspace_id);
       if (!ws) return;
-      const list = membersByProfile.get(m.profile_id) || [];
-      list.push({
+      addMembership(m.profile_id, {
         workspace_id: ws.id,
         workspace_name: ws.name,
         school_name: ws.school_name || ws.name,
@@ -327,7 +339,18 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
         status: m.status,
         is_owner: ws.owner_profile_id === m.profile_id,
       });
-      membersByProfile.set(m.profile_id, list);
+    });
+
+    activeWorkspaces.forEach((ws) => {
+      if (!ws.owner_profile_id) return;
+      addMembership(ws.owner_profile_id, {
+        workspace_id: ws.id,
+        workspace_name: ws.name,
+        school_name: ws.school_name || ws.name,
+        role: 'teacher_owner',
+        status: 'active',
+        is_owner: true,
+      });
     });
 
     const profileMap = new Map(
