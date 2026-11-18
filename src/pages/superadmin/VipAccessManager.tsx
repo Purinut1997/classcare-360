@@ -139,8 +139,8 @@ export function VipAccessManager() {
       { data: codeRows, error: codeError },
       { data: workspaceRows, error: wsError },
     ] = await Promise.all([
-      supabase.from('plans').select('duration_days').eq('code', 'TRIAL_30').single(),
-      supabase.from('plans').select('price_thb,duration_days').eq('code', 'VIP_YEARLY').single(),
+      supabase.from('plans').select('duration_days').eq('code', 'TRIAL_30').maybeSingle(),
+      supabase.from('plans').select('price_thb,duration_days').eq('code', 'VIP_YEARLY').maybeSingle(),
       supabase
         .from('vip_redemption_codes')
         .select('id,code_prefix,label,duration_days,max_redemptions,redemption_count,expires_at,is_active,created_at')
