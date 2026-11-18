@@ -16,7 +16,12 @@ import {
 } from 'lucide-react';
 import { AppNavigationLink as Link } from '../navigation/ContextLink';
 
-import { canUseModule, getVipUpgradeMeta, isLifetimeVip } from '../../lib/entitlements';
+import { getVipUpgradeMeta, isLifetimeVip } from '../../lib/entitlements';
+import {
+  canAccessViewByPlan,
+  getRequiredTierBadgeLabel,
+  usePlanAccessPolicies,
+} from '../../lib/planAccessPolicy';
 import type { AppNavItem } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
 import { AppLogo } from '../brand/AppLogo';
@@ -116,9 +121,11 @@ export function Sidebar({
   session,
 }: SidebarProps) {
   const maintenanceSet = new Set(maintenanceKeys);
+  const planPolicies = usePlanAccessPolicies();
   const isSuperadmin = session?.profile.role === 'superadmin';
+  const vipBadgeLabel = getRequiredTierBadgeLabel(session);
   const isItemVipLocked = (item: AppNavItem) =>
-    Boolean(session && !isSuperadmin && !canUseModule(session.subscription, item.moduleKey));
+    Boolean(session && !isSuperadmin && !canAccessViewByPlan(session, item.key, item.moduleKey, planPolicies));
   const showVipUpgradeMenu = Boolean(
     session && !isLifetimeVip(session.subscription, session.profile.role),
   );
@@ -265,7 +272,7 @@ export function Sidebar({
                 {allItemsVipLocked ? (
                   <span className="mr-1 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
                     <Lock size={8} aria-hidden="true" />
-                    VIP
+                    {vipBadgeLabel}
                   </span>
                 ) : null}
                 <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-[#9fc0ae]" aria-hidden="true" />
@@ -296,7 +303,7 @@ export function Sidebar({
                       ) : isVipLocked ? (
                         <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40">
                           <Lock size={9} aria-hidden="true" />
-                          VIP
+                          {vipBadgeLabel}
                         </span>
                       ) : !isActive ? (
                         <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />

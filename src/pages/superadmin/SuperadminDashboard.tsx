@@ -51,6 +51,7 @@ import { SuperadminAuditCenter } from './SuperadminAuditCenter';
 import { SuperadminBackupCenter } from './SuperadminBackupCenter';
 import { SuperadminHealthCenter } from './SuperadminHealthCenter';
 import { SuperadminModuleMaintenance } from './SuperadminModuleMaintenance';
+import { SuperadminPlanAccessMatrix } from '../../components/superadmin/SuperadminPlanAccessMatrix';
 import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 import { SuperadminUserManager } from './SuperadminUserManager';
 import { SuperadminWorkspaceModal, type WorkspaceModalTarget } from './SuperadminWorkspaceModal';
@@ -591,7 +592,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [showSubHistory, setShowSubHistory] = useState(false);
   const [showRoleMatrix, setShowRoleMatrix] = useState(false);
   const [pausedModulesCount, setPausedModulesCount] = useState(0);
-  const [broadcastSubTab, setBroadcastSubTab] = useState<'modules' | 'global'>('modules');
+  const [broadcastSubTab, setBroadcastSubTab] = useState<'modules' | 'global' | 'plan_access'>('modules');
 
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
   const archivedWorkspaceCount = workspaces.length - activeWorkspaceCount;
@@ -2855,10 +2856,22 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   <span className={`h-2 w-2 rounded-full ${broadcastForm.maintenanceLock ? 'bg-rose-500 animate-pulse' : 'bg-sky-400'}`} />
                 ) : null}
               </button>
+              <button
+                type="button"
+                onClick={() => setBroadcastSubTab('plan_access')}
+                className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                  broadcastSubTab === 'plan_access' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Crown size={15} className={broadcastSubTab === 'plan_access' ? 'text-amber-300' : 'text-slate-400'} />
+                <span>3. สิทธิ์เข้าถึงตามแพ็กเกจ (Free / VIP)</span>
+              </button>
             </div>
 
             {broadcastSubTab === 'modules' ? (
               <SuperadminModuleMaintenance onStatusChanged={setPausedModulesCount} />
+            ) : broadcastSubTab === 'plan_access' ? (
+              <SuperadminPlanAccessMatrix />
             ) : (
             <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
             <div className="nexus-card p-5 sm:p-6">

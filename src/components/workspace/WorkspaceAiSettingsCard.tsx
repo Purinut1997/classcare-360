@@ -30,6 +30,7 @@ import {
   saveWorkspaceAiConfig,
   type EffectiveAiConfig,
 } from '../../lib/aiSettings';
+import { usePlanAccessPolicies } from '../../lib/planAccessPolicy';
 import type { AppSessionContext } from '../../types/core';
 
 interface WorkspaceAiSettingsCardProps {
@@ -37,6 +38,7 @@ interface WorkspaceAiSettingsCardProps {
 }
 
 export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProps) {
+  usePlanAccessPolicies();
   const isVip = isUserVip(session);
   const isOwnerOrAdmin =
     session.profile.role === 'superadmin' || session.profile.role === 'teacher_owner';

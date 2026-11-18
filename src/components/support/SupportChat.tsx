@@ -75,6 +75,7 @@ import {
   saveWorkspaceAiConfig,
   type EffectiveAiConfig,
 } from "../../lib/aiSettings";
+import { usePlanAccessPolicies } from "../../lib/planAccessPolicy";
 import { fetchLiveSchoolDataContext } from "../../lib/schoolContextService";
 import { getThaiPublicHolidays, resolveCalendarYear } from "../../lib/thaiHolidays";
 
@@ -124,6 +125,7 @@ export function SupportChat({
   session: AppSessionContext;
 }) {
   const navigate = useNavigate();
+  usePlanAccessPolicies();
   const isVip = isUserVip(session);
 
   // Widget Open State

@@ -9,7 +9,12 @@ import {
   withDemoContext,
   type DemoSessionMode,
 } from '../lib/auth';
-import { canUseModule } from '../lib/entitlements';
+import {
+  canAccessViewByPlan,
+  getUserAccessTier,
+  usePlanAccessPolicies,
+  type PlanAccessPolicyMap,
+} from '../lib/planAccessPolicy';
 import { canManageWorkspace, roleLabels } from '../lib/roles';
 import type { AppSessionContext, ModuleKey, WorkspaceRole } from '../types/core';
 
@@ -23,8 +28,10 @@ type RouteGuardReason =
 interface RouteGuardConfig {
   allowedRoles?: WorkspaceRole[];
   moduleKey?: ModuleKey;
+  planPolicies?: PlanAccessPolicyMap;
   requireWorkspace?: boolean;
   session: AppSessionContext | null;
+  viewKey?: string;
 }
 
 interface RouteGuardResult {
@@ -44,8 +51,10 @@ const blockedAccountStatuses = ['suspended', 'cancelled'] as const;
 function evaluateRouteAccess({
   allowedRoles,
   moduleKey,
+  planPolicies,
   requireWorkspace = true,
   session,
+  viewKey,
 }: RouteGuardConfig): RouteGuardResult {
   if (!session) {
     return {
@@ -83,12 +92,20 @@ function evaluateRouteAccess({
     };
   }
 
-  if (moduleKey && session.profile.role !== 'superadmin' && !canUseModule(session.subscription, moduleKey)) {
+  if (
+    (moduleKey || viewKey) &&
+    session.profile.role !== 'superadmin' &&
+    !canAccessViewByPlan(session, viewKey, moduleKey, planPolicies)
+  ) {
+    const tier = getUserAccessTier(session);
+    const isTempVip = tier === 'temp_vip';
     return {
       passed: false,
       reason: 'module-denied',
-      title: 'เมนูนี้จำกัดสิทธิ์เฉพาะสมาชิก VIP',
-      detail: 'แพ็กเกจปัจจุบันยังไม่รวมสิทธิ์การใช้งานเมนูนี้ ข้อมูลเดิมทั้งหมดยังคงปลอดภัย สามารถสมัครแพ็กเกจ VIP หรือกรอกโค้ด VIP เพื่อปลดล็อกทุกโมดูลและผู้ช่วย AI ได้ทันที',
+      title: isTempVip ? 'เมนูนี้สงวนสิทธิ์สำหรับสมาชิก VIP ถาวร' : 'เมนูนี้จำกัดสิทธิ์เฉพาะสมาชิก VIP',
+      detail: isTempVip
+        ? 'สิทธิ์ VIP ชั่วคราวในปัจจุบันยังไม่รวมเมนูนี้ หากต้องการปลดล็อกเพิ่มเติม กรุณาติดต่อผู้ดูแลระบบหรืออัปเกรดสิทธิ์ VIP'
+        : 'แพ็กเกจปัจจุบันยังไม่รวมสิทธิ์การใช้งานเมนูนี้ ข้อมูลเดิมทั้งหมดยังคงปลอดภัย สามารถสมัครแพ็กเกจ VIP หรือกรอกโค้ด VIP เพื่อปลดล็อกทุกโมดูลและผู้ช่วย AI ได้ทันที',
     };
   }
 
@@ -233,12 +250,22 @@ export function RequireRouteAccess({
   moduleKey,
   requireWorkspace,
   session,
+  viewKey,
 }: RequireRouteAccessProps) {
+  const location = useLocation();
+  const planPolicies = usePlanAccessPolicies();
+  const resolvedViewKey =
+    viewKey ||
+    new URLSearchParams(location.search).get('view') ||
+    (location.pathname.includes('/app/package') ? 'package' : 'overview');
+
   const result = evaluateRouteAccess({
     allowedRoles,
     moduleKey,
+    planPolicies,
     requireWorkspace,
     session,
+    viewKey: resolvedViewKey,
   });
 
   if (!result.passed) {

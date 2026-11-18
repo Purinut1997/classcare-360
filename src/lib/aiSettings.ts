@@ -1,5 +1,5 @@
 import { supabase, isSupabaseReady } from './supabaseClient';
-import { getEffectivePlanCode } from './entitlements';
+import { canUseAiGeminiByPlan } from './planAccessPolicy';
 import type { AppSessionContext } from '../types/core';
 import type { GeminiModelId } from './geminiClient';
 
@@ -13,9 +13,7 @@ export interface EffectiveAiConfig {
 }
 
 export function isUserVip(session: AppSessionContext | null | undefined): boolean {
-  if (!session) return false;
-  if (session.profile?.role === 'superadmin') return true;
-  return getEffectivePlanCode(session.subscription) === 'VIP_YEARLY';
+  return canUseAiGeminiByPlan(session);
 }
 
 function normalizeStoredModel(m?: string | null): GeminiModelId {
