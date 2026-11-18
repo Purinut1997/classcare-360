@@ -1,4 +1,5 @@
 import { supabase, isSupabaseReady } from './supabaseClient';
+import { getEffectivePlanCode } from './entitlements';
 import type { AppSessionContext } from '../types/core';
 import type { GeminiModelId } from './geminiClient';
 
@@ -14,7 +15,7 @@ export interface EffectiveAiConfig {
 export function isUserVip(session: AppSessionContext | null | undefined): boolean {
   if (!session) return false;
   if (session.profile?.role === 'superadmin') return true;
-  return session.subscription?.planCode === 'VIP_YEARLY';
+  return getEffectivePlanCode(session.subscription) === 'VIP_YEARLY';
 }
 
 function normalizeStoredModel(m?: string | null): GeminiModelId {
@@ -45,7 +46,8 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
     canConfigurePersonal: isSuperadmin || isVip,
   };
 
-  if (!session) return result;
+  // Enforce VIP entitlement strictly: non-VIP / expired accounts never receive or execute Gemini API keys
+  if (!session || !isVip) return result;
 
   const workspaceId = session.workspace?.id;
   const profileId = session.profile?.id;
@@ -241,6 +243,10 @@ export async function savePersonalAiConfig(
   const profileId = session.profile.id;
   const cleanKey = apiKey.trim();
 
+  if (cleanKey.length > 0 && !isUserVip(session)) {
+    throw new Error('สิทธิ์การตั้งค่า Google Gemini API Key สงวนไว้สำหรับสมาชิกแพ็กเกจ VIP เท่านั้น');
+  }
+
   // 1. Immediate local cache for responsive UI
   if (cleanKey.length > 5) {
     localStorage.setItem(`classcare_personal_ai_key_${profileId}`, cleanKey);
@@ -301,6 +307,10 @@ export async function saveWorkspaceAiConfig(
   const workspaceId = session.workspace?.id;
   if (!workspaceId) return;
   const cleanKey = apiKey.trim();
+
+  if (cleanKey.length > 0 && !isUserVip(session)) {
+    throw new Error('สิทธิ์การตั้งค่า Google Gemini API Key ประจำโรงเรียนสงวนไว้สำหรับสมาชิกแพ็กเกจ VIP เท่านั้น');
+  }
 
   // 1. Immediate local cache
   if (cleanKey.length > 5) {

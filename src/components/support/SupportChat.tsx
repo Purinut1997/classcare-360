@@ -23,6 +23,7 @@ import {
   Key,
   LifeBuoy,
   Lightbulb,
+  Lock,
   MessageCircle,
   MessageSquare,
   Palette,
@@ -67,6 +68,7 @@ import {
   deletePersonalAiConfig,
   deleteWorkspaceAiConfig,
   getEffectiveAiConfig,
+  isUserVip,
   savePersonalAiConfig,
   saveWorkspaceAiConfig,
   type EffectiveAiConfig,
@@ -120,6 +122,7 @@ export function SupportChat({
   session: AppSessionContext;
 }) {
   const navigate = useNavigate();
+  const isVip = isUserVip(session);
 
   // Widget Open State
   const [open, setOpen] = useState(false);
@@ -262,6 +265,11 @@ export function SupportChat({
     const config = await getEffectiveAiConfig(session);
     setAiConfig(config);
     setSelectedModel(config.model);
+
+    if (!config.isVip) {
+      setCustomKeyInput("");
+      return;
+    }
 
     const pKey = session?.profile?.id
       ? localStorage.getItem(`classcare_personal_ai_key_${session.profile.id}`) || ""
@@ -511,7 +519,7 @@ export function SupportChat({
 
       let rawResponse: string;
 
-      if (activeKey && activeKey.length > 10) {
+      if (isVip && activeKey && activeKey.length > 10) {
         // Fetch live factual school data (students, attendance, classrooms)
         const liveSchoolContext = await fetchLiveSchoolDataContext(
           session,
@@ -769,6 +777,10 @@ export function SupportChat({
 
   // Test API Key
   const handleTestKey = async () => {
+    if (!isVip) {
+      setTestResult({ success: false, message: "สิทธิ์การเชื่อมต่อ Google Gemini AI สงวนไว้สำหรับสมาชิกแพ็กเกจ VIP เท่านั้น" });
+      return;
+    }
     if (!customKeyInput.trim()) {
       setTestResult({ success: false, message: "กรุณาระบุ API Key ก่อนทดสอบ" });
       return;
@@ -785,14 +797,26 @@ export function SupportChat({
 
   // Save API Key Configuration
   const handleSaveConfig = async () => {
-    if (keyScope === "workspace") {
-      await saveWorkspaceAiConfig(session, customKeyInput, selectedModel);
-    } else {
-      await savePersonalAiConfig(session, customKeyInput, selectedModel);
+    if (!isVip) {
+      setIsSettingsOpen(false);
+      setTestResult(null);
+      return;
     }
-    await loadAiConfig();
-    setIsSettingsOpen(false);
-    setTestResult(null);
+    try {
+      if (keyScope === "workspace") {
+        await saveWorkspaceAiConfig(session, customKeyInput, selectedModel);
+      } else {
+        await savePersonalAiConfig(session, customKeyInput, selectedModel);
+      }
+      await loadAiConfig();
+      setIsSettingsOpen(false);
+      setTestResult(null);
+    } catch (err) {
+      setTestResult({
+        success: false,
+        message: err instanceof Error ? err.message : "บันทึกการตั้งค่าไม่สำเร็จ",
+      });
+    }
   };
 
   // Delete API Key Configuration
@@ -1315,8 +1339,12 @@ export function SupportChat({
                     <Key size={17} />
                   </span>
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">ตั้งค่า Google Gemini AI</h3>
-                    <p className="text-[10px] text-slate-500 font-medium">ปรับแต่งคีย์และโมเดลตามต้องการ</p>
+                    <h3 className="text-sm font-black text-slate-900">
+                      {isVip ? "ตั้งค่า Google Gemini AI" : "ตั้งค่าผู้ช่วย AI น้องแคร์"}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {isVip ? "ปรับแต่งคีย์และโมเดลตามต้องการ" : "ปรับตัวละครและคำลงท้าย · โหมด Free"}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1330,15 +1358,43 @@ export function SupportChat({
 
               <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
                 {/* VIP Indicator */}
-                <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3 text-amber-900 shadow-2xs">
-                  <span className="font-black flex items-center gap-1.5 text-amber-800">
-                    <Crown size={14} className="text-amber-600" />
-                    <span>สิทธิ์การใช้งานระดับ VIP:</span>
-                  </span>
-                  <p className="mt-1 text-[11px] text-amber-700/90 leading-relaxed">
-                    สามารถใส่ Google Gemini API Key เพื่อปลดล็อกการแชทวิเคราะห์ข้อมูลและการตอบคำถามอิสระฟรี 100%
-                  </p>
-                </div>
+                {isVip ? (
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3 text-amber-900 shadow-2xs">
+                    <span className="font-black flex items-center gap-1.5 text-amber-800">
+                      <Crown size={14} className="text-amber-600" />
+                      <span>สิทธิ์การใช้งานระดับ VIP:</span>
+                    </span>
+                    <p className="mt-1 text-[11px] text-amber-700/90 leading-relaxed">
+                      สามารถใส่ Google Gemini API Key เพื่อปลดล็อกการแชทวิเคราะห์ข้อมูลและการตอบคำถามอิสระ
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-3.5 text-amber-900 shadow-2xs">
+                    <div className="flex items-start gap-2.5">
+                      <Lock size={15} className="mt-0.5 shrink-0 text-amber-600" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-amber-900">
+                          การเชื่อมต่อ Google Gemini API Key เป็นสิทธิ์เฉพาะแพ็กเกจ VIP
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-amber-800/90">
+                          บัญชี Free ยังคงปรับหน้าตามาสคอต คำลงท้าย และถามวิธีใช้งานระบบจากน้องแคร์ได้ตามปกติ หากต้องการปลดล็อก AI วิเคราะห์ข้อมูลเชิงลึก กรุณาอัปเกรดเป็น VIP
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSettingsOpen(false);
+                            setOpen(false);
+                            navigate("/app/package");
+                          }}
+                          className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-indigo-600 px-3.5 py-1.5 text-[11px] font-black text-white shadow-xs hover:from-amber-500 hover:to-indigo-500"
+                        >
+                          <Sparkles size={12} />
+                          ดูรายละเอียดแพ็กเกจ VIP
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Cute Mascot Selection */}
                 <div className="rounded-2xl border border-[#DCE3D7] bg-gradient-to-b from-[#FAFBF8] via-white to-[#E9F0EA]/40 p-3.5 shadow-2xs space-y-2.5">
@@ -1440,6 +1496,8 @@ export function SupportChat({
                   </div>
                 </div>
 
+                {isVip ? (
+                  <>
                 {/* Scope Selection */}
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">
@@ -1708,36 +1766,50 @@ export function SupportChat({
                     )}
                   </div>
                 )}
+                  </>
+                ) : null}
               </div>
 
               {/* Settings Action Buttons Footer */}
               <div className="flex gap-2 p-4 border-t border-slate-200 bg-white shadow-xs">
-                {customKeyInput.trim() && (
+                {isVip ? (
+                  <>
+                    {customKeyInput.trim() && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteKey}
+                        title="ลบ Key นี้ออกจากระบบ"
+                        className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs flex items-center gap-1 shrink-0"
+                      >
+                        <Trash2 size={14} />
+                        <span>ลบ Key</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleTestKey}
+                      disabled={isTesting || !customKeyInput.trim()}
+                      className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                    >
+                      {isTesting ? "กำลังตรวจ..." : "ทดสอบ"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveConfig}
+                      className="flex-1 rounded-xl bg-[#1C342B] hover:bg-[#2F7D5B] py-2.5 text-xs font-bold text-white shadow-sm transition"
+                    >
+                      บันทึกการตั้งค่า
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    onClick={handleDeleteKey}
-                    title="ลบ Key นี้ออกจากระบบ"
-                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs flex items-center gap-1 shrink-0"
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="flex-1 rounded-xl bg-[#1C342B] hover:bg-[#2F7D5B] py-2.5 text-xs font-bold text-white shadow-sm transition"
                   >
-                    <Trash2 size={14} />
-                    <span>ลบ Key</span>
+                    เสร็จสิ้น
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={handleTestKey}
-                  disabled={isTesting || !customKeyInput.trim()}
-                  className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                >
-                  {isTesting ? "กำลังตรวจ..." : "ทดสอบ"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveConfig}
-                  className="flex-1 rounded-xl bg-[#1C342B] hover:bg-[#2F7D5B] py-2.5 text-xs font-bold text-white shadow-sm transition"
-                >
-                  บันทึกการตั้งค่า
-                </button>
               </div>
             </div>
           )}
