@@ -1223,7 +1223,7 @@ function buildSavingsGrid({
         !(isTargetStudent1Or2 && tx.transaction_date.startsWith('2026-10')),
     );
 
-    let openingTxTotal = 0;
+    let latestOpeningTx: SavingsTransactionRow | null = null;
     const periodRegularTxs: SavingsTransactionRow[] = [];
 
     allStudentTxs.forEach((tx) => {
@@ -1233,13 +1233,16 @@ function buildSavingsGrid({
         (typeof tx.note === 'string' && (tx.note.includes('ยอดยกมา') || tx.note.includes('เปิดบัญชีต้นงวด')));
 
       if (isOpening) {
-        openingTxTotal += Number(tx.amount || 0);
+        if (!latestOpeningTx || (tx.created_at || '').localeCompare(latestOpeningTx.created_at || '') > 0) {
+          latestOpeningTx = tx;
+        }
       } else if (tx.transaction_date >= dateFrom && tx.transaction_date <= dateTo) {
         periodRegularTxs.push(tx);
       }
     });
 
-    let openingBalance = metaOpening > 0 ? metaOpening : openingTxTotal;
+    const latestOpeningTxAmount = latestOpeningTx ? Number((latestOpeningTx as SavingsTransactionRow).amount || 0) : 0;
+    let openingBalance = metaOpening > 0 ? metaOpening : latestOpeningTxAmount;
     if (openingBalance === 0) {
       if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) {
         openingBalance = 2896;
@@ -1284,8 +1287,14 @@ function buildSavingsGrid({
 
     const ledgerBalance = Math.max(0, openingBalance + rowNet);
     const rawAccountBalance = account !== undefined ? Number(account.balance || 0) : null;
+    const isMissingOpeningInDb =
+      rawAccountBalance !== null &&
+      openingBalance > 0 &&
+      withdrawalsInPeriod === 0 &&
+      rawAccountBalance < openingBalance &&
+      Math.abs(rawAccountBalance + openingBalance - ledgerBalance) < 0.01;
     const totalBalance =
-      rawAccountBalance !== null && (rawAccountBalance > 0 || (openingBalance === 0 && rowNet === 0))
+      rawAccountBalance !== null && !isMissingOpeningInDb && (rawAccountBalance > 0 || (openingBalance === 0 && rowNet === 0))
         ? rawAccountBalance
         : ledgerBalance;
 

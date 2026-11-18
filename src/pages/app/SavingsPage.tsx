@@ -289,18 +289,13 @@ export function SavingsPage({ session }: SavingsPageProps) {
     [classroomStudents, selectedStudentId],
   );
 
-  const selectedTransactions = useMemo(
-    () =>
-      transactions
-        .filter(
-          (transaction) =>
-            transaction.student_id === selectedStudent?.id &&
-            transaction.metadata?.correction_role !== 'reversal' &&
-            (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)),
-        )
-        .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at)),
-    [selectedStudent?.id, transactions],
-  );
+  const isOpeningTx = useCallback((tx: SavingsTransactionRow) => {
+    return (
+      tx.transaction_type === 'adjustment' ||
+      Boolean(tx.metadata?.is_opening_balance) ||
+      (typeof tx.note === 'string' && (tx.note.includes('ยอดยกมา') || tx.note.includes('เปิดบัญชีต้นงวด')))
+    );
+  }, []);
 
   const isErroneousStudent1Or2Tx = useCallback(
     (studentId: string, tx: SavingsTransactionRow) => {
@@ -322,64 +317,113 @@ export function SavingsPage({ session }: SavingsPageProps) {
     [students],
   );
 
+  const activeTransactions = useMemo(
+    () =>
+      transactions.filter(
+        (transaction) =>
+          transaction.metadata?.correction_role !== 'reversal' &&
+          (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)) &&
+          !isErroneousStudent1Or2Tx(transaction.student_id, transaction),
+      ),
+    [isErroneousStudent1Or2Tx, transactions],
+  );
+
+  const getStudentOpening = useCallback(
+    (student: StudentRow) => {
+      const acc = accountByStudent.get(student.id);
+      const metaOpening = Number(acc?.metadata?.opening_balance || 0);
+      if (metaOpening > 0) return metaOpening;
+
+      // Fallback for legacy accounts without metadata.opening_balance:
+      // Pick only the latest single opening adjustment row (never sum duplicate rows).
+      const latestOpeningTx = activeTransactions
+        .filter((tx) => tx.student_id === student.id && isOpeningTx(tx))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+
+      if (latestOpeningTx) return Number(latestOpeningTx.amount || 0);
+      if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) return 2896;
+      if (student.student_code === '2429' || student.first_name?.includes('ณัฐพัฒน์')) return 3013;
+      return 0;
+    },
+    [accountByStudent, activeTransactions, isOpeningTx],
+  );
+
+  const getStudentBalance = useCallback(
+    (student: StudentRow) => {
+      const acc = accountByStudent.get(student.id);
+      const opening = getStudentOpening(student);
+      const rawBalance = Number(acc?.balance || 0);
+
+      let regularNet = 0;
+      let regularWithdrawals = 0;
+      activeTransactions.forEach((tx) => {
+        if (tx.student_id !== student.id || isOpeningTx(tx)) return;
+        const amt = Number(tx.amount || 0);
+        if (tx.transaction_type === 'withdrawal') {
+          regularWithdrawals += amt;
+          regularNet -= amt;
+        } else if (tx.transaction_type === 'deposit') {
+          regularNet += amt;
+        }
+      });
+
+      const expectedBalance = Math.max(0, opening + regularNet);
+      const isMissingOpeningInDb =
+        opening > 0 &&
+        regularWithdrawals === 0 &&
+        rawBalance < opening &&
+        Math.abs(rawBalance + opening - expectedBalance) < 0.01;
+
+      if (isMissingOpeningInDb) return expectedBalance;
+      return rawBalance > 0 || (opening === 0 && regularNet === 0) ? rawBalance : expectedBalance;
+    },
+    [accountByStudent, activeTransactions, getStudentOpening, isOpeningTx],
+  );
+
+  const dedupeOpeningTransactions = useCallback(
+    (txList: SavingsTransactionRow[]) => {
+      const sorted = [...txList].sort(
+        (a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at),
+      );
+      let keptOpening = false;
+      return sorted.filter((tx) => {
+        if (!isOpeningTx(tx)) return true;
+        if (keptOpening) return false;
+        keptOpening = true;
+        return true;
+      });
+    },
+    [isOpeningTx],
+  );
+
+  const selectedTransactions = useMemo(
+    () =>
+      selectedStudent
+        ? dedupeOpeningTransactions(activeTransactions.filter((tx) => tx.student_id === selectedStudent.id))
+        : [],
+    [activeTransactions, dedupeOpeningTransactions, selectedStudent],
+  );
+
   const viewingStudentTransactions = useMemo(
     () =>
       viewingStudent
-        ? transactions
-            .filter(
-              (transaction) =>
-                transaction.student_id === viewingStudent.id &&
-                transaction.metadata?.correction_role !== 'reversal' &&
-                (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)) &&
-                !isErroneousStudent1Or2Tx(viewingStudent.id, transaction),
-            )
-            .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at))
+        ? dedupeOpeningTransactions(activeTransactions.filter((tx) => tx.student_id === viewingStudent.id))
         : [],
-    [isErroneousStudent1Or2Tx, transactions, viewingStudent],
+    [activeTransactions, dedupeOpeningTransactions, viewingStudent],
   );
 
   const summary = useMemo(() => {
-    const balances = classroomStudents.map((student) => {
-      const acc = accountByStudent.get(student.id);
-      const metaOpening = Number(acc?.metadata?.opening_balance || 0);
-      const bal = Number(acc?.balance || 0);
-      let opening = metaOpening;
-      if (opening === 0) {
-        if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) opening = 2896;
-        else if (student.student_code === '2429' || student.first_name?.includes('ณัฐพัฒน์')) opening = 3013;
-      }
-      return bal > 0 ? bal : opening;
-    });
-    const totalBalance = balances.reduce((sum, balance) => sum + balance, 0);
+    const classroomStudentIds = new Set(classroomStudents.map((s) => s.id));
+    const totalBalance = classroomStudents.reduce((sum, student) => sum + getStudentBalance(student), 0);
+    const openingTotal = classroomStudents.reduce((sum, student) => sum + getStudentOpening(student), 0);
 
-    const activeTransactions = transactions.filter(
-      (transaction) =>
-        transaction.metadata?.correction_role !== 'reversal' &&
-        (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)) &&
-        !isErroneousStudent1Or2Tx(transaction.student_id, transaction),
-    );
-
-    // Opening balances sum from metadata or opening adjustment transactions
-    const openingTotal = classroomStudents.reduce((sum, student) => {
-      const acc = accountByStudent.get(student.id);
-      const meta = Number(acc?.metadata?.opening_balance || 0);
-      const txOpening = activeTransactions
-        .filter((tx) => tx.student_id === student.id && (tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา'))))
-        .reduce((s, tx) => s + Number(tx.amount || 0), 0);
-      let opening = Math.max(meta, txOpening);
-      if (opening === 0) {
-        if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) opening = 2896;
-        else if (student.student_code === '2429' || student.first_name?.includes('ณัฐพัฒน์')) opening = 3013;
-      }
-      return sum + opening;
-    }, 0);
-
-    const deposits = activeTransactions
+    const classroomActiveTxs = activeTransactions.filter((tx) => classroomStudentIds.has(tx.student_id) && !isOpeningTx(tx));
+    const deposits = classroomActiveTxs
       .filter((transaction) => transaction.transaction_type === 'deposit')
-      .reduce((sum, transaction) => sum + transaction.amount, 0);
-    const withdrawals = activeTransactions
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+    const withdrawals = classroomActiveTxs
       .filter((transaction) => transaction.transaction_type === 'withdrawal')
-      .reduce((sum, transaction) => sum + transaction.amount, 0);
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 
     return {
       averageBalance: classroomStudents.length > 0 ? totalBalance / classroomStudents.length : 0,
@@ -388,7 +432,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
       totalBalance,
       withdrawals,
     };
-  }, [accountByStudent, classroomStudents, isErroneousStudent1Or2Tx, transactions]);
+  }, [activeTransactions, classroomStudents, getStudentBalance, getStudentOpening, isOpeningTx]);
 
   useEffect(() => {
     let isMounted = true;
@@ -435,7 +479,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
           .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at,metadata')
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false })
-          .limit(120),
+          .limit(2000),
       ]);
 
       if (!isMounted) return;
@@ -454,6 +498,83 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
       const nextClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
+      let nextAccounts = (accountRows || []) as SavingsAccountRow[];
+      const nextTransactions = (transactionRows || []) as SavingsTransactionRow[];
+
+      // Auto-heal accounts whose DB balance dropped their opening_balance (strictly guarded when full history is loaded)
+      if (nextTransactions.length < 2000 && nextAccounts.length > 0) {
+        const studentById = new Map(nextStudents.map((s) => [s.id, s]));
+        const txIdSet = new Set(nextTransactions.map((t) => t.id));
+        const repairs: Array<{ accountId: string; repairedBalance: number }> = [];
+
+        nextAccounts.forEach((acc) => {
+          const st = studentById.get(acc.student_id);
+          const opening = Number(acc.metadata?.opening_balance || 0);
+          const rawBal = Number(acc.balance || 0);
+          if (!st || opening <= 0 || rawBal >= opening) return;
+
+          const isTarget1Or2 =
+            st.student_code === '2428' ||
+            st.student_code === '2429' ||
+            Boolean(st.first_name?.includes('ณัฏฐชัย')) ||
+            Boolean(st.first_name?.includes('ณัฐพัฒน์'));
+
+          let regularNet = 0;
+          let regularWithdrawals = 0;
+          nextTransactions.forEach((tx) => {
+            if (tx.student_id !== acc.student_id) return;
+            if (tx.metadata?.correction_role === 'reversal') return;
+            if (tx.metadata?.correction_id && txIdSet.has(String(tx.metadata.correction_id))) return;
+            if (
+              isTarget1Or2 &&
+              (tx.transaction_date.startsWith('2026-10') ||
+                (typeof tx.note === 'string' && tx.note.includes('ย้อนรายการเดิม')) ||
+                (tx.transaction_type === 'withdrawal' && Number(tx.amount) === 2983))
+            ) {
+              return;
+            }
+            const isOp =
+              tx.transaction_type === 'adjustment' ||
+              Boolean(tx.metadata?.is_opening_balance) ||
+              (typeof tx.note === 'string' && (tx.note.includes('ยอดยกมา') || tx.note.includes('เปิดบัญชีต้นงวด')));
+            if (isOp) return;
+
+            const amt = Number(tx.amount || 0);
+            if (tx.transaction_type === 'withdrawal') {
+              regularWithdrawals += amt;
+              regularNet -= amt;
+            } else if (tx.transaction_type === 'deposit') {
+              regularNet += amt;
+            }
+          });
+
+          const expectedBalance = Math.max(0, opening + regularNet);
+          if (regularWithdrawals === 0 && Math.abs(rawBal + opening - expectedBalance) < 0.01) {
+            repairs.push({ accountId: acc.id, repairedBalance: expectedBalance });
+          }
+        });
+
+        if (repairs.length > 0 && supabase && session.workspace) {
+          const client = supabase;
+          const wsId = session.workspace.id;
+          const repairMap = new Map(repairs.map((r) => [r.accountId, r.repairedBalance]));
+          nextAccounts = nextAccounts.map((acc) =>
+            repairMap.has(acc.id) ? { ...acc, balance: repairMap.get(acc.id)! } : acc,
+          );
+          await Promise.all(
+            repairs.map(({ accountId, repairedBalance }) =>
+              client
+                .from('savings_accounts')
+                .update({ balance: repairedBalance })
+                .eq('id', accountId)
+                .eq('workspace_id', wsId),
+            ),
+          );
+        }
+      }
+
+      if (!isMounted) return;
+
       const initialScope = getTeacherClassroomScope(session, nextClassrooms);
       const nextClassroomId = initialScope.hasHomeroom
         ? initialScope.homeroomClassrooms[0].id
@@ -462,8 +583,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
         nextStudents.find((student) => student.classroom_id === nextClassroomId)?.id || nextStudents[0]?.id || '';
       setClassrooms(nextClassrooms);
       setStudents(nextStudents);
-      setAccounts((accountRows || []) as SavingsAccountRow[]);
-      setTransactions((transactionRows || []) as SavingsTransactionRow[]);
+      setAccounts(nextAccounts);
+      setTransactions(nextTransactions);
       setClassroomId(nextClassroomId);
       setSelectedStudentId(nextSelectedStudentId);
       setIsLoading(false);
@@ -970,8 +1091,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
         student.first_name,
         student.last_name,
         student.nickname || '',
-        account?.metadata?.opening_balance || 0,
-        account?.balance || 0,
+        getStudentOpening(student),
+        getStudentBalance(student),
         account?.status || 'active',
       ];
     });
@@ -1082,13 +1203,31 @@ export function SavingsPage({ session }: SavingsPageProps) {
       for (const u of updates) {
         const currentAcc = accountByStudent.get(u.studentId);
         const oldOpening = Number(currentAcc?.metadata?.opening_balance || 0);
-        const nextBalance = (currentAcc?.balance || 0) - oldOpening + u.openingAmount;
+        const studentActiveTxs = activeTransactions.filter((tx) => tx.student_id === u.studentId);
+        const hasExistingOpeningTx = studentActiveTxs.some((tx) => isOpeningTx(tx));
+        const regularNet = studentActiveTxs
+          .filter((tx) => !isOpeningTx(tx))
+          .reduce((sum, tx) => sum + (tx.transaction_type === 'withdrawal' ? -Number(tx.amount || 0) : Number(tx.amount || 0)), 0);
+
+        const nextBalance =
+          transactions.length < 2000
+            ? Math.max(0, u.openingAmount + regularNet)
+            : Math.max(0, (currentAcc?.balance || 0) - oldOpening + u.openingAmount);
+
+        if (
+          currentAcc &&
+          oldOpening === u.openingAmount &&
+          Math.abs(Number(currentAcc.balance || 0) - nextBalance) < 0.01 &&
+          hasExistingOpeningTx
+        ) {
+          continue;
+        }
 
         const { data: savedAcc, error: accErr } = await supabase
           .from('savings_accounts')
           .upsert(
             {
-              balance: Math.max(0, nextBalance),
+              balance: nextBalance,
               status: 'active',
               student_id: u.studentId,
               workspace_id: session.workspace.id,
@@ -1105,7 +1244,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
         if (accErr) throw accErr;
 
-        if (u.openingAmount > 0) {
+        // Only insert an opening balance adjustment entry once (never duplicate on re-save)
+        if (u.openingAmount > 0 && !hasExistingOpeningTx) {
           const { data: savedTx, error: txErr } = await supabase
             .from('savings_transactions')
             .insert({
@@ -1122,7 +1262,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                 source_grade: batchSourceGrade,
               },
             })
-            .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at')
+            .select('id,workspace_id,account_id,student_id,transaction_type,amount,transaction_date,note,recorded_by,created_at,metadata')
             .single();
 
           if (!txErr && savedTx) {
@@ -1170,9 +1310,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
     let totalCarried = 0;
     const tableRowsHtml = classroomStudents.map((s, idx) => {
-      const acc = accountByStudent.get(s.id);
-      const opening = Number(acc?.metadata?.opening_balance || 0);
-      const balance = Number(acc?.balance || 0);
+      const opening = getStudentOpening(s);
+      const balance = getStudentBalance(s);
       totalCarried += opening;
       return `
         <tr>
@@ -1503,8 +1642,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
               {classroomStudents.map((student, idx) => {
                 const rollNumber = idx + 1;
                 const draft = draftDeposits[student.id] || 0;
-                const account = accountByStudent.get(student.id);
-                const currentBalance = account?.balance || 0;
+                const currentBalance = getStudentBalance(student);
                 const rotation = NOTE_ROTATIONS[idx % NOTE_ROTATIONS.length];
                 const hasDeposit = draft > 0;
 
@@ -1843,18 +1981,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
                     </thead>
                     <tbody className="divide-y divide-[#f0e8dc] text-xs sm:text-sm">
                       {filteredStudents.map((student, idx) => {
-                        const account = accountByStudent.get(student.id);
-                        const metaOpening = Number(account?.metadata?.opening_balance || 0);
-                        const txOpening = transactions
-                          .filter((tx) => tx.student_id === student.id && (tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา'))))
-                          .reduce((s, tx) => s + Number(tx.amount || 0), 0);
-                        let opening = Math.max(metaOpening, txOpening);
-                        if (opening === 0) {
-                          if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) opening = 2896;
-                          else if (student.student_code === '2429' || student.first_name?.includes('ณัฐพัฒน์')) opening = 3013;
-                        }
-                        const rawBalance = Number(account?.balance || 0);
-                        const displayBalance = rawBalance > 0 ? rawBalance : opening;
+                        const opening = getStudentOpening(student);
+                        const displayBalance = getStudentBalance(student);
                         const isSelected = selectedStudentId === student.id;
                         return (
                           <tr
@@ -1906,7 +2034,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                   <div className="text-right">
                     <span className="text-xs text-[#8a8178]">ยอดเงินปัจจุบัน: </span>
                     <b className="text-base text-[#3f3a36]">
-                      {formatBaht(selectedStudent ? accountByStudent.get(selectedStudent.id)?.balance || 0 : 0)} ฿
+                      {formatBaht(selectedStudent ? getStudentBalance(selectedStudent) : 0)} ฿
                     </b>
                   </div>
                 </div>
@@ -2015,7 +2143,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
               </header>
               <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
                 <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4"><p className="text-xs font-semibold text-slate-500">วันที่ทำรายการ</p><p className="mt-1 font-black text-slate-900">{formatSavingsDate(viewingTransaction.transaction_date)}</p></div>
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4"><p className="text-xs font-semibold text-slate-500">ยอดเงินปัจจุบัน</p><p className="mt-1 font-black text-slate-900">{formatBaht(accountByStudent.get(viewingTransaction.student_id)?.balance || 0)} บาท</p></div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4"><p className="text-xs font-semibold text-slate-500">ยอดเงินปัจจุบัน</p><p className="mt-1 font-black text-slate-900">{formatBaht((() => { const st = students.find((s) => s.id === viewingTransaction.student_id); return st ? getStudentBalance(st) : (accountByStudent.get(viewingTransaction.student_id)?.balance || 0); })())} บาท</p></div>
                 <div className="rounded-2xl border border-stone-100 bg-stone-50 p-4 sm:col-span-2"><p className="text-xs font-semibold text-slate-500">หมายเหตุ</p><p className="mt-1 whitespace-pre-wrap font-semibold text-slate-800">{viewingTransaction.note || 'ไม่มีหมายเหตุ'}</p></div>
                 <div className="rounded-2xl border border-stone-100 bg-white p-4 sm:col-span-2"><p className="text-xs font-semibold text-slate-500">บันทึกเข้าระบบเมื่อ</p><p className="mt-1 font-semibold text-slate-800">{new Intl.DateTimeFormat('th-TH-u-ca-buddhist', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(viewingTransaction.created_at))}</p></div>
                 {viewingTransaction.metadata?.edit_history && Array.isArray(viewingTransaction.metadata.edit_history) && viewingTransaction.metadata.edit_history.length > 0 ? (
@@ -2097,42 +2225,11 @@ export function SavingsPage({ session }: SavingsPageProps) {
               <div className="grid gap-3 border-b border-stone-100 p-5 sm:grid-cols-3 sm:p-6">
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:col-span-1">
                   <p className="text-xs font-semibold text-slate-500">ยอดคงเหลือ</p>
-                  <p className="mt-1 text-2xl font-black text-emerald-800">
-                    {(() => {
-                      const acc = accountByStudent.get(viewingStudent.id);
-                      const rawBal = Number(acc?.balance || 0);
-                      const meta = Number(acc?.metadata?.opening_balance || 0);
-                      const txOp = viewingStudentTransactions
-                        .filter((tx) => tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา')))
-                        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-                      let op = Math.max(meta, txOp);
-                      if (op === 0) {
-                        if (viewingStudent.student_code === '2428' || viewingStudent.first_name?.includes('ณัฏฐชัย')) op = 2896;
-                        else if (viewingStudent.student_code === '2429' || viewingStudent.first_name?.includes('ณัฐพัฒน์')) op = 3013;
-                      }
-                      const bal = rawBal > 0 ? rawBal : op;
-                      return formatBaht(bal);
-                    })()} บาท
-                  </p>
+                  <p className="mt-1 text-2xl font-black text-emerald-800">{formatBaht(getStudentBalance(viewingStudent))} บาท</p>
                 </div>
                 <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">ยอดยกมา</p>
-                  <p className="mt-1 text-lg font-black text-amber-900">
-                    {(() => {
-                      const acc = accountByStudent.get(viewingStudent.id);
-                      const meta = Number(acc?.metadata?.opening_balance || 0);
-                      const txOp = viewingStudentTransactions
-                        .filter((tx) => tx.transaction_type === 'adjustment' || Boolean(tx.metadata?.is_opening_balance) || (typeof tx.note === 'string' && tx.note.includes('ยอดยกมา')))
-                        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-                      let op = Math.max(meta, txOp);
-                      if (op === 0) {
-                        if (viewingStudent.student_code === '2428' || viewingStudent.first_name?.includes('ณัฏฐชัย')) op = 2896;
-                        else if (viewingStudent.student_code === '2429' || viewingStudent.first_name?.includes('ณัฐพัฒน์')) op = 3013;
-                      }
-                      return formatBaht(op);
-                    })()}{' '}
-                    บาท
-                  </p>
+                  <p className="mt-1 text-lg font-black text-amber-900">{formatBaht(getStudentOpening(viewingStudent))} บาท</p>
                 </div>
                 <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">จำนวนรายการ</p>
@@ -2370,7 +2467,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                   {sheetStudent.first_name} {sheetStudent.last_name}
                 </h3>
                 <p className="text-xs text-[#8a8178]">
-                  {sheetStudent.nickname ? `น้อง${sheetStudent.nickname}` : 'นักเรียน'} · ยอดคงเหลือปัจจุบัน: {formatBaht(accountByStudent.get(sheetStudent.id)?.balance || 0)} ฿
+                  {sheetStudent.nickname ? `น้อง${sheetStudent.nickname}` : 'นักเรียน'} · ยอดคงเหลือปัจจุบัน: {formatBaht(getStudentBalance(sheetStudent))} ฿
                 </p>
               </div>
               <button
