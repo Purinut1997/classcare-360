@@ -1,23 +1,25 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  CalendarDays,
+  ArrowRight,
+  Check,
   CheckCircle2,
-  ClipboardCheck,
+  Copy,
   DatabaseZap,
-  FileWarning,
+  Download,
+  FileCheck2,
+  FileUp,
   MessageSquareText,
+  Plus,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
-  SlidersHorizontal,
+  Sparkles,
   Trash2,
-  UploadCloud,
+  Wrench,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
-
-import { getBangkokDate } from '../../lib/date';
 import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
 import { supabase } from '../../lib/supabaseClient';
@@ -27,7 +29,7 @@ interface DataSafetyCenterPageProps {
   session: AppSessionContext;
 }
 
-type UiMode = 'simple' | 'advanced';
+type SafetyTab = 'backup' | 'health' | 'trash' | 'templates';
 type TrashKind = 'student' | 'classroom' | 'workspace' | 'score_set' | 'attendance_session';
 type HealthSeverity = 'danger' | 'warning' | 'info';
 
@@ -36,185 +38,98 @@ interface TrashItem {
   kind: TrashKind;
   title: string;
   detail: string;
-  deletedBy: string;
   deletedAt: string;
-  restored?: boolean;
-  permanentlyDeleted?: boolean;
-  payload?: Record<string, unknown>;
+  restored: boolean;
+  payload: Record<string, unknown>;
 }
 
-interface HealthIssue {
+interface LiveHealthIssue {
   id: string;
   severity: HealthSeverity;
   title: string;
   detail: string;
-  action: string;
-  resolved?: boolean;
-}
-
-interface CalendarRule {
-  id: string;
-  date: string;
-  title: string;
-  type: 'holiday' | 'exam' | 'activity' | 'makeup' | 'custom';
-  attendancePolicy: 'skip' | 'warn' | 'normal';
+  count?: number;
+  fixType?: 'assign_classroom' | 'repair_savings' | 'link';
+  linkTo?: string;
+  linkLabel?: string;
+  payload?: unknown;
 }
 
 interface MessageTemplate {
   id: string;
-  category: string;
+  templateType: string;
   title: string;
   body: string;
+  channel: string;
 }
 
-interface DataSafetyState {
-  mode: UiMode;
-  importChecked: boolean;
-  lastImportAction: string;
-  trashItems: TrashItem[];
-  healthIssues: HealthIssue[];
-  calendarRules: CalendarRule[];
-  templates: MessageTemplate[];
+interface BackupPreview {
+  fileName: string;
+  exportedAt: string | null;
+  schoolName: string;
+  classrooms: Array<Record<string, unknown>>;
+  students: Array<Record<string, unknown>>;
+  savingsAccountsCount: number;
+  savingsTxCount: number;
+  templates: Array<Record<string, unknown>>;
+  raw: Record<string, unknown>;
 }
 
-type SyncStatus = 'local' | 'loading' | 'synced' | 'missing_sql' | 'error';
-
-interface SyncState {
-  status: SyncStatus;
-  message: string;
+interface WorkspaceStats {
+  classrooms: number;
+  students: number;
+  savingsAccounts: number;
+  savingsTransactions: number;
+  lastBackupAt: string | null;
 }
-
-type DbRow = Record<string, unknown>;
 
 const trashKindLabels: Record<TrashKind, string> = {
   student: 'นักเรียน',
   classroom: 'ห้องเรียน',
-  workspace: 'workspace',
+  workspace: 'พื้นที่ทำงาน',
   score_set: 'ชุดคะแนน',
   attendance_session: 'รอบเช็คชื่อ',
 };
 
-const healthStyles: Record<HealthSeverity, string> = {
-  danger: 'border-rose-200 bg-rose-50 text-rose-700',
-  warning: 'border-amber-200 bg-amber-50 text-amber-700',
-  info: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+const templateTypeLabels: Record<string, string> = {
+  attendance_absent: 'แจ้งขาดเรียน',
+  attendance_late: 'แจ้งมาสาย',
+  care_follow_up: 'ติดตามดูแลนักเรียน',
+  savings: 'เงินออมนักเรียน',
+  score: 'ผลการเรียน/คะแนน',
+  general: 'ประกาศทั่วไป',
 };
 
-function createDefaultState(session: AppSessionContext): DataSafetyState {
-  const schoolName = session.workspace?.schoolName || session.profile.schoolName || 'โรงเรียนตัวอย่าง';
-  const today = getBangkokDate();
+const DEFAULT_STARTER_TEMPLATES = [
+  {
+    template_type: 'attendance_absent',
+    title: 'แจ้งผู้ปกครองกรณีนักเรียนขาดเรียน',
+    body: 'เรียนผู้ปกครองของ {{student_name}} วันนี้ไม่พบนักเรียนมาเรียน หากมีเหตุจำเป็นหรือใบลา กรุณาแจ้งครูประจำชั้นด้วยครับ/ค่ะ',
+    channel: 'line',
+  },
+  {
+    template_type: 'savings',
+    title: 'สรุปยอดเงินออมประจำเดือน',
+    body: 'เรียนผู้ปกครองของ {{student_name}} แจ้งยอดเงินออมสะสมคงเหลือล่าสุด {{balance}} บาท ขอบคุณที่ร่วมส่งเสริมวินัยการออมครับ/ค่ะ',
+    channel: 'line',
+  },
+  {
+    template_type: 'care_follow_up',
+    title: 'นัดหมายเยี่ยมบ้าน / ติดตามดูแลนักเรียน',
+    body: 'เรียนผู้ปกครองของ {{student_name}} ครูประจำชั้นขออนุญาตประสานงานพูดคุยและติดตามการเรียนของนักเรียน เพื่อร่วมกันดูแลอย่างใกล้ชิดครับ/ค่ะ',
+    channel: 'line',
+  },
+];
 
-  return {
-    mode: 'simple',
-    importChecked: false,
-    lastImportAction: 'ยังไม่ได้ตรวจไฟล์นำเข้าในรอบนี้',
-    trashItems: [
-      {
-        id: 'trash-student-demo',
-        kind: 'student',
-        title: 'รายชื่อนักเรียน import ซ้ำ 5 รายการ',
-        detail: 'ควรกู้คืนเฉพาะรายการที่ลบผิด หรือปล่อยไว้ในถังขยะ 30 วันก่อนลบถาวร',
-        deletedBy: session.profile.email,
-        deletedAt: today,
-      },
-      {
-        id: 'trash-score-demo',
-        kind: 'score_set',
-        title: 'ชุดคะแนน แบบทดสอบบทที่ 1',
-        detail: 'มีคะแนนกรอก 0 รายการ กู้คืนได้ทันทีหากลบผิด',
-        deletedBy: session.profile.email,
-        deletedAt: today,
-      },
-      {
-        id: 'trash-classroom-demo',
-        kind: 'classroom',
-        title: 'ห้อง อ.3/1 ปี 2569',
-        detail: 'ห้องว่างไม่มีนักเรียน เหมาะกับลบถาวรหลังตรวจซ้ำ',
-        deletedBy: session.profile.email,
-        deletedAt: today,
-      },
-    ],
-    healthIssues: [
-      {
-        id: 'health-duplicate',
-        severity: 'danger',
-        title: 'พบความเสี่ยงรายชื่อนักเรียนซ้ำ',
-        detail: 'นักเรียนรหัสซ้ำหรือชื่อ-นามสกุลซ้ำควรถูกรวมก่อนใช้คะแนน/รายงาน',
-        action: 'เปิด Data Quality และรวมรายการซ้ำ',
-      },
-      {
-        id: 'health-room',
-        severity: 'warning',
-        title: 'มีนักเรียนที่ยังไม่ผูกห้องเรียน',
-        detail: 'ระบบคะแนน เวลาเรียน เงินออม และรายงานจะไม่เห็นนักเรียนที่ไม่มี classroom_id',
-        action: 'กำหนดห้องเรียนให้นักเรียน',
-      },
-      {
-        id: 'health-report',
-        severity: 'info',
-        title: 'ยังไม่ได้ตั้งค่าหัวรายงานครบ',
-        detail: 'โลโก้โรงเรียน ครูผู้สอน หัวหน้าวิชาการ และผู้อำนวยการควรอยู่ในตั้งค่าโรงเรียน',
-        action: 'ไปตั้งค่าโรงเรียนและผู้ลงนาม',
-      },
-    ],
-    calendarRules: [
-      {
-        id: 'calendar-exam',
-        date: today,
-        title: 'สอบกลางภาค',
-        type: 'exam',
-        attendancePolicy: 'warn',
-      },
-      {
-        id: 'calendar-activity',
-        date: today,
-        title: `${schoolName} จัดกิจกรรมหน้าเสาธง`,
-        type: 'activity',
-        attendancePolicy: 'normal',
-      },
-    ],
-    templates: [
-      {
-        id: 'tpl-absence',
-        category: 'เวลาเรียน',
-        title: 'แจ้งนักเรียนขาดเรียน',
-        body: 'เรียนผู้ปกครอง {{student_name}} วันนี้ระบบบันทึกสถานะ {{status}} หากมีใบลา กรุณาแจ้งครูประจำชั้น',
-      },
-      {
-        id: 'tpl-care',
-        category: 'เคสดูแล',
-        title: 'นัดติดตามเคสดูแล',
-        body: 'ครูขอนัดติดตามข้อมูลของ {{student_name}} เรื่อง {{case_type}} เพื่อดูแลต่อเนื่อง',
-      },
-    ],
-  };
-}
-
-function getStorageKey(session: AppSessionContext) {
-  return `classcare:data-safety:${session.workspace?.id || session.profile.id}`;
-}
-
-function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
-  return (
-    <div className="compact-stat text-left">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <p className={`mt-2 text-3xl font-black ${tone || 'text-slate-950'}`}>{value}</p>
-    </div>
-  );
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="text-xs font-black text-slate-600">{children}</label>;
-}
-
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function isMissingDataSafetySql(error: unknown) {
-  const message = String((error as { message?: string; code?: string })?.message || '');
-  const code = String((error as { code?: string })?.code || '');
-  return code === '42P01' || message.includes('does not exist') || message.includes('schema cache');
+function formatThaiDateTime(value?: string | null) {
+  if (!value) return 'ยังไม่เคยสำรอง';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return new Intl.DateTimeFormat('th-TH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Bangkok',
+  }).format(d);
 }
 
 function toTrashKind(value: string): TrashKind {
@@ -224,287 +139,577 @@ function toTrashKind(value: string): TrashKind {
   return 'student';
 }
 
-function toHealthSeverity(value: string): HealthSeverity {
-  if (value === 'critical' || value === 'error') return 'danger';
-  if (value === 'warning') return 'warning';
-  return 'info';
-}
-
-function toCalendarType(value: string): CalendarRule['type'] {
-  if (value === 'holiday' || value === 'exam' || value === 'activity' || value === 'makeup') return value;
-  return 'custom';
-}
-
-function toDayType(value: CalendarRule['type']) {
-  if (value === 'custom') return 'school_day';
-  return value === 'holiday' ? 'holiday' : value;
-}
-
-function toTemplateType(category: string) {
-  const text = category.toLowerCase();
-  if (text.includes('absence') || text.includes('ขาด')) return 'attendance_absent';
-  if (text.includes('late') || text.includes('สาย')) return 'attendance_late';
-  if (text.includes('care') || text.includes('เคส')) return 'care_follow_up';
-  if (text.includes('saving') || text.includes('ออม')) return 'savings';
-  if (text.includes('score') || text.includes('คะแนน')) return 'score';
-  return 'general';
-}
-
-function getJsonObject(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function mapTrashRow(row: DbRow): TrashItem {
-  const payload = getJsonObject(row.payload);
-  const metadata = getJsonObject(row.metadata);
-  return {
-    id: String(row.id),
-    kind: toTrashKind(String(row.entity_type || 'student')),
-    title: String(row.display_name || row.entity_type || 'deleted item'),
-    detail: String(row.reason || payload.detail || metadata.detail || ''),
-    deletedBy: String(row.deleted_by || metadata.deleted_by_email || 'system'),
-    deletedAt: String(row.deleted_at || row.created_at || '').slice(0, 10),
-    restored: row.restore_status === 'restored',
-    permanentlyDeleted: row.restore_status === 'purged',
-    payload,
-  };
-}
-
-function mapHealthRow(row: DbRow): HealthIssue {
-  return {
-    id: String(row.id),
-    severity: toHealthSeverity(String(row.severity || 'warning')),
-    title: String(row.title || row.issue_type || 'Data issue'),
-    detail: String(row.detail || ''),
-    action: String(row.suggested_action || 'ตรวจสอบข้อมูล'),
-    resolved: row.status === 'resolved',
-  };
-}
-
-function mapCalendarRow(row: DbRow): CalendarRule {
-  const type = toCalendarType(String(row.day_type || 'custom'));
-  const metadata = getJsonObject(row.metadata);
-  return {
-    id: String(row.id),
-    date: String(row.calendar_date || '').slice(0, 10),
-    title: String(row.title || ''),
-    type,
-    attendancePolicy:
-      (metadata.attendancePolicy as CalendarRule['attendancePolicy'] | undefined) ||
-      (row.affects_attendance === false ? 'skip' : type === 'exam' || type === 'holiday' ? 'warn' : 'normal'),
-  };
-}
-
-function mapTemplateRow(row: DbRow): MessageTemplate {
-  return {
-    id: String(row.id),
-    category: String(row.template_type || 'general'),
-    title: String(row.title || ''),
-    body: String(row.body || ''),
-  };
+function triggerJsonDownload(payload: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   const demoMode = isDemoSession(session);
   const canManageSafety = canManageWorkspace(session.profile.role);
-  const storageKey = getStorageKey(session);
-  const [state, setState] = useState<DataSafetyState>(() => createDefaultState(session));
-  const [sync, setSync] = useState<SyncState>({
-    status: 'local',
-    message: 'Local-first: ใช้ข้อมูลในเครื่องจนกว่าจะเชื่อม Supabase สำเร็จ',
+  const workspaceId = session.workspace?.id || '';
+  const schoolName = session.workspace?.schoolName || session.workspace?.name || 'โรงเรียนของฉัน';
+
+  const [activeTab, setActiveTab] = useState<SafetyTab>('backup');
+  const [isLoading, setIsLoading] = useState(Boolean(supabase && workspaceId && !demoMode));
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  // Live data states (ZERO hardcoded fake demo items on real workspaces!)
+  const [stats, setStats] = useState<WorkspaceStats>({
+    classrooms: 0,
+    students: 0,
+    savingsAccounts: 0,
+    savingsTransactions: 0,
+    lastBackupAt: null,
   });
-  const [calendarDraft, setCalendarDraft] = useState({
-    date: getBangkokDate(),
-    title: '',
-    type: 'activity' as CalendarRule['type'],
-    attendancePolicy: 'warn' as CalendarRule['attendancePolicy'],
-  });
+  const [primaryClassroomId, setPrimaryClassroomId] = useState<string | null>(null);
+  const [healthIssues, setHealthIssues] = useState<LiveHealthIssue[]>([]);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+
+  // Backup / Restore states
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoringFile, setIsRestoringFile] = useState(false);
+  const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null);
+  const [backupFileError, setBackupFileError] = useState<string | null>(null);
+
+  // Action busy flags
+  const [fixingIssueId, setFixingIssueId] = useState<string | null>(null);
+  const [busyTrashId, setBusyTrashId] = useState<string | null>(null);
+  const [copiedTplId, setCopiedTplId] = useState<string | null>(null);
+  const [isSavingTpl, setIsSavingTpl] = useState(false);
   const [templateDraft, setTemplateDraft] = useState({
-    category: 'ทั่วไป',
+    templateType: 'general',
     title: '',
-    body: 'เรียนผู้ปกครอง {{student_name}} {{message}}',
+    body: 'เรียนผู้ปกครองของ {{student_name}} ',
   });
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) setState(JSON.parse(raw) as DataSafetyState);
-    } catch {
-      setState(createDefaultState(session));
+  const loadLiveSafetyData = useCallback(async () => {
+    if (!supabase || !workspaceId || demoMode) {
+      setIsLoading(false);
+      return;
     }
-  }, [session, storageKey]);
 
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
-  }, [state, storageKey]);
+    setIsLoading(true);
+    try {
+      const [
+        wsRes,
+        classroomsRes,
+        studentsRes,
+        savingsAccRes,
+        savingsTxRes,
+        trashRes,
+        templatesRes,
+        lastBackupRes,
+      ] = await Promise.all([
+        supabase.from('workspaces').select('id,name,school_name,academic_year,settings').eq('id', workspaceId).maybeSingle(),
+        supabase.from('classrooms').select('id,name,academic_year').eq('workspace_id', workspaceId).order('created_at', { ascending: true }),
+        supabase
+          .from('students')
+          .select('id,classroom_id,student_code,first_name,last_name,status')
+          .eq('workspace_id', workspaceId)
+          .neq('status', 'deleted')
+          .limit(2000),
+        supabase.from('savings_accounts').select('id,student_id,balance,metadata').eq('workspace_id', workspaceId).limit(2000),
+        supabase
+          .from('savings_transactions')
+          .select('id,student_id,transaction_type,amount,note,metadata,created_at')
+          .eq('workspace_id', workspaceId)
+          .limit(5000),
+        supabase
+          .from('trash_items')
+          .select('id,entity_type,display_name,reason,payload,restore_status,deleted_at,created_at')
+          .eq('workspace_id', workspaceId)
+          .neq('restore_status', 'purged')
+          .order('deleted_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('message_templates')
+          .select('id,template_type,title,body,channel')
+          .eq('workspace_id', workspaceId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('audit_logs')
+          .select('created_at')
+          .eq('workspace_id', workspaceId)
+          .in('action', ['workspace_backup_exported', 'superadmin_workspace_snapshot_exported'])
+          .order('created_at', { ascending: false })
+          .limit(1),
+      ]);
 
-  useEffect(() => {
-    let cancelled = false;
+      const classrooms = (classroomsRes.data || []) as Array<{ id: string; name: string; academic_year: string | null }>;
+      const students = (studentsRes.data || []) as Array<{
+        id: string;
+        classroom_id: string | null;
+        student_code: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        status: string | null;
+      }>;
+      const savingsAccounts = (savingsAccRes.data || []) as Array<{
+        id: string;
+        student_id: string;
+        balance: number | null;
+        metadata: Record<string, unknown> | null;
+      }>;
+      const savingsTxs = (savingsTxRes.data || []) as Array<{
+        id: string;
+        student_id: string;
+        transaction_type: string;
+        amount: number | null;
+        note: string | null;
+        metadata: Record<string, unknown> | null;
+        created_at: string | null;
+      }>;
 
-    async function loadRemoteState() {
-      if (!supabase || !session.workspace?.id || demoMode) {
-        setSync({
-          status: 'local',
-          message: 'ยังไม่มี Supabase หรือ workspace ใช้ข้อมูล local สำหรับทดลองก่อน',
+      setPrimaryClassroomId(classrooms[0]?.id || null);
+      setStats({
+        classrooms: classrooms.length,
+        students: students.length,
+        savingsAccounts: savingsAccounts.length,
+        savingsTransactions: savingsTxs.length,
+        lastBackupAt: (lastBackupRes.data?.[0]?.created_at as string | undefined) || null,
+      });
+
+      // Map real Trash items
+      const mappedTrash: TrashItem[] = ((trashRes.data || []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        kind: toTrashKind(String(row.entity_type || 'student')),
+        title: String(row.display_name || row.entity_type || 'รายการที่ลบ'),
+        detail: String(row.reason || ''),
+        deletedAt: String(row.deleted_at || row.created_at || ''),
+        restored: row.restore_status === 'restored',
+        payload: (row.payload as Record<string, unknown>) || {},
+      }));
+      setTrashItems(mappedTrash);
+
+      // Map real Message Templates
+      const mappedTemplates: MessageTemplate[] = ((templatesRes.data || []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        templateType: String(row.template_type || 'general'),
+        title: String(row.title || ''),
+        body: String(row.body || ''),
+        channel: String(row.channel || 'line'),
+      }));
+      setTemplates(mappedTemplates);
+
+      // --- LIVE DATA HEALTH SCANNER (100% REAL!) ---
+      const issues: LiveHealthIssue[] = [];
+
+      // 1. No classrooms yet
+      if (classrooms.length === 0) {
+        issues.push({
+          id: 'no-classrooms',
+          severity: 'warning',
+          title: 'ยังไม่มีห้องเรียนในพื้นที่ทำงานนี้',
+          detail: 'กรุณาสร้างห้องเรียนอย่างน้อย 1 ห้องก่อนเพิ่มนักเรียนและใช้งานระบบเช็กชื่อ/คะแนน/เงินออม',
+          fixType: 'link',
+          linkTo: '/app/dashboard?view=workspace-settings',
+          linkLabel: 'ไปตั้งค่าห้องเรียน',
         });
-        return;
       }
 
-      setSync({ status: 'loading', message: 'กำลังโหลดข้อมูล Data Safety จาก Supabase' });
-
-      try {
-        const workspaceId = session.workspace.id;
-        const [trashResult, healthResult, calendarResult, settingsResult, templatesResult] = await Promise.all([
-          supabase
-            .from('trash_items')
-            .select('*')
-            .eq('workspace_id', workspaceId)
-            .neq('restore_status', 'purged')
-            .order('deleted_at', { ascending: false }),
-          supabase
-            .from('data_health_issues')
-            .select('*')
-            .eq('workspace_id', workspaceId)
-            .order('detected_at', { ascending: false }),
-          supabase
-            .from('school_calendar_days')
-            .select('*')
-            .eq('workspace_id', workspaceId)
-            .order('calendar_date', { ascending: true }),
-          supabase.from('workspace_ui_settings').select('*').eq('workspace_id', workspaceId).maybeSingle(),
-          supabase
-            .from('message_templates')
-            .select('*')
-            .eq('workspace_id', workspaceId)
-            .eq('is_active', true)
-            .order('created_at', { ascending: false }),
-        ]);
-
-        const error =
-          trashResult.error ||
-          healthResult.error ||
-          calendarResult.error ||
-          settingsResult.error ||
-          templatesResult.error;
-
-        if (error) throw error;
-        if (cancelled) return;
-
-        setState((current) => ({
-          ...current,
-          mode: (settingsResult.data?.mode as UiMode) || current.mode,
-          trashItems: trashResult.data?.length ? trashResult.data.map(mapTrashRow) : current.trashItems,
-          healthIssues: healthResult.data?.length ? healthResult.data.map(mapHealthRow) : current.healthIssues,
-          calendarRules: calendarResult.data?.length ? calendarResult.data.map(mapCalendarRow) : current.calendarRules,
-          templates: templatesResult.data?.length ? templatesResult.data.map(mapTemplateRow) : current.templates,
-        }));
-
-        setSync({
-          status: 'synced',
-          message: 'เชื่อม Supabase แล้ว: กู้คืน/ลบถาวร/ปฏิทิน/template จะบันทึกลงฐานข้อมูลเมื่อมีตารางพร้อม',
-        });
-      } catch (error) {
-        if (cancelled) return;
-        setSync({
-          status: isMissingDataSafetySql(error) ? 'missing_sql' : 'error',
-          message: isMissingDataSafetySql(error)
-            ? 'ยังไม่ได้รัน SQL 0023_data_safety_center.sql ใน Supabase จึงใช้ข้อมูล local ชั่วคราว'
-            : `โหลด Supabase ไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
+      // 2. No students yet
+      if (students.length === 0) {
+        issues.push({
+          id: 'no-students',
+          severity: 'info',
+          title: 'ยังไม่มีรายชื่อนักเรียนในระบบ',
+          detail: 'สามารถเพิ่มนักเรียนทีละคนหรือนำเข้าจากไฟล์ Excel / DMC ได้ทันที',
+          fixType: 'link',
+          linkTo: '/app/dashboard?view=import-export',
+          linkLabel: 'ไปนำเข้ารายชื่อนักเรียน',
         });
       }
-    }
 
-    void loadRemoteState();
+      // 3. Students without classroom_id
+      const orphanStudents = students.filter((s) => !s.classroom_id);
+      if (orphanStudents.length > 0) {
+        const sampleNames = orphanStudents
+          .slice(0, 3)
+          .map((s) => `${s.first_name || ''} ${s.last_name || ''}`.trim())
+          .join(', ');
+        issues.push({
+          id: 'orphan-students',
+          severity: 'warning',
+          title: `พบนักเรียนที่ยังไม่ผูกห้องเรียน ${orphanStudents.length} คน`,
+          detail: `นักเรียนกลุ่มนี้ (${sampleNames}${orphanStudents.length > 3 ? ' ...' : ''}) จะไม่แสดงในหน้าเช็กชื่อ คะแนน และรายงาน`,
+          count: orphanStudents.length,
+          fixType: classrooms[0] ? 'assign_classroom' : 'link',
+          linkTo: '/app/dashboard?view=students',
+          linkLabel: classrooms[0] ? `ผูกเข้าห้อง ${classrooms[0].name} ทันที` : 'ไปกำหนดห้องเรียน',
+          payload: orphanStudents.map((s) => s.id),
+        });
+      }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [demoMode, session.workspace?.id]);
+      // 4. Duplicate student_code or full name
+      const codeCount = new Map<string, number>();
+      const nameCount = new Map<string, number>();
+      students.forEach((s) => {
+        const code = (s.student_code || '').trim();
+        if (code) codeCount.set(code, (codeCount.get(code) || 0) + 1);
+        const fullName = `${(s.first_name || '').trim()} ${(s.last_name || '').trim()}`.trim();
+        if (fullName) nameCount.set(fullName, (nameCount.get(fullName) || 0) + 1);
+      });
+      const dupCodes = [...codeCount.entries()].filter(([, c]) => c > 1).map(([k]) => k);
+      const dupNames = [...nameCount.entries()].filter(([, c]) => c > 1).map(([k]) => k);
+      if (dupCodes.length > 0 || dupNames.length > 0) {
+        issues.push({
+          id: 'duplicate-students',
+          severity: 'danger',
+          title: `พบรายชื่อหรือรหัสนักเรียนซ้ำ (${dupCodes.length + dupNames.length} จุด)`,
+          detail: [
+            dupCodes.length > 0 ? `รหัสซ้ำ: ${dupCodes.slice(0, 5).join(', ')}` : '',
+            dupNames.length > 0 ? `ชื่อซ้ำ: ${dupNames.slice(0, 3).join(', ')}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          fixType: 'link',
+          linkTo: '/app/dashboard?view=students',
+          linkLabel: 'ไปจัดการรายชื่อนักเรียน',
+        });
+      }
 
-  const summary = useMemo(() => {
-    const openTrash = state.trashItems.filter((item) => !item.restored && !item.permanentlyDeleted).length;
-    const openIssues = state.healthIssues.filter((item) => !item.resolved).length;
-    const warningCalendar = state.calendarRules.filter((item) => item.attendancePolicy !== 'normal').length;
+      // 5. Savings ledger integrity check (account.balance vs opening + deposits - withdrawals)
+      if (savingsAccounts.length > 0) {
+        const mismatchedAccounts: Array<{ accountId: string; expectedBalance: number }> = [];
+        savingsAccounts.forEach((acc) => {
+          const studentTxs = savingsTxs.filter(
+            (tx) =>
+              tx.student_id === acc.student_id &&
+              tx.metadata?.correction_role !== 'reversal' &&
+              (!tx.metadata?.correction_id || !savingsTxs.some((t) => t.id === tx.metadata?.correction_id)),
+          );
+          let latestOpening = 0;
+          let latestOpeningTime = '';
+          let regularNet = 0;
+          studentTxs.forEach((tx) => {
+            const isOpening =
+              tx.transaction_type === 'adjustment' ||
+              Boolean(tx.metadata?.is_opening_balance) ||
+              (typeof tx.note === 'string' && (tx.note.includes('ยอดยกมา') || tx.note.includes('เปิดบัญชีต้นงวด')));
+            const amt = Number(tx.amount || 0);
+            if (isOpening) {
+              const t = tx.created_at || '';
+              if (!latestOpeningTime || t.localeCompare(latestOpeningTime) > 0) {
+                latestOpeningTime = t;
+                latestOpening = amt;
+              }
+            } else {
+              regularNet += tx.transaction_type === 'withdrawal' ? -amt : amt;
+            }
+          });
+          const metaOpening = Number(acc.metadata?.opening_balance || 0);
+          const opening = metaOpening > 0 ? metaOpening : latestOpening;
+          const expectedBalance = Math.max(0, opening + regularNet);
+          const actualBalance = Number(acc.balance || 0);
+          if (Math.abs(expectedBalance - actualBalance) > 0.01) {
+            mismatchedAccounts.push({ accountId: acc.id, expectedBalance });
+          }
+        });
 
-    return { openTrash, openIssues, warningCalendar };
-  }, [state]);
-
-  const updateSyncFromError = (error: unknown) => {
-    setSync({
-      status: isMissingDataSafetySql(error) ? 'missing_sql' : 'error',
-      message: isMissingDataSafetySql(error)
-        ? 'ยังไม่ได้รัน SQL 0023_data_safety_center.sql ใน Supabase จึงบันทึกเฉพาะ local'
-        : `บันทึก Supabase ไม่สำเร็จ: ${String((error as { message?: string })?.message || error)}`,
-    });
-  };
-
-  const persistMode = async (mode: UiMode) => {
-    if (!canManageSafety) return;
-    if (!supabase || !session.workspace?.id || isDemoSession(session)) return;
-    const { error } = await supabase.from('workspace_ui_settings').upsert({
-      workspace_id: session.workspace.id,
-      mode,
-      updated_by: session.profile.id,
-    });
-    if (error) updateSyncFromError(error);
-    else setSync({ status: 'synced', message: 'บันทึกโหมดใช้งานลง Supabase แล้ว' });
-  };
-
-  const runImportSafetyCheck = async () => {
-    setState((current) => ({
-      ...current,
-      importChecked: true,
-      lastImportAction:
-        'ตรวจแล้ว: พบกฎป้องกันซ้ำ 6 ข้อพร้อมใช้งาน ระบบจะ preview ก่อน import จริงและบันทึก import batch ทุกครั้ง',
-      healthIssues: current.healthIssues.map((issue) =>
-        issue.id === 'health-duplicate' ? { ...issue, resolved: true } : issue,
-      ),
-    }));
-
-    const duplicateIssue = state.healthIssues.find((issue) => issue.id === 'health-duplicate');
-    if (supabase && session.workspace?.id && duplicateIssue && isUuid(duplicateIssue.id)) {
-      const { error } = await supabase
-        .from('data_health_issues')
-        .update({
-          status: 'resolved',
-          resolved_by: session.profile.id,
-          resolved_at: new Date().toISOString(),
-        })
-        .eq('id', duplicateIssue.id)
-        .eq('workspace_id', session.workspace.id);
-      if (error) updateSyncFromError(error);
-    }
-  };
-
-  const restoreTrash = async (id: string) => {
-    if (!canManageSafety) return;
-    const targetItem = state.trashItems.find((item) => item.id === id);
-    setState((current) => ({
-      ...current,
-      trashItems: current.trashItems.map((item) => (item.id === id ? { ...item, restored: true } : item)),
-    }));
-
-    if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
-
-    try {
-      if (targetItem?.kind === 'student' && targetItem.payload) {
-        const p = targetItem.payload;
-        if (p.first_name && p.last_name) {
-          await supabase.from('students').upsert({
-            id: p.id || id,
-            workspace_id: session.workspace.id,
-            classroom_id: (p.classroom_id as string) || null,
-            student_code: (p.student_code as string) || null,
-            first_name: String(p.first_name),
-            last_name: String(p.last_name),
-            nickname: (p.nickname as string) || null,
-            gender: (p.gender as string) || 'other',
-            status: 'active',
-            care_flags: (p.care_flags as Record<string, unknown>) || {},
+        if (mismatchedAccounts.length > 0) {
+          issues.push({
+            id: 'savings-mismatch',
+            severity: 'danger',
+            title: `พบยอดบัญชีเงินออมไม่ตรงกับรายการฝาก-ถอน ${mismatchedAccounts.length} บัญชี`,
+            detail: 'ยอดคงเหลือในบัญชีไม่ตรงกับผลรวมยอดยกมา + ฝาก - ถอน สามารถกดซ่อมแซมยอดให้อัตโนมัติได้ทันที',
+            count: mismatchedAccounts.length,
+            fixType: 'repair_savings',
+            linkLabel: 'ซ่อมยอดเงินออมให้ตรงทันที',
+            payload: mismatchedAccounts,
           });
         }
       }
 
+      // 6. Report header / signer completeness check
+      const wsSettings = (wsRes.data?.settings as Record<string, unknown> | null) || {};
+      const reportIdentity = (wsSettings.report_identity as Record<string, unknown> | undefined) || {};
+      const missingSigner =
+        !wsRes.data?.school_name ||
+        (!reportIdentity.directorName && !reportIdentity.teacherName);
+      if (missingSigner) {
+        issues.push({
+          id: 'incomplete-report-header',
+          severity: 'info',
+          title: 'ยังตั้งค่าหัวรายงานและผู้ลงนามเอกสารไม่ครบ',
+          detail: 'ควรระบุชื่อโรงเรียน ชื่อครูประจำชั้น และผู้อำนวยการ เพื่อให้รายงาน A4 และสมุด ปพ. พิมพ์ชื่อผู้ลงนามครบถ้วน',
+          fixType: 'link',
+          linkTo: '/app/dashboard?view=workspace-settings',
+          linkLabel: 'ไปตั้งค่าโรงเรียน',
+        });
+      }
+
+      setHealthIssues(issues);
+    } catch (err) {
+      setNotice({
+        tone: 'error',
+        text: `โหลดข้อมูลศูนย์ดูแลข้อมูลไม่สำเร็จ: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'}`,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [demoMode, workspaceId]);
+
+  useEffect(() => {
+    void loadLiveSafetyData();
+  }, [loadLiveSafetyData]);
+
+  const activeTrashCount = useMemo(() => trashItems.filter((item) => !item.restored).length, [trashItems]);
+
+  // --- Action 1: REAL Full Workspace JSON Backup ---
+  async function handleExportBackup() {
+    if (!supabase || !workspaceId || demoMode) {
+      setNotice({ tone: 'info', text: 'โหมดตัวอย่าง: พร้อมสำรองข้อมูลจริงเมื่อใช้งานกับ Workspace จริง' });
+      return;
+    }
+
+    setIsBackingUp(true);
+    setNotice(null);
+    try {
+      const [wsRes, clsRes, stuRes, guardRes, savAccRes, savTxRes, calRes, tplRes] = await Promise.all([
+        supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(),
+        supabase.from('classrooms').select('*').eq('workspace_id', workspaceId),
+        supabase.from('students').select('*').eq('workspace_id', workspaceId).limit(2000),
+        supabase.from('student_guardians').select('*').eq('workspace_id', workspaceId).limit(4000),
+        supabase.from('savings_accounts').select('*').eq('workspace_id', workspaceId).limit(2000),
+        supabase.from('savings_transactions').select('*').eq('workspace_id', workspaceId).limit(5000),
+        supabase.from('school_calendar_days').select('*').eq('workspace_id', workspaceId).limit(500),
+        supabase.from('message_templates').select('*').eq('workspace_id', workspaceId).eq('is_active', true).limit(200),
+      ]);
+
+      const snapshot = {
+        schema_version: 'classcare-360-workspace-backup-v1',
+        exported_at: new Date().toISOString(),
+        exported_by: session.profile.email,
+        workspace: wsRes.data || null,
+        classrooms: clsRes.data || [],
+        students: stuRes.data || [],
+        student_guardians: guardRes.data || [],
+        savings_accounts: savAccRes.data || [],
+        savings_transactions: savTxRes.data || [],
+        school_calendar_days: calRes.data || [],
+        message_templates: tplRes.data || [],
+      };
+
+      const safeSchool = schoolName.replace(/[^a-zA-Z0-9ก-๙_-]+/g, '_').slice(0, 40);
+      const stamp = new Date().toISOString().slice(0, 10);
+      triggerJsonDownload(snapshot, `classcare-backup-${safeSchool}-${stamp}.json`);
+
+      // Record audit log for backup history
+      await supabase.from('audit_logs').insert({
+        workspace_id: workspaceId,
+        actor_profile_id: session.profile.id,
+        action: 'workspace_backup_exported',
+        entity_table: 'workspaces',
+        entity_id: workspaceId,
+        risk_level: 'normal',
+        metadata: {
+          classroom_count: snapshot.classrooms.length,
+          student_count: snapshot.students.length,
+          savings_tx_count: snapshot.savings_transactions.length,
+        },
+      });
+
+      setStats((prev) => ({ ...prev, lastBackupAt: new Date().toISOString() }));
+      setNotice({
+        tone: 'success',
+        text: `✓ สำรองข้อมูล "${schoolName}" (${snapshot.classrooms.length} ห้อง, ${snapshot.students.length} นักเรียน, ${snapshot.savings_transactions.length} รายการเงินออม) ลงเครื่องเรียบร้อยแล้ว`,
+      });
+    } catch (err) {
+      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'สำรองข้อมูลไม่สำเร็จ' });
+    } finally {
+      setIsBackingUp(false);
+    }
+  }
+
+  // --- Action 2: Inspect & Safely Restore Backup JSON ---
+  async function handleSelectBackupFile(file: File | null) {
+    setBackupPreview(null);
+    setBackupFileError(null);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const target = Array.isArray(parsed.snapshots)
+        ? ((parsed.snapshots[0] as Record<string, unknown>) || {})
+        : parsed;
+
+      if (!target.workspace && !Array.isArray(target.students) && !Array.isArray(target.classrooms)) {
+        setBackupFileError('ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ ClassCare 360');
+        return;
+      }
+
+      const wsObj = (target.workspace as Record<string, unknown> | undefined) || {};
+      setBackupPreview({
+        fileName: file.name,
+        exportedAt: (target.exported_at as string | null) || (parsed.exported_at as string | null) || null,
+        schoolName: String(wsObj.school_name || wsObj.name || 'ไม่ระบุชื่อโรงเรียน'),
+        classrooms: Array.isArray(target.classrooms) ? (target.classrooms as Array<Record<string, unknown>>) : [],
+        students: Array.isArray(target.students) ? (target.students as Array<Record<string, unknown>>) : [],
+        savingsAccountsCount: Array.isArray(target.savings_accounts) ? target.savings_accounts.length : 0,
+        savingsTxCount: Array.isArray(target.savings_transactions) ? target.savings_transactions.length : 0,
+        templates: Array.isArray(target.message_templates) ? (target.message_templates as Array<Record<string, unknown>>) : [],
+        raw: target,
+      });
+    } catch {
+      setBackupFileError('ไม่สามารถอ่านไฟล์ JSON ได้ กรุณาตรวจสอบว่าไฟล์ไม่เสียหาย');
+    }
+  }
+
+  async function handleSafeRestoreFromBackup() {
+    if (!supabase || !workspaceId || !backupPreview || !canManageSafety) return;
+    if (
+      !window.confirm(
+        `ยืนยันกู้คืนข้อมูลที่หายไปจากไฟล์ "${backupPreview.fileName}" เข้ามายัง "${schoolName}" หรือไม่?\n\nระบบจะกู้คืนห้องเรียน รายชื่อนักเรียน และข้อความสำเร็จรูปที่หายไป (ไม่ลบข้อมูลที่มีอยู่แล้ว)`,
+      )
+    ) {
+      return;
+    }
+
+    setIsRestoringFile(true);
+    setNotice(null);
+    try {
+      let restoredClassrooms = 0;
+      let restoredStudents = 0;
+      let restoredTemplates = 0;
+
+      if (backupPreview.classrooms.length > 0) {
+        const clsPayload = backupPreview.classrooms
+          .filter((c) => c.id && c.name)
+          .map((c) => ({
+            id: String(c.id),
+            workspace_id: workspaceId,
+            name: String(c.name),
+            grade_level: (c.grade_level as string | null) || null,
+            academic_year: (c.academic_year as string | null) || null,
+          }));
+        if (clsPayload.length > 0) {
+          const { error } = await supabase.from('classrooms').upsert(clsPayload, { onConflict: 'id', ignoreDuplicates: true });
+          if (error) throw new Error(`กู้คืนห้องเรียนไม่สำเร็จ: ${error.message}`);
+          restoredClassrooms = clsPayload.length;
+        }
+      }
+
+      if (backupPreview.students.length > 0) {
+        const stuPayload = backupPreview.students
+          .filter((s) => s.id && s.first_name)
+          .map((s) => ({
+            id: String(s.id),
+            workspace_id: workspaceId,
+            classroom_id: (s.classroom_id as string | null) || primaryClassroomId || null,
+            student_code: (s.student_code as string | null) || null,
+            first_name: String(s.first_name),
+            last_name: String(s.last_name || ''),
+            nickname: (s.nickname as string | null) || null,
+            gender: (s.gender as string | null) || 'other',
+            status: 'active',
+          }));
+        if (stuPayload.length > 0) {
+          const { error } = await supabase.from('students').upsert(stuPayload, { onConflict: 'id', ignoreDuplicates: true });
+          if (error) throw new Error(`กู้คืนรายชื่อนักเรียนไม่สำเร็จ: ${error.message}`);
+          restoredStudents = stuPayload.length;
+        }
+      }
+
+      if (backupPreview.templates.length > 0) {
+        const tplPayload = backupPreview.templates
+          .filter((t) => t.id && t.title && t.body)
+          .map((t) => ({
+            id: String(t.id),
+            workspace_id: workspaceId,
+            template_type: String(t.template_type || 'general'),
+            title: String(t.title),
+            body: String(t.body),
+            channel: String(t.channel || 'line'),
+            is_active: true,
+            created_by: session.profile.id,
+          }));
+        if (tplPayload.length > 0) {
+          const { error } = await supabase.from('message_templates').upsert(tplPayload, { onConflict: 'id', ignoreDuplicates: true });
+          if (error) throw new Error(`กู้คืนแม่แบบข้อความไม่สำเร็จ: ${error.message}`);
+          restoredTemplates = tplPayload.length;
+        }
+      }
+
+      setNotice({
+        tone: 'success',
+        text: `✓ กู้คืนข้อมูลจากไฟล์สำรองเสร็จสิ้น (ตรวจนำเข้า ${restoredClassrooms} ห้องเรียน, ${restoredStudents} นักเรียน, ${restoredTemplates} แม่แบบข้อความ)`,
+      });
+      setBackupPreview(null);
+      await loadLiveSafetyData();
+    } catch (err) {
+      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'กู้คืนข้อมูลไม่สำเร็จ' });
+    } finally {
+      setIsRestoringFile(false);
+    }
+  }
+
+  // --- Action 3: Auto-Fix Live Health Issues ---
+  async function handleFixHealthIssue(issue: LiveHealthIssue) {
+    if (!supabase || !workspaceId || !canManageSafety) return;
+    setFixingIssueId(issue.id);
+    setNotice(null);
+    try {
+      if (issue.fixType === 'assign_classroom' && primaryClassroomId && Array.isArray(issue.payload)) {
+        const ids = issue.payload as string[];
+        const { error } = await supabase
+          .from('students')
+          .update({ classroom_id: primaryClassroomId })
+          .eq('workspace_id', workspaceId)
+          .in('id', ids);
+        if (error) throw new Error(error.message);
+        setNotice({ tone: 'success', text: `✓ ผูกนักเรียน ${ids.length} คนเข้าห้องเรียนหลักเรียบร้อยแล้ว` });
+        await loadLiveSafetyData();
+      } else if (issue.fixType === 'repair_savings' && Array.isArray(issue.payload)) {
+        const list = issue.payload as Array<{ accountId: string; expectedBalance: number }>;
+        for (const item of list) {
+          const { error } = await supabase
+            .from('savings_accounts')
+            .update({ balance: item.expectedBalance, updated_at: new Date().toISOString() })
+            .eq('id', item.accountId)
+            .eq('workspace_id', workspaceId);
+          if (error) throw new Error(error.message);
+        }
+        setNotice({ tone: 'success', text: `✓ ซ่อมแซมยอดบัญชีเงินออม ${list.length} บัญชีให้ตรงกับรายการฝาก-ถอนเรียบร้อยแล้ว` });
+        await loadLiveSafetyData();
+      }
+    } catch (err) {
+      setNotice({ tone: 'error', text: `แก้ไขอัตโนมัติไม่สำเร็จ: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'}` });
+    } finally {
+      setFixingIssueId(null);
+    }
+  }
+
+  // --- Action 4: Real Trash Restore / Purge ---
+  async function handleRestoreTrash(item: TrashItem) {
+    if (!supabase || !workspaceId || !canManageSafety) return;
+    setBusyTrashId(item.id);
+    setNotice(null);
+    try {
+      if (item.kind === 'student' && item.payload?.first_name) {
+        const p = item.payload;
+        await supabase.from('students').upsert({
+          id: String(p.id || item.id),
+          workspace_id: workspaceId,
+          classroom_id: (p.classroom_id as string | null) || primaryClassroomId || null,
+          student_code: (p.student_code as string | null) || null,
+          first_name: String(p.first_name),
+          last_name: String(p.last_name || ''),
+          nickname: (p.nickname as string | null) || null,
+          gender: (p.gender as string | null) || 'other',
+          status: 'active',
+        });
+      }
       const { error } = await supabase
         .from('trash_items')
         .update({
@@ -512,27 +717,23 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           restored_by: session.profile.id,
           restored_at: new Date().toISOString(),
         })
-        .eq('id', id)
-        .eq('workspace_id', session.workspace.id);
-
-      if (error) updateSyncFromError(error);
-      else setSync({ status: 'synced', message: 'กู้คืนรายการและบันทึกลง Supabase เรียบร้อยแล้ว' });
+        .eq('id', item.id)
+        .eq('workspace_id', workspaceId);
+      if (error) throw new Error(error.message);
+      setNotice({ tone: 'success', text: `✓ กู้คืน "${item.title}" กลับเข้าระบบเรียบร้อยแล้ว` });
+      await loadLiveSafetyData();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'กู้คืนไม่สำเร็จ';
-      setSync({ status: 'error', message: `กู้คืนไม่สำเร็จ: ${msg}` });
+      setNotice({ tone: 'error', text: `กู้คืนไม่สำเร็จ: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'}` });
+    } finally {
+      setBusyTrashId(null);
     }
-  };
+  }
 
-  const deleteTrashForever = async (id: string) => {
-    if (!canManageSafety) return;
-    setState((current) => ({
-      ...current,
-      trashItems: current.trashItems.map((item) =>
-        item.id === id ? { ...item, permanentlyDeleted: true } : item,
-      ),
-    }));
-
-    if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
+  async function handlePurgeTrash(item: TrashItem) {
+    if (!supabase || !workspaceId || !canManageSafety) return;
+    if (!window.confirm(`ลบ "${item.title}" ออกจากถังขยะถาวรหรือไม่? (ไม่สามารถกู้คืนได้อีก)`)) return;
+    setBusyTrashId(item.id);
+    setNotice(null);
     const { error } = await supabase
       .from('trash_items')
       .update({
@@ -540,433 +741,553 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         purged_by: session.profile.id,
         purged_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .eq('workspace_id', session.workspace.id);
-    if (error) updateSyncFromError(error);
-    else setSync({ status: 'synced', message: 'ลบถาวรใน Supabase แล้ว' });
-  };
-
-  const resolveHealthIssue = async (id: string) => {
-    if (!canManageSafety) return;
-    setState((current) => ({
-      ...current,
-      healthIssues: current.healthIssues.map((issue) => (issue.id === id ? { ...issue, resolved: true } : issue)),
-    }));
-
-    if (!supabase || !session.workspace?.id || !isUuid(id) || isDemoSession(session)) return;
-    const { error } = await supabase
-      .from('data_health_issues')
-      .update({
-        status: 'resolved',
-        resolved_by: session.profile.id,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('workspace_id', session.workspace.id);
-    if (error) updateSyncFromError(error);
-    else setSync({ status: 'synced', message: 'ปิด issue ลง Supabase แล้ว' });
-  };
-
-  const addCalendarRule = async () => {
-    if (!canManageSafety) return;
-    if (!calendarDraft.title.trim()) return;
-    const tempId = `calendar-${Date.now()}`;
-    setState((current) => ({
-      ...current,
-      calendarRules: [
-        {
-          id: tempId,
-          date: calendarDraft.date,
-          title: calendarDraft.title.trim(),
-          type: calendarDraft.type,
-          attendancePolicy: calendarDraft.attendancePolicy,
-        },
-        ...current.calendarRules,
-      ],
-    }));
-    setCalendarDraft((current) => ({ ...current, title: '' }));
-
-    if (!supabase || !session.workspace?.id || isDemoSession(session)) return;
-    const { data, error } = await supabase
-      .from('school_calendar_days')
-      .insert({
-        workspace_id: session.workspace.id,
-        calendar_date: calendarDraft.date,
-        day_type: toDayType(calendarDraft.type),
-        title: calendarDraft.title.trim(),
-        affects_attendance: calendarDraft.attendancePolicy !== 'skip',
-        affects_reports: true,
-        metadata: { attendancePolicy: calendarDraft.attendancePolicy },
-        created_by: session.profile.id,
-      })
-      .select('*')
-      .single();
+      .eq('id', item.id)
+      .eq('workspace_id', workspaceId);
+    setBusyTrashId(null);
     if (error) {
-      updateSyncFromError(error);
+      setNotice({ tone: 'error', text: `ลบถาวรไม่สำเร็จ: ${error.message}` });
+    } else {
+      setNotice({ tone: 'success', text: `ลบ "${item.title}" ออกจากถังขยะถาวรแล้ว` });
+      await loadLiveSafetyData();
+    }
+  }
+
+  // --- Action 5: Real Message Templates CRUD ---
+  async function handleAddTemplate() {
+    if (!supabase || !workspaceId || !canManageSafety) return;
+    if (!templateDraft.title.trim() || !templateDraft.body.trim()) {
+      setNotice({ tone: 'error', text: 'กรุณากรอกชื่อแม่แบบและเนื้อหาข้อความ' });
       return;
     }
-    setState((current) => ({
-      ...current,
-      calendarRules: current.calendarRules.map((rule) => (rule.id === tempId ? mapCalendarRow(data) : rule)),
-    }));
-    setSync({ status: 'synced', message: 'บันทึกปฏิทินโรงเรียนลง Supabase แล้ว' });
-  };
+    setIsSavingTpl(true);
+    setNotice(null);
+    const { error } = await supabase.from('message_templates').insert({
+      workspace_id: workspaceId,
+      template_type: templateDraft.templateType,
+      title: templateDraft.title.trim(),
+      body: templateDraft.body.trim(),
+      channel: 'line',
+      is_active: true,
+      created_by: session.profile.id,
+    });
+    setIsSavingTpl(false);
+    if (error) {
+      setNotice({ tone: 'error', text: `บันทึกข้อความสำเร็จรูปไม่สำเร็จ: ${error.message}` });
+    } else {
+      setTemplateDraft({ templateType: 'general', title: '', body: 'เรียนผู้ปกครองของ {{student_name}} ' });
+      setNotice({ tone: 'success', text: '✓ บันทึกข้อความสำเร็จรูปลงฐานข้อมูลเรียบร้อยแล้ว' });
+      await loadLiveSafetyData();
+    }
+  }
 
-  const addTemplate = async () => {
-    if (!canManageSafety) return;
-    if (!templateDraft.title.trim() || !templateDraft.body.trim()) return;
-    const tempId = `template-${Date.now()}`;
-    setState((current) => ({
-      ...current,
-      templates: [
-        {
-          id: tempId,
-          category: templateDraft.category.trim() || 'ทั่วไป',
-          title: templateDraft.title.trim(),
-          body: templateDraft.body.trim(),
-        },
-        ...current.templates,
-      ],
-    }));
-    setTemplateDraft((current) => ({ ...current, title: '' }));
-
-    if (!supabase || !session.workspace?.id || isDemoSession(session)) return;
-    const { data, error } = await supabase
-      .from('message_templates')
-      .insert({
-        workspace_id: session.workspace.id,
-        template_type: toTemplateType(templateDraft.category),
-        title: templateDraft.title.trim(),
-        body: templateDraft.body.trim(),
-        channel: 'line',
+  async function handleSeedStarterTemplates() {
+    if (!supabase || !workspaceId || !canManageSafety) return;
+    setIsSavingTpl(true);
+    const { error } = await supabase.from('message_templates').insert(
+      DEFAULT_STARTER_TEMPLATES.map((t) => ({
+        ...t,
+        workspace_id: workspaceId,
         is_active: true,
         created_by: session.profile.id,
-      })
-      .select('*')
-      .single();
+      })),
+    );
+    setIsSavingTpl(false);
     if (error) {
-      updateSyncFromError(error);
-      return;
+      setNotice({ tone: 'error', text: `ติดตั้งแม่แบบมาตรฐานไม่สำเร็จ: ${error.message}` });
+    } else {
+      setNotice({ tone: 'success', text: '✓ ติดตั้งข้อความสำเร็จรูปมาตรฐาน 3 ชุดเรียบร้อยแล้ว' });
+      await loadLiveSafetyData();
     }
-    setState((current) => ({
-      ...current,
-      templates: current.templates.map((template) => (template.id === tempId ? mapTemplateRow(data) : template)),
-    }));
-    setSync({ status: 'synced', message: 'บันทึก template ลง Supabase แล้ว' });
-  };
+  }
+
+  async function handleDeleteTemplate(tpl: MessageTemplate) {
+    if (!supabase || !workspaceId || !canManageSafety) return;
+    if (!window.confirm(`ลบแม่แบบ "${tpl.title}" หรือไม่?`)) return;
+    const { error } = await supabase
+      .from('message_templates')
+      .update({ is_active: false })
+      .eq('id', tpl.id)
+      .eq('workspace_id', workspaceId);
+    if (error) {
+      setNotice({ tone: 'error', text: `ลบแม่แบบไม่สำเร็จ: ${error.message}` });
+    } else {
+      setTemplates((prev) => prev.filter((item) => item.id !== tpl.id));
+      setNotice({ tone: 'success', text: `ลบแม่แบบ "${tpl.title}" แล้ว` });
+    }
+  }
+
+  async function copyTemplateBody(tpl: MessageTemplate) {
+    try {
+      await navigator.clipboard.writeText(tpl.body);
+      setCopiedTplId(tpl.id);
+      window.setTimeout(() => setCopiedTplId((prev) => (prev === tpl.id ? null : prev)), 1800);
+    } catch {
+      setNotice({ tone: 'error', text: 'คัดลอกข้อความไม่สำเร็จ' });
+    }
+  }
 
   return (
     <main className="app-page">
+      {/* Header */}
       <div className="app-page-header">
         <div>
           <span className="nexus-kicker">
             <DatabaseZap size={16} aria-hidden="true" />
-            Data Safety Center
+            Data Safety & Backup Center
           </span>
-          <h1 className="app-page-title">ศูนย์ดูแลข้อมูลที่ครูใช้ก่อนงานจริง</h1>
+          <h1 className="app-page-title">สำรองข้อมูล & ดูแลความปลอดภัยข้อมูล</h1>
           <p className="app-page-description">
-            หน้านี้รวมระบบกันข้อมูลพังจากไฟล์ import, ลบผิด, รายชื่อซ้ำ, ปฏิทินโรงเรียน, โหมดใช้งาน และข้อความสำเร็จรูป
-            เพื่อให้ข้อมูลนักเรียนพร้อมก่อนต่อไปยังเวลาเรียน คะแนน เงินออม พฤติกรรม และรายงาน
+            สำรองข้อมูลโรงเรียนเก็บไว้บนเครื่อง กู้คืนไฟล์สำรอง สแกนตรวจหาข้อมูลซ้ำหรือยอดเงินออมผิดปกติ และจัดการถังขยะได้จริงในจุดเดียว
           </p>
         </div>
 
-        <div className="nexus-card p-4 text-sm font-black text-slate-700">
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">workspace</p>
-          <p className="mt-1 text-xl text-slate-950">{session.workspace?.schoolName || 'ยังไม่ได้เลือกโรงเรียน'}</p>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            สถานะ: {state.mode === 'simple' ? 'Simple Mode' : 'Advanced Mode'}
-          </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => void loadLiveSafetyData()}
+            className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-xs hover:bg-slate-50"
+          >
+            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} /> สแกนข้อมูลล่าสุด
+          </button>
+          <button
+            type="button"
+            disabled={isBackingUp || !workspaceId}
+            onClick={() => void handleExportBackup()}
+            className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-xs font-black shadow-sm disabled:opacity-50"
+          >
+            {isBackingUp ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
+            <span>{isBackingUp ? 'กำลังสำรอง...' : 'สำรองข้อมูลเดี๋ยวนี้ (.JSON)'}</span>
+          </button>
         </div>
       </div>
 
-      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="ตรวจ import" value={state.importChecked ? 'ผ่าน' : 'รอตรวจ'} tone="text-cyan-700" />
-        <StatCard label="ในถังขยะ" value={summary.openTrash} tone="text-rose-700" />
-        <StatCard label="ปัญหาข้อมูล" value={summary.openIssues} tone="text-amber-700" />
-        <StatCard label="วันพิเศษ" value={state.calendarRules.length} tone="text-teal-700" />
-        <StatCard label="template" value={state.templates.length} tone="text-slate-950" />
+      {/* Real Live KPI Strip (zero fake numbers!) */}
+      <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="nexus-card p-4">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">ห้องเรียน / นักเรียน</p>
+          <p className="mt-1.5 text-2xl font-black tabular-nums text-slate-950">
+            {stats.students} <span className="text-xs font-bold text-slate-400">คน ({stats.classrooms} ห้อง)</span>
+          </p>
+        </div>
+        <div className="nexus-card p-4">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">รายการเงินออม</p>
+          <p className="mt-1.5 text-2xl font-black tabular-nums text-teal-700">
+            {stats.savingsTransactions.toLocaleString('th-TH')} <span className="text-xs font-bold text-slate-400">รายการ</span>
+          </p>
+        </div>
+        <div className="nexus-card p-4">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">ปัญหาข้อมูลที่พบ</p>
+          <p className={`mt-1.5 text-2xl font-black tabular-nums ${healthIssues.length > 0 ? 'text-amber-600' : 'text-emerald-700'}`}>
+            {healthIssues.length === 0 ? 'ปกติ (0)' : `${healthIssues.length} จุด`}
+          </p>
+        </div>
+        <div className="nexus-card p-4">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">ในถังขยะ</p>
+          <p className="mt-1.5 text-2xl font-black tabular-nums text-rose-700">{activeTrashCount}</p>
+        </div>
+        <div className="nexus-card col-span-2 p-4 lg:col-span-1">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">สำรองล่าสุด</p>
+          <p className="mt-1.5 text-xs font-black text-slate-800">{formatThaiDateTime(stats.lastBackupAt)}</p>
+        </div>
       </section>
 
-      <div
-        className={`mt-5 rounded-2xl border px-4 py-3 text-sm font-bold ${
-          sync.status === 'synced'
-            ? 'border-teal-200 bg-teal-50 text-teal-800'
-            : sync.status === 'missing_sql' || sync.status === 'error'
-              ? 'border-amber-200 bg-amber-50 text-amber-800'
-              : 'border-[#ead8bd] bg-white/80 text-slate-600'
-        }`}
-      >
-        {sync.status === 'loading' ? <NexusAuroraInline label={sync.message} /> : <>Supabase sync: {sync.message}</>}
+      {/* Clean 4-Tab Bar */}
+      <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
+        {[
+          { badge: null, icon: Download, id: 'backup', label: '1. สำรอง & กู้คืนไฟล์' },
+          { badge: healthIssues.length > 0 ? healthIssues.length : null, icon: ShieldCheck, id: 'health', label: '2. ตรวจสุขภาพข้อมูล' },
+          { badge: activeTrashCount > 0 ? activeTrashCount : null, icon: Trash2, id: 'trash', label: '3. ถังขยะและกู้คืน' },
+          { badge: templates.length > 0 ? templates.length : null, icon: MessageSquareText, id: 'templates', label: '4. ข้อความสำเร็จรูป' },
+        ].map((t) => {
+          const Icon = t.icon;
+          const active = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id as SafetyTab)}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                active ? 'bg-slate-950 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+              }`}
+            >
+              <Icon size={15} className={active ? 'text-cyan-300' : 'text-slate-400'} />
+              <span>{t.label}</span>
+              {t.badge !== null ? (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                    t.id === 'health' && healthIssues.length > 0
+                      ? active
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-amber-100 text-amber-800'
+                      : active
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {t.badge}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
-      <section className="app-content-grid xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="app-panel-pad">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      {notice ? (
+        <div
+          className={`mt-4 flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs font-black ${
+            notice.tone === 'error'
+              ? 'border-rose-200 bg-rose-50 text-rose-800'
+              : notice.tone === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-cyan-200 bg-cyan-50 text-cyan-800'
+          }`}
+        >
+          {notice.tone === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+          <span>{notice.text}</span>
+        </div>
+      ) : null}
+
+      {isLoading ? (
+        <div className="nexus-card mt-5 p-10 text-center">
+          <NexusAuroraInline label="กำลังสแกนฐานข้อมูลจริงของโรงเรียน..." />
+        </div>
+      ) : null}
+
+      {/* TAB 1: REAL BACKUP & RESTORE */}
+      {!isLoading && activeTab === 'backup' ? (
+        <section className="mt-5 grid gap-5 lg:grid-cols-2">
+          {/* Backup Card */}
+          <div className="nexus-card flex flex-col justify-between p-5 sm:p-6">
             <div>
-              <span className="nexus-kicker">
-                <UploadCloud size={16} aria-hidden="true" />
-                Import Safety
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">
+                <Download size={13} /> สำรองข้อมูลลงเครื่อง
               </span>
-              <h2 className="mt-3 text-2xl font-black text-slate-950">ตรวจไฟล์ก่อนนำเข้า ไม่ให้ข้อมูลซ้ำหรือผิดห้อง</h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{state.lastImportAction}</p>
+              <h2 className="mt-3 text-xl font-black text-slate-950">ดาวน์โหลดไฟล์สำรองของ “{schoolName}”</h2>
+              <p className="mt-1.5 text-xs font-semibold leading-6 text-slate-600">
+                ดึงข้อมูลจริงทั้งหมดในพื้นที่ทำงานนี้ออกมาเป็นไฟล์ `.json` เพื่อเก็บไว้ในคอมพิวเตอร์, Flash Drive หรือ Google Drive เผื่อกรณีฉุกเฉิน
+              </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-2.5 text-xs">
+                {[
+                  { label: 'ห้องเรียนทั้งหมด', val: `${stats.classrooms} ห้อง` },
+                  { label: 'รายชื่อนักเรียน', val: `${stats.students} คน` },
+                  { label: 'บัญชีเงินออม', val: `${stats.savingsAccounts} บัญชี` },
+                  { label: 'ประวัติฝาก-ถอนเงินออม', val: `${stats.savingsTransactions} รายการ` },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <p className="text-[11px] font-bold text-slate-500">{item.label}</p>
+                    <p className="mt-0.5 text-sm font-black text-slate-900">{item.val}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <button className="amber-action inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black" onClick={runImportSafetyCheck} type="button">
-              <ClipboardCheck size={17} aria-hidden="true" />
-              ตรวจไฟล์นำเข้า
+
+            <button
+              type="button"
+              disabled={isBackingUp || !workspaceId}
+              onClick={() => void handleExportBackup()}
+              className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
+            >
+              {isBackingUp ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
+              <span>{isBackingUp ? 'กำลังรวบรวมข้อมูล...' : 'ดาวน์โหลดไฟล์สำรองข้อมูล (.JSON)'}</span>
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {[
-              'Preview ก่อน import จริงทุกครั้ง',
-              'ตรวจรหัสซ้ำ ชื่อซ้ำ และชื่อว่าง',
-              'ตรวจ classroom_id / academic_year',
-              'เก็บ import batch เพื่อลบรอบล่าสุดได้',
-              'แยกแถวผ่านและแถวต้องแก้',
-              'บันทึก audit ว่าใครนำเข้าไฟล์ไหน',
-            ].map((item) => (
-              <div className="rounded-2xl border border-[#ead8bd] bg-white/80 p-3 text-sm font-black text-slate-700" key={item}>
-                <CheckCircle2 className="mr-2 inline text-teal-600" size={16} aria-hidden="true" />
-                {item}
+          {/* Restore Card */}
+          <div className="nexus-card p-5 sm:p-6">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-50 px-3 py-1 text-[11px] font-black text-cyan-800 ring-1 ring-cyan-200">
+              <FileCheck2 size={13} /> ตรวจสอบ & กู้คืนจากไฟล์สำรอง
+            </span>
+            <h2 className="mt-3 text-xl font-black text-slate-950">กู้คืนข้อมูลที่หายไปอย่างปลอดภัย</h2>
+            <p className="mt-1.5 text-xs font-semibold leading-6 text-slate-600">
+              เลือกไฟล์ `.json` ที่เคยสำรองไว้ ระบบจะแสดงสรุปข้อมูลให้ตรวจสอบก่อน และกู้คืนเฉพาะข้อมูลที่หายไปโดยไม่ลบข้อมูลปัจจุบันทิ้ง
+            </p>
+
+            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-6 text-center transition hover:border-cyan-300 hover:bg-cyan-50/40">
+              <FileUp size={24} className="text-cyan-700" />
+              <span className="mt-2 text-xs font-black text-slate-700">คลิกเพื่อเลือกไฟล์สำรองข้อมูล (.json)</span>
+              <span className="mt-0.5 text-[11px] font-semibold text-slate-400">รองรับไฟล์จาก ClassCare 360 ทั้งแบบรายโรงเรียนและแบบทั้งระบบ</span>
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="sr-only"
+                onChange={(e) => void handleSelectBackupFile(e.target.files?.[0] || null)}
+              />
+            </label>
+
+            {backupFileError ? (
+              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-black text-rose-700">{backupFileError}</p>
+            ) : null}
+
+            {backupPreview ? (
+              <div className="mt-4 space-y-3 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-black text-cyan-950">พบไฟล์สำรอง: {backupPreview.schoolName}</p>
+                  <span className="text-[11px] font-bold text-cyan-700">{formatThaiDateTime(backupPreview.exportedAt)}</span>
+                </div>
+                <p className="font-semibold text-slate-700">
+                  ห้องเรียน: <strong>{backupPreview.classrooms.length}</strong> · นักเรียน: <strong>{backupPreview.students.length}</strong> · บัญชีเงินออม:{' '}
+                  <strong>{backupPreview.savingsAccountsCount}</strong> ({backupPreview.savingsTxCount} รายการ) · แม่แบบข้อความ:{' '}
+                  <strong>{backupPreview.templates.length}</strong>
+                </p>
+                <button
+                  type="button"
+                  disabled={isRestoringFile || !canManageSafety}
+                  onClick={() => void handleSafeRestoreFromBackup()}
+                  className="blue-action inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-xs font-black disabled:opacity-50"
+                >
+                  {isRestoringFile ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                  <span>{isRestoringFile ? 'กำลังกู้คืนข้อมูล...' : 'ยืนยันกู้คืนข้อมูลที่หายไปจากไฟล์นี้'}</span>
+                </button>
               </div>
-            ))}
+            ) : null}
           </div>
-        </div>
+        </section>
+      ) : null}
 
-        <div className="app-panel-pad">
-          <span className="nexus-kicker">
-            <SlidersHorizontal size={16} aria-hidden="true" />
-            Simple / Advanced
-          </span>
-          <h2 className="mt-3 text-2xl font-black text-slate-950">โหมดใช้งานตามความถนัดของครู</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-            Simple Mode ซ่อนรายละเอียดเชิงระบบ เหลือเฉพาะงานที่ครูใช้บ่อย ส่วน Advanced Mode เปิดเครื่องมือจัดการและตรวจสอบครบ
-          </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {(['simple', 'advanced'] as UiMode[]).map((mode) => (
-              <button
-                className={`min-h-20 rounded-2xl border px-4 text-left text-sm font-black transition ${
-                  state.mode === mode
-                    ? 'border-[#d89333] bg-[#fff1c9] text-[#3a2817] shadow-[0_16px_34px_rgba(188,117,32,0.16)]'
-                    : 'border-[#ead8bd] bg-white/80 text-slate-600 hover:bg-white'
-                }`}
-                key={mode}
-                onClick={() => {
-                  setState((current) => ({ ...current, mode }));
-                  void persistMode(mode);
-                }}
-                type="button"
-              >
-                <span className="block text-lg">{mode === 'simple' ? 'Simple Mode' : 'Advanced Mode'}</span>
-                <span className="mt-1 block text-xs leading-5">
-                  {mode === 'simple' ? 'งานหลัก กระชับ เหมาะกับครูทั่วไป' : 'เห็นเครื่องมือจัดการ ตรวจสอบ และ debug'}
-                </span>
-              </button>
-            ))}
+      {/* TAB 2: LIVE DATA HEALTH SCANNER */}
+      {!isLoading && activeTab === 'health' ? (
+        <section className="nexus-card mt-5 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black text-slate-950">ผลสแกนสุขภาพข้อมูลจริงของ “{schoolName}”</h2>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                ตรวจสอบจริงจากตารางนักเรียน ห้องเรียน บัญชีเงินออม และตั้งค่ารายงาน (ไม่มีข้อมูลจำลอง)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadLiveSafetyData()}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw size={14} /> สแกนซ้ำ
+            </button>
           </div>
-        </div>
-      </section>
 
-      <section className="app-content-grid xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="app-panel-pad">
-          <span className="nexus-kicker">
-            <Trash2 size={16} aria-hidden="true" />
-            Trash & Restore
-          </span>
-          <h2 className="mt-3 text-2xl font-black text-slate-950">ถังขยะและกู้คืนข้อมูล</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-            ป้องกันปัญหาลบแล้วหายทันทีหรือกู้คืนไม่ได้ โดยแยกกู้คืนกับลบถาวรชัดเจน
-          </p>
-
-          <div className="mt-5 grid gap-3">
-            {state.trashItems
-              .filter((item) => !item.permanentlyDeleted)
-              .map((item) => (
-                <div className={`rounded-2xl border p-4 ${item.restored ? 'border-teal-200 bg-teal-50' : 'border-[#ead8bd] bg-white/80'}`} key={item.id}>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-cyan-700">
-                        {trashKindLabels[item.kind]} {item.restored ? '| กู้คืนแล้ว' : ''}
-                      </p>
-                      <h3 className="mt-1 text-lg font-black text-slate-950">{item.title}</h3>
-                      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.detail}</p>
-                      <p className="mt-2 text-xs font-bold text-slate-400">
-                        ลบโดย {item.deletedBy} | {item.deletedAt}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
+          {healthIssues.length === 0 ? (
+            <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50/70 p-8 text-center">
+              <CheckCircle2 size={36} className="text-emerald-600" />
+              <p className="mt-3 text-base font-black text-emerald-950">ข้อมูลห้องเรียนสมบูรณ์ 100%</p>
+              <p className="mt-1 text-xs font-semibold text-emerald-800">
+                ไม่พบนักเรียนซ้ำซ้อน ไม่พบนักเรียนหลุดห้อง และยอดบัญชีเงินออมตรงกับรายการฝาก-ถอนทุกบัญชี
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {healthIssues.map((issue) => (
+                <div
+                  key={issue.id}
+                  className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                    issue.severity === 'danger'
+                      ? 'border-rose-200 bg-rose-50/80 text-rose-900'
+                      : issue.severity === 'warning'
+                        ? 'border-amber-200 bg-amber-50/80 text-amber-950'
+                        : 'border-cyan-200 bg-cyan-50/70 text-cyan-950'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-wider opacity-75">
+                      {issue.severity === 'danger' ? 'ควรแก้ไขทันที' : issue.severity === 'warning' ? 'ข้อควรตรวจสอบ' : 'คำแนะนำ'}
+                    </span>
+                    <h3 className="mt-0.5 text-base font-black">{issue.title}</h3>
+                    <p className="mt-1 text-xs font-semibold leading-5 opacity-90">{issue.detail}</p>
+                  </div>
+                  <div className="shrink-0">
+                    {issue.fixType === 'assign_classroom' || issue.fixType === 'repair_savings' ? (
                       <button
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#ead8bd] bg-white px-3 text-xs font-black text-[#3a2817] disabled:opacity-40"
-                        disabled={item.restored || !canManageSafety}
-                        onClick={() => restoreTrash(item.id)}
                         type="button"
+                        disabled={fixingIssueId === issue.id || !canManageSafety}
+                        onClick={() => void handleFixHealthIssue(issue)}
+                        className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-slate-950 px-4 text-xs font-black text-white shadow-xs hover:bg-slate-800 disabled:opacity-50"
                       >
-                        <RotateCcw size={15} aria-hidden="true" />
-                        กู้คืน
+                        <Wrench size={14} /> {fixingIssueId === issue.id ? 'กำลังซ่อม...' : issue.linkLabel}
                       </button>
-                      <button
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700"
-                        disabled={!canManageSafety}
-                        onClick={() => deleteTrashForever(item.id)}
-                        type="button"
+                    ) : issue.linkTo ? (
+                      <Link
+                        to={issue.linkTo}
+                        className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-xs font-black text-slate-800 shadow-xs ring-1 ring-black/10 hover:bg-slate-50"
                       >
-                        <Trash2 size={15} aria-hidden="true" />
-                        ลบถาวร
-                      </button>
-                    </div>
+                        {issue.linkLabel || 'เปิดตรวจสอบ'} <ArrowRight size={14} />
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
               ))}
-          </div>
-        </div>
+            </div>
+          )}
+        </section>
+      ) : null}
 
-        <div className="app-panel-pad">
-          <span className="nexus-kicker">
-            <ShieldCheck size={16} aria-hidden="true" />
-            Data Health
-          </span>
-          <h2 className="mt-3 text-2xl font-black text-slate-950">ตรวจสุขภาพข้อมูลที่ทำให้ระบบไม่โผล่หรือรายงานผิด</h2>
-          <div className="mt-5 grid gap-3">
-            {state.healthIssues.map((issue) => (
-              <div className={`rounded-2xl border p-4 ${issue.resolved ? 'border-teal-200 bg-teal-50 text-teal-700' : healthStyles[issue.severity]}`} key={issue.id}>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* TAB 3: REAL TRASH & RESTORE */}
+      {!isLoading && activeTab === 'trash' ? (
+        <section className="nexus-card mt-5 p-5 sm:p-6">
+          <h2 className="text-xl font-black text-slate-950">ถังขยะและกู้คืนข้อมูล</h2>
+          <p className="mt-0.5 text-xs font-semibold text-slate-500">
+            รายการที่ถูกลบจากระบบจะเก็บไว้ที่นี่เพื่อให้ครูกู้คืนได้ทันทีหากลบผิด หรือกดลบถาวรเพื่อล้างพื้นที่
+          </p>
+
+          {trashItems.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-8 text-center">
+              <Trash2 size={28} className="mx-auto text-slate-300" />
+              <p className="mt-2 text-sm font-black text-slate-600">ถังขยะว่างเปล่า</p>
+              <p className="mt-1 text-xs font-semibold text-slate-400">ยังไม่มีรายการนักเรียน ห้องเรียน หรือชุดคะแนนที่ถูกลบในพื้นที่ทำงานนี้</p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {trashItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                    item.restored ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-white'
+                  }`}
+                >
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.12em]">
-                      {issue.resolved ? 'resolved' : issue.severity}
-                    </p>
-                    <h3 className="mt-1 text-lg font-black">{issue.title}</h3>
-                    <p className="mt-1 text-sm font-bold leading-6">{issue.detail}</p>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700">
+                      {trashKindLabels[item.kind]} {item.restored ? '· กู้คืนแล้ว' : ''}
+                    </span>
+                    <h3 className="mt-0.5 text-base font-black text-slate-950">{item.title}</h3>
+                    {item.detail ? <p className="mt-0.5 text-xs font-semibold text-slate-500">{item.detail}</p> : null}
+                    <p className="mt-1 text-[11px] font-bold text-slate-400">ลบเมื่อ: {formatThaiDateTime(item.deletedAt)}</p>
                   </div>
-                  <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-black text-slate-700 shadow-sm ring-1 ring-black/5 disabled:opacity-40"
-                    disabled={issue.resolved || !canManageSafety}
-                    onClick={() => resolveHealthIssue(issue.id)}
-                    type="button"
-                  >
-                    <CheckCircle2 size={15} aria-hidden="true" />
-                    {issue.action}
-                  </button>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      disabled={item.restored || busyTrashId === item.id || !canManageSafety}
+                      onClick={() => void handleRestoreTrash(item)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                    >
+                      <RotateCcw size={14} /> กู้คืน
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyTrashId === item.id || !canManageSafety}
+                      onClick={() => void handlePurgeTrash(item)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                    >
+                      <Trash2 size={14} /> ลบถาวร
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
-      <section className="app-content-grid xl:grid-cols-2">
-        <div className="app-panel-pad">
-          <span className="nexus-kicker">
-            <CalendarDays size={16} aria-hidden="true" />
-            School Calendar
-          </span>
-          <h2 className="mt-3 text-2xl font-black text-slate-950">ปฏิทินโรงเรียนสำหรับเช็คชื่อและรายงาน</h2>
-          <div className="app-form-grid mt-5">
-            <FieldLabel>
-              วันที่
-              <ThaiDatePicker className="mt-2 h-12 px-4" value={calendarDraft.date} onValueChange={(value) => setCalendarDraft((current) => ({ ...current, date: value }))} />
-            </FieldLabel>
-            <FieldLabel>
-              ประเภท
-              <select className="nexus-field mt-2 h-12 px-4" value={calendarDraft.type} onChange={(event) => setCalendarDraft((current) => ({ ...current, type: event.target.value as CalendarRule['type'] }))}>
-                <option value="activity">กิจกรรม</option>
-                <option value="holiday">หยุดเรียน</option>
-                <option value="exam">สอบ</option>
-                <option value="makeup">เรียนชดเชย</option>
-                <option value="custom">กำหนดเอง</option>
-              </select>
-            </FieldLabel>
-            <FieldLabel>
-              นโยบายเช็คชื่อ
-              <select className="nexus-field mt-2 h-12 px-4" value={calendarDraft.attendancePolicy} onChange={(event) => setCalendarDraft((current) => ({ ...current, attendancePolicy: event.target.value as CalendarRule['attendancePolicy'] }))}>
-                <option value="normal">เช็คชื่อปกติ</option>
-                <option value="warn">เตือนก่อนบันทึก</option>
-                <option value="skip">ไม่คิดเป็นวันเรียน</option>
-              </select>
-            </FieldLabel>
-            <FieldLabel>
-              ชื่อวันพิเศษ
-              <input className="nexus-field mt-2 h-12 px-4" placeholder="เช่น สอบกลางภาค / ทัศนศึกษา" value={calendarDraft.title} onChange={(event) => setCalendarDraft((current) => ({ ...current, title: event.target.value }))} />
-            </FieldLabel>
+      {/* TAB 4: REAL MESSAGE TEMPLATES */}
+      {!isLoading && activeTab === 'templates' ? (
+        <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
+          <div className="nexus-card p-5">
+            <h2 className="text-lg font-black text-slate-950">สร้างข้อความสำเร็จรูปใหม่</h2>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">เก็บไว้คัดลอกส่งให้ผู้ปกครองผ่าน LINE / SMS ได้รวดเร็ว</p>
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-black text-slate-700">
+                หมวดหมู่
+                <select
+                  value={templateDraft.templateType}
+                  onChange={(e) => setTemplateDraft((prev) => ({ ...prev, templateType: e.target.value }))}
+                  className="nexus-field mt-1 h-10 w-full px-3 text-xs font-bold"
+                >
+                  {Object.entries(templateTypeLabels).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs font-black text-slate-700">
+                ชื่อแม่แบบ
+                <input
+                  type="text"
+                  value={templateDraft.title}
+                  onChange={(e) => setTemplateDraft((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="เช่น แจ้งนัดประชุมผู้ปกครอง"
+                  className="nexus-field mt-1 h-10 w-full px-3 text-xs font-bold"
+                />
+              </label>
+              <label className="block text-xs font-black text-slate-700">
+                เนื้อหาข้อความ
+                <textarea
+                  rows={4}
+                  value={templateDraft.body}
+                  onChange={(e) => setTemplateDraft((prev) => ({ ...prev, body: e.target.value }))}
+                  className="nexus-field mt-1 w-full p-3 text-xs font-bold"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={isSavingTpl || !canManageSafety}
+                onClick={() => void handleAddTemplate()}
+                className="blue-action inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-black disabled:opacity-50"
+              >
+                <Plus size={15} /> {isSavingTpl ? 'กำลังบันทึก...' : 'บันทึกข้อความสำเร็จรูป'}
+              </button>
+            </div>
           </div>
-          <button className="amber-action mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:opacity-50" disabled={!canManageSafety} onClick={addCalendarRule} type="button">
-            <CalendarDays size={17} aria-hidden="true" />
-            บันทึกวันพิเศษ
-          </button>
-          <div className="mt-5 grid gap-2">
-            {state.calendarRules.map((rule) => (
-              <div className="flex items-center justify-between rounded-2xl border border-[#ead8bd] bg-white/80 p-3 text-sm font-black text-slate-700" key={rule.id}>
-                <span>{rule.date} | {rule.title}</span>
-                <span className="rounded-full bg-[#fff1c9] px-3 py-1 text-xs text-[#8a5200]">{rule.attendancePolicy}</span>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="app-panel-pad">
-          <span className="nexus-kicker">
-            <MessageSquareText size={16} aria-hidden="true" />
-            Parent Message Templates
-          </span>
-          <h2 className="mt-3 text-2xl font-black text-slate-950">ข้อความสำเร็จรูปสำหรับครู</h2>
-          <div className="app-form-grid mt-5">
-            <FieldLabel>
-              หมวด
-              <input className="nexus-field mt-2 h-12 px-4" value={templateDraft.category} onChange={(event) => setTemplateDraft((current) => ({ ...current, category: event.target.value }))} />
-            </FieldLabel>
-            <FieldLabel>
-              ชื่อ template
-              <input className="nexus-field mt-2 h-12 px-4" placeholder="เช่น แจ้งขาดเรียน" value={templateDraft.title} onChange={(event) => setTemplateDraft((current) => ({ ...current, title: event.target.value }))} />
-            </FieldLabel>
-          </div>
-          <FieldLabel>
-            ข้อความ
-            <textarea className="nexus-field mt-2 min-h-32 px-4 py-3" value={templateDraft.body} onChange={(event) => setTemplateDraft((current) => ({ ...current, body: event.target.value }))} />
-          </FieldLabel>
-          <button className="dark-action mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black disabled:opacity-50" disabled={!canManageSafety} onClick={addTemplate} type="button">
-            <MessageSquareText size={17} aria-hidden="true" />
-            บันทึก template
-          </button>
-          <div className="mt-5 grid gap-3">
-            {state.templates.map((template) => (
-              <div className="rounded-2xl border border-[#ead8bd] bg-white/85 p-4" key={template.id}>
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-cyan-700">{template.category}</p>
-                <h3 className="mt-1 text-lg font-black text-slate-950">{template.title}</h3>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{template.body}</p>
+          <div className="nexus-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">คลังข้อความของโรงเรียน ({templates.length} ชุด)</h2>
+                <p className="text-xs font-semibold text-slate-500">กดคัดลอกไปวางใน LINE กลุ่มผู้ปกครองได้ทันที</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              {templates.length === 0 ? (
+                <button
+                  type="button"
+                  disabled={isSavingTpl || !canManageSafety}
+                  onClick={() => void handleSeedStarterTemplates()}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-100 px-3 text-xs font-black text-amber-900 hover:bg-amber-200"
+                >
+                  <Sparkles size={14} /> ติดตั้งแม่แบบมาตรฐาน 3 ชุด
+                </button>
+              ) : null}
+            </div>
 
-      <section className="nexus-card mt-5 p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <span className="nexus-kicker">
-              <FileWarning size={16} aria-hidden="true" />
-              Implementation note
-            </span>
-            <h2 className="mt-3 text-2xl font-black text-slate-950">สิ่งที่หน้านี้กันปัญหาให้ระบบ</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              import ผิด, ข้อมูลซ้ำ, ลบผิด, นักเรียนไม่โผล่, รายงานไม่ตรงวันเรียน และครูหาเมนูไม่เจอ
-              ถูกจัดเป็น workflow เดียว ก่อนต่อ backend table/RPC จริงใน Supabase
-            </p>
+            {templates.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-8 text-center text-xs font-bold text-slate-400">
+                ยังไม่มีข้อความสำเร็จรูป — กด “ติดตั้งแม่แบบมาตรฐาน 3 ชุด” หรือสร้างใหม่ทางด้านซ้าย
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {templates.map((tpl) => (
+                  <article key={tpl.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-black text-cyan-700 ring-1 ring-slate-200">
+                          {templateTypeLabels[tpl.templateType] || tpl.templateType}
+                        </span>
+                        <h3 className="mt-1.5 text-sm font-black text-slate-950">{tpl.title}</h3>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void copyTemplateBody(tpl)}
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50"
+                        >
+                          {copiedTplId === tpl.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                          {copiedTplId === tpl.id ? 'คัดลอกแล้ว' : 'คัดลอก'}
+                        </button>
+                        {canManageSafety ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteTemplate(tpl)}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                            title="ลบแม่แบบ"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-xs font-semibold leading-5 text-slate-600">{tpl.body}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
-          <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ead8bd] bg-white px-5 text-sm font-black text-slate-700"
-            disabled={!canManageSafety}
-            onClick={() => setState(createDefaultState(session))}
-            type="button"
-          >
-            <RefreshCw size={17} aria-hidden="true" />
-            รีเซ็ตข้อมูลตัวอย่าง
-          </button>
-        </div>
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-800">
-          <AlertTriangle className="mr-2 inline" size={16} aria-hidden="true" />
-          ตอนนี้ action ในหน้านี้เป็น local-first เพื่อออกแบบ flow ให้ครบและทดลองได้ทันที ขั้นถัดไปคือผูกกับ Supabase tables/RPC:
-          import_jobs, trash_items, data_health_issues, school_calendar_days และ message_templates
-        </div>
-      </section>
+        </section>
+      ) : null}
     </main>
   );
 }
