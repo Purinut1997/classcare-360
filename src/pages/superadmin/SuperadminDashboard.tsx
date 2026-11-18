@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import {
@@ -710,7 +710,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     setBroadcastNotice(error ? `ปิดประกาศใน DB ไม่สำเร็จ: ${error}` : '✓ ปิดประกาศและปลดล็อกโหมดปิดปรับปรุงทั่วทั้งระบบเรียบร้อย');
   }
 
-  async function testDbPing() {
+  const testDbPing = useCallback(async () => {
     if (!supabase) {
       setDbPingMs(null);
       return;
@@ -718,7 +718,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     setIsPinging(true);
     const start = performance.now();
     try {
-      await supabase.from('workspaces').select('id').limit(1);
+      await supabase.from('workspaces').select('id', { head: true }).limit(1);
       const end = performance.now();
       setDbPingMs(Math.max(1, Math.round(end - start)));
     } catch {
@@ -726,7 +726,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
     } finally {
       setIsPinging(false);
     }
-  }
+  }, []);
 
   function openSection(section: SuperadminSection) {
     setNotice(null);

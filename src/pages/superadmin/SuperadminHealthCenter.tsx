@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -70,6 +70,8 @@ export function SuperadminHealthCenter({
   const [diag, setDiag] = useState<SystemDiagnosticsData | null>(null);
   const [isLoading, setIsLoading] = useState(!isDevelopmentDemo);
   const [error, setError] = useState<string | null>(null);
+  const onPingRef = useRef(onPing);
+  onPingRef.current = onPing;
 
   const runDiagnostics = useCallback(async () => {
     if (!supabase || isDevelopmentDemo) {
@@ -78,17 +80,16 @@ export function SuperadminHealthCenter({
     }
     setIsLoading(true);
     setError(null);
-    const [, { data, error: rpcErr }] = await Promise.all([
-      onPing(),
-      supabase.rpc('superadmin_get_system_diagnostics'),
-    ]);
+    // Run diagnostics first, then measure isolated ping latency so heavy DB stats don't skew ping ms
+    const { data, error: rpcErr } = await supabase.rpc('superadmin_get_system_diagnostics');
     if (rpcErr) {
       setError(`ยังโหลดผลการตรวจสุขภาพจริงไม่สำเร็จ: ${rpcErr.message}`);
     } else if (data) {
       setDiag(data as SystemDiagnosticsData);
     }
+    await onPingRef.current();
     setIsLoading(false);
-  }, [isDevelopmentDemo, onPing]);
+  }, [isDevelopmentDemo]);
 
   useEffect(() => {
     void runDiagnostics();
@@ -145,10 +146,10 @@ export function SuperadminHealthCenter({
               {dbPingMs !== null ? (
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                    dbPingMs < 200 ? 'bg-emerald-100 text-emerald-800' : dbPingMs < 450 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                    dbPingMs < 250 ? 'bg-emerald-100 text-emerald-800' : dbPingMs < 650 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
                   }`}
                 >
-                  {dbPingMs < 200 ? 'เร็วดีเยี่ยม' : dbPingMs < 450 ? 'ปกติ' : 'ช้า'}
+                  {dbPingMs < 250 ? 'เร็วดีเยี่ยม' : dbPingMs < 650 ? 'ปกติ' : 'ช้า'}
                 </span>
               ) : null}
             </div>

@@ -158,15 +158,17 @@ export function installSystemNetworkFeedback() {
       )
     );
     const isAuditLogWrite = url.includes('/rest/v1/audit_logs');
+    const isReadOnlyRpc = /\/rest\/v1\/rpc\/(get_|list_|superadmin_get_|superadmin_list_|check_|is_)/i.test(url);
 
     // Supabase read-only RPC calls also use POST. Show global feedback only
     // when the request follows an explicit click or form submission. Audit log
-    // writes are secondary bookkeeping and must not look like the primary save failed.
+    // writes and read-only RPCs must not spam fake save toasts.
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
       && lastActionIsMutationIntent
       && !isAiApi
       && !isSilent
       && !isAuditLogWrite
+      && !isReadOnlyRpc
       && Date.now() - lastActionAt < 2500;
     const id = ++requestId;
     const action = Date.now() - lastActionAt < 2500 ? lastAction : 'บันทึกการเปลี่ยนแปลง';
