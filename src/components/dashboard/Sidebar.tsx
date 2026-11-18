@@ -21,6 +21,7 @@ import { AppLogo } from '../brand/AppLogo';
 interface SidebarProps {
   activeView: string;
   isMobileOpen?: boolean;
+  maintenanceKeys?: string[];
   navItems: AppNavItem[];
   onClose?: () => void;
   session?: AppSessionContext;
@@ -108,10 +109,12 @@ const utilityItemKeys = ['notifications', 'help-center', 'package'];
 export function Sidebar({
   activeView,
   isMobileOpen = false,
+  maintenanceKeys = [],
   navItems,
   onClose,
   session,
 }: SidebarProps) {
+  const maintenanceSet = new Set(maintenanceKeys);
   const directItems = coreDirectItemKeys
     .map((key) => navItems.find((item) => item.key === key))
     .filter((item): item is AppNavItem => Boolean(item));
@@ -255,6 +258,7 @@ export function Sidebar({
                 {section.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === activeView;
+                  const isPaused = maintenanceSet.has(item.key);
                   return (
                     <Link
                       className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
@@ -266,10 +270,14 @@ export function Sidebar({
                       <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
                         <Icon size={15} aria-hidden="true" />
                       </div>
-                      <span className="truncate">{item.label}</span>
-                      {!isActive && (
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {isPaused ? (
+                        <span className="shrink-0 rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
+                          ปรับปรุง
+                        </span>
+                      ) : !isActive ? (
                         <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
-                      )}
+                      ) : null}
                     </Link>
                   );
                 })}

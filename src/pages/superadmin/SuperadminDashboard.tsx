@@ -46,9 +46,11 @@ import {
   type BroadcastSeverity,
   type SystemBroadcast,
 } from '../../lib/systemBroadcast';
+import { fetchActiveModuleMaintenance } from '../../lib/moduleMaintenance';
 import { SuperadminAuditCenter } from './SuperadminAuditCenter';
 import { SuperadminBackupCenter } from './SuperadminBackupCenter';
 import { SuperadminHealthCenter } from './SuperadminHealthCenter';
+import { SuperadminModuleMaintenance } from './SuperadminModuleMaintenance';
 import { SuperadminSupportInbox } from './SuperadminSupportInbox';
 import { SuperadminUserManager } from './SuperadminUserManager';
 import { SuperadminWorkspaceModal, type WorkspaceModalTarget } from './SuperadminWorkspaceModal';
@@ -140,12 +142,12 @@ const controlCenterSections: ControlCenterSectionConfig[] = [
 
   // ⚙️ หมวดความปลอดภัย & เสถียรภาพ
   {
-    body: 'ส่งแถบประกาศขึ้นหน้าจอครูทุกคน แจ้งข่าวสารหรือเตือนปิดปรับปรุงระบบ',
+    body: 'ส่งประกาศขึ้นหน้าจอทุกโรงเรียน เปิดโหมดปิดปรับปรุงทั้งระบบ หรือปิดปรับปรุงเฉพาะโมดูล',
     category: 'operations',
     categoryLabel: 'เสถียรภาพ & สื่อสาร',
     icon: Megaphone,
     key: 'broadcast',
-    label: 'ประกาศทั้งระบบ',
+    label: 'ประกาศ & ปิดปรับปรุง',
   },
   {
     body: 'ทดสอบ Ping Latency, ตรวจความพร้อม Supabase, RLS และ Storage',
@@ -588,6 +590,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
   const [subSearch, setSubSearch] = useState('');
   const [showSubHistory, setShowSubHistory] = useState(false);
   const [showRoleMatrix, setShowRoleMatrix] = useState(false);
+  const [pausedModulesCount, setPausedModulesCount] = useState(0);
+  const [broadcastSubTab, setBroadcastSubTab] = useState<'modules' | 'global'>('modules');
 
   const activeWorkspaceCount = workspaces.filter((workspace) => !workspace.archivedAt).length;
   const archivedWorkspaceCount = workspaces.length - activeWorkspaceCount;
@@ -821,6 +825,7 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
       { data: workspaceRows, error: workspaceError },
       liveBroadcast,
       { data: diagData },
+      moduleMaintMap,
     ] = await Promise.all([
       activeSupabase.auth.getUser(),
       activeSupabase
@@ -850,7 +855,10 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         .limit(200),
       fetchActiveSystemBroadcast(),
       activeSupabase.rpc('superadmin_get_system_diagnostics'),
+      fetchActiveModuleMaintenance(),
     ]);
+
+    setPausedModulesCount(Object.keys(moduleMaintMap || {}).length);
 
     if (liveBroadcast) {
       setBroadcastForm(liveBroadcast);
@@ -1524,14 +1532,17 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   ? pendingPaymentCount
                   : section.key === 'support' && openSupportCount > 0
                     ? openSupportCount
-                    : section.key === 'workspaces'
-                      ? activeWorkspaceCount
-                      : section.key === 'users' && totalUsersCount !== null
-                        ? totalUsersCount
-                        : null;
+                    : section.key === 'broadcast' && pausedModulesCount > 0
+                      ? pausedModulesCount
+                      : section.key === 'workspaces'
+                        ? activeWorkspaceCount
+                        : section.key === 'users' && totalUsersCount !== null
+                          ? totalUsersCount
+                          : null;
               const isAlertBadge =
                 (section.key === 'billing' && pendingPaymentCount > 0) ||
-                (section.key === 'support' && openSupportCount > 0);
+                (section.key === 'support' && openSupportCount > 0) ||
+                (section.key === 'broadcast' && pausedModulesCount > 0);
               const showLiveDot = section.key === 'broadcast' && broadcastForm.isActive;
 
               return (
@@ -1657,12 +1668,27 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                   {
                     body: broadcastForm.isActive
                       ? broadcastForm.maintenanceLock
-                        ? 'กำลังเปิดโหมดปิดปรับปรุง'
-                        : `เปิดอยู่: ${broadcastForm.title || 'ประกาศระบบ'}`
-                      : 'ยังไม่มีประกาศที่เปิดใช้งาน',
-                    count: broadcastForm.isActive ? (broadcastForm.maintenanceLock ? 'ปิดปรับปรุง' : 'เปิดใช้งาน') : 'ปิดอยู่',
-                    dotClass: broadcastForm.isActive ? (broadcastForm.maintenanceLock ? 'bg-rose-500 animate-pulse' : 'bg-sky-500') : 'bg-slate-400',
-                    label: 'ประกาศทั้งระบบ',
+                        ? 'กำลังเปิดโหมดปิดปรับปรุงทั้งระบบ'
+                        : `เปิดประกาศ: ${broadcastForm.title || 'ประกาศระบบ'}`
+                      : pausedModulesCount > 0
+                        ? `กำลังปิดปรับปรุง ${pausedModulesCount} โมดูล`
+                        : 'ทุกโมดูลเปิดใช้งานปกติ',
+                    count: broadcastForm.isActive
+                      ? broadcastForm.maintenanceLock
+                        ? 'ล็อกทั้งระบบ'
+                        : 'ประกาศอยู่'
+                      : pausedModulesCount > 0
+                        ? `${pausedModulesCount} โมดูล`
+                        : 'ปกติ',
+                    dotClass:
+                      broadcastForm.isActive && broadcastForm.maintenanceLock
+                        ? 'bg-rose-500 animate-pulse'
+                        : pausedModulesCount > 0
+                          ? 'bg-amber-500 animate-pulse'
+                          : broadcastForm.isActive
+                            ? 'bg-sky-500'
+                            : 'bg-emerald-500',
+                    label: 'ประกาศ & ปิดปรับปรุง',
                     section: 'broadcast' as SuperadminSection,
                   },
                   {
@@ -2799,7 +2825,42 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         ) : null}
 
         {activeSection === 'broadcast' ? (
-          <section className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+          <section className="mt-5 space-y-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setBroadcastSubTab('modules')}
+                className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                  broadcastSubTab === 'modules' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Wrench size={15} className={broadcastSubTab === 'modules' ? 'text-amber-300' : 'text-slate-400'} />
+                <span>1. ปิดปรับปรุงรายโมดูล</span>
+                {pausedModulesCount > 0 ? (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${broadcastSubTab === 'modules' ? 'bg-amber-400 text-slate-950' : 'bg-amber-100 text-amber-800'}`}>
+                    {pausedModulesCount}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBroadcastSubTab('global')}
+                className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                  broadcastSubTab === 'global' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Megaphone size={15} className={broadcastSubTab === 'global' ? 'text-cyan-300' : 'text-slate-400'} />
+                <span>2. ประกาศทั้งระบบ & ล็อกทั้งเว็บ</span>
+                {broadcastForm.isActive ? (
+                  <span className={`h-2 w-2 rounded-full ${broadcastForm.maintenanceLock ? 'bg-rose-500 animate-pulse' : 'bg-sky-400'}`} />
+                ) : null}
+              </button>
+            </div>
+
+            {broadcastSubTab === 'modules' ? (
+              <SuperadminModuleMaintenance onStatusChanged={setPausedModulesCount} />
+            ) : (
+            <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
             <div className="nexus-card p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -3049,6 +3110,8 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                 </ul>
               </div>
             </div>
+            </div>
+            )}
           </section>
         ) : null}
 
