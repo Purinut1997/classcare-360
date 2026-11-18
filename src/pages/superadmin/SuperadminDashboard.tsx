@@ -1975,8 +1975,18 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                         <button aria-label={`${workspace.archivedAt ? 'กู้คืน' : 'เก็บถาวร'} ${workspace.schoolName}`} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void setWorkspaceArchived(workspace, !workspace.archivedAt)} title={workspace.archivedAt ? 'กู้คืน Workspace' : 'เก็บถาวร'} type="button">
                           <Archive size={15} aria-hidden="true" />
                         </button>
-                        <button aria-label={`ให้ VIP ${workspace.schoolName}`} className="inline-flex h-9 items-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-amber-700 hover:bg-amber-100 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void grantLifetimeVip(workspace)} title="VIP lifetime" type="button">
-                          <Crown size={15} aria-hidden="true" />
+                        <button
+                          aria-label={`จัดการ VIP ${workspace.schoolName}`}
+                          className="inline-flex h-9 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-xs font-black text-amber-800 hover:bg-amber-100"
+                          onClick={() => {
+                            setSubSearch(workspace.schoolName);
+                            setBillingSubTab('subscriptions');
+                            openSection('billing');
+                          }}
+                          title="ไปจัดการสิทธิ์ VIP ของพื้นที่นี้ที่แท็บ แพ็กเกจ & สลิป"
+                          type="button"
+                        >
+                          <Crown size={14} aria-hidden="true" /> VIP
                         </button>
                         <button aria-label={`ลบ ${workspace.schoolName} ถาวร`} className="inline-flex h-9 items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-rose-700 hover:bg-rose-100 disabled:opacity-50" disabled={workspaceActionId === workspace.id} onClick={() => void deleteWorkspacePermanently(workspace)} title="ลบถาวร" type="button">
                           <Trash2 size={15} aria-hidden="true" />
@@ -2054,13 +2064,16 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                     {workspace.archivedAt ? 'กู้คืน workspace' : 'เก็บถาวร workspace'}
                   </button>
                   <button
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={workspaceActionId === workspace.id}
-                    onClick={() => void grantLifetimeVip(workspace)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-xs font-black text-amber-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-100"
+                    onClick={() => {
+                      setSubSearch(workspace.schoolName);
+                      setBillingSubTab('subscriptions');
+                      openSection('billing');
+                    }}
                     type="button"
                   >
                     <Crown size={16} aria-hidden="true" />
-                    VIP lifetime
+                    จัดการ VIP →
                   </button>
                   <button
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -2206,6 +2219,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           const nowMs = Date.now();
           const thirtyDaysMs = 30 * 86_400_000;
           const activeWorkspacesList = workspaces.filter((w) => !w.archivedAt);
+          const ownerWorkspaceCounts = new Map<string, number>();
+          activeWorkspacesList.forEach((w) => {
+            const emailKey = (w.ownerEmail || '').trim().toLowerCase();
+            if (emailKey) ownerWorkspaceCounts.set(emailKey, (ownerWorkspaceCounts.get(emailKey) || 0) + 1);
+          });
           const schoolVipRows = activeWorkspacesList.map((ws) => {
             const sub = subscriptionByWorkspaceId.get(ws.id) || null;
             const endsMs = sub?.endsAt ? new Date(sub.endsAt).getTime() : null;
@@ -2348,9 +2366,9 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
               <div className="nexus-card p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-slate-950">สถานะแพ็กเกจ VIP แยกตามโรงเรียน</h2>
+                    <h2 className="text-xl font-black text-slate-950">ศูนย์กลางจัดการสิทธิ์ VIP แยกตามพื้นที่ทำงาน</h2>
                     <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                      สรุปสิทธิ์ล่าสุดของแต่ละโรงเรียน 1 แถวต่อ 1 โรงเรียน กดเพิ่มวัน ให้ตลอดชีพ หรือถอดสิทธิ์ได้ทันทีจากแถวเดียว
+                      จุดจัดการสิทธิ์ VIP เพียงจุดเดียวของระบบ (1 แพ็กเกจต่อ 1 พื้นที่ทำงาน · ครูทุกคนในพื้นที่ใช้สิทธิ์ร่วมกัน)
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2400,16 +2418,37 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                           </td>
                         </tr>
                       ) : (
-                        filteredSchoolVipRows.map(({ daysLeft, state, sub, ws }) => (
+                        filteredSchoolVipRows.map(({ daysLeft, state, sub, ws }) => {
+                          const ownerKey = (ws.ownerEmail || '').trim().toLowerCase();
+                          const ownerWsCount = ownerKey ? ownerWorkspaceCounts.get(ownerKey) || 1 : 1;
+                          const isEmptyWorkspace = ws.studentCount === 0;
+                          return (
                           <tr key={ws.id} className="hover:bg-slate-50/70">
                             <td className="px-4 py-3">
-                              <p className="font-black text-slate-950">{ws.schoolName}</p>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="font-black text-slate-950">{ws.schoolName}</p>
+                                {isEmptyWorkspace ? (
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                                    พื้นที่ว่าง
+                                  </span>
+                                ) : null}
+                              </div>
                               <p className="text-[11px] font-semibold text-slate-500">
                                 {ws.name} · ปี {ws.academicYear} · {ws.studentCount} นักเรียน
                               </p>
                             </td>
                             <td className="px-4 py-3">
-                              <p className="font-bold text-slate-800">{ws.ownerName}</p>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="font-bold text-slate-800">{ws.ownerName}</p>
+                                {ownerWsCount > 1 ? (
+                                  <span
+                                    className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-black text-amber-700 ring-1 ring-amber-200"
+                                    title="เจ้าของบัญชีนี้สร้างพื้นที่ทำงานไว้มากกว่า 1 แห่ง"
+                                  >
+                                    {ownerWsCount} พื้นที่
+                                  </span>
+                                ) : null}
+                              </div>
                               <p className="text-[11px] text-slate-400">{ws.ownerEmail}</p>
                             </td>
                             <td className="px-4 py-3">
@@ -2457,6 +2496,24 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                                 <button
                                   type="button"
                                   disabled={workspaceActionId === ws.id}
+                                  onClick={() => {
+                                    const raw = window.prompt(`ระบุจำนวนวัน VIP ที่ต้องการเพิ่มให้ "${ws.schoolName}" (${ws.name}):`, '90');
+                                    if (!raw) return;
+                                    const parsed = Number.parseInt(raw.trim(), 10);
+                                    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 36500) {
+                                      setNotice('กรุณาระบุจำนวนวันเป็นตัวเลขตั้งแต่ 1 ถึง 36,500 วัน');
+                                      return;
+                                    }
+                                    void quickExtendWorkspaceVip(ws, parsed);
+                                  }}
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                  title="กำหนดจำนวนวัน VIP เอง"
+                                >
+                                  กำหนดวัน
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={workspaceActionId === ws.id}
                                   onClick={() => void grantLifetimeVip(ws)}
                                   className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-black text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                                   title="มอบสิทธิ์ VIP ตลอดชีพ"
@@ -2473,10 +2530,22 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
                                     ถอดสิทธิ์
                                   </button>
                                 ) : null}
+                                {isEmptyWorkspace && ownerWsCount > 1 ? (
+                                  <button
+                                    type="button"
+                                    disabled={workspaceActionId === ws.id}
+                                    onClick={() => void deleteWorkspacePermanently(ws)}
+                                    className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-black text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
+                                    title="ลบพื้นที่ว่างที่ซ้ำออกถาวร"
+                                  >
+                                    <Trash2 size={13} aria-hidden="true" />
+                                  </button>
+                                ) : null}
                               </div>
                             </td>
                           </tr>
-                        ))
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -3161,6 +3230,11 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
         <SuperadminWorkspaceModal
           workspace={managingWorkspace}
           onClose={() => setManagingWorkspace(null)}
+          onManageVip={(schoolName) => {
+            setSubSearch(schoolName);
+            setBillingSubTab('subscriptions');
+            openSection('billing');
+          }}
           onUpdated={() => void loadSuperadminData()}
         />
 

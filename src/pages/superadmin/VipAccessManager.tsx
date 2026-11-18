@@ -1,16 +1,13 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import {
   CalendarClock,
-  CheckCircle2,
   CircleDollarSign,
   Copy,
   Download,
-  Gift,
   History,
   KeyRound,
   Plus,
   Power,
-  Search,
   ShieldAlert,
   ShieldCheck,
   X,
@@ -28,12 +25,6 @@ interface VipCodeRow {
   label: string;
   max_redemptions: number;
   redemption_count: number;
-}
-
-interface WorkspaceOption {
-  id: string;
-  name: string;
-  school_name?: string | null;
 }
 
 interface RedemptionDetail {
@@ -68,12 +59,6 @@ const demoCodes: VipCodeRow[] = [
     max_redemptions: 5,
     redemption_count: 5,
   },
-];
-
-const demoWorkspaces: WorkspaceOption[] = [
-  { id: 'demo-ws-1', name: 'โรงเรียนอนุบาลรักเรียน', school_name: 'อนุบาลรักเรียน' },
-  { id: 'demo-ws-2', name: 'โรงเรียนสาธิตพัฒนาปัญญา', school_name: 'สาธิตพัฒนาปัญญา' },
-  { id: 'demo-ws-3', name: 'โรงเรียนมัธยมศึกษาดารานุสรณ์', school_name: 'มัธยมศึกษาดารานุสรณ์' },
 ];
 
 const demoRedemptionsMap: Record<string, RedemptionDetail[]> = {
@@ -113,18 +98,10 @@ export function VipAccessManager() {
   const [vipPrice, setVipPrice] = useState(100);
   const [vipDurationDays, setVipDurationDays] = useState(365);
   const [codes, setCodes] = useState<VipCodeRow[]>(isDemo ? demoCodes : []);
-  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>(isDemo ? demoWorkspaces : []);
   const [form, setForm] = useState({ durationDays: 30, expiresAt: '', label: '', maxRedemptions: 1 });
   const [latestCode, setLatestCode] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Direct VIP Grant State
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
-  const [grantDays, setGrantDays] = useState<number>(365);
-  const [grantReason, setGrantReason] = useState<string>('');
-  const [workspaceSearch, setWorkspaceSearch] = useState<string>('');
-  const [isGranting, setIsGranting] = useState<boolean>(false);
 
   // Audit Modal State
   const [viewingCode, setViewingCode] = useState<VipCodeRow | null>(null);
@@ -137,7 +114,6 @@ export function VipAccessManager() {
       { data: trialPlan, error: trialError },
       { data: vipPlan, error: vipPlanError },
       { data: codeRows, error: codeError },
-      { data: workspaceRows, error: wsError },
     ] = await Promise.all([
       supabase.from('plans').select('duration_days').eq('code', 'TRIAL_30').maybeSingle(),
       supabase.from('plans').select('price_thb,duration_days').eq('code', 'VIP_YEARLY').maybeSingle(),
@@ -146,20 +122,13 @@ export function VipAccessManager() {
         .select('id,code_prefix,label,duration_days,max_redemptions,redemption_count,expires_at,is_active,created_at')
         .order('created_at', { ascending: false })
         .limit(30),
-      supabase
-        .from('workspaces')
-        .select('id,name,school_name')
-        .is('archived_at', null)
-        .order('name')
-        .limit(100),
     ]);
 
-    if (trialError || vipPlanError || codeError || wsError) {
+    if (trialError || vipPlanError || codeError) {
       setNotice(
         trialError?.message ||
           vipPlanError?.message ||
           codeError?.message ||
-          wsError?.message ||
           'โหลดการตั้งค่า VIP ไม่สำเร็จ'
       );
       return;
@@ -169,21 +138,11 @@ export function VipAccessManager() {
     setVipPrice(Number(vipPlan?.price_thb ?? 100));
     setVipDurationDays(Number(vipPlan?.duration_days || 365));
     setCodes((codeRows || []) as VipCodeRow[]);
-    setWorkspaces((workspaceRows || []) as WorkspaceOption[]);
   }, [isDemo]);
 
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
-
-  // Filter workspaces for selection
-  const filteredWorkspaces = useMemo(() => {
-    if (!workspaceSearch.trim()) return workspaces;
-    const q = workspaceSearch.toLowerCase();
-    return workspaces.filter(
-      (w) => w.name.toLowerCase().includes(q) || (w.school_name && w.school_name.toLowerCase().includes(q))
-    );
-  }, [workspaces, workspaceSearch]);
 
   async function saveTrialDays(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -296,57 +255,7 @@ export function VipAccessManager() {
     }
   }
 
-  // Feature 2: Direct VIP Grant to workspace
-  async function handleDirectGrant(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedWorkspaceId) {
-      setNotice('กรุณาเลือกโรงเรียน/ห้องเรียนที่ต้องการมอบสิทธิ์ VIP');
-      return;
-    }
-    const targetWs = workspaces.find((w) => w.id === selectedWorkspaceId);
-    const targetName = targetWs?.name || 'Workspace ที่เลือก';
-
-    if (
-      !window.confirm(
-        `ยืนยันมอบสิทธิ์ VIP จำนวน ${grantDays} วัน ให้กับ "${targetName}" ทันที?`
-      )
-    ) {
-      return;
-    }
-
-    setIsGranting(true);
-    setNotice(null);
-
-    if (!supabase || isDemo) {
-      setTimeout(() => {
-        setIsGranting(false);
-        setNotice(`โหมดตัวอย่าง: มอบสิทธิ์ VIP ${grantDays} วัน ให้กับ "${targetName}" สำเร็จแล้ว`);
-        setSelectedWorkspaceId('');
-        setGrantReason('');
-      }, 500);
-      return;
-    }
-
-    const { data, error } = await supabase.rpc('grant_workspace_vip', {
-      days_to_add: grantDays,
-      grant_reason: grantReason.trim() || 'มอบสิทธิ์โดย Superadmin',
-      target_workspace_id: selectedWorkspaceId,
-    });
-
-    setIsGranting(false);
-
-    if (error) {
-      setNotice(`มอบสิทธิ์ไม่สำเร็จ: ${error.message}`);
-    } else {
-      const res = data as { new_ends_at?: string } | null;
-      const expiryText = res?.new_ends_at ? formatDate(res.new_ends_at) : '';
-      setNotice(`มอบสิทธิ์ VIP ${grantDays} วัน ให้ "${targetName}" สำเร็จ! (หมดอายุ ${expiryText})`);
-      setSelectedWorkspaceId('');
-      setGrantReason('');
-    }
-  }
-
-  // Feature 3: View Code Redemptions History
+  // View Code Redemptions History
   async function openRedemptionHistory(code: VipCodeRow) {
     setViewingCode(code);
     setIsLoadingRedemptions(true);
@@ -450,8 +359,8 @@ export function VipAccessManager() {
         </div>
       </div>
 
-      {/* Grid of Settings + Generator + Direct Grant */}
-      <div className="mt-4 grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
+      {/* Grid of Trial Settings + Pricing + Code Generator */}
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
         {/* Box 1: Trial Days */}
         <form className="nexus-muted-box flex flex-col justify-between p-4" onSubmit={saveTrialDays}>
           <div>
@@ -583,89 +492,6 @@ export function VipAccessManager() {
             type="submit"
           >
             <Plus size={16} /> สร้างโค้ด
-          </button>
-        </form>
-
-        {/* Box 4: Direct VIP Grant (เติมวันด่วนให้โรงเรียน) */}
-        <form className="nexus-muted-box flex flex-col justify-between border-blue-200 bg-blue-50/40 p-4" onSubmit={handleDirectGrant}>
-          <div>
-            <div className="flex items-center gap-2">
-              <Gift className="text-blue-600" size={19} />
-              <h3 className="font-black text-slate-950">มอบสิทธิ์ VIP ตรง</h3>
-            </div>
-            <p className="mt-1 text-xs font-bold text-slate-500">เติมวัน VIP ให้โรงเรียนทันทีโดยไม่ต้องใช้โค้ด</p>
-
-            <div className="mt-3 grid gap-1 text-xs font-black text-slate-700">
-              <span>เลือกโรงเรียน</span>
-              <div className="relative">
-                <input
-                  className="nexus-field h-8 w-full pl-7 pr-2 text-xs"
-                  onChange={(e) => setWorkspaceSearch(e.target.value)}
-                  placeholder="ค้นหาชื่อโรงเรียน..."
-                  type="text"
-                  value={workspaceSearch}
-                />
-                <Search className="absolute left-2 top-2 text-slate-400" size={14} />
-              </div>
-              <select
-                className="nexus-field mt-1 h-9 px-2 text-xs font-medium"
-                onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                value={selectedWorkspaceId}
-              >
-                <option value="">-- เลือกโรงเรียน ({filteredWorkspaces.length}) --</option>
-                {filteredWorkspaces.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} {w.school_name ? `(${w.school_name})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mt-2">
-              <span className="text-xs font-black text-slate-700">เติมจำนวนวัน</span>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {[30, 90, 365, 1095].map((d) => (
-                  <button
-                    className={`rounded-lg px-2 py-1 text-[11px] font-bold ${
-                      grantDays === d ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'
-                    }`}
-                    key={d}
-                    onClick={() => setGrantDays(d)}
-                    type="button"
-                  >
-                    +{d >= 365 ? `${d / 365} ปี` : `${d} วัน`}
-                  </button>
-                ))}
-              </div>
-              <input
-                className="nexus-field mt-1 h-8 w-full px-2 text-xs"
-                max="36500"
-                min="1"
-                onChange={(e) => setGrantDays(Number(e.target.value))}
-                placeholder="หรือพิมพ์จำนวนวัน..."
-                type="number"
-                value={grantDays}
-              />
-            </div>
-
-            <label className="mt-2 grid gap-1 text-xs font-black text-slate-700">
-              บันทึกช่วยจำ / เหตุผล
-              <input
-                className="nexus-field h-8 px-2 text-xs"
-                onChange={(e) => setGrantReason(e.target.value)}
-                placeholder="เช่น โอนผ่านบัญชีโรงเรียน / อภินันทนาการ"
-                value={grantReason}
-              />
-            </label>
-          </div>
-
-          <button
-            className="mt-3 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-4 text-sm font-black text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-            disabled={isGranting || !selectedWorkspaceId}
-            type="submit"
-          >
-            <CheckCircle2 size={16} />
-            {isGranting ? 'กำลังมอบสิทธิ์...' : 'ยืนยันมอบ VIP ด่วน'}
           </button>
         </form>
       </div>

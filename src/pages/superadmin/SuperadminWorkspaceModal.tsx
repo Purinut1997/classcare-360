@@ -49,6 +49,7 @@ interface DirectoryUserOption {
 interface SuperadminWorkspaceModalProps {
   workspace: WorkspaceModalTarget | null;
   onClose: () => void;
+  onManageVip?: (schoolName: string) => void;
   onUpdated: () => void;
 }
 
@@ -69,7 +70,7 @@ function getRoleLabel(role: string, isOwner: boolean) {
   return role;
 }
 
-export function SuperadminWorkspaceModal({ workspace, onClose, onUpdated }: SuperadminWorkspaceModalProps) {
+export function SuperadminWorkspaceModal({ workspace, onClose, onManageVip, onUpdated }: SuperadminWorkspaceModalProps) {
   const [tab, setTab] = useState<'info' | 'members' | 'backup'>('info');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -85,7 +86,6 @@ export function SuperadminWorkspaceModal({ workspace, onClose, onUpdated }: Supe
     parent_portal: true,
     savings_reports: true,
   });
-  const [vipDaysToAdd, setVipDaysToAdd] = useState(365);
 
   // Tab 2: Members & Ownership
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
@@ -177,44 +177,6 @@ export function SuperadminWorkspaceModal({ workspace, onClose, onUpdated }: Supe
       setNotice({ tone: 'error', text: error.message });
     } else {
       setNotice({ tone: 'success', text: 'บันทึกข้อมูลโรงเรียนและการตั้งค่าฟีเจอร์เรียบร้อยแล้ว' });
-      onUpdated();
-    }
-  }
-
-  async function handleGrantVipDays() {
-    if (!supabase || !workspace) return;
-    if (!window.confirm(`เพิ่มสิทธิ์ VIP ${vipDaysToAdd} วัน ให้ "${workspace.schoolName}" หรือไม่?`)) return;
-    setBusy(true);
-    setNotice(null);
-    const { error } = await supabase.rpc('grant_workspace_vip', {
-      target_workspace_id: workspace.id,
-      days_to_add: vipDaysToAdd,
-      grant_reason: `SuperAdmin เพิ่ม VIP ${vipDaysToAdd} วัน`,
-    });
-    setBusy(false);
-    if (error) {
-      setNotice({ tone: 'error', text: error.message });
-    } else {
-      setNotice({ tone: 'success', text: `เพิ่มสิทธิ์ VIP ${vipDaysToAdd} วัน สำเร็จแล้ว` });
-      onUpdated();
-    }
-  }
-
-  async function handleRevokeVip() {
-    if (!supabase || !workspace) return;
-    const reason = window.prompt(`ระบุเหตุผลในการถอดสิทธิ์ VIP ของ "${workspace.schoolName}" (ไม่บังคับ):`, 'สิ้นสุดสิทธิ์ทดสอบ');
-    if (reason === null) return;
-    setBusy(true);
-    setNotice(null);
-    const { error } = await supabase.rpc('superadmin_revoke_workspace_vip', {
-      target_workspace_id: workspace.id,
-      revoke_reason: reason.trim() || null,
-    });
-    setBusy(false);
-    if (error) {
-      setNotice({ tone: 'error', text: error.message });
-    } else {
-      setNotice({ tone: 'success', text: 'ถอดสิทธิ์ VIP ของโรงเรียนนี้เรียบร้อยแล้ว' });
       onUpdated();
     }
   }
@@ -342,7 +304,7 @@ export function SuperadminWorkspaceModal({ workspace, onClose, onUpdated }: Supe
         {/* Tab Bar */}
         <div className="flex gap-1.5 border-b border-slate-200 bg-slate-50 px-6 py-2.5">
           {[
-            { id: 'info', label: 'ข้อมูล, ฟีเจอร์ & VIP', icon: Settings2 },
+            { id: 'info', label: 'ข้อมูล & ฟีเจอร์', icon: Settings2 },
             { id: 'members', label: 'สมาชิก & โอนเจ้าของ', icon: Users },
             { id: 'backup', label: 'สำรองข้อมูลทันที', icon: Download },
           ].map((t) => {
@@ -448,46 +410,36 @@ export function SuperadminWorkspaceModal({ workspace, onClose, onUpdated }: Supe
                 </button>
               </div>
 
-              {/* Quick VIP Control */}
+              {/* Read-only VIP Status Summary -> Jump to Single VIP Management Tab */}
               <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Crown size={16} className="text-amber-700" />
-                    <p className="text-xs font-black text-amber-950">จัดการสิทธิ์แพ็กเกจ VIP</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Crown size={16} className="shrink-0 text-amber-700" />
+                      <p className="text-xs font-black text-amber-950">สถานะแพ็กเกจ VIP ของพื้นที่ทำงานนี้</p>
+                    </div>
+                    <p className="mt-1 text-xs font-bold text-amber-900">
+                      {workspace.vipStatus || 'Free / ยังไม่มีแพ็กเกจ VIP'}
+                      {workspace.vipEndsAt
+                        ? ` · หมดอายุ ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(workspace.vipEndsAt))}`
+                        : ''}
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-amber-800/80">
+                      สิทธิ์ VIP ผูกกับพื้นที่ทำงาน (ครูทุกคนในพื้นที่ใช้สิทธิ์ร่วมกัน) และจัดการรวมศูนย์ไว้ที่แท็บ แพ็กเกจ &amp; สลิป
+                    </p>
                   </div>
-                  <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-black text-amber-800 ring-1 ring-amber-200">
-                    สถานะ: {workspace.vipStatus || 'ยังไม่ระบุ'}
-                    {workspace.vipEndsAt
-                      ? ` · ถึง ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(workspace.vipEndsAt))}`
-                      : ''}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={3650}
-                    value={vipDaysToAdd}
-                    onChange={(e) => setVipDaysToAdd(Number(e.target.value) || 30)}
-                    className="h-9 w-24 rounded-xl border border-amber-200 bg-white px-2.5 text-center text-xs font-black"
-                  />
-                  <span className="text-xs font-bold text-amber-900">วัน</span>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void handleGrantVipDays()}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 text-xs font-black text-white hover:bg-amber-700 disabled:opacity-50"
-                  >
-                    <Crown size={13} /> เพิ่มวัน VIP
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void handleRevokeVip()}
-                    className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                  >
-                    ถอดสิทธิ์ VIP
-                  </button>
+                  {onManageVip ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onManageVip(workspace.schoolName);
+                      }}
+                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 text-xs font-black text-white shadow-xs transition hover:bg-amber-700"
+                    >
+                      <Crown size={13} /> ไปจัดการ VIP →
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </>

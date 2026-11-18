@@ -1449,10 +1449,13 @@ export function SuperadminUserManager({ currentUserId, initialSearch, isDevelopm
                     className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 disabled:opacity-60"
                   >
                     <option value="regular">ผู้ใช้ทั่วไป (ครู / สมาชิกโรงเรียน)</option>
-                    <option value="admin">Admin (ผู้ช่วยดูแลระบบ · VIP ตลอดชีพ)</option>
-                    <option value="superadmin">SuperAdmin (สิทธิ์สูงสุดทั้งระบบ · VIP ตลอดชีพ)</option>
+                    <option value="admin">Admin (ผู้ช่วยดูแลระบบ · เข้าถึงทุกโมดูล)</option>
+                    <option value="superadmin">SuperAdmin (ผู้ดูแลสูงสุดทั้งระบบ)</option>
                   </select>
                 </label>
+                <p className="mt-1.5 text-[11px] font-semibold text-slate-500">
+                  สิทธิ์แพ็กเกจ VIP ผูกกับพื้นที่ทำงาน (โรงเรียน) และจัดการรวมศูนย์ไว้ที่แท็บ &quot;แพ็กเกจ &amp; สลิป&quot;
+                </p>
                 {editTarget.profileId === currentUserId ? (
                   <p className="mt-1.5 text-[11px] font-bold text-slate-500">ไม่สามารถลดระดับสิทธิ์ของบัญชีตัวเองได้</p>
                 ) : null}
