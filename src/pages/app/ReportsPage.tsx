@@ -1163,6 +1163,7 @@ interface MonthlySavingsRow {
 interface MonthlySavingsGrid {
   classroom: ClassroomRow | null;
   dayTotals: Record<number, number>;
+  includeOpeningBalance: boolean;
   monthBuckets: MonthBucket[];
   monthTotals: Record<string, number>;
   rows: MonthlySavingsRow[];
@@ -1181,6 +1182,7 @@ function buildSavingsGrid({
   classroom,
   dateFrom,
   dateTo,
+  includeOpeningBalance = true,
   students,
 }: {
   savingsAccounts: SavingsAccountRow[];
@@ -1188,6 +1190,7 @@ function buildSavingsGrid({
   classroom: ClassroomRow | null;
   dateFrom: string;
   dateTo: string;
+  includeOpeningBalance?: boolean;
   students: StudentRow[];
 }): MonthlySavingsGrid {
   const { days } = getReportMonthContext(dateFrom);
@@ -1242,14 +1245,15 @@ function buildSavingsGrid({
     });
 
     const latestOpeningTxAmount = latestOpeningTx ? Number((latestOpeningTx as SavingsTransactionRow).amount || 0) : 0;
-    let openingBalance = metaOpening > 0 ? metaOpening : latestOpeningTxAmount;
-    if (openingBalance === 0) {
+    let rawOpeningBalance = metaOpening > 0 ? metaOpening : latestOpeningTxAmount;
+    if (rawOpeningBalance === 0) {
       if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) {
-        openingBalance = 2896;
+        rawOpeningBalance = 2896;
       } else if (student.student_code === '2429' || student.first_name?.includes('ณัฐพัฒน์')) {
-        openingBalance = 3013;
+        rawOpeningBalance = 3013;
       }
     }
+    const openingBalance = includeOpeningBalance ? rawOpeningBalance : 0;
     totalOpeningBalance += openingBalance;
 
     const dailyAmounts: Record<string, number> = {};
@@ -1285,25 +1289,28 @@ function buildSavingsGrid({
       }
     });
 
-    const ledgerBalance = Math.max(0, openingBalance + rowNet);
+    const ledgerBalance = Math.max(0, rawOpeningBalance + rowNet);
     const rawAccountBalance = account !== undefined ? Number(account.balance || 0) : null;
     const isMissingOpeningInDb =
       rawAccountBalance !== null &&
-      openingBalance > 0 &&
+      rawOpeningBalance > 0 &&
       withdrawalsInPeriod === 0 &&
-      rawAccountBalance < openingBalance &&
-      Math.abs(rawAccountBalance + openingBalance - ledgerBalance) < 0.01;
-    const totalBalance =
-      rawAccountBalance !== null && !isMissingOpeningInDb && (rawAccountBalance > 0 || (openingBalance === 0 && rowNet === 0))
+      rawAccountBalance < rawOpeningBalance &&
+      Math.abs(rawAccountBalance + rawOpeningBalance - ledgerBalance) < 0.01;
+    const fullCumulativeBalance =
+      rawAccountBalance !== null && !isMissingOpeningInDb && (rawAccountBalance > 0 || (rawOpeningBalance === 0 && rowNet === 0))
         ? rawAccountBalance
         : ledgerBalance;
+    const totalBalance = includeOpeningBalance
+      ? fullCumulativeBalance
+      : Math.max(0, fullCumulativeBalance - rawOpeningBalance);
 
     totalCumulativeBalance += totalBalance;
     totalPeriodNet += rowNet;
     totalPeriodDeposits += depositsInPeriod;
     totalPeriodWithdrawals += withdrawalsInPeriod;
 
-    if (rowNet > 0 || totalBalance > 0 || openingBalance > 0) {
+    if (includeOpeningBalance ? rowNet > 0 || totalBalance > 0 || openingBalance > 0 : depositsInPeriod > 0 || withdrawalsInPeriod > 0 || totalBalance > 0) {
       totalActiveSavingsStudents += 1;
     }
 
@@ -1326,6 +1333,7 @@ function buildSavingsGrid({
   return {
     classroom,
     dayTotals,
+    includeOpeningBalance,
     monthBuckets,
     monthTotals,
     rows,
@@ -1559,25 +1567,27 @@ function buildPrintableSavingsReportHtml({
   const academicYear = savingsGrid.classroom?.academic_year || reportIdentity.academicYear || '2569';
   const documentCode = buildOfficialDocumentCode('CC-SAV', dateFrom, classroomName);
   const isMultiMonth = periodMode !== 'month' && savingsGrid.monthBuckets.length > 1;
+  const showOpening = savingsGrid.includeOpeningBalance;
+  const balanceColLabel = showOpening ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา';
 
   const theadHtml = isMultiMonth
     ? `<tr>
         <th class="number">ที่</th>
         <th class="code">รหัส</th>
         <th class="name">ชื่อ - นามสกุล</th>
-        <th class="sum opening-col">ยอดยกมา</th>
+        ${showOpening ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
         ${savingsGrid.monthBuckets.map((mb) => `<th>${escapeHtml(mb.shortLabel)}</th>`).join('')}
         <th class="sum month-total">ฝากรวม</th>
         <th class="sum month-total">ถอนรวม</th>
-        <th class="sum balance-total">ยอดสะสมคงเหลือ</th>
+        <th class="sum balance-total">${balanceColLabel}</th>
       </tr>`
     : `<tr>
         <th class="number">ที่</th>
         <th class="name">ชื่อ - นามสกุล</th>
-        <th class="sum opening-col">ยอดยกมา</th>
+        ${showOpening ? '<th class="sum opening-col">ยอดยกมา</th>' : ''}
         ${days.map((day) => `<th class="${day.isWeekend ? 'weekend' : ''}">${day.day}</th>`).join('')}
         <th class="sum month-total">รวมเดือนนี้</th>
-        <th class="sum balance-total">ยอดสะสมคงเหลือ</th>
+        <th class="sum balance-total">${balanceColLabel}</th>
       </tr>`;
 
   const tbodyHtml =
@@ -1595,7 +1605,7 @@ function buildPrintableSavingsReportHtml({
                 <td class="number">${index + 1}</td>
                 <td class="code">${escapeHtml(row.studentCode)}</td>
                 <td class="name">${escapeHtml(row.studentName)}</td>
-                <td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>
+                ${showOpening ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
                 ${monthCells}
                 <td class="sum month-total">${row.depositsInPeriod.toLocaleString('th-TH')}</td>
                 <td class="sum month-total">${row.withdrawalsInPeriod.toLocaleString('th-TH')}</td>
@@ -1613,19 +1623,19 @@ function buildPrintableSavingsReportHtml({
             return `<tr>
               <td class="number">${index + 1}</td>
               <td class="name">${escapeHtml(row.studentName)}</td>
-              <td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>
+              ${showOpening ? `<td class="sum opening-col" style="text-align:right;padding-right:1mm;font-weight:bold;">${row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}</td>` : ''}
               ${dayCells}
               <td class="sum month-total">${row.totalPeriodNet ? row.totalPeriodNet.toLocaleString('th-TH') : '0'}</td>
               <td class="sum balance-total">${row.totalBalance.toLocaleString('th-TH')}</td>
             </tr>`;
           })
           .join('')
-      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length + 7 : days.length + 5}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
+      : `<tr><td colspan="${isMultiMonth ? savingsGrid.monthBuckets.length + (showOpening ? 7 : 6) : days.length + (showOpening ? 5 : 4)}" style="padding:6mm;text-align:center;">ไม่มีรายชื่อนักเรียนในห้องเรียนนี้</td></tr>`;
 
   const tfootHtml = isMultiMonth
     ? `<tr>
         <td colspan="3" class="name" style="text-align:right;padding-right:3mm;">รวมทั้งสิ้น (บาท)</td>
-        <td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>
+        ${showOpening ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
         ${savingsGrid.monthBuckets.map((mb) => `<td class="total">${savingsGrid.monthTotals[mb.key] ? savingsGrid.monthTotals[mb.key].toLocaleString('th-TH') : '-'}</td>`).join('')}
         <td class="total">${savingsGrid.totalPeriodDeposits.toLocaleString('th-TH')}</td>
         <td class="total">${savingsGrid.totalPeriodWithdrawals.toLocaleString('th-TH')}</td>
@@ -1633,8 +1643,8 @@ function buildPrintableSavingsReportHtml({
       </tr>`
     : `<tr>
         <td></td>
-        <td class="name">รวมทั้งสิ้น (บาท)</td>
-        <td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>
+        <td class="name">รวมเงินออมแต่ละวัน</td>
+        ${showOpening ? `<td class="total" style="text-align:right;padding-right:1mm;font-weight:bold;">${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}</td>` : ''}
         ${days.map((day) => `<td class="day total ${day.isWeekend ? 'weekend' : ''}">${savingsGrid.dayTotals[day.day] ? savingsGrid.dayTotals[day.day].toLocaleString('th-TH') : ''}</td>`).join('')}
         <td class="total">${savingsGrid.totalPeriodNet.toLocaleString('th-TH')}</td>
         <td class="total">${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')}</td>
@@ -1682,9 +1692,13 @@ function buildPrintableSavingsReportHtml({
           })}
           <section class="summary-grid">
             <div class="summary-card"><span>นักเรียนทั้งหมด</span><strong>${savingsGrid.totalStudents} คน</strong></div>
-            <div class="summary-card"><span>ยอดยกมารวม</span><strong>${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong></div>
+            ${
+              showOpening
+                ? `<div class="summary-card"><span>ยอดยกมารวม</span><strong>${savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong></div>`
+                : `<div class="summary-card"><span>ออมเงินช่วงนี้</span><strong>${savingsGrid.totalActiveSavingsStudents} คน</strong></div>`
+            }
             <div class="summary-card"><span>ออมสุทธิช่วงนี้</span><strong>${savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong></div>
-            <div class="summary-card"><span>ยอดสะสมคงเหลือรวม</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
+            <div class="summary-card"><span>${showOpening ? 'ยอดสะสมคงเหลือรวม' : 'ยอดสะสมรวม (ไม่รวมยกมา)'}</span><strong>${savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong></div>
           </section>
           <table>
             <thead>${theadHtml}</thead>
@@ -2495,6 +2509,26 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
     health: true,
   });
   const [revealCitizenIds, setRevealCitizenIds] = useState(false);
+  const [includeSavingsOpeningBalance, setIncludeSavingsOpeningBalance] = useState<boolean>(() => {
+    try {
+      const saved = window.localStorage.getItem(`classcare.reports.savingsIncludeOpening.${session.workspace?.id || 'default'}`);
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleSavingsOpeningBalance = () => {
+    setIncludeSavingsOpeningBalance((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(`classcare.reports.savingsIncludeOpening.${session.workspace?.id || 'default'}`, String(next));
+      } catch {
+        // ignore storage error
+      }
+      return next;
+    });
+  };
   const [individualSections, setIndividualSections] = useState<IndividualReportSectionSelection>(() =>
     loadIndividualReportSections(session.workspace?.id),
   );
@@ -3001,11 +3035,12 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         classroom: selectedClassroom,
         dateFrom,
         dateTo,
+        includeOpeningBalance: includeSavingsOpeningBalance,
         savingsAccounts,
         savingsTransactions,
         students: classroomStudents,
       }),
-    [classroomStudents, dateFrom, dateTo, savingsAccounts, savingsTransactions, selectedClassroom],
+    [classroomStudents, dateFrom, dateTo, includeSavingsOpeningBalance, savingsAccounts, savingsTransactions, selectedClassroom],
   );
 
   const scoreEntriesByAssessment = useMemo(() => {
@@ -3698,27 +3733,54 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         `${row.attendancePercent}%`,
       ]);
     } else if (reportView === 'savings') {
-      headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ยอดยกมา', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
-      lines = savingsGrid.rows.map((row, idx) => [
-        String(idx + 1),
-        row.studentCode,
-        row.studentName,
-        String(row.openingBalance),
-        String(row.depositsInPeriod),
-        String(row.withdrawalsInPeriod),
-        String(row.totalPeriodNet),
-        String(row.totalBalance),
-      ]);
-      lines.push([
-        '',
-        '',
-        'รวมทั้งสิ้น',
-        String(savingsGrid.totalOpeningBalance),
-        String(savingsGrid.totalPeriodDeposits),
-        String(savingsGrid.totalPeriodWithdrawals),
-        String(savingsGrid.totalPeriodNet),
-        String(savingsGrid.totalCumulativeBalance),
-      ]);
+      const showOpening = savingsGrid.includeOpeningBalance;
+      headers = showOpening
+        ? ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ยอดยกมา', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ']
+        : ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสม (ไม่รวมยกมา)'];
+      lines = savingsGrid.rows.map((row, idx) =>
+        showOpening
+          ? [
+              String(idx + 1),
+              row.studentCode,
+              row.studentName,
+              String(row.openingBalance),
+              String(row.depositsInPeriod),
+              String(row.withdrawalsInPeriod),
+              String(row.totalPeriodNet),
+              String(row.totalBalance),
+            ]
+          : [
+              String(idx + 1),
+              row.studentCode,
+              row.studentName,
+              String(row.depositsInPeriod),
+              String(row.withdrawalsInPeriod),
+              String(row.totalPeriodNet),
+              String(row.totalBalance),
+            ],
+      );
+      lines.push(
+        showOpening
+          ? [
+              '',
+              '',
+              'รวมทั้งสิ้น',
+              String(savingsGrid.totalOpeningBalance),
+              String(savingsGrid.totalPeriodDeposits),
+              String(savingsGrid.totalPeriodWithdrawals),
+              String(savingsGrid.totalPeriodNet),
+              String(savingsGrid.totalCumulativeBalance),
+            ]
+          : [
+              '',
+              '',
+              'รวมทั้งสิ้น',
+              String(savingsGrid.totalPeriodDeposits),
+              String(savingsGrid.totalPeriodWithdrawals),
+              String(savingsGrid.totalPeriodNet),
+              String(savingsGrid.totalCumulativeBalance),
+            ],
+      );
     } else if (reportView === 'scores') {
       headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', ...scoreSubjectOptions, 'เกรดเฉลี่ย (GPA)', 'งานค้างรวม'];
       lines = studentCrossSubjectRows.map((row, idx) => [
@@ -3908,27 +3970,54 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
         title: `รายงานเวลาเรียน ชั้น ${selectedClassroom?.name || '-'}`,
       });
     } else if (reportView === 'savings') {
-      const headers = ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ยอดยกมา', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ'];
-      const lines = savingsGrid.rows.map((row, idx) => [
-        String(idx + 1),
-        row.studentCode,
-        row.studentName,
-        String(row.openingBalance),
-        String(row.depositsInPeriod),
-        String(row.withdrawalsInPeriod),
-        String(row.totalPeriodNet),
-        String(row.totalBalance),
-      ]);
-      lines.push([
-        '',
-        '',
-        'รวมทั้งสิ้น',
-        String(savingsGrid.totalOpeningBalance),
-        String(savingsGrid.totalPeriodDeposits),
-        String(savingsGrid.totalPeriodWithdrawals),
-        String(savingsGrid.totalPeriodNet),
-        String(savingsGrid.totalCumulativeBalance),
-      ]);
+      const showOpening = savingsGrid.includeOpeningBalance;
+      const headers = showOpening
+        ? ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ยอดยกมา', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสมคงเหลือ']
+        : ['ที่', 'รหัส', 'ชื่อ-นามสกุล', 'ฝากรวมช่วงนี้', 'ถอนรวมช่วงนี้', 'ออมสุทธิช่วงนี้', 'ยอดสะสม (ไม่รวมยกมา)'];
+      const lines = savingsGrid.rows.map((row, idx) =>
+        showOpening
+          ? [
+              String(idx + 1),
+              row.studentCode,
+              row.studentName,
+              String(row.openingBalance),
+              String(row.depositsInPeriod),
+              String(row.withdrawalsInPeriod),
+              String(row.totalPeriodNet),
+              String(row.totalBalance),
+            ]
+          : [
+              String(idx + 1),
+              row.studentCode,
+              row.studentName,
+              String(row.depositsInPeriod),
+              String(row.withdrawalsInPeriod),
+              String(row.totalPeriodNet),
+              String(row.totalBalance),
+            ],
+      );
+      lines.push(
+        showOpening
+          ? [
+              '',
+              '',
+              'รวมทั้งสิ้น',
+              String(savingsGrid.totalOpeningBalance),
+              String(savingsGrid.totalPeriodDeposits),
+              String(savingsGrid.totalPeriodWithdrawals),
+              String(savingsGrid.totalPeriodNet),
+              String(savingsGrid.totalCumulativeBalance),
+            ]
+          : [
+              '',
+              '',
+              'รวมทั้งสิ้น',
+              String(savingsGrid.totalPeriodDeposits),
+              String(savingsGrid.totalPeriodWithdrawals),
+              String(savingsGrid.totalPeriodNet),
+              String(savingsGrid.totalCumulativeBalance),
+            ],
+      );
       sheets.push({
         columns: headers,
         documentCode: buildOfficialDocumentCode('CC-SAV', dateFrom, selectedClassroom?.name),
@@ -4554,6 +4643,49 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
             </div>
           ) : null}
 
+          {reportView === 'savings' ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-amber-200 bg-white text-amber-700 shadow-2xs" aria-hidden="true">
+                  <Wallet size={16} />
+                </span>
+                <div>
+                  <p className="text-xs font-black text-slate-900 sm:text-sm">แสดงยอดยกมาในรายงาน</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-slate-600">
+                    {includeSavingsOpeningBalance
+                      ? 'กำลังแสดงคอลัมน์ "ยอดยกมา" และรวมเข้าในยอดสะสมคงเหลือ (หน้าจอ / พิมพ์ A4 / Excel / CSV)'
+                      : 'ปิดยอดยกมาแล้ว — แสดงเฉพาะยอดออมในช่วงเวลาที่เลือก โดยไม่นำยอดยกมาจากชั้นก่อนมารวม'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeSavingsOpeningBalance}
+                onClick={toggleSavingsOpeningBalance}
+                className={`inline-flex items-center gap-2.5 rounded-2xl border px-3.5 py-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 active:scale-[0.98] ${
+                  includeSavingsOpeningBalance
+                    ? 'border-emerald-300 bg-emerald-600 text-white shadow-xs hover:bg-emerald-700'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>{includeSavingsOpeningBalance ? 'เปิดแสดงยอดยกมา' : 'ปิดยอดยกมา'}</span>
+                <span
+                  aria-hidden="true"
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    includeSavingsOpeningBalance ? 'bg-emerald-900/35' : 'bg-slate-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
+                      includeSavingsOpeningBalance ? 'translate-x-4.5' : 'translate-x-1'
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
+          ) : null}
+
           {reportView === 'subject-scores' ? (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/50 p-3">
               <span className="text-xs font-black text-slate-700">เลือกรายวิชาที่ต้องการดูตารางคะแนน:</span>
@@ -5068,11 +5200,19 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                         <p className="text-xs font-bold text-slate-500">รหัส: {row.studentCode}</p>
                       </div>
                       <div className="text-right">
-                        <span className="block text-[10px] font-bold text-slate-400">ยอดสะสมคงเหลือ</span>
+                        <span className="block text-[10px] font-bold text-slate-400">
+                          {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา'}
+                        </span>
                         <strong className="text-base font-black text-emerald-700">{row.totalBalance.toLocaleString('th-TH')} ฿</strong>
                       </div>
                     </div>
-                    <div className="mt-2.5 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+                    <div className={`mt-2.5 grid gap-2 text-center text-xs font-bold ${savingsGrid.includeOpeningBalance ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                      {savingsGrid.includeOpeningBalance ? (
+                        <div className="rounded-xl bg-amber-50 p-2">
+                          <span className="block text-[10px] text-amber-700">ยอดยกมา</span>
+                          <strong className="text-amber-900">{row.openingBalance.toLocaleString('th-TH')}</strong>
+                        </div>
+                      ) : null}
                       <div className="rounded-xl bg-slate-50 p-2">
                         <span className="block text-[10px] text-slate-500">ฝากช่วงนี้</span>
                         <strong className="text-teal-700">+{row.depositsInPeriod.toLocaleString('th-TH')}</strong>
@@ -5490,16 +5630,25 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                           <span className="block font-bold text-slate-500">นักเรียนทั้งหมด</span>
                           <strong className="text-base font-black text-slate-900">{savingsGrid.totalStudents} คน</strong>
                         </div>
-                        <div className="rounded-lg border border-amber-200 bg-amber-50/70 py-1.5">
-                          <span className="block font-bold text-amber-800">ยอดยกมารวม</span>
-                          <strong className="text-base font-black text-amber-950">{savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong>
-                        </div>
+                        {savingsGrid.includeOpeningBalance ? (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50/70 py-1.5">
+                            <span className="block font-bold text-amber-800">ยอดยกมารวม</span>
+                            <strong className="text-base font-black text-amber-950">{savingsGrid.totalOpeningBalance.toLocaleString('th-TH')} บาท</strong>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-sky-200 bg-sky-50/70 py-1.5">
+                            <span className="block font-bold text-sky-800">ออมเงินช่วงนี้</span>
+                            <strong className="text-base font-black text-sky-950">{savingsGrid.totalActiveSavingsStudents} คน</strong>
+                          </div>
+                        )}
                         <div className="rounded-lg border border-teal-200 bg-teal-50/70 py-1.5">
                           <span className="block font-bold text-teal-800">ออมสุทธิช่วงนี้</span>
                           <strong className="text-base font-black text-teal-900">{savingsGrid.totalPeriodNet.toLocaleString('th-TH')} บาท</strong>
                         </div>
                         <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 py-1.5">
-                          <span className="block font-bold text-emerald-800">ยอดสะสมคงเหลือรวม</span>
+                          <span className="block font-bold text-emerald-800">
+                            {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือรวม' : 'ยอดสะสมรวม (ไม่รวมยกมา)'}
+                          </span>
                           <strong className="text-base font-black text-emerald-950">{savingsGrid.totalCumulativeBalance.toLocaleString('th-TH')} บาท</strong>
                         </div>
                       </div>
@@ -5511,7 +5660,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <th className="border border-slate-300 px-1.5 py-2 text-center w-8">ที่</th>
                               <th className="border border-slate-300 px-2 py-2 text-center w-16">รหัส</th>
                               <th className="border border-slate-300 px-2.5 py-2 text-left">ชื่อ - นามสกุล</th>
-                              <th className="border border-slate-300 bg-amber-50 px-2 py-2 text-right w-20">ยอดยกมา</th>
+                              {savingsGrid.includeOpeningBalance ? (
+                                <th className="border border-slate-300 bg-amber-50 px-2 py-2 text-right w-20">ยอดยกมา</th>
+                              ) : null}
                               {savingsGrid.monthBuckets.map((mb) => (
                                 <th className="border border-slate-300 px-1 py-2 text-center" key={mb.key}>
                                   {mb.shortLabel}
@@ -5519,7 +5670,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               ))}
                               <th className="border border-slate-300 bg-teal-50 px-2 py-2 text-right">ฝากรวม</th>
                               <th className="border border-slate-300 bg-rose-50 px-2 py-2 text-right">ถอนรวม</th>
-                              <th className="border border-slate-300 bg-emerald-100 px-2 py-2 text-right font-black">ยอดสะสมคงเหลือ</th>
+                              <th className="border border-slate-300 bg-emerald-100 px-2 py-2 text-right font-black">
+                                {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา'}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -5528,9 +5681,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                 <td className="border border-slate-300 px-1 py-1.5 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-1.5 py-1.5 text-center font-bold">{row.studentCode}</td>
                                 <td className="border border-slate-300 px-2 py-1.5 font-bold">{row.studentName}</td>
-                                <td className="border border-slate-300 bg-amber-50/40 px-2 py-1.5 text-right font-bold text-amber-900">
-                                  {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
-                                </td>
+                                {savingsGrid.includeOpeningBalance ? (
+                                  <td className="border border-slate-300 bg-amber-50/40 px-2 py-1.5 text-right font-bold text-amber-900">
+                                    {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
+                                  </td>
+                                ) : null}
                                 {savingsGrid.monthBuckets.map((mb) => {
                                   const net = row.monthlyNet[mb.key] || 0;
                                   return (
@@ -5556,9 +5711,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <td colSpan={3} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-right font-black text-slate-900">
                                 รวมทั้งสิ้น
                               </td>
-                              <td className="border border-slate-300 bg-amber-100 px-2 py-1.5 text-right font-black text-amber-950">
-                                {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
-                              </td>
+                              {savingsGrid.includeOpeningBalance ? (
+                                <td className="border border-slate-300 bg-amber-100 px-2 py-1.5 text-right font-black text-amber-950">
+                                  {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
+                                </td>
+                              ) : null}
                               {savingsGrid.monthBuckets.map((mb) => {
                                 const net = savingsGrid.monthTotals[mb.key] || 0;
                                 return (
@@ -5585,7 +5742,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                             <tr className="bg-cyan-50 text-slate-900">
                               <th className="border border-slate-300 px-1 py-1.5 text-center w-7">ที่</th>
                               <th className="border border-slate-300 px-2 py-1.5 text-left w-44">ชื่อ - นามสกุล</th>
-                              <th className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">ยอดยกมา</th>
+                              {savingsGrid.includeOpeningBalance ? (
+                                <th className="border border-slate-300 bg-amber-50 px-1.5 py-1.5 text-right w-18">ยอดยกมา</th>
+                              ) : null}
                               {monthContext.days.map((day) => (
                                 <th
                                   className={`border border-slate-300 px-0.5 py-1.5 text-center ${
@@ -5597,7 +5756,9 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                                 </th>
                               ))}
                               <th className="border border-slate-300 bg-cyan-100 px-2 py-1.5 text-right">รวมเดือนนี้</th>
-                              <th className="border border-slate-300 bg-emerald-100 px-2 py-1.5 text-right">ยอดสะสมคงเหลือ</th>
+                              <th className="border border-slate-300 bg-emerald-100 px-2 py-1.5 text-right">
+                                {savingsGrid.includeOpeningBalance ? 'ยอดสะสมคงเหลือ' : 'ยอดสะสมไม่รวมยกมา'}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -5605,9 +5766,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <tr className="even:bg-slate-50/70" key={row.studentId}>
                                 <td className="border border-slate-300 px-1 py-1 text-center">{idx + 1}</td>
                                 <td className="border border-slate-300 px-2 py-1 font-bold whitespace-nowrap">{row.studentName}</td>
-                                <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1 text-right font-bold text-amber-900">
-                                  {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
-                                </td>
+                                {savingsGrid.includeOpeningBalance ? (
+                                  <td className="border border-slate-300 bg-amber-50/40 px-1.5 py-1 text-right font-bold text-amber-900">
+                                    {row.openingBalance > 0 ? row.openingBalance.toLocaleString('th-TH') : '-'}
+                                  </td>
+                                ) : null}
                                 {monthContext.days.map((day) => {
                                   const amt = row.dailyAmounts[day.dateKey];
                                   return (
@@ -5635,9 +5798,11 @@ function TeacherReportsPage({ session }: ReportsPageProps) {
                               <td colSpan={2} className="border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-black whitespace-nowrap text-slate-900">
                                 รวมเงินออมแต่ละวัน
                               </td>
-                              <td className="border border-slate-300 bg-amber-100 px-1.5 py-1 text-right font-black text-amber-950">
-                                {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
-                              </td>
+                              {savingsGrid.includeOpeningBalance ? (
+                                <td className="border border-slate-300 bg-amber-100 px-1.5 py-1 text-right font-black text-amber-950">
+                                  {savingsGrid.totalOpeningBalance.toLocaleString('th-TH')}
+                                </td>
+                              ) : null}
                               {monthContext.days.map((day) => {
                                 const dayTotal = savingsGrid.dayTotals[day.day];
                                 return (
