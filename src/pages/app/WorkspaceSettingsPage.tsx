@@ -1,7 +1,6 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Bot, Building2, Download, Globe2, GraduationCap, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, UserRound, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Bot, Building2, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, UserRound, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, planLabels, planLimits } from '../../lib/entitlements';
@@ -186,10 +185,6 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     gradeLevel: 'ป.5',
     homeroomTeacherProfileId: session.profile.id,
     name: session.workspace?.classroomName || 'ป.5/2',
-  });
-  const [rolloverForm, setRolloverForm] = useState({
-    fromYear: session.workspace?.academicYear || '2569',
-    toYear: String(Number(session.workspace?.academicYear || '2569') + 1),
   });
 
   type SettingsTabKey = 'account' | 'school' | 'classrooms' | 'members' | 'ai';
@@ -481,6 +476,19 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       riskLevel: 'low',
       source: 'workspace_settings',
     });
+
+    // Keep user's profile school_name in sync with the workspace school_name (single source of truth)
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('metadata')
+      .eq('id', session.profile.id)
+      .maybeSingle();
+    const currentMeta = (profileRow?.metadata as Record<string, unknown> | null) || {};
+    await supabase
+      .from('profiles')
+      .update({ metadata: { ...currentMeta, school_name: nextWorkspace.schoolName } })
+      .eq('id', session.profile.id);
+
     setNotice('✓ บันทึกข้อมูลพื้นฐานโรงเรียนและผู้ลงนามเอกสารเรียบร้อยแล้ว');
     setWorkspaceSettingsJson((current) => ({
       ...current,
@@ -1066,34 +1074,6 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         id: session.workspace?.id || null,
       },
     });
-  }
-
-  function exportRolloverPlan() {
-    const fromYear = rolloverForm.fromYear.trim();
-    const toYear = rolloverForm.toYear.trim();
-    const plan = activeClassrooms.map((classroom) => ({
-      currentAcademicYear: classroom.academic_year || fromYear,
-      currentClassroomId: classroom.id,
-      currentClassroomName: classroom.name,
-      currentGradeLevel: classroom.grade_level,
-      nextAcademicYear: toYear,
-      nextClassroomName: classroom.name,
-      nextGradeLevel: classroom.grade_level,
-      studentCount: classroomStudentCounts[classroom.id] || 0,
-    }));
-
-    downloadJson(`classcare-rollover-plan-${fromYear}-to-${toYear}.json`, {
-      app: 'ClassCare 360',
-      exportedAt: new Date().toISOString(),
-      note: 'ไฟล์นี้เป็นแผนเลื่อนชั้นแบบ preview ยังไม่ย้ายข้อมูลจริง ควรตรวจชื่อห้อง/ปีการศึกษาก่อนสร้างข้อมูลปีใหม่',
-      plan,
-      workspace: {
-        id: session.workspace?.id || null,
-        name: workspaceForm.name,
-        schoolName: workspaceForm.schoolName,
-      },
-    });
-    setNotice(`สร้างแผนเลื่อนชั้น ${fromYear} -> ${toYear} แล้ว ยังไม่ย้ายข้อมูลจริง`);
   }
 
   async function handleSchoolLogoChange(event: ChangeEvent<HTMLInputElement>) {
@@ -1891,94 +1871,6 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </div>
           ) : null}
         </>
-      )}
-
-      {(activeSettingsTab === 'school' || activeSettingsTab === 'classrooms') && canManage && (
-        <section className="mt-5 grid gap-5 xl:grid-cols-2">
-          {activeSettingsTab === 'school' && (
-            <div id="workspace-backup" className="scroll-mt-24 nexus-card p-4 sm:p-5 xl:col-span-2">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-black text-cyan-700">
-                    <Download size={15} aria-hidden="true" />
-                    ทางลัดจัดการข้อมูลโรงเรียน
-                  </div>
-                  <h2 className="mt-1 text-lg font-black text-slate-950">สำรองข้อมูล กู้คืนถังขยะ และนำเข้า-ส่งออกรายชื่อ</h2>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                    งานสำรองข้อมูลเต็มรูปแบบ ตรวจสุขภาพข้อมูล และกู้คืนถังขยะรวมอยู่ที่เมนู “สำรองข้อมูล &amp; ถังขยะ”
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <Link
-                    to="/app/dashboard?view=data-safety"
-                    className="blue-action inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black"
-                  >
-                    <ShieldCheck size={15} aria-hidden="true" />
-                    ไปหน้าสำรองข้อมูล &amp; ถังขยะ
-                  </Link>
-                  <button
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 hover:bg-slate-50"
-                    onClick={exportSettingsSnapshot}
-                    type="button"
-                  >
-                    <Download size={14} aria-hidden="true" />
-                    Export ตั้งค่า (.JSON)
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSettingsTab === 'classrooms' && (
-            <div id="workspace-rollover" className="scroll-mt-24 nexus-card p-4 sm:p-5 xl:col-span-2">
-              <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-                <RotateCcw size={17} aria-hidden="true" />
-                Academic Year Rollover
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-slate-950">ระบบเลื่อนชั้นเรียนข้ามปีการศึกษา</h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                ระบบจัดการย้ายข้อมูลนักเรียนข้ามปีการศึกษาจริง พร้อมระบบความปลอดภัยสูงสุด: สร้าง Snapshot สำรองข้อมูลเดิมอัตโนมัติก่อนย้าย และสามารถสั่งย้อนกลับ (Undo) เพื่อคืนสภาพเดิมได้ภายใน 7 วัน
-              </p>
-
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Link
-                  to="/app/dashboard?view=classroom-operations&tab=rollover"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-teal-600 px-5 text-sm font-black text-white shadow-md shadow-cyan-500/25 transition-all hover:scale-105 hover:shadow-lg"
-                >
-                  <GraduationCap size={18} />
-                  <span>เปิดระบบเลื่อนชั้นเรียน (Promotion Wizard) →</span>
-                </Link>
-                <button
-                  className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
-                  onClick={exportRolloverPlan}
-                  type="button"
-                >
-                  <Download size={16} aria-hidden="true" />
-                  <span>ดาวน์โหลดแผนสำรอง JSON</span>
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-xs font-black text-slate-600">
-                  ปีการศึกษาเดิม (สำหรับ Export)
-                  <input
-                    className="nexus-field h-10 px-3 text-xs"
-                    onChange={(event) => setRolloverForm((current) => ({ ...current, fromYear: event.target.value }))}
-                    value={rolloverForm.fromYear}
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-black text-slate-600">
-                  ปีการศึกษาถัดไป (สำหรับ Export)
-                  <input
-                    className="nexus-field h-10 px-3 text-xs"
-                    onChange={(event) => setRolloverForm((current) => ({ ...current, toYear: event.target.value }))}
-                    value={rolloverForm.toYear}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-        </section>
       )}
 
       {activeSettingsTab === 'school' && canUseDestructiveActions ? (

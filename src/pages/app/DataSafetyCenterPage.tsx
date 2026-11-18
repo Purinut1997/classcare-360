@@ -976,15 +976,17 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} /> สแกนข้อมูลล่าสุด
           </button>
-          <button
-            type="button"
-            disabled={isBackingUp || !workspaceId}
-            onClick={() => void handleExportBackup()}
-            className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-xs font-black shadow-sm disabled:opacity-50"
-          >
-            {isBackingUp ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
-            <span>{isBackingUp ? 'กำลังสำรอง...' : 'สำรองข้อมูลเดี๋ยวนี้ (.JSON)'}</span>
-          </button>
+          {activeTab !== 'backup' ? (
+            <button
+              type="button"
+              disabled={isBackingUp || !workspaceId}
+              onClick={() => void handleExportBackup()}
+              className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-xs font-black shadow-sm disabled:opacity-50"
+            >
+              {isBackingUp ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
+              <span>{isBackingUp ? 'กำลังสำรอง...' : 'สำรองข้อมูลเดี๋ยวนี้ (.JSON)'}</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1175,20 +1177,11 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       {/* TAB 2: LIVE DATA HEALTH SCANNER */}
       {!isLoading && activeTab === 'health' ? (
         <section className="nexus-card mt-5 p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black text-slate-950">ผลสแกนสุขภาพข้อมูลจริงของ “{schoolName}”</h2>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                ตรวจสอบจริงจากตารางนักเรียน ห้องเรียน บัญชีเงินออม และตั้งค่ารายงาน (ไม่มีข้อมูลจำลอง)
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadLiveSafetyData()}
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 hover:bg-slate-50"
-            >
-              <RefreshCw size={14} /> สแกนซ้ำ
-            </button>
+          <div>
+            <h2 className="text-xl font-black text-slate-950">ผลสแกนสุขภาพข้อมูลจริงของ “{schoolName}”</h2>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">
+              ตรวจสอบจริงจากตารางนักเรียน ห้องเรียน บัญชีเงินออม และตั้งค่ารายงาน (ไม่มีข้อมูลจำลอง)
+            </p>
           </div>
 
           {healthIssues.length === 0 ? (

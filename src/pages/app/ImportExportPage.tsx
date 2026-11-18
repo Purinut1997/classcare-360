@@ -32,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import { readSheet } from 'read-excel-file/browser';
+import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { exportTableToXlsxFile } from '../../lib/excelClipboard';
 import { writeAuditLog } from '../../lib/auditLog';
@@ -132,33 +133,6 @@ interface GuardianPreviewRow {
   studentId: string | null;
   studentName: string;
   warnings: string[];
-}
-
-interface BackupRow {
-  created_at: string;
-  id: string;
-  row_counts: Record<string, number>;
-  status: string;
-}
-
-interface WorkspaceBackupPackage {
-  app: 'ClassCare 360';
-  data: {
-    classrooms: ClassroomRow[];
-    guardianPreviewRows: GuardianPreviewRow[];
-    previewRows: PreviewRow[];
-    students: StudentExportRow[];
-  };
-  exportedAt: string;
-  restoreNotes: string[];
-  rowCounts: Record<string, number>;
-  schemaVersion: 'classcare-workspace-backup-v1';
-  workspace: {
-    academicYear: string | null;
-    id: string | null;
-    name: string | null;
-    schoolName: string | null;
-  };
 }
 
 interface StudentInsertRow {
@@ -794,60 +768,6 @@ function downloadText(filename: string, content: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
-function isWorkspaceBackupPackage(value: unknown): value is WorkspaceBackupPackage {
-  if (!value || typeof value !== 'object') return false;
-  const packageValue = value as Partial<WorkspaceBackupPackage>;
-  const data = packageValue.data as Partial<WorkspaceBackupPackage['data']> | undefined;
-  const rowCounts = packageValue.rowCounts as Record<string, unknown> | undefined;
-  const workspace = packageValue.workspace as Partial<WorkspaceBackupPackage['workspace']> | undefined;
-  return (
-    packageValue.app === 'ClassCare 360' &&
-    packageValue.schemaVersion === 'classcare-workspace-backup-v1' &&
-    typeof packageValue.exportedAt === 'string' && !Number.isNaN(Date.parse(packageValue.exportedAt)) &&
-    Array.isArray(packageValue.restoreNotes) &&
-    Boolean(data) &&
-    Array.isArray(data?.classrooms) &&
-    Array.isArray(data?.students) &&
-    Array.isArray(data?.previewRows) &&
-    Array.isArray(data?.guardianPreviewRows) &&
-    Boolean(rowCounts) &&
-    ['classrooms', 'students', 'previewRows', 'guardianPreviewRows'].every((key) => Number.isInteger(rowCounts?.[key]) && Number(rowCounts?.[key]) >= 0) &&
-    Boolean(workspace) &&
-    (workspace?.id === null || typeof workspace?.id === 'string')
-  );
-}
-
-interface BackupDryRunResult {
-  checks: Array<{ detail: string; label: string; passed: boolean }>;
-  hasBlockingIssues: boolean;
-}
-
-function runBackupDryRun(backup: WorkspaceBackupPackage, targetWorkspaceId?: string): BackupDryRunResult {
-  const classroomIds = backup.data.classrooms.map((classroom) => classroom.id);
-  const classroomIdSet = new Set(classroomIds);
-  const studentCodes = backup.data.students.map((student) => student.student_code?.trim()).filter(Boolean) as string[];
-  const studentCodeSet = new Set(studentCodes);
-  const duplicateCodes = studentCodes.length - studentCodeSet.size;
-  const duplicateClassrooms = classroomIds.length - new Set(classroomIds).size;
-  const orphanStudents = backup.data.students.filter((student) => student.classroom_id && !classroomIdSet.has(student.classroom_id)).length;
-  const incompleteStudents = backup.data.students.filter((student) => !student.first_name?.trim() || !student.last_name?.trim()).length;
-  const countsMatch = backup.rowCounts.classrooms === backup.data.classrooms.length
-    && backup.rowCounts.students === backup.data.students.length
-    && backup.rowCounts.previewRows === backup.data.previewRows.length
-    && backup.rowCounts.guardianPreviewRows === backup.data.guardianPreviewRows.length;
-  const workspaceMatches = !targetWorkspaceId || !backup.workspace.id || backup.workspace.id === targetWorkspaceId;
-  const checks = [
-    { label: 'โครงสร้างและรุ่นไฟล์', passed: true, detail: `ClassCare 360 · ${backup.schemaVersion}` },
-    { label: 'จำนวนรายการในไฟล์ตรงกับ manifest', passed: countsMatch, detail: countsMatch ? 'จำนวนห้องและข้อมูลตรงกัน' : 'จำนวนห้อง/นักเรียน/รายการนำเข้าไม่ตรงกับข้อมูลกำกับไฟล์' },
-    { label: 'รหัสห้องไม่ซ้ำ', passed: duplicateClassrooms === 0, detail: duplicateClassrooms ? `พบห้องซ้ำ ${duplicateClassrooms} รายการ` : 'ไม่พบรหัสห้องซ้ำ' },
-    { label: 'นักเรียนอ้างอิงห้องในไฟล์ได้', passed: orphanStudents === 0, detail: orphanStudents ? `มี ${orphanStudents} คนอ้างถึงห้องที่ไม่มีในไฟล์` : 'ไม่พบรายการนักเรียนที่อ้างถึงห้องนอกไฟล์' },
-    { label: 'ชื่อนักเรียนครบ', passed: incompleteStudents === 0, detail: incompleteStudents ? `มี ${incompleteStudents} รายการที่ต้องเติมชื่อ/นามสกุล` : 'ชื่อและนามสกุลครบ' },
-    { label: 'โรงเรียนตรงกับพื้นที่ปัจจุบัน', passed: workspaceMatches, detail: workspaceMatches ? 'รหัสพื้นที่ตรงกันหรือไฟล์ไม่มีรหัสเดิม' : 'ไฟล์มาจากโรงเรียน/พื้นที่อื่น ตรวจสอบก่อนนำเข้าทุกครั้ง' },
-    { label: 'รหัสนักเรียนไม่ซ้ำในไฟล์', passed: duplicateCodes === 0, detail: duplicateCodes ? `พบรหัสซ้ำ ${duplicateCodes} รายการ ซึ่งระบบจะให้ตรวจทานก่อนนำเข้า` : 'ไม่พบรหัสนักเรียนซ้ำในไฟล์' },
-  ];
-  return { checks, hasBlockingIssues: checks.some((check) => !check.passed && check.label !== 'รหัสนักเรียนไม่ซ้ำในไฟล์') };
-}
-
 export function ImportExportPage({ session }: ImportExportPageProps) {
   const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const dmcFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -877,9 +797,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
   );
   const [showSchemaGuideModal, setShowSchemaGuideModal] = useState(false);
   const [guardianPreviewRows, setGuardianPreviewRows] = useState<GuardianPreviewRow[]>([]);
-  const [backups, setBackups] = useState<BackupRow[]>([]);
-  const [backupPackagePreview, setBackupPackagePreview] = useState<WorkspaceBackupPackage | null>(null);
-  const [backupDryRunResult, setBackupDryRunResult] = useState<BackupDryRunResult | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -1020,7 +937,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       setClassrooms(demoClassrooms);
       setStudents(demoStudents);
       setRosterReviews([]);
-      setBackups([]);
       setIsLoading(false);
       return;
     }
@@ -1029,7 +945,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
       const [
         { data: classroomRows, error: classroomError },
         { data: studentRows, error: studentError },
-        { data: backupRows, error: backupError },
         { data: reviewRows, error: reviewError },
       ] = await Promise.all([
         supabase
@@ -1043,12 +958,6 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .eq('workspace_id', session.workspace.id)
           .order('created_at', { ascending: false }),
         supabase
-          .from('workspace_backups')
-          .select('id,status,row_counts,created_at')
-          .eq('workspace_id', session.workspace.id)
-          .order('created_at', { ascending: false })
-          .limit(8),
-        supabase
           .from('student_roster_reviews')
           .select('id,workspace_id,student_id,classification,note,reviewed_at')
           .eq('workspace_id', session.workspace.id)
@@ -1056,16 +965,15 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           .order('updated_at', { ascending: false }),
       ]);
 
-      if (classroomError || studentError || backupError || reviewError) {
+      if (classroomError || studentError || reviewError) {
         if (showNotice) {
-          setNotice(classroomError?.message || studentError?.message || backupError?.message || reviewError?.message || 'โหลดข้อมูล import/export ไม่สำเร็จ');
+          setNotice(classroomError?.message || studentError?.message || reviewError?.message || 'โหลดข้อมูล import/export ไม่สำเร็จ');
         }
         return;
       }
 
       setClassrooms((classroomRows || []) as ClassroomRow[]);
       setStudents((studentRows || []) as StudentExportRow[]);
-      setBackups((backupRows || []) as BackupRow[]);
       setRosterReviews((reviewRows || []) as StudentRosterReviewRow[]);
     } catch {
       // ignore
@@ -2128,175 +2036,16 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
     setIsSubmitting(false);
   }
 
-  async function createBackupManifest() {
-    setIsSubmitting(true);
-    setNotice(null);
-
-    const rowCounts = {
-      classrooms: classrooms.length,
-      students: students.length,
-      previewRows: previewRows.length,
-      guardianPreviewRows: guardianPreviewRows.length,
-    };
-    const backupPackage: WorkspaceBackupPackage = {
-      app: 'ClassCare 360',
-      data: {
-        classrooms,
-        guardianPreviewRows,
-        previewRows,
-        students,
-      },
-      exportedAt: new Date().toISOString(),
-      restoreNotes: [
-        'ไฟล์นี้เก็บรายชื่อห้องเรียน/นักเรียนและรายการนำเข้าที่กำลัง preview เท่านั้น ไม่ใช่สำเนาฐานข้อมูลทั้ง workspace',
-        'คะแนน เวลาเรียน สุขภาพ เคสดูแล การตั้งค่า และไฟล์แนบไม่ได้รวมอยู่ใน package นี้',
-        'การ restore ควรนำเข้าเป็น preview ก่อนเสมอ และตรวจ duplicate/error ก่อนบันทึกจริง',
-        'ไฟล์นี้ไม่รวมรูปภาพหรือสลิปใน storage bucket ให้สำรอง bucket แยกต่างหาก',
-      ],
-      rowCounts,
-      schemaVersion: 'classcare-workspace-backup-v1',
-      workspace: {
-        academicYear: session.workspace?.academicYear || null,
-        id: session.workspace?.id || null,
-        name: session.workspace?.name || null,
-        schoolName: session.workspace?.schoolName || null,
-      },
-    };
-
-    if (!useRealBackend || !supabase || !session.workspace) {
-      const localBackup = {
-        created_at: new Date().toISOString(),
-        id: `demo-backup-${Date.now()}`,
-        row_counts: rowCounts,
-        status: 'created',
-      };
-      setBackups((current) => [localBackup, ...current]);
-      downloadText(
-        `classcare-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`,
-        JSON.stringify({ ...backupPackage, backup: localBackup }, null, 2),
-        'application/json;charset=utf-8',
-      );
-      setNotice('สร้าง workspace backup package ในโหมดตัวอย่างแล้ว');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('workspace_backups')
-      .insert({
-        workspace_id: session.workspace.id,
-        requested_by: session.profile.id,
-        backup_type: 'teacher_self',
-        status: 'created',
-        row_counts: rowCounts,
-        metadata: {
-          generated_from: 'ImportExportPage',
-          timezone: 'Asia/Bangkok',
-        },
-      })
-      .select('id,status,row_counts,created_at')
-      .single();
-
-    if (error) {
-      setNotice(error.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    const backup = data as BackupRow;
-    await writeAuditLog(session, {
-      action: 'workspace_backup.package_created',
-      entityId: backup.id,
-      entityTable: 'workspace_backups',
-      metadata: {
-        row_counts: rowCounts,
-        schema_version: backupPackage.schemaVersion,
-      },
-      riskLevel: 'low',
-      source: 'import_export',
-    });
-    setBackups((current) => [backup, ...current]);
-    downloadText(
-      `classcare-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify({ ...backupPackage, backup }, null, 2),
-      'application/json;charset=utf-8',
-    );
-    setNotice('สร้าง workspace backup package และบันทึก metadata สำเร็จ');
-    setIsSubmitting(false);
-  }
-
-  async function handleBackupPackageFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as unknown;
-      if (!isWorkspaceBackupPackage(parsed)) {
-        setNotice('ไฟล์ backup ไม่ถูกต้องหรือ schemaVersion ไม่ตรงกับ ClassCare 360');
-        setBackupPackagePreview(null);
-        setBackupDryRunResult(null);
-        return;
-      }
-
-      setBackupPackagePreview(parsed);
-      setBackupDryRunResult(null);
-      setNotice(`อ่าน backup package สำเร็จ: นักเรียน ${parsed.data.students.length} คน ห้องเรียน ${parsed.data.classrooms.length} ห้อง`);
-    } catch (error) {
-      setBackupPackagePreview(null);
-      setBackupDryRunResult(null);
-      setNotice(error instanceof Error ? error.message : 'อ่านไฟล์ backup ไม่สำเร็จ');
-    } finally {
-      event.target.value = '';
-    }
-  }
-
-  function stageBackupStudentsForImport() {
-    if (!backupPackagePreview) return;
-    const dryRun = backupDryRunResult || runBackupDryRun(backupPackagePreview, session.workspace?.id);
-    if (dryRun.hasBlockingIssues) {
-      setBackupDryRunResult(dryRun);
-      setNotice('ยังนำไปทำ preview ต่อไม่ได้ กรุณาแก้รายการที่ไม่ผ่านในผลตรวจจำลองก่อน');
-      return;
-    }
-
-    const classroomById = new Map(backupPackagePreview.data.classrooms.map((classroom) => [classroom.id, classroom.name]));
-    const stagedRows = backupPackagePreview.data.students.map((student, index) => {
-      const studentCode = student.student_code || '';
-      const warnings: string[] = [];
-      if (studentCode && existingCodes.has(studentCode)) warnings.push('รหัสซ้ำกับข้อมูลเดิม จะถูกข้ามใน import จริง');
-
-      return {
-        classroomName: classroomById.get(student.classroom_id || '') || backupPackagePreview.workspace.name || '',
-        errors: [
-          !student.first_name ? 'ไม่มี first_name' : null,
-          !student.last_name ? 'ไม่มี last_name' : null,
-          !student.classroom_id ? 'ไม่มี classroom_id' : null,
-        ].filter((message): message is string => Boolean(message)),
-        firstName: student.first_name,
-        lastName: student.last_name,
-        nickname: student.nickname || '',
-        rowNumber: index + 1,
-        source: 'manual' as const,
-        studentCode,
-        warnings,
-      };
-    });
-
-    setPreviewRows(stagedRows);
-    setNotice(`แปลง backup เป็น preview นักเรียน ${stagedRows.length} แถวแล้ว กรุณาตรวจ duplicate/error ก่อน import`);
-  }
-
   return (
     <main className={`app-page ${validPreviewRows.length > 0 && activeMainTab === 'import' ? 'pb-28' : ''}`}>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="nexus-kicker">
             <Archive size={18} aria-hidden="true" />
-            Import / Export / Backup
+            Import &amp; Export
           </div>
           <h1 className="app-page-title">
-            นำเข้า ส่งออก และสำรองข้อมูล
+            นำเข้า &amp; ส่งออกรายชื่อข้อมูล
           </h1>
           <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-600">
             ทุกงานต้อง preview ก่อน import, ตรวจ duplicate และบันทึก metadata เพื่อ audit โดยไม่ใช้ Google Sheet เป็น database หลัก
@@ -2363,7 +2112,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
           }`}
         >
           <Download size={17} aria-hidden="true" />
-          ส่งออก & สำรองข้อมูล Workspace
+          ส่งออก CSV &amp; ไฟล์ตัวอย่าง
         </button>
       </nav>
 
@@ -3846,17 +3595,18 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
         <section className="mt-5 space-y-5">
           <div className="grid gap-5 lg:grid-cols-2">
             {/* Data Export & Templates */}
-            <div className="nexus-card p-4 sm:p-5">
+            <div className="nexus-card p-5">
               <div className="nexus-kicker">
                 <Download size={16} aria-hidden="true" />
-                Export ข้อมูล & ไฟล์ตัวอย่าง
+                Export รายชื่อ &amp; ไฟล์ตัวอย่าง
               </div>
-              <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
-                ส่งออกรายชื่อนักเรียนทั้งหมดเป็น CSV หรือดาวน์โหลดไฟล์ Template สำหรับนำเข้าข้อมูล
+              <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+                ส่งออกรายชื่อนักเรียนทั้งหมดเป็น CSV หรือดาวน์โหลดไฟล์ Template สำหรับเตรียมนำเข้าข้อมูล
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
-                  className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black sm:col-span-2"
+                  className="dark-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:opacity-50 sm:col-span-2"
+                  disabled={isLoading}
                   onClick={exportStudents}
                   type="button"
                 >
@@ -3882,125 +3632,26 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
               </div>
             </div>
 
-            {/* Workspace Backup Package */}
-            <div className="nexus-card p-4 sm:p-5">
-              <div className="nexus-kicker">
-                <ShieldCheck size={16} aria-hidden="true" />
-                สร้าง Workspace Backup Package
+            {/* Single-Source Backup Pointer (No Duplication) */}
+            <div className="nexus-card flex flex-col justify-between p-5">
+              <div>
+                <div className="nexus-kicker">
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  สำรองข้อมูลครบทั้งโรงเรียน (.JSON)
+                </div>
+                <p className="mt-3 text-sm font-bold leading-6 text-slate-600">
+                  งานสำรองข้อมูลครบทุกตาราง (ห้องเรียน นักเรียน เงินออม แม่แบบข้อความ) การกู้คืนไฟล์สำรอง และถังขยะ ถูกรวมไว้ที่เมนู <strong>“สำรองข้อมูล &amp; ถังขยะ”</strong> เพียงจุดเดียวเพื่อไม่ให้ไฟล์สำรองซ้ำซ้อน
+                </p>
               </div>
-              <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
-                สร้าง backup package ราย workspace เป็น JSON สำหรับส่งต่อ ย้ายเครื่อง หรือกู้คืน
-              </p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <button
-                  className="amber-action inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
-                  disabled={isSubmitting || isLoading}
-                  onClick={() => void createBackupManifest()}
-                  type="button"
+              <div className="mt-4">
+                <Link
+                  to="/app/dashboard?view=data-safety"
+                  className="amber-action inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black"
                 >
-                  <Save size={17} aria-hidden="true" />
-                  สร้าง Backup Package
-                </button>
-                <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-cyan-50">
-                  <Upload size={17} aria-hidden="true" />
-                  ตรวจ Backup JSON
-                  <input
-                    accept=".json,application/json"
-                    className="sr-only"
-                    onChange={(event) => void handleBackupPackageFileChange(event)}
-                    type="file"
-                  />
-                </label>
+                  <ShieldCheck size={17} aria-hidden="true" />
+                  เปิดศูนย์สำรองข้อมูล &amp; ถังขยะ →
+                </Link>
               </div>
-            </div>
-          </div>
-
-          {/* Backup Package Preview & History */}
-          <div className="nexus-card p-4 sm:p-5">
-            <p className="text-sm font-black text-cyan-700">ไฟล์สำรองรายชื่อ · ทดสอบก่อนนำเข้า · ประวัติการสำรอง</p>
-
-            {backupPackagePreview ? (
-              <div className="mt-4 rounded-3xl bg-white/85 p-4 ring-1 ring-cyan-100">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-black text-slate-950">
-                      {backupPackagePreview.workspace.schoolName || backupPackagePreview.workspace.name || 'Backup package'}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      export {new Date(backupPackagePreview.exportedAt).toLocaleString('th-TH')} | schema {backupPackagePreview.schemaVersion}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-50 px-3 text-xs font-black text-cyan-900 ring-1 ring-cyan-200"
-                      onClick={() => setBackupDryRunResult(runBackupDryRun(backupPackagePreview, session.workspace?.id))}
-                      type="button"
-                    >
-                      <ShieldCheck size={15} aria-hidden="true" />
-                      ทดสอบนำเข้าจำลอง
-                    </button>
-                    <button
-                      className="dark-action inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-3 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={Boolean(backupDryRunResult?.hasBlockingIssues)}
-                      onClick={stageBackupStudentsForImport}
-                      type="button"
-                    >
-                      <FileUp size={15} aria-hidden="true" />
-                      ใช้เป็น preview
-                    </button>
-                  </div>
-                </div>
-                {backupDryRunResult ? (
-                  <div className="mt-4 rounded-2xl bg-slate-50 p-3" aria-live="polite">
-                    <p className={`text-sm font-black ${backupDryRunResult.hasBlockingIssues ? 'text-rose-700' : 'text-emerald-700'}`}>
-                      {backupDryRunResult.hasBlockingIssues ? 'พบรายการต้องตรวจสอบก่อนนำเข้าจำลอง' : 'ผ่านการตรวจจำลองเบื้องต้น'}
-                    </p>
-                    <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                      {backupDryRunResult.checks.map((check) => (
-                        <li className={`flex items-start gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${check.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`} key={check.label}>
-                          {check.passed ? <Check size={14} className="mt-0.5 shrink-0" aria-hidden="true" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />}
-                          <span>{check.label}: {check.detail}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-2 text-[11px] font-semibold text-slate-500">ตรวจไฟล์และความสัมพันธ์เบื้องต้นเท่านั้น ยังไม่ได้เขียนข้อมูลหรือทดสอบกู้คืนฐานข้อมูลจริง</p>
-                  </div>
-                ) : null}
-                <div className="mt-4 grid grid-cols-2 gap-2 text-center">
-                  <div className="nexus-muted-box p-3">
-                    <p className="text-xl font-black text-slate-950">{backupPackagePreview.data.students.length}</p>
-                    <p className="text-xs font-black text-slate-500">students</p>
-                  </div>
-                  <div className="nexus-muted-box p-3">
-                    <p className="text-xl font-black text-slate-950">{backupPackagePreview.data.classrooms.length}</p>
-                    <p className="text-xs font-black text-slate-500">classrooms</p>
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-1 text-xs font-bold leading-5 text-slate-500">
-                  {backupPackagePreview.restoreNotes.map((note) => (
-                    <p key={note}>- {note}</p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-4 grid gap-3">
-              {backups.map((backup) => (
-                <div className="nexus-muted-box p-3" key={backup.id}>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-black text-slate-950">{backup.status}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{new Date(backup.created_at).toLocaleString('th-TH')}</p>
-                    </div>
-                    <p className="text-sm font-bold text-slate-600">
-                      students {backup.row_counts.students || 0} | classrooms {backup.row_counts.classrooms || 0}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {backups.length === 0 ? (
-                <div className="nexus-muted-box p-4 text-sm font-bold text-slate-600">ยังไม่มี backup manifest</div>
-              ) : null}
             </div>
           </div>
         </section>

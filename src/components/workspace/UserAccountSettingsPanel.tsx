@@ -37,6 +37,7 @@ export function UserAccountSettingsPanel({
 }: UserAccountSettingsPanelProps) {
   const demoMode = isDemoSession(session);
   const canManage = canManageWorkspace(session.profile.role);
+  const canSwitchWorkspace = session.profile.role === 'superadmin' || (session.workspaceCount ?? 0) > 1;
 
   // Profile form state
   const [displayName, setDisplayName] = useState(session.profile.displayName || '');
@@ -222,7 +223,7 @@ export function UserAccountSettingsPanel({
             </span>
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={canManage ? 'grid gap-4' : 'grid gap-4 sm:grid-cols-2'}>
             <label className="grid gap-1.5 text-xs font-black text-slate-700">
               เบอร์โทรศัพท์ติดต่อ
               <span className="relative">
@@ -238,19 +239,21 @@ export function UserAccountSettingsPanel({
               </span>
             </label>
 
-            <label className="grid gap-1.5 text-xs font-black text-slate-700">
-              โรงเรียนต้นสังกัด (โปรไฟล์)
-              <span className="relative">
-                <School size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  className="nexus-field h-11 w-full pl-9 pr-3 text-sm font-bold"
-                  disabled={isLoadingProfile}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="ชื่อโรงเรียน"
-                  value={schoolName}
-                />
-              </span>
-            </label>
+            {!canManage ? (
+              <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                โรงเรียนต้นสังกัด (โปรไฟล์)
+                <span className="relative">
+                  <School size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="nexus-field h-11 w-full pl-9 pr-3 text-sm font-bold"
+                    disabled={isLoadingProfile}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    placeholder="ชื่อโรงเรียน"
+                    value={schoolName}
+                  />
+                </span>
+              </label>
+            ) : null}
           </div>
         </div>
 
@@ -391,24 +394,28 @@ export function UserAccountSettingsPanel({
             })}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link
-              to="/app/select-workspace"
-              className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
-            >
-              <Building2 size={14} aria-hidden="true" />
-              สลับโรงเรียน / ห้อง
-            </Link>
-            {canManage ? (
-              <Link
-                to="/app/package"
-                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-100 px-3 text-xs font-black text-amber-950 hover:bg-amber-200"
-              >
-                <Sparkles size={14} aria-hidden="true" />
-                จัดการแพ็กเกจ
-              </Link>
-            ) : null}
-          </div>
+          {(canSwitchWorkspace || canManage) ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {canSwitchWorkspace ? (
+                <Link
+                  to="/app/select-workspace"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
+                >
+                  <Building2 size={14} aria-hidden="true" />
+                  สลับโรงเรียน / ห้อง
+                </Link>
+              ) : null}
+              {canManage ? (
+                <Link
+                  to="/app/package"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-100 px-3 text-xs font-black text-amber-950 hover:bg-amber-200"
+                >
+                  <Sparkles size={14} aria-hidden="true" />
+                  จัดการแพ็กเกจ
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
     </div>
