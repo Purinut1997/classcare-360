@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import {
   AlertTriangle,
   Building2,
@@ -8,7 +9,6 @@ import {
   Eye,
   EyeOff,
   KeyRound,
-  Link2,
   Mail,
   MailCheck,
   Pencil,
@@ -26,12 +26,13 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { appEnv } from '../../lib/env';
 import { supabase } from '../../lib/supabaseClient';
 
 type AdminLevel = 'admin' | 'superadmin';
 type StatusFilter = 'all' | 'active' | 'suspended' | 'unconfirmed';
 type RoleFilter = 'all' | 'admins' | 'regular';
-type PasswordResetMode = 'direct' | 'email' | 'link';
+type PasswordResetMode = 'direct' | 'email';
 type DeleteWorkspaceStrategy = 'transfer' | 'delete';
 
 export interface ManagedUserWorkspace {
@@ -168,6 +169,10 @@ function translateUserError(rawMessage: string) {
     return 'ไม่สามารถนำเจ้าของหลักออกจาก Workspace ได้ กรุณาโอนสิทธิ์เจ้าของหรือลบ Workspace แทน';
   }
   if (rawMessage.includes('password_too_short')) return 'รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร';
+  if (rawMessage.includes('email_already_in_use') || rawMessage.includes('User already registered')) {
+    return 'อีเมลนี้มีบัญชีใช้งานอยู่ในระบบแล้ว';
+  }
+  if (rawMessage.includes('invalid_email')) return 'รูปแบบอีเมลไม่ถูกต้อง';
   if (rawMessage.includes('not_allowed')) return 'บัญชีปัจจุบันไม่มีสิทธิ์ SuperAdmin สำหรับคำสั่งนี้';
   if (rawMessage.includes('Could not find the function') || rawMessage.includes('does not exist')) {
     return 'ยังไม่ได้รัน Migration 0088_superadmin_user_management.sql ใน Supabase SQL Editor กรุณารันก่อนใช้งานฟีเจอร์นี้';
@@ -202,7 +207,6 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
   const [resetMode, setResetMode] = useState<PasswordResetMode>('direct');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(true);
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [resetSuccessText, setResetSuccessText] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -235,27 +239,6 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
     } catch {
       setNotice({ tone: 'error', text: 'ไม่สามารถคัดลอกลงคลิปบอร์ดได้ กรุณาเลือกข้อความแล้วคัดลอกเอง' });
     }
-  };
-
-  const invokeEdgeFunction = async (payload: Record<string, unknown>) => {
-    if (!supabase) return { ok: false as const, error: 'ไม่ได้เชื่อมต่อ Supabase', unavailable: true };
-    const { data, error } = await supabase.functions.invoke('superadmin-manage-users', {
-      body: payload,
-    });
-    if (error) {
-      const msg = error.message || 'เรียก Edge Function ไม่สำเร็จ';
-      const unavailable =
-        msg.includes('Failed to send a request') ||
-        msg.includes('FunctionsFetchError') ||
-        msg.includes('404') ||
-        msg.includes('Relay Error');
-      return { ok: false as const, error: msg, unavailable };
-    }
-    const body = data as { error?: string; [key: string]: unknown } | null;
-    if (body?.error) {
-      return { ok: false as const, error: body.error, unavailable: false };
-    }
-    return { ok: true as const, data: body };
   };
 
   const loadUsers = useCallback(async () => {
@@ -454,7 +437,6 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
     setResetMode('direct');
     setNewPassword(generateStrongPassword());
     setShowPassword(true);
-    setGeneratedLink(null);
     setResetSuccessText(null);
   }
 
@@ -466,7 +448,6 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
     }
 
     setIsResetting(true);
-    setGeneratedLink(null);
     setResetSuccessText(null);
 
     try {
@@ -477,45 +458,15 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
         if (error) throw new Error(error.message);
         setResetSuccessText(`ส่งอีเมลลิงก์ตั้งรหัสผ่านใหม่ไปที่ ${resetTarget.email} เรียบร้อยแล้ว`);
         setNotice({ tone: 'success', text: `ส่งอีเมลรีเซ็ตรหัสผ่านให้ ${resetTarget.email} แล้ว` });
-      } else if (resetMode === 'link') {
-        const edgeRes = await invokeEdgeFunction({
-          action: 'generate_recovery_link',
-          email: resetTarget.email,
-          redirectTo: `${window.location.origin}/auth/reset-password`,
-        });
-        if (!edgeRes.ok) {
-          throw new Error(
-            edgeRes.unavailable
-              ? 'การสร้างลิงก์คัดลอกต้อง deploy Edge Function "superadmin-manage-users" ก่อน (สามารถสลับไปใช้แท็บ "ตั้งรหัสผ่านใหม่ทันที" แทนได้เลย)'
-              : edgeRes.error,
-          );
-        }
-        const link = String(edgeRes.data?.action_link || '');
-        setGeneratedLink(link);
-        setResetSuccessText('สร้างลิงก์ตั้งรหัสผ่านใหม่สำเร็จ คัดลอกส่งให้ผู้ใช้ทาง LINE หรือแชทได้เลย');
       } else {
-        // Direct password reset: try Edge Function first, fallback to SQL RPC 0088
         if (newPassword.trim().length < 8) {
           throw new Error('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
         }
-        const edgeRes = await invokeEdgeFunction({
-          action: 'set_password',
-          targetProfileId: resetTarget.profileId,
-          email: resetTarget.email,
-          password: newPassword.trim(),
+        const { error: rpcErr } = await supabase.rpc('superadmin_set_user_password', {
+          target_profile_id: resetTarget.profileId,
+          next_password: newPassword.trim(),
         });
-
-        if (!edgeRes.ok) {
-          if (edgeRes.unavailable) {
-            const { error: rpcErr } = await supabase.rpc('superadmin_set_user_password', {
-              target_profile_id: resetTarget.profileId,
-              next_password: newPassword.trim(),
-            });
-            if (rpcErr) throw new Error(translateUserError(rpcErr.message));
-          } else {
-            throw new Error(translateUserError(edgeRes.error));
-          }
-        }
+        if (rpcErr) throw new Error(translateUserError(rpcErr.message));
 
         const shareMessage = `ข้อมูลเข้าสู่ระบบ ClassCare 360 (รหัสผ่านใหม่)\nอีเมล: ${resetTarget.email}\nรหัสผ่านใหม่: ${newPassword.trim()}\nเข้าสู่ระบบได้ที่: ${window.location.origin}/auth/login`;
         setResetSuccessText(shareMessage);
@@ -555,34 +506,26 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
 
     setIsSavingEdit(true);
     try {
-      const emailChanged = trimmedEmail && trimmedEmail !== editTarget.email.toLowerCase();
+      const emailChanged = Boolean(trimmedEmail) && trimmedEmail !== editTarget.email.toLowerCase();
 
-      // 1. Update profile (try Edge Function if email changed or available, else SQL RPC)
-      const edgeRes = await invokeEdgeFunction({
-        action: 'update_profile',
-        targetProfileId: editTarget.profileId,
-        displayName: trimmedName,
-        phone: trimmedPhone,
-        email: emailChanged ? trimmedEmail : undefined,
+      // 1. Update display name & phone via live SQL RPC
+      const { error: rpcErr } = await supabase.rpc('superadmin_update_user_profile', {
+        target_profile_id: editTarget.profileId,
+        next_display_name: trimmedName,
+        next_phone: trimmedPhone || null,
       });
+      if (rpcErr) throw new Error(translateUserError(rpcErr.message));
 
-      if (!edgeRes.ok) {
-        if (edgeRes.unavailable) {
-          if (emailChanged) {
-            throw new Error('การเปลี่ยนอีเมลผู้ใช้ต้อง deploy Edge Function "superadmin-manage-users" ก่อน (หากแก้เฉพาะชื่อ/เบอร์โทรสามารถบันทึกผ่านฐานข้อมูลได้เลย)');
-          }
-          const { error: rpcErr } = await supabase.rpc('superadmin_update_user_profile', {
-            target_profile_id: editTarget.profileId,
-            next_display_name: trimmedName,
-            next_phone: trimmedPhone || null,
-          });
-          if (rpcErr) throw new Error(translateUserError(rpcErr.message));
-        } else {
-          throw new Error(translateUserError(edgeRes.error));
-        }
+      // 2. Update email if changed
+      if (emailChanged) {
+        const { error: emailErr } = await supabase.rpc('superadmin_update_user_email', {
+          target_profile_id: editTarget.profileId,
+          next_email: trimmedEmail,
+        });
+        if (emailErr) throw new Error(translateUserError(emailErr.message));
       }
 
-      // 2. Update Admin / SuperAdmin level if changed
+      // 3. Update Admin / SuperAdmin level if changed
       const currentRole: 'regular' | 'admin' | 'superadmin' =
         editTarget.isAdminActive && editTarget.adminLevel ? editTarget.adminLevel : 'regular';
 
@@ -620,21 +563,10 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
     }
     setIsSavingEdit(true);
     try {
-      const edgeRes = await invokeEdgeFunction({
-        action: 'confirm_email',
-        targetProfileId: user.profileId,
-        email: user.email,
+      const { error: rpcErr } = await supabase.rpc('superadmin_confirm_user_email', {
+        target_profile_id: user.profileId,
       });
-      if (!edgeRes.ok) {
-        if (edgeRes.unavailable) {
-          const { error: rpcErr } = await supabase.rpc('superadmin_confirm_user_email', {
-            target_profile_id: user.profileId,
-          });
-          if (rpcErr) throw new Error(translateUserError(rpcErr.message));
-        } else {
-          throw new Error(translateUserError(edgeRes.error));
-        }
-      }
+      if (rpcErr) throw new Error(translateUserError(rpcErr.message));
       setNotice({ tone: 'success', text: `ยืนยันอีเมลให้ ${user.email} เรียบร้อยแล้ว ผู้ใช้สามารถเข้าสู่ระบบได้ทันที` });
       await loadUsers();
       if (editTarget?.profileId === user.profileId) {
@@ -658,31 +590,19 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
 
     setIsSavingEdit(true);
     try {
-      const edgeRes = await invokeEdgeFunction({
-        action: 'set_status',
-        targetProfileId: user.profileId,
-        accountStatus: nextStatus,
+      const { error: rpcErr } = await supabase.rpc('superadmin_set_user_status', {
+        target_profile_id: user.profileId,
+        next_account_status: nextStatus,
       });
-      if (!edgeRes.ok) {
-        if (edgeRes.unavailable) {
-          // Try new RPC 0088 first, fallback to legacy RPC 0021
-          const { error: rpcErr } = await supabase.rpc('superadmin_set_user_status', {
-            target_profile_id: user.profileId,
+      if (rpcErr) {
+        if (isMissingRpc(rpcErr)) {
+          const { error: legacyErr } = await supabase.rpc('set_profile_account_status_by_email', {
+            target_email: user.email,
             next_account_status: nextStatus,
           });
-          if (rpcErr) {
-            if (isMissingRpc(rpcErr)) {
-              const { error: legacyErr } = await supabase.rpc('set_profile_account_status_by_email', {
-                target_email: user.email,
-                next_account_status: nextStatus,
-              });
-              if (legacyErr) throw new Error(translateUserError(legacyErr.message));
-            } else {
-              throw new Error(translateUserError(rpcErr.message));
-            }
-          }
+          if (legacyErr) throw new Error(translateUserError(legacyErr.message));
         } else {
-          throw new Error(translateUserError(edgeRes.error));
+          throw new Error(translateUserError(rpcErr.message));
         }
       }
 
@@ -758,22 +678,41 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
 
     setIsCreating(true);
     try {
-      const edgeRes = await invokeEdgeFunction({
-        action: 'create_user',
-        email,
-        displayName,
-        phone: createPhone.trim() || undefined,
-        password,
-        emailConfirm: createConfirmEmail,
+      // Use an isolated non-persisted Supabase Auth client so SuperAdmin session is untouched
+      const tempClient = createClient(appEnv.supabaseUrl, appEnv.supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          persistSession: false,
+          storageKey: 'classcare-superadmin-temp-create-user',
+        },
       });
 
-      if (!edgeRes.ok) {
-        throw new Error(
-          edgeRes.unavailable
-            ? 'การสร้างบัญชีผู้ใช้ใหม่จากหน้า SuperAdmin ต้อง deploy Edge Function "superadmin-manage-users" ก่อน (รัน: supabase functions deploy superadmin-manage-users)'
-            : translateUserError(edgeRes.error),
-        );
+      const { data: signUpData, error: signUpErr } = await tempClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: displayName },
+        },
+      });
+
+      if (signUpErr || !signUpData.user?.id) {
+        throw new Error(translateUserError(signUpErr?.message || 'สร้างบัญชีผู้ใช้ไม่สำเร็จ'));
       }
+
+      const newUserId = signUpData.user.id;
+
+      if (createConfirmEmail) {
+        await supabase.rpc('superadmin_confirm_user_email', {
+          target_profile_id: newUserId,
+        });
+      }
+
+      await supabase.rpc('superadmin_update_user_profile', {
+        target_profile_id: newUserId,
+        next_display_name: displayName,
+        next_phone: createPhone.trim() || null,
+      });
 
       const shareMessage = `บัญชีเข้าใช้งาน ClassCare 360\nชื่อ: ${displayName}\nอีเมล: ${email}\nรหัสผ่าน: ${password}\nเข้าสู่ระบบได้ที่: ${window.location.origin}/auth/login`;
       setCreatedCredentials(shareMessage);
@@ -781,7 +720,7 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
       await loadUsers();
       onDataMutated?.();
     } catch (err) {
-      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'สร้างบัญชีผู้ใช้ไม่สำเร็จ' });
+      setNotice({ tone: 'error', text: err instanceof Error ? translateUserError(err.message) : 'สร้างบัญชีผู้ใช้ไม่สำเร็จ' });
     } finally {
       setIsCreating(false);
     }
@@ -809,27 +748,14 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
 
     setIsDeleting(true);
     try {
-      // Try Edge Function first (official auth.admin.deleteUser), fallback to SQL RPC 0088
-      const edgeRes = await invokeEdgeFunction({
-        action: 'delete_user',
-        targetProfileId: deleteTarget.profileId,
-        workspaceStrategy: deleteStrategy,
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('superadmin_delete_user_account', {
+        target_profile_id: deleteTarget.profileId,
+        workspace_strategy: deleteStrategy,
       });
-
-      if (!edgeRes.ok) {
-        if (edgeRes.unavailable) {
-          const { data: rpcData, error: rpcErr } = await supabase.rpc('superadmin_delete_user_account', {
-            target_profile_id: deleteTarget.profileId,
-            workspace_strategy: deleteStrategy,
-          });
-          if (rpcErr) throw new Error(translateUserError(rpcErr.message));
-          const result = rpcData as { deleted?: boolean; reason?: string } | null;
-          if (!result?.deleted) {
-            throw new Error(result?.reason ? translateUserError(result.reason) : 'ลบผู้ใช้ไม่สำเร็จ');
-          }
-        } else {
-          throw new Error(translateUserError(edgeRes.error));
-        }
+      if (rpcErr) throw new Error(translateUserError(rpcErr.message));
+      const result = rpcData as { deleted?: boolean; reason?: string } | null;
+      if (!result?.deleted) {
+        throw new Error(result?.reason ? translateUserError(result.reason) : 'ลบผู้ใช้ไม่สำเร็จ');
       }
 
       setNotice({
@@ -1335,12 +1261,11 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
 
             <div className="p-5 space-y-4">
               {/* Mode Switcher */}
-              <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 p-1">
                 {(
                   [
-                    ['direct', 'ตั้งรหัสใหม่ทันที'],
-                    ['email', 'ส่งทางอีเมล'],
-                    ['link', 'สร้างลิงก์ส่งแชท'],
+                    ['direct', 'ตั้งรหัสใหม่ทันที (แนะนำ)'],
+                    ['email', 'ส่งลิงก์ทางอีเมล'],
                   ] as const
                 ).map(([mode, label]) => (
                   <button
@@ -1348,7 +1273,6 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
                     type="button"
                     onClick={() => {
                       setResetMode(mode);
-                      setGeneratedLink(null);
                       setResetSuccessText(null);
                     }}
                     className={`rounded-xl px-2 py-2 text-xs font-black transition ${
@@ -1396,7 +1320,7 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
                     </div>
                   </label>
                 </div>
-              ) : resetMode === 'email' ? (
+              ) : (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs font-bold leading-5 text-slate-600">
                   <div className="flex items-center gap-2 font-black text-slate-900">
                     <Mail size={15} />
@@ -1406,27 +1330,17 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
                     ระบบจะส่งอีเมลรีเซ็ตรหัสผ่านจาก Supabase Auth ไปยัง <strong>{resetTarget.email}</strong> (อาจมีข้อจำกัดจำนวนครั้งต่อชั่วโมงตามโควต้าอีเมล)
                   </p>
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs font-bold leading-5 text-slate-600">
-                  <div className="flex items-center gap-2 font-black text-slate-900">
-                    <Link2 size={15} />
-                    สร้างลิงก์ตั้งรหัสผ่านใหม่เพื่อคัดลอกส่งแชท
-                  </div>
-                  <p className="mt-1">
-                    เหมาะสำหรับส่งให้ครูผ่าน LINE หรือแชทโดยตรง เพื่อให้ครูเข้าไปตั้งรหัสผ่านใหม่เองโดยไม่ติดปัญหาไม่ได้รับอีเมล
-                  </p>
-                </div>
               )}
 
               {resetSuccessText ? (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
                   <p className="text-xs font-black text-emerald-900">ดำเนินการสำเร็จ!</p>
                   <pre className="mt-1.5 whitespace-pre-wrap break-all rounded-xl bg-white p-2.5 font-mono text-xs font-bold text-slate-800 border border-emerald-100">
-                    {generatedLink || resetSuccessText}
+                    {resetSuccessText}
                   </pre>
                   <button
                     type="button"
-                    onClick={() => void copyText(generatedLink || resetSuccessText, 'reset-result')}
+                    onClick={() => void copyText(resetSuccessText, 'reset-result')}
                     className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 text-xs font-black text-white hover:bg-emerald-800"
                   >
                     {copiedId === 'reset-result' ? <Check size={14} /> : <Copy size={14} />}
@@ -1454,9 +1368,7 @@ export function SuperadminUserManager({ currentUserId, isDevelopmentDemo, onData
                     ? 'กำลังดำเนินการ...'
                     : resetMode === 'direct'
                       ? 'ยืนยันตั้งรหัสใหม่ทันที'
-                      : resetMode === 'email'
-                        ? 'ส่งอีเมลรีเซ็ต'
-                        : 'สร้างลิงก์ตั้งรหัส'}
+                      : 'ส่งอีเมลรีเซ็ต'}
                 </button>
               </div>
             </div>

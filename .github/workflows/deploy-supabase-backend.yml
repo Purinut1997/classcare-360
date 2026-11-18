@@ -49,7 +49,8 @@ jobs:
           )"
           supabase db push --db-url "$database_url" --yes
 
-      - name: Deploy superadmin-manage-users edge function
+      - name: Deploy superadmin-manage-users edge function (optional)
+        continue-on-error: true
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}

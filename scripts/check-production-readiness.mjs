@@ -94,6 +94,7 @@ const requiredMigrations = [
   '0086_clean_october_erroneous_savings_deposits.sql',
   '0087_dedupe_opening_balance_transactions.sql',
   '0088_superadmin_user_management.sql',
+  '0089_superadmin_update_email_rpc.sql',
 ];
 
 const requiredFunctions = [
