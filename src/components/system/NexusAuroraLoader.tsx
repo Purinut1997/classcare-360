@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { AppLogo } from '../brand/AppLogo';
 import { CuteCareyAvatar, MascotAvatarType } from '../support/CuteCareyAvatar';
-import { Sparkles, ShieldCheck, Cpu, Zap, Compass, CheckCircle2 } from 'lucide-react';
+import { Sparkles, ShieldCheck, Cpu, Zap, CheckCircle2 } from 'lucide-react';
 
-export type LoaderTheme = 'quantum' | 'aurora' | 'titanium' | 'magic';
+export type LoaderTheme = 'school' | 'quantum' | 'aurora' | 'titanium' | 'magic';
 
 export interface LoaderThemeOption {
   id: LoaderTheme;
@@ -14,6 +14,13 @@ export interface LoaderThemeOption {
 }
 
 export const LOADER_THEMES: LoaderThemeOption[] = [
+  {
+    id: 'school',
+    name: 'Morning School Run',
+    badge: 'อบอุ่น น่ารัก เข้ากับธีมโรงเรียน',
+    tagline: 'ตัวละครนักเรียนน้อยวิ่งไปโรงเรียนท่ามกลางแสงเช้าและโทนสีเขียวพาสเทล',
+    icon: 'S',
+  },
   {
     id: 'quantum',
     name: 'Quantum Holo',
@@ -51,8 +58,374 @@ interface NexusAuroraLoaderProps {
   theme?: LoaderTheme;
 }
 
-// System-wide official loader theme setting (Chosen: Aurora Borealis Glass)
-export const SYSTEM_LOADER_THEME: LoaderTheme = 'aurora';
+// System-wide official loader theme setting (Morning Sage & Warm School Theme)
+export const SYSTEM_LOADER_THEME: LoaderTheme = 'school';
+
+function SchoolRunningScene({ percent }: { percent: number }) {
+  const clamped = Math.min(100, Math.max(0, percent));
+  // Smoothly move the cute student + buddy from left meadow path toward the school gate
+  const runnerX = 56 + (clamped / 100) * 238;
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-3xl border border-[#d6e5da] bg-[#eef7f1] shadow-inner">
+      <svg
+        viewBox="0 0 560 218"
+        className="block h-auto w-full"
+        role="img"
+        aria-label="ภาพประกอบนักเรียนน้อยวิ่งไปโรงเรียน"
+      >
+        <defs>
+          <linearGradient id="ccSkyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#d9f0e3" />
+            <stop offset="62%" stopColor="#f0f8f2" />
+            <stop offset="100%" stopColor="#fdf8eb" />
+          </linearGradient>
+          <linearGradient id="ccHillFar" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#cbe5d5" />
+            <stop offset="100%" stopColor="#b5d8c4" />
+          </linearGradient>
+          <linearGradient id="ccHillNear" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#9ed0b4" />
+            <stop offset="100%" stopColor="#7eb998" />
+          </linearGradient>
+          <linearGradient id="ccPathGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f7efde" />
+            <stop offset="100%" stopColor="#eadec5" />
+          </linearGradient>
+          <linearGradient id="ccRoofGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#358c67" />
+            <stop offset="100%" stopColor="#1f5c42" />
+          </linearGradient>
+          <linearGradient id="ccSunHalo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fde68a" stopOpacity="0.65" />
+            <stop offset="100%" stopColor="#fef3c7" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Warm Morning Sky */}
+        <rect x="0" y="0" width="560" height="218" fill="url(#ccSkyGrad)" />
+
+        {/* Soft Sun Halo + Gentle Rotating Sun */}
+        <circle cx="82" cy="48" r="42" fill="url(#ccSunHalo)" />
+        <g className="cc-loader-sun">
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+            <rect
+              key={deg}
+              x="80"
+              y="22"
+              width="4"
+              height="9"
+              rx="2"
+              fill="#f3b749"
+              opacity="0.85"
+              transform={`rotate(${deg} 82 48)`}
+            />
+          ))}
+        </g>
+        <circle cx="82" cy="48" r="15" fill="#f7c456" />
+        <circle cx="77" cy="44" r="4" fill="#fff5cc" opacity="0.7" />
+
+        {/* Drifting Fluffy Clouds */}
+        <g className="cc-loader-cloud-a" opacity="0.92">
+          <path
+            d="M168 54h46a10 10 0 0 0 0-20 14 14 0 0 0-26-5 11 11 0 0 0-20 7 9 9 0 0 0 0 18Z"
+            fill="#ffffff"
+          />
+        </g>
+        <g className="cc-loader-cloud-b" opacity="0.85">
+          <path
+            d="M276 42h38a8 8 0 0 0 0-16 11 11 0 0 0-21-4 9 9 0 0 0-17 6 7 7 0 0 0 0 14Z"
+            fill="#ffffff"
+          />
+        </g>
+
+        {/* Distant Rolling Sage Hills */}
+        <path
+          d="M0 154 Q95 116 215 144 T430 138 T560 148 L560 176 L0 176 Z"
+          fill="url(#ccHillFar)"
+        />
+        <path
+          d="M0 162 Q130 134 270 156 T560 154 L560 178 L0 178 Z"
+          fill="url(#ccHillNear)"
+          opacity="0.72"
+        />
+
+        {/* Neat White School Picket Fence (Left to Flagpole) */}
+        <g stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" opacity="0.9">
+          <line x1="8" y1="154" x2="322" y2="154" />
+          <line x1="8" y1="162" x2="322" y2="162" />
+          {[22, 46, 70, 94, 118, 142, 166, 190, 214, 238, 262, 286, 310].map((fx) => (
+            <line key={fx} x1={fx} y1="147" x2={fx} y2="168" strokeWidth="3.5" />
+          ))}
+        </g>
+
+        {/* Left Park Tree */}
+        <g>
+          <rect x="28" y="138" width="8" height="30" rx="3" fill="#8b6546" />
+          <circle cx="32" cy="126" r="20" fill="#3a8f6a" />
+          <circle cx="20" cy="134" r="13" fill="#52a881" />
+          <circle cx="44" cy="133" r="13" fill="#2f7d5b" />
+          <circle cx="26" cy="120" r="2.5" fill="#fde68a" />
+          <circle cx="38" cy="127" r="2" fill="#fbcfe8" />
+        </g>
+
+        {/* Small Mid-Path Bush with Tiny Flowers */}
+        <g>
+          <circle cx="152" cy="166" r="10" fill="#4aa07a" />
+          <circle cx="164" cy="164" r="12" fill="#358863" />
+          <circle cx="176" cy="167" r="9" fill="#58b089" />
+          <circle cx="158" cy="162" r="2" fill="#fde68a" />
+          <circle cx="169" cy="160" r="2" fill="#fda4af" />
+        </g>
+
+        {/* School Flagpole with Waving Emerald & Gold Flag */}
+        <g>
+          <rect x="330" y="76" width="3.5" height="92" rx="1.75" fill="#d9e4dd" />
+          <circle cx="331.75" cy="75" r="3.5" fill="#d98b26" />
+          <rect x="323" y="162" width="17.5" height="6" rx="2" fill="#cbd8cf" />
+          <g className="cc-loader-flag">
+            <path d="M333.5 80 L361 86 L333.5 93 Z" fill="#2f7d5b" />
+            <path d="M333.5 85 L354 86.5 L333.5 88.5 Z" fill="#f5c04f" />
+          </g>
+        </g>
+
+        {/* Cozy School Building (Right Destination) */}
+        <g>
+          {/* Building Main Walls */}
+          <rect x="364" y="106" width="154" height="62" rx="6" fill="#fffdf7" stroke="#d5e2d8" strokeWidth="1.5" />
+          {/* Roof */}
+          <path d="M356 108 L441 64 L526 108 Z" fill="url(#ccRoofGrad)" />
+          <path d="M356 108 L441 64 L526 108" fill="none" stroke="#d98b26" strokeWidth="3" strokeLinejoin="round" />
+
+          {/* Center Gable + Cute School Clock */}
+          <path d="M412 108 L441 74 L470 108 Z" fill="#fffaf0" stroke="#2f7d5b" strokeWidth="2" />
+          <circle cx="441" cy="94" r="10.5" fill="#ffffff" stroke="#2f7d5b" strokeWidth="2" />
+          <line x1="441" y1="94" x2="441" y2="88" stroke="#1c342b" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="441" y1="94" x2="446" y2="96.5" stroke="#d98b26" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="441" cy="94" r="1.4" fill="#1c342b" />
+
+          {/* School Name Plaque */}
+          <rect x="415" y="114" width="52" height="14" rx="4" fill="#1c342b" />
+          <text
+            x="441"
+            y="124"
+            textAnchor="middle"
+            fontSize="7.5"
+            fontWeight="700"
+            fill="#fef3c7"
+            fontFamily="sans-serif"
+          >
+            โรงเรียน
+          </text>
+
+          {/* Arched Entrance Door */}
+          <path d="M427 168 V142 a14 14 0 0 1 28 0 V168 Z" fill="#d98b26" />
+          <path d="M430 168 V143 a11 11 0 0 1 22 0 V168 Z" fill="#c0771a" />
+          <line x1="441" y1="133" x2="441" y2="168" stroke="#f6d59c" strokeWidth="1.2" />
+          <circle cx="437.5" cy="152" r="1.6" fill="#fef3c7" />
+          <circle cx="444.5" cy="152" r="1.6" fill="#fef3c7" />
+          {/* Entrance Step */}
+          <rect x="421" y="166" width="40" height="5" rx="2" fill="#e5dcc8" />
+
+          {/* Classroom Windows (Left & Right) */}
+          {[376, 396, 466, 486].map((wx) => (
+            <g key={wx}>
+              <rect x={wx} y="122" width="15" height="20" rx="3" fill="#d9f1e5" stroke="#2f7d5b" strokeWidth="1.5" />
+              <line x1={wx + 7.5} y1="122" x2={wx + 7.5} y2="142" stroke="#ffffff" strokeWidth="1.2" />
+              <line x1={wx} y1="132" x2={wx + 15} y2="132" stroke="#ffffff" strokeWidth="1.2" />
+              <rect x={wx - 1.5} y="142" width="18" height="2.6" rx="1" fill="#d98b26" opacity="0.85" />
+            </g>
+          ))}
+        </g>
+
+        {/* Right Side Cozy Tree */}
+        <g>
+          <rect x="530" y="140" width="8" height="28" rx="3" fill="#8b6546" />
+          <circle cx="534" cy="127" r="19" fill="#2f7d5b" />
+          <circle cx="523" cy="136" r="12" fill="#46a078" />
+          <circle cx="545" cy="135" r="12" fill="#3a8f6a" />
+          <circle cx="536" cy="121" r="2.2" fill="#fde68a" />
+        </g>
+
+        {/* Meadow Strip + Warm School Walkway */}
+        <rect x="0" y="166" width="560" height="12" fill="#7ec29d" />
+        <rect x="0" y="176" width="560" height="28" fill="url(#ccPathGrad)" />
+        <line x1="0" y1="176" x2="560" y2="176" stroke="#d8cbb0" strokeWidth="1.5" />
+        <line x1="0" y1="204" x2="560" y2="204" stroke="#d8cbb0" strokeWidth="1.5" />
+
+        {/* Subtle Stepping Stone Dots on Walkway */}
+        {[35, 88, 146, 206, 268, 326, 392, 464, 518].map((px, idx) => (
+          <ellipse
+            key={px}
+            cx={px}
+            cy={idx % 2 === 0 ? 189 : 194}
+            rx="8"
+            ry="2.2"
+            fill="#dfd1b4"
+            opacity="0.7"
+          />
+        ))}
+
+        {/* Foreground Soft Meadow Edge + Little Wildflowers */}
+        <rect x="0" y="204" width="560" height="14" fill="#8bc9a7" />
+        {[64, 184, 296, 412, 504].map((fx, idx) => (
+          <g key={fx}>
+            <circle cx={fx} cy="211" r="2.5" fill={idx % 2 === 0 ? '#fef08a' : '#ffffff'} />
+            <circle cx={fx} cy="211" r="1" fill="#d98b26" />
+          </g>
+        ))}
+
+        {/* ============================================================
+            RUNNING CHARACTER GROUP (Progresses smoothly toward school!)
+            ============================================================ */}
+        <g
+          style={{
+            transform: `translateX(${runnerX}px)`,
+            transition: 'transform 320ms linear',
+          }}
+        >
+          {/* ---- Cute Little Shiba Buddy Trotting Right Behind ---- */}
+          <g transform="translate(-44, 188)">
+            <ellipse cx="0" cy="4" rx="11" ry="3" fill="#1c342b" className="cc-loader-runner-shadow" />
+            <g className="cc-loader-buddy">
+              {/* Curled Wagging Tail */}
+              <path
+                d="M-11 -9 Q-18 -14 -14 -19 Q-9 -20 -9 -14"
+                fill="#eba749"
+                stroke="#c98021"
+                strokeWidth="1"
+                className="cc-loader-tail"
+              />
+              {/* Little Paws */}
+              <rect x="-8" y="-4" width="4" height="7" rx="2" fill="#fff7ea" className="cc-loader-leg-b" />
+              <rect x="4" y="-4" width="4" height="7" rx="2" fill="#fff7ea" className="cc-loader-leg-a" />
+              {/* Plump Body */}
+              <ellipse cx="-1" cy="-9" rx="11" ry="7.5" fill="#f0b054" />
+              <ellipse cx="1" cy="-7" rx="8" ry="4.5" fill="#fff7ea" />
+              {/* Cute Head */}
+              <circle cx="9" cy="-16" r="8.5" fill="#f0b054" />
+              {/* Pointy Ears */}
+              <path d="M3 -22 L5 -29 L9 -23 Z" fill="#e59a32" />
+              <path d="M10 -23 L14 -29 L16 -22 Z" fill="#e59a32" />
+              <path d="M4.5 -23 L5.6 -26.8 L7.8 -23.5 Z" fill="#fde6c4" />
+              <path d="M11.3 -23.5 L13.5 -26.8 L14.8 -23 Z" fill="#fde6c4" />
+              {/* Cream Cheeks + Face */}
+              <ellipse cx="11" cy="-13.5" rx="6" ry="4.2" fill="#fff7ea" />
+              <circle cx="7.5" cy="-17" r="1.4" fill="#2d201a" />
+              <circle cx="13.2" cy="-17" r="1.4" fill="#2d201a" />
+              <circle cx="7.9" cy="-17.4" r="0.45" fill="#ffffff" />
+              <circle cx="13.6" cy="-17.4" r="0.45" fill="#ffffff" />
+              {/* Nose + Happy Smile + Blush */}
+              <ellipse cx="11" cy="-15.2" rx="1.4" ry="1" fill="#2d201a" />
+              <path d="M9.6 -13.6 Q11 -12.2 12.6 -13.6" fill="none" stroke="#2d201a" strokeWidth="1" strokeLinecap="round" />
+              <ellipse cx="6.2" cy="-14.8" rx="1.6" ry="0.9" fill="#fca5a5" opacity="0.7" />
+              <ellipse cx="15" cy="-14.8" rx="1.6" ry="0.9" fill="#fca5a5" opacity="0.7" />
+              {/* Cute Green Collar */}
+              <path d="M3 -11 Q7 -8.5 11 -10.5" fill="none" stroke="#2f7d5b" strokeWidth="2.2" strokeLinecap="round" />
+            </g>
+          </g>
+
+          {/* ---- Cute Chibi Thai Student Running Joyfully ---- */}
+          <g transform="translate(0, 190)">
+            {/* Running Dust Puffs Behind Shoes */}
+            <circle cx="-18" cy="0" r="4.5" fill="#ffffff" opacity="0.7" className="cc-loader-dust-1" />
+            <circle cx="-14" cy="2" r="3.2" fill="#f3ebd8" opacity="0.75" className="cc-loader-dust-2" />
+
+            {/* Dynamic Ground Shadow */}
+            <ellipse cx="0" cy="5" rx="15" ry="3.8" fill="#1c342b" className="cc-loader-runner-shadow" />
+
+            <g className="cc-loader-runner-body">
+              {/* Back Arm */}
+              <g className="cc-loader-arm-b">
+                <rect x="2" y="-33" width="6.5" height="15" rx="3.2" fill="#ffe1c6" />
+                <rect x="1.5" y="-34" width="7.5" height="7" rx="3" fill="#ffffff" stroke="#d4e0d9" strokeWidth="1" />
+              </g>
+
+              {/* Back Leg */}
+              <g className="cc-loader-leg-b">
+                <rect x="-4" y="-17" width="6.5" height="14" rx="3" fill="#ffe1c6" />
+                <rect x="-4" y="-9" width="6.5" height="6" rx="1.5" fill="#ffffff" />
+                {/* Cute Sneaker */}
+                <path d="M-5 -4 H5.5 a3 3 0 0 1 3 3 V1 H-5 Z" fill="#1c342b" />
+                <rect x="-5" y="0" width="13.5" height="1.8" rx="0.9" fill="#ffffff" />
+              </g>
+
+              {/* Cute Amber School Backpack */}
+              <rect x="-17" y="-38" width="12.5" height="18" rx="4.5" fill="#e59a32" stroke="#b97214" strokeWidth="1.2" />
+              <path d="M-17 -33 H-4.5 V-28.5 a3 3 0 0 1-3 3 H-14 a3 3 0 0 1-3-3 Z" fill="#f3b651" />
+              <rect x="-12.5" y="-29" width="3.5" height="3.5" rx="1" fill="#fffbeb" />
+
+              {/* Torso: Crisp White Thai School Shirt & Navy Shorts */}
+              <rect x="-8.5" y="-36" width="17.5" height="17" rx="5" fill="#ffffff" stroke="#cfdcd5" strokeWidth="1.2" />
+              {/* School Collar + Emerald Tie/Bow */}
+              <path d="M-3 -35 L1 -30 L5 -35" fill="none" stroke="#2f7d5b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="1" cy="-29.5" r="2" fill="#2f7d5b" />
+              {/* Shorts */}
+              <rect x="-8.5" y="-21.5" width="17.5" height="9" rx="3" fill="#1e3a52" />
+
+              {/* Front Leg */}
+              <g className="cc-loader-leg-a">
+                <rect x="-1" y="-16.5" width="6.5" height="14" rx="3" fill="#ffe1c6" />
+                <rect x="-1" y="-8.5" width="6.5" height="6" rx="1.5" fill="#ffffff" />
+                {/* Cute Sneaker */}
+                <path d="M-2 -3.5 H8.5 a3 3 0 0 1 3 3 V1.5 H-2 Z" fill="#2f7d5b" />
+                <rect x="-2" y="0.5" width="13.5" height="1.8" rx="0.9" fill="#ffffff" />
+              </g>
+
+              {/* Front Arm */}
+              <g className="cc-loader-arm-a">
+                <rect x="-6" y="-33" width="6.5" height="15" rx="3.2" fill="#ffe1c6" />
+                <rect x="-6.5" y="-34" width="7.5" height="7" rx="3" fill="#ffffff" stroke="#d4e0d9" strokeWidth="1" />
+              </g>
+
+              {/* Cute Chibi Head */}
+              <g>
+                {/* Bouncy Ponytail / Hair Tuft */}
+                <path
+                  d="M-13 -54 Q-25 -59 -22 -47 Q-17 -45 -13 -49 Z"
+                  fill="#3b2820"
+                  className="cc-loader-hair"
+                />
+                {/* Little Hair Ribbon */}
+                <circle cx="-13.5" cy="-52" r="2.6" fill="#d98b26" />
+
+                {/* Head Shape */}
+                <circle cx="1" cy="-52" r="17.5" fill="#ffe1c6" stroke="#f0c7a4" strokeWidth="1" />
+
+                {/* Cute Hair Cap & Soft Bangs */}
+                <path
+                  d="M-16.5 -52 C-16.5 -65 -7 -71 2 -70 C12 -70 18.5 -63 18.5 -52 C15 -56 12 -59 7 -58 C4 -61 -2 -60 -5 -57 C-10 -59 -13.5 -56 -16.5 -52 Z"
+                  fill="#3b2820"
+                />
+                {/* Hair Shine Highlight */}
+                <path d="M-6 -64 Q1 -66.5 7 -63.5" fill="none" stroke="#6b4c3e" strokeWidth="2" strokeLinecap="round" opacity="0.65" />
+
+                {/* Sparkling Happy Eyes */}
+                <ellipse cx="-3.5" cy="-50.5" rx="2.3" ry="2.8" fill="#2b1e19" />
+                <ellipse cx="7.5" cy="-50.5" rx="2.3" ry="2.8" fill="#2b1e19" />
+                <circle cx="-2.7" cy="-51.5" r="0.9" fill="#ffffff" />
+                <circle cx="8.3" cy="-51.5" r="0.9" fill="#ffffff" />
+
+                {/* Rosy Cheeks */}
+                <ellipse cx="-8.2" cy="-46.8" rx="3.1" ry="1.8" fill="#fda4af" opacity="0.65" />
+                <ellipse cx="11.5" cy="-46.8" rx="3.1" ry="1.8" fill="#fda4af" opacity="0.65" />
+
+                {/* Cheerful Smile */}
+                <path
+                  d="M-0.5 -46.2 Q2.2 -43 5.2 -46.2"
+                  fill="none"
+                  stroke="#5b3429"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </g>
+            </g>
+          </g>
+        </g>
+      </svg>
+    </div>
+  );
+}
 
 export function NexusAuroraVisual({
   message,
@@ -71,7 +444,7 @@ export function NexusAuroraVisual({
     return 'bear';
   });
 
-  const [percent, setPercent] = useState(28);
+  const [percent, setPercent] = useState(22);
   const [stepIndex, setStepIndex] = useState(0);
 
   // Smooth continuous progression animation
@@ -90,15 +463,105 @@ export function NexusAuroraVisual({
   }, []);
 
   const statusHint = useMemo(() => {
-    if (percent < 38) return 'กำลังตรวจสอบความปลอดภัยและยืนยันสิทธิ์...';
-    if (percent < 72) return 'กำลังเชื่อมต่อและโหลดโมดูลการทำงาน...';
-    if (percent < 95) return 'กำลังจัดเตรียมสภาพแวดล้อมให้พร้อมใช้...';
-    return 'ระบบพร้อมใช้งาน กำลังเปิดหน้าจอ...';
+    if (percent < 38) return 'กำลังตรวจสอบสิทธิ์และเปิดประตูโรงเรียน...';
+    if (percent < 72) return 'กำลังจัดเตรียมห้องเรียนและรายชื่อนักเรียน...';
+    if (percent < 95) return 'กำลังจัดโต๊ะและข้อมูลประจำวันให้พร้อมใช้...';
+    return 'พร้อมเข้าห้องเรียนแล้ว กำลังเปิดหน้าจอ...';
   }, [percent]);
 
 
   return (
     <div className="relative flex flex-col items-center justify-center p-4 w-full max-w-xl mx-auto select-none">
+      {/* ========================================================
+          THEME 0 (DEFAULT): MORNING SCHOOL RUN (น่ารัก อบอุ่น เข้ากับธีมโรงเรียน)
+          ======================================================== */}
+      {currentTheme === 'school' && (
+        <div className="relative w-full overflow-hidden rounded-[2rem] border border-[#d6e4da] bg-white/95 p-5 sm:p-7 text-center shadow-[0_24px_60px_rgba(28,52,43,0.12)] backdrop-blur-md">
+          {/* Soft Botanical Top Accent */}
+          <div className="pointer-events-none absolute -top-20 -right-16 h-44 w-44 rounded-full bg-[#fef3c7]/60 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full bg-[#d1fae5]/60 blur-3xl" />
+
+          {/* Top Brand Row */}
+          <div className="relative z-10 mb-4 flex items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#cce0d3] bg-[#edf7f1] px-3 py-1">
+              <AppLogo className="h-5 w-5 rounded-md object-contain" />
+              <span className="font-display text-xs font-extrabold tracking-tight text-[#1c342b]">
+                ClassCare 360
+              </span>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-black font-mono text-[#92580e]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#2f7d5b] animate-pulse" />
+              {percent}%
+            </span>
+          </div>
+
+          {/* Animated Illustrated School Yard Scene */}
+          <div className="relative z-10">
+            <SchoolRunningScene percent={percent} />
+          </div>
+
+          {/* Title & Friendly Subtitle */}
+          <div className="relative z-10 mt-5">
+            <h2 className="font-display text-lg sm:text-xl font-extrabold tracking-tight text-[#1c342b]">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs sm:text-[13px] font-semibold text-[#52655a]">
+              {message || statusHint}
+            </p>
+          </div>
+
+          {/* Warm Sage-to-Amber Progress Bar */}
+          <div className="relative z-10 mt-4">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-[#e6efe9] p-0.5 ring-1 ring-[#d4e3d9]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#2f7d5b] via-[#46a078] to-[#d98b26] transition-all duration-300 ease-out"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Clean 3-Step Status Pills */}
+          <div className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-2">
+            {[
+              { label: 'ตรวจสอบสิทธิ์', step: 0 },
+              { label: 'เตรียมห้องเรียน', step: 1 },
+              { label: 'พร้อมใช้งาน', step: 2 },
+            ].map((item) => {
+              const isCompleted = stepIndex > item.step;
+              const isActive = stepIndex === item.step;
+              return (
+                <div
+                  key={item.step}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] transition-all duration-300 ${
+                    isActive
+                      ? 'border-[#9ad0b4] bg-[#e6f4ec] font-extrabold text-[#1c573d] shadow-2xs'
+                      : isCompleted
+                        ? 'border-[#cfe5d8] bg-[#f4faf6] font-bold text-[#2f7d5b]'
+                        : 'border-[#e4ebe6] bg-[#f8faf8] font-medium text-[#7b8d82]'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 size={12} className="shrink-0 text-[#2f7d5b]" />
+                  ) : (
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        isActive ? 'bg-[#2f7d5b] animate-pulse' : 'bg-[#bfd0c5]'
+                      }`}
+                    />
+                  )}
+                  <span>{item.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Warm Trust Footer */}
+          <div className="relative z-10 mt-4 flex items-center justify-center gap-2 text-[11px] font-semibold text-[#6c7e73]">
+            <ShieldCheck size={13} className="text-[#2f7d5b]" aria-hidden="true" />
+            <span>เชื่อมต่อระบบโรงเรียนอย่างปลอดภัย · ClassCare 360</span>
+          </div>
+        </div>
+      )}
       {/* ========================================================
           THEME 1: QUANTUM HOLO-MATRIX (ล้ำยุค Cybernetic Quantum)
           ======================================================== */}
@@ -476,7 +939,38 @@ export function NexusAuroraLoader({
   variant = 'panel',
   theme,
 }: NexusAuroraLoaderProps) {
+  const resolvedTheme = theme || SYSTEM_LOADER_THEME;
+
   if (variant === 'page') {
+    if (resolvedTheme === 'school') {
+      return (
+        <main className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-[#edf6f0] via-[#f6f7f3] to-[#f1eee5] px-4 py-8 select-none">
+          {/* Warm Morning Sage & Sunbeam Ambient Atmosphere */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: `
+                radial-gradient(circle at 18% 16%, rgba(246, 196, 86, 0.22), transparent 44%),
+                radial-gradient(circle at 84% 82%, rgba(47, 125, 91, 0.14), transparent 48%),
+                radial-gradient(circle at 50% 48%, rgba(230, 244, 236, 0.55), transparent 60%)
+              `,
+            }}
+          />
+
+          {/* Subtle Botanical Dot Mesh */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.22]"
+            style={{
+              backgroundImage: 'radial-gradient(circle, rgba(28, 52, 43, 0.22) 0.8px, transparent 0.9px)',
+              backgroundSize: '28px 28px',
+            }}
+          />
+
+          <NexusAuroraVisual message={message} title={title} theme={resolvedTheme} />
+        </main>
+      );
+    }
+
     return (
       <main className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center bg-[#070b14] overflow-hidden px-4 py-8 select-none">
         {/* Ambient Cosmic Atmosphere - Zero GPU Overhead */}
@@ -500,7 +994,7 @@ export function NexusAuroraLoader({
           }}
         />
 
-        <NexusAuroraVisual message={message} title={title} theme={theme} />
+        <NexusAuroraVisual message={message} title={title} theme={resolvedTheme} />
       </main>
     );
   }

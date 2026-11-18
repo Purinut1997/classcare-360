@@ -1341,12 +1341,12 @@ body {
   @apply fixed inset-0 z-[100] grid place-items-center p-4;
   background:
     radial-gradient(
-      circle at 50% 40%,
-      rgb(34 199 232 / 0.08),
-      transparent 28rem
+      circle at 50% 35%,
+      rgb(230 244 236 / 0.55),
+      transparent 30rem
     ),
-    rgb(3 10 20 / 0.66);
-  backdrop-filter: blur(12px) saturate(125%);
+    rgb(22 38 30 / 0.44);
+  backdrop-filter: blur(10px) saturate(115%);
   animation: system-fade-in 180ms ease-out;
 }
 
@@ -2070,6 +2070,243 @@ body {
   35% {
     opacity: 1;
     transform: translateY(-3px);
+  }
+}
+
+/* Cute School Running Loader Animations (GPU-composited) */
+@keyframes cc-sun-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cc-cloud-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(18px);
+  }
+}
+
+@keyframes cc-flag-wave {
+  0%,
+  100% {
+    transform: skewY(0deg) scaleX(1);
+  }
+  50% {
+    transform: skewY(-5deg) scaleX(0.92);
+  }
+}
+
+@keyframes cc-run-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5.5px);
+  }
+}
+
+@keyframes cc-run-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.24;
+  }
+  50% {
+    transform: scaleX(0.8);
+    opacity: 0.14;
+  }
+}
+
+@keyframes cc-leg-swing-a {
+  0%,
+  100% {
+    transform: rotate(30deg);
+  }
+  50% {
+    transform: rotate(-28deg);
+  }
+}
+
+@keyframes cc-leg-swing-b {
+  0%,
+  100% {
+    transform: rotate(-28deg);
+  }
+  50% {
+    transform: rotate(30deg);
+  }
+}
+
+@keyframes cc-arm-swing-a {
+  0%,
+  100% {
+    transform: rotate(-34deg);
+  }
+  50% {
+    transform: rotate(32deg);
+  }
+}
+
+@keyframes cc-arm-swing-b {
+  0%,
+  100% {
+    transform: rotate(32deg);
+  }
+  50% {
+    transform: rotate(-34deg);
+  }
+}
+
+@keyframes cc-hair-bob {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-14deg);
+  }
+}
+
+@keyframes cc-dust-puff {
+  0% {
+    opacity: 0.75;
+    transform: translate(0, 0) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-18px, -7px) scale(1.35);
+  }
+}
+
+@keyframes cc-buddy-hop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  45% {
+    transform: translateY(-6.5px) rotate(-4deg);
+  }
+}
+
+@keyframes cc-tail-wag {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(18deg);
+  }
+}
+
+.cc-loader-sun {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cc-sun-spin 28s linear infinite;
+}
+
+.cc-loader-cloud-a {
+  animation: cc-cloud-drift 9s ease-in-out infinite;
+}
+
+.cc-loader-cloud-b {
+  animation: cc-cloud-drift 12s ease-in-out infinite reverse;
+}
+
+.cc-loader-flag {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: cc-flag-wave 1.8s ease-in-out infinite;
+}
+
+.cc-loader-runner-body {
+  animation: cc-run-bounce 0.42s ease-in-out infinite;
+}
+
+.cc-loader-runner-shadow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cc-run-shadow 0.42s ease-in-out infinite;
+}
+
+.cc-loader-leg-a {
+  transform-box: fill-box;
+  transform-origin: 50% 10%;
+  animation: cc-leg-swing-a 0.42s ease-in-out infinite;
+}
+
+.cc-loader-leg-b {
+  transform-box: fill-box;
+  transform-origin: 50% 10%;
+  animation: cc-leg-swing-b 0.42s ease-in-out infinite;
+}
+
+.cc-loader-arm-a {
+  transform-box: fill-box;
+  transform-origin: 50% 15%;
+  animation: cc-arm-swing-a 0.42s ease-in-out infinite;
+}
+
+.cc-loader-arm-b {
+  transform-box: fill-box;
+  transform-origin: 50% 15%;
+  animation: cc-arm-swing-b 0.42s ease-in-out infinite;
+}
+
+.cc-loader-hair {
+  transform-box: fill-box;
+  transform-origin: right center;
+  animation: cc-hair-bob 0.42s ease-in-out infinite;
+}
+
+.cc-loader-dust-1 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cc-dust-puff 0.65s ease-out infinite;
+}
+
+.cc-loader-dust-2 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cc-dust-puff 0.65s ease-out 0.32s infinite;
+}
+
+.cc-loader-buddy {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: cc-buddy-hop 0.48s ease-in-out 0.1s infinite;
+}
+
+.cc-loader-tail {
+  transform-box: fill-box;
+  transform-origin: right bottom;
+  animation: cc-tail-wag 0.34s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-loader-sun,
+  .cc-loader-cloud-a,
+  .cc-loader-cloud-b,
+  .cc-loader-flag,
+  .cc-loader-runner-body,
+  .cc-loader-runner-shadow,
+  .cc-loader-leg-a,
+  .cc-loader-leg-b,
+  .cc-loader-arm-a,
+  .cc-loader-arm-b,
+  .cc-loader-hair,
+  .cc-loader-dust-1,
+  .cc-loader-dust-2,
+  .cc-loader-buddy,
+  .cc-loader-tail {
+    animation: none !important;
   }
 }
 @keyframes system-toast-in {
