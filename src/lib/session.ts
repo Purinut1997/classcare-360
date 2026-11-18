@@ -197,6 +197,17 @@ async function resolveSupabaseSession(): Promise<AppSessionContext | null> {
 
   if (profileError) throw profileError;
 
+  // If no profile row exists yet, verify the JWT against Supabase Auth so a
+  // stale token from a deleted user is cleared cleanly instead of trapping the
+  // browser on /auth/complete-profile ("User from sub claim in JWT does not exist").
+  if (!profile) {
+    const { data: verifiedAuth, error: verifyError } = await supabase.auth.getUser();
+    if (verifyError || !verifiedAuth?.user) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      return null;
+    }
+  }
+
   const fallbackName = getMetadataName(user.user_metadata) || user.email || 'ผู้ใช้ ClassCare 360';
   const baseProfile = {
     id: user.id,

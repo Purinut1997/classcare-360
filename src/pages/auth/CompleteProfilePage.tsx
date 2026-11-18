@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { ArrowRight, BadgeCheck, Building2, CheckCircle2, GraduationCap, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Building2, CheckCircle2, GraduationCap, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -62,7 +62,21 @@ export function CompleteProfilePage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      setNotice(userError?.message || 'กรุณาเข้าสู่ระบบก่อนบันทึก profile');
+      const msg = userError?.message || '';
+      const isDeletedOrStale =
+        msg.toLowerCase().includes('sub claim') ||
+        msg.toLowerCase().includes('does not exist') ||
+        msg.toLowerCase().includes('user_not_found') ||
+        msg.toLowerCase().includes('jwt');
+      if (isDeletedOrStale) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        requestAppSessionRefresh();
+        setNotice('เซสชันเดิมหมดอายุหรือบัญชีนี้ถูกลบออกจากระบบแล้ว กำลังพากลับไปหน้าเข้าสู่ระบบใหม่...');
+        setIsSubmitting(false);
+        window.setTimeout(() => navigate('/auth/login', { replace: true }), 1200);
+        return;
+      }
+      setNotice(msg || 'กรุณาเข้าสู่ระบบก่อนบันทึก profile');
       setIsSubmitting(false);
       return;
     }
@@ -203,7 +217,7 @@ export function CompleteProfilePage() {
             </div>
           ) : null}
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               className="blue-action inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               disabled={isSubmitting}
@@ -212,8 +226,19 @@ export function CompleteProfilePage() {
               {isSubmitting ? 'กำลังบันทึก' : 'บันทึก profile'}
               <ArrowRight size={18} aria-hidden="true" />
             </button>
-            <button className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-500 shadow-sm" onClick={() => setNotice('กรุณาบันทึก profile ก่อน ระบบจึงจะใช้ชื่อโรงเรียนที่เลือกเพื่อกรอง workspace ได้ถูกต้อง')} type="button">
-              บันทึกก่อนเลือก workspace
+            <button
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 text-sm font-black text-slate-600 shadow-sm hover:bg-slate-50"
+              onClick={async () => {
+                if (supabase) {
+                  await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+                }
+                requestAppSessionRefresh();
+                navigate('/auth/login', { replace: true });
+              }}
+              type="button"
+            >
+              <LogOut size={16} aria-hidden="true" />
+              ออกจากระบบ / เปลี่ยนบัญชี
             </button>
           </div>
         </form>
