@@ -191,8 +191,12 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         )}
       </div>
 
-      <div className="hidden items-center gap-2 sm:flex">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#e6f4ec] text-xs font-bold text-[#1c573d] ring-1 ring-[#2f7d5b]/20">
+      <Link
+        className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-[#e6f4ec]/70"
+        title="ตั้งค่าบัญชีส่วนตัว & เปลี่ยนรหัสผ่าน"
+        to={withDemoContext('/app/dashboard?view=workspace-settings&tab=account', location.search)}
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#e6f4ec] text-xs font-bold text-[#1c573d] ring-1 ring-[#2f7d5b]/20">
           {getInitials(session?.profile.displayName)}
         </span>
         <span className="hidden min-w-0 xl:block">
@@ -200,10 +204,10 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
             {session?.profile.displayName || 'ผู้ใช้งาน'}
           </span>
           <span className="block max-w-40 truncate text-[10px] font-semibold text-[#5b6a5f]">
-            {session ? roleLabels[session.profile.role] : 'ผู้ใช้งาน'}
+            {session ? roleLabels[session.profile.role] : 'ผู้ใช้งาน'} · ตั้งค่าบัญชี
           </span>
         </span>
-      </div>
+      </Link>
 
       <SignOutButton className="app-signout-button" />
     </header>

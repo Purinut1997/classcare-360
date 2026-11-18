@@ -211,7 +211,6 @@ const navCapability: Partial<Record<string, WorkspaceCapabilityKey>> = {
   'desirable-characteristics': 'behavior.write',
   'import-export': 'data.bulk',
   'data-safety': 'recovery.restore',
-  'workspace-settings': 'workspace.manage',
   'academic-year': 'workspace.manage',
 };
 
@@ -226,8 +225,8 @@ function getAppShellNavItems(session: AppSessionContext | null, currentSearch = 
   const navKeysByRole: Record<WorkspaceRole, string[]> = {
     parent: [],
     student: [],
-    viewer: ['overview', 'reports', 'daily-brief', 'help-center'],
-    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'period-locks', 'workspace-switch'],
+    viewer: ['overview', 'reports', 'daily-brief', 'workspace-settings', 'help-center'],
+    teacher_member: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'workspace-switch'],
     teacher_owner: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch'],
     superadmin: ['overview', 'students', 'teacher-work', 'student-health', 'schedule', 'scores', 'omr-scanner', 'academic-hub', 'savings', 'behavior', 'desirable-characteristics', 'classroom-operations', 'parent-access', 'automation', 'randomizer', 'reports', 'daily-brief', 'school-calendar', 'import-export', 'data-safety', 'help-center', 'notifications', 'workspace-settings', 'period-locks', 'academic-year', 'workspace-switch', 'setup', 'audit'],
   };
@@ -254,7 +253,8 @@ function getAllowedRolesForNavItem(key: string) {
   if (key === 'setup' || key === 'superadmin-dashboard') return ['superadmin'] as WorkspaceRole[];
   if (key === 'workspace-switch') return workspaceSelectionRoles;
   if (key === 'period-locks') return classroomUserRoles;
-  if (key === 'workspace-settings' || key === 'academic-year' || key === 'import-export' || key === 'package') {
+  if (key === 'workspace-settings') return reportViewerRoles;
+  if (key === 'academic-year' || key === 'import-export' || key === 'package') {
     return ['superadmin', 'teacher_owner'] as WorkspaceRole[];
   }
   if (key === 'data-safety') return classroomUserRoles;

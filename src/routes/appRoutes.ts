@@ -164,7 +164,7 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'workspace-settings',
-    label: 'ตั้งค่าโรงเรียน & ครู',
+    label: 'ตั้งค่าบัญชี & โรงเรียน',
     icon: School,
     moduleKey: 'support',
     path: '/app/dashboard?view=workspace-settings',

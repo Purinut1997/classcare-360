@@ -1,17 +1,18 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, ArrowRight, BarChart3, Bot, Building2, Download, Globe2, GraduationCap, ImagePlus, LayoutGrid, Plus, RotateCcw, Save, School, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Bot, Building2, Download, Globe2, GraduationCap, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, UserRound, Users } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { getEffectivePlanCode, planLabels, planLimits } from '../../lib/entitlements';
 import { canManageWorkspace, roleLabels } from '../../lib/roles';
 import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, type SchoolReportIdentity } from '../../lib/scheduleSettings';
+import { requestAppSessionRefresh } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
-import { MenuUsageInsights } from '../../components/dashboard/MenuUsageInsights';
 import { MemberAccessControl } from '../../components/workspace/MemberAccessControl';
+import { UserAccountSettingsPanel } from '../../components/workspace/UserAccountSettingsPanel';
 import { WorkspaceAiSettingsCard } from '../../components/workspace/WorkspaceAiSettingsCard';
-import { appNavItems } from '../../routes/appRoutes';
 
 interface WorkspaceSettingsPageProps {
   session: AppSessionContext;
@@ -108,34 +109,6 @@ const memberRoleOptions: Array<{ label: string; value: ManageableMemberRole }> =
 const isDevelopmentDemo =
   import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 
-const workspaceControlSections = [
-  {
-    body: 'ตรวจคำขอครูเข้า workspace และอนุมัติก่อนให้เห็นข้อมูลนักเรียน',
-    href: '#workspace-members',
-    label: 'อนุมัติครู',
-  },
-  {
-    body: 'เพิ่ม เก็บถาวร หรือลบห้องเรียน โดยนักเรียนจะไม่ถูกลบตามห้อง',
-    href: '#workspace-classrooms',
-    label: 'ห้องเรียน',
-  },
-  {
-    body: 'ตั้งชื่อโรงเรียน ปีการศึกษา ห้องหลัก โลโก้ และผู้ลงนามสำหรับรายงานทุกฉบับ',
-    href: '#workspace-profile',
-    label: 'ข้อมูลโรงเรียน/ผู้ลงนาม',
-  },
-  {
-    body: 'สำรอง snapshot การตั้งค่าและเตรียมส่งออก debug ให้ผู้ดูแลระบบ',
-    href: '#workspace-backup',
-    label: 'สำรองข้อมูล',
-  },
-  {
-    body: 'เตรียมแผนเลื่อนชั้น เช่น ป.5/1 ไป ป.6/1 สำหรับปีการศึกษาถัดไป',
-    href: '#workspace-rollover',
-    label: 'เลื่อนชั้น',
-  },
-];
-
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -168,6 +141,8 @@ function getRpcErrorMessage(actionLabel: string, error: { code?: string; message
 }
 
 export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canManage = canManageWorkspace(session.profile.role);
   const useRealBackend = Boolean(supabase) && !isDevelopmentDemo;
   const initialReportIdentity = loadSchoolReportIdentity(session.workspace?.id);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoClassrooms);
@@ -193,11 +168,16 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     classroomName: session.workspace?.classroomName || 'ป.5/2',
     coAdvisorName: initialReportIdentity.coAdvisorName || '',
     directorName: initialReportIdentity.directorName,
+    directorPosition: initialReportIdentity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
+    district: initialReportIdentity.district || '',
+    jurisdiction: initialReportIdentity.jurisdiction || '',
+    province: initialReportIdentity.province || '',
     registrarName: initialReportIdentity.registrarName,
     name: session.workspace?.name || 'ห้องเรียนของฉัน',
     schoolLogoDataUrl: initialReportIdentity.schoolLogoDataUrl,
     schoolName: session.workspace?.schoolName || 'โรงเรียนตัวอย่าง ClassCare',
     teacherName: initialReportIdentity.teacherName,
+    useGarudaInsteadOfLogo: Boolean(initialReportIdentity.useGarudaInsteadOfLogo),
   });
   const [workspaceSettingsJson, setWorkspaceSettingsJson] = useState<Record<string, unknown>>({});
   const [publicReportPolicy, setPublicReportPolicy] = useState<PublicReportPolicy>(defaultPublicReportPolicy);
@@ -211,7 +191,32 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     fromYear: session.workspace?.academicYear || '2569',
     toYear: String(Number(session.workspace?.academicYear || '2569') + 1),
   });
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'classrooms' | 'members' | 'ai' | 'all'>('profile');
+
+  type SettingsTabKey = 'account' | 'school' | 'classrooms' | 'members' | 'ai';
+  const rawTabParam = searchParams.get('tab');
+  const resolveTab = (raw: string | null): SettingsTabKey => {
+    if (!canManage) return 'account';
+    if (raw === 'account' || raw === 'school' || raw === 'classrooms' || raw === 'members' || raw === 'ai') {
+      return raw;
+    }
+    if (raw === 'profile') return 'school';
+    return 'account';
+  };
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabKey>(() => resolveTab(rawTabParam));
+
+  useEffect(() => {
+    const resolved = resolveTab(rawTabParam);
+    setActiveSettingsTab(resolved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTabParam, canManage]);
+
+  function selectSettingsTab(tab: SettingsTabKey) {
+    const nextTab = !canManage ? 'account' : tab;
+    setActiveSettingsTab(nextTab);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', nextTab);
+    setSearchParams(nextParams, { replace: true });
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -234,8 +239,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         { data: workspaceRow, error: workspaceError },
         { data: classroomRows, error: classroomError },
         { data: studentRows, error: studentError },
-        { data: memberRows, error: memberError },
-        { data: invitationRows, error: invitationError },
+        memberRes,
+        invitationRes,
       ] = await Promise.all([
         supabase
           .from('workspaces')
@@ -252,16 +257,22 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           .from('students')
           .select('classroom_id,status')
           .eq('workspace_id', session.workspace.id),
-        supabase.rpc('get_workspace_members', {
-          target_workspace_id: session.workspace.id,
-        }),
-        supabase
-          .from('workspace_teacher_invitations')
-          .select('id,invite_email,role,status,assigned_classroom_ids,expires_at,created_at')
-          .eq('workspace_id', session.workspace.id)
-          .eq('status', 'invited')
-          .order('created_at', { ascending: false }),
+        canManage
+          ? supabase.rpc('get_workspace_members', {
+              target_workspace_id: session.workspace.id,
+            })
+          : Promise.resolve({ data: [], error: null }),
+        canManage
+          ? supabase
+              .from('workspace_teacher_invitations')
+              .select('id,invite_email,role,status,assigned_classroom_ids,expires_at,created_at')
+              .eq('workspace_id', session.workspace.id)
+              .eq('status', 'invited')
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
       ]);
+      const { data: memberRows, error: memberError } = memberRes;
+      const { data: invitationRows, error: invitationError } = invitationRes;
 
       if (!isMounted) return;
 
@@ -288,13 +299,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       const settings = (workspaceRow?.settings || {}) as Record<string, unknown> & {
         classroom_name?: string;
         public_report?: Partial<PublicReportPolicy>;
-        report_identity?: Partial<{
-          academicHeadName: string;
-          directorName: string;
-          registrarName: string;
-          schoolLogoDataUrl: string;
-          teacherName: string;
-        }>;
+        report_identity?: Partial<SchoolReportIdentity>;
       };
       const reportIdentity = {
         ...loadSchoolReportIdentity(session.workspace.id),
@@ -311,11 +316,16 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         classroomName: settings.classroom_name || session.workspace.classroomName,
         coAdvisorName: reportIdentity.coAdvisorName || '',
         directorName: reportIdentity.directorName || '',
+        directorPosition: reportIdentity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
+        district: reportIdentity.district || '',
+        jurisdiction: reportIdentity.jurisdiction || '',
+        province: reportIdentity.province || '',
         registrarName: reportIdentity.registrarName || '',
         name: workspaceRow?.name || session.workspace.name,
         schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
         schoolName: workspaceRow?.school_name || session.workspace.schoolName,
         teacherName: reportIdentity.teacherName || '',
+        useGarudaInsteadOfLogo: Boolean(reportIdentity.useGarudaInsteadOfLogo),
       });
       saveSchoolReportIdentity({
         academicHeadName: reportIdentity.academicHeadName || '',
@@ -323,10 +333,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         classroomName: settings.classroom_name || session.workspace.classroomName,
         coAdvisorName: reportIdentity.coAdvisorName || '',
         directorName: reportIdentity.directorName || '',
+        directorPosition: reportIdentity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
+        district: reportIdentity.district || '',
+        jurisdiction: reportIdentity.jurisdiction || '',
+        province: reportIdentity.province || '',
         registrarName: reportIdentity.registrarName || '',
         schoolLogoDataUrl: reportIdentity.schoolLogoDataUrl || '',
         schoolName: workspaceRow?.school_name || session.workspace.schoolName,
         teacherName: reportIdentity.teacherName || '',
+        useGarudaInsteadOfLogo: Boolean(reportIdentity.useGarudaInsteadOfLogo),
       }, session.workspace.id);
       setClassroomForm((current) => ({
         ...current,
@@ -350,7 +365,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session.workspace, useRealBackend]);
+  }, [canManage, session.workspace, useRealBackend]);
 
   const activeClassrooms = useMemo(
     () => classrooms.filter((classroom) => classroom.status === 'active'),
@@ -386,11 +401,16 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       classroomName: workspaceForm.classroomName.trim(),
       coAdvisorName: workspaceForm.coAdvisorName.trim(),
       directorName: workspaceForm.directorName.trim(),
+      directorPosition: workspaceForm.directorPosition.trim() || 'ผู้อำนวยการสถานศึกษา',
+      district: workspaceForm.district.trim(),
+      jurisdiction: workspaceForm.jurisdiction.trim(),
+      province: workspaceForm.province.trim(),
       registrarName: workspaceForm.registrarName.trim(),
       name: workspaceForm.name.trim(),
       schoolLogoDataUrl: workspaceForm.schoolLogoDataUrl,
       schoolName: workspaceForm.schoolName.trim(),
       teacherName: workspaceForm.teacherName.trim(),
+      useGarudaInsteadOfLogo: Boolean(workspaceForm.useGarudaInsteadOfLogo),
     };
     const existingIdentity = loadSchoolReportIdentity(session.workspace?.id);
     const reportIdentity: SchoolReportIdentity = {
@@ -400,11 +420,15 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       classroomName: nextWorkspace.classroomName,
       coAdvisorName: nextWorkspace.coAdvisorName || '',
       directorName: nextWorkspace.directorName,
-      directorPosition: existingIdentity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
+      directorPosition: nextWorkspace.directorPosition,
+      district: nextWorkspace.district,
+      jurisdiction: nextWorkspace.jurisdiction,
+      province: nextWorkspace.province,
       registrarName: nextWorkspace.registrarName,
       schoolLogoDataUrl: nextWorkspace.schoolLogoDataUrl,
       schoolName: nextWorkspace.schoolName,
       teacherName: nextWorkspace.teacherName,
+      useGarudaInsteadOfLogo: nextWorkspace.useGarudaInsteadOfLogo,
     };
 
     if (!nextWorkspace.name || !nextWorkspace.schoolName || !nextWorkspace.academicYear) {
@@ -457,7 +481,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       riskLevel: 'low',
       source: 'workspace_settings',
     });
-    setNotice('บันทึกตั้งค่าโรงเรียนแล้ว หาก header ยังแสดงค่าเดิมให้ refresh เพื่อโหลด session ใหม่');
+    setNotice('✓ บันทึกข้อมูลพื้นฐานโรงเรียนและผู้ลงนามเอกสารเรียบร้อยแล้ว');
     setWorkspaceSettingsJson((current) => ({
       ...current,
       classroom_name: nextWorkspace.classroomName,
@@ -465,6 +489,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
       report_identity: reportIdentity,
     }));
     saveSchoolReportIdentity(reportIdentity, session.workspace.id);
+    requestAppSessionRefresh();
     setIsSubmitting(false);
   }
 
@@ -1086,291 +1111,330 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
 
   return (
     <main className="app-page workspace-settings-page">
-      <section className="workspace-settings-hero overflow-hidden">
-        <div className="workspace-settings-hero-main p-5 text-white sm:p-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="workspace-settings-eyebrow inline-flex items-center gap-2 text-xs font-black">
-                <School size={15} aria-hidden="true" />
-                จัดการโรงเรียน
-              </div>
-              <h1 className="mt-3 text-3xl font-black sm:text-4xl">ตั้งค่าโรงเรียนและห้องเรียน</h1>
-              <p className="mt-3 max-w-3xl text-sm font-bold leading-6 text-slate-300">
-                จัดข้อมูลโรงเรียน ห้องเรียน ครู และสิทธิ์การใช้งานให้พร้อมในที่เดียว
-              </p>
-            </div>
+      {/* Unified Compact Header */}
+      <div className="app-page-header">
+        <div>
+          <span className="nexus-kicker">
+            <School size={15} aria-hidden="true" />
+            Unified Settings Center
+          </span>
+          <h1 className="app-page-title">ตั้งค่าบัญชี &amp; ข้อมูลพื้นฐานระบบ</h1>
+          <p className="app-page-description">
+            รวมการตั้งค่าโปรไฟล์ส่วนตัว รหัสผ่าน ข้อมูลโรงเรียน ผู้ลงนามเอกสาร ห้องเรียน ทีมครู และ AI ไว้ครบในหน้าเดียว
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 shadow-2xs">
+            {workspaceForm.schoolName || session.workspace?.schoolName || 'พื้นที่ทำงานหลัก'} · ปี {workspaceForm.academicYear || '-'}
+          </span>
+          {canManage ? (
             <button
-              className="workspace-settings-export inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black transition"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 shadow-2xs transition hover:bg-slate-50"
               onClick={exportSettingsSnapshot}
               type="button"
             >
-              ดาวน์โหลดข้อมูลตั้งค่า
-              <Download size={17} aria-hidden="true" />
+              <Download size={15} aria-hidden="true" />
+              Export ตั้งค่า (.JSON)
             </button>
-          </div>
+          ) : null}
         </div>
+      </div>
 
-        <div className="workspace-settings-stats grid grid-cols-6 sm:grid-cols-4">
-          {[
-            { label: 'โรงเรียน', value: workspaceForm.schoolName || '-' },
-            { label: 'ปีการศึกษา', value: workspaceForm.academicYear || '-' },
-            { label: 'ห้อง active', value: activeClassrooms.length },
-            { label: 'รออนุมัติ', value: pendingMembers.length },
-          ].map((item, index) => (
-            <article className={`workspace-settings-stat p-4 sm:col-span-1 sm:p-5 ${index === 0 ? 'col-span-6' : 'col-span-2'}`} key={item.label}>
-              <p className="text-xs font-black text-slate-400">{item.label}</p>
-              <p className="mt-1.5 truncate text-2xl font-black text-white">{item.value}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      {/* Unified Horizontal Tab Bar (Zero Duplication) */}
+      <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
+        <button
+          type="button"
+          onClick={() => selectSettingsTab('account')}
+          className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+            activeSettingsTab === 'account'
+              ? 'bg-slate-950 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+          }`}
+        >
+          <UserRound size={15} className={activeSettingsTab === 'account' ? 'text-emerald-300' : 'text-slate-400'} aria-hidden="true" />
+          บัญชีผู้ใช้ของฉัน
+        </button>
 
-      <section className="nexus-card mt-5 p-4 sm:p-5" aria-label="ขีดจำกัดแพ็กเกจโรงเรียน">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-black text-cyan-700">ขีดจำกัดแพ็กเกจ</p>
-            <h2 className="mt-1 text-xl font-black text-slate-950">{planLabels[effectivePlanCode]}</h2>
-          </div>
-          <p className="text-xs font-bold text-slate-500">เมื่อ Trial/VIP หมดอายุ ข้อมูลเดิมยังอยู่และระบบจะกลับเป็น Free อัตโนมัติ</p>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {[
-            { label: 'ห้องเรียน', used: activeClassrooms.length, limit: workspaceLimits.activeClassrooms },
-            { label: 'นักเรียน', used: activeStudentCount, limit: workspaceLimits.activeStudents },
-            { label: 'ผู้ร่วมงาน + คำเชิญ', used: collaboratorCount, limit: workspaceLimits.collaborators },
-          ].map((quota) => {
-            const ratio = Math.min((quota.used / Math.max(quota.limit, 1)) * 100, 100);
-            return (
-              <article className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100" key={quota.label}>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-black text-slate-500">{quota.label}</p>
-                  <p className="text-sm font-black text-slate-950">{quota.used} / {quota.limit}</p>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div className={`h-full rounded-full ${ratio >= 100 ? 'bg-rose-500' : 'bg-cyan-500'}`} style={{ width: `${ratio}%` }} />
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="workspace-settings-control mt-5 p-4 sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-              <ShieldCheck size={17} aria-hidden="true" />
-              สำหรับผู้ดูแลโรงเรียน
-            </div>
-            <h2 className="mt-2 text-2xl font-black text-slate-950">ศูนย์จัดการโรงเรียน</h2>
-            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-500">
-              รวมงานดูแลระบบไว้ในหน้าเดียว: อนุมัติครู จัดสิทธิ์ ตั้งค่าห้องเรียน สำรองข้อมูล และเตรียมปีการศึกษาถัดไป
-            </p>
-          </div>
-          <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
-            ผู้ดูแลยังใช้งานห้องเรียนได้ตามปกติ
-          </span>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-[#DCE3D7] pt-4">
-          <button
-            type="button"
-            onClick={() => setActiveSettingsTab('profile')}
-            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
-              activeSettingsTab === 'profile'
-                ? 'bg-[#D98B26] text-white shadow-sm'
-                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
-            }`}
-          >
-            <School size={17} aria-hidden="true" />
-            ข้อมูลโรงเรียน & ผู้ลงนาม
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSettingsTab('classrooms')}
-            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
-              activeSettingsTab === 'classrooms'
-                ? 'bg-[#2F7D5B] text-white shadow-sm'
-                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
-            }`}
-          >
-            <Building2 size={17} aria-hidden="true" />
-            จัดการห้องเรียน & ครูประจำชั้น
-            <span className="ml-1 rounded-full bg-[#E9F0EA] text-[#1C342B] px-2 py-0.5 text-xs font-black">
-              {classrooms.length} ห้อง
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSettingsTab('members')}
-            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
-              activeSettingsTab === 'members'
-                ? 'bg-[#2D72A3] text-white shadow-sm'
-                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
-            }`}
-          >
-            <Users size={17} aria-hidden="true" />
-            อนุมัติครู & สิทธิ์สมาชิก
-            {pendingMembers.length > 0 && (
-              <span className="ml-1 rounded-full bg-rose-500 text-white px-2 py-0.5 text-xs font-black">
-                {pendingMembers.length} รออนุมัติ
+        {canManage ? (
+          <>
+            <button
+              type="button"
+              onClick={() => selectSettingsTab('school')}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                activeSettingsTab === 'school'
+                  ? 'bg-slate-950 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+              }`}
+            >
+              <School size={15} className={activeSettingsTab === 'school' ? 'text-amber-300' : 'text-slate-400'} aria-hidden="true" />
+              ข้อมูลพื้นฐานโรงเรียน &amp; เอกสาร
+            </button>
+            <button
+              type="button"
+              onClick={() => selectSettingsTab('classrooms')}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                activeSettingsTab === 'classrooms'
+                  ? 'bg-slate-950 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+              }`}
+            >
+              <Building2 size={15} className={activeSettingsTab === 'classrooms' ? 'text-emerald-300' : 'text-slate-400'} aria-hidden="true" />
+              ห้องเรียน &amp; ครูประจำชั้น
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                  activeSettingsTab === 'classrooms' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {classrooms.length}
               </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSettingsTab('ai')}
-            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-sm font-black transition ${
-              activeSettingsTab === 'ai'
-                ? 'bg-[#1C342B] text-white shadow-sm'
-                : 'bg-white text-[#1C342B] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
-            }`}
-          >
-            <Bot size={17} aria-hidden="true" />
-            AI ผู้ช่วยครู (Gemini)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSettingsTab('all')}
-            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${
-              activeSettingsTab === 'all'
-                ? 'bg-[#1C342B] text-white shadow-sm'
-                : 'bg-white text-[#5A6F64] hover:bg-[#FAFBF8] ring-1 ring-[#DCE3D7]'
-            }`}
-          >
-            <LayoutGrid size={16} aria-hidden="true" />
-            แสดงทั้งหมด
-          </button>
-        </div>
-      </section>
+            </button>
+            <button
+              type="button"
+              onClick={() => selectSettingsTab('members')}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                activeSettingsTab === 'members'
+                  ? 'bg-slate-950 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+              }`}
+            >
+              <Users size={15} className={activeSettingsTab === 'members' ? 'text-cyan-300' : 'text-slate-400'} aria-hidden="true" />
+              ทีมครู &amp; สิทธิ์สมาชิก
+              {pendingMembers.length > 0 ? (
+                <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                  {pendingMembers.length}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => selectSettingsTab('ai')}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                activeSettingsTab === 'ai'
+                  ? 'bg-slate-950 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+              }`}
+            >
+              <Bot size={15} className={activeSettingsTab === 'ai' ? 'text-violet-300' : 'text-slate-400'} aria-hidden="true" />
+              AI ผู้ช่วยครู (Gemini)
+            </button>
+          </>
+        ) : null}
+      </div>
 
+      {notice ? (
+        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 text-xs font-black text-amber-900 shadow-2xs">
+          <AlertTriangle className="shrink-0" size={16} aria-hidden="true" />
+          <p>{notice}</p>
+        </div>
+      ) : null}
+
+      {/* TAB 1: USER ACCOUNT & PERSONAL PROFILE */}
+      {activeSettingsTab === 'account' ? (
+        <UserAccountSettingsPanel
+          activeClassroomsCount={activeClassrooms.length}
+          activeStudentCount={activeStudentCount}
+          collaboratorCount={collaboratorCount}
+          session={session}
+        />
+      ) : null}
+
+      {activeSettingsTab !== 'account' && canManage ? (
       <section className="workspace-settings-workbench mt-5 grid gap-5 xl:grid-cols-12 xl:items-start">
         <div className={`workspace-settings-forms grid gap-5 ${
-          activeSettingsTab === 'classrooms' || activeSettingsTab === 'all' ? 'xl:col-span-8' : 'xl:col-span-12'
+          activeSettingsTab === 'classrooms' ? 'xl:col-span-8' : 'xl:col-span-12'
         } xl:grid-cols-2`}>
-          {(activeSettingsTab === 'ai' || activeSettingsTab === 'all') && (
+          {activeSettingsTab === 'ai' && (
             <div className="xl:col-span-2">
               <WorkspaceAiSettingsCard session={session} />
             </div>
           )}
 
-          {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && (
+          {activeSettingsTab === 'school' && (
             <>
           <form id="workspace-profile" className="workspace-settings-form workspace-profile-form scroll-mt-24 nexus-card p-4 sm:p-6 xl:col-span-2" onSubmit={(event) => void saveWorkspaceSettings(event)}>
-            <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
-              <ShieldCheck size={16} aria-hidden="true" />
-              ตั้งค่าโรงเรียนและผู้ลงนาม
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  ข้อมูลพื้นฐานโรงเรียน สังกัด และผู้ลงนามเอกสาร
+                </div>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                  ตั้งค่าครั้งเดียว ใช้ร่วมกันทั้งระบบ: ตารางสอน เวลาเรียน คะแนน เงินออม ปพ.5 และรายงาน A4 ทุกฉบับ
+                </p>
+              </div>
             </div>
-            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-              ข้อมูลส่วนนี้เป็นฐานกลางของรายงานทั้งหมด เช่น ตารางสอน เวลาเรียน คะแนน เงินออม รายบุคคล และเอกสารพิมพ์ของโรงเรียน
-            </p>
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ชื่อ workspace
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setWorkspaceForm((current) => ({ ...current, name: event.target.value }))}
-                  value={workspaceForm.name}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-black text-slate-700">
-                ชื่อโรงเรียน
-                <input
-                  className="nexus-field h-11 px-3"
-                  onChange={(event) => setWorkspaceForm((current) => ({ ...current, schoolName: event.target.value }))}
-                  value={workspaceForm.schoolName}
-                />
-              </label>
-              <div className="rounded-[24px] border border-[#ead8bd] bg-[#fffaf0]/85 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[#ead8bd] bg-white text-[#8a5200]">
-                    {workspaceForm.schoolLogoDataUrl ? (
-                      <img alt="โลโก้โรงเรียน" className="h-full w-full object-contain p-2" src={workspaceForm.schoolLogoDataUrl} />
-                    ) : (
-                      <ImagePlus size={28} aria-hidden="true" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <label className="grid gap-2 text-sm font-black text-slate-700">
-                      โลโก้โรงเรียนสำหรับรายงานทุกฉบับ
-                      <input
-                        accept="image/*"
-                        className="nexus-field h-11 px-3 py-2"
-                        onChange={(event) => void handleSchoolLogoChange(event)}
-                        type="file"
-                      />
-                    </label>
-                    <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-                      ระบบย่อรูปก่อนเก็บไว้ใช้ในรายงาน ตารางสอน และเอกสารพิมพ์ เพื่อลดขนาดข้อมูลใน browser และ payload
-                    </p>
+
+            <div className="mt-5 grid gap-5">
+              {/* Group 1: School Basic Info & Jurisdiction */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">1. ข้อมูลพื้นฐานโรงเรียน &amp; สังกัด</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ชื่อพื้นที่ทำงาน (Workspace)
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, name: event.target.value }))}
+                      value={workspaceForm.name}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ชื่อโรงเรียน (แสดงบนหัวเอกสาร)
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, schoolName: event.target.value }))}
+                      value={workspaceForm.schoolName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ปีการศึกษาปัจจุบัน
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, academicYear: event.target.value }))}
+                      value={workspaceForm.academicYear}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ห้องเรียนหลัก (ค่าเริ่มต้น)
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, classroomName: event.target.value }))}
+                      value={workspaceForm.classroomName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700 sm:col-span-2">
+                    สังกัด / เขตพื้นที่การศึกษา (สพป. / สพม. / อปท.)
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, jurisdiction: event.target.value }))}
+                      placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษา..."
+                      value={workspaceForm.jurisdiction}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    อำเภอ / เขต
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, district: event.target.value }))}
+                      placeholder="เช่น อ.เมือง"
+                      value={workspaceForm.district}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    จังหวัด
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, province: event.target.value }))}
+                      placeholder="เช่น จ.ศรีสะเกษ"
+                      value={workspaceForm.province}
+                    />
+                  </label>
+                </div>
+
+                {/* School Logo & Garuda toggle */}
+                <div className="mt-4 rounded-2xl border border-[#ead8bd] bg-[#fffaf0]/85 p-3.5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-[#ead8bd] bg-white text-[#8a5200]">
+                      {workspaceForm.schoolLogoDataUrl ? (
+                        <img alt="โลโก้โรงเรียน" className="h-full w-full object-contain p-1.5" src={workspaceForm.schoolLogoDataUrl} />
+                      ) : (
+                        <ImagePlus size={24} aria-hidden="true" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <label className="grid gap-1 text-xs font-black text-slate-700">
+                        โลโก้โรงเรียนสำหรับหัวรายงานทุกฉบับ
+                        <input
+                          accept="image/*"
+                          className="nexus-field h-10 px-3 py-1.5 text-xs"
+                          onChange={(event) => void handleSchoolLogoChange(event)}
+                          type="file"
+                        />
+                      </label>
+                      <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-black text-slate-700">
+                        <input
+                          checked={workspaceForm.useGarudaInsteadOfLogo}
+                          className="h-4 w-4 accent-amber-600"
+                          onChange={(event) =>
+                            setWorkspaceForm((current) => ({ ...current, useGarudaInsteadOfLogo: event.target.checked }))
+                          }
+                          type="checkbox"
+                        />
+                        ใช้ตราครุฑราชการแทนโลโก้โรงเรียนบนหัวเอกสารทางการ (ปพ. / หนังสือราชการ)
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ปีการศึกษา
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, academicYear: event.target.value }))}
-                    value={workspaceForm.academicYear}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ห้องหลัก
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, classroomName: event.target.value }))}
-                    value={workspaceForm.classroomName}
-                  />
-                </label>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ชื่อครูผู้สอน
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, teacherName: event.target.value }))}
-                    placeholder="เช่น นางสาว..."
-                    value={workspaceForm.teacherName}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  หัวหน้าวิชาการ
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, academicHeadName: event.target.value }))}
-                    placeholder="ชื่อผู้ตรวจตาราง/รายงาน"
-                    value={workspaceForm.academicHeadName}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  นายทะเบียนโรงเรียน
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, registrarName: event.target.value }))}
-                    placeholder="ชื่อผู้รับรองทะเบียนนักเรียน"
-                    value={workspaceForm.registrarName}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  ผู้อำนวยการโรงเรียน
-                  <input
-                    className="nexus-field h-11 px-3"
-                    onChange={(event) => setWorkspaceForm((current) => ({ ...current, directorName: event.target.value }))}
-                    placeholder="ชื่อผู้อำนวยการ"
-                    value={workspaceForm.directorName}
-                  />
-                </label>
+
+              {/* Group 2: Official Document Signers */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">2. รายชื่อผู้ลงนามในรายงานและเอกสารทางการ (ปพ. / A4)</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ครูประจำชั้น / ครูผู้สอนหลัก
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, teacherName: event.target.value }))}
+                      placeholder="เช่น นาย/นางสาว..."
+                      value={workspaceForm.teacherName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ครูที่ปรึกษาร่วม (ถ้ามี)
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, coAdvisorName: event.target.value }))}
+                      placeholder="เช่น นางสาว..."
+                      value={workspaceForm.coAdvisorName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    หัวหน้างานวิชาการ
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, academicHeadName: event.target.value }))}
+                      placeholder="ชื่อผู้ตรวจตาราง/รายงาน"
+                      value={workspaceForm.academicHeadName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    นายทะเบียนโรงเรียน
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, registrarName: event.target.value }))}
+                      placeholder="ชื่อผู้รับรองทะเบียนนักเรียน"
+                      value={workspaceForm.registrarName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ผู้อำนวยการสถานศึกษา
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, directorName: event.target.value }))}
+                      placeholder="ชื่อผู้อำนวยการ"
+                      value={workspaceForm.directorName}
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-black text-slate-700">
+                    ตำแหน่งผู้ลงนาม ผอ.
+                    <input
+                      className="nexus-field h-10 px-3 text-sm font-bold"
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, directorPosition: event.target.value }))}
+                      placeholder="เช่น ผู้อำนวยการสถานศึกษา / รักษาการในตำแหน่ง..."
+                      value={workspaceForm.directorPosition}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
             <button
-              className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="blue-action mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-slate-300"
               disabled={isSubmitting || isLoading}
               type="submit"
             >
               <Save size={17} aria-hidden="true" />
-              บันทึกข้อมูลโรงเรียน
+              บันทึกข้อมูลพื้นฐานโรงเรียน &amp; ผู้ลงนาม
             </button>
           </form>
 
@@ -1446,7 +1510,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </>
           )}
 
-          {(activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
+          {activeSettingsTab === 'classrooms' && (
           <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void createClassroom(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <Plus size={16} aria-hidden="true" />
@@ -1509,7 +1573,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           </form>
           )}
 
-          {(activeSettingsTab === 'members' || activeSettingsTab === 'all') && (
+          {activeSettingsTab === 'members' && (
           <form className="workspace-settings-form nexus-card p-4 sm:p-5" onSubmit={(event) => void addWorkspaceMember(event)}>
             <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
               <UserPlus size={16} aria-hidden="true" />
@@ -1588,10 +1652,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           )}
         </div>
 
-        {(activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
-        <section id="workspace-classrooms" className={`workspace-classroom-panel scroll-mt-24 nexus-card p-4 sm:p-5 ${
-          activeSettingsTab === 'classrooms' ? 'xl:col-span-4' : 'xl:sticky xl:top-24 xl:col-span-4'
-        }`}>
+        {activeSettingsTab === 'classrooms' && (
+        <section id="workspace-classrooms" className="workspace-classroom-panel scroll-mt-24 nexus-card p-4 sm:p-5 xl:col-span-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-black text-cyan-700">Classrooms</p>
@@ -1675,8 +1737,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </section>
         )}
       </section>
+      ) : null}
 
-      {(activeSettingsTab === 'members' || activeSettingsTab === 'all') && (
+      {activeSettingsTab === 'members' && canManage && (
         <>
           <section id="workspace-members" className="scroll-mt-24 nexus-card mt-5 p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1830,10 +1893,10 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </>
       )}
 
-      {(activeSettingsTab === 'profile' || activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
+      {(activeSettingsTab === 'school' || activeSettingsTab === 'classrooms') && canManage && (
         <section className="mt-5 grid gap-5 xl:grid-cols-2">
-          {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && (
-            <div id="workspace-backup" className={`scroll-mt-24 nexus-card p-4 sm:p-5 ${activeSettingsTab === 'profile' ? 'xl:col-span-2' : ''}`}>
+          {activeSettingsTab === 'school' && (
+            <div id="workspace-backup" className="scroll-mt-24 nexus-card p-4 sm:p-5 xl:col-span-2">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-xs font-black text-cyan-700">
@@ -1866,8 +1929,8 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
             </div>
           )}
 
-          {(activeSettingsTab === 'classrooms' || activeSettingsTab === 'all') && (
-            <div id="workspace-rollover" className={`scroll-mt-24 nexus-card p-4 sm:p-5 ${activeSettingsTab === 'classrooms' ? 'xl:col-span-2' : ''}`}>
+          {activeSettingsTab === 'classrooms' && (
+            <div id="workspace-rollover" className="scroll-mt-24 nexus-card p-4 sm:p-5 xl:col-span-2">
               <div className="flex items-center gap-2 text-sm font-black text-cyan-700">
                 <RotateCcw size={17} aria-hidden="true" />
                 Academic Year Rollover
@@ -1918,51 +1981,41 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
         </section>
       )}
 
-      {activeSettingsTab === 'all' && (
-        <details className="mt-5 rounded-[26px] border border-slate-200 bg-white/80 p-4 shadow-sm">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 text-xs font-black text-[#5A6F64] hover:text-[#1C342B]">
-            <BarChart3 size={14} className="text-[#2F7D5B]" aria-hidden="true" />
-            สถิติการใช้งานเมนูของโรงเรียนและการตั้งค่าความเป็นส่วนตัว (คลิกเพื่อดู)
+      {activeSettingsTab === 'school' && canUseDestructiveActions ? (
+        <details className="mt-5 rounded-[24px] border border-rose-200 bg-rose-50/40 p-4 shadow-2xs">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-black text-rose-800">
+            <span className="inline-flex items-center gap-2">
+              <AlertTriangle size={15} aria-hidden="true" />
+              โซนอันตราย (Danger Zone): เก็บถาวร หรือ ลบพื้นที่ทำงานนี้
+            </span>
+            <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] text-rose-700 ring-1 ring-rose-200">คลิกเพื่อขยาย</span>
           </summary>
-          <MenuUsageInsights navItems={appNavItems} session={session} />
-        </details>
-      )}
-
-      {(activeSettingsTab === 'profile' || activeSettingsTab === 'all') && canUseDestructiveActions ? (
-        <section className="mt-5 rounded-[28px] border border-rose-200 bg-rose-50/45 p-4 shadow-sm sm:p-5">
-          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-100">
-                <AlertTriangle size={15} aria-hidden="true" />
-                Danger Zone
-              </div>
-              <h2 className="mt-3 text-2xl font-black text-slate-950">จัดการ workspace นี้</h2>
-              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-600">
-                เก็บถาวรเหมาะกับ workspace ที่ไม่ใช้งานแล้ว ส่วนลบถาวรใช้เฉพาะ workspace ที่สร้างซ้ำหรือผิดเท่านั้น เพราะข้อมูลที่ผูกกับ workspace จะถูกลบตาม cascade ของฐานข้อมูล
-              </p>
-            </div>
+          <div className="mt-4 grid gap-4 border-t border-rose-200/70 pt-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
+            <p className="max-w-3xl text-xs font-bold leading-5 text-slate-600">
+              เก็บถาวรเหมาะกับพื้นที่ทำงานที่ไม่ได้ใช้งานแล้ว ส่วนการลบถาวรใช้เฉพาะกรณีสร้างซ้ำหรือผิดพลาดเท่านั้น เพราะข้อมูลที่ผูกอยู่จะถูกลบตามฐานข้อมูลทั้งหมด
+            </p>
             <div className="flex flex-wrap gap-2">
               <button
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 text-xs font-black text-rose-700 shadow-2xs transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting || !session.workspace}
                 onClick={() => void archiveCurrentWorkspace()}
                 type="button"
               >
-                <Archive size={17} aria-hidden="true" />
+                <Archive size={15} aria-hidden="true" />
                 เก็บถาวร workspace
               </button>
               <button
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-rose-700 px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 text-xs font-black text-white shadow-2xs transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting || !session.workspace}
                 onClick={() => void deleteCurrentWorkspacePermanently()}
                 type="button"
               >
-                <Trash2 size={17} aria-hidden="true" />
+                <Trash2 size={15} aria-hidden="true" />
                 ลบ workspace ถาวร
               </button>
             </div>
           </div>
-        </section>
+        </details>
       ) : null}
 
       {pendingClassroomDelete ? (
@@ -2050,13 +2103,6 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
-
-      {notice ? (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-sm font-bold leading-6 text-amber-800 shadow-sm">
-          <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
-          <p>{notice}</p>
         </div>
       ) : null}
     </main>
