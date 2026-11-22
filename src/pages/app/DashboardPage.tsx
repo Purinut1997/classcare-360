@@ -1,53 +1,34 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight,
-  Bell,
-  BookOpen,
-  Calendar,
-  CalendarCheck2,
   CalendarClock,
-  CalendarDays,
   ChevronDown,
-  ClipboardCheck,
   ClipboardList,
-  Clock,
   Crown,
   FileSpreadsheet,
   HeartHandshake,
-  NotebookPen,
-  Pin,
   Scale,
   School,
   ShieldCheck,
   Sparkles,
   Star,
-  Sun,
-  TrendingDown,
-  TrendingUp,
-  Umbrella,
   Utensils,
-  type LucideIcon,
 } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
-import { AppLogo } from '../../components/brand/AppLogo';
-import { BotanicalCardSprig, BotanicalCornerWatermark } from '../../components/shared/BotanicalDecor';
-
-import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
 import { dashboardStats } from '../../data/dashboard';
 import { getBangkokDate } from '../../lib/date';
 import { getVipBadgeInfo } from '../../lib/entitlements';
 import { isDemoSession } from '../../lib/auth';
 import { canManageWorkspace } from '../../lib/roles';
-import { buildSchedulePeriods, loadScheduleSettings, makeScheduleCellKey, type ScheduleSettings } from '../../lib/scheduleSettings';
+import { loadScheduleSettings, type ScheduleSettings } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 import type { WatchlistStudentItem } from '../../components/dashboard/StudentWatchlist';
 import type { ClassroomAnalyticsData } from '../../components/dashboard/ClassroomAnalyticsCharts';
+import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase';
 import { SystemReportsDashboard } from '../../components/dashboard/SystemReportsDashboard';
-import { TeacherSchedulePreview } from '../../components/dashboard/TeacherSchedulePreview';
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
-import { autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
-import { getHiddenClassroomIds, hideClassroomIdLocally, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
+import { TodayBentoDashboard } from '../../components/dashboard/TodayBentoDashboard';
+import { getHiddenClassroomIds, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
 
 interface DashboardPageProps {
@@ -109,6 +90,21 @@ interface SubjectAttendanceSummary {
   total: number;
 }
 
+interface SavingsTransactionSummaryRow {
+  amount: number | string | null;
+  student_id: string;
+  transaction_date: string | null;
+  transaction_type: string;
+}
+
+interface AcademicTermRow {
+  end_date: string | null;
+  is_current: boolean;
+  start_date: string | null;
+  status: string;
+  term_name: string | null;
+}
+
 type UpcomingEventType = 'holiday' | 'exam' | 'activity' | 'makeup' | 'custom';
 
 interface UpcomingEvent {
@@ -118,6 +114,38 @@ interface UpcomingEvent {
   id: string;
   title: string;
   type: UpcomingEventType;
+}
+
+const SHORT_THAI_DAYS = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'] as const;
+const FULL_THAI_WEEKDAYS = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'] as const;
+const THAI_DAY_NAMES = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'] as const;
+
+/** Returns YYYY-MM-DD strings for Monday through Sunday of the current Bangkok week. */
+function getBangkokWeekDates(todayStr: string): string[] {
+  const anchor = new Date(`${todayStr}T12:00:00+07:00`);
+  const jsDay = anchor.getUTCDay();
+  const offsetFromMonday = jsDay === 0 ? 6 : jsDay - 1;
+  const mondayMs = anchor.getTime() - offsetFromMonday * 86_400_000;
+  return Array.from({ length: 7 }, (_, i) => getBangkokDate(new Date(mondayMs + i * 86_400_000)));
+}
+
+function buildEmptyWeeklyAttendance(weekDates: string[], todayStr: string) {
+  return weekDates.map((date, idx) => ({
+    dayLabel: SHORT_THAI_DAYS[idx] || '',
+    date,
+    checked: false,
+    isToday: date === todayStr,
+  }));
+}
+
+function buildEmptyDailyBars(weekDates: string[], todayStr: string) {
+  return weekDates.slice(0, 5).map((date, idx) => ({
+    day: SHORT_THAI_DAYS[idx] || '',
+    fullDay: FULL_THAI_WEEKDAYS[idx] || '',
+    date,
+    amount: 0,
+    isToday: date === todayStr,
+  }));
 }
 
 function groupUpcomingEvents(events: UpcomingEvent[]): UpcomingEvent[] {
@@ -156,60 +184,6 @@ function groupUpcomingEvents(events: UpcomingEvent[]): UpcomingEvent[] {
   }
 
   return grouped;
-}
-
-const eventTypeConfig: Record<
-  UpcomingEventType,
-  {
-    badge: string;
-    dot: string;
-    icon: LucideIcon;
-    label: string;
-    border: string;
-  }
-> = {
-  holiday: {
-    badge: 'bg-[#FBEFF2] text-[#8E354A] border-[#F0CFD7]',
-    dot: 'bg-[#C25970] ring-2 ring-[#F0CFD7]',
-    icon: Umbrella,
-    label: 'หยุดเรียน',
-    border: 'border-l-[#C25970]',
-  },
-  exam: {
-    badge: 'bg-[#F1F0FA] text-[#49428B] border-[#D8D4F2]',
-    dot: 'bg-[#6B63B5] ring-2 ring-[#D8D4F2]',
-    icon: ClipboardList,
-    label: 'วันสอบ',
-    border: 'border-l-[#6B63B5]',
-  },
-  activity: {
-    badge: 'bg-[#E6F4EC] text-[#1C573D] border-[#BFE0CD]',
-    dot: 'bg-[#2F7D5B] ring-2 ring-[#BFE0CD]',
-    icon: Sparkles,
-    label: 'กิจกรรม',
-    border: 'border-l-[#2F7D5B]',
-  },
-  makeup: {
-    badge: 'bg-[#FDF4E1] text-[#8B5312] border-[#F0D9AE]',
-    dot: 'bg-[#D98B26] ring-2 ring-[#F0D9AE]',
-    icon: Clock,
-    label: 'เรียนชดเชย',
-    border: 'border-l-[#D98B26]',
-  },
-  custom: {
-    badge: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]',
-    dot: 'bg-[#2D72A3] ring-2 ring-[#CBE1F2]',
-    icon: Pin,
-    label: 'กำหนดเอง',
-    border: 'border-l-[#2D72A3]',
-  },
-};
-
-interface BirthdayStudent {
-  birthDate: string;
-  id: string;
-  name: string;
-  isToday: boolean;
 }
 
 type HealthReportType = 'toothbrushing' | 'milk' | 'lunch' | 'growth' | 'hygiene';
@@ -270,7 +244,7 @@ const healthReportConfigs: Array<Pick<HealthReportMetric, 'cadence' | 'icon' | '
   },
   {
     cadence: 'ข้อมูลล่าสุด',
-    icon: ClipboardCheck,
+    icon: ClipboardList,
     key: 'hygiene',
     label: 'ตรวจสุขภาพ',
     tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
@@ -332,174 +306,85 @@ function getWorkspaceDashboardStats() {
 export function DashboardPage({ session }: DashboardPageProps) {
   const canManageCurrentWorkspace = canManageWorkspace(session.profile.role);
   const demoMode = isDemoSession(session);
+  const todayDateStr = getBangkokDate();
+  const weekDates = useMemo(() => getBangkokWeekDates(todayDateStr), [todayDateStr]);
+  const currentThaiDay = useMemo(() => {
+    const dayIdx = new Date(`${todayDateStr}T12:00:00+07:00`).getUTCDay();
+    return THAI_DAY_NAMES[dayIdx] || 'จันทร์';
+  }, [todayDateStr]);
+
   const [stats, setStats] = useState(() => getWorkspaceDashboardStats());
   const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [classroomStudentCounts, setClassroomStudentCounts] = useState<ClassroomStudentCount[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
-  const [reloadTrigger, setReloadTrigger] = useState(0);
-  const [isRealigningClassrooms, setIsRealigningClassrooms] = useState(false);
-  const realigningRef = useRef(false);
-
-  const handleManualRealign = async () => {
-    if (realigningRef.current || demoMode || !session.workspace) return;
-    realigningRef.current = true;
-    setIsRealigningClassrooms(true);
-    try {
-      const res = await autoRealignAllStudentsToCorrectRooms(session);
-      if (res.success) {
-        setReloadTrigger((v) => v + 1);
-      }
-    } catch (err) {
-      console.error('Manual realign failed:', err);
-    } finally {
-      realigningRef.current = false;
-      setIsRealigningClassrooms(false);
-    }
-  };
-
-  const handleDeleteEmptyClassroom = async (classroomId: string, classroomName: string) => {
-    if (!session.workspace) return;
-    const confirmed = window.confirm(`คุณต้องการลบห้อง "${classroomName}" ที่ไม่มีนักเรียนนี้ออกจากระบบหรือไม่?`);
-    if (!confirmed) return;
-
-    // 1. Immediately record in localStorage so it NEVER reappears even if DB fails or delays
-    hideClassroomIdLocally(session.workspace.id, classroomId);
-
-    // 2. Immediately update local UI state
-    setClassrooms((current) => current.filter((c) => c.id !== classroomId));
-    setClassroomStudentCounts((current) => current.filter((c) => c.classroomId !== classroomId));
-    setSelectedClassroomId((prev) => {
-      if (prev === classroomId) {
-        const remaining = classrooms.filter((c) => c.id !== classroomId);
-        return remaining[0]?.id || '';
-      }
-      return prev;
-    });
-
-    if (!supabase || demoMode) {
-      return;
-    }
-
-    try {
-      // Step 1: Soft delete in Supabase (archived) - teachers always have update permission
-      await supabase
-        .from('classrooms')
-        .update({ status: 'archived' })
-        .eq('id', classroomId)
-        .eq('workspace_id', session.workspace.id)
-        .setHeader('x-silent', 'true');
-
-      // Step 2: Try direct delete
-      const { error: directErr } = await supabase
-        .from('classrooms')
-        .delete()
-        .eq('id', classroomId)
-        .eq('workspace_id', session.workspace.id)
-        .setHeader('x-silent', 'true');
-
-      // Step 3: Try RPC delete_classroom_safely if direct delete errored
-      if (directErr) {
-        try {
-          await supabase.rpc('delete_classroom_safely', {
-            target_classroom_id: classroomId,
-          });
-        } catch {}
-      }
-    } catch (err) {
-      console.warn('Classroom delete warning (locally hidden):', err);
-    }
-  };
   const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsData>(emptyAnalyticsData);
   const [watchlistStudents, setWatchlistStudents] = useState<WatchlistStudentItem[]>([]);
   const [subjectAttendanceSummaries, setSubjectAttendanceSummaries] = useState<SubjectAttendanceSummary[]>([]);
   const [dailyHealthRecords, setDailyHealthRecords] = useState<HealthRecordSummaryRow[]>([]);
   const [latestHealthRecords, setLatestHealthRecords] = useState<HealthRecordSummaryRow[]>([]);
   const [activeClassroomStudentIds, setActiveClassroomStudentIds] = useState<string[]>([]);
-  const [healthReportsLoading, setHealthReportsLoading] = useState(false);
-  const [quickLog, setQuickLog] = useState('');
-  const [quickLogNotice, setQuickLogNotice] = useState<string | null>(null);
-  const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() => loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id));
+  const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() =>
+    loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id),
+  );
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
-  const [allCalendarEvents, setAllCalendarEvents] = useState<UpcomingEvent[]>([]);
-  const [calendarViewMode, setCalendarViewMode] = useState<'calendar' | 'list'>(() => {
-    try {
-      const saved = window.localStorage.getItem('classcare:dashboard_calendar_view');
-      if (saved === 'list' || saved === 'calendar') return saved;
-    } catch {
-      // ignore
-    }
-    return 'calendar';
+
+  // Today Bento state
+  const [todayCheckedSessionCount, setTodayCheckedSessionCount] = useState(0);
+  const [subjectAttendanceNamesToday, setSubjectAttendanceNamesToday] = useState<string[]>([]);
+  const [weeklyAttendanceDays, setWeeklyAttendanceDays] = useState(() =>
+    buildEmptyWeeklyAttendance(weekDates, todayDateStr),
+  );
+  const [dailySavings, setDailySavings] = useState(() => ({
+    todayDeposit: 0,
+    todayWithdraw: 0,
+    todaySavers: 0,
+    studentsTotal: 0,
+    totalBalance: 0,
+    monthlyDeposits: 0,
+    dailyBars: buildEmptyDailyBars(weekDates, todayDateStr),
+  }));
+  const [scoresSummary, setScoresSummary] = useState({
+    gradedAssessments: 0,
+    totalAssessments: 0,
+    averagePercent: 0,
   });
+  const [teachingLogSummary, setTeachingLogSummary] = useState({
+    todayCount: 0,
+    weeklyDaysLogged: 0,
+    weekdayFlags: [false, false, false, false, false],
+  });
+  const [currentTerm, setCurrentTerm] = useState<{
+    termName: string | null;
+    startDate: string | null;
+    endDate: string | null;
+  }>({ termName: null, startDate: null, endDate: null });
+  const [weekCheckedDatesByClassroom, setWeekCheckedDatesByClassroom] = useState<Record<string, number>>({});
 
-  const handleToggleCalendarView = (mode: 'calendar' | 'list') => {
-    setCalendarViewMode(mode);
-    try {
-      window.localStorage.setItem('classcare:dashboard_calendar_view', mode);
-    } catch {
-      // ignore
-    }
-  };
-  const [birthdayStudents, setBirthdayStudents] = useState<BirthdayStudent[]>([]);
-  const thaiDayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-  const currentThaiDay = thaiDayNames[new Date().getDay()] || 'จันทร์';
-  const initialMobileDay = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'].includes(currentThaiDay) ? currentThaiDay : 'จันทร์';
-  const [mobileScheduleDay, setMobileScheduleDay] = useState<string>(initialMobileDay);
-  const [scheduleClassFilter, setScheduleClassFilter] = useState<string>('all');
-
-  // โหมดแสดงผล: 'shortcuts' (ศูนย์รวมทางลัดทุกเมนู - เข้ามาก็เจอเลย) หรือ 'analytics' (แดชบอร์ดสถิติ)
-  const [dashboardViewMode, setDashboardViewMode] = useState<'shortcuts' | 'analytics'>(() => {
-    if (typeof window === 'undefined') return 'shortcuts';
+  // View Mode: 'today' (Bento default) | 'analytics' | 'shortcuts'
+  const [dashboardViewMode, setDashboardViewMode] = useState<'today' | 'analytics' | 'shortcuts'>(() => {
+    if (typeof window === 'undefined') return 'today';
     const params = new URLSearchParams(window.location.search);
     const modeParam = params.get('mode') || params.get('tab');
     if (modeParam === 'analytics') return 'analytics';
     if (modeParam === 'shortcuts') return 'shortcuts';
+    if (modeParam === 'today') return 'today';
     try {
-      const saved = localStorage.getItem('classcare_dashboard_view_mode');
-      if (saved === 'analytics' || saved === 'shortcuts') return saved;
-    } catch {}
-    return 'shortcuts'; // ค่าเริ่มต้น: เข้ามาก็เจอทางลัดทุกเมนูทันที
+      const saved = localStorage.getItem('classcare_dashboard_view_mode_v2');
+      if (saved === 'today' || saved === 'analytics' || saved === 'shortcuts') return saved;
+    } catch {
+      // Ignore storage error
+    }
+    return 'today';
   });
 
-  const handleSetDashboardViewMode = (mode: 'shortcuts' | 'analytics') => {
+  const handleSetDashboardViewMode = (mode: 'today' | 'analytics' | 'shortcuts') => {
     setDashboardViewMode(mode);
     try {
-      localStorage.setItem('classcare_dashboard_view_mode', mode);
-    } catch {}
-  };
-
-  const weeklyPeriods = useMemo(() => buildSchedulePeriods(weeklySchedule), [weeklySchedule]);
-
-  const { scheduleClassrooms, totalPeriodCount } = useMemo(() => {
-    const map = new Map<string, number>();
-    let total = 0;
-    const activeDays = weeklySchedule.activeDays.slice(0, 5);
-
-    for (const day of activeDays) {
-      for (const period of weeklyPeriods) {
-        const cell = weeklySchedule.cells[makeScheduleCellKey(day, period.index)];
-        if (cell?.subject?.trim()) {
-          total += 1;
-          const cls = cell.classroom?.trim();
-          if (cls) {
-            map.set(cls, (map.get(cls) || 0) + 1);
-          }
-        }
-      }
+      localStorage.setItem('classcare_dashboard_view_mode_v2', mode);
+    } catch {
+      // Ignore storage error
     }
-
-    const classrooms = Array.from(map.entries())
-      .map(([name, count]) => ({ count, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'th'));
-
-    return { scheduleClassrooms: classrooms, totalPeriodCount: total };
-  }, [weeklySchedule, weeklyPeriods]);
-
-  const isLunchPeriod = (periodIndex: number, period: { end: string; start: string }) => {
-    const activeDays = weeklySchedule.activeDays.slice(0, 5);
-    const allEmpty = activeDays.every((day) => !weeklySchedule.cells[makeScheduleCellKey(day, periodIndex)]?.subject?.trim());
-    const isAroundLunchTime = period.start.startsWith('11:') || period.start.startsWith('12:') || periodIndex === 4;
-    return allEmpty && isAroundLunchTime;
   };
 
   useEffect(() => {
@@ -512,10 +397,18 @@ export function DashboardPage({ session }: DashboardPageProps) {
         return;
       }
 
-      const { data } = await supabase.from('workspace_schedule_settings').select('settings').eq('workspace_id', session.workspace.id).maybeSingle();
+      const { data } = await supabase
+        .from('workspace_schedule_settings')
+        .select('settings')
+        .eq('workspace_id', session.workspace.id)
+        .maybeSingle();
 
       if (!isMounted) return;
-      setWeeklySchedule(data?.settings && typeof data.settings === 'object' ? { ...fallback, ...(data.settings as ScheduleSettings) } : fallback);
+      setWeeklySchedule(
+        data?.settings && typeof data.settings === 'object'
+          ? { ...fallback, ...(data.settings as ScheduleSettings) }
+          : fallback,
+      );
     }
 
     void loadWeeklySchedule();
@@ -567,14 +460,16 @@ export function DashboardPage({ session }: DashboardPageProps) {
           if (workspaceClassroomName) {
             const cName = c.name.trim().toLowerCase();
             if (cName === workspaceClassroomName) return true;
-            if (cName.startsWith(workspaceClassroomName + '/') || cName.replace(/\s+/g, '') === workspaceClassroomName.replace(/\s+/g, '')) {
+            if (
+              cName.startsWith(workspaceClassroomName + '/') ||
+              cName.replace(/\s+/g, '') === workspaceClassroomName.replace(/\s+/g, '')
+            ) {
               return true;
             }
           }
           return false;
         };
 
-        // Sort: Advisory / Homeroom classrooms come FIRST!
         const sorted = [...filteredData].sort((a, b) => {
           const aHome = isHomeroomCheck(a) ? 0 : 1;
           const bHome = isHomeroomCheck(b) ? 0 : 1;
@@ -587,7 +482,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
         setClassrooms(sorted);
         setSelectedClassroomId((prev) => {
-          // If no previous selection, always default to the teacher's advisory classroom
           if (!prev || !sorted.some((c) => c.id === prev)) {
             return defaultId;
           }
@@ -599,7 +493,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [demoMode, session.workspace, session.profile?.id, reloadTrigger]);
+  }, [demoMode, session.workspace, session.profile?.id]);
 
   // Load General Workspace Dashboard Stats
   useEffect(() => {
@@ -608,24 +502,60 @@ export function DashboardPage({ session }: DashboardPageProps) {
     async function loadDashboardStats() {
       if (!supabase || !session.workspace || demoMode) {
         setStats(getWorkspaceDashboardStats());
-        if (demoMode) setClassroomStudentCounts([{ classroomId: 'demo-classroom', classroomName: session.workspace?.classroomName || 'ห้องเรียนตัวอย่าง', count: 3 }]);
+        if (demoMode) {
+          setClassroomStudentCounts([
+            {
+              classroomId: 'demo-classroom',
+              classroomName: session.workspace?.classroomName || 'ห้องเรียนตัวอย่าง',
+              count: 29,
+            },
+          ]);
+        }
         return;
       }
 
-      const [{ data: activeStudentRows, count: studentCount }, { count: classroomCount }, { count: careCaseCount }, { data: savingsRows }] = await Promise.all([supabase.from('students').select('id,classroom_id', { count: 'exact' }).eq('workspace_id', session.workspace.id).eq('status', 'active'), supabase.from('classrooms').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).eq('status', 'active'), supabase.from('student_care_cases').select('id', { count: 'exact', head: true }).eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']), supabase.from('savings_accounts').select('balance').eq('workspace_id', session.workspace.id).eq('status', 'active')]);
+      const [
+        { data: activeStudentRows, count: studentCount },
+        { count: classroomCount },
+        { count: careCaseCount },
+        { data: savingsRows },
+      ] = await Promise.all([
+        supabase
+          .from('students')
+          .select('id,classroom_id', { count: 'exact' })
+          .eq('workspace_id', session.workspace.id)
+          .eq('status', 'active'),
+        supabase
+          .from('classrooms')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', session.workspace.id)
+          .eq('status', 'active'),
+        supabase
+          .from('student_care_cases')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', session.workspace.id)
+          .in('status', ['open', 'monitoring']),
+        supabase
+          .from('savings_accounts')
+          .select('balance')
+          .eq('workspace_id', session.workspace.id)
+          .eq('status', 'active'),
+      ]);
 
       if (!isMounted) return;
 
-      const savingsBalance = (savingsRows || []).reduce((sum, row) => sum + Number((row as { balance?: number | string | null }).balance || 0), 0);
+      const savingsBalance = (savingsRows || []).reduce(
+        (sum, row) => sum + Number((row as { balance?: number | string | null }).balance || 0),
+        0,
+      );
       const countsByClassroom = new Map<string, number>();
       ((activeStudentRows || []) as Array<{ classroom_id: string | null }>).forEach((student) => {
         const key = student.classroom_id || 'unassigned';
         countsByClassroom.set(key, (countsByClassroom.get(key) || 0) + 1);
       });
 
-      // Filter out ghost empty duplicate classrooms (like "ป.5" with 0 students when "ป.5/1" has students)
       const validClassrooms = classrooms.filter(
-        (c) => !isObsoleteGhostClassroom(c, classrooms, countsByClassroom, session.workspace?.id)
+        (c) => !isObsoleteGhostClassroom(c, classrooms, countsByClassroom, session.workspace?.id),
       );
 
       const nextClassroomCounts = validClassrooms.map((classroom) => ({
@@ -634,12 +564,13 @@ export function DashboardPage({ session }: DashboardPageProps) {
         count: countsByClassroom.get(classroom.id) || 0,
       }));
       const unassignedCount = countsByClassroom.get('unassigned') || 0;
-      if (unassignedCount > 0)
+      if (unassignedCount > 0) {
         nextClassroomCounts.push({
           classroomId: 'unassigned',
           classroomName: 'ยังไม่ระบุห้อง',
           count: unassignedCount,
         });
+      }
       setClassroomStudentCounts(nextClassroomCounts);
 
       const totalRoomsCount = validClassrooms.length;
@@ -647,7 +578,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const selectedRoomStudents = selectedClassroomId ? countsByClassroom.get(selectedClassroomId) || 0 : null;
 
       let studentDetail = 'รวมทุกห้องเรียน';
-      let studentSubDetail: string | undefined = undefined;
+      let studentSubDetail: string | undefined;
 
       if (totalRoomsCount > 1) {
         studentDetail = `รวม ${totalRoomsCount} ห้องเรียน`;
@@ -691,40 +622,172 @@ export function DashboardPage({ session }: DashboardPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [classrooms, demoMode, session.workspace, selectedClassroomId, reloadTrigger]);
+  }, [classrooms, demoMode, session.workspace, selectedClassroomId]);
 
-  // Load Classroom Specific Real Analytics Data & Watchlist Students
+  // Load Classroom Specific Real Analytics & Today Bento Metrics
   useEffect(() => {
     let isMounted = true;
 
     async function loadClassroomAnalytics() {
-      if (!supabase || !session.workspace || !selectedClassroomId || demoMode) {
+      const today = getBangkokDate();
+      const currentWeekDates = getBangkokWeekDates(today);
+
+      if (demoMode) {
+        const demoAmounts = [1450, 1120, 980, 1340, 1620];
+        setAnalyticsData({
+          ...emptyAnalyticsData,
+          classroomName: session.workspace?.classroomName || 'ป.5/1',
+          dataCompleteness: {
+            attendanceCheckedToday: true,
+            behaviorRecorded: true,
+            homeVisitsCount: 8,
+            scoresEnteredCount: 8,
+            studentsCount: 29,
+          },
+          savings: {
+            accountCount: 29,
+            activeAccounts: 24,
+            monthlyDeposits: 18640,
+            totalBalance: 42850,
+          },
+          scores: {
+            assessmentCount: 12,
+            averagePercent: 78,
+            passedStudentsCount: 27,
+          },
+        });
+        setWatchlistStudents([]);
+        setSubjectAttendanceSummaries([]);
+        setActiveClassroomStudentIds([]);
+        setTodayCheckedSessionCount(1);
+        setSubjectAttendanceNamesToday(['โฮมรูม']);
+        setWeeklyAttendanceDays(
+          currentWeekDates.map((date, idx) => ({
+            dayLabel: SHORT_THAI_DAYS[idx] || '',
+            date,
+            checked: idx < 5 && date <= today,
+            isToday: date === today,
+          })),
+        );
+        setDailySavings({
+          todayDeposit: 1450,
+          todayWithdraw: 0,
+          todaySavers: 24,
+          studentsTotal: 29,
+          totalBalance: 42850,
+          monthlyDeposits: 18640,
+          dailyBars: currentWeekDates.slice(0, 5).map((date, idx) => ({
+            day: SHORT_THAI_DAYS[idx] || '',
+            fullDay: FULL_THAI_WEEKDAYS[idx] || '',
+            date,
+            amount: demoAmounts[idx] || 0,
+            isToday: date === today,
+          })),
+        });
+        setScoresSummary({
+          gradedAssessments: 8,
+          totalAssessments: 12,
+          averagePercent: 78,
+        });
+        return;
+      }
+
+      if (!supabase || !session.workspace || !selectedClassroomId) {
         setAnalyticsData(emptyAnalyticsData);
         setWatchlistStudents([]);
         setActiveClassroomStudentIds([]);
+        setTodayCheckedSessionCount(0);
+        setSubjectAttendanceNamesToday([]);
+        setWeeklyAttendanceDays(buildEmptyWeeklyAttendance(currentWeekDates, today));
+        setDailySavings({
+          todayDeposit: 0,
+          todayWithdraw: 0,
+          todaySavers: 0,
+          studentsTotal: 0,
+          totalBalance: 0,
+          monthlyDeposits: 0,
+          dailyBars: buildEmptyDailyBars(currentWeekDates, today),
+        });
+        setScoresSummary({ gradedAssessments: 0, totalAssessments: 0, averagePercent: 0 });
         return;
       }
 
       const targetClassroom = classrooms.find((c) => c.id === selectedClassroomId);
       const classroomName = targetClassroom ? targetClassroom.name : session.workspace.classroomName || 'ห้องเรียน';
 
-      const today = getBangkokDate();
-      const trendDates = Array.from({ length: 7 }, (_, index) => getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)));
-      const { data: attendanceSessionRows } = await supabase.from('attendance_sessions').select('id, attendance_date, period_label, subject_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).gte('attendance_date', trendDates[0]).lte('attendance_date', today).order('attendance_date', { ascending: true }).order('period_label', { ascending: true });
+      const trendDates = Array.from({ length: 7 }, (_, index) =>
+        getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)),
+      );
+      const minStartDate = currentWeekDates[0] < trendDates[0] ? currentWeekDates[0] : trendDates[0];
+
+      const { data: attendanceSessionRows } = await supabase
+        .from('attendance_sessions')
+        .select('id, attendance_date, period_label, subject_name')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', selectedClassroomId)
+        .gte('attendance_date', minStartDate)
+        .lte('attendance_date', today)
+        .order('attendance_date', { ascending: true })
+        .order('period_label', { ascending: true });
 
       const allAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map((item) => item.id);
-      const attendanceRecordsPromise = allAttendanceSessionIds.length > 0 ? supabase.from('attendance_records').select('session_id, student_id, status').eq('workspace_id', session.workspace.id).in('session_id', allAttendanceSessionIds) : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
+      const attendanceRecordsPromise =
+        allAttendanceSessionIds.length > 0
+          ? supabase
+              .from('attendance_records')
+              .select('session_id, student_id, status')
+              .eq('workspace_id', session.workspace.id)
+              .in('session_id', allAttendanceSessionIds)
+          : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
 
-      const [{ data: studentRows }, { data: attendanceRows }, { data: savingsAccountRows }, { data: savingsTxRows }, { data: scoreAssessments }, { data: scoreEntries }, { data: behaviorRows }, { data: homeVisitRows }, { data: careCaseRows }] = await Promise.all([
-        supabase.from('students').select('id, student_code, first_name, last_name').eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('status', 'active'),
+      const [
+        { data: studentRows },
+        { data: attendanceRows },
+        { data: savingsAccountRows },
+        { data: savingsTxRows },
+        { data: scoreAssessments },
+        { data: scoreEntries },
+        { data: behaviorRows },
+        { data: homeVisitRows },
+        { data: careCaseRows },
+      ] = await Promise.all([
+        supabase
+          .from('students')
+          .select('id, student_code, first_name, last_name')
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', selectedClassroomId)
+          .eq('status', 'active'),
         attendanceRecordsPromise,
-        supabase.from('savings_accounts').select('id, student_id, balance').eq('workspace_id', session.workspace.id),
-        supabase.from('savings_transactions').select('student_id, amount, transaction_type').eq('workspace_id', session.workspace.id),
-        supabase.from('score_assessments').select('id, max_score').eq('workspace_id', session.workspace.id),
-        supabase.from('score_entries').select('student_id, score, assessment_id').eq('workspace_id', session.workspace.id),
-        supabase.from('behavior_records').select('student_id, points, tone').eq('workspace_id', session.workspace.id),
-        supabase.from('student_home_visits').select('student_id, status').eq('workspace_id', session.workspace.id).in('status', ['submitted', 'certified']),
-        supabase.from('student_care_cases').select('id, student_id, summary, status, risk_level').eq('workspace_id', session.workspace.id).in('status', ['open', 'monitoring']),
+        supabase
+          .from('savings_accounts')
+          .select('id, student_id, balance')
+          .eq('workspace_id', session.workspace.id),
+        supabase
+          .from('savings_transactions')
+          .select('student_id, amount, transaction_type, transaction_date')
+          .eq('workspace_id', session.workspace.id),
+        supabase
+          .from('score_assessments')
+          .select('id, max_score')
+          .eq('workspace_id', session.workspace.id),
+        supabase
+          .from('score_entries')
+          .select('student_id, score, assessment_id')
+          .eq('workspace_id', session.workspace.id),
+        supabase
+          .from('behavior_records')
+          .select('student_id, points, tone')
+          .eq('workspace_id', session.workspace.id),
+        supabase
+          .from('student_home_visits')
+          .select('student_id, status')
+          .eq('workspace_id', session.workspace.id)
+          .in('status', ['submitted', 'certified']),
+        supabase
+          .from('student_care_cases')
+          .select('id, student_id, summary, status, risk_level')
+          .eq('workspace_id', session.workspace.id)
+          .in('status', ['open', 'monitoring']),
       ]);
 
       if (!isMounted) return;
@@ -734,8 +797,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
       setActiveClassroomStudentIds(Array.from(studentIds));
       const studentsCount = studentIds.size;
       const attendanceSessions = (attendanceSessionRows || []) as AttendanceSessionRow[];
-      const todayAttendanceSessionIds = new Set(attendanceSessions.filter((item) => item.attendance_date === today).map((item) => item.id));
+      const todaySessions = attendanceSessions.filter((item) => item.attendance_date === today);
+      const todayAttendanceSessionIds = new Set(todaySessions.map((item) => item.id));
       const todayAttendanceRows = (attendanceRows || []).filter((row) => todayAttendanceSessionIds.has(row.session_id));
+
       const recordsBySession = new Map<string, AttendanceRecordSummaryRow[]>();
       (attendanceRows || []).forEach((row) => {
         if (!row.session_id) return;
@@ -744,12 +809,29 @@ export function DashboardPage({ session }: DashboardPageProps) {
         recordsBySession.set(row.session_id, existing);
       });
 
-      // Real Attendance calculations
+      // Weekly Mon-Sun Attendance Dots
+      const checkedDatesSet = new Set(attendanceSessions.map((item) => item.attendance_date));
+      setWeeklyAttendanceDays(
+        currentWeekDates.map((date, idx) => ({
+          dayLabel: SHORT_THAI_DAYS[idx] || '',
+          date,
+          checked: checkedDatesSet.has(date),
+          isToday: date === today,
+        })),
+      );
+      setTodayCheckedSessionCount(todaySessions.length);
+      setSubjectAttendanceNamesToday(
+        todaySessions
+          .flatMap((s) => [s.subject_name, s.period_label])
+          .filter((v): v is string => Boolean(v && v.trim())),
+      );
+
+      // Attendance totals
       let present = 0;
       let late = 0;
       let leave = 0;
       let absent = 0;
-      const attendanceCheckedToday = todayAttendanceRows.length > 0;
+      const attendanceCheckedToday = todayAttendanceRows.length > 0 || todaySessions.length > 0;
 
       todayAttendanceRows.forEach((row) => {
         if (studentIds.has(row.student_id)) {
@@ -760,11 +842,52 @@ export function DashboardPage({ session }: DashboardPageProps) {
         }
       });
 
-      // Real Savings calculations
+      // Real Savings calculations (overall + daily + Mon-Fri chart)
       const classroomSavingsAccounts = (savingsAccountRows || []).filter((acc) => studentIds.has(acc.student_id));
       const activeSavingsAccounts = classroomSavingsAccounts.filter((acc) => Number(acc.balance || 0) > 0).length;
       const totalBalance = classroomSavingsAccounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
-      const monthlyDeposits = (savingsTxRows || []).filter((tx) => studentIds.has(tx.student_id) && tx.transaction_type === 'deposit').reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
+      const typedSavingsTxs = (savingsTxRows || []) as SavingsTransactionSummaryRow[];
+      const classroomDepositTxs = typedSavingsTxs.filter(
+        (tx) => studentIds.has(tx.student_id) && tx.transaction_type === 'deposit',
+      );
+      const classroomWithdrawTxs = typedSavingsTxs.filter(
+        (tx) => studentIds.has(tx.student_id) && tx.transaction_type === 'withdrawal',
+      );
+
+      const currentMonthPrefix = today.slice(0, 7);
+      const monthlyDeposits = classroomDepositTxs
+        .filter((tx) => !tx.transaction_date || String(tx.transaction_date).startsWith(currentMonthPrefix))
+        .reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0);
+
+      const todayDepositTxs = classroomDepositTxs.filter(
+        (tx) => String(tx.transaction_date || '').slice(0, 10) === today,
+      );
+      const todayDeposit = todayDepositTxs.reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0);
+      const todayWithdraw = classroomWithdrawTxs
+        .filter((tx) => String(tx.transaction_date || '').slice(0, 10) === today)
+        .reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0);
+      const todaySavers = new Set(todayDepositTxs.map((tx) => tx.student_id)).size;
+
+      const dailyBars = currentWeekDates.slice(0, 5).map((dateStr, idx) => ({
+        day: SHORT_THAI_DAYS[idx] || '',
+        fullDay: FULL_THAI_WEEKDAYS[idx] || '',
+        date: dateStr,
+        amount: classroomDepositTxs
+          .filter((tx) => String(tx.transaction_date || '').slice(0, 10) === dateStr)
+          .reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0),
+        isToday: dateStr === today,
+      }));
+
+      setDailySavings({
+        todayDeposit,
+        todayWithdraw,
+        todaySavers,
+        studentsTotal: studentsCount,
+        totalBalance,
+        monthlyDeposits,
+        dailyBars,
+      });
 
       // Real Behavior calculations
       let posPoints = 0;
@@ -786,8 +909,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const classroomScoreRecords = (scoreEntries || []).filter((sr) => studentIds.has(sr.student_id));
       let totalScorePct = 0;
       const studentScoresMap = new Map<string, number[]>();
+      const gradedAssessmentIds = new Set<string>();
 
       classroomScoreRecords.forEach((sr) => {
+        if (sr.assessment_id) gradedAssessmentIds.add(sr.assessment_id);
         const max = maxScoreMap.get(sr.assessment_id) || 100;
         const pct = Math.min(100, Math.max(0, (Number(sr.score || 0) / max) * 100));
         totalScorePct += pct;
@@ -802,10 +927,22 @@ export function DashboardPage({ session }: DashboardPageProps) {
         if (avg >= 50) passedStudentsCount++;
       });
 
-      const averagePercent = classroomScoreRecords.length > 0 ? Math.round(totalScorePct / classroomScoreRecords.length) : 0;
+      const averagePercent =
+        classroomScoreRecords.length > 0 ? Math.round(totalScorePct / classroomScoreRecords.length) : 0;
+
+      setScoresSummary({
+        gradedAssessments: gradedAssessmentIds.size,
+        totalAssessments: (scoreAssessments || []).length,
+        averagePercent,
+      });
+
       const attendanceTrend = trendDates.map((date) => {
-        const sessionIds = new Set(attendanceSessions.filter((item) => item.attendance_date === date).map((item) => item.id));
-        const records = (attendanceRows || []).filter((row) => sessionIds.has(row.session_id) && studentIds.has(row.student_id));
+        const sessionIds = new Set(
+          attendanceSessions.filter((item) => item.attendance_date === date).map((item) => item.id),
+        );
+        const records = (attendanceRows || []).filter(
+          (row) => sessionIds.has(row.session_id) && studentIds.has(row.student_id),
+        );
         return records.reduce(
           (summary, row) => {
             if (row.status === 'present' || row.status === 'activity') summary.present += 1;
@@ -854,7 +991,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
         },
       });
 
-      // Real Watchlist Students (from student_care_cases in DB)
       const classroomCareCases = (careCaseRows || []).filter((cc) => studentIds.has(cc.student_id));
       const watchlistItems: WatchlistStudentItem[] = classroomCareCases.map((cc) => {
         const st = studentMap.get(cc.student_id);
@@ -869,20 +1005,19 @@ export function DashboardPage({ session }: DashboardPageProps) {
       });
       setWatchlistStudents(watchlistItems);
 
-      const subjectSummaries = attendanceSessions
-        .filter((item) => item.attendance_date === today)
+      const subjectSummaries = todaySessions
         .filter((item) => Boolean(item.subject_name))
         .map((item) => {
           const records = recordsBySession.get(item.id) || [];
-          const present = records.filter((record) => record.status === 'present' || record.status === 'activity').length;
-          const absent = records.filter((record) => record.status === 'absent').length;
-          const late = records.filter((record) => record.status === 'late').length;
+          const pCount = records.filter((record) => record.status === 'present' || record.status === 'activity').length;
+          const aCount = records.filter((record) => record.status === 'absent').length;
+          const lCount = records.filter((record) => record.status === 'late').length;
           return {
-            absent,
+            absent: aCount,
             id: item.id,
-            late,
+            late: lCount,
             periodLabel: item.period_label,
-            present,
+            present: pCount,
             subjectName: item.subject_name || 'ไม่ระบุวิชา',
             total: records.length,
           };
@@ -896,6 +1031,115 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [classrooms, demoMode, selectedClassroomId, session.workspace]);
 
+  // Safe optional queries: daily_brief_logs, academic_terms, and workspace weekly classroom attendance
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWorkspaceBentoContext() {
+      const today = getBangkokDate();
+      const currentWeekDates = getBangkokWeekDates(today);
+
+      if (demoMode) {
+        const startDemo = getBangkokDate(new Date(Date.now() - 24 * 86_400_000));
+        const endDemo = getBangkokDate(new Date(Date.now() + 116 * 86_400_000));
+        setTeachingLogSummary({
+          todayCount: 1,
+          weeklyDaysLogged: 3,
+          weekdayFlags: [true, true, true, false, false],
+        });
+        setCurrentTerm({
+          termName: '2',
+          startDate: startDemo,
+          endDate: endDemo,
+        });
+        setWeekCheckedDatesByClassroom({ 'demo-classroom': 4 });
+        return;
+      }
+
+      if (!supabase || !session.workspace) {
+        return;
+      }
+
+      const workspaceId = session.workspace.id;
+
+      try {
+        const [briefRes, termRes, weekSessionsRes] = await Promise.all([
+          supabase
+            .from('daily_brief_logs')
+            .select('log_date')
+            .eq('workspace_id', workspaceId)
+            .gte('log_date', currentWeekDates[0])
+            .lte('log_date', currentWeekDates[4]),
+          supabase
+            .from('academic_terms')
+            .select('term_name, start_date, end_date, is_current, status')
+            .eq('workspace_id', workspaceId)
+            .order('is_current', { ascending: false })
+            .limit(5),
+          supabase
+            .from('attendance_sessions')
+            .select('classroom_id, attendance_date')
+            .eq('workspace_id', workspaceId)
+            .gte('attendance_date', currentWeekDates[0])
+            .lte('attendance_date', today),
+        ]);
+
+        if (!isMounted) return;
+
+        if (!briefRes.error && Array.isArray(briefRes.data)) {
+          const logDates = briefRes.data.map((r) => String(r.log_date || '').slice(0, 10));
+          const todayCount = logDates.filter((d) => d === today).length;
+          const loggedSet = new Set(logDates);
+          const weekdayFlags = currentWeekDates.slice(0, 5).map((d) => loggedSet.has(d));
+          setTeachingLogSummary({
+            todayCount,
+            weeklyDaysLogged: weekdayFlags.filter(Boolean).length,
+            weekdayFlags,
+          });
+        }
+
+        if (!termRes.error && Array.isArray(termRes.data) && termRes.data.length > 0) {
+          const terms = termRes.data as AcademicTermRow[];
+          const picked =
+            terms.find((t) => t.is_current) ||
+            terms.find((t) => t.status === 'open') ||
+            terms[0];
+          setCurrentTerm({
+            termName: picked?.term_name ?? null,
+            startDate: picked?.start_date ?? null,
+            endDate: picked?.end_date ?? null,
+          });
+        } else {
+          setCurrentTerm({ termName: null, startDate: null, endDate: null });
+        }
+
+        if (!weekSessionsRes.error && Array.isArray(weekSessionsRes.data)) {
+          const dateSetsByRoom = new Map<string, Set<string>>();
+          weekSessionsRes.data.forEach((row) => {
+            const cId = String(row.classroom_id || '');
+            const dStr = String(row.attendance_date || '').slice(0, 10);
+            if (!cId || !dStr) return;
+            const existing = dateSetsByRoom.get(cId) || new Set<string>();
+            existing.add(dStr);
+            dateSetsByRoom.set(cId, existing);
+          });
+          const countMap: Record<string, number> = {};
+          dateSetsByRoom.forEach((set, id) => {
+            countMap[id] = set.size;
+          });
+          setWeekCheckedDatesByClassroom(countMap);
+        }
+      } catch {
+        // Optional Bento metadata should never interrupt primary dashboard usage
+      }
+    }
+
+    void loadWorkspaceBentoContext();
+    return () => {
+      isMounted = false;
+    };
+  }, [demoMode, session.workspace]);
+
   // Load daily routines and the latest periodic health snapshots for the selected classroom.
   useEffect(() => {
     let isMounted = true;
@@ -904,19 +1148,32 @@ export function DashboardPage({ session }: DashboardPageProps) {
       if (!supabase || !session.workspace || !selectedClassroomId || demoMode) {
         setDailyHealthRecords([]);
         setLatestHealthRecords([]);
-        setHealthReportsLoading(false);
         return;
       }
 
-      setHealthReportsLoading(true);
       const today = getBangkokDate();
       const fields = 'student_id,record_type,status,record_date,weight_kg,height_cm,bmi,inspection_results';
-      const [{ data: dailyRows }, { data: snapshotRows }] = await Promise.all([supabase.from('student_health_records').select(fields).eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).eq('record_date', today).in('record_type', ['toothbrushing', 'milk', 'lunch']), supabase.from('student_health_records').select(fields).eq('workspace_id', session.workspace.id).eq('classroom_id', selectedClassroomId).in('record_type', ['growth', 'hygiene']).order('record_date', { ascending: false }).limit(1000)]);
+      const [{ data: dailyRows }, { data: snapshotRows }] = await Promise.all([
+        supabase
+          .from('student_health_records')
+          .select(fields)
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', selectedClassroomId)
+          .eq('record_date', today)
+          .in('record_type', ['toothbrushing', 'milk', 'lunch']),
+        supabase
+          .from('student_health_records')
+          .select(fields)
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', selectedClassroomId)
+          .in('record_type', ['growth', 'hygiene'])
+          .order('record_date', { ascending: false })
+          .limit(1000),
+      ]);
 
       if (!isMounted) return;
       setDailyHealthRecords((dailyRows || []) as HealthRecordSummaryRow[]);
       setLatestHealthRecords((snapshotRows || []) as HealthRecordSummaryRow[]);
-      setHealthReportsLoading(false);
     }
 
     void loadHealthReportSummary();
@@ -925,7 +1182,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [demoMode, selectedClassroomId, session.workspace]);
 
-  // Load Upcoming School Calendar Events (DB + Local Storage + Thai Holidays Preset + Realtime Sync)
+  // Load Upcoming School Calendar Events (DB + Local Storage + Thai Holidays Preset)
   useEffect(() => {
     let isMounted = true;
 
@@ -946,7 +1203,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const collected: UpcomingEvent[] = [];
       const seen = new Set<string>();
 
-      // 1. Load from Supabase if connected
       if (supabase && session.workspace && !demoMode) {
         try {
           const { data, error } = await supabase
@@ -979,13 +1235,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
         }
       }
 
-      // 2. Load from Local Storage Data Safety backup
       try {
         const storageKey = `classcare:data-safety:${session.workspace?.id || session.profile?.id}`;
         const raw = window.localStorage.getItem(storageKey);
         if (raw) {
-          const state = JSON.parse(raw) as { calendarRules?: Array<{ id: string; date: string; title: string; type: string }> };
-          (state.calendarRules || []).forEach((item) => {
+          const parsed = JSON.parse(raw) as {
+            calendarRules?: Array<{ id: string; date: string; title: string; type: string }>;
+          };
+          (parsed.calendarRules || []).forEach((item) => {
             if (item.date >= pastStr && item.date <= futureStr) {
               const key = `${item.date}|${item.title}`;
               if (!seen.has(key)) {
@@ -1004,7 +1261,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
         // ignore
       }
 
-      // 3. Supplement with Official Thai Public Holidays so teacher always has schedule context
       const presets = [...getThaiPublicHolidays(targetYear), ...getThaiPublicHolidays(targetYear + 1)];
       presets.forEach((p, idx) => {
         if (p.date >= pastStr && p.date <= futureStr) {
@@ -1021,12 +1277,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
         }
       });
 
-      // Sort ascending by date & group consecutive multi-day events
       collected.sort((a, b) => a.date.localeCompare(b.date));
       const groupedEvents = groupUpcomingEvents(collected);
 
       if (isMounted) {
-        setAllCalendarEvents(groupedEvents);
         const upcomingOnly = groupedEvents.filter((ev) => {
           const checkDate = ev.endDate || ev.date;
           return checkDate >= todayStr;
@@ -1047,59 +1301,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
       window.removeEventListener('classcare-calendar-updated', handleCalendarUpdate);
     };
   }, [demoMode, session.profile?.id, session.workspace]);
-
-  // Load Student Birthdays This Week (for selected classroom)
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadBirthdays() {
-      if (!supabase || !session.workspace || !selectedClassroomId || demoMode) {
-        // Demo mode: two fake birthdays
-        const today = new Date();
-        const fmt = (d: Date) => d.toISOString().slice(0, 10);
-        setBirthdayStudents([
-          { id: 'demo-b1', name: 'สมชาย ใจดี', birthDate: fmt(today), isToday: true },
-          { id: 'demo-b2', name: 'สมหญิง สุขใส', birthDate: fmt(new Date(today.getTime() + 2 * 86_400_000)), isToday: false },
-        ]);
-        return;
-      }
-
-      const { data: studentRows } = await supabase
-        .from('students')
-        .select('id, first_name, last_name, birth_date')
-        .eq('workspace_id', session.workspace.id)
-        .eq('classroom_id', selectedClassroomId)
-        .eq('status', 'active')
-        .not('birth_date', 'is', null);
-
-      if (!isMounted) return;
-
-      const todayDate = new Date();
-      const todayMD = `${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
-
-      const weekBirthdays: BirthdayStudent[] = [];
-      for (let offset = 0; offset < 7; offset++) {
-        const d = new Date(todayDate.getTime() + offset * 86_400_000);
-        const md = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        const dateStr = d.toISOString().slice(0, 10);
-        (studentRows || []).forEach((s) => {
-          const bd = String(s.birth_date || '').slice(5); // MM-DD
-          if (bd === md) {
-            weekBirthdays.push({
-              id: String(s.id),
-              name: `${s.first_name} ${s.last_name}`,
-              birthDate: dateStr,
-              isToday: md === todayMD,
-            });
-          }
-        });
-      }
-      setBirthdayStudents(weekBirthdays);
-    }
-
-    void loadBirthdays();
-    return () => { isMounted = false; };
-  }, [demoMode, selectedClassroomId, session.workspace]);
 
   // Load Pending Join Requests
   useEffect(() => {
@@ -1133,7 +1334,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
   }, [canManageCurrentWorkspace, demoMode, session.workspace]);
 
   const selectedClassroom = classrooms.find((c) => c.id === selectedClassroomId);
-
   const currentProfileId = session.profile?.id || '';
   const workspaceHomeroomName = session.workspace?.classroomName?.trim().toLowerCase() || '';
 
@@ -1149,21 +1349,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
   };
 
   const isSelectedClassroomHomeroom = isClassroomHomeroom(selectedClassroom);
-
-  // Attendance Trend Delta: compare last 3 days vs previous 3 days
-  const attendanceTrendDelta = useMemo(() => {
-    if (analyticsData.attendanceTrend.length < 6) return null;
-    const recent = analyticsData.attendanceTrend.slice(-3);
-    const prev = analyticsData.attendanceTrend.slice(-6, -3);
-    const avgRate = (days: typeof recent) => {
-      const totals = days.reduce((acc, d) => ({ present: acc.present + d.present, total: acc.total + d.total }), { present: 0, total: 0 });
-      return totals.total > 0 ? Math.round((totals.present / totals.total) * 100) : null;
-    };
-    const recentRate = avgRate(recent);
-    const prevRate = avgRate(prev);
-    if (recentRate === null || prevRate === null) return null;
-    return recentRate - prevRate;
-  }, [analyticsData.attendanceTrend]);
   const myAdvisoryClassroom = classrooms.find((c) => isClassroomHomeroom(c));
 
   const healthReportMetrics = useMemo<HealthReportMetric[]>(() => {
@@ -1178,27 +1363,50 @@ export function DashboardPage({ session }: DashboardPageProps) {
       });
 
     return healthReportConfigs.map((config) => {
-      const records = config.cadence === 'วันนี้' ? dailyHealthRecords.filter((record) => activeStudentIds.has(record.student_id) && record.record_type === config.key) : Array.from(latestByStudentAndType.values()).filter((record) => record.record_type === config.key);
+      const records =
+        config.cadence === 'วันนี้'
+          ? dailyHealthRecords.filter(
+              (record) => activeStudentIds.has(record.student_id) && record.record_type === config.key,
+            )
+          : Array.from(latestByStudentAndType.values()).filter((record) => record.record_type === config.key);
       const uniqueRecords = Array.from(new Map(records.map((record) => [record.student_id, record])).values());
       const recorded = uniqueRecords.length;
-      const completed = config.key === 'growth' ? uniqueRecords.filter((record) => record.weight_kg !== null && record.height_cm !== null && record.bmi !== null).length : uniqueRecords.filter((record) => ['completed', 'normal'].includes(record.status)).length;
+      const completed =
+        config.key === 'growth'
+          ? uniqueRecords.filter(
+              (record) => record.weight_kg !== null && record.height_cm !== null && record.bmi !== null,
+            ).length
+          : uniqueRecords.filter((record) => ['completed', 'normal'].includes(record.status)).length;
       const attention = uniqueRecords.filter((record) => ['missed', 'attention'].includes(record.status)).length;
-      const latestDate = uniqueRecords.reduce<string | undefined>((latest, record) => (!latest || record.record_date > latest ? record.record_date : latest), undefined);
+      const latestDate = uniqueRecords.reduce<string | undefined>(
+        (latest, record) => (!latest || record.record_date > latest ? record.record_date : latest),
+        undefined,
+      );
       return {
         ...config,
         attention,
         completed,
-        detail: config.cadence === 'วันนี้' ? `ประจำวันที่ ${formatThaiRecordDate(getBangkokDate())}` : `ล่าสุด ${formatThaiRecordDate(latestDate)}`,
+        detail:
+          config.cadence === 'วันนี้'
+            ? `ประจำวันที่ ${formatThaiRecordDate(getBangkokDate())}`
+            : `ล่าสุด ${formatThaiRecordDate(latestDate)}`,
         percent: total > 0 ? Math.min(100, Math.round((recorded / total) * 100)) : 0,
         recorded,
         total,
       };
     });
-  }, [activeClassroomStudentIds, analyticsData.dataCompleteness.studentsCount, dailyHealthRecords, latestHealthRecords]);
+  }, [
+    activeClassroomStudentIds,
+    analyticsData.dataCompleteness.studentsCount,
+    dailyHealthRecords,
+    latestHealthRecords,
+  ]);
 
-  const completedHealthReportCount = healthReportMetrics.filter((metric) => metric.total > 0 && metric.recorded >= metric.total).length;
-  const completedDailyRoutineCount = healthReportMetrics.filter((metric) => metric.cadence === 'วันนี้' && metric.total > 0 && metric.recorded >= metric.total).length;
-  const healthReportPath = (mode: HealthReportType) => `/app/dashboard?view=student-health&healthMode=${mode}${selectedClassroomId ? `&classroomId=${selectedClassroomId}` : ''}`;
+  const completedDailyRoutineCount = healthReportMetrics.filter(
+    (metric) => metric.cadence === 'วันนี้' && metric.total > 0 && metric.recorded >= metric.total,
+  ).length;
+  const healthReportPath = (mode: HealthReportType) =>
+    `/app/dashboard?view=student-health&healthMode=${mode}${selectedClassroomId ? `&classroomId=${selectedClassroomId}` : ''}`;
 
   const dynamicTodayTasks = [
     {
@@ -1207,7 +1415,9 @@ export function DashboardPage({ session }: DashboardPageProps) {
       label: 'เช็กเวลาเรียนประจำวัน',
       path: '/app/dashboard?view=teacher-work',
       status: analyticsData.dataCompleteness.attendanceCheckedToday ? 'เช็กแล้ว' : 'ทำตอนนี้',
-      tone: analyticsData.dataCompleteness.attendanceCheckedToday ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50',
+      tone: analyticsData.dataCompleteness.attendanceCheckedToday
+        ? 'text-emerald-700 bg-emerald-50'
+        : 'text-rose-700 bg-rose-50',
     },
     {
       detail: 'ตรวจรายการคะแนนที่บันทึกแล้วในระบบ',
@@ -1243,397 +1453,320 @@ export function DashboardPage({ session }: DashboardPageProps) {
     },
   ];
 
-  async function submitQuickLog(event: FormEvent) {
-    event.preventDefault();
-    if (!session.workspace?.id || !quickLog.trim()) return;
-    if (!supabase || demoMode) {
-      setQuickLog('');
-      setQuickLogNotice('บันทึกตัวอย่างลง Daily Brief วันนี้แล้ว (ไม่เขียนข้อมูลจริง)');
-      return;
-    }
-    const { error } = await supabase.from('daily_brief_logs').insert({
-      workspace_id: session.workspace.id,
-      classroom_id: selectedClassroomId || null,
-      log_date: getBangkokDate(),
-      log_type: 'quick',
-      body: quickLog.trim(),
-      created_by: session.profile.id,
+  // Derived Today Bento props
+  const todayHolidayTitle = useMemo(() => {
+    const todayEv = upcomingEvents.find((ev) => {
+      if (ev.endDate && ev.endDate !== ev.date) {
+        return todayDateStr >= ev.date && todayDateStr <= ev.endDate;
+      }
+      return ev.date === todayDateStr;
     });
-    if (error) setQuickLogNotice(error.message.includes('daily_brief_logs') ? 'กรุณาติดตั้ง migration 0044 เพื่อเปิด Quick Log' : 'บันทึกไม่สำเร็จ');
-    else {
-      setQuickLog('');
-      setQuickLogNotice('เพิ่มลง Daily Brief วันนี้แล้ว');
+    return todayEv?.type === 'holiday' ? todayEv.title : null;
+  }, [todayDateStr, upcomingEvents]);
+
+  const nextUpcomingEvent = useMemo(() => {
+    const nextEv = upcomingEvents.find((ev) => (ev.endDate || ev.date) > todayDateStr);
+    if (!nextEv) return null;
+    const targetMs = new Date(`${nextEv.date}T12:00:00+07:00`).getTime();
+    const todayMs = new Date(`${todayDateStr}T12:00:00+07:00`).getTime();
+    const daysFromNow = Math.max(1, Math.round((targetMs - todayMs) / 86_400_000));
+    return {
+      date: nextEv.date,
+      daysFromNow,
+      title: nextEv.title,
+      type: nextEv.type,
+    };
+  }, [todayDateStr, upcomingEvents]);
+
+  const readinessPercent = useMemo(() => {
+    let score = 0;
+    if (analyticsData.dataCompleteness.studentsCount > 0) score += 25;
+    if (
+      analyticsData.dataCompleteness.attendanceCheckedToday ||
+      weeklyAttendanceDays.some((dayItem) => dayItem.checked)
+    ) {
+      score += 25;
     }
-  }
+    if (scoresSummary.gradedAssessments > 0) score += 25;
+    if (analyticsData.behavior.totalRecords > 0 || analyticsData.dataCompleteness.homeVisitsCount > 0) {
+      score += 25;
+    }
+    return score;
+  }, [
+    analyticsData.behavior.totalRecords,
+    analyticsData.dataCompleteness.attendanceCheckedToday,
+    analyticsData.dataCompleteness.homeVisitsCount,
+    analyticsData.dataCompleteness.studentsCount,
+    scoresSummary.gradedAssessments,
+    weeklyAttendanceDays,
+  ]);
+
+  const classroomProgressItems = useMemo(() => {
+    const todayIdx = weekDates.indexOf(todayDateStr);
+    const elapsedSchoolDays = Math.max(1, Math.min(5, todayIdx >= 0 ? todayIdx + 1 : 5));
+    const countLookup = new Map(classroomStudentCounts.map((c) => [c.classroomId, c.count]));
+
+    return classrooms.slice(0, 3).map((room) => {
+      const checkedDays = weekCheckedDatesByClassroom[room.id] ?? 0;
+      const effectiveChecked =
+        room.id === selectedClassroomId && analyticsData.dataCompleteness.attendanceCheckedToday
+          ? Math.max(1, checkedDays)
+          : checkedDays;
+      const percent = demoMode
+        ? 86
+        : Math.min(100, Math.round((effectiveChecked / elapsedSchoolDays) * 100));
+      return {
+        id: room.id,
+        name: room.name,
+        studentCount: countLookup.get(room.id) ?? 0,
+        percent,
+      };
+    });
+  }, [
+    analyticsData.dataCompleteness.attendanceCheckedToday,
+    classroomStudentCounts,
+    classrooms,
+    demoMode,
+    selectedClassroomId,
+    todayDateStr,
+    weekCheckedDatesByClassroom,
+    weekDates,
+  ]);
+
+  const catchUpItems = useMemo(() => {
+    const isWeekend = currentThaiDay === 'เสาร์' || currentThaiDay === 'อาทิตย์';
+    const isRest = isWeekend || Boolean(todayHolidayTitle);
+    const items: Array<{
+      id: string;
+      title: string;
+      subtitle: string;
+      badge: string;
+      tone: string;
+      path: string;
+    }> = [];
+
+    if (!isRest && !analyticsData.dataCompleteness.attendanceCheckedToday) {
+      items.push({
+        id: 'attendance-today',
+        title: 'เช็กเวลาเรียนวันนี้',
+        subtitle: 'บันทึกสถานะนักเรียนช่วงเช้า / คาบสอน',
+        badge: 'ตอนนี้',
+        tone: 'bg-[#fff2e6] text-[#b45309]',
+        path: '/app/dashboard?view=teacher-work',
+      });
+    }
+
+    if (!isRest && completedDailyRoutineCount < 3 && analyticsData.dataCompleteness.studentsCount > 0) {
+      items.push({
+        id: 'health-routine',
+        title: 'กิจวัตรสุขภาพวันนี้',
+        subtitle: 'แปรงฟัน / ดื่มนม / อาหารกลางวัน',
+        badge: `${completedDailyRoutineCount}/3`,
+        tone: 'bg-[#eef6ff] text-[#1d547c]',
+        path: healthReportPath('toothbrushing'),
+      });
+    }
+
+    if (watchlistStudents.length > 0) {
+      items.push({
+        id: 'care-watchlist',
+        title: 'ติดตามเคสดูแลนักเรียน',
+        subtitle: 'ทบทวนนักเรียนที่มีสถานะเฝ้าระวัง',
+        badge: `${watchlistStudents.length} คน`,
+        tone: 'bg-[#fdf0f3] text-[#a3334c]',
+        path: '/app/dashboard?view=students&studentView=care',
+      });
+    }
+
+    if (canManageCurrentWorkspace && pendingJoinRequestCount > 0) {
+      items.push({
+        id: 'join-requests',
+        title: 'คำขอเข้าร่วมโรงเรียน',
+        subtitle: 'ตรวจสอบและอนุมัติสมาชิกใหม่',
+        badge: `${pendingJoinRequestCount} คน`,
+        tone: 'bg-[#f3efff] text-[#6d54c8]',
+        path: '/app/dashboard?view=workspace-settings',
+      });
+    }
+
+    return items;
+  }, [
+    analyticsData.dataCompleteness.attendanceCheckedToday,
+    analyticsData.dataCompleteness.studentsCount,
+    canManageCurrentWorkspace,
+    completedDailyRoutineCount,
+    currentThaiDay,
+    pendingJoinRequestCount,
+    selectedClassroomId,
+    todayHolidayTitle,
+    watchlistStudents.length,
+  ]);
+
+  const activeClassroomName = selectedClassroom
+    ? selectedClassroom.name
+    : session.workspace?.classroomName || 'ห้องเรียน';
 
   return (
     <main className="app-page dashboard-premium">
-      {/* Morning Sage & Warm Linen Botanical Hero Banner */}
-      <div className="botanical-banner relative flex flex-col gap-4 overflow-hidden p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <BotanicalCornerWatermark className="pointer-events-none absolute -bottom-4 right-2 opacity-60 sm:right-6" color="#2F7D5B" opacity={0.14} />
-
-        <div className="relative z-10 flex items-center gap-3.5 min-w-0">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#DCE3D7] bg-white shadow-xs sm:h-14 sm:w-14">
-            <AppLogo className="h-9 w-9 sm:h-10 sm:w-10" />
-          </div>
-          <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#2F7D5B]">
-              <Sun size={13} aria-hidden="true" />
-              ภาพรวมประจำวัน · {formatThaiRecordDate(getBangkokDate())}
-            </p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-xl font-bold tracking-tight text-[#1F2A22] sm:text-2xl">
-                สวัสดีตอนเช้า, {session.profile.displayName || 'คุณครู'}
-              </h1>
-              {(() => {
-                const vipBadge = getVipBadgeInfo(session.subscription, session.profile.role);
-                if (!vipBadge.isVip && vipBadge.tier !== 'trial') return null;
-                return (
-                  <Link
-                    to="/app/package"
-                    title={vipBadge.tooltip}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold shadow-2xs transition hover:brightness-[0.98] ${
-                      vipBadge.isVip
-                        ? vipBadge.isExpiringSoon
-                          ? 'border-rose-300 bg-rose-50 text-rose-800'
-                          : 'border-amber-300/90 bg-gradient-to-r from-[#fff8e1] to-[#fef3c7] text-[#78490a]'
-                        : 'border-sky-200 bg-sky-50 text-sky-800'
-                    }`}
-                  >
-                    <Crown
-                      size={12}
-                      className={vipBadge.isVip ? 'fill-amber-400/40 text-amber-600' : 'text-sky-600'}
-                      aria-hidden="true"
-                    />
-                    <span className="font-black">{vipBadge.badgeText}</span>
-                    {vipBadge.daysText ? (
-                      <>
-                        <span className="opacity-40">·</span>
-                        <span>{vipBadge.daysText}</span>
-                      </>
-                    ) : null}
-                  </Link>
-                );
-              })()}
-            </div>
-            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#5B6A5F]">
-              <span>{session.workspace?.schoolName || 'โรงเรียน'}</span>
-              <span>·</span>
-              <span className={isSelectedClassroomHomeroom ? 'inline-flex items-center gap-1 font-bold text-[#1C573D]' : 'text-[#1F2A22]'}>
-                {isSelectedClassroomHomeroom ? <Star size={12} className="fill-[#D98B26] text-[#D98B26]" aria-hidden="true" /> : null}
-                {isSelectedClassroomHomeroom ? 'ห้องที่ปรึกษา: ' : 'ห้องเรียน: '}
-                {selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
-              </span>
-              {isSelectedClassroomHomeroom && (
-                <span className="rounded-full border border-[#BFE0CD] bg-[#E6F4EC] px-2.5 py-0.5 text-xs font-bold text-[#1C573D]">
-                  ครูที่ปรึกษา
-                </span>
-              )}
-              {attendanceTrendDelta !== null && (
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${
-                    attendanceTrendDelta >= 0
-                      ? 'border-[#BFE0CD] bg-[#E6F4EC] text-[#1C573D]'
-                      : 'border-[#F0CFD7] bg-[#FBEFF2] text-[#8E354A]'
-                  }`}
-                  title="เปรียบเทียบอัตราการมาเรียน 3 วันล่าสุด กับ 3 วันก่อนหน้า"
-                >
-                  {attendanceTrendDelta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                  {attendanceTrendDelta >= 0 ? '+' : ''}{attendanceTrendDelta}% สัปดาห์นี้
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-          {/* Quick switch to advisory classroom if currently looking at another room */}
-          {myAdvisoryClassroom && selectedClassroomId !== myAdvisoryClassroom.id && (
-            <button
-              type="button"
-              onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
-              className="flex items-center gap-1.5 rounded-xl border border-[#F0D9AE] bg-[#FDF4E1] px-3.5 py-2 text-xs font-bold text-[#8B5312] shadow-2xs transition hover:bg-[#F9E7C4] active:scale-95"
-              title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
-            >
-              <Star size={13} className="fill-[#D98B26] text-[#D98B26]" aria-hidden="true" />
-              <span>กลับไปห้องที่ปรึกษา ({myAdvisoryClassroom.name})</span>
-            </button>
-          )}
-
-          {/* Classroom Selector Dropdown */}
-          {classrooms.length > 0 ? (
-            <div className="relative inline-block text-left">
-              <div
-                className={`flex items-center gap-2 rounded-xl border bg-white px-3.5 py-2 shadow-2xs transition-all ${
-                  isSelectedClassroomHomeroom
-                    ? 'border-[#BFE0CD] text-[#1C573D]'
-                    : 'border-[#DCE3D7] text-[#1F2A22]'
-                }`}
-              >
-                {isSelectedClassroomHomeroom ? (
-                  <Star className="fill-[#D98B26] text-[#D98B26]" size={15} aria-hidden="true" />
-                ) : (
-                  <School className="text-[#2F7D5B]" size={15} aria-hidden="true" />
-                )}
-                <span className="text-xs font-bold text-[#6F8073]">
-                  {isSelectedClassroomHomeroom ? 'ห้อง:' : 'เลือกห้อง:'}
-                </span>
-                <select
-                  className="cursor-pointer bg-transparent pr-4 text-xs font-bold text-[#1F2A22] focus:outline-none sm:text-sm"
-                  value={selectedClassroomId}
-                  onChange={(e) => setSelectedClassroomId(e.target.value)}
-                >
-                  {classrooms.map((c) => {
-                    const isHome = isClassroomHomeroom(c);
-                    return (
-                      <option key={c.id} value={c.id}>
-                        {isHome ? '[ห้องที่ปรึกษา] ' : ''}
-                        {c.name} ({c.academic_year || '2569'})
-                      </option>
-                    );
-                  })}
-                </select>
-                <ChevronDown className="pointer-events-none -ml-4 text-[#7B8A7E]" size={16} />
-              </div>
-            </div>
-          ) : null}
-
-          <Link
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2F7D5B] to-[#1C573D] px-5 text-sm font-bold text-white shadow-md shadow-[#2F7D5B]/25 transition-all hover:shadow-lg hover:brightness-105 active:scale-95"
-            to="/app/dashboard?view=teacher-work"
-          >
-            <CalendarClock size={17} aria-hidden="true" />
-            เช็กเวลาเรียน
-          </Link>
-        </div>
-      </div>
-
-      {/* Homepage Calendar Notification & Reminder Botanical Card */}
-      {(() => {
-        const todayStr = getBangkokDate();
-        const todayEvents = upcomingEvents.filter((ev) => {
-          if (ev.endDate && ev.endDate !== ev.date) {
-            return todayStr >= ev.date && todayStr <= ev.endDate;
-          }
-          return ev.date === todayStr;
-        });
-        const upcomingSlice = upcomingEvents.filter((ev) => {
-          const checkDate = ev.endDate || ev.date;
-          return checkDate > todayStr;
-        }).slice(0, 3);
-
-        if (todayEvents.length > 0) {
-          const primaryEvent = todayEvents[0];
-          const conf = eventTypeConfig[primaryEvent.type] || eventTypeConfig.custom;
-          const EventIcon = conf.icon;
-          return (
-            <section aria-label="แจ้งเตือนกิจกรรมวันนี้" className="relative mt-4 overflow-hidden rounded-2xl border border-[#F0D9AE] bg-gradient-to-b from-[#FFFDF8] to-[#FFF9EE] p-4 shadow-[0_6px_20px_-3px_rgba(217,139,38,0.12)] sm:px-5">
-              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#D98B26]" />
-              <BotanicalCardSprig className="absolute right-2 top-1" color="#D98B26" opacity={0.14} />
-
-              <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#F0D9AE] bg-[#FDF4E1] text-[#8B5312]">
-                    <Bell size={20} aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#D98B26] px-2.5 py-0.5 text-xs font-bold text-white">
-                        แจ้งเตือนวันนี้
-                      </span>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${conf.badge}`}>
-                        <EventIcon size={12} aria-hidden="true" />
-                        {conf.label}
-                      </span>
-                    </div>
-                    <h3 className="mt-1 truncate font-display text-base font-bold text-[#1F2A22] sm:text-lg">
-                      {todayEvents.map((e) => e.title).join(' · ')}
-                    </h3>
-                    <p className="mt-0.5 text-xs font-medium text-[#5B6A5F]">
-                      {todayEvents.length > 1
-                        ? `มีทั้งหมด ${todayEvents.length} รายการวันนี้`
-                        : primaryEvent.type === 'holiday'
-                        ? 'วันหยุดสถานศึกษา ระบบตั้งค่าข้ามการนับเวลาเรียนให้อัตโนมัติ'
-                        : primaryEvent.type === 'exam'
-                        ? 'มีกำหนดการสอบ โปรดตรวจสอบการบันทึกเวลาเรียนและเอกสารวัดผล'
-                        : 'กิจกรรมของโรงเรียนในวันนี้'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
-                  <Link
-                    to="/app/dashboard?view=school-calendar"
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#1C342B] px-4 text-xs font-bold text-white shadow-xs transition hover:bg-[#2F7D5B] active:scale-95"
-                  >
-                    <span>เปิดปฏิทินโรงเรียน</span>
-                    <ArrowRight size={14} />
-                  </Link>
-                </div>
-              </div>
-            </section>
-          );
-        }
-
-        if (upcomingSlice.length > 0) {
-          const featuredEvent = upcomingSlice[0];
-          const featuredConfig = eventTypeConfig[featuredEvent.type] || eventTypeConfig.custom;
-          const FeaturedIcon = featuredConfig.icon;
-          const featuredDate = new Date(`${featuredEvent.date}T00:00:00`);
-          const daysFromNow = Math.round((featuredDate.getTime() - Date.now()) / 86_400_000);
-          const featuredDateLabel = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long' }).format(featuredDate);
-          return (
-            <section aria-label="แจ้งเตือนกำหนดการเร็วๆ นี้" className="relative mt-4 overflow-hidden rounded-2xl border border-[#F0D9AE] bg-gradient-to-b from-[#FFFDF8] to-[#FFF9EE] p-4 shadow-[0_6px_20px_-3px_rgba(217,139,38,0.12)] sm:px-5">
-              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[#D98B26]" />
-              <BotanicalCardSprig className="absolute right-2 top-1" color="#D98B26" opacity={0.14} />
-              <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#F0D9AE] bg-[#FDF4E1] text-[#8B5312]">
-                    <Bell size={20} aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#D98B26] px-2.5 py-0.5 text-xs font-bold text-white">แจ้งเตือนกำหนดการ</span>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${featuredConfig.badge}`}>
-                        <FeaturedIcon size={12} aria-hidden="true" />
-                        {featuredConfig.label}
-                      </span>
-                      <span className="rounded-full border border-[#CBE1F2] bg-[#E9F3FA] px-2.5 py-0.5 text-xs font-bold text-[#1D547C]">{daysFromNow === 1 ? 'พรุ่งนี้' : `อีก ${daysFromNow} วัน`}</span>
-                    </div>
-                    <h3 className="mt-1 truncate font-display text-base font-bold text-[#1F2A22] sm:text-lg">{featuredEvent.title}</h3>
-                    <p className="mt-0.5 text-xs font-medium text-[#5B6A5F]">{featuredDateLabel}{upcomingSlice.length > 1 ? ` · มีกำหนดการถัดไปอีก ${upcomingSlice.length - 1} รายการ` : ' · กิจกรรมของโรงเรียนที่กำลังจะถึง'}</p>
-                  </div>
-                </div>
-                <Link to="/app/dashboard?view=school-calendar" className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 self-end rounded-xl bg-[#1C342B] px-4 text-xs font-bold text-white shadow-xs transition hover:bg-[#2F7D5B] sm:self-center">
-                  เปิดปฏิทินโรงเรียน <ArrowRight size={14} />
-                </Link>
-              </div>
-            </section>
-          );
-        }
-
-        return null;
-      })()}
-
-      <TeacherSchedulePreview
-        currentDay={currentThaiDay}
-        onClassroomChange={setScheduleClassFilter}
-        onDayChange={setMobileScheduleDay}
-        scheduleClassrooms={scheduleClassrooms}
-        scheduleClassFilter={scheduleClassFilter}
-        selectedDay={mobileScheduleDay}
-        settings={weeklySchedule}
-        totalPeriodCount={totalPeriodCount}
-      />
-
-      {/* Mode Selector Tabs: ทางลัดทุกเมนู vs แดชบอร์ดสถิติ */}
-      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3D7] bg-white p-1.5 shadow-2xs sm:w-fit">
-        <div className="flex w-full items-center gap-1.5 rounded-xl bg-[#EDF1EA] p-1 sm:w-auto">
+      {/* Compact Dashboard Header Strip */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="inline-flex w-full items-center rounded-full bg-[#edf0ea] p-1 sm:w-auto">
           <button
             type="button"
-            onClick={() => handleSetDashboardViewMode('shortcuts')}
-            className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold transition-all sm:flex-initial sm:gap-2 sm:px-4 ${
-              dashboardViewMode === 'shortcuts'
-                ? 'bg-white text-[#1C342B] shadow-xs ring-1 ring-[#BFE0CD]'
-                : 'text-[#5B6A5F] hover:bg-white/60 hover:text-[#1F2A22]'
+            onClick={() => handleSetDashboardViewMode('today')}
+            className={`flex-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition sm:flex-initial ${
+              dashboardViewMode === 'today'
+                ? 'bg-white text-[#1c573d] shadow-2xs'
+                : 'text-[#5b6a5f] hover:text-[#1f2924]'
             }`}
           >
-            <BookOpen size={15} className={dashboardViewMode === 'shortcuts' ? 'text-[#2F7D5B]' : 'text-[#7B8A7E]'} />
-            <span className="sm:hidden">ทางลัดทุกเมนู</span>
-            <span className="hidden sm:inline">ศูนย์รวมทางลัดทุกเมนู (โหมดง่าย)</span>
+            วันนี้
           </button>
-
           <button
             type="button"
             onClick={() => handleSetDashboardViewMode('analytics')}
-            className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold transition-all sm:flex-initial sm:gap-2 sm:px-4 ${
+            className={`flex-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition sm:flex-initial ${
               dashboardViewMode === 'analytics'
-                ? 'bg-white text-[#1D547C] shadow-xs ring-1 ring-[#CBE1F2]'
-                : 'text-[#5B6A5F] hover:bg-white/60 hover:text-[#1F2A22]'
+                ? 'bg-white text-[#1d547c] shadow-2xs'
+                : 'text-[#5b6a5f] hover:text-[#1f2924]'
             }`}
           >
-            <FileSpreadsheet size={15} className={dashboardViewMode === 'analytics' ? 'text-[#2D72A3]' : 'text-[#7B8A7E]'} />
-            <span className="sm:hidden">สถิติภาพรวม</span>
-            <span className="hidden sm:inline">สถิติ &amp; กราฟวิเคราะห์ห้องเรียน</span>
+            สถิติห้อง
           </button>
+          <button
+            type="button"
+            onClick={() => handleSetDashboardViewMode('shortcuts')}
+            className={`flex-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition sm:flex-initial ${
+              dashboardViewMode === 'shortcuts'
+                ? 'bg-white text-[#1c573d] shadow-2xs'
+                : 'text-[#5b6a5f] hover:text-[#1f2924]'
+            }`}
+          >
+            เมนูทั้งหมด
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {myAdvisoryClassroom && selectedClassroomId !== myAdvisoryClassroom.id ? (
+            <button
+              type="button"
+              onClick={() => setSelectedClassroomId(myAdvisoryClassroom.id)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#f0d9ae] bg-[#fdf4e1] px-3 py-1.5 text-xs font-bold text-[#8b5312] transition hover:bg-[#f9e7c4]"
+              title="สลับกลับไปดูข้อมูลห้องที่ปรึกษาของคุณทันที"
+            >
+              <Star size={12} className="fill-[#d98b26] text-[#d98b26]" aria-hidden="true" />
+              <span>กลับไป {myAdvisoryClassroom.name}</span>
+            </button>
+          ) : null}
+
+          {classrooms.length > 0 ? (
+            <div
+              className={`inline-flex items-center gap-1.5 rounded-full border bg-white px-3 py-1.5 shadow-2xs ${
+                isSelectedClassroomHomeroom
+                  ? 'border-[#bfe0cd] text-[#1c573d]'
+                  : 'border-[#e3e7e0] text-[#1f2924]'
+              }`}
+            >
+              {isSelectedClassroomHomeroom ? (
+                <Star size={13} className="shrink-0 fill-[#d98b26] text-[#d98b26]" aria-hidden="true" />
+              ) : (
+                <School size={13} className="shrink-0 text-[#2f7d5b]" aria-hidden="true" />
+              )}
+              <select
+                aria-label="เลือกห้องเรียน"
+                className="cursor-pointer appearance-none bg-transparent pr-4 text-xs font-bold text-[#1f2924] focus:outline-none"
+                value={selectedClassroomId}
+                onChange={(e) => setSelectedClassroomId(e.target.value)}
+              >
+                {classrooms.map((c) => {
+                  const isHome = isClassroomHomeroom(c);
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {isHome ? '★ ' : ''}
+                      {c.name} ({c.academic_year || '2569'})
+                    </option>
+                  );
+                })}
+              </select>
+              <ChevronDown className="pointer-events-none -ml-4 text-[#7b8a7e]" size={14} aria-hidden="true" />
+            </div>
+          ) : null}
+
+          {(() => {
+            const vipBadge = getVipBadgeInfo(session.subscription, session.profile.role);
+            if (!vipBadge.isVip && vipBadge.tier !== 'trial') return null;
+            return (
+              <Link
+                to="/app/package"
+                title={vipBadge.tooltip}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-bold transition hover:brightness-[0.98] ${
+                  vipBadge.isVip
+                    ? vipBadge.isExpiringSoon
+                      ? 'border-rose-300 bg-rose-50 text-rose-800'
+                      : 'border-amber-300/90 bg-gradient-to-r from-[#fff8e1] to-[#fef3c7] text-[#78490a]'
+                    : 'border-sky-200 bg-sky-50 text-sky-800'
+                }`}
+              >
+                <Crown
+                  size={12}
+                  className={vipBadge.isVip ? 'fill-amber-400/40 text-amber-600' : 'text-sky-600'}
+                  aria-hidden="true"
+                />
+                <span>{vipBadge.badgeText}</span>
+              </Link>
+            );
+          })()}
         </div>
       </div>
 
-      {dashboardViewMode === 'shortcuts' ? (
-        <section aria-label="งานประจำวันของห้องนี้" className="relative mt-4 overflow-hidden rounded-3xl border border-[#DCE3D7] bg-white p-4 shadow-xs sm:p-5 xl:p-6">
-          <BotanicalCornerWatermark className="pointer-events-none absolute -right-4 -top-4 rotate-180 opacity-40" color="#2F7D5B" opacity={0.1} />
-          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#BFE0CD] bg-[#E6F4EC] text-[#2F7D5B]">
-                <NotebookPen size={20} aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#2F7D5B]">TODAY · ห้องเรียนของเรา</p>
-                <h2 className="mt-0.5 font-display text-base font-bold text-[#1F2A22] sm:text-lg">งานประจำวันของห้องนี้</h2>
-                <p className="mt-0.5 text-xs font-medium text-[#5B6A5F]">เลือกการ์ดเพื่อเริ่มทำงานหรือดูสถานะล่าสุด</p>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#BFE0CD] bg-[#E6F4EC] px-3 py-1 text-xs font-bold text-[#1C573D]">
-              <CalendarCheck2 size={13} aria-hidden="true" />
-              {dynamicTodayTasks.length} งานวันนี้
-            </span>
-          </div>
-          <div className="relative z-10 mt-4 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-            {dynamicTodayTasks.slice(0, 4).map((task, index) => {
-              const Icon = task.icon;
-              const accentTop = ['bg-[#2F7D5B]', 'bg-[#2D72A3]', 'bg-[#6B63B5]', 'bg-[#D98B26]'][index % 4];
-              const sprigHex = ['#2F7D5B', '#2D72A3', '#6B63B5', '#D98B26'][index % 4];
-              const iconTone = [
-                'bg-[#E6F4EC] text-[#1C573D] border border-[#BFE0CD]',
-                'bg-[#E9F3FA] text-[#1D547C] border border-[#CBE1F2]',
-                'bg-[#F1F0FA] text-[#49428B] border border-[#D8D4F2]',
-                'bg-[#FDF4E1] text-[#8B5312] border border-[#F0D9AE]',
-              ][index % 4];
-              return (
-                <Link
-                  key={task.label}
-                  to={task.path}
-                  className="group relative flex min-h-[98px] items-center gap-3 overflow-hidden rounded-2xl border border-[#DCE3D7] bg-gradient-to-b from-white to-[#FAFBF8] p-3.5 pt-4 shadow-[0_4px_14px_-2px_rgba(28,52,43,0.06)] transition-all duration-200 hover:-translate-y-1 hover:border-[#8CC6A7] hover:shadow-[0_12px_24px_-4px_rgba(28,52,43,0.12)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B]"
-                >
-                  <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 h-[3px] ${accentTop}`} />
-                  <BotanicalCardSprig className="absolute -right-2 -top-2" color={sprigHex} opacity={0.14} />
-                  <span className={`relative z-10 grid h-11 w-11 shrink-0 place-items-center rounded-xl transition group-hover:scale-105 ${iconTone}`}>
-                    <Icon size={18} aria-hidden="true" />
-                  </span>
-                  <span className="relative z-10 min-w-0 flex-1">
-                    <span className="block font-display text-sm font-bold text-[#1F2A22]">{task.label}</span>
-                    <span className="mt-0.5 block truncate text-xs font-medium text-[#5B6A5F]">{task.detail}</span>
-                  </span>
-                  <span className={`relative z-10 shrink-0 rounded-full border border-white/80 px-2.5 py-1 text-xs font-bold shadow-2xs ${task.tone}`}>{task.status}</span>
-                  <ArrowRight aria-hidden="true" className="relative z-10 shrink-0 text-[#7B8A7E] transition group-hover:translate-x-0.5 group-hover:text-[#1F2A22]" size={15} />
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
-      {dashboardViewMode === 'shortcuts' ? (
-        <div className="mt-5">
-          <EasyShortcutHub
-            analyticsData={analyticsData}
-            classroomName={selectedClassroom ? selectedClassroom.name : session.workspace?.classroomName || 'ห้องเรียน'}
-            isHomeroom={isSelectedClassroomHomeroom}
-            session={session}
-          />
-        </div>
-      ) : (
+      {dashboardViewMode === 'today' ? (
+        <TodayBentoDashboard
+          catchUpItems={catchUpItems}
+          classroomName={activeClassroomName}
+          classroomProgressItems={classroomProgressItems}
+          currentThaiDay={currentThaiDay}
+          dailySavings={dailySavings}
+          isHomeroom={isSelectedClassroomHomeroom}
+          nextUpcomingEvent={nextUpcomingEvent}
+          onSelectClassroom={setSelectedClassroomId}
+          scoresSummary={scoresSummary}
+          selectedClassroomId={selectedClassroomId}
+          session={session}
+          subjectAttendanceNamesToday={subjectAttendanceNamesToday}
+          teachingLogSummary={teachingLogSummary}
+          termSummary={{
+            termName: currentTerm.termName,
+            startDate: currentTerm.startDate,
+            endDate: currentTerm.endDate,
+            readinessPercent,
+          }}
+          todayCheckedSessionCount={todayCheckedSessionCount}
+          todayDateStr={todayDateStr}
+          todayHolidayTitle={todayHolidayTitle}
+          weeklyAttendanceDays={weeklyAttendanceDays}
+          weeklySchedule={weeklySchedule}
+        />
+      ) : dashboardViewMode === 'analytics' ? (
         <SystemReportsDashboard
           analyticsData={analyticsData}
-          classroomName={selectedClassroom?.name || session.workspace?.classroomName || 'ห้องเรียน'}
+          classroomName={activeClassroomName}
           scheduleItems={upcomingEvents}
-          selectedDate={getBangkokDate()}
+          selectedDate={todayDateStr}
           stats={stats}
           subjectAttendanceSummaries={subjectAttendanceSummaries}
           todayTasks={dynamicTodayTasks}
         />
+      ) : (
+        <div className="space-y-6">
+          <EasyShortcutHub
+            analyticsData={analyticsData}
+            classroomName={activeClassroomName}
+            isHomeroom={isSelectedClassroomHomeroom}
+            session={session}
+          />
+          <AiFeatureShowcase session={session} />
+        </div>
       )}
     </main>
   );
-
 }

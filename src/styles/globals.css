@@ -272,7 +272,12 @@
   }
 
   .app-shell {
-    @apply min-h-screen bg-[#f6f7f3] text-[#1f2a22] lg:grid lg:grid-cols-[260px_minmax(0,1fr)];
+    @apply min-h-screen bg-[#f7f8f5] text-[#1f2924] lg:grid lg:grid-cols-[240px_minmax(0,1fr)];
+    transition: grid-template-columns 180ms ease;
+  }
+
+  .app-shell.is-sidebar-collapsed {
+    @apply lg:grid-cols-[72px_minmax(0,1fr)];
   }
 
   .app-shell-main {
@@ -280,19 +285,19 @@
   }
 
   .app-sidebar {
-    @apply flex flex-col overflow-hidden p-3;
-    background: linear-gradient(180deg, #1c342b 0%, #152821 100%);
-    border-right: 1px solid rgb(255 255 255 / 0.08);
+    @apply flex flex-col overflow-hidden p-3 text-[#1f2924];
+    background: #ffffff;
+    border-right: 1px solid #eceee9;
   }
 
   .app-sidebar-brand {
-    @apply flex shrink-0 min-w-0 items-center gap-2.5 border-b border-white/10 pb-3;
+    @apply flex shrink-0 min-w-0 items-center gap-2.5 border-b border-[#f0f2ee] pb-3;
   }
 
   .app-sidebar-nav {
-    @apply mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden pr-0.5;
+    @apply mt-2.5 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden pr-0.5;
     scrollbar-width: thin;
-    scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+    scrollbar-color: #d8dcd5 transparent;
   }
 
   .app-sidebar-nav::-webkit-scrollbar {
@@ -304,12 +309,12 @@
   }
 
   .app-sidebar-nav::-webkit-scrollbar-thumb {
-    background: rgb(255 255 255 / 0.18);
+    background: #d8dcd5;
     border-radius: 9999px;
   }
 
   .app-sidebar-nav::-webkit-scrollbar-thumb:hover {
-    background: rgb(255 255 255 / 0.32);
+    background: #b9c1b7;
   }
 
   .app-sidebar-section {
@@ -317,7 +322,7 @@
   }
 
   .app-sidebar-section-summary {
-    @apply flex h-9 w-full min-w-0 cursor-pointer list-none items-center justify-between gap-1.5 overflow-hidden rounded-xl px-2.5 text-[11.5px] font-bold tracking-wide text-[#d4e2da] transition border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.1] hover:border-[#86efac]/30 hover:text-white shadow-xs;
+    @apply flex h-9 w-full min-w-0 cursor-pointer list-none items-center justify-between gap-2 overflow-hidden rounded-xl px-2.5 text-xs font-bold tracking-wide text-[#5c6861] transition border border-transparent bg-transparent hover:bg-[#f3f4f1] hover:text-[#1f2924];
   }
 
   .app-sidebar-section > summary::-webkit-details-marker {
@@ -330,19 +335,19 @@
   }
 
   .app-sidebar-section-icon-badge {
-    @apply grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[#2f7d5b]/35 text-[#a7f3d0] border border-[#6ee7b7]/25;
+    @apply grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[#eef4f0] text-[#2f7d5b] border border-[#dce6de];
   }
 
   .app-sidebar-link {
-    @apply flex min-h-9 w-full min-w-0 overflow-hidden cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-[12px] font-semibold text-[#e1ece5] transition border border-transparent hover:bg-white/[0.09] hover:border-white/15 hover:text-white active:scale-[0.98];
+    @apply flex min-h-9 w-full min-w-0 overflow-hidden cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-[13px] font-medium text-[#4c5751] transition border border-transparent hover:bg-[#f3f4f1] hover:text-[#1f2924] active:scale-[0.98];
   }
 
   .app-sidebar-icon-box {
-    @apply grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.09] border border-white/10 text-[#cbe0d4] transition group-hover:bg-[#2f7d5b]/45 group-hover:border-[#6ee7b7]/35 group-hover:text-white;
+    @apply grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-transparent border border-transparent text-[#7c8780] transition group-hover:text-[#1f2924];
   }
 
   .app-sidebar-icon-box.is-active {
-    @apply bg-white/20 border-white/25 text-white;
+    @apply bg-transparent border-transparent text-[#2f7d5b];
   }
 
   /* Force clicks to hit the <a> tag directly (iOS Safari fix) */
@@ -353,11 +358,30 @@
   }
 
   .app-sidebar-link.is-active {
-    @apply bg-[#2f7d5b] border-[#52a580]/50 text-white font-bold shadow-[0_8px_18px_rgba(12,30,22,0.28)] ring-1 ring-white/15;
+    @apply bg-[#eaf5ef] border-[#bfe0cd]/70 text-[#1c573d] font-bold shadow-none;
+  }
+
+  .app-sidebar.is-collapsed {
+    @apply px-2;
+  }
+
+  .app-sidebar.is-collapsed .app-sidebar-brand {
+    @apply justify-center px-0;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-label,
+  .app-sidebar.is-collapsed .sidebar-full {
+    display: none !important;
+  }
+
+  .app-sidebar.is-collapsed .app-sidebar-link,
+  .app-sidebar.is-collapsed .app-sidebar-section-summary,
+  .app-sidebar.is-collapsed .app-admin-shortcut {
+    @apply justify-center px-0;
   }
 
   .app-admin-shortcut {
-    @apply mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-[#86efac]/25 bg-[#2f7d5b]/25 p-3 text-[#e6f4ec] transition hover:bg-[#2f7d5b]/40 shadow-xs active:scale-[0.98];
+    @apply mt-2.5 flex cursor-pointer items-center gap-2.5 rounded-xl border border-[#bfe0cd] bg-[#eaf5ef]/70 p-2.5 text-[#1c573d] transition hover:bg-[#eaf5ef] active:scale-[0.98];
   }
 
   .app-admin-shortcut > svg,
@@ -374,31 +398,57 @@
   }
 
   .app-admin-shortcut small {
-    @apply mt-0.5 text-[10px] font-medium text-[#b9d9c8];
+    @apply mt-0.5 text-[11px] font-medium text-[#2f7d5b];
   }
 
   .app-topbar {
-    @apply sticky top-0 z-30 flex h-16 items-center gap-2.5 border-b border-[#dce3d7] bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-7;
+    @apply sticky top-0 z-30 flex h-[56px] sm:h-[60px] items-center gap-2.5 border-b border-[#eceee9] bg-white/90 px-4 backdrop-blur-xl sm:px-6 lg:px-7;
   }
 
   .app-icon-button {
-    @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#dce3d7] bg-white text-[#4b594f] transition hover:border-[#2f7d5b]/40 hover:bg-[#fafbf8] hover:text-[#1f2a22];
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#e5e8e2] bg-[#fafbf9] text-[#55615a] transition hover:border-[#bfe0cd] hover:bg-white hover:text-[#1f2924];
   }
 
   .app-workspace-switcher {
-    @apply flex h-11 min-w-0 max-w-[235px] items-center gap-2 rounded-xl border border-[#dce3d7] bg-white px-2.5 transition hover:border-[#2f7d5b]/45 hover:bg-[#e6f4ec]/50;
+    @apply flex h-9 min-w-0 max-w-[225px] items-center gap-2 rounded-full border border-[#e5e8e2] bg-[#fafbf9] px-2.5 transition hover:border-[#bfe0cd] hover:bg-white;
   }
 
   .app-workspace-icon {
-    @apply grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#e6f4ec] text-[#1c573d];
+    @apply grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#eaf5ef] text-[#1c573d];
   }
 
   .app-global-search {
-    @apply ml-auto hidden h-10 min-w-0 max-w-[460px] flex-1 items-center gap-2 rounded-xl border border-[#dce3d7] bg-[#fafbf8] px-3 text-[#6c7b70] transition focus-within:border-[#2f7d5b] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#2f7d5b]/15 sm:flex;
+    @apply ml-auto hidden h-9 min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-full border border-[#e5e8e2] bg-[#fafbf9] px-3.5 text-[#6c7b70] transition focus-within:border-[#2f7d5b] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#2f7d5b]/10 sm:flex;
   }
 
   .app-global-search input {
-    @apply min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#1f2a22] outline-none placeholder:text-[#7c897f];
+    @apply min-w-0 flex-1 bg-transparent text-xs font-semibold text-[#1f2a22] outline-none placeholder:text-[#7c897f];
+  }
+
+  .bento-card {
+    background: #ffffff;
+    border: 1px solid #eceee9;
+    border-radius: 20px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025), 0 6px 18px -14px rgba(15, 23, 42, 0.08);
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .bento-card-clickable:hover {
+    transform: translateY(-2px);
+    border-color: #a7d4bc;
+    box-shadow: 0 10px 24px -14px rgba(15, 23, 42, 0.14);
+  }
+
+  main.app-page .bento-card {
+    border-radius: 20px;
+  }
+
+  main.app-page button.bento-card-clickable:hover {
+    transform: translateY(-2px);
+  }
+
+  main.app-page button.rounded-full {
+    border-radius: 9999px;
   }
 
   .app-global-search-wrap {

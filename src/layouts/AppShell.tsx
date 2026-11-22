@@ -33,6 +33,24 @@ interface AppShellProps {
 
 export function AppShell({ activeView, children, navItems, session }: AppShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem('classcare_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const handleToggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem('classcare_sidebar_collapsed', String(next));
+      } catch {
+        // Ignore storage errors
+      }
+      return next;
+    });
+  };
   const [isGuideOpen, setIsGuideOpen] = useState(() => {
     if (!hasAutoPoppedInCurrentSession) {
       hasAutoPoppedInCurrentSession = true;
@@ -99,7 +117,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
 
   return (
     <div
-      className="app-shell theme-light"
+      className={`app-shell theme-light ${isSidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}
       onClickCapture={(event) => recordMenuUsageFromNavigation(event.nativeEvent, session, navItems)}
     >
       <div className="app-ambient-background no-print print:hidden" aria-hidden="true">
@@ -110,10 +128,13 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
       </div>
       <Sidebar
         activeView={activeView}
+        isCollapsed={isSidebarCollapsed}
         isMobileOpen={isMenuOpen}
         maintenanceKeys={maintenanceKeys}
         navItems={navItems}
         onClose={() => setIsMenuOpen(false)}
+        onOpenGuide={() => setIsGuideOpen(true)}
+        onToggleCollapse={handleToggleSidebarCollapse}
         session={session}
       />
       <div className="app-shell-main">

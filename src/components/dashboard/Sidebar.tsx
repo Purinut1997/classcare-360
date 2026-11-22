@@ -1,16 +1,16 @@
+import { useEffect, useState } from 'react';
 import {
-  BookOpen,
   Building2,
   ChevronDown,
   ChevronRight,
-  ClipboardList,
   Crown,
   Heart,
   Lock,
   PanelLeftClose,
+  PanelLeftOpen,
+  Rocket,
   School,
   ServerCog,
-  Sparkles,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -28,10 +28,13 @@ import { AppLogo } from '../brand/AppLogo';
 
 interface SidebarProps {
   activeView: string;
+  isCollapsed?: boolean;
   isMobileOpen?: boolean;
   maintenanceKeys?: string[];
   navItems: AppNavItem[];
   onClose?: () => void;
+  onOpenGuide?: () => void;
+  onToggleCollapse?: () => void;
   session?: AppSessionContext;
 }
 
@@ -43,87 +46,98 @@ interface SidebarSectionConfig {
   itemKeys: string[];
 }
 
-const coreDirectItemKeys = [
+const TOTAL_ONBOARDING_STEPS = 5;
+
+const primaryDirectItemKeys = [
   'overview',
+  'teacher-work',
+  'students',
+  'scores',
+  'omr-scanner',
+  'schedule',
+  'academic-hub',
+  'student-health',
+  'savings',
 ];
 
 const sidebarSections: SidebarSectionConfig[] = [
   {
-    key: 'classroom-admin',
-    label: 'งานประจำวันในห้องเรียน',
-    icon: ClipboardList,
-    // Keep the first screen calm for new teachers; the active group opens automatically.
-    defaultOpen: false,
-    itemKeys: [
-      'students',              // รายชื่อและทะเบียนนักเรียน
-      'teacher-work',          // เช็กชื่อและสถิติเวลาเรียน
-      'classroom-operations',  // ตารางเวรทำความสะอาด
-      'student-health',        // สุขภาพและกิจวัตรประจำวัน
-      'savings',               // สมุดเงินออม
-      'daily-brief',           // สรุปบันทึกประจำวัน
-    ],
-  },
-  {
-    key: 'academic-assessment',
-    label: 'งานวิชาการ & วัดผล',
-    icon: BookOpen,
-    defaultOpen: false,
-    itemKeys: [
-      'schedule',              // ตารางสอน/ตารางเรียน
-      'scores',                // สมุดคะแนน & ตัดเกรด
-      'omr-scanner',           // ตรวจข้อสอบ (กระดาษ OMR)
-      'academic-hub',          // ศูนย์วิชาการ & เอกสาร ปพ.
-      'reports',               // พิมพ์รายงาน & สมุด ปพ.
-    ],
-  },
-  {
-    key: 'student-care',
-    label: 'ดูแลช่วยเหลือนักเรียน',
+    key: 'care-reports',
+    label: 'ดูแลนักเรียน & รายงาน',
     icon: Heart,
     defaultOpen: false,
     itemKeys: [
-      'behavior',              // พฤติกรรม & บันทึกความดี
-      'desirable-characteristics', // ประเมินคุณลักษณะ 8 ประการ
+      'behavior',
+      'classroom-operations',
+      'desirable-characteristics',
+      'daily-brief',
+      'reports',
+      'randomizer',
+      'school-calendar',
     ],
   },
   {
-    key: 'tools-calendar',
-    label: 'เครื่องมือช่วยสอน',
-    icon: Sparkles,
-    defaultOpen: false,
-    itemKeys: [
-      'randomizer',            // วงล้อสุ่มนักเรียน/จัดกลุ่ม
-      'school-calendar',       // ปฏิทินโรงเรียน
-    ],
-  },
-  {
-    key: 'school-management',
-    label: 'ตั้งค่าโรงเรียน & จัดการระบบ',
+    key: 'school-data',
+    label: 'จัดการโรงเรียน & ข้อมูล',
     icon: School,
     defaultOpen: false,
     itemKeys: [
-      'workspace-settings',    // ตั้งค่าโรงเรียน & ครู
-      'academic-year',         // ปีการศึกษา & ล็อกงวด (รวมล็อกงวดข้อมูลไว้ในแท็บ 1 แล้ว)
-      'import-export',         // นำเข้า / ส่งออกข้อมูล
-      'data-safety',           // สำรองข้อมูล & ถังขยะ
+      'workspace-settings',
+      'academic-year',
+      'import-export',
+      'data-safety',
+      'notifications',
+      'help-center',
     ],
   },
 ];
 
-const utilityItemKeys = ['notifications', 'help-center'];
+function readCompletedOnboardingCount(): number {
+  try {
+    const roadmapRaw = window.localStorage.getItem('classcare_roadmap_completed_steps');
+    const setupRaw = window.localStorage.getItem('classcare_setup_completed_steps');
+    const roadmapList = roadmapRaw ? JSON.parse(roadmapRaw) : [];
+    const setupList = setupRaw ? JSON.parse(setupRaw) : [];
+    const roadmapCount = Array.isArray(roadmapList) ? roadmapList.length : 0;
+    const setupCount = Array.isArray(setupList) ? setupList.length : 0;
+    return Math.min(TOTAL_ONBOARDING_STEPS, Math.max(roadmapCount, setupCount));
+  } catch {
+    return 0;
+  }
+}
+
+function getProfileInitials(displayName?: string): string {
+  const words = (displayName || 'ครู').trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
+}
 
 export function Sidebar({
   activeView,
+  isCollapsed = false,
   isMobileOpen = false,
   maintenanceKeys = [],
   navItems,
   onClose,
+  onOpenGuide,
+  onToggleCollapse,
   session,
 }: SidebarProps) {
   const maintenanceSet = new Set(maintenanceKeys);
   const planPolicies = usePlanAccessPolicies();
   const isSuperadmin = session?.profile.role === 'superadmin';
   const vipBadgeLabel = getRequiredTierBadgeLabel(session);
+  const [completedStepsCount, setCompletedStepsCount] = useState<number>(() => readCompletedOnboardingCount());
+
+  useEffect(() => {
+    const syncSteps = () => setCompletedStepsCount(readCompletedOnboardingCount());
+    window.addEventListener('storage', syncSteps);
+    window.addEventListener('focus', syncSteps);
+    return () => {
+      window.removeEventListener('storage', syncSteps);
+      window.removeEventListener('focus', syncSteps);
+    };
+  }, []);
+
   const isItemVipLocked = (item: AppNavItem) =>
     Boolean(session && !isSuperadmin && !canAccessViewByPlan(session, item.key, item.moduleKey, planPolicies));
   const showVipUpgradeMenu = Boolean(
@@ -131,7 +145,8 @@ export function Sidebar({
   );
   const vipUpgradeMeta = getVipUpgradeMeta(session?.subscription);
   const vipBadgeInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
-  const directItems = coreDirectItemKeys
+
+  const directItems = primaryDirectItemKeys
     .map((key) => navItems.find((item) => item.key === key))
     .filter((item): item is AppNavItem => Boolean(item));
 
@@ -147,11 +162,6 @@ export function Sidebar({
     })
     .filter((section) => section.items.length > 0);
 
-  const utilityItems = utilityItemKeys
-    .map((key) => navItems.find((item) => item.key === key))
-    .filter((item): item is AppNavItem => Boolean(item));
-  utilityItems.forEach((item) => renderedKeys.add(item.key));
-
   // Mark alias/integrated keys as rendered so they don't leak to 'อื่น ๆ'
   renderedKeys.add('automation');
   renderedKeys.add('workspace-switch');
@@ -165,299 +175,283 @@ export function Sidebar({
     (item) => !renderedKeys.has(item.key) && item.key !== 'superadmin-dashboard',
   );
 
-  const content = (
-    <>
-      <div className="app-sidebar-brand">
-        <AppLogo className="h-10 w-10 shrink-0 rounded-xl bg-white p-0.5 ring-1 ring-[#86efac]/30 shadow-xs" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-base font-extrabold tracking-tight text-white">ClassCare 360</p>
-          <p className="truncate text-[11px] font-semibold text-[#b7d9c6]">ดูแลทั้งห้อง ครบจบในระบบเดียว</p>
+  const isItemActive = (key: string) =>
+    key === activeView || (key === 'academic-year' && activeView === 'period-locks');
+
+  const renderSidebarNavItem = (item: AppNavItem) => {
+    const Icon = item.icon;
+    const isActive = isItemActive(item.key);
+    const isPaused = maintenanceSet.has(item.key);
+    const isVipLocked = isItemVipLocked(item);
+    const label = item.key === 'overview' ? 'วันนี้' : item.label;
+
+    return (
+      <Link
+        className={`app-sidebar-link group ${isActive ? 'is-active' : ''} ${isVipLocked ? 'opacity-80' : ''}`}
+        key={item.key}
+        onClick={onClose}
+        externalUrl={isVipLocked ? undefined : item.externalUrl}
+        title={isVipLocked ? `${label} — จำกัดสิทธิ์เฉพาะสมาชิก ${vipBadgeLabel}` : label}
+        to={item.path}
+      >
+        <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
+          <Icon size={16} aria-hidden="true" />
         </div>
-        <button
-          className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[#c5ddd0] hover:bg-white/10 hover:text-white lg:hidden"
-          aria-label="ปิดเมนู"
-          onClick={onClose}
-          type="button"
-        >
-          <X size={19} aria-hidden="true" />
-        </button>
-      </div>
-
-      {/* Top Workspace Selector Card */}
-      {session?.workspace ? (
-        <div className="shrink-0 pb-1 pt-2.5">
-          <Link
-            className="flex w-full min-w-0 items-center gap-2.5 rounded-2xl bg-white/[0.08] p-2.5 text-left ring-1 ring-white/15 transition hover:bg-white/[0.14] group"
-            onClick={onClose}
-            to="/app/select-workspace"
-            title="คลิกเพื่อสลับโรงเรียน / พื้นที่ทำงาน"
-          >
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#2f7d5b]/45 text-[#a7f3d0] group-hover:bg-[#2f7d5b]/65">
-              <Building2 size={16} aria-hidden="true" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <p className="min-w-0 flex-1 truncate text-xs font-bold text-white group-hover:text-[#a7f3d0]">
-                  {session.workspace.schoolName || session.workspace.name}
-                </p>
-                {vipBadgeInfo?.isVip ? (
-                  <span
-                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40"
-                    title={vipBadgeInfo.tooltip}
-                  >
-                    <Crown size={9} className="fill-amber-300/35" aria-hidden="true" />
-                    VIP
-                  </span>
-                ) : null}
-              </div>
-              <p className="truncate text-[10px] font-medium text-[#c5ddd0]">
-                ปี {session.workspace.academicYear || 'ปัจจุบัน'}
-                {vipBadgeInfo?.isVip
-                  ? ` · ${vipBadgeInfo.daysText}`
-                  : vipBadgeInfo?.tier === 'trial'
-                    ? ` · ${vipBadgeInfo.shortLabel}`
-                    : ' · สลับห้องเรียน'}
-              </p>
-            </div>
-          </Link>
-        </div>
-      ) : null}
-
-      <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
-        {/* Core Direct 1-Click Teacher Items */}
-        <div className="flex w-full min-w-0 shrink-0 flex-col gap-1.5">
-          {directItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = item.key === activeView;
-            return (
-              <Link
-                className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
-                key={item.key}
-                onClick={onClose}
-                externalUrl={item.externalUrl}
-                to={item.path}
-              >
-                <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
-                  <Icon size={16} aria-hidden="true" />
-                </div>
-                <span className="min-w-0 flex-1 truncate">{item.key === 'overview' ? 'ศูนย์รวมทางลัด & หน้าแรก' : item.label}</span>
-                {item.key === 'overview' && (
-                  <span className="shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-[#d1fae5]">
-                    หลัก
-                  </span>
-                )}
-                {!isActive && item.key !== 'overview' && (
-                  <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-[#b7d9c6] group-hover:translate-x-0.5 transition-all" />
-                )}
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Secondary Collapsible Groups */}
-        {secondarySections.map((section) => {
-          const isItemActive = (key: string) =>
-            key === activeView || (key === 'academic-year' && activeView === 'period-locks');
-          const hasActiveItem = section.items.some((item) => isItemActive(item.key));
-          const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
-          const SectionIcon = section.icon;
-          const badgeTone =
-            section.key === 'academic-assessment'
-              ? 'bg-sky-400/20 text-sky-200 border-sky-300/25'
-              : section.key === 'student-care'
-                ? 'bg-rose-400/20 text-rose-200 border-rose-300/25'
-                : section.key === 'tools-calendar'
-                  ? 'bg-amber-400/20 text-amber-200 border-amber-300/25'
-                  : section.key === 'school-management'
-                    ? 'bg-violet-400/20 text-violet-200 border-violet-300/25'
-                    : 'bg-[#2f7d5b]/40 text-[#a7f3d0] border-[#6ee7b7]/25';
-          const allItemsVipLocked =
-            section.items.length > 0 && section.items.every((item) => isItemVipLocked(item));
-          return (
-            <details className="app-sidebar-section mt-2" key={section.key} open={isSectionOpen}>
-              <summary className="app-sidebar-section-summary">
-                <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                  {SectionIcon && (
-                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border ${badgeTone}`}>
-                      <SectionIcon size={12} aria-hidden="true" />
-                    </span>
-                  )}
-                  <span className={`min-w-0 truncate font-bold ${section.key === 'classroom-admin' ? 'text-[#a7f3d0]' : ''}`}>
-                    {section.label}
-                  </span>
-                </span>
-                {allItemsVipLocked ? (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
-                    <Lock size={8} aria-hidden="true" />
-                    {vipBadgeLabel}
-                  </span>
-                ) : null}
-                <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-[#9fc0ae]" aria-hidden="true" />
-              </summary>
-              <div className="flex w-full min-w-0 flex-col gap-1 py-1 pl-1">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = isItemActive(item.key);
-                  const isPaused = maintenanceSet.has(item.key);
-                  const isVipLocked = isItemVipLocked(item);
-                  return (
-                    <Link
-                      className={`app-sidebar-link group ${isActive ? 'is-active' : ''} ${isVipLocked ? 'opacity-80' : ''}`}
-                      key={item.key}
-                      onClick={onClose}
-                      externalUrl={isVipLocked ? undefined : item.externalUrl}
-                      title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก ${vipBadgeLabel}` : item.label}
-                      to={item.path}
-                    >
-                      <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
-                        <Icon size={15} aria-hidden="true" />
-                      </div>
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {isPaused ? (
-                        <span className="shrink-0 rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
-                          ปรับปรุง
-                        </span>
-                      ) : isVipLocked ? (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40">
-                          <Lock size={9} aria-hidden="true" />
-                          {vipBadgeLabel}
-                        </span>
-                      ) : !isActive ? (
-                        <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
-                      ) : null}
-                    </Link>
-                  );
-                })}
-              </div>
-            </details>
-          );
-        })}
-
-        {otherItems.length > 0 ? (
-          <details className="app-sidebar-section mt-2" open={otherItems.some((item) => item.key === activeView)}>
-            <summary className="app-sidebar-section-summary">
-              <span className="font-black">อื่น ๆ</span>
-              <ChevronDown size={14} className="app-sidebar-chevron shrink-0 text-slate-400" aria-hidden="true" />
-            </summary>
-            <div className="flex w-full min-w-0 flex-col gap-1 py-1 pl-1">
-              {otherItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.key === activeView;
-                return (
-                  <Link
-                    className={`app-sidebar-link group ${isActive ? 'is-active' : ''}`}
-                    key={item.key}
-                    onClick={onClose}
-                    externalUrl={item.externalUrl}
-                    to={item.path}
-                  >
-                    <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
-                      <Icon size={15} aria-hidden="true" />
-                    </div>
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {!isActive && (
-                      <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </details>
+        <span className="sidebar-label min-w-0 flex-1 truncate">{label}</span>
+        {isPaused ? (
+          <span className="sidebar-label shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+            ปรับปรุง
+          </span>
+        ) : isVipLocked ? (
+          <span className="sidebar-label inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+            <Lock size={9} aria-hidden="true" />
+            {vipBadgeLabel}
+          </span>
+        ) : !isActive ? (
+          <ChevronRight
+            size={13}
+            className="sidebar-label ml-auto shrink-0 text-[#9aa59e] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-70"
+            aria-hidden="true"
+          />
         ) : null}
+      </Link>
+    );
+  };
 
-        {/* 🔻 Footer Utilities (แจ้งเตือน / คู่มือใช้งาน) */}
-        {utilityItems.length > 0 ? (
-          <div className="mt-2.5 flex w-full min-w-0 shrink-0 flex-col gap-1 border-t border-white/10 pt-2.5">
-            {utilityItems.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                item.key === activeView || (item.key === 'notifications' && activeView === 'automation');
-              const isPaused = maintenanceSet.has(item.key);
-              const isVipLocked = isItemVipLocked(item);
-              return (
-                <Link
-                  className={`app-sidebar-link group ${isActive ? 'is-active' : ''} ${isVipLocked ? 'opacity-80' : ''}`}
-                  key={item.key}
-                  onClick={onClose}
-                  externalUrl={isVipLocked ? undefined : item.externalUrl}
-                  title={isVipLocked ? `${item.label} — จำกัดสิทธิ์เฉพาะสมาชิก ${vipBadgeLabel}` : item.label}
-                  to={item.path}
-                >
-                  <div className={`app-sidebar-icon-box ${isActive ? 'is-active' : ''}`}>
-                    <Icon size={15} aria-hidden="true" />
-                  </div>
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {isPaused ? (
-                    <span className="shrink-0 rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/35">
-                      ปรับปรุง
+  const progressPercent = Math.round((completedStepsCount / TOTAL_ONBOARDING_STEPS) * 100);
+
+  const renderContent = (forMobileDrawer: boolean) => {
+    const collapsed = !forMobileDrawer && isCollapsed;
+    return (
+      <>
+        <div className="app-sidebar-brand">
+          {!collapsed ? (
+            <>
+              <AppLogo className="h-9 w-9 shrink-0 rounded-xl bg-white p-0.5 ring-1 ring-[#eceee9] shadow-2xs" />
+              <div className="sidebar-label min-w-0 flex-1">
+                <p className="truncate font-display text-[15px] font-extrabold tracking-tight text-[#1c573d]">ClassCare 360</p>
+                <p className="truncate text-[11px] font-semibold text-[#75827a]">ผู้ช่วยครูประจำชั้น</p>
+              </div>
+            </>
+          ) : null}
+          {!forMobileDrawer && onToggleCollapse ? (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              title={collapsed ? 'ขยายแถบเมนู' : 'พับแถบเมนู'}
+              aria-label={collapsed ? 'ขยายแถบเมนู' : 'พับแถบเมนู'}
+              className="hidden lg:grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#7c8780] transition hover:bg-[#f3f4f1] hover:text-[#1f2924]"
+            >
+              {collapsed ? <PanelLeftOpen size={16} aria-hidden="true" /> : <PanelLeftClose size={16} aria-hidden="true" />}
+            </button>
+          ) : null}
+          {forMobileDrawer ? (
+            <button
+              className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[#75827a] hover:bg-[#f3f4f1] hover:text-[#1f2924] lg:hidden"
+              aria-label="ปิดเมนู"
+              onClick={onClose}
+              type="button"
+            >
+              <X size={19} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+
+        {/* Compact Workspace Switcher Pill */}
+        {session?.workspace ? (
+          <div className="shrink-0 pb-1 pt-2.5">
+            <Link
+              className={`group flex w-full min-w-0 items-center gap-2 rounded-xl border border-[#eceee9] bg-[#fafbf9] p-2 text-left transition hover:border-[#bfe0cd] hover:bg-[#eaf5ef]/50 ${
+                collapsed ? 'justify-center px-0' : ''
+              }`}
+              onClick={onClose}
+              to="/app/select-workspace"
+              title={`${session.workspace.schoolName || session.workspace.name} — คลิกเพื่อสลับโรงเรียน`}
+            >
+              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#eaf5ef] text-[#2f7d5b] group-hover:bg-[#dcf0e5]">
+                <Building2 size={15} aria-hidden="true" />
+              </div>
+              <div className="sidebar-full min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <p className="min-w-0 flex-1 truncate text-xs font-bold text-[#1f2924] group-hover:text-[#1c573d]">
+                    {session.workspace.schoolName || session.workspace.name}
+                  </p>
+                  {vipBadgeInfo?.isVip ? (
+                    <span
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-black text-amber-800"
+                      title={vipBadgeInfo.tooltip}
+                    >
+                      <Crown size={9} className="fill-amber-400/40" aria-hidden="true" />
+                      VIP
                     </span>
-                  ) : isVipLocked ? (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200 ring-1 ring-amber-300/40">
-                      <Lock size={9} aria-hidden="true" />
-                      {vipBadgeLabel}
-                    </span>
-                  ) : !isActive ? (
-                    <ChevronRight size={13} className="ml-auto shrink-0 opacity-0 group-hover:opacity-60 text-slate-400 group-hover:translate-x-0.5 transition-all" />
                   ) : null}
-                </Link>
-              );
-            })}
+                </div>
+                <p className="truncate text-[11px] font-medium text-[#75827a]">
+                  ปี {session.workspace.academicYear || 'ปัจจุบัน'}
+                  {vipBadgeInfo?.isVip
+                    ? ` · ${vipBadgeInfo.daysText}`
+                    : vipBadgeInfo?.tier === 'trial'
+                      ? ` · ${vipBadgeInfo.shortLabel}`
+                      : ' · สลับโรงเรียน'}
+                </p>
+              </div>
+            </Link>
           </div>
         ) : null}
-      </nav>
 
-      {/* 👑 Dedicated VIP Upgrade / Renewal Menu for Non-Lifetime VIP Users */}
-      {showVipUpgradeMenu ? (
-        <Link
-          className={`mt-2.5 flex w-full min-w-0 shrink-0 items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition ${
-            activeView === 'package'
-              ? 'border-amber-300/70 bg-gradient-to-r from-amber-400/30 via-amber-500/25 to-yellow-400/20 text-white shadow-sm'
-              : 'border-amber-300/35 bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-transparent text-amber-100 hover:border-amber-300/60 hover:from-amber-500/30 hover:text-white'
-          }`}
-          onClick={onClose}
-          to="/app/package"
-        >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-400/25 text-amber-200 ring-1 ring-amber-300/40">
-            <Crown size={16} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <strong className="block truncate text-xs font-black text-amber-100">{vipUpgradeMeta.label}</strong>
-            <small className="block truncate text-[10px] font-semibold text-amber-200/80">{vipUpgradeMeta.subtitle}</small>
-          </span>
-          <ChevronRight size={14} className="shrink-0 text-amber-200/80" aria-hidden="true" />
-        </Link>
-      ) : null}
+        <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
+          {/* Tier 1: Core Direct 1-Click Items */}
+          <div className="flex w-full min-w-0 shrink-0 flex-col gap-0.5">
+            {directItems.map((item) => renderSidebarNavItem(item))}
+          </div>
 
-      {session?.profile.role === 'superadmin' ? (
-        <Link
-          className="app-admin-shortcut w-full min-w-0 shrink-0"
-          onClick={onClose}
-          to="/app/dashboard?view=superadmin-dashboard"
-        >
-          <ServerCog size={18} className="shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1">
-            <strong className="truncate">Superadmin</strong>
-            <small className="truncate">ศูนย์ควบคุมระบบ</small>
-          </span>
-        </Link>
-      ) : null}
+          <div className="my-2 border-t border-[#eff1ec]" />
 
-      <div className="mt-2.5 flex shrink-0 items-center justify-between border-t border-white/10 pt-2.5 text-[10px] font-bold text-slate-400">
-        <span className="truncate">Created by MIKPURINUT</span>
-        <PanelLeftClose size={15} className="shrink-0" aria-hidden="true" />
-      </div>
-    </>
-  );
+          {/* Tier 2: Collapsible Secondary Groups */}
+          {secondarySections.map((section) => {
+            const hasActiveItem = section.items.some((item) => isItemActive(item.key));
+            const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
+            const SectionIcon = section.icon;
+            return (
+              <details className="app-sidebar-section mt-0.5" key={section.key} open={isSectionOpen}>
+                <summary className="app-sidebar-section-summary" title={`${section.label} (${section.items.length} เมนู)`}>
+                  <span className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden ${collapsed ? 'justify-center' : ''}`}>
+                    {SectionIcon && (
+                      <SectionIcon size={15} className="shrink-0 text-[#7c8780]" aria-hidden="true" />
+                    )}
+                    <span className="sidebar-label min-w-0 truncate font-bold">
+                      {section.label}
+                    </span>
+                  </span>
+                  <span className="sidebar-label shrink-0 rounded-full bg-[#f1f3ef] px-1.5 py-0.5 text-[11px] font-semibold text-[#75827a] tabular-nums">
+                    {section.items.length}
+                  </span>
+                  <ChevronDown size={13} className="sidebar-label app-sidebar-chevron shrink-0 text-[#8b968f] transition-transform duration-150" aria-hidden="true" />
+                </summary>
+                <div className={`flex w-full min-w-0 flex-col gap-0.5 py-1 ${collapsed ? '' : 'pl-2'}`}>
+                  {section.items.map((item) => renderSidebarNavItem(item))}
+                </div>
+              </details>
+            );
+          })}
+
+          {otherItems.length > 0 ? (
+            <details className="app-sidebar-section mt-1" open={otherItems.some((item) => item.key === activeView)}>
+              <summary className="app-sidebar-section-summary">
+                <span className="sidebar-label font-bold">อื่น ๆ</span>
+                <ChevronDown size={13} className="sidebar-label app-sidebar-chevron shrink-0 text-[#8b968f]" aria-hidden="true" />
+              </summary>
+              <div className={`flex w-full min-w-0 flex-col gap-0.5 py-1 ${collapsed ? '' : 'pl-2'}`}>
+                {otherItems.map((item) => renderSidebarNavItem(item))}
+              </div>
+            </details>
+          ) : null}
+        </nav>
+
+        {/* Bottom Pinned Widgets */}
+        <div className="mt-2 space-y-2 border-t border-[#f0f2ee] pt-2.5 shrink-0">
+          {onOpenGuide ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose?.();
+                onOpenGuide();
+              }}
+              title="เปิดคู่มือเริ่มต้นใช้งาน"
+              className={`w-full rounded-xl border border-[#bfe0cd] bg-[#eaf5ef] px-3 py-2 text-left transition hover:brightness-[0.98] ${
+                collapsed ? 'flex justify-center px-0' : ''
+              }`}
+            >
+              {collapsed ? (
+                <Rocket size={16} className="text-[#2f7d5b]" aria-hidden="true" />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex items-center gap-1.5 font-bold text-[#1c573d]">
+                      <Rocket size={13} className="text-[#2f7d5b]" aria-hidden="true" />
+                      เริ่มต้นใช้งาน
+                    </span>
+                    <span className="font-extrabold text-[#2f7d5b] tabular-nums">
+                      {completedStepsCount}/{TOTAL_ONBOARDING_STEPS}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/85">
+                    <div
+                      className="h-full rounded-full bg-[#2f7d5b] transition-all duration-300"
+                      style={{ width: `${Math.max(progressPercent, 8)}%` }}
+                    />
+                  </div>
+                </>
+              )}
+            </button>
+          ) : null}
+
+          {showVipUpgradeMenu ? (
+            <Link
+              className={`flex w-full min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                activeView === 'package'
+                  ? 'border-amber-300 bg-amber-100 text-amber-950'
+                  : 'border-[#f2dc9b] bg-[#fff9e8] text-[#946208] hover:bg-[#fff3d1]'
+              } ${collapsed ? 'px-0' : ''}`}
+              onClick={onClose}
+              title={vipUpgradeMeta.label}
+              to="/app/package"
+            >
+              <Crown size={14} className="shrink-0 text-amber-600" aria-hidden="true" />
+              <span className="sidebar-full truncate">{vipUpgradeMeta.label}</span>
+            </Link>
+          ) : null}
+
+          {isSuperadmin ? (
+            <Link
+              className="app-admin-shortcut w-full min-w-0 shrink-0"
+              onClick={onClose}
+              title="Superadmin — ศูนย์ควบคุมระบบ"
+              to="/app/dashboard?view=superadmin-dashboard"
+            >
+              <ServerCog size={16} className="shrink-0" aria-hidden="true" />
+              <span className="sidebar-full min-w-0 flex-1">
+                <strong className="truncate">Superadmin</strong>
+                <small className="truncate">ศูนย์ควบคุมระบบ</small>
+              </span>
+            </Link>
+          ) : null}
+
+          {session ? (
+            <Link
+              className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-[#f3f4f1] ${
+                collapsed ? 'justify-center px-0' : ''
+              }`}
+              onClick={onClose}
+              title="ตั้งค่าบัญชีผู้ใช้"
+              to="/app/dashboard?view=workspace-settings&tab=account"
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#1f2924] text-xs font-bold text-white">
+                {getProfileInitials(session.profile.displayName)}
+              </span>
+              <span className="sidebar-full min-w-0 flex-1 text-left leading-tight">
+                <span className="block truncate text-xs font-bold text-[#1f2924]">
+                  {session.profile.displayName || 'คุณครู'}
+                </span>
+                <span className="block truncate text-[11px] font-medium text-[#7c8780]">
+                  {session.workspace?.schoolName || session.profile.schoolName || 'ClassCare 360'}
+                </span>
+              </span>
+            </Link>
+          ) : null}
+        </div>
+      </>
+    );
+  };
 
   return (
     <>
-      {/* 📱 Mobile Drawer Overlay Container */}
+      {/* Mobile Drawer Overlay Container */}
       <div
         className={`fixed inset-0 z-[100] lg:hidden ${
           isMobileOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
         }`}
       >
-        {/* Backdrop */}
         <div
           className={`absolute inset-0 bg-slate-950/60 transition-opacity duration-300 ${
             isMobileOpen ? 'opacity-100' : 'opacity-0'
@@ -465,20 +459,23 @@ export function Sidebar({
           onClick={onClose}
           aria-hidden="true"
         />
-        
-        {/* Mobile Sidebar Panel */}
+
         <aside
           className={`app-sidebar absolute inset-y-0 left-0 w-[280px] shadow-2xl transition-transform duration-300 ease-out ${
             isMobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          {content}
+          {renderContent(true)}
         </aside>
       </div>
 
       {/* Desktop Static Sidebar */}
-      <aside className="app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[260px]">
-        {content}
+      <aside
+        className={`app-sidebar hidden lg:sticky lg:top-0 lg:flex lg:h-screen ${
+          isCollapsed ? 'is-collapsed lg:w-[72px]' : 'lg:w-[240px]'
+        }`}
+      >
+        {renderContent(false)}
       </aside>
     </>
   );

@@ -75,18 +75,19 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
     };
   }, [isNotificationOpen]);
   const workspace = session?.workspace;
+  const displayLabel = activeLabel === 'ภาพรวม' ? 'วันนี้' : activeLabel;
   const vipInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
   const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
   const workspaceSummary = (
     <>
       <span className="app-workspace-icon">
-        <Building2 size={18} aria-hidden="true" />
+        <Building2 size={15} aria-hidden="true" />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-xs font-black text-slate-900">
+        <span className="block truncate text-xs font-bold text-[#1f2924]">
           {workspace?.schoolName || session?.profile.schoolName || 'ClassCare 360'}
         </span>
-        <span className="block truncate text-[11px] font-bold text-slate-500">
+        <span className="block truncate text-[10px] font-semibold text-[#75827a]">
           {workspace ? `${workspace.classroomName} · ${workspace.academicYear}` : 'พื้นที่ทำงานหลัก'}
         </span>
       </span>
@@ -101,12 +102,18 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         onClick={onMenuToggle}
         type="button"
       >
-        <Menu size={20} aria-hidden="true" />
+        <Menu size={19} aria-hidden="true" />
       </button>
+
+      <div className="min-w-0 flex items-center gap-2.5">
+        <h1 className="truncate font-display text-base font-extrabold tracking-tight text-[#1f2924] sm:text-[17px]">
+          {displayLabel}
+        </h1>
+      </div>
 
       {canSwitchWorkspace ? (
         <Link
-          className="app-workspace-switcher"
+          className="app-workspace-switcher hidden md:flex"
           to={withDemoContext('/app/select-workspace', location.search)}
           title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือกโรงเรียนหรือห้องเรียน'}
         >
@@ -114,17 +121,12 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         </Link>
       ) : (
         <div
-          className="app-workspace-switcher cursor-default"
+          className="app-workspace-switcher hidden cursor-default md:flex"
           title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'พื้นที่ทำงานหลัก'}
         >
           {workspaceSummary}
         </div>
       )}
-
-      <div className="hidden min-w-0 md:block">
-        <p className="truncate font-display text-sm font-bold text-[#1f2a22]">{activeLabel}</p>
-        <p className="truncate text-[11px] font-semibold text-[#5b6a5f]">พื้นที่ทำงานปัจจุบัน</p>
-      </div>
 
       <GlobalSearch navItems={navItems} session={session} />
 
@@ -132,12 +134,12 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
         <button
           type="button"
           onClick={onOpenGuide}
-          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[#dce3d7] bg-white px-3 text-xs font-bold text-[#4b594f] shadow-2xs transition hover:border-[#2f7d5b]/40 hover:bg-[#e6f4ec]/60 hover:text-[#1c573d] active:scale-95"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e8e2] bg-[#fafbf9] px-3 text-xs font-bold text-[#4b594f] transition hover:border-[#bfe0cd] hover:bg-white hover:text-[#1c573d] active:scale-95"
           aria-label="คู่มือแนะนำการใช้งานระบบ"
           title="เปิดตัวนำทางการใช้งานระบบ ClassCare 360 (5 ขั้นตอน)"
         >
-          <Compass size={16} className="text-[#2f7d5b]" aria-hidden="true" />
-          <span className="hidden md:inline">คู่มือเริ่มต้น</span>
+          <Compass size={15} className="text-[#2f7d5b]" aria-hidden="true" />
+          <span className="hidden xl:inline">คู่มือเริ่มต้น</span>
         </button>
       )}
 
