@@ -24,7 +24,12 @@ import {
   type ScheduleSettings,
 } from '../../lib/scheduleSettings';
 import type { AppSessionContext } from '../../types/core';
+import {
+  partitionCalendarEvents,
+  type SchoolCalendarDigestEvent,
+} from '../../lib/schoolCalendarDigest';
 import { AiFeatureShowcase } from './AiFeatureShowcase';
+import { SchoolCalendarDigestCard } from './SchoolCalendarDigestCard';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -106,6 +111,7 @@ export interface TodayBentoDashboardProps {
     tone: string;
     path: string;
   }>;
+  calendarEvents?: SchoolCalendarDigestEvent[];
   earlyWarningStudents?: StudentRiskSignalItem[];
 }
 
@@ -193,8 +199,17 @@ export function TodayBentoDashboard({
   classroomProgressItems,
   onSelectClassroom,
   catchUpItems,
+  calendarEvents = [],
   earlyWarningStudents = [],
 }: TodayBentoDashboardProps) {
+  const { todayEvents } = useMemo(
+    () => partitionCalendarEvents(calendarEvents, todayDateStr),
+    [calendarEvents, todayDateStr],
+  );
+  const todaySpecialEvents = useMemo(
+    () => todayEvents.filter((ev) => ev.type !== 'holiday'),
+    [todayEvents],
+  );
   const [nowMinutes, setNowMinutes] = useState<number>(() => getBangkokNowMinutes());
   const [isAiExpanded, setIsAiExpanded] = useState<boolean>(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -341,13 +356,49 @@ export function TodayBentoDashboard({
               <p className="mt-1 text-xs font-medium text-[#75827a]">
                 ไม่มีคาบเรียนวันนี้ ระบบจึงไม่สร้างงานเช็กชื่อให้
               </p>
-              <Link
-                to="/app/dashboard?view=schedule"
-                className="mt-3.5 inline-flex items-center gap-1 rounded-full bg-[#eaf5ef] px-4 py-1.5 text-xs font-bold text-[#1c573d] transition hover:brightness-95"
-              >
-                <span>ดูตารางเต็ม</span>
-                <ChevronRight size={14} aria-hidden="true" />
-              </Link>
+              {todaySpecialEvents.length > 0 ? (
+                <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
+                  {todaySpecialEvents.slice(0, 2).map((ev) => (
+                    <Link
+                      key={ev.id}
+                      to="/app/dashboard?view=school-calendar"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-800 transition hover:bg-purple-100"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                      <span className="max-w-[220px] truncate">วันนี้ · {ev.title}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+              {nextUpcomingEvent ? (
+                <Link
+                  to="/app/dashboard?view=school-calendar"
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-[#f2dc9b] bg-[#fffaf0] px-3 py-1 text-xs font-semibold text-[#946208] transition hover:bg-[#fff3d6]"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#d98b26]" />
+                  <span className="max-w-[260px] truncate">
+                    {nextUpcomingEvent.daysFromNow === 1
+                      ? 'พรุ่งนี้'
+                      : `อีก ${nextUpcomingEvent.daysFromNow} วัน`}{' '}
+                    · {nextUpcomingEvent.title}
+                  </span>
+                </Link>
+              ) : null}
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  to="/app/dashboard?view=schedule"
+                  className="inline-flex items-center gap-1 rounded-full bg-[#eaf5ef] px-4 py-1.5 text-xs font-bold text-[#1c573d] transition hover:brightness-95"
+                >
+                  <span>ดูตารางเต็ม</span>
+                  <ChevronRight size={14} aria-hidden="true" />
+                </Link>
+                <Link
+                  to="/app/dashboard?view=school-calendar"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#dce3d7] bg-white px-3.5 py-1.5 text-xs font-bold text-[#4c5751] transition hover:bg-[#fafbf9]"
+                >
+                  <span>ปฏิทินโรงเรียน</span>
+                </Link>
+              </div>
             </div>
           ) : (
             <>
@@ -358,6 +409,18 @@ export function TodayBentoDashboard({
                       <span className="h-1.5 w-1.5 rounded-full bg-[#2f7d5b]" />
                       {formatThaiShortDate(todayDateStr)} · {todayLessons.length} คาบวันนี้
                     </span>
+                    {todayEvents.length > 0 ? (
+                      <Link
+                        to="/app/dashboard?view=school-calendar"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-800 transition hover:bg-purple-100"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                        <span className="max-w-[200px] truncate">
+                          วันนี้: {todayEvents[0].title}
+                          {todayEvents.length > 1 ? ` (+${todayEvents.length - 1})` : ''}
+                        </span>
+                      </Link>
+                    ) : null}
                     {nextUpcomingEvent ? (
                       <Link
                         to="/app/dashboard?view=school-calendar"
@@ -973,6 +1036,13 @@ export function TodayBentoDashboard({
           )}
         </section>
       </div>
+
+      {/* ROW 3.2: SCHOOL CALENDAR & UPCOMING DIGEST */}
+      <SchoolCalendarDigestCard
+        events={calendarEvents}
+        todayDateStr={todayDateStr}
+        variant="today-bento"
+      />
 
       {/* ROW 3.5: STUDENT 360° EARLY-WARNING RISK CARD */}
       {earlyWarningStudents.length > 0 && (

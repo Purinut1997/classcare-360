@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
+import { SchoolCalendarDigestCard } from '../../components/dashboard/SchoolCalendarDigestCard';
 import {
   TermAttendanceHeatmap,
   type TermHeatmapDayItem,
@@ -22,6 +23,10 @@ import {
 import { isDemoSession } from '../../lib/auth';
 import { getBangkokDate } from '../../lib/date';
 import { calculateOBECGrade } from '../../lib/obecAcademicEngine';
+import {
+  loadSchoolCalendarDigest,
+  type SchoolCalendarDigestEvent,
+} from '../../lib/schoolCalendarDigest';
 import {
   computeAttendanceStreaksAndRates,
   evaluateStudentRiskSignals,
@@ -256,9 +261,23 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
   const [careCases, setCareCases] = useState<OverviewCareCaseRow[]>([]);
   const [homeVisits, setHomeVisits] = useState<OverviewHomeVisitRow[]>([]);
   const [termName, setTermName] = useState<string | null>(null);
+  const [calendarEvents, setCalendarEvents] = useState<SchoolCalendarDigestEvent[]>([]);
 
   useEffect(() => {
     let mounted = true;
+
+    const refreshCalendar = () => {
+      void loadSchoolCalendarDigest({
+        workspaceId,
+        profileId: session.profile.id,
+        demoMode,
+        limit: 12,
+      }).then((items) => {
+        if (mounted) setCalendarEvents(items);
+      });
+    };
+
+    window.addEventListener('classcare-calendar-updated', refreshCalendar);
 
     async function loadAllWorkspaceStats() {
       if (demoMode) {
@@ -277,11 +296,13 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
         setCareCases(demo.careCases);
         setHomeVisits(demo.homeVisits);
         setTermName(demo.termName);
+        refreshCalendar();
         setIsLoading(false);
         return;
       }
 
       if (!supabase || !workspaceId) {
+        refreshCalendar();
         setIsLoading(false);
         return;
       }
@@ -305,6 +326,7 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
         careRes,
         visitRes,
         termRes,
+        calendarRes,
       ] = await Promise.all([
         supabase
           .from('classrooms')
@@ -368,6 +390,12 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
           .eq('workspace_id', workspaceId)
           .order('is_current', { ascending: false })
           .limit(3),
+        loadSchoolCalendarDigest({
+          workspaceId,
+          profileId: session.profile.id,
+          demoMode: false,
+          limit: 12,
+        }),
       ]);
 
       if (!mounted) return;
@@ -420,6 +448,7 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
       setHealthRows((healthRes.data || []) as OverviewHealthRow[]);
       setCareCases((careRes.data || []) as OverviewCareCaseRow[]);
       setHomeVisits((visitRes.data || []) as OverviewHomeVisitRow[]);
+      setCalendarEvents(calendarRes);
 
       const pickedTerm =
         (termRes.data || []).find((t) => t.is_current) ||
@@ -432,6 +461,7 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
     void loadAllWorkspaceStats();
     return () => {
       mounted = false;
+      window.removeEventListener('classcare-calendar-updated', refreshCalendar);
     };
   }, [demoMode, session.profile.id, session.workspace?.academicYear, todayStr, workspaceId]);
 
@@ -1163,6 +1193,13 @@ export function SystemOverviewPage({ session }: SystemOverviewPageProps) {
                 </div>
               </article>
             </div>
+
+            {/* Row 3.5: School Calendar & Upcoming Digest */}
+            <SchoolCalendarDigestCard
+              events={calendarEvents}
+              todayDateStr={todayStr}
+              variant="overview"
+            />
 
             {/* Row 4: Per-Classroom Comparison Breakdown (when viewing 'all' with 2+ rooms) */}
             {selectedClassroomId === 'all' && classrooms.length > 1 ? (

@@ -31,7 +31,10 @@ import { TodayBentoDashboard } from '../../components/dashboard/TodayBentoDashbo
 import type { TermHeatmapDayItem } from '../../components/dashboard/TermAttendanceHeatmap';
 import { getHiddenClassroomIds, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 import { hydrateHiddenClassroomsFromCloud } from '../../lib/workspaceCloudPrefs';
-import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
+import {
+  loadSchoolCalendarDigest,
+  type SchoolCalendarDigestEvent,
+} from '../../lib/schoolCalendarDigest';
 import {
   computeAttendanceStreaksAndRates,
   evaluateStudentRiskSignals,
@@ -114,17 +117,6 @@ interface AcademicTermRow {
   term_name: string | null;
 }
 
-type UpcomingEventType = 'holiday' | 'exam' | 'activity' | 'makeup' | 'custom';
-
-interface UpcomingEvent {
-  date: string;
-  endDate?: string;
-  durationDays?: number;
-  id: string;
-  title: string;
-  type: UpcomingEventType;
-}
-
 const SHORT_THAI_DAYS = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'] as const;
 const FULL_THAI_WEEKDAYS = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'] as const;
 const THAI_DAY_NAMES = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'] as const;
@@ -155,44 +147,6 @@ function buildEmptyDailyBars(weekDates: string[], todayStr: string) {
     amount: 0,
     isToday: date === todayStr,
   }));
-}
-
-function groupUpcomingEvents(events: UpcomingEvent[]): UpcomingEvent[] {
-  if (events.length === 0) return [];
-  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
-  const grouped: UpcomingEvent[] = [];
-
-  for (const ev of sorted) {
-    const last = grouped[grouped.length - 1];
-    if (
-      last &&
-      last.title.trim().toLowerCase() === ev.title.trim().toLowerCase() &&
-      last.type === ev.type
-    ) {
-      const lastEndDate = last.endDate || last.date;
-      const lastDateTime = new Date(`${lastEndDate}T00:00:00`).getTime();
-      const currDateTime = new Date(`${ev.date}T00:00:00`).getTime();
-      const diffDays = Math.round((currDateTime - lastDateTime) / 86_400_000);
-
-      if (diffDays === 1) {
-        last.endDate = ev.date;
-        const startDateTime = new Date(`${last.date}T00:00:00`).getTime();
-        last.durationDays = Math.round((currDateTime - startDateTime) / 86_400_000) + 1;
-        continue;
-      }
-      if (diffDays === 0) {
-        continue;
-      }
-    }
-
-    grouped.push({
-      ...ev,
-      endDate: ev.endDate || ev.date,
-      durationDays: ev.durationDays || 1,
-    });
-  }
-
-  return grouped;
 }
 
 type HealthReportType = 'toothbrushing' | 'milk' | 'lunch' | 'growth' | 'hygiene';
@@ -336,7 +290,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const [weeklySchedule, setWeeklySchedule] = useState<ScheduleSettings>(() =>
     loadScheduleSettings(session.workspace?.classroomName, session.workspace?.id),
   );
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<SchoolCalendarDigestEvent[]>([]);
 
   // Today Bento state
   const [todayCheckedSessionCount, setTodayCheckedSessionCount] = useState(0);
@@ -1319,105 +1273,15 @@ export function DashboardPage({ session }: DashboardPageProps) {
     let isMounted = true;
 
     async function loadUpcomingEvents() {
-      const todayStr = getBangkokDate();
-      const todayObj = new Date();
-      const targetYear = todayObj.getFullYear();
-      const pastDate = new Date(Date.now() - 35 * 86_400_000);
-      const pastStr = getBangkokDate(pastDate);
-      const futureDate = new Date(Date.now() + 120 * 86_400_000);
-      const futureStr = getBangkokDate(futureDate);
-
-      const toEventType = (t: string): UpcomingEventType => {
-        if (t === 'holiday' || t === 'exam' || t === 'activity' || t === 'makeup') return t;
-        return 'custom';
-      };
-
-      const collected: UpcomingEvent[] = [];
-      const seen = new Set<string>();
-
-      if (supabase && session.workspace && !demoMode) {
-        try {
-          const { data, error } = await supabase
-            .from('school_calendar_days')
-            .select('id, calendar_date, title, day_type')
-            .eq('workspace_id', session.workspace.id)
-            .gte('calendar_date', pastStr)
-            .lte('calendar_date', futureStr)
-            .neq('day_type', 'school_day')
-            .order('calendar_date', { ascending: true })
-            .limit(100);
-
-          if (!error && data) {
-            data.forEach((row) => {
-              const d = String(row.calendar_date).slice(0, 10);
-              const key = `${d}|${row.title}`;
-              if (!seen.has(key)) {
-                seen.add(key);
-                collected.push({
-                  id: String(row.id),
-                  date: d,
-                  title: String(row.title),
-                  type: toEventType(String(row.day_type || 'custom')),
-                });
-              }
-            });
-          }
-        } catch {
-          // ignore error and proceed to local storage
-        }
-      }
-
-      try {
-        const storageKey = `classcare:data-safety:${session.workspace?.id || session.profile?.id}`;
-        const raw = window.localStorage.getItem(storageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw) as {
-            calendarRules?: Array<{ id: string; date: string; title: string; type: string }>;
-          };
-          (parsed.calendarRules || []).forEach((item) => {
-            if (item.date >= pastStr && item.date <= futureStr) {
-              const key = `${item.date}|${item.title}`;
-              if (!seen.has(key)) {
-                seen.add(key);
-                collected.push({
-                  id: item.id || `local-${item.date}`,
-                  date: item.date,
-                  title: item.title,
-                  type: toEventType(item.type),
-                });
-              }
-            }
-          });
-        }
-      } catch {
-        // ignore
-      }
-
-      const presets = [...getThaiPublicHolidays(targetYear), ...getThaiPublicHolidays(targetYear + 1)];
-      presets.forEach((p, idx) => {
-        if (p.date >= pastStr && p.date <= futureStr) {
-          const key = `${p.date}|${p.title}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            collected.push({
-              id: `preset-${p.date}-${idx}`,
-              date: p.date,
-              title: p.title,
-              type: toEventType(p.type),
-            });
-          }
-        }
+      const items = await loadSchoolCalendarDigest({
+        workspaceId: session.workspace?.id,
+        profileId: session.profile?.id,
+        demoMode,
+        limit: 12,
       });
 
-      collected.sort((a, b) => a.date.localeCompare(b.date));
-      const groupedEvents = groupUpcomingEvents(collected);
-
       if (isMounted) {
-        const upcomingOnly = groupedEvents.filter((ev) => {
-          const checkDate = ev.endDate || ev.date;
-          return checkDate >= todayStr;
-        });
-        setUpcomingEvents(upcomingOnly.slice(0, 10));
+        setUpcomingEvents(items);
       }
     }
 
@@ -1880,6 +1744,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       {dashboardViewMode === 'today' ? (
         <TodayBentoDashboard
+          calendarEvents={upcomingEvents}
           catchUpItems={catchUpItems}
           classroomName={activeClassroomName}
           classroomProgressItems={classroomProgressItems}
