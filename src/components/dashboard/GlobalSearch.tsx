@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, DoorOpen, GraduationCap, Lock, Search, Users } from 'lucide-react';
+import { BookOpen, ChevronRight, DoorOpen, GraduationCap, Lock, Search, Users, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { isDemoSession, withDemoContext } from '../../lib/auth';
@@ -74,10 +74,12 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
   const navigate = useNavigate();
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const planPolicies = usePlanAccessPolicies();
 
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobileOverlayOpen, setIsMobileOverlayOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [students, setStudents] = useState<SearchStudent[]>([]);
@@ -144,6 +146,7 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
         window.setTimeout(() => inputRef.current?.focus(), 0);
       } else if (event.key === 'Escape') {
         setIsOpen(false);
+        setIsMobileOverlayOpen(false);
         inputRef.current?.blur();
       }
     }
@@ -233,7 +236,14 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
 
   function closeSearch() {
     setIsOpen(false);
+    setIsMobileOverlayOpen(false);
     setQuery('');
+  }
+
+  function openMobileSearch() {
+    setIsMobileOverlayOpen(true);
+    setIsOpen(true);
+    window.setTimeout(() => mobileInputRef.current?.focus(), 30);
   }
 
   function openMenu(item: AppNavItem, locked: boolean) {
@@ -288,8 +298,136 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
   const hasWorkspaceResults = studentResults.length > 0 || classroomResults.length > 0;
   let runningIdx = 0;
 
+  const renderSearchResults = () => (
+    <>
+      {menuResults.length > 0 ? (
+        <section aria-label="เมนูระบบ">
+          <p className="app-global-search-section-title">เมนูและรายงาน</p>
+          {menuResults.map((item) => {
+            const idx = runningIdx++;
+            const Icon = item.icon;
+            const locked = isMenuLocked(item);
+            const labelText = item.key === 'overview' ? 'วันนี้ (ภาพรวม)' : item.label;
+            return (
+              <button
+                className={`app-global-search-result ${activeIndex === idx ? 'bg-[#f2f7f4] ring-1 ring-[#bfe0cd]' : ''}`}
+                key={item.key}
+                onClick={() => openMenu(item, locked)}
+                onMouseEnter={() => setActiveIndex(idx)}
+                type="button"
+              >
+                <span className="app-global-search-result-icon">
+                  <Icon size={16} />
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <strong>{labelText}</strong>
+                  <small>
+                    {locked
+                      ? 'ต้องอัปเกรดสิทธิ์ VIP เพื่อใช้งาน'
+                      : item.externalUrl
+                        ? 'เปิดเว็บเกมภายนอก'
+                        : `เปิดหน้า${labelText}`}
+                  </small>
+                </span>
+                {locked ? <Lock size={14} className="text-amber-600" aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </section>
+      ) : null}
+
+      {normalizedQuery.length >= 2 ? (
+        <>
+          {isLoading ? (
+            <p className="app-global-search-loading">
+              <NexusAuroraInline label="กำลังค้นหาในโรงเรียนนี้" />
+            </p>
+          ) : null}
+
+          {studentResults.length > 0 ? (
+            <section aria-label="นักเรียน">
+              <p className="app-global-search-section-title">นักเรียน</p>
+              {studentResults.map((student) => {
+                const idx = runningIdx++;
+                return (
+                  <button
+                    className={`app-global-search-result ${activeIndex === idx ? 'bg-[#f2f7f4] ring-1 ring-[#bfe0cd]' : ''}`}
+                    key={student.id}
+                    onClick={() => openStudent(student)}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    type="button"
+                  >
+                    <span className="app-global-search-result-icon">
+                      <Users size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <strong>{`${student.first_name} ${student.last_name}`}</strong>
+                      <small>{[student.student_code, student.nickname].filter(Boolean).join(' · ') || 'เปิดข้อมูลนักเรียน'}</small>
+                    </span>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {classroomResults.length > 0 ? (
+            <section aria-label="ห้องเรียน">
+              <p className="app-global-search-section-title">ห้องเรียน</p>
+              {classroomResults.map((classroom) => {
+                const idx = runningIdx++;
+                return (
+                  <button
+                    className={`app-global-search-result ${activeIndex === idx ? 'bg-[#f2f7f4] ring-1 ring-[#bfe0cd]' : ''}`}
+                    key={classroom.id}
+                    onClick={() => openClassroom(classroom)}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    type="button"
+                  >
+                    <span className="app-global-search-result-icon">
+                      <DoorOpen size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <strong>{classroom.name}</strong>
+                      <small>เปิดรายชื่อนักเรียนในห้อง</small>
+                    </span>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {!isLoading && !hasWorkspaceResults && menuResults.length === 0 ? (
+            <p className="app-global-search-empty">
+              <BookOpen size={17} /> ไม่พบผลลัพธ์ที่ตรงกัน
+            </p>
+          ) : null}
+
+          {!isLoading && !supabase ? (
+            <p className="app-global-search-note">
+              <GraduationCap size={15} /> ค้นหารายชื่อนักเรียนได้เมื่อเชื่อมต่อฐานข้อมูล
+            </p>
+          ) : null}
+        </>
+      ) : null}
+    </>
+  );
+
   return (
     <div className="app-global-search-wrap" ref={wrapRef}>
+      {/* Mobile Quick Search Trigger (< sm) */}
+      <button
+        type="button"
+        onClick={openMobileSearch}
+        className="app-icon-button sm:hidden"
+        aria-label="ค้นหานักเรียนหรือเมนู"
+        title="ค้นหานักเรียน เมนู หรือรายงาน"
+      >
+        <Search size={18} aria-hidden="true" />
+      </button>
+
+      {/* Desktop Inline Search Bar (sm+) */}
       <label className="app-global-search">
         <Search size={17} aria-hidden="true" />
         <input
@@ -313,124 +451,55 @@ export function GlobalSearch({ navItems, session }: GlobalSearchProps) {
         </kbd>
       </label>
 
-      {isOpen ? (
-        <div className="app-global-search-panel" role="listbox">
+      {isOpen && !isMobileOverlayOpen ? (
+        <div className="app-global-search-panel hidden sm:block" role="listbox">
           <div className="app-global-search-hint">
             <span>{normalizedQuery ? 'ผลการค้นหา' : 'ไปยังส่วนต่าง ๆ อย่างรวดเร็ว'}</span>
             <span>↑↓ เลือก · Enter เปิด · Esc ปิด</span>
           </div>
+          {renderSearchResults()}
+        </div>
+      ) : null}
 
-          {menuResults.length > 0 ? (
-            <section aria-label="เมนูระบบ">
-              <p className="app-global-search-section-title">เมนูและรายงาน</p>
-              {menuResults.map((item) => {
-                const idx = runningIdx++;
-                const Icon = item.icon;
-                const locked = isMenuLocked(item);
-                const labelText = item.key === 'overview' ? 'วันนี้ (ภาพรวม)' : item.label;
-                return (
-                  <button
-                    className={`app-global-search-result ${activeIndex === idx ? 'bg-[#f2f7f4] ring-1 ring-[#bfe0cd]' : ''}`}
-                    key={item.key}
-                    onClick={() => openMenu(item, locked)}
-                    onMouseEnter={() => setActiveIndex(idx)}
-                    type="button"
-                  >
-                    <span className="app-global-search-result-icon">
-                      <Icon size={16} />
-                    </span>
-                    <span className="min-w-0 flex-1 text-left">
-                      <strong>{labelText}</strong>
-                      <small>
-                        {locked
-                          ? 'ต้องอัปเกรดสิทธิ์ VIP เพื่อใช้งาน'
-                          : item.externalUrl
-                            ? 'เปิดเว็บเกมภายนอก'
-                            : `เปิดหน้า${labelText}`}
-                      </small>
-                    </span>
-                    {locked ? <Lock size={14} className="text-amber-600" aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
-                  </button>
-                );
-              })}
-            </section>
-          ) : null}
-
-          {normalizedQuery.length >= 2 ? (
-            <>
-              {isLoading ? (
-                <p className="app-global-search-loading">
-                  <NexusAuroraInline label="กำลังค้นหาใน workspace นี้" />
-                </p>
-              ) : null}
-
-              {studentResults.length > 0 ? (
-                <section aria-label="นักเรียน">
-                  <p className="app-global-search-section-title">นักเรียน</p>
-                  {studentResults.map((student) => {
-                    const idx = runningIdx++;
-                    return (
-                      <button
-                        className={`app-global-search-result ${activeIndex === idx ? 'bg-[#f2f7f4] ring-1 ring-[#bfe0cd]' : ''}`}
-                        key={student.id}
-                        onClick={() => openStudent(student)}
-                        onMouseEnter={() => setActiveIndex(idx)}
-                        type="button"
-                      >
-                        <span className="app-global-search-result-icon">
-                          <Users size={16} />
-                        </span>
-                        <span className="min-w-0 flex-1 text-left">
-                          <strong>{`${student.first_name} ${student.last_name}`}</strong>
-                          <small>{[student.student_code, student.nickname].filter(Boolean).join(' · ') || 'เปิดข้อมูลนักเรียน'}</small>
-                        </span>
-                        <ChevronRight size={16} aria-hidden="true" />
-                      </button>
-                    );
-                  })}
-                </section>
-              ) : null}
-
-              {classroomResults.length > 0 ? (
-                <section aria-label="ห้องเรียน">
-                  <p className="app-global-search-section-title">ห้องเรียน</p>
-                  {classroomResults.map((classroom) => {
-                    const idx = runningIdx++;
-                    return (
-                      <button
-                        className={`app-global-search-result ${activeIndex === idx ? 'bg-[#f2f7f4] ring-1 ring-[#bfe0cd]' : ''}`}
-                        key={classroom.id}
-                        onClick={() => openClassroom(classroom)}
-                        onMouseEnter={() => setActiveIndex(idx)}
-                        type="button"
-                      >
-                        <span className="app-global-search-result-icon">
-                          <DoorOpen size={16} />
-                        </span>
-                        <span className="min-w-0 flex-1 text-left">
-                          <strong>{classroom.name}</strong>
-                          <small>เปิดรายชื่อนักเรียนในห้อง</small>
-                        </span>
-                        <ChevronRight size={16} aria-hidden="true" />
-                      </button>
-                    );
-                  })}
-                </section>
-              ) : null}
-
-              {!isLoading && !hasWorkspaceResults && menuResults.length === 0 ? (
-                <p className="app-global-search-empty">
-                  <BookOpen size={17} /> ไม่พบผลลัพธ์ที่ตรงกัน
-                </p>
-              ) : null}
-
-              {!isLoading && !supabase ? (
-                <p className="app-global-search-note">
-                  <GraduationCap size={15} /> ค้นหารายชื่อนักเรียนได้เมื่อเชื่อมต่อฐานข้อมูล
-                </p>
-              ) : null}
-            </>
-          ) : null}
+      {/* Mobile Full-Width Search Modal Overlay */}
+      {isMobileOverlayOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex flex-col bg-slate-950/45 backdrop-blur-xs sm:hidden"
+          onClick={closeSearch}
+        >
+          <div
+            className="mx-3 mt-3 flex max-h-[82dvh] flex-col overflow-hidden rounded-2xl border border-[#dce3d7] bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 border-b border-[#eceee9] px-3 py-2.5">
+              <Search size={18} className="shrink-0 text-[#2f7d5b]" aria-hidden="true" />
+              <input
+                ref={mobileInputRef}
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={handleInputKeyDown}
+                placeholder="พิมพ์ชื่อเล่น ชื่อนักเรียน หรือชื่อเมนู..."
+                aria-label="ค้นหานักเรียนหรือเมนูบนมือถือ"
+                className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#1f2a22] outline-none placeholder:text-[#7c897f]"
+              />
+              <button
+                type="button"
+                onClick={closeSearch}
+                aria-label="ปิดการค้นหา"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#f3f4f1] text-[#55615a]"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2" role="listbox">
+              <div className="app-global-search-hint">
+                <span>{normalizedQuery ? 'ผลการค้นหา' : 'ทางลัดยอดนิยม'}</span>
+                <span>พิมพ์ 2 ตัวอักษรเพื่อค้นหานักเรียน</span>
+              </div>
+              {renderSearchResults()}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

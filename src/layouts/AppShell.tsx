@@ -144,8 +144,6 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
           <Topbar
             activeLabel={activeLabel}
             navItems={navItems}
-            onMenuToggle={() => setIsMenuOpen(true)}
-            onOpenGuide={() => setIsGuideOpen(true)}
             session={session}
           />
           <ContextNav activeView={activeView} />
@@ -218,7 +216,12 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         )}
       </div>
       <div className="no-print print:hidden">
-        <MobileNav activeView={activeView} navItems={navItems} />
+        <MobileNav
+          activeView={activeView}
+          navItems={navItems}
+          onOpenGuide={() => setIsGuideOpen(true)}
+          session={session}
+        />
         {session ? <SupportChat activeLabel={activeLabel} activeView={activeView} session={session} /> : null}
         <SetupGuideModal
           isOpen={isGuideOpen}

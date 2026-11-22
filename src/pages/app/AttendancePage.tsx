@@ -301,6 +301,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [studentRiskMap, setStudentRiskMap] = useState<Map<string, StudentAttendanceSummary>>(new Map());
   const [autoDetectedPeriodInfo, setAutoDetectedPeriodInfo] = useState<string | null>(null);
   const [postSaveNotifyPrompt, setPostSaveNotifyPrompt] = useState<{ count: number; date: string } | null>(null);
+  const [isMobileControlsOpen, setIsMobileControlsOpen] = useState(false);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<
     Array<{
       id: string;
@@ -1515,7 +1516,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className={`${isMobileControlsOpen ? 'flex' : 'hidden'} w-full flex-wrap items-center justify-start gap-2 md:flex md:w-auto md:justify-end`}>
             {/* Keep the date control visible so missed days are easy to record later. */}
             <div className={`rounded-xl border px-2.5 py-1.5 shadow-2xs ${isToday ? 'border-[#DCE3D7] bg-[#FAFBF8]' : 'border-amber-300 bg-amber-50'}`}>
               <span className="mb-0.5 block text-[10px] font-black text-[#5A6F64]">วันที่เช็กชื่อ</span>
@@ -1562,7 +1563,43 @@ export function AttendancePage({ session }: AttendancePageProps) {
           </div>
         </header>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-2">
+        {/* Mobile Compact Context Bar (< md): keeps student list above the fold */}
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] px-3 py-2 md:hidden">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-bold text-[#1C342B]">
+            <span className="truncate max-w-[110px] font-black">{selectedClassroom?.name || 'เลือกห้อง'}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isToday ? 'bg-[#E6F4EC] text-[#1C573D]' : 'bg-amber-200 text-amber-950'}`}>
+              {isToday ? 'วันนี้' : 'ย้อนหลัง'}
+            </span>
+            <span className="truncate max-w-[140px] text-[#5A6F64]">
+              · {mode === 'homeroom' ? 'ประจำวัน' : `${subjectName} (${periodLabel})`}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Link
+              to={attendanceReportPath}
+              title="ดูรายงานและพิมพ์"
+              aria-label="ดูรายงานและพิมพ์"
+              className="grid h-8 w-8 place-items-center rounded-xl border border-[#DCE3D7] bg-white text-[#1C342B]"
+            >
+              <Printer size={14} aria-hidden="true" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setIsMobileControlsOpen((prev) => !prev)}
+              aria-expanded={isMobileControlsOpen}
+              className="inline-flex h-8 items-center gap-1 rounded-xl border border-[#BFE0CD] bg-[#E6F4EC] px-2.5 text-xs font-bold text-[#1C573D]"
+            >
+              <span>{isMobileControlsOpen ? 'ซ่อน' : 'เปลี่ยน'}</span>
+              <ChevronDown
+                size={13}
+                className={`transition-transform ${isMobileControlsOpen ? 'rotate-180' : ''}`}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className={`${isMobileControlsOpen ? 'flex' : 'hidden'} mt-3 flex-wrap items-center gap-2 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-2 md:flex`}>
           <span className="px-2 text-xs font-bold text-slate-600">กำลังเช็กชื่อแบบ:</span>
           {(['homeroom', 'subject'] as AttendanceMode[]).map((attendanceMode) => {
             const Icon = modeCopy[attendanceMode].icon;

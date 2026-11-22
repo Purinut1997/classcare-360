@@ -4,15 +4,12 @@ import {
   ChevronDown,
   ChevronRight,
   Crown,
-  Heart,
   Lock,
   PanelLeftClose,
   PanelLeftOpen,
   Rocket,
-  School,
   ServerCog,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import { AppNavigationLink as Link } from '../navigation/ContextLink';
 
@@ -23,6 +20,7 @@ import {
   usePlanAccessPolicies,
 } from '../../lib/planAccessPolicy';
 import type { AppNavItem } from '../../routes/appRoutes';
+import { DAILY_NAV_KEYS, INTEGRATED_ALIAS_KEYS, UNIFIED_NAV_GROUPS } from '../../routes/navigationGroups';
 import type { AppSessionContext } from '../../types/core';
 import { AppLogo } from '../brand/AppLogo';
 
@@ -38,60 +36,30 @@ interface SidebarProps {
   session?: AppSessionContext;
 }
 
-interface SidebarSectionConfig {
-  key: string;
-  label: string;
-  icon?: LucideIcon;
-  defaultOpen?: boolean;
-  itemKeys: string[];
+const TOTAL_ONBOARDING_STEPS = 5;
+const OPEN_GROUPS_STORAGE_KEY = 'classcare_sidebar_open_groups';
+const HIDE_GUIDE_STORAGE_KEY = 'classcare_sidebar_hide_guide';
+
+function readStoredOpenGroups(): Record<string, boolean> {
+  try {
+    const raw = window.localStorage.getItem(OPEN_GROUPS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Record<string, boolean>;
+    }
+  } catch {
+    // Ignore storage read failures.
+  }
+  return { 'classroom-care': true, 'academic-docs': true, 'school-admin': false };
 }
 
-const TOTAL_ONBOARDING_STEPS = 5;
-
-const primaryDirectItemKeys = [
-  'overview',
-  'teacher-work',
-  'students',
-  'scores',
-  'omr-scanner',
-  'schedule',
-  'academic-hub',
-  'student-health',
-  'savings',
-];
-
-const sidebarSections: SidebarSectionConfig[] = [
-  {
-    key: 'care-reports',
-    label: 'ดูแลนักเรียน & รายงาน',
-    icon: Heart,
-    defaultOpen: false,
-    itemKeys: [
-      'behavior',
-      'classroom-operations',
-      'desirable-characteristics',
-      'daily-brief',
-      'reports',
-      'randomizer',
-      'math-games',
-      'school-calendar',
-    ],
-  },
-  {
-    key: 'school-data',
-    label: 'จัดการโรงเรียน & ข้อมูล',
-    icon: School,
-    defaultOpen: false,
-    itemKeys: [
-      'workspace-settings',
-      'academic-year',
-      'import-export',
-      'data-safety',
-      'notifications',
-      'help-center',
-    ],
-  },
-];
+function readHideGuidePreference(): boolean {
+  try {
+    return window.localStorage.getItem(HIDE_GUIDE_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 function readCompletedOnboardingCount(): number {
   try {
@@ -128,6 +96,8 @@ export function Sidebar({
   const isSuperadmin = session?.profile.role === 'superadmin';
   const vipBadgeLabel = getRequiredTierBadgeLabel(session);
   const [completedStepsCount, setCompletedStepsCount] = useState<number>(() => readCompletedOnboardingCount());
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => readStoredOpenGroups());
+  const [isGuideHidden, setIsGuideHidden] = useState<boolean>(() => readHideGuidePreference());
 
   useEffect(() => {
     const syncSteps = () => setCompletedStepsCount(readCompletedOnboardingCount());
@@ -147,13 +117,13 @@ export function Sidebar({
   const vipUpgradeMeta = getVipUpgradeMeta(session?.subscription);
   const vipBadgeInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
 
-  const directItems = primaryDirectItemKeys
+  const directItems = DAILY_NAV_KEYS
     .map((key) => navItems.find((item) => item.key === key))
     .filter((item): item is AppNavItem => Boolean(item));
 
   const renderedKeys = new Set<string>(directItems.map((item) => item.key));
 
-  const secondarySections = sidebarSections
+  const secondarySections = UNIFIED_NAV_GROUPS
     .map((section) => {
       const items = section.itemKeys
         .map((key) => navItems.find((item) => item.key === key))
@@ -164,13 +134,7 @@ export function Sidebar({
     .filter((section) => section.items.length > 0);
 
   // Mark alias/integrated keys as rendered so they don't leak to 'อื่น ๆ'
-  renderedKeys.add('automation');
-  renderedKeys.add('workspace-switch');
-  renderedKeys.add('period-locks');
-  renderedKeys.add('parent-access');
-  renderedKeys.add('setup');
-  renderedKeys.add('audit');
-  renderedKeys.add('package');
+  INTEGRATED_ALIAS_KEYS.forEach((key) => renderedKeys.add(key));
 
   const otherItems = navItems.filter(
     (item) => !renderedKeys.has(item.key) && item.key !== 'superadmin-dashboard',
@@ -178,6 +142,27 @@ export function Sidebar({
 
   const isItemActive = (key: string) =>
     key === activeView || (key === 'academic-year' && activeView === 'period-locks');
+
+  const toggleGroup = (groupKey: string) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [groupKey]: !(prev[groupKey] ?? false) };
+      try {
+        window.localStorage.setItem(OPEN_GROUPS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage write errors.
+      }
+      return next;
+    });
+  };
+
+  const handleDismissGuide = () => {
+    setIsGuideHidden(true);
+    try {
+      window.localStorage.setItem(HIDE_GUIDE_STORAGE_KEY, 'true');
+    } catch {
+      // Ignore storage write errors.
+    }
+  };
 
   const renderSidebarNavItem = (item: AppNavItem) => {
     const Icon = item.icon;
@@ -301,21 +286,30 @@ export function Sidebar({
         ) : null}
 
         <nav className="app-sidebar-nav" aria-label="เมนูหลัก">
-          {/* Tier 1: Core Direct 1-Click Items */}
+          {/* Tier 1: 5 Everyday 1-Click Actions */}
+          <p className="sidebar-label px-2.5 pb-1 text-[10px] font-extrabold tracking-wider text-[#808e85]">
+            งานใช้ทุกวัน
+          </p>
           <div className="flex w-full min-w-0 shrink-0 flex-col gap-0.5">
             {directItems.map((item) => renderSidebarNavItem(item))}
           </div>
 
           <div className="my-2 border-t border-[#eff1ec]" />
 
-          {/* Tier 2: Collapsible Secondary Groups */}
+          {/* Tier 2: 3 Unified Collapsible Groups */}
           {secondarySections.map((section) => {
             const hasActiveItem = section.items.some((item) => isItemActive(item.key));
-            const isSectionOpen = hasActiveItem || Boolean(section.defaultOpen);
+            const isSectionOpen = hasActiveItem || Boolean(openGroups[section.key]);
             const SectionIcon = section.icon;
             return (
-              <details className="app-sidebar-section mt-0.5" key={section.key} open={isSectionOpen}>
-                <summary className="app-sidebar-section-summary" title={`${section.label} (${section.items.length} เมนู)`}>
+              <div className="app-sidebar-section mt-0.5" key={section.key}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(section.key)}
+                  aria-expanded={isSectionOpen}
+                  className="app-sidebar-section-summary"
+                  title={`${section.label} (${section.items.length} เมนู)`}
+                >
                   <span className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden ${collapsed ? 'justify-center' : ''}`}>
                     {SectionIcon && (
                       <SectionIcon size={15} className="shrink-0 text-[#7c8780]" aria-hidden="true" />
@@ -327,12 +321,18 @@ export function Sidebar({
                   <span className="sidebar-label shrink-0 rounded-full bg-[#f1f3ef] px-1.5 py-0.5 text-[11px] font-semibold text-[#75827a] tabular-nums">
                     {section.items.length}
                   </span>
-                  <ChevronDown size={13} className="sidebar-label app-sidebar-chevron shrink-0 text-[#8b968f] transition-transform duration-150" aria-hidden="true" />
-                </summary>
-                <div className={`flex w-full min-w-0 flex-col gap-0.5 py-1 ${collapsed ? '' : 'pl-2'}`}>
-                  {section.items.map((item) => renderSidebarNavItem(item))}
-                </div>
-              </details>
+                  <ChevronDown
+                    size={13}
+                    className={`sidebar-label shrink-0 text-[#8b968f] transition-transform duration-150 ${isSectionOpen ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+                {(isSectionOpen || collapsed) && (
+                  <div className={`flex w-full min-w-0 flex-col gap-0.5 py-1 ${collapsed ? '' : 'pl-2'}`}>
+                    {section.items.map((item) => renderSidebarNavItem(item))}
+                  </div>
+                )}
+              </div>
             );
           })}
 
@@ -351,40 +351,51 @@ export function Sidebar({
 
         {/* Bottom Pinned Widgets */}
         <div className="mt-2 space-y-2 border-t border-[#f0f2ee] pt-2.5 shrink-0">
-          {onOpenGuide ? (
-            <button
-              type="button"
-              onClick={() => {
-                onClose?.();
-                onOpenGuide();
-              }}
-              title="เปิดคู่มือเริ่มต้นใช้งาน"
-              className={`w-full rounded-xl border border-[#bfe0cd] bg-[#eaf5ef] px-3 py-2 text-left transition hover:brightness-[0.98] ${
-                collapsed ? 'flex justify-center px-0' : ''
-              }`}
-            >
-              {collapsed ? (
-                <Rocket size={16} className="text-[#2f7d5b]" aria-hidden="true" />
-              ) : (
-                <>
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="flex items-center gap-1.5 font-bold text-[#1c573d]">
-                      <Rocket size={13} className="text-[#2f7d5b]" aria-hidden="true" />
-                      เริ่มต้นใช้งาน
-                    </span>
-                    <span className="font-extrabold text-[#2f7d5b] tabular-nums">
-                      {completedStepsCount}/{TOTAL_ONBOARDING_STEPS}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/85">
-                    <div
-                      className="h-full rounded-full bg-[#2f7d5b] transition-all duration-300"
-                      style={{ width: `${Math.max(progressPercent, 8)}%` }}
-                    />
-                  </div>
-                </>
-              )}
-            </button>
+          {onOpenGuide && !isGuideHidden ? (
+            <div className={`relative w-full rounded-xl border border-[#bfe0cd] bg-[#eaf5ef] ${collapsed ? 'p-1.5 flex justify-center' : 'px-3 py-2'}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onOpenGuide();
+                }}
+                title="เปิดคู่มือเริ่มต้นใช้งาน"
+                className={`w-full text-left transition hover:brightness-[0.98] ${collapsed ? 'flex justify-center' : 'pr-4'}`}
+              >
+                {collapsed ? (
+                  <Rocket size={16} className="text-[#2f7d5b]" aria-hidden="true" />
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex items-center gap-1.5 font-bold text-[#1c573d]">
+                        <Rocket size={13} className="text-[#2f7d5b]" aria-hidden="true" />
+                        เริ่มต้นใช้งาน
+                      </span>
+                      <span className="font-extrabold text-[#2f7d5b] tabular-nums">
+                        {completedStepsCount}/{TOTAL_ONBOARDING_STEPS}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/85">
+                      <div
+                        className="h-full rounded-full bg-[#2f7d5b] transition-all duration-300"
+                        style={{ width: `${Math.max(progressPercent, 8)}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+              </button>
+              {!collapsed ? (
+                <button
+                  type="button"
+                  onClick={handleDismissGuide}
+                  aria-label="ซ่อนการ์ดเริ่มต้นใช้งาน"
+                  title="ซ่อนแถบนี้ (เปิดใหม่ได้ในหน้าคู่มือใช้งาน)"
+                  className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-md text-[#5b7a68] transition hover:bg-white/70 hover:text-[#1c573d]"
+                >
+                  <X size={12} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           {showVipUpgradeMenu ? (

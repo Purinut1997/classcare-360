@@ -452,11 +452,11 @@
   }
 
   .app-global-search-wrap {
-    @apply relative ml-auto hidden min-w-0 max-w-[460px] flex-1 sm:block;
+    @apply relative ml-auto flex items-center justify-end sm:block sm:min-w-0 sm:max-w-[460px] sm:flex-1;
   }
 
   .app-global-search-wrap .app-global-search {
-    @apply ml-0 flex max-w-none;
+    @apply ml-0 hidden max-w-none sm:flex;
   }
 
   .topbar-notification-panel {

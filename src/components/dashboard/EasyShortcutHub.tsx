@@ -26,7 +26,6 @@ import {
   Settings2,
   Users,
   Workflow,
-  Wrench,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,15 +35,15 @@ import { CLASSROOM_GAMES_URL } from '../../routes/appRoutes';
 import type { AppSessionContext } from '../../types/core';
 import type { ClassroomAnalyticsData } from './ClassroomAnalyticsCharts';
 
-export type ShortcutCategory = 'classroom-admin' | 'academic' | 'care' | 'tools' | 'admin';
+export type ShortcutCategory = 'daily' | 'classroom-care' | 'academic-docs' | 'school-admin';
 
 export const SHORTCUT_CATEGORIES = [
   {
-    key: 'classroom-admin' as const,
-    label: 'งานประจำวันในห้องเรียน',
+    key: 'daily' as const,
+    label: 'งานใช้ทุกวัน',
     icon: FolderKanban,
-    badge: '6 ภารกิจหลักครูประจำชั้น',
-    desc: 'รวม 6 ภารกิจหลักของครูประจำชั้นไว้ในที่เดียว: ทะเบียน เช็กชื่อ สุขภาพ เวร เงินออม และสรุปรายวัน',
+    badge: 'งานหลักประจำวัน',
+    desc: '4 เมนูหลักที่ครูเปิดใช้งานทุกวัน: เช็กชื่อ, นักเรียน, คะแนน และตารางสอน',
     theme: {
       frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
       frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
@@ -59,30 +58,11 @@ export const SHORTCUT_CATEGORIES = [
     },
   },
   {
-    key: 'academic' as const,
-    label: 'งานวิชาการ & วัดผล',
-    icon: BookOpen,
-    badge: '5 เมนูหลัก',
-    desc: 'ตารางสอน สมุดคะแนน ตรวจข้อสอบ OMR ศูนย์วิชาการ และพิมพ์รายงาน ปพ.',
-    theme: {
-      frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
-      frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
-      topAccent: 'bg-[#2D72A3]',
-      sprigColor: '#2D72A3',
-      headerIconBg: 'bg-[#E9F3FA] text-[#1D547C] border border-[#CBE1F2] shadow-xs',
-      headerTitle: 'text-[#1F2A22]',
-      headerBadge: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]',
-      headerDesc: 'text-[#5B6A5F]',
-      divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-gradient-to-r from-[#2D72A3] to-[#164264] text-white shadow-md shadow-[#2D72A3]/25 ring-2 ring-white/50',
-    },
-  },
-  {
-    key: 'care' as const,
-    label: 'ดูแลช่วยเหลือนักเรียน',
+    key: 'classroom-care' as const,
+    label: 'ดูแลห้อง & กิจกรรม',
     icon: HeartHandshake,
-    badge: '3 เมนูหลัก',
-    desc: 'บันทึกพฤติกรรม ประเมินคุณลักษณะ 8 ประการ และแจ้งเตือนเด็กเสี่ยงขาด/ตก',
+    badge: 'ดูแลประจำชั้น',
+    desc: 'สุขภาพ เงินออม พฤติกรรม คุณลักษณะ 8 ประการ ตารางเวร และเกมห้องเรียน',
     theme: {
       frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
       frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
@@ -97,30 +77,30 @@ export const SHORTCUT_CATEGORIES = [
     },
   },
   {
-    key: 'tools' as const,
-    label: 'เครื่องมือช่วยสอน',
-    icon: Wrench,
-    badge: '2 เมนูหลัก',
-    desc: 'คลังเกมและกิจกรรมสำหรับห้องเรียน และปฏิทินโรงเรียน',
+    key: 'academic-docs' as const,
+    label: 'ข้อสอบ & เอกสาร ปพ.',
+    icon: BookOpen,
+    badge: 'วัดผล & รายงาน',
+    desc: 'ตรวจข้อสอบ OMR พิมพ์รายงาน ปพ.๕/ปพ.๖ ศูนย์วิชาการ สรุปรายวัน และปฏิทิน',
     theme: {
       frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
       frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
-      topAccent: 'bg-[#D98B26]',
-      sprigColor: '#D98B26',
-      headerIconBg: 'bg-[#FDF4E1] text-[#8B5312] border border-[#F0D9AE] shadow-xs',
+      topAccent: 'bg-[#2D72A3]',
+      sprigColor: '#2D72A3',
+      headerIconBg: 'bg-[#E9F3FA] text-[#1D547C] border border-[#CBE1F2] shadow-xs',
       headerTitle: 'text-[#1F2A22]',
-      headerBadge: 'bg-[#FDF4E1] text-[#8B5312] border-[#F0D9AE]',
+      headerBadge: 'bg-[#E9F3FA] text-[#1D547C] border-[#CBE1F2]',
       headerDesc: 'text-[#5B6A5F]',
       divider: 'border-[#EDF1EA]',
-      tabActive: 'bg-gradient-to-r from-[#D98B26] to-[#A05E11] text-white shadow-md shadow-[#D98B26]/25 ring-2 ring-white/50',
+      tabActive: 'bg-gradient-to-r from-[#2D72A3] to-[#164264] text-white shadow-md shadow-[#2D72A3]/25 ring-2 ring-white/50',
     },
   },
   {
-    key: 'admin' as const,
-    label: 'ตั้งค่าโรงเรียน & ระบบ',
+    key: 'school-admin' as const,
+    label: 'ตั้งค่า & ข้อมูล',
     icon: Settings2,
-    badge: '5 เมนูหลัก',
-    desc: 'ตั้งค่าโรงเรียน จัดการปีการศึกษา ล็อกงวด นำเข้า/ส่งออก และสำรองข้อมูล',
+    badge: 'โรงเรียน & ข้อมูล',
+    desc: 'ตั้งเวลาเตือนเด็กเสี่ยง ตั้งค่าโรงเรียน ปีการศึกษา ล็อกงวด นำเข้า/ส่งออก และสำรองข้อมูล',
     theme: {
       frameBg: 'bg-gradient-to-b from-white to-[#FAFBF8]',
       frameBorder: 'border border-[#DCE3D7] shadow-[0_10px_28px_-4px_rgba(28,52,43,0.06)]',
@@ -183,19 +163,19 @@ export function EasyShortcutHub({
   const allShortcuts: ShortcutItem[] = useMemo(() => {
     return [
       // =========================================================================
-      // 📁 หมวด 1: ธุรการชั้นเรียน (Classroom Administration - 6 ภารกิจหลัก)
+      // งานใช้ทุกวัน (Daily Core 4)
       // =========================================================================
       {
         id: 'students',
         title: 'รายชื่อและทะเบียนนักเรียน',
         subtitle: 'ดูข้อมูลนักเรียนรายคน รูปถ่าย เบอร์โทร',
-        description: 'ค้นหาประวัตินักเรียน, ข้อมูลติดต่อผู้ปกครอง, สถิติการมาเรียน และคะแนนรายบุคคลครบในจุดเดียว',
+        description: 'ค้นหาประวัตินักเรียน ข้อมูลติดต่อผู้ปกครอง สถิติการมาเรียน และคะแนนรายบุคคลครบในจุดเดียว',
         keywords: ['นักเรียน', 'รายชื่อ', 'ประวัติ', 'รูปถ่าย', 'เบอร์โทร', 'ที่อยู่', 'ผู้ปกครอง', 'student', 'students'],
         icon: Users,
         path: '/app/dashboard?view=students',
         badge: `${studentCount} คนในห้อง`,
         badgeTone: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-        category: 'classroom-admin',
+        category: 'daily',
         accentColor: {
           bg: 'from-cyan-500/10 via-white to-blue-500/5',
           text: 'text-cyan-700',
@@ -215,7 +195,7 @@ export function EasyShortcutHub({
         path: '/app/dashboard?view=teacher-work',
         badge: attendanceChecked ? 'เช็กแล้ว' : 'รอเช็กเช้า',
         badgeTone: attendanceChecked ? 'bg-[#E6F4EC] text-[#1C573D] border-[#BFE0CD]' : 'bg-[#FBEFF2] text-[#8E354A] border-[#F0CFD7]',
-        category: 'classroom-admin',
+        category: 'daily',
         accentColor: {
           bg: 'from-emerald-500/10 via-white to-teal-500/5',
           text: 'text-emerald-700',
@@ -235,7 +215,7 @@ export function EasyShortcutHub({
         path: '/app/dashboard?view=student-health',
         badge: 'กิจวัตรเช้า-เที่ยง',
         badgeTone: 'bg-teal-100 text-teal-800 border-teal-200',
-        category: 'classroom-admin',
+        category: 'classroom-care',
         accentColor: {
           bg: 'from-teal-500/10 via-white to-cyan-500/5',
           text: 'text-teal-700',
@@ -253,7 +233,7 @@ export function EasyShortcutHub({
         keywords: ['เวร', 'เวรประจำวัน', 'ทำความสะอาด', 'จิตพิสัย', 'เวรห้อง', 'classroom-operations'],
         icon: ClipboardCheck,
         path: '/app/dashboard?view=classroom-operations',
-        category: 'classroom-admin',
+        category: 'classroom-care',
         accentColor: {
           bg: 'from-indigo-500/10 via-white to-blue-500/5',
           text: 'text-indigo-700',
@@ -273,7 +253,7 @@ export function EasyShortcutHub({
         path: '/app/dashboard?view=savings',
         badge: `${savingsAccounts} บัญชี`,
         badgeTone: 'bg-amber-100 text-amber-800 border-amber-200',
-        category: 'classroom-admin',
+        category: 'classroom-care',
         accentColor: {
           bg: 'from-amber-500/10 via-white to-yellow-500/5',
           text: 'text-amber-700',
@@ -285,13 +265,13 @@ export function EasyShortcutHub({
       },
       {
         id: 'daily-brief',
-        title: 'สรุปบันทึกประจำวันครู',
+        title: 'สรุปประจำวันครู',
         subtitle: 'สรุปเด็กขาด ข้อมูลสำคัญใน 1 หน้ากระดาษ',
         description: 'รวมยอดนักเรียน มา ลา ขาด บันทึกประจำวัน และกิจกรรมสำคัญสำหรับส่งรายงานครูเวรหรือฝ่ายบริหาร',
         keywords: ['สรุป', 'daily brief', 'รายงานประจำวัน', 'สรุปเช้า', 'ยอดมาเรียน', 'ส่งผอ', 'daily-brief'],
         icon: FileText,
         path: '/app/dashboard?view=daily-brief',
-        category: 'classroom-admin',
+        category: 'academic-docs',
         accentColor: {
           bg: 'from-teal-500/10 via-white to-emerald-500/5',
           text: 'text-teal-700',
@@ -303,17 +283,17 @@ export function EasyShortcutHub({
       },
 
       // =========================================================================
-      // 📚 หมวด 2: งานวิชาการ & วัดผล (Academic & Assessment - 5 เมนู)
+      // ตารางสอน & คะแนน
       // =========================================================================
       {
         id: 'schedule',
-        title: 'ตารางสอน / ตารางเรียน',
+        title: 'ตารางสอน',
         subtitle: 'ดูตารางสอนประจำสัปดาห์ คาบเรียนวันนี้',
-        description: 'ดูว่าวันนี้มีสอนวิชาอะไร คาบไหน ห้องไหน และจัดตารางเรียนของห้อง',
+        description: 'ดูว่าวันนี้มีสอนวิชาอะไร คาบไหน ห้องไหน และจัดตารางสอนของห้อง',
         keywords: ['ตารางสอน', 'ตารางเรียน', 'คาบเรียน', 'สอน', 'วิชา', 'schedule'],
         icon: CalendarRange,
         path: '/app/dashboard?view=schedule',
-        category: 'academic',
+        category: 'daily',
         accentColor: {
           bg: 'from-sky-500/10 via-white to-blue-500/5',
           text: 'text-sky-700',
@@ -325,15 +305,15 @@ export function EasyShortcutHub({
       },
       {
         id: 'scores',
-        title: 'สมุดคะแนนและตัดเกรด',
+        title: 'คะแนน & ตัดเกรด',
         subtitle: 'กรอกคะแนนเก็บ กลางภาค ปลายภาค',
-        description: 'หน้าตารางคะแนนแบบ Excel ใช้งานคุ้นเคย รองรับการคำนวณเกรดและตัดเกรดอัตโนมัติ',
+        description: 'กรอกคะแนนแบบตารางรวมหรือทีละช่อง รองรับการคำนวณเกรดและตัดเกรดอัตโนมัติ',
         keywords: ['คะแนน', 'กรอกคะแนน', 'สมุดคะแนน', 'เกรด', 'สอบ', 'scores'],
         icon: GraduationCap,
-        path: '/app/dashboard?view=scores&scoreView=excel',
+        path: '/app/dashboard?view=scores',
         badge: `${assessmentCount} ชุดคะแนน`,
         badgeTone: 'bg-sky-100 text-sky-800 border-sky-200',
-        category: 'academic',
+        category: 'daily',
         accentColor: {
           bg: 'from-sky-500/10 via-white to-cyan-500/5',
           text: 'text-sky-700',
@@ -345,15 +325,15 @@ export function EasyShortcutHub({
       },
       {
         id: 'omr-scanner',
-        title: 'ตรวจข้อสอบ OMR',
+        title: 'ตรวจข้อสอบ (OMR)',
         subtitle: 'ตรวจกระดาษคำตอบผ่านกล้อง ออกแบบข้อสอบ & ตัดเกรด',
         description: 'สแกนตรวจกระดาษคำตอบด้วยกล้องมือถือ/เว็บแคม นับคะแนนอัตโนมัติ ออกแบบชุดข้อสอบพร้อม QR Code',
         keywords: ['omr', 'ข้อสอบ', 'ตรวจข้อสอบ', 'กระดาษคำตอบ', 'สแกน', 'omr-scanner'],
         icon: ScanLine,
         path: '/app/dashboard?view=omr-scanner',
-        badge: 'AI Vision',
+        badge: 'กล้องตรวจข้อสอบ',
         badgeTone: 'bg-cyan-100 text-cyan-800 border-cyan-300',
-        category: 'academic',
+        category: 'academic-docs',
         accentColor: {
           bg: 'from-cyan-500/10 via-white to-blue-500/5',
           text: 'text-cyan-700',
@@ -365,15 +345,15 @@ export function EasyShortcutHub({
       },
       {
         id: 'academic-hub',
-        title: 'ศูนย์วิชาการและเอกสาร ปพ.',
-        subtitle: 'ออกเอกสาร ปพ.5, ปพ.6, ใบเกรด',
-        description: 'พิมพ์ ปพ.5 สมุดประเมินผลการเรียน, ปพ.6 รายงานประจำตัวนักเรียน และส่งออก PDF ครบชุด',
+        title: 'ศูนย์วิชาการ & ปิดเทอม',
+        subtitle: 'ออกเอกสาร ปพ.5, ปพ.6 และเลื่อนชั้นปี',
+        description: 'จัดการโครงสร้างรายวิชา พิมพ์ ปพ.5/ปพ.6 และปิดภาคเรียนอย่างเป็นระบบ',
         keywords: ['ปพ', 'ปพ.5', 'ปพ.6', 'ทะเบียน', 'วิชาการ', 'ใบเกรด', 'academic-hub'],
         icon: BookOpen,
         path: '/app/dashboard?view=academic-hub',
         badge: 'ปพ.5 / ปพ.6',
         badgeTone: 'bg-blue-100 text-blue-800 border-blue-200',
-        category: 'academic',
+        category: 'academic-docs',
         accentColor: {
           bg: 'from-blue-500/10 via-white to-indigo-500/5',
           text: 'text-blue-700',
@@ -385,13 +365,13 @@ export function EasyShortcutHub({
       },
       {
         id: 'reports',
-        title: 'พิมพ์รายงาน',
+        title: 'พิมพ์รายงาน & ปพ.',
         subtitle: 'ออกรายงานสถิติเวลาเรียน และแบบสรุป',
-        description: 'สร้างรายงานสรุปรายเดือน รายเทอม ทั้งรูปแบบตารางและกราฟ ส่งออกเป็น Excel / PDF ได้ทันที',
+        description: 'สร้างรายงานสรุปรายเดือน รายเทอม ทั้งรูปแบบตารางและกราฟ ดาวน์โหลดเป็น Excel / PDF ได้ทันที',
         keywords: ['รายงาน', 'สถิติ', 'สรุปเวลาเรียน', 'พิมพ์รายงาน', 'reports'],
         icon: FileSpreadsheet,
         path: '/app/dashboard?view=reports&reportView=attendance',
-        category: 'academic',
+        category: 'academic-docs',
         accentColor: {
           bg: 'from-indigo-500/10 via-white to-purple-500/5',
           text: 'text-indigo-700',
@@ -403,17 +383,17 @@ export function EasyShortcutHub({
       },
 
       // =========================================================================
-      // 💖 หมวด 3: ดูแลช่วยเหลือนักเรียน (Student Care - 3 เมนู)
+      // พฤติกรรม & คุณลักษณะ & เกม
       // =========================================================================
       {
         id: 'behavior',
-        title: 'บันทึกพฤติกรรมและความดี',
+        title: 'พฤติกรรม & ดูแลช่วยเหลือ',
         subtitle: 'บวกแต้มความดี และตักเตือนพฤติกรรม',
         description: 'สะสมแต้มคะแนนพฤติกรรม บันทึกความมีวินัย จิตอาสา และเตือนพฤติกรรมที่ไม่เหมาะสม',
         keywords: ['พฤติกรรม', 'ความดี', 'ตัดแต้ม', 'บวกแต้ม', 'คะแนนพฤติกรรม', 'behavior'],
         icon: Heart,
         path: '/app/dashboard?view=behavior',
-        category: 'care',
+        category: 'classroom-care',
         accentColor: {
           bg: 'from-rose-500/10 via-white to-pink-500/5',
           text: 'text-rose-700',
@@ -431,7 +411,7 @@ export function EasyShortcutHub({
         keywords: ['คุณลักษณะ', '8 ประการ', 'สพฐ', 'ประเมินคุณลักษณะ', 'desirable-characteristics'],
         icon: Award,
         path: '/app/dashboard?view=desirable-characteristics',
-        category: 'care',
+        category: 'classroom-care',
         accentColor: {
           bg: 'from-amber-500/10 via-white to-orange-500/5',
           text: 'text-amber-700',
@@ -443,15 +423,15 @@ export function EasyShortcutHub({
       },
       {
         id: 'automation',
-        title: 'ติดตามนักเรียนที่ควรดูแล',
-        subtitle: 'Automation & Early Warning',
-        description: 'ตรวจจับเด็กที่ขาดเรียนเกินเกณฑ์, คะแนนต่ำกว่าเป้า หรือยังไม่ส่งงาน พร้อมแนะนำแนวทางแก้ไข',
+        title: 'ตั้งเวลาเตือนเด็กเสี่ยง',
+        subtitle: 'แจ้งเตือนเด็กขาดเรียนบ่อยหรือคะแนนต่ำ',
+        description: 'ตรวจจับเด็กที่ขาดเรียนเกินเกณฑ์, คะแนนต่ำกว่าเป้า หรือยังไม่ส่งงาน พร้อมตั้งค่าการแจ้งเตือนอัตโนมัติ',
         keywords: ['เสี่ยง', 'เตือน', 'ขาดบ่อย', 'งานค้าง', 'automation', 'warning'],
         icon: Workflow,
         path: '/app/dashboard?view=automation',
         badge: 'เด็กกลุ่มเสี่ยง',
         badgeTone: 'bg-purple-100 text-purple-800 border-purple-200',
-        category: 'care',
+        category: 'school-admin',
         accentColor: {
           bg: 'from-purple-500/10 via-white to-fuchsia-500/5',
           text: 'text-purple-700',
@@ -461,10 +441,6 @@ export function EasyShortcutHub({
           iconBg: 'bg-purple-600 text-white shadow-purple-500/30',
         },
       },
-
-      // =========================================================================
-      // 🛠️ หมวด 4: เครื่องมือช่วยสอน (Teacher Tools - 2 เมนู)
-      // =========================================================================
       {
         id: 'randomizer',
         title: 'เกมคณิตศาสตร์ในห้องเรียน',
@@ -476,7 +452,7 @@ export function EasyShortcutHub({
         externalUrl: CLASSROOM_GAMES_URL,
         badge: 'ช่วยสอนสนุกขึ้น',
         badgeTone: 'bg-rose-100 text-rose-800 border-rose-200',
-        category: 'tools',
+        category: 'classroom-care',
         accentColor: {
           bg: 'from-rose-500/10 via-white to-pink-500/5',
           text: 'text-rose-700',
@@ -494,7 +470,7 @@ export function EasyShortcutHub({
         keywords: ['ปฏิทิน', 'วันหยุด', 'กิจกรรม', 'วันสอบ', 'school-calendar', 'calendar'],
         icon: CalendarDays,
         path: '/app/dashboard?view=school-calendar',
-        category: 'tools',
+        category: 'academic-docs',
         accentColor: {
           bg: 'from-amber-500/10 via-white to-orange-500/5',
           text: 'text-amber-700',
@@ -506,7 +482,7 @@ export function EasyShortcutHub({
       },
 
       // =========================================================================
-      // ⚙️ หมวด 5: ตั้งค่าโรงเรียน & ระบบ (School Management - 4 เมนู)
+      // ตั้งค่า & ข้อมูลโรงเรียน
       // =========================================================================
       {
         id: 'workspace-settings',
@@ -516,7 +492,7 @@ export function EasyShortcutHub({
         keywords: ['ตั้งค่า', 'ห้องเรียน', 'ครูประจำชั้น', 'เชิญครู', 'workspace-settings'],
         icon: School,
         path: '/app/dashboard?view=workspace-settings',
-        category: 'admin',
+        category: 'school-admin',
         accentColor: {
           bg: 'from-teal-500/10 via-white to-cyan-500/5',
           text: 'text-teal-700',
@@ -534,7 +510,7 @@ export function EasyShortcutHub({
         keywords: ['เลื่อนชั้น', 'ปิดเทอม', 'ปีการศึกษา', 'จบการศึกษา', 'academic-year'],
         icon: CalendarCheck,
         path: '/app/dashboard?view=academic-year',
-        category: 'admin',
+        category: 'school-admin',
         accentColor: {
           bg: 'from-indigo-500/10 via-white to-blue-500/5',
           text: 'text-indigo-700',
@@ -552,7 +528,7 @@ export function EasyShortcutHub({
         keywords: ['ล็อกงวด', 'ปิดงวด', 'period locks', 'งวดข้อมูล'],
         icon: CalendarRange,
         path: '/app/dashboard?view=period-locks',
-        category: 'admin',
+        category: 'school-admin',
         accentColor: {
           bg: 'from-amber-500/10 via-white to-orange-500/5',
           text: 'text-amber-800',
@@ -570,7 +546,7 @@ export function EasyShortcutHub({
         keywords: ['นำเข้า', 'ส่งออก', 'อัปโหลด', 'excel', 'dmc', 'import-export'],
         icon: Archive,
         path: '/app/dashboard?view=import-export',
-        category: 'admin',
+        category: 'school-admin',
         accentColor: {
           bg: 'from-slate-500/10 via-white to-gray-500/5',
           text: 'text-slate-700',
@@ -588,7 +564,7 @@ export function EasyShortcutHub({
         keywords: ['สำรองข้อมูล', 'กู้คืน', 'ความปลอดภัย', 'backup', 'data-safety'],
         icon: DatabaseZap,
         path: '/app/dashboard?view=data-safety',
-        category: 'admin',
+        category: 'school-admin',
         accentColor: {
           bg: 'from-slate-500/10 via-white to-gray-500/5',
           text: 'text-slate-700',
@@ -621,11 +597,10 @@ export function EasyShortcutHub({
   const categoryCounts = useMemo(() => {
     return {
       all: allShortcuts.length,
-      'classroom-admin': allShortcuts.filter((i) => i.category === 'classroom-admin').length,
-      academic: allShortcuts.filter((i) => i.category === 'academic').length,
-      care: allShortcuts.filter((i) => i.category === 'care').length,
-      tools: allShortcuts.filter((i) => i.category === 'tools').length,
-      admin: allShortcuts.filter((i) => i.category === 'admin').length,
+      daily: allShortcuts.filter((i) => i.category === 'daily').length,
+      'classroom-care': allShortcuts.filter((i) => i.category === 'classroom-care').length,
+      'academic-docs': allShortcuts.filter((i) => i.category === 'academic-docs').length,
+      'school-admin': allShortcuts.filter((i) => i.category === 'school-admin').length,
     };
   }, [allShortcuts]);
 

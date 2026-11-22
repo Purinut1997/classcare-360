@@ -1,4 +1,4 @@
-import { type FormEvent, Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
+  ChevronDown,
   ChevronRight,
   ClipboardList,
   Copy,
@@ -370,17 +371,22 @@ function getClassroomWithRoster(
   return classroomWithStudents?.id || classroomWithAssessment?.id || classrooms[0]?.id || '';
 }
 
+const getDefaultScoreView = (): ScoreView =>
+  typeof window !== 'undefined' && window.innerWidth < 768 ? 'entry' : 'excel';
+
 export function ScoresPage({ session }: ScoresPageProps) {
   const demoMode = isDemoSession(session);
   const location = useLocation();
   const navigate = useNavigate();
   const requestedScoreView = new URLSearchParams(location.search).get('scoreView');
-  const initialScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'excel';
+  const initialScoreView = isScoreView(requestedScoreView) ? requestedScoreView : getDefaultScoreView();
   const requestedPerspective = new URLSearchParams(location.search).get('perspective');
   const initialPerspective: ScorePerspective = requestedPerspective === 'classroom' ? 'classroom' : 'subject';
 
   const [perspective, setPerspective] = useState<ScorePerspective>(initialPerspective);
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
+  const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
   const [cloneSourceClassroomId, setCloneSourceClassroomId] = useState('');
   const [cloneTargetClassroomIds, setCloneTargetClassroomIds] = useState<string[]>([]);
 
@@ -508,11 +514,29 @@ export function ScoresPage({ session }: ScoresPageProps) {
   );
 
   useEffect(() => {
-    const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'excel';
+    const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : getDefaultScoreView();
     if (nextScoreView !== scoreView) {
       setScoreView(nextScoreView);
     }
   }, [requestedScoreView, scoreView]);
+
+  useEffect(() => {
+    if (!isToolsMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (event.target instanceof Node && !toolsMenuRef.current?.contains(event.target)) {
+        setIsToolsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsToolsMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isToolsMenuOpen]);
 
   function handleScoreViewChange(nextScoreView: ScoreView) {
     setScoreView(nextScoreView);
@@ -2187,7 +2211,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
             type="button"
           >
             <Plus size={16} aria-hidden="true" />
-            สร้างชุดคะแนนใหม่
+            เพิ่มช่องคะแนน
           </button>
         </div>
       </div>
@@ -2228,100 +2252,178 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </div>
           </div>
 
-          {/* Action Tools: Scrollable horizontally with touch support on mobile, no text squishing */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 pt-0.5 max-w-full -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x">
-            {perspective === 'subject' ? (
-              <button
-                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 px-3 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100"
-                onClick={() => {
-                  setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
-                  const otherClassrooms = classrooms.filter((c) => c.id !== (classroomsWithSubject[0]?.id || classroomId));
-                  setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
-                  setIsCloneModalOpen(true);
-                }}
-                title="คัดลอกโครงสร้างคะแนนวิชานี้จากห้องหนึ่งไปยังห้องอื่น"
-                type="button"
-              >
-                <Copy size={13} className="text-indigo-700" aria-hidden="true" />
-                <span>คัดลอกเกณฑ์</span>
-              </button>
-            ) : null}
-
-            {scoreView === 'excel' && contextAssessments.length > 0 ? (
-              <button
-                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                onClick={exportGridCsv}
-                title="ส่งออกตารางรวมคะแนนเป็นไฟล์ Excel / CSV"
-                type="button"
-              >
-                <Download size={13} aria-hidden="true" />
-                <span>Export Excel</span>
-              </button>
-            ) : null}
-
-            {scoreView === 'entry' && selectedAssessment ? (
-              <button
-                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                onClick={exportAssessmentCsv}
-                title="ส่งออกเป็นไฟล์ Excel / CSV"
-                type="button"
-              >
-                <Download size={13} aria-hidden="true" />
-                <span>Export CSV</span>
-              </button>
-            ) : null}
-
-            <button
-              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              onClick={() => setIsAcademicSubjectsOpen(true)}
-              title="จัดการ 8 กลุ่มสาระการเรียนรู้ ตัวชี้วัด เกณฑ์ตัดเกรด และตัดเกรดทางการ 8 ระดับ (0-4) อัตโนมัติ"
-              type="button"
+          {/* Compact Action Tools: 1 secondary action (OMR) + More Tools Dropdown */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={`/app/dashboard?view=omr-scanner&classroomId=${encodeURIComponent(classroomId || '')}&subjectName=${encodeURIComponent(subjectFilter || '')}${selectedAssessment?.id ? `&assessmentId=${encodeURIComponent(selectedAssessment.id)}` : ''}`}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50/80 px-3 text-xs font-black text-cyan-900 shadow-2xs transition hover:border-cyan-400 hover:bg-cyan-100"
+              title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง"
             >
-              <BookOpen size={13} aria-hidden="true" />
-              <span>โครงสร้างวิชา & ตัดเกรด</span>
-            </button>
+              <Camera size={14} className="text-cyan-700" aria-hidden="true" />
+              <span>ตรวจกระดาษ OMR</span>
+            </Link>
 
-            <button
-              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 text-xs font-black text-white shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              onClick={() => setIsOfficialDocumentsOpen(true)}
-              title="พิมพ์แบบ ปพ.5 รายชั้น, ปพ.5 รายวิชา, ปพ.6 และใบรับรองทางการ"
-              type="button"
-            >
-              <FileSpreadsheet size={13} aria-hidden="true" />
-              <span>พิมพ์ ปพ.๕ / ปพ.๖</span>
-            </button>
-
-            <button
-              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-3.5 text-xs font-black text-white shadow-md shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              onClick={() => setIsTermClosingOpen(true)}
-              title="ตรวจสอบความพร้อม ล็อคผลการเรียน และเลื่อนชั้นปีอัตโนมัติตามเกณฑ์ สพฐ."
-              type="button"
-            >
-              <Lock size={13} aria-hidden="true" />
-              <span>ปิดเทอม & เลื่อนชั้น</span>
-            </button>
-
-            <button
-              className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              onClick={() => setIsRubricModalOpen(true)}
-              title="ออกแบบข้อสอบกลางภาค/ปลายภาค เกณฑ์ Rubric 4 ระดับ และข้อสอบซ่อมเสริมตามตัวชี้วัด สพฐ. ด้วย AI"
-              type="button"
-            >
-              <Sparkles size={13} className="text-amber-300 animate-pulse" aria-hidden="true" />
-              <span>ข้อสอบ & รูบริก AI</span>
-            </button>
-
-            {selectedAssessment ? (
+            <div className="relative" ref={toolsMenuRef}>
               <button
-                className="shrink-0 whitespace-nowrap inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3.5 text-xs font-black text-white shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                onClick={() => setIsScoreOcrOpen(true)}
-                title="ถ่ายภาพหรืออัปโหลดรูปใบคะแนนเพื่อถอดรหัสคะแนนด้วย AI Vision"
                 type="button"
+                onClick={() => setIsToolsMenuOpen((open) => !open)}
+                aria-expanded={isToolsMenuOpen}
+                aria-haspopup="menu"
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition ${
+                  isToolsMenuOpen
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                }`}
               >
-                <Camera size={13} className="text-cyan-200" aria-hidden="true" />
-                <span>สแกนใบคะแนน AI</span>
+                <Settings2 size={14} aria-hidden="true" />
+                <span>เครื่องมือเพิ่มเติม</span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${isToolsMenuOpen ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
               </button>
-            ) : null}
+
+              {isToolsMenuOpen ? (
+                <div
+                  role="menu"
+                  aria-label="เครื่องมือเพิ่มเติมระบบคะแนน"
+                  className="absolute right-0 top-[calc(100%+0.45rem)] z-40 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsToolsMenuOpen(false);
+                      setIsAcademicSubjectsOpen(true);
+                    }}
+                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                  >
+                    <BookOpen size={15} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black text-slate-900">โครงสร้างวิชา & ตัดเกรด</span>
+                      <span className="block text-[11px] font-medium text-slate-500">กำหนด 8 กลุ่มสาระและเกณฑ์ 0–4</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsToolsMenuOpen(false);
+                      setIsOfficialDocumentsOpen(true);
+                    }}
+                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                  >
+                    <FileSpreadsheet size={15} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black text-slate-900">พิมพ์ ปพ.๕ / ปพ.๖</span>
+                      <span className="block text-[11px] font-medium text-slate-500">ออกเอกสารทางการและใบรับรอง</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsToolsMenuOpen(false);
+                      setIsTermClosingOpen(true);
+                    }}
+                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                  >
+                    <Lock size={15} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black text-slate-900">ปิดเทอม & เลื่อนชั้น</span>
+                      <span className="block text-[11px] font-medium text-slate-500">ตรวจความพร้อมและล็อกผลการเรียน</span>
+                    </span>
+                  </button>
+
+                  <div className="my-1.5 border-t border-slate-100" />
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsToolsMenuOpen(false);
+                      setIsRubricModalOpen(true);
+                    }}
+                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                  >
+                    <Sparkles size={15} className="mt-0.5 shrink-0 text-violet-600" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black text-slate-900">สร้างข้อสอบ & รูบริก AI</span>
+                      <span className="block text-[11px] font-medium text-slate-500">ออกแบบข้อสอบและเกณฑ์ประเมิน</span>
+                    </span>
+                  </button>
+
+                  {selectedAssessment ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setIsToolsMenuOpen(false);
+                        setIsScoreOcrOpen(true);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                    >
+                      <Camera size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-black text-slate-900">สแกนใบคะแนน AI</span>
+                        <span className="block text-[11px] font-medium text-slate-500">ถ่ายภาพใบคะแนนเพื่อกรอกอัตโนมัติ</span>
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {perspective === 'subject' ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setIsToolsMenuOpen(false);
+                        setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
+                        const otherClassrooms = classrooms.filter(
+                          (c) => c.id !== (classroomsWithSubject[0]?.id || classroomId),
+                        );
+                        setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
+                        setIsCloneModalOpen(true);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                    >
+                      <Copy size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-black text-slate-900">คัดลอกเกณฑ์ไปห้องอื่น</span>
+                        <span className="block text-[11px] font-medium text-slate-500">ใช้ชุดคะแนนเดียวกันในหลายห้อง</span>
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {(scoreView === 'excel' && contextAssessments.length > 0) ||
+                  (scoreView === 'entry' && selectedAssessment) ? (
+                    <>
+                      <div className="my-1.5 border-t border-slate-100" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          if (scoreView === 'excel') exportGridCsv();
+                          else exportAssessmentCsv();
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <Download size={15} className="mt-0.5 shrink-0 text-slate-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">ดาวน์โหลดไฟล์ Excel / CSV</span>
+                          <span className="block text-[11px] font-medium text-slate-500">
+                            {scoreView === 'excel' ? 'ส่งออกตารางคะแนนรวมทั้งห้อง' : 'ส่งออกคะแนนช่องนี้'}
+                          </span>
+                        </span>
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -2482,9 +2584,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
         <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
           {[
-            { icon: Table, label: '1. ตารางคะแนนรวม (Excel)', value: 'excel' as ScoreView },
-            { icon: ClipboardList, label: '2. กรอกทีละชิ้นงาน', value: 'entry' as ScoreView },
-            { icon: FileSpreadsheet, label: '3. สรุป & ตัดเกรด (0 - 4)', value: 'gradebook' as ScoreView },
+            { icon: Table, label: '1. ตารางรวมทั้งหมด', value: 'excel' as ScoreView },
+            { icon: ClipboardList, label: '2. กรอกทีละช่องคะแนน', value: 'entry' as ScoreView },
+            { icon: FileSpreadsheet, label: '3. สรุปคะแนน & ตัดเกรด', value: 'gradebook' as ScoreView },
             {
               icon: perspective === 'subject' ? BarChart3 : Layers,
               label:
@@ -2514,34 +2616,23 @@ export function ScoresPage({ session }: ScoresPageProps) {
           })}
         </div>
 
-        {/* Quick Actions & Assessment Selector */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {scoreView === 'entry' && contextAssessments.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
-              <select
-                className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
-                onChange={(event) => setSelectedAssessmentId(event.target.value)}
-                value={selectedAssessment?.id || ''}
-              >
-                {contextAssessments.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title} (เต็ม {item.max_score} | {item.weight}%)
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          <Link
-            to={`/app/dashboard?view=omr-scanner&classroomId=${encodeURIComponent(classroomId || '')}&subjectName=${encodeURIComponent(subjectFilter || '')}${selectedAssessment?.id ? `&assessmentId=${encodeURIComponent(selectedAssessment.id)}` : ''}`}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-cyan-300 bg-gradient-to-r from-cyan-500/10 via-cyan-500/5 to-transparent px-3.5 text-xs font-black text-cyan-900 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50 transition shrink-0"
-            title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง (ส่งต่อห้องและรายวิชาที่เลือก)"
-          >
-            <Camera size={15} className="text-cyan-600" />
-            ตรวจด้วยกระดาษ OMR
-          </Link>
-        </div>
+        {/* Assessment Selector in Entry Mode */}
+        {scoreView === 'entry' && contextAssessments.length > 0 ? (
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
+            <select
+              className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
+              onChange={(event) => setSelectedAssessmentId(event.target.value)}
+              value={selectedAssessment?.id || ''}
+            >
+              {contextAssessments.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} (เต็ม {item.max_score} | {item.weight}%)
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
 
       {/* Notice Banner */}
@@ -3028,8 +3119,115 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   </div>
                 </div>
 
-                {/* Score Table */}
-                <div className="mt-4 overflow-x-auto">
+                {/* Mobile Card List (< md) — thumb-friendly, zero horizontal scrolling */}
+                <div className="mt-4 space-y-2.5 md:hidden">
+                  {filteredStudents.map((student) => {
+                    const entry = selectedEntryByStudent.get(student.id);
+                    const scoreValue =
+                      scores[student.id] ??
+                      (entry?.score === null || entry?.score === undefined ? '' : String(entry.score));
+                    const scoreNumber = scoreValue === '' ? null : Number(scoreValue);
+                    const percent =
+                      scoreNumber !== null && Number.isFinite(scoreNumber)
+                        ? Math.round((scoreNumber / selectedAssessment.max_score) * 10000) / 100
+                        : null;
+                    const gradeInfo = getThaiGrade(percent);
+
+                    return (
+                      <div
+                        key={student.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-400 font-mono">
+                              รหัส {student.student_code || '-'}
+                            </p>
+                            <p className="truncate text-sm font-black text-slate-900">
+                              {student.first_name} {student.last_name}
+                              {student.nickname ? (
+                                <span className="ml-1.5 text-xs font-bold text-slate-400">
+                                  ({student.nickname})
+                                </span>
+                              ) : null}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-black ring-1 ${
+                                percent === null
+                                  ? 'bg-white text-slate-400 ring-slate-200'
+                                  : percent < 50
+                                    ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                                    : percent < 70
+                                      ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                                      : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                              }`}
+                            >
+                              {percent === null ? '-' : `${percent}%`}
+                            </span>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ring-1 ${gradeInfo.badgeClass}`}>
+                              {gradeInfo.grade}
+                            </span>
+                            <button
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                              onClick={() => void handleClearStudentScore(student)}
+                              title="ล้างคะแนนคนนี้"
+                              type="button"
+                            >
+                              <Trash2 size={14} aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-500 shrink-0">
+                            คะแนน (เต็ม {selectedAssessment.max_score})
+                          </label>
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <input
+                              className="h-11 w-24 rounded-xl border border-slate-300 bg-white px-3 text-center text-base font-black text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                              inputMode="decimal"
+                              max={selectedAssessment.max_score}
+                              min="0"
+                              onChange={(event) =>
+                                setScores((current) => ({ ...current, [student.id]: event.target.value }))
+                              }
+                              placeholder="-"
+                              step="any"
+                              type="number"
+                              value={scoreValue}
+                            />
+                            <button
+                              className="h-11 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 active:scale-95 transition"
+                              onClick={() =>
+                                setScores((current) => ({
+                                  ...current,
+                                  [student.id]: String(selectedAssessment.max_score),
+                                }))
+                              }
+                              type="button"
+                            >
+                              เต็ม
+                            </button>
+                          </div>
+                        </div>
+
+                        <input
+                          className="mt-2.5 h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-cyan-400"
+                          onChange={(event) =>
+                            setNotes((current) => ({ ...current, [student.id]: event.target.value }))
+                          }
+                          placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)..."
+                          value={notes[student.id] ?? entry?.note ?? ''}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Score Table (md+) */}
+                <div className="mt-4 hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[760px] divide-y divide-slate-100 text-left">
                     <thead>
                       <tr className="bg-slate-50/80 text-[11px] font-black uppercase text-slate-500">

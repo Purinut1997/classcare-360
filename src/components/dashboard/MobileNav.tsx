@@ -1,139 +1,53 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  LayoutDashboard,
-  Users,
+  Building2,
+  ChevronRight,
+  ClipboardList,
+  Compass,
+  Crown,
+  FolderOpen,
+  Home,
   LayoutGrid,
   Search,
+  ServerCog,
   Sparkles,
+  Users,
   X,
-  Home,
-  ChevronDown,
-  ClipboardCheck,
-  BookOpen,
-  Heart,
-  Wrench,
-  Settings2,
-  CircleHelp,
-  FolderOpen,
 } from 'lucide-react';
 import { AppNavigationLink as Link } from '../navigation/ContextLink';
 import { CuteCareyAvatar, type MascotAvatarType } from '../support/CuteCareyAvatar';
+import { getVipBadgeInfo } from '../../lib/entitlements';
 import type { AppNavItem } from '../../routes/appRoutes';
+import {
+  DAILY_NAV_KEYS,
+  INTEGRATED_ALIAS_KEYS,
+  MOBILE_BOTTOM_DOCK_KEYS,
+  UNIFIED_NAV_GROUPS,
+} from '../../routes/navigationGroups';
+import type { AppSessionContext } from '../../types/core';
 
-interface MobileCategoryConfig {
-  key: string;
-  label: string;
-  shortLabel: string;
-  icon: typeof Home;
-  itemKeys: string[];
-  tone: string;
-}
-
-const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
-  {
-    key: 'classroom-admin',
-    label: 'งานประจำวันในห้องเรียน',
-    shortLabel: 'งานห้องเรียน',
-    icon: ClipboardCheck,
-    itemKeys: [
-      'students',
-      'teacher-work',
-      'student-health',
-      'classroom-operations',
-      'savings',
-      'daily-brief',
-      'notifications',
-    ],
-    tone: 'teal',
-  },
-  {
-    key: 'academic',
-    label: 'งานวิชาการ & วัดผล',
-    shortLabel: 'วิชาการ',
-    icon: BookOpen,
-    itemKeys: [
-      'schedule',
-      'scores',
-      'omr-scanner',
-      'academic-hub',
-      'reports',
-    ],
-    tone: 'blue',
-  },
-  {
-    key: 'care',
-    label: 'ดูแลช่วยเหลือนักเรียน',
-    shortLabel: 'ดูแลนักเรียน',
-    icon: Heart,
-    itemKeys: [
-      'behavior',
-      'desirable-characteristics',
-      'automation',
-      'parent-access',
-    ],
-    tone: 'rose',
-  },
-  {
-    key: 'tools',
-    label: 'เครื่องมือช่วยสอน',
-    shortLabel: 'เครื่องมือ',
-    icon: Wrench,
-    itemKeys: [
-      'randomizer',
-      'math-games',
-      'school-calendar',
-    ],
-    tone: 'amber',
-  },
-  {
-    key: 'admin',
-    label: 'ตั้งค่าโรงเรียน & ระบบ',
-    shortLabel: 'ตั้งค่า',
-    icon: Settings2,
-    itemKeys: [
-      'workspace-settings',
-      'academic-year',
-      'period-locks',
-      'import-export',
-      'data-safety',
-      'setup',
-      'audit',
-      'superadmin-dashboard',
-    ],
-    tone: 'slate',
-  },
-  {
-    key: 'support',
-    label: 'บัญชีและความช่วยเหลือ',
-    shortLabel: 'ช่วยเหลือ',
-    icon: CircleHelp,
-    itemKeys: ['help-center', 'package', 'workspace-switch'],
-    tone: 'slate',
-  },
-];
-
-const categoryToneStyles: Record<string, string> = {
-  teal: 'bg-teal-50 text-teal-700',
+const groupToneStyles: Record<'emerald' | 'blue' | 'slate', string> = {
+  emerald: 'bg-[#e6f4ec] text-[#1c573d]',
   blue: 'bg-sky-50 text-sky-700',
-  rose: 'bg-rose-50 text-rose-700',
-  amber: 'bg-amber-50 text-amber-700',
   slate: 'bg-slate-100 text-slate-600',
 };
 
 interface MobileNavProps {
   activeView: string;
   navItems: AppNavItem[];
+  onOpenGuide?: () => void;
+  session?: AppSessionContext;
 }
 
-export function MobileNav({ activeView, navItems }: MobileNavProps) {
+export function MobileNav({ activeView, navItems, onOpenGuide, session }: MobileNavProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isAllMenusOpen, setIsAllMenusOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'all' | string>('all');
-  const [expandedCategory, setExpandedCategory] = useState(() =>
-    MOBILE_CATEGORIES.find((category) => category.itemKeys.includes(activeView))?.key ?? 'classroom-admin',
-  );
+
+  const isSuperadmin = session?.profile.role === 'superadmin';
+  const vipBadgeInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
 
   // Mascot avatar selection
   const [mascotType, setMascotType] = useState<MascotAvatarType>(() => {
@@ -195,104 +109,142 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
     window.dispatchEvent(new CustomEvent('classcare:toggle-ai-chat'));
   };
 
-  // 1. Overview item
-  const overviewItem = useMemo(() => {
-    return (
-      navItems.find((item) => item.key === 'overview') || {
+  // Fixed 5-Slot Bottom Dock Items
+  const overviewItem = useMemo(
+    () =>
+      navItems.find((item) => item.key === MOBILE_BOTTOM_DOCK_KEYS.slot1) || {
         key: 'overview',
-        label: 'ภาพรวม',
-        icon: LayoutDashboard,
+        label: 'วันนี้',
+        icon: Home,
         path: '/app/dashboard',
         moduleKey: 'dashboard' as const,
-      }
-    );
-  }, [navItems]);
+      },
+    [navItems],
+  );
 
-  // 2. Students item
-  const studentsItem = useMemo(() => {
-    return (
-      navItems.find((item) => item.key === 'students') || {
+  const attendanceItem = useMemo(
+    () =>
+      navItems.find((item) => item.key === MOBILE_BOTTOM_DOCK_KEYS.slot2) || {
+        key: 'teacher-work',
+        label: 'เช็กชื่อ',
+        icon: ClipboardList,
+        path: '/app/dashboard?view=teacher-work',
+        moduleKey: 'attendance' as const,
+      },
+    [navItems],
+  );
+
+  const studentsItem = useMemo(
+    () =>
+      navItems.find((item) => item.key === MOBILE_BOTTOM_DOCK_KEYS.slot4) || {
         key: 'students',
         label: 'นักเรียน',
         icon: Users,
         path: '/app/dashboard?view=students',
         moduleKey: 'students' as const,
-      }
-    );
-  }, [navItems]);
+      },
+    [navItems],
+  );
 
-  // 4. Contextual Item: if current active view is not overview/students, show it in slot 4!
-  // Otherwise default to schedule
-  const contextualItem = useMemo(() => {
-    if (activeView !== 'overview' && activeView !== 'students') {
-      const current = navItems.find((item) => item.key === activeView);
-      if (current) return current;
-    }
-    return (
-      navItems.find((item) => item.key === 'schedule') ||
-      navItems.find((item) => item.key === 'teacher-work') || {
-        key: 'schedule',
-        label: 'ตารางสอน',
-        icon: LayoutGrid,
-        path: '/app/dashboard?view=schedule',
-        moduleKey: 'attendance' as const,
-      }
-    );
-  }, [navItems, activeView]);
+  const isItemActive = (key: string) =>
+    key === activeView || (key === 'academic-year' && activeView === 'period-locks');
 
-  // Filtered categorized sections for Quick Launcher Sheet
-  const categorizedSections = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    const categories = [...MOBILE_CATEGORIES];
-    const knownKeys = new Set(categories.flatMap((category) => category.itemKeys));
-    const ungroupedItems = navItems.filter((item) => item.key !== 'overview' && !knownKeys.has(item.key));
+  const normalizedSearch = searchQuery.toLowerCase().trim();
+
+  const dailyItems = useMemo(() => {
+    const items = DAILY_NAV_KEYS
+      .map((key) => navItems.find((item) => item.key === key))
+      .filter((item): item is AppNavItem => Boolean(item));
+    if (!normalizedSearch) return items;
+    return items.filter(
+      (item) =>
+        item.label.toLowerCase().includes(normalizedSearch) ||
+        item.key.toLowerCase().includes(normalizedSearch) ||
+        (item.key === 'overview' && ('ภาพรวม'.includes(normalizedSearch) || 'หน้าแรก'.includes(normalizedSearch))),
+    );
+  }, [navItems, normalizedSearch]);
+
+  const groupedSections = useMemo(() => {
+    const knownKeys = new Set<string>([
+      ...DAILY_NAV_KEYS,
+      ...UNIFIED_NAV_GROUPS.flatMap((group) => group.itemKeys),
+      ...INTEGRATED_ALIAS_KEYS,
+      'superadmin-dashboard',
+    ]);
+    const ungroupedItems = navItems.filter((item) => !knownKeys.has(item.key));
+
+    const sections = UNIFIED_NAV_GROUPS.map((group) => ({
+      key: group.key as string,
+      label: group.label,
+      shortLabel: group.shortLabel,
+      tone: group.tone,
+      icon: group.icon,
+      items: group.itemKeys
+        .map((key) => navItems.find((item) => item.key === key))
+        .filter((item): item is AppNavItem => Boolean(item)),
+    }));
+
     if (ungroupedItems.length > 0) {
-      categories.push({
+      sections.push({
         key: 'other',
         label: 'เมนูอื่น ๆ',
         shortLabel: 'อื่น ๆ',
-        icon: FolderOpen,
-        itemKeys: ungroupedItems.map((item) => item.key),
         tone: 'slate',
+        icon: FolderOpen,
+        items: ungroupedItems,
       });
     }
-    return categories.map((cat) => {
-      if (selectedCategory !== 'all' && selectedCategory !== cat.key) {
-        return null;
-      }
-      const items = cat.itemKeys
-        .map((key) => navItems.find((item) => item.key === key))
-        .filter((item): item is AppNavItem => Boolean(item))
-        .filter((item) => {
-          if (!q) return true;
-          return (
-            item.label.toLowerCase().includes(q) ||
-            item.key.toLowerCase().includes(q)
-          );
-        });
-      if (items.length === 0) return null;
-      return { category: cat, items };
-    }).filter((s): s is { category: MobileCategoryConfig; items: AppNavItem[] } => Boolean(s));
-  }, [navItems, searchQuery, selectedCategory]);
 
-  // Check if overview item matches search or all
-  const showOverviewItem = useMemo(() => {
-    if (selectedCategory !== 'all') return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
+    return sections
+      .filter((section) => selectedCategory === 'all' || selectedCategory === section.key)
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => {
+          if (!normalizedSearch) return true;
+          return (
+            item.label.toLowerCase().includes(normalizedSearch) ||
+            item.key.toLowerCase().includes(normalizedSearch)
+          );
+        }),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [navItems, normalizedSearch, selectedCategory]);
+
+  const showDailySection = selectedCategory === 'all' && dailyItems.length > 0;
+
+  const renderGridCard = (item: AppNavItem) => {
+    const Icon = item.icon;
+    const isActive = isItemActive(item.key);
     return (
-      overviewItem.label.toLowerCase().includes(q) ||
-      overviewItem.key.toLowerCase().includes(q) ||
-      'หน้าแรก'.includes(q) ||
-      'ภาพรวม'.includes(q) ||
-      'dashboard'.includes(q)
+      <Link
+        key={item.key}
+        externalUrl={item.externalUrl}
+        to={item.path}
+        onClick={() => setIsAllMenusOpen(false)}
+        className={`flex min-h-[54px] items-center gap-2.5 rounded-2xl border px-3 py-2 text-left transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
+          isActive
+            ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d] shadow-2xs'
+            : 'border-[#dce3d7] bg-white text-[#1f2a22] hover:bg-[#fafbf8]'
+        }`}
+      >
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
+            isActive ? 'bg-[#2f7d5b] text-white' : 'bg-[#edf1ea] text-[#4b594f]'
+          }`}
+        >
+          <Icon size={16} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1 text-xs font-bold leading-snug line-clamp-2">
+          {item.label}
+        </span>
+      </Link>
     );
-  }, [selectedCategory, searchQuery, overviewItem]);
+  };
 
   return (
     <>
       {/* ========================================================================= */}
-      {/* Quick Launcher Sheet (ศูนย์รวมเมนูและงานครูทั้งหมดบนมือถือ) */}
+      {/* Unified Quick Launcher Bottom Sheet (ตรงกับโครงสร้าง Sidebar บน PC) */}
       {/* ========================================================================= */}
       {isAllMenusOpen ? (
         <div
@@ -300,7 +252,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
           onClick={() => setIsAllMenusOpen(false)}
         >
           <div
-            className="relative max-h-[88dvh] w-full overflow-hidden rounded-t-[28px] border border-slate-200 bg-white px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_36px_rgba(15,23,42,0.18)] animate-in slide-in-from-bottom-4 duration-200 flex flex-col"
+            className="relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-slate-200 bg-white px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_36px_rgba(15,23,42,0.18)] animate-in slide-in-from-bottom-4 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Sheet Handle */}
@@ -311,7 +263,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
               <div className="min-w-0">
                 <p className="text-[11px] font-bold text-[#2f7d5b]">ClassCare 360</p>
                 <h3 className="font-display text-lg font-bold leading-tight text-[#1f2a22]">
-                  เมนูและงานครู
+                  เมนูทั้งหมด
                 </h3>
               </div>
               <button
@@ -324,8 +276,62 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
               </button>
             </div>
 
+            {/* Compact Workspace & Quick Info Strip */}
+            {session?.workspace ? (
+              <div className="mt-3 flex shrink-0 items-center gap-2">
+                <Link
+                  to="/app/select-workspace"
+                  onClick={() => setIsAllMenusOpen(false)}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border border-[#dce3d7] bg-[#fafbf8] px-3 py-2 text-left transition hover:border-[#bfe0cd] hover:bg-[#eaf5ef]/60"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#eaf5ef] text-[#1c573d]">
+                    <Building2 size={16} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-[#1f2a22]">
+                      {session.workspace.schoolName || session.workspace.name}
+                    </span>
+                    <span className="block truncate text-[11px] font-medium text-[#6c7b70]">
+                      ปี {session.workspace.academicYear || 'ปัจจุบัน'} · แตะเพื่อเปลี่ยนโรงเรียน
+                    </span>
+                  </span>
+                  <ChevronRight size={15} className="shrink-0 text-[#86948a]" aria-hidden="true" />
+                </Link>
+
+                {vipBadgeInfo?.isVip ? (
+                  <Link
+                    to="/app/package"
+                    onClick={() => setIsAllMenusOpen(false)}
+                    className="inline-flex h-12 shrink-0 flex-col items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 px-3 text-amber-900"
+                    title={vipBadgeInfo.tooltip}
+                  >
+                    <span className="inline-flex items-center gap-1 text-[11px] font-black">
+                      <Crown size={12} className="text-amber-600" aria-hidden="true" />
+                      VIP
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-700">{vipBadgeInfo.daysText}</span>
+                  </Link>
+                ) : null}
+
+                {onOpenGuide ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAllMenusOpen(false);
+                      onOpenGuide();
+                    }}
+                    className="inline-flex h-12 shrink-0 flex-col items-center justify-center rounded-2xl border border-[#bfe0cd] bg-[#eaf5ef] px-3 text-[#1c573d]"
+                    title="เปิดคู่มือเริ่มต้นใช้งาน 5 ขั้นตอน"
+                  >
+                    <Compass size={15} aria-hidden="true" />
+                    <span className="mt-0.5 text-[10px] font-bold">คู่มือ</span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             {/* Quick Search */}
-            <div className="relative mt-3 shrink-0">
+            <div className="relative mt-2.5 shrink-0">
               <Search
                 size={17}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a5f]"
@@ -334,7 +340,7 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาเมนู เช่น เช็กชื่อ ตารางสอน คะแนน"
+                placeholder="ค้นหาเมนู เช่น เช็กชื่อ คะแนน ตารางสอน ปพ.5"
                 className="h-11 w-full rounded-xl border border-[#dce3d7] bg-[#fafbf8] pl-10 pr-10 text-sm font-medium text-[#1f2a22] placeholder:text-[#7c897f] focus:border-[#2f7d5b] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2f7d5b]/15 transition-colors"
                 aria-label="ค้นหาเมนู"
               />
@@ -350,8 +356,8 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
               )}
             </div>
 
-            {/* Category Filter Tabs */}
-            <div className="-mx-4 mt-3 flex shrink-0 items-center gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* Unified 3-Group Category Filter Tabs */}
+            <div className="-mx-4 mt-2.5 flex shrink-0 items-center gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <button
                 type="button"
                 onClick={() => setSelectedCategory('all')}
@@ -361,19 +367,16 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                     : 'border-[#dce3d7] bg-white text-[#4b594f] hover:bg-[#fafbf8]'
                 }`}
               >
-                ทุกหมวด
+                ทั้งหมด
               </button>
-              {MOBILE_CATEGORIES.map((cat) => {
-                const isActive = selectedCategory === cat.key;
-                const CategoryIcon = cat.icon;
+              {UNIFIED_NAV_GROUPS.map((group) => {
+                const isActive = selectedCategory === group.key;
+                const CategoryIcon = group.icon;
                 return (
                   <button
-                    key={cat.key}
+                    key={group.key}
                     type="button"
-                    onClick={() => {
-                      setSelectedCategory(cat.key);
-                      setExpandedCategory(cat.key);
-                    }}
+                    onClick={() => setSelectedCategory(group.key)}
                     className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
                       isActive
                         ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d]'
@@ -381,102 +384,58 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
                     }`}
                   >
                     <CategoryIcon size={14} aria-hidden="true" />
-                    <span>{cat.shortLabel}</span>
+                    <span>{group.shortLabel}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Scrollable Categorized List */}
-            <div className="mt-1 min-h-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 pr-0.5 touch-pan-y">
-              {showOverviewItem && (
-                <Link
-                  to={overviewItem.path}
-                  onClick={() => setIsAllMenusOpen(false)}
-                  className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
-                    activeView === 'overview'
-                      ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d]'
-                      : 'border-[#dce3d7] bg-white text-[#1f2a22] hover:bg-[#fafbf8]'
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${activeView === 'overview' ? 'bg-[#2f7d5b] text-white' : 'bg-[#edf1ea] text-[#5b6a5f]'}`}>
-                      <Home size={16} aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">ภาพรวมและทางลัด</p>
-                    </div>
+            {/* Scrollable Flat 2-Column Touch Grid */}
+            <div className="mt-1 min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 pr-0.5 touch-pan-y">
+              {showDailySection && (
+                <section aria-label="งานใช้ทุกวัน">
+                  <p className="mb-2 px-0.5 text-xs font-extrabold text-[#1c573d]">
+                    งานใช้ทุกวัน
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {dailyItems.map(renderGridCard)}
                   </div>
-                  {activeView === 'overview' ? <span className="shrink-0 text-xs font-semibold text-[#1c573d]">กำลังเปิด</span> : <ChevronDown size={16} className="-rotate-90 shrink-0 text-[#86948a]" aria-hidden="true" />}
-                </Link>
+                </section>
               )}
 
-              {categorizedSections.map(({ category: cat, items }) => (
-                <section key={cat.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                  {(() => {
-                    const CategoryIcon = cat.icon;
-                    const isExpanded = expandedCategory === cat.key || selectedCategory === cat.key || Boolean(searchQuery.trim());
-                    return (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedCategory(isExpanded && selectedCategory === 'all' && !searchQuery.trim() ? '' : cat.key)}
-                          aria-expanded={isExpanded}
-                          aria-controls={`mobile-menu-${cat.key}`}
-                          className="flex min-h-12 w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-700"
-                        >
-                          <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${categoryToneStyles[cat.tone] ?? categoryToneStyles.slate}`}>
-                            <CategoryIcon size={16} aria-hidden="true" />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-slate-800">{cat.label}</span>
-                            <span className="block text-[11px] text-slate-500">{items.length} เมนู</span>
-                          </span>
-                          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
-                        </button>
-                        {isExpanded && (
-                          <div id={`mobile-menu-${cat.key}`} className="grid grid-cols-1 gap-1 border-t border-slate-100 bg-slate-50/60 p-2">
-                    {items.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = item.key === activeView;
-                      return (
-                        <Link
-                          key={item.key}
-                          externalUrl={item.externalUrl}
-                          to={item.path}
-                          onClick={() => setIsAllMenusOpen(false)}
-                          className={`flex min-h-11 items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7d5b] ${
-                            isActive
-                              ? 'border-[#2f7d5b] bg-[#e6f4ec] text-[#1c573d]'
-                              : 'border-[#dce3d7] bg-white text-[#1f2a22] hover:bg-[#fafbf8]'
-                          }`}
-                        >
-                          <span
-                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
-                              isActive
-                                ? 'bg-[#2f7d5b] text-white'
-                                : 'bg-[#edf1ea] text-[#5b6a5f]'
-                            }`}
-                          >
-                            <Icon size={15} aria-hidden="true" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold leading-tight">{item.label}</p>
-                          </div>
-                          {isActive ? <span className="shrink-0 text-[10px] font-semibold text-[#1c573d]">กำลังเปิด</span> : <ChevronDown size={14} className="-rotate-90 shrink-0 text-[#86948a]" aria-hidden="true" />}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </section>
-              ))}
+              {groupedSections.map((section) => {
+                const CategoryIcon = section.icon;
+                return (
+                  <section key={section.key} aria-label={section.label}>
+                    <div className="mb-2 flex items-center gap-2 px-0.5">
+                      <span
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg ${groupToneStyles[section.tone]}`}
+                      >
+                        <CategoryIcon size={13} aria-hidden="true" />
+                      </span>
+                      <p className="text-xs font-extrabold text-[#1f2924]">{section.label}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {section.items.map(renderGridCard)}
+                    </div>
+                  </section>
+                );
+              })}
 
-              {/* Empty state */}
-              {!showOverviewItem && categorizedSections.length === 0 && (
+              {isSuperadmin && !normalizedSearch ? (
+                <section aria-label="ศูนย์ควบคุมระบบ">
+                  <Link
+                    to="/app/dashboard?view=superadmin-dashboard"
+                    onClick={() => setIsAllMenusOpen(false)}
+                    className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-[#bfe0cd] bg-[#eaf5ef]/70 px-3 py-2 text-[#1c573d]"
+                  >
+                    <ServerCog size={16} aria-hidden="true" />
+                    <span className="text-xs font-bold">Superadmin — ศูนย์ควบคุมระบบ</span>
+                  </Link>
+                </section>
+              ) : null}
+
+              {!showDailySection && groupedSections.length === 0 && (
                 <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">
                   ไม่พบเมนู “{searchQuery}”
                 </div>
@@ -487,10 +446,10 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
       ) : null}
 
       {/* ========================================================================= */}
-      {/* 5-Slot Bottom Dock with Center AI Mascot FAB */}
+      {/* Fixed 5-Slot Bottom Dock (ตำแหน่งปุ่มคงที่ ไม่สลับเอง) */}
       {/* ========================================================================= */}
       <nav className="app-mobile-nav" aria-label="ทางลัดมือถือ">
-        {/* Slot 1: ภาพรวม */}
+        {/* Slot 1: วันนี้ */}
         {(() => {
           const Icon = overviewItem.icon || Home;
           const isActive = activeView === 'overview';
@@ -501,23 +460,23 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
               onClick={() => setIsAllMenusOpen(false)}
             >
               <Icon size={19} aria-hidden="true" />
-              <span className="truncate max-w-[56px]">{overviewItem.label}</span>
+              <span className="truncate max-w-[56px]">วันนี้</span>
             </Link>
           );
         })()}
 
-        {/* Slot 2: นักเรียน */}
+        {/* Slot 2: เช็กชื่อ */}
         {(() => {
-          const Icon = studentsItem.icon || Users;
-          const isActive = activeView === 'students';
+          const Icon = attendanceItem.icon || ClipboardList;
+          const isActive = activeView === 'teacher-work';
           return (
             <Link
-              to={studentsItem.path}
+              to={attendanceItem.path}
               className={isActive ? 'is-active' : ''}
               onClick={() => setIsAllMenusOpen(false)}
             >
               <Icon size={19} aria-hidden="true" />
-              <span className="truncate max-w-[56px]">{studentsItem.label}</span>
+              <span className="truncate max-w-[56px]">เช็กชื่อ</span>
             </Link>
           );
         })()}
@@ -530,10 +489,8 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
             aria-label="ผู้ช่วยครูอัจฉริยะ น้องแคร์ AI"
             className="group relative -mt-6.5 flex h-14.5 w-14.5 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-[#2f7d5b] via-[#3ea378] to-[#1c342b] p-0.5 text-white shadow-xl shadow-[#1c342b]/25 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
           >
-            {/* Subtle Botanical Ring */}
             <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-[#86efac]/60 via-[#2f7d5b]/50 to-[#f5a623]/40 opacity-50 blur-xs group-hover:opacity-90 transition-opacity" />
 
-            {/* Center Inner Circle */}
             <div className="relative z-10 grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-[#2f7d5b] via-[#256649] to-[#1c342b] shadow-inner overflow-hidden">
               {isChatOpen ? (
                 <X size={24} className="text-white drop-shadow" />
@@ -552,14 +509,12 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
               )}
             </div>
 
-            {/* Unread Message Badge */}
             {unreadCount > 0 ? (
               <span className="absolute -right-0.5 -top-0.5 z-20 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-[#c25970] px-1 text-[9px] font-bold text-white shadow">
                 {unreadCount}
               </span>
             ) : null}
 
-            {/* AI Mini Badge */}
             <span className="absolute -bottom-1.5 z-20 rounded-full bg-[#1c342b] px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider text-[#d1fae5] shadow-xs border border-white/70">
               AI
             </span>
@@ -574,34 +529,31 @@ export function MobileNav({ activeView, navItems }: MobileNavProps) {
           </span>
         </div>
 
-        {/* Slot 4: Contextual Active Item / Schedule */}
+        {/* Slot 4: นักเรียน */}
         {(() => {
-          const Icon = contextualItem.icon || LayoutGrid;
-          const isActive =
-            activeView === contextualItem.key &&
-            activeView !== 'overview' &&
-            activeView !== 'students';
+          const Icon = studentsItem.icon || Users;
+          const isActive = activeView === 'students';
           return (
             <Link
-              to={contextualItem.path}
+              to={studentsItem.path}
               className={isActive ? 'is-active' : ''}
               onClick={() => setIsAllMenusOpen(false)}
             >
               <Icon size={19} aria-hidden="true" />
-              <span className="truncate max-w-[56px]">{contextualItem.label}</span>
+              <span className="truncate max-w-[56px]">นักเรียน</span>
             </Link>
           );
         })()}
 
-        {/* Slot 5: เมนูทั้งหมด */}
+        {/* Slot 5: เมนู */}
         <button
           type="button"
           onClick={() => setIsAllMenusOpen((prev) => !prev)}
           className={`nav-item-btn ${isAllMenusOpen ? 'is-active' : ''}`}
-          aria-label="เปิดศูนย์รวมเมนูทั้งหมด"
+          aria-label="เปิดเมนูทั้งหมด"
         >
           <LayoutGrid size={19} aria-hidden="true" />
-          <span className="truncate max-w-[56px]">เมนูทั้งหมด</span>
+          <span className="truncate max-w-[56px]">เมนู</span>
         </button>
       </nav>
     </>

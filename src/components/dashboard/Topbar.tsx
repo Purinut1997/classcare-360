@@ -1,4 +1,4 @@
-import { Activity, Bell, Building2, Check, ChevronDown, CloudOff, Compass, Crown, Menu, RefreshCw, Settings2, X } from 'lucide-react';
+import { Activity, Bell, Check, ChevronDown, CloudOff, Crown, RefreshCw, Settings2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ import type { AppNavItem } from '../../routes/appRoutes';
 interface TopbarProps {
   activeLabel: string;
   navItems: AppNavItem[];
-  onMenuToggle: () => void;
+  onMenuToggle?: () => void;
   onOpenGuide?: () => void;
   session?: AppSessionContext;
 }
@@ -25,7 +25,7 @@ function getInitials(displayName?: string) {
   return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 }
 
-export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, session }: TopbarProps) {
+export function Topbar({ activeLabel, navItems, session }: TopbarProps) {
   const location = useLocation();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isNotificationCollapsed, setIsNotificationCollapsed] = useState(false);
@@ -162,59 +162,16 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [isNotificationOpen]);
-  const workspace = session?.workspace;
   const displayLabel = activeLabel === 'ภาพรวม' ? 'วันนี้' : activeLabel;
   const vipInfo = session ? getVipBadgeInfo(session.subscription, session.profile.role) : null;
-  const canSwitchWorkspace = session?.profile.role === 'superadmin' || (session?.workspaceCount ?? 0) > 1;
-  const workspaceSummary = (
-    <>
-      <span className="app-workspace-icon">
-        <Building2 size={15} aria-hidden="true" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-xs font-bold text-[#1f2924]">
-          {workspace?.schoolName || session?.profile.schoolName || 'ClassCare 360'}
-        </span>
-        <span className="block truncate text-[10px] font-semibold text-[#75827a]">
-          {workspace ? `${workspace.classroomName} · ${workspace.academicYear}` : 'พื้นที่ทำงานหลัก'}
-        </span>
-      </span>
-    </>
-  );
 
   return (
     <header className="app-topbar">
-      <button
-        className="app-icon-button lg:hidden"
-        aria-label="เปิดเมนูหลัก"
-        onClick={onMenuToggle}
-        type="button"
-      >
-        <Menu size={19} aria-hidden="true" />
-      </button>
-
       <div className="min-w-0 flex items-center gap-2.5">
         <h1 className="truncate font-display text-base font-extrabold tracking-tight text-[#1f2924] sm:text-[17px]">
           {displayLabel}
         </h1>
       </div>
-
-      {canSwitchWorkspace ? (
-        <Link
-          className="app-workspace-switcher hidden md:flex"
-          to={withDemoContext('/app/select-workspace', location.search)}
-          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'เลือกโรงเรียนหรือห้องเรียน'}
-        >
-          {workspaceSummary}
-        </Link>
-      ) : (
-        <div
-          className="app-workspace-switcher hidden cursor-default md:flex"
-          title={workspace ? `${workspace.schoolName} · ${workspace.classroomName}` : 'พื้นที่ทำงานหลัก'}
-        >
-          {workspaceSummary}
-        </div>
-      )}
 
       <GlobalSearch navItems={navItems} session={session} />
 
@@ -247,19 +204,6 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
             </button>
           )}
         </div>
-      )}
-
-      {onOpenGuide && (
-        <button
-          type="button"
-          onClick={onOpenGuide}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e8e2] bg-[#fafbf9] px-3 text-xs font-bold text-[#4b594f] transition hover:border-[#bfe0cd] hover:bg-white hover:text-[#1c573d] active:scale-95"
-          aria-label="คู่มือแนะนำการใช้งานระบบ"
-          title="เปิดตัวนำทางการใช้งานระบบ ClassCare 360 (5 ขั้นตอน)"
-        >
-          <Compass size={15} className="text-[#2f7d5b]" aria-hidden="true" />
-          <span className="hidden xl:inline">คู่มือเริ่มต้น</span>
-        </button>
       )}
 
       <div className="relative shrink-0" ref={notificationPanelRef}>
@@ -313,39 +257,6 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
           </section>
         )}
       </div>
-
-      {vipInfo && (vipInfo.isVip || vipInfo.tier === 'trial') ? (
-        <Link
-          to={withDemoContext('/app/package', location.search)}
-          title={vipInfo.tooltip}
-          className={`hidden h-9 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-bold shadow-2xs transition active:scale-95 sm:inline-flex ${
-            vipInfo.isVip
-              ? vipInfo.isExpiringSoon
-                ? 'border-rose-300/90 bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 text-rose-900 hover:border-rose-400'
-                : 'border-amber-300/85 bg-gradient-to-r from-[#fff8e1] via-[#fef3c7]/80 to-[#fffbeb] text-[#78490a] hover:border-amber-400 hover:brightness-[0.98]'
-              : 'border-sky-200 bg-sky-50/90 text-sky-900 hover:border-sky-300'
-          }`}
-        >
-          <span
-            className={`grid h-5 w-5 shrink-0 place-items-center rounded-md ${
-              vipInfo.isVip
-                ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-2xs'
-                : 'bg-sky-500/15 text-sky-700'
-            }`}
-          >
-            <Crown size={12} className={vipInfo.isVip ? 'fill-white/25' : ''} aria-hidden="true" />
-          </span>
-          <span className="font-black tracking-tight">{vipInfo.badgeText}</span>
-          {vipInfo.daysText ? (
-            <>
-              <span className={`h-3 w-px ${vipInfo.isVip ? 'bg-amber-300/80' : 'bg-sky-200'}`} aria-hidden="true" />
-              <span className={`whitespace-nowrap text-[11px] font-bold ${vipInfo.isExpiringSoon ? 'text-rose-700' : vipInfo.isVip ? 'text-[#92580e]' : 'text-sky-700'}`}>
-                {vipInfo.daysText}
-              </span>
-            </>
-          ) : null}
-        </Link>
-      ) : null}
 
       <Link
         className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-[#e6f4ec]/70"
