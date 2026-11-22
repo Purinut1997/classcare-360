@@ -20,6 +20,7 @@ import {
   Loader2,
   Plus,
   Printer,
+  QrCode,
   RefreshCw,
   Sliders,
   Sparkles,
@@ -49,6 +50,8 @@ import {
   type SavedTeacherExam,
 } from '../../lib/teacherExamsService';
 import type { AppSessionContext } from '../../types/core';
+import type { AnswerSheetConfig } from '../../types/omr';
+import { withDemoContext } from '../../lib/auth';
 
 export interface ExamUnitItem {
   id: string;
@@ -2552,6 +2555,87 @@ export function RubricAndQuizModal({
                       >
                         <Printer size={13} /> พิมพ์ชุดครู/Blueprint
                       </button>
+                      {(examResult.part1?.questions?.length ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const questions = examResult.part1?.questions || [];
+                            const totalQ = Math.max(10, Math.min(100, questions.length));
+                            const maxChoicesCount = questions.reduce(
+                              (maxC, q) => Math.max(maxC, q.choices?.length || 4),
+                              4
+                            );
+                            const choicesCount: 3 | 4 | 5 =
+                              maxChoicesCount <= 3 ? 3 : maxChoicesCount >= 5 ? 5 : 4;
+                            const normalizeChoice = (raw?: string): string => {
+                              const cleaned = (raw || '').trim().toUpperCase();
+                              const thaiMap: Record<string, string> = { ก: 'A', ข: 'B', ค: 'C', ง: 'D', จ: 'E' };
+                              const numMap: Record<string, string> = { '1': 'A', '2': 'B', '3': 'C', '4': 'D', '5': 'E' };
+                              if (thaiMap[cleaned]) return thaiMap[cleaned];
+                              if (numMap[cleaned]) return numMap[cleaned];
+                              if (['A', 'B', 'C', 'D', 'E'].includes(cleaned)) return cleaned;
+                              return 'A';
+                            };
+
+                            const answerKeys: Record<number, string> = {};
+                            const pointsPerQuestion: Record<number, number> = {};
+                            questions.forEach((q, idx) => {
+                              const qNum = q.questionNumber || idx + 1;
+                              answerKeys[qNum] = normalizeChoice(q.correctAnswer);
+                              pointsPerQuestion[qNum] = 1;
+                            });
+                            for (let q = 1; q <= totalQ; q++) {
+                              if (!answerKeys[q]) answerKeys[q] = 'A';
+                              if (!pointsPerQuestion[q]) pointsPerQuestion[q] = 1;
+                            }
+
+                            const omrTotalScore = Object.values(pointsPerQuestion).reduce((sum, p) => sum + p, 0);
+                            const omrDraft: AnswerSheetConfig = {
+                              id: `omr_ai_${Date.now()}`,
+                              title: examResult.examTitle || `แบบทดสอบวิชา${examResult.subject || ''}`.trim(),
+                              subjectName: examResult.subject || 'วิชาทั่วไป',
+                              academicYear: examResult.academicYear || '2568',
+                              term: examResult.term || '1',
+                              roomName: examResult.gradeLevel || '',
+                              examDate: new Date().toISOString().slice(0, 10),
+                              instructions:
+                                examResult.instructions ||
+                                'ใช้ดินสอดำ 2B ฝนในวงกลมตัวเลือกที่ถูกต้องที่สุดเพียงข้อเดียว',
+                              totalQuestions: totalQ,
+                              choicesCount,
+                              choiceLabelType: 'THAI',
+                              layout: totalQ <= 30 ? 'eco_half' : 'single_full',
+                              studentIdFormat: 'roll_number',
+                              themeColor: 'slate',
+                              answerKeys,
+                              pointsPerQuestion,
+                              examSet: '01',
+                              examSets: { '01': answerKeys },
+                              showQrCode: true,
+                              classroomId: null,
+                              assessmentId: null,
+                              totalScore: omrTotalScore,
+                            };
+
+                            try {
+                              localStorage.setItem('classcare_omr_active_draft', JSON.stringify(omrDraft));
+                            } catch {
+                              // ignore storage quota errors
+                            }
+                            window.location.assign(
+                              withDemoContext(
+                                '/app/dashboard?view=omr-scanner&omrTab=designer',
+                                window.location.search
+                              )
+                            );
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-900 shadow-xs hover:bg-emerald-100 transition"
+                          title="ส่งเฉลยและจำนวนข้อจากข้อสอบ AI นี้ไปยังเครื่องมือออกแบบและพิมพ์กระดาษคำตอบ OMR ทันที"
+                        >
+                          <QrCode size={13} className="text-emerald-700" />
+                          สร้างกระดาษคำตอบ OMR ({examResult.part1?.questions?.length || 0} ข้อ)
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {

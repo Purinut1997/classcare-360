@@ -200,12 +200,21 @@ export function OmrItemAnalysis({ config, results }: OmrItemAnalysisProps) {
                       ข้อ {stat.questionNumber}
                     </td>
                     <td className="py-2.5 px-2 text-center">
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-black text-white">
-                        {getChoiceLabel(
-                          CHOICE_KEYS_ABCD.indexOf(stat.correctChoice),
-                          config.choiceLabelType
-                        )}
-                      </span>
+                      {stat.correctChoice === 'FREE' ? (
+                        <span className="inline-flex h-6 items-center justify-center rounded-full bg-sky-600 px-2 text-[10px] font-black text-white">
+                          ฟรี
+                        </span>
+                      ) : (
+                        <span className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-xs font-black text-white">
+                          {stat.correctChoice
+                            .split('/')
+                            .map((k) => {
+                              const idx = CHOICE_KEYS_ABCD.indexOf(k);
+                              return idx >= 0 ? getChoiceLabel(idx, config.choiceLabelType) : k;
+                            })
+                            .join('/')}
+                        </span>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-center font-bold text-emerald-600">
                       {stat.correctCount}
@@ -217,7 +226,8 @@ export function OmrItemAnalysis({ config, results }: OmrItemAnalysisProps) {
                       <div className="flex items-center justify-center gap-2">
                         {choiceKeys.map((cKey, cIdx) => {
                           const count = stat.choiceDistribution[cKey] || 0;
-                          const isCorrect = cKey === stat.correctChoice;
+                          const acceptedSet = stat.correctChoice.split('/');
+                          const isCorrect = stat.correctChoice === 'FREE' || acceptedSet.includes(cKey);
                           return (
                             <div
                               key={cKey}

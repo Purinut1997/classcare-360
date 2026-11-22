@@ -349,11 +349,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
     totalAssessments: 0,
     averagePercent: 0,
   });
-  const [teachingLogSummary, setTeachingLogSummary] = useState({
-    todayCount: 0,
-    weeklyDaysLogged: 0,
-    weekdayFlags: [false, false, false, false, false],
-  });
   const [currentTerm, setCurrentTerm] = useState<{
     termName: string | null;
     startDate: string | null;
@@ -1031,7 +1026,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     };
   }, [classrooms, demoMode, selectedClassroomId, session.workspace]);
 
-  // Safe optional queries: daily_brief_logs, academic_terms, and workspace weekly classroom attendance
+  // Safe optional queries: academic_terms and workspace weekly classroom attendance
   useEffect(() => {
     let isMounted = true;
 
@@ -1042,11 +1037,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
       if (demoMode) {
         const startDemo = getBangkokDate(new Date(Date.now() - 24 * 86_400_000));
         const endDemo = getBangkokDate(new Date(Date.now() + 116 * 86_400_000));
-        setTeachingLogSummary({
-          todayCount: 1,
-          weeklyDaysLogged: 3,
-          weekdayFlags: [true, true, true, false, false],
-        });
         setCurrentTerm({
           termName: '2',
           startDate: startDemo,
@@ -1063,13 +1053,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const workspaceId = session.workspace.id;
 
       try {
-        const [briefRes, termRes, weekSessionsRes] = await Promise.all([
-          supabase
-            .from('daily_brief_logs')
-            .select('log_date')
-            .eq('workspace_id', workspaceId)
-            .gte('log_date', currentWeekDates[0])
-            .lte('log_date', currentWeekDates[4]),
+        const [termRes, weekSessionsRes] = await Promise.all([
           supabase
             .from('academic_terms')
             .select('term_name, start_date, end_date, is_current, status')
@@ -1085,18 +1069,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
         ]);
 
         if (!isMounted) return;
-
-        if (!briefRes.error && Array.isArray(briefRes.data)) {
-          const logDates = briefRes.data.map((r) => String(r.log_date || '').slice(0, 10));
-          const todayCount = logDates.filter((d) => d === today).length;
-          const loggedSet = new Set(logDates);
-          const weekdayFlags = currentWeekDates.slice(0, 5).map((d) => loggedSet.has(d));
-          setTeachingLogSummary({
-            todayCount,
-            weeklyDaysLogged: weekdayFlags.filter(Boolean).length,
-            weekdayFlags,
-          });
-        }
 
         if (!termRes.error && Array.isArray(termRes.data) && termRes.data.length > 0) {
           const terms = termRes.data as AcademicTermRow[];
@@ -1405,6 +1377,33 @@ export function DashboardPage({ session }: DashboardPageProps) {
   const completedDailyRoutineCount = healthReportMetrics.filter(
     (metric) => metric.cadence === 'วันนี้' && metric.total > 0 && metric.recorded >= metric.total,
   ).length;
+  const healthRoutineSummary = useMemo(() => {
+    const dailyItems = healthReportMetrics.filter((metric) => metric.cadence === 'วันนี้');
+    if (demoMode && dailyItems.every((m) => m.total === 0)) {
+      const demoItems = [
+        { key: 'toothbrushing', label: 'แปรงฟัน', recorded: 29, total: 29, done: true },
+        { key: 'milk', label: 'ดื่มนม', recorded: 29, total: 29, done: true },
+        { key: 'lunch', label: 'อาหารกลางวัน', recorded: 18, total: 29, done: false },
+      ];
+      return {
+        items: demoItems,
+        completedCount: 2,
+        totalRoutines: 3,
+      };
+    }
+    const items = dailyItems.map((metric) => ({
+      key: metric.key,
+      label: metric.label,
+      recorded: metric.recorded,
+      total: metric.total,
+      done: metric.total > 0 && metric.recorded >= metric.total,
+    }));
+    return {
+      items,
+      completedCount: items.filter((item) => item.done).length,
+      totalRoutines: items.length,
+    };
+  }, [demoMode, healthReportMetrics]);
   const healthReportPath = (mode: HealthReportType) =>
     `/app/dashboard?view=student-health&healthMode=${mode}${selectedClassroomId ? `&classroomId=${selectedClassroomId}` : ''}`;
 
@@ -1726,6 +1725,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           classroomProgressItems={classroomProgressItems}
           currentThaiDay={currentThaiDay}
           dailySavings={dailySavings}
+          healthRoutineSummary={healthRoutineSummary}
           isHomeroom={isSelectedClassroomHomeroom}
           nextUpcomingEvent={nextUpcomingEvent}
           onSelectClassroom={setSelectedClassroomId}
@@ -1733,7 +1733,6 @@ export function DashboardPage({ session }: DashboardPageProps) {
           selectedClassroomId={selectedClassroomId}
           session={session}
           subjectAttendanceNamesToday={subjectAttendanceNamesToday}
-          teachingLogSummary={teachingLogSummary}
           termSummary={{
             termName: currentTerm.termName,
             startDate: currentTerm.startDate,

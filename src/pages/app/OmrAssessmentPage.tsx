@@ -25,13 +25,13 @@ import {
 import QRCode from 'qrcode';
 import type { AppSessionContext } from '../../types/core';
 import type { AnswerSheetConfig, AnswerSheetLayout, ChoiceLabelType, ExamBankTemplate, ScannedExamResult } from '../../types/omr';
-import { CHOICE_KEYS_ABCD } from '../../lib/omrEngine';
+import { CHOICE_KEYS_ABCD, regradeScannedResults } from '../../lib/omrEngine';
 import { writeAuditLog } from '../../lib/auditLog';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
 import { AnswerSheetDesigner } from '../../components/omr/AnswerSheetDesigner';
-import { OmrScanner } from '../../components/omr/OmrScanner';
+import { OmrScanner, type OmrAssessmentOption } from '../../components/omr/OmrScanner';
 import { OmrItemAnalysis } from '../../components/omr/OmrItemAnalysis';
 import {
   getExamBankTemplates,
@@ -231,9 +231,54 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     }
   };
 
-  // Session Results & History
+  // Session Results & History (persisted per workspace + exam ID)
   const [sessionResults, setSessionResults] = useState<ScannedExamResult[]>([]);
+  const [assessments, setAssessments] = useState<OmrAssessmentOption[]>([]);
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | null>(
+    () => config.assessmentId || null
+  );
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const resultsStorageKey = useMemo(
+    () => `classcare_omr_results:${session?.workspace?.id || 'demo'}:${config.id || 'draft'}`,
+    [session?.workspace?.id, config.id]
+  );
+
+  // Hydrate persisted scan history whenever active exam changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(resultsStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setSessionResults(parsed);
+          return;
+        }
+      }
+    } catch {
+      // ignore storage read error
+    }
+    setSessionResults([]);
+  }, [resultsStorageKey]);
+
+  // Persist scan history safely (fallback stripping large base64 images if quota hits limit)
+  useEffect(() => {
+    try {
+      localStorage.setItem(resultsStorageKey, JSON.stringify(sessionResults));
+    } catch {
+      try {
+        const compacted = sessionResults.map((item, idx) =>
+          idx < 8
+            ? item
+            : { ...item, previewImageUrl: undefined, annotatedOverlayUrl: undefined }
+        );
+        localStorage.setItem(resultsStorageKey, JSON.stringify(compacted));
+      } catch {
+        // ignore quota errors
+      }
+    }
+  }, [resultsStorageKey, sessionResults]);
 
   const setOmrTab = (tab: 'scanner' | 'designer' | 'analysis') => {
     setSearchParams((prev) => {
@@ -290,49 +335,314 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     };
   }, [session]);
 
+  // Fetch Gradebook Score Assessments for selected classroom (workspace_id filtered)
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAssessments() {
+      if (!selectedClassroomId) {
+        setAssessments([]);
+        return;
+      }
+
+      if (session?.workspace?.id && isSupabaseReady && supabase && !isDemoSession(session)) {
+        try {
+          const { data, error } = await supabase
+            .from('score_assessments')
+            .select('id, title, subject_name, max_score, category')
+            .eq('workspace_id', session.workspace.id)
+            .eq('classroom_id', selectedClassroomId)
+            .order('assessment_date', { ascending: false })
+            .limit(40);
+
+          if (isMounted && !error && Array.isArray(data)) {
+            const normalized = data.map((row) => ({
+              id: row.id,
+              title: row.title,
+              subject_name: row.subject_name,
+              max_score: Number(row.max_score || 0),
+              category: row.category || undefined,
+            }));
+            setAssessments(normalized);
+            if (config.assessmentId && normalized.some((a) => a.id === config.assessmentId)) {
+              setSelectedAssessmentId(config.assessmentId);
+            }
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (isMounted && (!session?.workspace?.id || isDemoSession(session))) {
+        const demoAssessments: OmrAssessmentOption[] = [
+          {
+            id: `demo_assess_${selectedClassroomId}_mid`,
+            title: config.title || 'สอบกลางภาค OMR',
+            subject_name: config.subjectName || 'วิชาทั่วไป',
+            max_score: config.totalScore || 20,
+            category: 'exam',
+          },
+        ];
+        setAssessments(demoAssessments);
+        setSelectedAssessmentId((prev) => prev || demoAssessments[0].id);
+      }
+    }
+
+    loadAssessments();
+    return () => {
+      isMounted = false;
+    };
+  }, [session, selectedClassroomId, config.assessmentId, config.title, config.subjectName, config.totalScore]);
+
   const activeStudents = useMemo(() => {
     if (!selectedClassroomId) return students;
     return students.filter((s) => s.classroom_id === selectedClassroomId);
   }, [students, selectedClassroomId]);
 
+  const activeClassroomName = useMemo(
+    () => classrooms.find((c) => c.id === selectedClassroomId)?.name || undefined,
+    [classrooms, selectedClassroomId]
+  );
+
+  const handleSelectAssessment = (assessmentId: string | null) => {
+    setSelectedAssessmentId(assessmentId);
+    setConfig((prev) => ({
+      ...prev,
+      assessmentId,
+    }));
+  };
+
+  const handleCreateAssessmentFromExam = async (params: {
+    title: string;
+    subjectName: string;
+    maxScore: number;
+  }): Promise<string | null> => {
+    if (!selectedClassroomId) {
+      setToastMessage('กรุณาเลือกห้องเรียนเป้าหมายก่อนสร้างช่องคะแนน');
+      setTimeout(() => setToastMessage(null), 3500);
+      return null;
+    }
+
+    if (!session?.workspace?.id || !isSupabaseReady || !supabase || isDemoSession(session)) {
+      const demoId = `demo_omr_assess_${Date.now()}`;
+      const newOpt: OmrAssessmentOption = {
+        id: demoId,
+        title: params.title,
+        subject_name: params.subjectName,
+        max_score: params.maxScore,
+        category: 'exam',
+      };
+      setAssessments((prev) => [newOpt, ...prev]);
+      handleSelectAssessment(demoId);
+      setToastMessage(`สร้างช่องคะแนนใหม่ "${params.title}" สำเร็จ (โหมดทดลอง)`);
+      setTimeout(() => setToastMessage(null), 3500);
+      return demoId;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('score_assessments')
+        .insert({
+          workspace_id: session.workspace.id,
+          classroom_id: selectedClassroomId,
+          title: params.title,
+          subject_name: params.subjectName,
+          category: 'exam',
+          max_score: Math.max(1, params.maxScore),
+          weight: Math.max(1, params.maxScore),
+          assessment_date: config.examDate || new Date().toISOString().slice(0, 10),
+          status: 'published',
+          created_by: session.profile?.id || null,
+          metadata: {
+            source: 'omr_scanner',
+            omr_exam_id: config.id,
+          },
+        })
+        .select('id, title, subject_name, max_score, category')
+        .single();
+
+      if (error || !data) {
+        setToastMessage(`สร้างช่องคะแนนไม่สำเร็จ: ${error?.message || 'Unknown error'}`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return null;
+      }
+
+      const newOpt: OmrAssessmentOption = {
+        id: data.id,
+        title: data.title,
+        subject_name: data.subject_name,
+        max_score: Number(data.max_score || params.maxScore),
+        category: data.category || 'exam',
+      };
+      setAssessments((prev) => [newOpt, ...prev]);
+      handleSelectAssessment(data.id);
+      setToastMessage(`สร้างและเชื่อมช่องคะแนน "${data.title}" เรียบร้อยแล้ว`);
+      setTimeout(() => setToastMessage(null), 3500);
+      return data.id;
+    } catch (err) {
+      console.warn('Failed to create assessment:', err);
+      setToastMessage('เกิดข้อผิดพลาดในการสร้างช่องคะแนน');
+      setTimeout(() => setToastMessage(null), 3500);
+      return null;
+    }
+  };
+
   // Handle Commit Score Entry to Gradebook
-  const handleCommitScoreEntry = async (studentId: string, score: number, assessmentId?: string) => {
+  const handleCommitScoreEntry = async (
+    studentId: string,
+    score: number,
+    assessmentId?: string
+  ): Promise<boolean> => {
     const student = students.find((s) => s.id === studentId);
     const studentName = student ? `${student.first_name} ${student.last_name}` : studentId;
+    const effectiveAssessmentId = assessmentId || selectedAssessmentId || config.assessmentId || null;
 
-    if (session && isSupabaseReady && supabase && assessmentId && session.workspace?.id) {
-      try {
-        await supabase
+    if (!session || !session.workspace?.id || isDemoSession(session) || !isSupabaseReady || !supabase) {
+      setToastMessage(
+        `บันทึกคะแนน ${studentName} (${score}/${config.totalScore} คะแนน) เรียบร้อยแล้ว`
+      );
+      setTimeout(() => setToastMessage(null), 3500);
+      return true;
+    }
+
+    if (!effectiveAssessmentId) {
+      setToastMessage(
+        `ตรวจคะแนน ${studentName} (${score}/${config.totalScore}) แล้ว • กรุณาเลือกหรือสร้างช่องคะแนน ปพ.5 เพื่อส่งขึ้นระบบ`
+      );
+      setTimeout(() => setToastMessage(null), 4000);
+      return false;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('score_entries')
+        .upsert(
+          {
+            workspace_id: session.workspace.id,
+            assessment_id: effectiveAssessmentId,
+            student_id: studentId,
+            score,
+            note: 'ตรวจอัตโนมัติด้วย OMR Scanner',
+            graded_by: session.profile?.id || null,
+          },
+          { onConflict: 'assessment_id,student_id' }
+        );
+
+      if (error) {
+        console.warn('Supabase save score error:', error);
+        setToastMessage(`ส่งคะแนน ${studentName} ไม่สำเร็จ: ${error.message}`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return false;
+      }
+
+      await writeAuditLog(session, {
+        action: 'score_entries.saved',
+        entityId: effectiveAssessmentId,
+        entityTable: 'score_entries',
+        metadata: {
+          score,
+          source: 'omr_scanner',
+          student_id: studentId,
+        },
+        riskLevel: 'low',
+        source: 'omr_scanner',
+      });
+
+      setToastMessage(
+        `บันทึกคะแนน ${studentName} (${score}/${config.totalScore} คะแนน) ลงสมุดคะแนนเรียบร้อย`
+      );
+      setTimeout(() => setToastMessage(null), 3500);
+      return true;
+    } catch (err) {
+      console.warn('Supabase save score error:', err);
+      setToastMessage(`เกิดข้อผิดพลาดระหว่างส่งคะแนนของ ${studentName}`);
+      setTimeout(() => setToastMessage(null), 3500);
+      return false;
+    }
+  };
+
+  const handleBatchSyncToGradebook = async () => {
+    const effectiveAssessmentId = selectedAssessmentId || config.assessmentId || null;
+    if (!effectiveAssessmentId) {
+      setToastMessage('กรุณาเลือกหรือสร้างช่องคะแนน ปพ.5 ก่อนกดส่งคะแนนทั้งหมด');
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
+    // Deduplicate latest result per studentId
+    const latestByStudent = new Map<string, ScannedExamResult>();
+    sessionResults.forEach((r) => {
+      if (r.studentId && !latestByStudent.has(r.studentId)) {
+        latestByStudent.set(r.studentId, r);
+      }
+    });
+    const matchedEntries = Array.from(latestByStudent.values());
+    if (matchedEntries.length === 0) {
+      setToastMessage('ยังไม่มีรายการที่จับคู่ชื่อนักเรียนสำหรับส่งลงสมุดคะแนน');
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
+    setIsBatchSyncing(true);
+    try {
+      if (session?.workspace?.id && isSupabaseReady && supabase && !isDemoSession(session)) {
+        const rows = matchedEntries.map((r) => ({
+          workspace_id: session.workspace!.id,
+          assessment_id: effectiveAssessmentId,
+          student_id: r.studentId!,
+          score: r.totalScore,
+          note: 'ตรวจด้วย AI OMR Batch Sync',
+          graded_by: session.profile?.id || null,
+        }));
+
+        const { error } = await supabase
           .from('score_entries')
-          .upsert(
-            {
-              workspace_id: session.workspace.id,
-              assessment_id: assessmentId,
-              student_id: studentId,
-              score,
-              note: 'ตรวจอัตโนมัติด้วย OMR Scanner',
-            },
-            { onConflict: 'assessment_id,student_id' }
-          );
+          .upsert(rows, { onConflict: 'assessment_id,student_id' });
+
+        if (error) {
+          setToastMessage(`ส่งคะแนนไม่สำเร็จ: ${error.message}`);
+          setTimeout(() => setToastMessage(null), 4000);
+          return;
+        }
 
         await writeAuditLog(session, {
-          action: 'score_entries.saved',
-          entityId: assessmentId,
+          action: 'score_entries.batch_saved',
+          entityId: effectiveAssessmentId,
           entityTable: 'score_entries',
           metadata: {
-            score,
-            source: 'omr_scanner',
-            student_id: studentId,
+            count: rows.length,
+            source: 'omr_scanner_batch',
           },
           riskLevel: 'low',
           source: 'omr_scanner',
         });
-      } catch (err) {
-        console.warn('Supabase save score error:', err);
       }
-    }
 
-    setToastMessage(`บันทึกคะแนน ${studentName} (${score}/${config.totalScore} คะแนน) เรียบร้อยแล้ว`);
+      const syncedIds = new Set(matchedEntries.map((m) => m.studentId));
+      setSessionResults((prev) =>
+        prev.map((item) =>
+          item.studentId && syncedIds.has(item.studentId)
+            ? {
+                ...item,
+                status: 'confirmed',
+                isSavedToGradebook: true,
+                savedAssessmentId: effectiveAssessmentId,
+              }
+            : item
+        )
+      );
+
+      setToastMessage(`ส่งคะแนนนักเรียน ${matchedEntries.length} คนลงสมุดคะแนนเรียบร้อยแล้ว`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setIsBatchSyncing(false);
+    }
+  };
+
+  const handleRegradeAll = () => {
+    setSessionResults((prev) => regradeScannedResults(prev, config));
+    setToastMessage(`ตรวจคำนวณคะแนนซ้ำให้กระดาษคำตอบทั้งหมดเรียบร้อยแล้ว`);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
@@ -378,14 +688,14 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     <div className="space-y-6 pb-12">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-xl animate-in slide-in-from-top-2">
+        <div className="print:hidden omr-no-print fixed top-4 right-4 z-50 flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-xl animate-in slide-in-from-top-2">
           <CheckCircle2 size={16} className="text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-[#DCE3D7] bg-gradient-to-r from-[#1C342B] via-[#213D32] to-[#152821] p-6 sm:p-8 text-white shadow-sm">
+      <div className="print:hidden omr-no-print relative overflow-hidden rounded-3xl border border-[#DCE3D7] bg-gradient-to-r from-[#1C342B] via-[#213D32] to-[#152821] p-6 sm:p-8 text-white shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-lg bg-[#2F7D5B]/30 px-3 py-1 text-xs font-black text-[#CBE4D4] border border-[#2F7D5B]/50">
@@ -443,7 +753,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       </div>
 
       {/* Main Tabs Navigation (3-Step Hero Stepper Bar) */}
-      <div className="rounded-3xl border-2 border-slate-200/90 bg-white p-3 sm:p-4 shadow-sm">
+      <div className="print:hidden omr-no-print rounded-3xl border-2 border-slate-200/90 bg-white p-3 sm:p-4 shadow-sm">
         <div className="mb-2.5 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -604,6 +914,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       {currentTab === 'scanner' && (
         <OmrScanner
           config={config}
+          session={session}
           classrooms={classrooms}
           activeClassroomId={selectedClassroomId}
           onSelectClassroom={(id) => setSelectedClassroomId(id)}
@@ -620,6 +931,14 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           isSyncingCloud={isSyncingCloud}
           onRefreshCloud={refreshCloudExams}
           onOpenMobileHandoffQr={handleOpenMobileHandoff}
+          sessionResults={sessionResults}
+          onResultsChange={setSessionResults}
+          assessments={assessments}
+          selectedAssessmentId={selectedAssessmentId}
+          onSelectAssessment={handleSelectAssessment}
+          onCreateAssessment={handleCreateAssessmentFromExam}
+          onBatchSyncToGradebook={handleBatchSyncToGradebook}
+          isBatchSyncing={isBatchSyncing}
         />
       )}
 
@@ -634,6 +953,10 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
           teacherName={session?.profile?.displayName}
           workspaceId={session?.workspace?.id}
           initialSubTab={designerSubTab}
+          studentsInActiveRoom={activeStudents}
+          activeClassroomName={activeClassroomName}
+          scannedResultsCount={sessionResults.length}
+          onRegradeScanned={handleRegradeAll}
         />
       )}
 

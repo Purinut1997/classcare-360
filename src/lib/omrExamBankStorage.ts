@@ -267,6 +267,8 @@ export async function saveCloudExamTemplate(
     examSets,
     answerKeys: { ...config.answerKeys },
     pointsPerQuestion: { ...config.pointsPerQuestion },
+    bonusQuestions: config.bonusQuestions ? { ...config.bonusQuestions } : undefined,
+    multiAnswerKeys: config.multiAnswerKeys ? { ...config.multiAnswerKeys } : undefined,
     savedAt: new Date().toISOString(),
   };
 
@@ -407,6 +409,8 @@ export function saveExamBankTemplate(
     examSets,
     answerKeys: { ...config.answerKeys },
     pointsPerQuestion: { ...config.pointsPerQuestion },
+    bonusQuestions: config.bonusQuestions ? { ...config.bonusQuestions } : undefined,
+    multiAnswerKeys: config.multiAnswerKeys ? { ...config.multiAnswerKeys } : undefined,
     savedAt: new Date().toISOString(),
   };
 

@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Clock,
   Download,
-  NotebookPen,
+  HeartPulse,
   PiggyBank,
   Sparkles,
   Users,
@@ -71,10 +71,16 @@ export interface TodayBentoDashboardProps {
     totalAssessments: number;
     averagePercent: number;
   };
-  teachingLogSummary: {
-    todayCount: number;
-    weeklyDaysLogged: number;
-    weekdayFlags: boolean[];
+  healthRoutineSummary: {
+    items: Array<{
+      key: string;
+      label: string;
+      recorded: number;
+      total: number;
+      done: boolean;
+    }>;
+    completedCount: number;
+    totalRoutines: number;
   };
   termSummary: {
     termName: string | null;
@@ -178,7 +184,7 @@ export function TodayBentoDashboard({
   weeklyAttendanceDays,
   dailySavings,
   scoresSummary,
-  teachingLogSummary,
+  healthRoutineSummary,
   termSummary,
   classroomProgressItems,
   onSelectClassroom,
@@ -705,40 +711,43 @@ export function TodayBentoDashboard({
             </div>
           </Link>
 
-          {/* Card 3: บันทึกการสอน */}
+          {/* Card 3: สุขภาพ & กิจวัตรประจำวัน */}
           <Link
-            to="/app/dashboard?view=daily-brief"
+            to="/app/dashboard?view=student-health"
             className="bento-card bento-card-clickable flex min-h-[144px] flex-col justify-between p-4 text-left"
           >
             <div className="flex w-full items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#fdf0f5] text-[#c24d78]">
-                  <NotebookPen size={14} aria-hidden="true" />
+                  <HeartPulse size={14} aria-hidden="true" />
                 </span>
-                <span className="text-[14px] font-bold text-[#1f2924]">บันทึกการสอน</span>
+                <span className="text-[14px] font-bold text-[#1f2924]">สุขภาพ & กิจวัตร</span>
               </div>
               <ChevronRight size={14} className="text-[#9aa59e]" aria-hidden="true" />
             </div>
 
-            <div className="my-1.5 w-full space-y-2">
-              <div className="text-xs font-medium text-[#5c6861]">
-                {teachingLogSummary.todayCount > 0
-                  ? `บันทึกวันนี้แล้ว ${teachingLogSummary.todayCount} รายการ`
-                  : 'ยังไม่มีบันทึกวันนี้'}
-              </div>
-              <div className="grid grid-cols-5 gap-1.5">
-                {teachingLogSummary.weekdayFlags.map((logged, idx) => (
-                  <div
-                    key={WEEKDAY_SHORT[idx]}
-                    title={`วัน${WEEKDAY_KEYS[idx]}${logged ? ' · บันทึกแล้ว' : ' · ยังไม่บันทึก'}`}
-                    className={`h-1.5 rounded-full ${logged ? 'bg-[#2f7d5b]' : 'bg-[#eceee9]'}`}
-                  />
-                ))}
-              </div>
+            <div className="my-1.5 w-full space-y-1.5">
+              {healthRoutineSummary.items.slice(0, 3).map((item) => (
+                <div key={item.key} className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        item.done ? 'bg-[#2f7d5b]' : item.recorded > 0 ? 'bg-[#d97706]' : 'bg-[#d4dad5]'
+                      }`}
+                    />
+                    <span className="truncate font-medium text-[#3b4740]">{item.label}</span>
+                  </div>
+                  <span className="shrink-0 tabular-nums font-semibold text-[#5c6861]">
+                    {item.total > 0 ? `${item.recorded}/${item.total}` : 'รอเช็ค'}
+                  </span>
+                </div>
+              ))}
             </div>
 
             <div className="text-xs text-[#75827a]">
-              สัปดาห์นี้บันทึกแล้ว {teachingLogSummary.weeklyDaysLogged} วัน
+              {healthRoutineSummary.totalRoutines > 0
+                ? `บันทึกครบ ${healthRoutineSummary.completedCount}/${healthRoutineSummary.totalRoutines} กิจวัตรวันนี้`
+                : 'ยังไม่มีการเช็คสุขภาพวันนี้'}
             </div>
           </Link>
 

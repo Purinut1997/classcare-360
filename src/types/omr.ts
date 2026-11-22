@@ -34,6 +34,8 @@ export interface AnswerSheetConfig {
   examSets?: Record<string, Record<number, string>>; // Answer keys mapped by exam set, e.g. { '01': {...}, '02': {...} }
   teacherId?: string; // ID of the teacher who authored the exam
   teacherName?: string; // Display name of teacher
+  bonusQuestions?: Record<number, boolean>; // Questions awarded full points to everyone
+  multiAnswerKeys?: Record<number, string[]>; // Questions with multiple accepted choices
 }
 
 export interface ExamBankTemplate {
@@ -60,6 +62,8 @@ export interface ExamBankTemplate {
   examSets?: Record<string, Record<number, string>>;
   answerKeys: Record<number, string>;
   pointsPerQuestion: Record<number, number>;
+  bonusQuestions?: Record<number, boolean>;
+  multiAnswerKeys?: Record<number, string[]>;
   savedAt: string;
 }
 
@@ -67,11 +71,13 @@ export interface ScannedAnswerDetail {
   questionNumber: number;
   detectedChoice: string | null; // 'A', 'B', null (blank), 'MULTIPLE'
   correctChoice: string;
+  acceptedChoices?: string[];
+  isBonus?: boolean;
   isCorrect: boolean;
   scoreAwarded: number;
   maxScore: number;
   fillRatios: Record<string, number>; // fill density for each bubble option
-  flag?: 'multiple' | 'blank' | 'faint' | 'ok';
+  flag?: 'multiple' | 'blank' | 'faint' | 'ok' | 'bonus';
 }
 
 export interface ScannedExamResult {
@@ -98,6 +104,12 @@ export interface ScannedExamResult {
   isSavedToGradebook: boolean;
   previewImageUrl?: string;
   detectedOrientation?: 0 | 90 | 180 | 270;
+  detectedExamSet?: string | null;
+  detectedQrPayload?: Record<string, unknown> | null;
+  annotatedOverlayUrl?: string;
+  perspectiveCorrected?: boolean;
+  usedAiFallback?: boolean;
+  savedAssessmentId?: string | null;
 }
 
 export interface ItemAnalysisStat {

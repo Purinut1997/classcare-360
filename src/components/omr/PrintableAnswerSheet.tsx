@@ -1,667 +1,781 @@
-import { forwardRef, useState, useEffect } from 'react';
+import { forwardRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import type { AnswerSheetConfig, AnswerSheetThemeColor } from '../../types/omr';
 import { CHOICE_KEYS_ABCD, getChoiceLabel } from '../../lib/omrEngine';
+import { getUnifiedSheetGeometry } from '../../lib/omrGeometry';
+
+export interface PrintableStudentTarget {
+  id: string;
+  first_name: string;
+  last_name: string;
+  student_code: string;
+  rollNumber?: number;
+}
 
 interface PrintableAnswerSheetProps {
   config: AnswerSheetConfig;
   schoolName?: string;
-  studentName?: string;
-  rollNumber?: number;
   isMiniPreview?: boolean;
+  batchStudents?: PrintableStudentTarget[];
+}
+
+const THEME_PALETTE: Record<
+  AnswerSheetThemeColor,
+  { accent: string; soft: string; border: string; badgeText: string }
+> = {
+  burgundy: { accent: '#881337', soft: '#fff1f2', border: '#fda4af', badgeText: '#881337' },
+  navy: { accent: '#1e3a8a', soft: '#eff6ff', border: '#93c5fd', badgeText: '#1e3a8a' },
+  emerald: { accent: '#065f46', soft: '#ecfdf5', border: '#6ee7b7', badgeText: '#065f46' },
+  slate: { accent: '#0f172a', soft: '#f8fafc', border: '#cbd5e1', badgeText: '#0f172a' },
+};
+
+function buildQrSvgPath(payload: string, x: number, y: number, size: number): { d: string } {
+  try {
+    const qr = QRCode.create(payload, { errorCorrectionLevel: 'M' });
+    const count = qr.modules.size;
+    const quiet = 6;
+    const cell = (size - quiet * 2) / count;
+    const cs = cell.toFixed(2);
+    const parts: string[] = [];
+
+    for (let r = 0; r < count; r++) {
+      for (let c = 0; c < count; c++) {
+        if (qr.modules.get(r, c)) {
+          const mx = (x + quiet + c * cell).toFixed(2);
+          const my = (y + quiet + r * cell).toFixed(2);
+          parts.push(`M${mx},${my}h${cs}v${cs}h-${cs}z`);
+        }
+      }
+    }
+    return { d: parts.join('') };
+  } catch {
+    return { d: '' };
+  }
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (!text) return '';
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
+}
+
+function SingleAnswerSheetSvg({
+  config,
+  schoolName,
+  prefilledStudent,
+}: {
+  config: AnswerSheetConfig;
+  schoolName?: string;
+  prefilledStudent?: PrintableStudentTarget;
+}) {
+  const geometry = useMemo(() => getUnifiedSheetGeometry(config), [config]);
+  const theme = THEME_PALETTE[config.themeColor || 'slate'] || THEME_PALETTE.slate;
+  const isHalf = geometry.layout === 'eco_half';
+  const examSet = config.examSet || '01';
+  const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
+
+  const rollNum = prefilledStudent?.rollNumber ?? null;
+  const prefillDigits = useMemo(() => {
+    if (!prefilledStudent || config.studentIdFormat === 'none') return null;
+    if (config.studentIdFormat === 'student_code') {
+      const cleaned = (prefilledStudent.student_code || '').replace(/\D/g, '');
+      return cleaned.padStart(5, '0').slice(-5);
+    }
+    if (rollNum !== null) {
+      return String(Math.max(1, Math.min(99, rollNum))).padStart(2, '0');
+    }
+    return null;
+  }, [prefilledStudent, config.studentIdFormat, rollNum]);
+
+  const qrPath = useMemo(() => {
+    if (config.showQrCode === false) return '';
+    const payload = JSON.stringify({
+      app: 'CC360',
+      id: config.id || 'draft',
+      set: examSet,
+      tq: config.totalQuestions,
+      ...(prefilledStudent
+        ? {
+            sid: prefilledStudent.id,
+            ...(rollNum !== null ? { roll: rollNum } : {}),
+            ...(prefilledStudent.student_code ? { code: prefilledStudent.student_code } : {}),
+          }
+        : {}),
+    });
+    return buildQrSvgPath(payload, geometry.qrBox.x, geometry.qrBox.y, geometry.qrBox.width).d;
+  }, [config.showQrCode, config.id, config.totalQuestions, examSet, prefilledStudent, rollNum, geometry.qrBox]);
+
+  // Partition answerRows by column for drawing column boxes & headers
+  const columnGroups = useMemo(() => {
+    const cols: Array<{ colIndex: number; rows: typeof geometry.answerRows }> = [];
+    for (let c = 0; c < geometry.answerCols; c++) {
+      cols.push({
+        colIndex: c,
+        rows: geometry.answerRows.filter((r) => r.columnIndex === c),
+      });
+    }
+    return cols;
+  }, [geometry.answerRows, geometry.answerCols]);
+
+  const { fiducials, orientationAnchor, headerBox, qrBox, scoreBox } = geometry;
+  const gridTop = isHalf ? 242 : 320;
+  const gridLeft = 44;
+  const colWidth = 912 / geometry.answerCols;
+  const effectiveSchool = config.schoolName || schoolName || 'ClassCare 360 School';
+  const studentLine = prefilledStudent
+    ? `${rollNum !== null ? `เลขที่ ${String(rollNum).padStart(2, '0')} • ` : ''}${prefilledStudent.first_name} ${prefilledStudent.last_name}`.trim()
+    : '';
+
+  return (
+    <svg
+      viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+      className="block w-full h-auto bg-white select-none"
+      style={{ fontFamily: "'Anuphan', 'Sarabun', system-ui, sans-serif" }}
+    >
+      {/* Pure white background */}
+      <rect x="0" y="0" width={geometry.width} height={geometry.height} fill="#ffffff" />
+
+      {/* 4 Concentric Fiducial Targets (Corner Registration Marks) */}
+      {[fiducials.tl, fiducials.tr, fiducials.br, fiducials.bl].map((f) => (
+        <g key={f.id}>
+          <circle cx={f.cx} cy={f.cy} r={f.outerRadius} fill="#0f172a" />
+          <circle cx={f.cx} cy={f.cy} r={f.midWhiteRadius} fill="#ffffff" />
+          <circle cx={f.cx} cy={f.cy} r={f.innerRadius} fill="#0f172a" />
+        </g>
+      ))}
+
+      {/* Asymmetric Top-Left Orientation Anchor ONLY (TR/BR/BL probe spots remain pure white) */}
+      <circle
+        cx={orientationAnchor.cx}
+        cy={orientationAnchor.cy}
+        r={orientationAnchor.r}
+        fill="#0f172a"
+      />
+
+      {/* Top Center Banner */}
+      <text
+        x={geometry.width / 2}
+        y={fiducials.tl.cy + 5}
+        textAnchor="middle"
+        fontSize={isHalf ? 15 : 17}
+        fontWeight="800"
+        fill={theme.accent}
+      >
+        {truncateText(`${effectiveSchool} • กระดาษคำตอบ OMR`, 58)}
+      </text>
+
+      {/* Header Frame */}
+      <rect
+        x={headerBox.x}
+        y={headerBox.y}
+        width={headerBox.width}
+        height={headerBox.height}
+        rx="10"
+        fill="#ffffff"
+        stroke={theme.accent}
+        strokeWidth="1.8"
+      />
+
+      {/* Left Column: Exam Info & Student Name */}
+      <text
+        x={headerBox.x + 16}
+        y={headerBox.y + (isHalf ? 24 : 30)}
+        fontSize={isHalf ? 14 : 16}
+        fontWeight="800"
+        fill="#0f172a"
+      >
+        {truncateText(config.title || 'แบบทดสอบวัดผลสัมฤทธิ์', isHalf ? 30 : 34)}
+      </text>
+
+      <text
+        x={headerBox.x + 16}
+        y={headerBox.y + (isHalf ? 45 : 54)}
+        fontSize={isHalf ? 11.5 : 13}
+        fontWeight="700"
+        fill="#334155"
+      >
+        {truncateText(
+          `วิชา: ${config.subjectName || '-'} • ${
+            config.isUniversalRoom ? 'รวมทุกห้อง' : config.roomName || 'ห้องเรียน'
+          } (เทอม ${config.term || '1'}/${config.academicYear || '2568'})`,
+          isHalf ? 44 : 48
+        )}
+      </text>
+
+      {/* Student Name Box */}
+      <rect
+        x={headerBox.x + 14}
+        y={headerBox.y + (isHalf ? 56 : 68)}
+        width={isHalf ? 326 : 338}
+        height={isHalf ? 42 : 76}
+        rx="6"
+        fill={prefilledStudent ? theme.soft : '#f8fafc'}
+        stroke={theme.border}
+        strokeWidth="1"
+      />
+
+      {prefilledStudent ? (
+        <>
+          <text
+            x={headerBox.x + 24}
+            y={headerBox.y + (isHalf ? 74 : 92)}
+            fontSize={isHalf ? 11 : 12}
+            fontWeight="700"
+            fill={theme.badgeText}
+          >
+            ผู้เข้าสอบ (พิมพ์รหัสประจำตัวอัตโนมัติ)
+          </text>
+          <text
+            x={headerBox.x + 24}
+            y={headerBox.y + (isHalf ? 92 : 118)}
+            fontSize={isHalf ? 13 : 15}
+            fontWeight="800"
+            fill="#0f172a"
+          >
+            {truncateText(studentLine, 34)}
+          </text>
+          {!isHalf && prefilledStudent.student_code && (
+            <text
+              x={headerBox.x + 24}
+              y={headerBox.y + 136}
+              fontSize="11.5"
+              fontWeight="600"
+              fill="#475569"
+            >
+              รหัสนักเรียน: {prefilledStudent.student_code} • ชุดข้อสอบ {examSet}
+            </text>
+          )}
+        </>
+      ) : (
+        <>
+          <text
+            x={headerBox.x + 22}
+            y={headerBox.y + (isHalf ? 74 : 90)}
+            fontSize={isHalf ? 11 : 12.5}
+            fontWeight="700"
+            fill="#334155"
+          >
+            ชื่อ-นามสกุล ...........................................................
+          </text>
+          <text
+            x={headerBox.x + 22}
+            y={headerBox.y + (isHalf ? 92 : 114)}
+            fontSize={isHalf ? 11 : 12.5}
+            fontWeight="700"
+            fill="#334155"
+          >
+            ชั้น/ห้อง .................. เลขที่ ........... วันที่ {config.examDate || '..../..../....'}
+          </text>
+          {!isHalf && (
+            <text
+              x={headerBox.x + 22}
+              y={headerBox.y + 136}
+              fontSize="10.5"
+              fontWeight="600"
+              fill="#64748b"
+            >
+              คำชี้แจง: {truncateText(config.instructions || 'ใช้ดินสอ 2B หรือปากกาดำระบายให้เต็มวงกลม', 46)}
+            </text>
+          )}
+        </>
+      )}
+
+      {/* Meta Line & Instructions bottom-left */}
+      <text
+        x={headerBox.x + 16}
+        y={scoreBox.y + 18}
+        fontSize={isHalf ? 10.5 : 11.5}
+        fontWeight="700"
+        fill="#475569"
+      >
+        จำนวน {config.totalQuestions} ข้อ • ชุด {examSet}
+      </text>
+      <text
+        x={headerBox.x + 16}
+        y={scoreBox.y + 34}
+        fontSize={isHalf ? 9.5 : 10.5}
+        fontWeight="600"
+        fill="#64748b"
+      >
+        {isHalf ? 'ระบายให้เต็มวงกลม ห้ามออกนอกกรอบ' : 'ระบายทึบเต็มวงกลม • ห้ามขีดฆ่า/พับกระดาษ'}
+      </text>
+
+      {/* Score Box */}
+      <rect
+        x={scoreBox.x}
+        y={scoreBox.y}
+        width={scoreBox.width}
+        height={scoreBox.height}
+        rx="6"
+        fill={theme.soft}
+        stroke={theme.accent}
+        strokeWidth="1.2"
+      />
+      <text
+        x={scoreBox.x + scoreBox.width / 2}
+        y={scoreBox.y + 14}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="800"
+        fill={theme.badgeText}
+      >
+        คะแนนที่ได้ (SCORE)
+      </text>
+      <text
+        x={scoreBox.x + scoreBox.width - 10}
+        y={scoreBox.y + scoreBox.height - 9}
+        textAnchor="end"
+        fontSize="13"
+        fontWeight="800"
+        fill="#334155"
+      >
+        / {config.totalScore}
+      </text>
+
+      {/* Vertical Divider separating Info / Bubbles / QR */}
+      <line
+        x1={isHalf ? 396 : 374}
+        y1={headerBox.y + 8}
+        x2={isHalf ? 396 : 374}
+        y2={headerBox.y + headerBox.height - 8}
+        stroke="#e2e8f0"
+        strokeWidth="1.2"
+      />
+
+      {/* Exam Set Bubbles ('01'..'04') */}
+      <text
+        x={geometry.examSetBubbles[0]?.cx ?? 410}
+        y={headerBox.y + 20}
+        textAnchor="middle"
+        fontSize="10.5"
+        fontWeight="800"
+        fill={theme.accent}
+      >
+        ชุดสอบ
+      </text>
+      {geometry.examSetBubbles.map((sb) => {
+        const isCurrentSet = sb.setCode === examSet;
+        return (
+          <g key={sb.setCode}>
+            <text
+              x={sb.cx - sb.r - 13}
+              y={sb.cy + 3.5}
+              textAnchor="middle"
+              fontSize="10.5"
+              fontWeight="700"
+              fill="#334155"
+            >
+              {sb.setCode}
+            </text>
+            <circle
+              cx={sb.cx}
+              cy={sb.cy}
+              r={sb.r}
+              fill={isCurrentSet ? '#111827' : '#ffffff'}
+              stroke={isCurrentSet ? '#111827' : '#475569'}
+              strokeWidth="1.4"
+            />
+          </g>
+        );
+      })}
+
+      {/* Student ID Grid (roll_number 2-digit or student_code 5-digit) */}
+      {config.studentIdFormat !== 'none' ? (
+        <g>
+          <text
+            x={
+              config.layout === 'eco_half'
+                ? 635
+                : config.studentIdFormat === 'student_code'
+                  ? 568
+                  : 554
+            }
+            y={headerBox.y + 18}
+            textAnchor="middle"
+            fontSize="10.5"
+            fontWeight="800"
+            fill={theme.accent}
+          >
+            {config.studentIdFormat === 'student_code'
+              ? 'รหัสประจำตัวนักเรียน 5 หลัก'
+              : 'เลขที่นักเรียน (01-99)'}
+          </text>
+
+          {geometry.studentIdDigits.map((track, dIdx) => {
+            const firstB = track.bubbles[0];
+            const prefillDigitVal = prefillDigits ? parseInt(prefillDigits[dIdx] || '', 10) : NaN;
+            return (
+              <g key={track.digitIndex}>
+                {track.orientation === 'horizontal' ? (
+                  <text
+                    x={firstB.cx - firstB.r - 12}
+                    y={firstB.cy + 3.5}
+                    textAnchor="end"
+                    fontSize="10"
+                    fontWeight="700"
+                    fill="#334155"
+                  >
+                    {track.label}
+                  </text>
+                ) : (
+                  <text
+                    x={firstB.cx}
+                    y={firstB.cy - firstB.r - 7}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="700"
+                    fill="#334155"
+                  >
+                    {track.label}
+                  </text>
+                )}
+
+                {track.bubbles.map((b) => {
+                  const filled = prefillDigitVal === b.digitValue;
+                  return (
+                    <g key={b.digitValue}>
+                      <circle
+                        cx={b.cx}
+                        cy={b.cy}
+                        r={b.r}
+                        fill={filled ? '#111827' : '#ffffff'}
+                        stroke={filled ? '#111827' : '#475569'}
+                        strokeWidth="1.25"
+                      />
+                      {!filled && (
+                        <text
+                          x={b.cx}
+                          y={b.cy + 3.2}
+                          textAnchor="middle"
+                          fontSize={b.r * 1.15}
+                          fontWeight="700"
+                          fill="#94a3b8"
+                        >
+                          {b.digitValue}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })}
+        </g>
+      ) : (
+        <text
+          x={isHalf ? 600 : 570}
+          y={headerBox.y + headerBox.height / 2 + 4}
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="700"
+          fill="#94a3b8"
+        >
+          แบบทดสอบไม่ระบุรหัส (Anonymous / Quiz Mode)
+        </text>
+      )}
+
+      {/* QR Code Area */}
+      {config.showQrCode !== false && (
+        <g>
+          <rect
+            x={qrBox.x}
+            y={qrBox.y}
+            width={qrBox.width}
+            height={qrBox.height}
+            rx="4"
+            fill="#ffffff"
+            stroke="#e2e8f0"
+            strokeWidth="1"
+          />
+          {qrPath && <path d={qrPath} fill="#0f172a" />}
+          <text
+            x={qrBox.x + qrBox.width / 2}
+            y={qrBox.y + qrBox.height + 14}
+            textAnchor="middle"
+            fontSize="9.5"
+            fontWeight="800"
+            fill="#334155"
+          >
+            {prefilledStudent && rollNum !== null
+              ? `NO.${String(rollNum).padStart(2, '0')} • SET ${examSet}`
+              : `QR OMR • SET ${examSet}`}
+          </text>
+        </g>
+      )}
+
+      {/* Answer Bubble Columns */}
+      {columnGroups.map((col) => {
+        if (col.rows.length === 0) return null;
+        const colX = gridLeft + col.colIndex * colWidth + 4;
+        const boxW = colWidth - 8;
+        const lastRowY = col.rows[col.rows.length - 1].rowY;
+        const boxHeight = lastRowY - gridTop + geometry.bubbleRadius + 14;
+        const sampleRow = col.rows[0];
+
+        return (
+          <g key={col.colIndex}>
+            <rect
+              x={colX}
+              y={gridTop}
+              width={boxW}
+              height={boxHeight}
+              rx="8"
+              fill="#ffffff"
+              stroke={theme.border}
+              strokeWidth="1.2"
+            />
+            <rect
+              x={colX}
+              y={gridTop}
+              width={boxW}
+              height="22"
+              rx="8"
+              fill={theme.soft}
+            />
+            <text
+              x={sampleRow.numberX}
+              y={gridTop + 15}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="800"
+              fill={theme.accent}
+            >
+              ข้อ
+            </text>
+            {sampleRow.bubbles.map((b) => (
+              <text
+                key={b.choiceIndex}
+                x={b.cx}
+                y={gridTop + 15}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="800"
+                fill={theme.accent}
+              >
+                {getChoiceLabel(b.choiceIndex, config.choiceLabelType)}
+              </text>
+            ))}
+
+            {/* Rows inside column */}
+            {col.rows.map((row) => {
+              const isZebra = row.rowInColumn % 2 === 1;
+              return (
+                <g key={row.questionNumber}>
+                  {isZebra && (
+                    <rect
+                      x={colX + 3}
+                      y={row.rowY - geometry.rowPitch * 0.44}
+                      width={boxW - 6}
+                      height={geometry.rowPitch * 0.88}
+                      rx="4"
+                      fill="#f8fafc"
+                    />
+                  )}
+                  <text
+                    x={row.numberX}
+                    y={row.rowY + 4}
+                    textAnchor="middle"
+                    fontSize={isHalf ? 11.5 : 12.5}
+                    fontWeight="800"
+                    fill="#0f172a"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {row.questionNumber}.
+                  </text>
+
+                  {row.bubbles.map((b) => {
+                    const label = getChoiceLabel(b.choiceIndex, config.choiceLabelType);
+                    return (
+                      <g key={b.choiceIndex}>
+                        <circle
+                          cx={b.cx}
+                          cy={b.cy}
+                          r={b.r}
+                          fill="#ffffff"
+                          stroke="#475569"
+                          strokeWidth="1.4"
+                        />
+                        <text
+                          x={b.cx}
+                          y={b.cy + (isHalf ? 3.2 : 3.8)}
+                          textAnchor="middle"
+                          fontSize={Math.max(8, b.r * 1.05)}
+                          fontWeight="700"
+                          fill="#94a3b8"
+                        >
+                          {label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+
+      {/* Center Footer strip (Leaves BL/BR anchor zones 100% white!) */}
+      <text
+        x={geometry.width / 2}
+        y={geometry.footerY + 4}
+        textAnchor="middle"
+        fontSize="10.5"
+        fontWeight="700"
+        fill="#64748b"
+      >
+        ClassCare 360 AI Vision OMR • {choiceKeys.length} ตัวเลือก • กรุณาวางกระดาษให้เห็นวงกลม 4 มุมชัดเจนขณะสแกน
+      </text>
+    </svg>
+  );
 }
 
 export const PrintableAnswerSheet = forwardRef<HTMLDivElement, PrintableAnswerSheetProps>(
-  ({ config, schoolName = 'โรงเรียน ClassCare 360', studentName, rollNumber, isMiniPreview = false }, ref) => {
-    const isEcoHalf = config.layout === 'eco_half';
+  ({ config, schoolName = 'ClassCare 360 School', isMiniPreview = false, batchStudents }, ref) => {
+    const isHalf = config.layout === 'eco_half';
+    const hasBatch = Array.isArray(batchStudents) && batchStudents.length > 0;
 
-    // Calculate columns layout based on total questions and layout mode
-    let questionsPerColumn = 10;
-    if (isEcoHalf) {
-      // In 2-in-1 Eco Half (144mm), keep at most 10-12 rows per column to ensure zero vertical overflow
-      questionsPerColumn = config.totalQuestions <= 10 ? 10 : config.totalQuestions <= 50 ? 10 : 12;
-    } else {
-      // In Single Full A4 (297mm), balance vertically according to question count
-      if (config.totalQuestions <= 15) questionsPerColumn = 15;
-      else if (config.totalQuestions <= 20) questionsPerColumn = 10;
-      else if (config.totalQuestions <= 30) questionsPerColumn = 15;
-      else if (config.totalQuestions <= 40) questionsPerColumn = 20;
-      else if (config.totalQuestions <= 50) questionsPerColumn = 25;
-      else if (config.totalQuestions <= 60) questionsPerColumn = 20;
-      else if (config.totalQuestions <= 80) questionsPerColumn = 20;
-      else questionsPerColumn = 25;
-    }
+    // Pair or single-page A4 chunks so both Master mode and Batch Student pre-filled mode print cleanly
+    const a4Pages = useMemo(() => {
+      if (!hasBatch || !batchStudents) {
+        return [
+          {
+            pageKey: 'master-page',
+            topStudent: undefined as PrintableStudentTarget | undefined,
+            bottomStudent: undefined as PrintableStudentTarget | undefined,
+            showBottomEcoCopy: isHalf,
+          },
+        ];
+      }
 
-    const columnsCount = Math.max(1, Math.ceil(config.totalQuestions / questionsPerColumn));
-    const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
+      if (!isHalf) {
+        return batchStudents.map((st, idx) => ({
+          pageKey: `page-${st.id}-${idx}`,
+          topStudent: { ...st, rollNumber: st.rollNumber ?? idx + 1 },
+          bottomStudent: undefined as PrintableStudentTarget | undefined,
+          showBottomEcoCopy: false,
+        }));
+      }
 
-    const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+      const pages: Array<{
+        pageKey: string;
+        topStudent?: PrintableStudentTarget;
+        bottomStudent?: PrintableStudentTarget;
+        showBottomEcoCopy: boolean;
+      }> = [];
 
-    const theme: AnswerSheetThemeColor = config.themeColor || 'slate';
-
-    const themeStyles = {
-      slate: {
-        border: 'border-slate-800',
-        textPrimary: 'text-slate-900',
-        bubbleBorder: 'border-slate-800',
-        bubbleText: 'text-slate-900',
-        headerBg: 'bg-slate-100',
-        badgeBg: 'bg-slate-900',
-      },
-      navy: {
-        border: 'border-blue-900',
-        textPrimary: 'text-blue-900',
-        bubbleBorder: 'border-blue-900',
-        bubbleText: 'text-blue-900',
-        headerBg: 'bg-blue-50',
-        badgeBg: 'bg-blue-900',
-      },
-      burgundy: {
-        border: 'border-[#701a2b]',
-        textPrimary: 'text-[#701a2b]',
-        bubbleBorder: 'border-[#701a2b]',
-        bubbleText: 'text-[#701a2b]',
-        headerBg: 'bg-[#fdf2f4]',
-        badgeBg: 'bg-[#701a2b]',
-      },
-      emerald: {
-        border: 'border-emerald-900',
-        textPrimary: 'text-emerald-900',
-        bubbleBorder: 'border-emerald-900',
-        bubbleText: 'text-emerald-900',
-        headerBg: 'bg-emerald-50',
-        badgeBg: 'bg-emerald-900',
-      },
-    }[theme] || {
-      border: 'border-slate-800',
-      textPrimary: 'text-slate-900',
-      bubbleBorder: 'border-slate-800',
-      bubbleText: 'text-slate-900',
-      headerBg: 'bg-slate-100',
-      badgeBg: 'bg-slate-900',
-    };
-
-    const isDense = !isEcoHalf && (columnsCount >= 4 || (columnsCount >= 3 && config.choicesCount >= 5));
-
-    // Determine clean official school name (avoid showing raw "ป.5" if workspace name was classroom)
-    const rawSchool = config.schoolName?.trim() || schoolName?.trim() || '';
-    const displaySchoolName = (rawSchool && rawSchool !== 'ป.5' && rawSchool !== 'J.5')
-      ? rawSchool
-      : 'โรงเรียน ClassCare 360';
-
-    const isUniversal = config.isUniversalRoom !== false && !config.roomName;
-
-    useEffect(() => {
-      let isMounted = true;
-      const payload = JSON.stringify({
-        app: 'CC360',
-        id: config.id,
-        set: config.examSet || '01',
-        sub: config.subjectName || '-',
-        tid: config.teacherId ? config.teacherId.slice(0, 8) : 'GEN',
-        room: isUniversal ? 'ALL' : (config.roomName || 'ALL'),
-        tq: config.totalQuestions,
-        ts: config.totalScore,
-      });
-
-      QRCode.toDataURL(payload, {
-        margin: 0,
-        width: 160,
-        errorCorrectionLevel: 'M',
-        color: {
-          dark: '#0f172a',
-          light: '#ffffff',
-        },
-      })
-        .then((url) => {
-          if (isMounted) setQrCodeUrl(url);
-        })
-        .catch(() => {});
-
-      return () => {
-        isMounted = false;
-      };
-    }, [config.id, config.examSet, config.subjectName, config.teacherId, config.roomName, isUniversal, config.totalQuestions, config.totalScore]);
-
-    const renderSheetInstance = (instanceKey: string) => (
-      <div
-        key={instanceKey}
-        className={`relative flex flex-col justify-between bg-white text-slate-900 select-none ${
-          isEcoHalf ? 'px-8 pt-2.5 pb-7' : 'px-10 pt-5 pb-9'
-        }`}
-        style={{
-          width: '210mm',
-          height: isEcoHalf ? '144mm' : '297mm',
-          maxHeight: isEcoHalf ? '144mm' : '297mm',
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-          fontFamily: "'Anuphan', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif",
-        }}
-      >
-        {/* 4 Precision Fiducial Corner Registration Marks for OMR AI Vision (Positioned strictly outside content zone) */}
-        <div className={`absolute left-2.5 top-2 border-l-[3.5px] border-t-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-        <div className={`absolute right-2.5 top-2 border-r-[3.5px] border-t-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-        <div className={`absolute bottom-2 left-2.5 border-l-[3.5px] border-b-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-        <div className={`absolute bottom-2 right-2.5 border-r-[3.5px] border-b-[3.5px] border-black ${isEcoHalf ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
-
-        {/* Vertical OMR Optical Timing Track on left edge margin */}
-        <div className="absolute left-1.5 top-8 bottom-8 flex flex-col justify-between pointer-events-none opacity-80">
-          {Array.from({ length: isEcoHalf ? 16 : 30 }).map((_, i) => (
-            <div key={i} className="w-1.5 h-1 bg-black" />
-          ))}
-        </div>
-
-        {/* --- 1. OFFICIAL EXAM HEADER & INSTITUTION BANNER --- */}
-        <div className="w-full">
-          <div className={`flex items-center justify-between border-b-2 border-slate-900 ${isEcoHalf ? 'pb-1' : 'pb-2'}`}>
-            {/* Left: Academic Crest & School / Exam Title */}
-            <div className="flex items-center gap-2.5 flex-1 min-w-0 pr-2">
-              <div className={`flex items-center justify-center rounded-lg ${themeStyles.badgeBg} text-white shadow-xs shrink-0 ${
-                isEcoHalf ? 'h-8 w-8' : 'h-11 w-11'
-              }`}>
-                <svg className={isEcoHalf ? 'h-4.5 w-4.5 text-amber-300' : 'h-6 w-6 text-amber-300'} viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L1 7l11 5 9-4.09V17h2V7L12 2z" />
-                  <path d="M4 10.18v5.82L12 21l8-5V10.18L12 15l-8-4.82z" opacity="0.85" />
-                </svg>
-              </div>
-
-              <div className="min-w-0">
-                <p className={`font-black tracking-wide text-slate-600 truncate ${isEcoHalf ? 'text-[9px]' : 'text-xs'}`}>
-                  {displaySchoolName}
-                </p>
-                <h1 className={`font-black tracking-tight leading-snug truncate ${themeStyles.textPrimary} ${
-                  isEcoHalf ? 'text-xs sm:text-[13px]' : 'text-lg'
-                }`}>
-                  {config.title || 'กระดาษคำตอบมาตรฐาน (OMR Answer Sheet)'}
-                </h1>
-                <p className={`font-semibold text-slate-500 truncate ${isEcoHalf ? 'text-[7.5px]' : 'text-[10px]'}`}>
-                  แบบทดสอบวัดผลสัมฤทธิ์ทางการเรียนรู้ตามมาตรฐานหลักสูตร • สพฐ. / สทศ.
-                </p>
-              </div>
-            </div>
-
-            {/* Center: Official Exam Set Badge (Like Thai National Exam GAT/PAT & สพฐ.) */}
-            <div className={`shrink-0 text-center rounded-lg border-2 ${themeStyles.border} bg-white shadow-2xs ${
-              isEcoHalf ? 'px-2 py-0.5 mx-1.5' : 'px-3.5 py-1 mx-3'
-            }`}>
-              <div className="text-[7px] uppercase font-black tracking-wider text-slate-500 leading-tight">
-                ชุดข้อสอบ
-              </div>
-              <div className={`font-black font-mono leading-none ${themeStyles.textPrimary} ${
-                isEcoHalf ? 'text-xs' : 'text-xl'
-              }`}>
-                ชุดที่ {config.examSet || '01'}
-              </div>
-              <div className="text-[6.5px] font-mono text-slate-400 font-bold leading-tight">
-                (Set {config.examSet || '01'})
-              </div>
-            </div>
-
-            {/* Right: QR Code & Score Badges */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Machine-readable Exam Set QR Code */}
-              {config.showQrCode !== false && (
-                <div className={`flex items-center gap-1 rounded border border-slate-300 bg-white shadow-2xs ${
-                  isEcoHalf ? 'p-0.8' : 'p-1.5'
-                }`}>
-                  <div className={`overflow-hidden rounded bg-white flex items-center justify-center border border-slate-200 ${
-                    isEcoHalf ? 'h-7 w-7' : 'h-11 w-11'
-                  }`}>
-                    {qrCodeUrl ? (
-                      <img src={qrCodeUrl} alt="Exam QR" className="h-full w-full object-contain" />
-                    ) : (
-                      <div className="h-full w-full bg-slate-100 flex items-center justify-center text-[6px] font-mono text-slate-400">
-                        QR
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col justify-center text-left leading-none">
-                    <span className="text-[6px] uppercase font-black tracking-wider text-slate-400 mb-0.5">
-                      QR ชุดข้อสอบ
-                    </span>
-                    <span className="font-mono text-[7px] font-bold text-slate-800">
-                      ID:{config.id ? config.id.slice(-5).toUpperCase() : 'CC360'}
-                    </span>
-                    <span className="text-[5.5px] text-emerald-700 font-bold mt-0.5">
-                      auto-grade
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Badges: Total Questions & Total Score */}
-              <div className="flex flex-col gap-0.5">
-                <div className={`rounded border border-slate-300 bg-slate-50 text-center ${
-                  isEcoHalf ? 'px-1 py-0.2' : 'px-2 py-0.5'
-                }`}>
-                  <span className="text-[6.5px] text-slate-500 font-bold uppercase block leading-none">จำนวนข้อ</span>
-                  <span className={`font-mono font-black text-slate-900 leading-none ${
-                    isEcoHalf ? 'text-[9.5px]' : 'text-xs'
-                  }`}>{config.totalQuestions}</span>
-                </div>
-                <div className={`rounded border border-slate-300 bg-slate-50 text-center ${
-                  isEcoHalf ? 'px-1 py-0.2' : 'px-2 py-0.5'
-                }`}>
-                  <span className="text-[6.5px] text-slate-500 font-bold uppercase block leading-none">คะแนนเต็ม</span>
-                  <span className={`font-mono font-black text-slate-900 leading-none ${
-                    isEcoHalf ? 'text-[9.5px]' : 'text-xs'
-                  }`}>{config.totalScore}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Subject, Exam Date, Room, Teacher metadata strip */}
-          <div className={`flex flex-wrap items-center justify-between text-slate-600 font-semibold border-b border-slate-200 bg-slate-50/70 rounded-b px-2 ${
-            isEcoHalf ? 'py-0.5 text-[8px]' : 'py-1 text-[10px]'
-          }`}>
-            <div className="flex items-center gap-2.5">
-              <span>วิชา: <strong className="text-slate-900">{config.subjectName || '-'}</strong></span>
-              <span>•</span>
-              <span>วันที่: <strong className="text-slate-900">{config.examDate || '-'}</strong></span>
-              <span>•</span>
-              <span>
-                {isUniversal ? (
-                  <span className="text-emerald-700 font-bold">ใช้ได้ทุกห้อง (กรอกเอง)</span>
-                ) : (
-                  <span>ห้อง: <strong className="text-slate-900">{config.roomName}</strong></span>
-                )}
-              </span>
-            </div>
-            {config.teacherName && (
-              <div>
-                <span>ครูผู้สอน: <strong className="text-slate-900">{config.teacherName}</strong></span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* --- 2. STRUCTURED STUDENT IDENTIFICATION & SHADING GUIDE CARD --- */}
-        <div className={`grid grid-cols-12 gap-2 rounded-lg border border-slate-300 bg-slate-50/50 ${
-          isEcoHalf ? 'mt-1 p-1.5' : 'mt-2 p-2.5'
-        }`}>
-          {/* Left: Student Info Inputs & Shading Instructions */}
-          <div className={`${config.studentIdFormat !== 'none' ? 'col-span-8 sm:col-span-9' : 'col-span-12'} flex flex-col justify-between`}>
-            <div className={isEcoHalf ? 'space-y-0.5' : 'space-y-1'}>
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className={`font-black uppercase tracking-wider text-slate-700 bg-white border border-slate-300 rounded px-1.5 py-0.2 ${
-                  isEcoHalf ? 'text-[8px]' : 'text-[9.5px]'
-                }`}>
-                  ข้อมูลผู้เข้าสอบ (STUDENT INFORMATION)
-                </span>
-              </div>
-
-              {/* Student Name */}
-              <div className="flex items-baseline gap-2">
-                <span className={`font-bold text-slate-700 whitespace-nowrap ${isEcoHalf ? 'text-[9px]' : 'text-xs'}`}>
-                  ชื่อ - สกุล:
-                </span>
-                <span className={`flex-1 border-b border-dotted border-slate-400 font-bold text-slate-900 ${
-                  isEcoHalf ? 'text-[9.5px] pb-0.2' : 'text-xs pb-0.5'
-                }`}>
-                  {studentName || ''}
-                </span>
-              </div>
-
-              {/* Classroom, Roll Number, Exam Room */}
-              <div className="flex items-baseline gap-2.5 pt-0.2">
-                <div className="flex items-baseline gap-1 flex-1">
-                  <span className={`font-bold text-slate-700 whitespace-nowrap ${isEcoHalf ? 'text-[9px]' : 'text-xs'}`}>
-                    ระดับชั้น / ห้อง:
-                  </span>
-                  <span className={`flex-1 border-b border-dotted border-slate-400 font-semibold text-slate-800 ${
-                    isEcoHalf ? 'text-[9px]' : 'text-xs'
-                  }`}>
-                    {isUniversal ? '' : (config.roomName || '')}
-                  </span>
-                </div>
-
-                <div className="flex items-baseline gap-1">
-                  <span className={`font-bold text-slate-700 whitespace-nowrap ${isEcoHalf ? 'text-[9px]' : 'text-xs'}`}>
-                    เลขที่:
-                  </span>
-                  <span className={`w-10 border-b border-dotted border-slate-400 text-center font-mono font-bold text-slate-900 ${
-                    isEcoHalf ? 'text-[9.5px]' : 'text-xs'
-                  }`}>
-                    {rollNumber ? String(rollNumber).padStart(2, '0') : ''}
-                  </span>
-                </div>
-
-                <div className="flex items-baseline gap-1">
-                  <span className={`font-bold text-slate-700 whitespace-nowrap ${isEcoHalf ? 'text-[9px]' : 'text-xs'}`}>
-                    ห้องสอบ:
-                  </span>
-                  <span className={`w-12 border-b border-dotted border-slate-400 text-center ${
-                    isEcoHalf ? 'text-[9px]' : 'text-xs'
-                  }`}></span>
-                </div>
-              </div>
-            </div>
-
-            {/* Shading Instructions (คำแนะนำการฝนดินสอ 2B) */}
-            <div className={`mt-1 rounded border border-slate-200 bg-white flex items-center justify-between gap-1.5 ${
-              isEcoHalf ? 'px-1.5 py-0.5' : 'px-2.5 py-1'
-            }`}>
-              <div className={`flex items-center gap-1 text-slate-600 ${isEcoHalf ? 'text-[8px]' : 'text-[9.5px]'}`}>
-                <span className="font-black text-slate-800">คำชี้แจง:</span>
-                <span>ใช้ดินสอดำ <strong>2B</strong> ขึ้นไป ฝนให้ดำเต็มวง (ห้ามใช้ปากกา)</span>
-              </div>
-
-              <div className={`flex items-center gap-1.5 font-bold ${isEcoHalf ? 'text-[7.5px]' : 'text-[9px]'}`}>
-                <span className="inline-flex items-center gap-0.8 text-slate-900">
-                  <span className={`inline-block rounded-full bg-slate-900 text-white text-center font-bold ${
-                    isEcoHalf ? 'h-3 w-3 text-[6.5px] leading-3' : 'h-3.5 w-3.5 text-[8px] leading-3.5'
-                  }`}>
-                    ●
-                  </span>
-                  ถูก
-                </span>
-                <span className="inline-flex items-center gap-0.5 text-slate-400">
-                  <span className={`inline-block rounded-full border border-slate-400 text-center ${
-                    isEcoHalf ? 'h-3 w-3 text-[6.5px] leading-3' : 'h-3.5 w-3.5 text-[8px] leading-3'
-                  }`}>
-                    ✕
-                  </span>
-                  ผิด
-                </span>
-                <span className="inline-flex items-center gap-0.5 text-slate-400">
-                  <span className={`inline-block rounded-full border border-slate-400 text-center ${
-                    isEcoHalf ? 'h-3 w-3 text-[6.5px] leading-3' : 'h-3.5 w-3.5 text-[8px] leading-3'
-                  }`}>
-                    ✔
-                  </span>
-                  ผิด
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Roll Number / Student ID Matrix (Proportionally scaled, completely contained, zero overflow) */}
-          {config.studentIdFormat === 'roll_number' && (
-            <div className="col-span-4 sm:col-span-3 rounded border border-slate-300 bg-white p-1 text-center flex flex-col justify-between overflow-hidden shadow-2xs">
-              <div className="text-[7.5px] font-black text-slate-700 bg-slate-100 py-0.2 rounded border-b border-slate-200 leading-tight">
-                เลขที่ (00-99)
-              </div>
-
-              <div className="flex justify-center gap-2 my-0.5">
-                {['สิบ', 'หน่วย'].map((lbl, cIdx) => (
-                  <div key={lbl} className="flex flex-col items-center">
-                    <span className="text-[6.5px] text-slate-500 font-bold leading-none mb-0.5">{lbl}</span>
-                    <div className={`mb-0.5 rounded border border-slate-400 bg-slate-50 text-center font-mono font-black ${
-                      isEcoHalf ? 'h-3.5 w-3.5 text-[8px] leading-3.5' : 'h-4 w-4 text-[10px] leading-4'
-                    }`}>
-                      {rollNumber ? (cIdx === 0 ? Math.floor(rollNumber / 10) : rollNumber % 10) : ''}
-                    </div>
-                    <div className="flex flex-col gap-[1px]">
-                      {Array.from({ length: 10 }).map((_, digit) => (
-                        <div
-                          key={digit}
-                          className={`flex items-center justify-center rounded-full border border-slate-800 font-black text-slate-900 leading-none shrink-0 ${
-                            isEcoHalf ? 'h-[9px] w-[9px] text-[5.5px]' : 'h-3 w-3 text-[7.5px]'
-                          }`}
-                        >
-                          {digit}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {config.studentIdFormat === 'student_code' && (
-            <div className="col-span-4 sm:col-span-3 rounded border border-slate-300 bg-white p-1 text-center flex flex-col justify-between overflow-hidden shadow-2xs">
-              <div className="text-[7.5px] font-black text-slate-700 bg-slate-100 py-0.2 rounded border-b border-slate-200 leading-tight">
-                รหัสประจำตัว (5 หลัก)
-              </div>
-
-              <div className="flex justify-center gap-1 my-0.5">
-                {['1', '2', '3', '4', '5'].map((colNum) => (
-                  <div key={colNum} className="flex flex-col items-center">
-                    <span className="text-[6px] text-slate-400 leading-none mb-0.5">{colNum}</span>
-                    <div className={`mb-0.5 rounded border border-slate-400 bg-slate-50 text-center font-mono font-bold ${
-                      isEcoHalf ? 'h-3 w-3 text-[7.5px] leading-3' : 'h-3.5 w-3.5 text-[9px] leading-3.5'
-                    }`} />
-                    <div className="flex flex-col gap-[1px]">
-                      {Array.from({ length: 10 }).map((_, digit) => (
-                        <div
-                          key={digit}
-                          className={`flex items-center justify-center rounded-full border border-slate-800 font-bold text-slate-900 leading-none shrink-0 ${
-                            isEcoHalf ? 'h-[8px] w-[8px] text-[5px]' : 'h-2.5 w-2.5 text-[6.5px]'
-                          }`}
-                        >
-                          {digit}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* --- 3. PROFESSIONAL CLEAN ANSWER GRID --- */}
-        <div
-          className={`mx-auto flex-1 grid gap-2.5 ${isEcoHalf ? 'my-1' : 'my-2.5'} w-full items-start`}
-          style={{
-            gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))`,
-            maxWidth: columnsCount === 1 ? '240px' : columnsCount === 2 ? '480px' : columnsCount === 3 ? '720px' : '100%',
-          }}
-        >
-          {Array.from({ length: columnsCount }).map((_, colIdx) => {
-            const startQ = colIdx * questionsPerColumn + 1;
-            const endQ = Math.min(config.totalQuestions, (colIdx + 1) * questionsPerColumn);
-            const questions = [];
-            for (let q = startQ; q <= endQ; q++) questions.push(q);
-
-            return (
-              <div
-                key={colIdx}
-                className="flex flex-col rounded-lg border border-slate-300 bg-white overflow-hidden shadow-2xs"
-              >
-                {/* Column Table Header with Elegant Shading */}
-                <div className={`flex items-center justify-center border-b-2 border-slate-300 ${themeStyles.headerBg} font-black text-slate-800 ${
-                  isEcoHalf
-                    ? 'py-0.8 text-[9px] gap-1.5'
-                    : isDense
-                    ? 'py-1 text-[10.5px] gap-2'
-                    : 'py-1.5 text-xs gap-2.5'
-                }`}>
-                  <span className={`text-center font-bold text-slate-800 ${
-                    isEcoHalf ? 'w-5 text-[8.5px]' : isDense ? 'w-6 text-[10px]' : 'w-7 text-xs'
-                  }`}>
-                    ข้อ
-                  </span>
-                  <div className={`flex ${isEcoHalf ? 'gap-1' : isDense ? 'gap-1.5' : 'gap-2'}`}>
-                    {choiceKeys.map((_, i) => (
-                      <span
-                        key={i}
-                        className={`text-center font-black text-slate-800 ${
-                          isEcoHalf ? 'w-3.5 text-[8.5px]' : isDense ? 'w-4 text-[10px]' : 'w-5 text-xs'
-                        }`}
-                      >
-                        {getChoiceLabel(i, config.choiceLabelType)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Question rows with whitespace every 5 questions and subtle zebra striping */}
-                <div className="flex-1 divide-y divide-slate-100">
-                  {questions.map((q) => {
-                    const isFifthBreak = q % 5 === 0 && q !== endQ;
-                    const isEven = q % 2 === 0;
-
-                    return (
-                      <div
-                        key={q}
-                        className={`${isEven ? 'bg-slate-50/40' : 'bg-white'} ${
-                          isFifthBreak ? (isEcoHalf ? 'pb-0.5 border-b-2 border-slate-200' : 'pb-1 border-b-2 border-slate-200') : ''
-                        }`}
-                      >
-                        <div className={`flex items-center justify-center ${
-                          isEcoHalf ? 'gap-1.5 py-0.5' : isDense ? 'gap-2 py-0.8' : 'gap-2.5 py-1'
-                        }`}>
-                          <span className={`text-right font-mono font-bold text-slate-700 pr-0.5 ${
-                            isEcoHalf ? 'w-5 text-[9px]' : isDense ? 'w-6 text-[10px]' : 'w-7 text-[11px]'
-                          }`}>
-                            {q}.
-                          </span>
-
-                          <div className={`flex ${isEcoHalf ? 'gap-1' : isDense ? 'gap-1.5' : 'gap-2'}`}>
-                            {choiceKeys.map((_, cIdx) => (
-                              <div
-                                key={cIdx}
-                                className={`flex items-center justify-center rounded-full border-[1.4px] ${themeStyles.bubbleBorder} font-black ${themeStyles.bubbleText} bg-white shadow-2xs ${
-                                  isEcoHalf
-                                    ? 'h-3.5 w-3.5 text-[7.5px]'
-                                    : isDense
-                                    ? 'h-4 w-4 text-[8.5px]'
-                                    : 'h-5 w-5 text-[9.5px]'
-                                }`}
-                              >
-                                {getChoiceLabel(cIdx, config.choiceLabelType)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* --- 4. OFFICIAL EXAMINER & SCORE CERTIFICATION FOOTER (Safely inside safe bounds, never sliced) --- */}
-        <div className={`w-full flex items-center justify-between border-t-2 border-slate-900 ${
-          isEcoHalf ? 'pt-1 pb-0.5 text-[8.5px]' : 'pt-2 pb-1 text-xs'
-        } text-slate-600`}>
-          <div className="flex flex-col">
-            <span className="font-bold text-slate-800">
-              ระบบตรวจกระดาษคำตอบอัตโนมัติ ClassCare 360 AI OMR
-            </span>
-            <span className="text-[7.5px] text-slate-400 font-mono tracking-tight">
-              OFFICIAL EXAMINATION STANDARD • SECURITY VERIFIED • HIGH RESOLUTION
-            </span>
-          </div>
-
-          {/* Teacher Official Score Box & Signature */}
-          <div className="flex items-center gap-2.5">
-            <div className={`flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded ${
-              isEcoHalf ? 'px-1.5 py-0.5' : 'px-2.5 py-1'
-            }`}>
-              <span className="font-black text-slate-800">คะแนนที่ได้ (Score):</span>
-              <div className={`rounded border border-slate-400 bg-white ${
-                isEcoHalf ? 'h-4 w-10' : 'h-6 w-14'
-              }`} />
-              <span className="font-mono font-bold text-slate-800">
-                / {config.totalScore}
-              </span>
-            </div>
-
-            <div className={`text-slate-500 font-semibold ${isEcoHalf ? 'text-[8px]' : 'text-[10px]'}`}>
-              ลงชื่อครูผู้ตรวจ: .......................................
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-
-    if (isMiniPreview) {
-      return (
-        <div
-          ref={ref}
-          className="omr-mini-preview select-none pointer-events-none bg-white"
-          style={{
-            width: '210mm',
-            height: '297mm',
-            maxHeight: '297mm',
-            boxSizing: 'border-box',
-            overflow: 'hidden',
-          }}
-        >
-          {renderSheetInstance('instance-1')}
-          {isEcoHalf && (
-            <>
-              <div
-                className="flex items-center justify-center border-t border-dashed border-slate-400 text-slate-400"
-                style={{ height: '9mm', boxSizing: 'border-box' }}
-              >
-                <span className="bg-white px-3 text-[9px] font-mono tracking-wider">
-                  ✂ - - - - - - - - - - รอยตัดครึ่งแผ่น A4 (Cut here) - - - - - - - - - -
-                </span>
-              </div>
-              {renderSheetInstance('instance-2')}
-            </>
-          )}
-        </div>
-      );
-    }
+      for (let i = 0; i < batchStudents.length; i += 2) {
+        const s1 = { ...batchStudents[i], rollNumber: batchStudents[i].rollNumber ?? i + 1 };
+        const s2 = batchStudents[i + 1]
+          ? { ...batchStudents[i + 1], rollNumber: batchStudents[i + 1].rollNumber ?? i + 2 }
+          : undefined;
+        pages.push({
+          pageKey: `eco-pair-${i}`,
+          topStudent: s1,
+          bottomStudent: s2,
+          showBottomEcoCopy: Boolean(s2),
+        });
+      }
+      return pages;
+    }, [hasBatch, batchStudents, isHalf]);
 
     return (
       <div
         ref={ref}
-        className="omr-printable-container mx-auto bg-white shadow-md print:m-0 print:p-0 print:shadow-none"
-        style={{
-          width: '210mm',
-          height: '297mm',
-          maxHeight: '297mm',
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-        }}
+        className={`${isMiniPreview ? '' : 'omr-print-active'} space-y-6 print:space-y-0`}
       >
-        <style>
-          {`
+        {!isMiniPreview && (
+          <style>{`
+            @page {
+              size: A4 portrait;
+              margin: 0;
+            }
             @media print {
-              @page {
-                size: A4 portrait !important;
-                margin: 0mm !important;
-              }
-              body * {
-                visibility: hidden !important;
-              }
-              .omr-printable-container,
-              .omr-printable-container * {
-                visibility: visible !important;
-              }
-              .omr-printable-container {
-                position: fixed !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 210mm !important;
-                height: 297mm !important;
-                max-height: 297mm !important;
+              html, body {
                 margin: 0 !important;
                 padding: 0 !important;
-                background: white !important;
-                z-index: 9999999 !important;
-                overflow: hidden !important;
+                background: #ffffff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              body:has(.omr-print-active) aside,
+              body:has(.omr-print-active) header.app-topbar,
+              body:has(.omr-print-active) nav,
+              body:has(.omr-print-active) .no-print,
+              body:has(.omr-print-active) .omr-no-print {
+                display: none !important;
+              }
+              body:has(.omr-print-active) #root,
+              body:has(.omr-print-active) .app-shell,
+              body:has(.omr-print-active) .app-content-area,
+              body:has(.omr-print-active) main.app-page {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                background: #ffffff !important;
+              }
+              .omr-a4-page {
+                width: 210mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 box-shadow: none !important;
+                border: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                overflow: hidden !important;
+              }
+              .omr-a4-page:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
               }
             }
-          `}
-        </style>
-
-        {renderSheetInstance('instance-1')}
-
-        {isEcoHalf && (
-          <>
-            {/* Cut line between the two half sheets (9mm exact height) */}
-            <div
-              className="flex items-center justify-center border-t border-dashed border-slate-400 text-slate-400"
-              style={{ height: '9mm', boxSizing: 'border-box' }}
-            >
-              <span className="bg-white px-3 text-[9px] font-mono tracking-wider">
-                ✂ - - - - - - - - - - รอยตัดครึ่งแผ่น A4 (Cut here) - - - - - - - - - -
-              </span>
-            </div>
-            {renderSheetInstance('instance-2')}
-          </>
+          `}</style>
         )}
+
+        {a4Pages.map((page) => (
+          <div
+            key={page.pageKey}
+            className="omr-a4-page mx-auto bg-white shadow-lg border border-slate-200 overflow-hidden flex flex-col justify-between"
+            style={{ width: '210mm', height: '297mm' }}
+          >
+            <div style={{ width: '210mm', height: isHalf ? '144mm' : '297mm' }}>
+              <SingleAnswerSheetSvg
+                config={config}
+                schoolName={schoolName}
+                prefilledStudent={page.topStudent}
+              />
+            </div>
+
+            {isHalf && (
+              <>
+                <div
+                  className="flex items-center justify-center border-y border-dashed border-slate-300 text-[10px] font-bold tracking-widest text-slate-400"
+                  style={{ height: '9mm' }}
+                >
+                  ✂ ────────── รอยปรุสำหรับตัดแบ่งครึ่งแผ่น (ECO SAVER 2-IN-1) ────────── ✂
+                </div>
+                <div style={{ width: '210mm', height: '144mm' }}>
+                  {page.showBottomEcoCopy ? (
+                    <SingleAnswerSheetSvg
+                      config={config}
+                      schoolName={schoolName}
+                      prefilledStudent={page.bottomStudent}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-slate-50/40 text-xs font-bold text-slate-300">
+                      (ส่วนล่างว่างสำหรับแผ่นตัดสุดท้ายของห้อง)
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
       </div>
     );
   }

@@ -16,6 +16,7 @@ import {
   Play,
   Layers,
   FolderArchive,
+  Gift,
   Target,
   Upload,
   Plus,
@@ -23,6 +24,7 @@ import {
   QrCode,
   Copy,
   Shuffle,
+  Users,
   X,
   Search,
   CheckCircle2,
@@ -113,6 +115,15 @@ interface AnswerSheetDesignerProps {
   teacherName?: string;
   workspaceId?: string;
   initialSubTab?: 'settings' | 'answer_key' | 'preview';
+  studentsInActiveRoom?: Array<{
+    id: string;
+    student_code: string;
+    first_name: string;
+    last_name: string;
+  }>;
+  activeClassroomName?: string;
+  scannedResultsCount?: number;
+  onRegradeScanned?: () => void;
 }
 
 export function AnswerSheetDesigner({
@@ -124,6 +135,10 @@ export function AnswerSheetDesigner({
   teacherName,
   workspaceId,
   initialSubTab = 'settings',
+  studentsInActiveRoom = [],
+  activeClassroomName,
+  scannedResultsCount = 0,
+  onRegradeScanned,
 }: AnswerSheetDesignerProps) {
   const [activeSubTab, setActiveSubTab] = useState<'settings' | 'answer_key' | 'preview'>(initialSubTab);
 
@@ -166,8 +181,10 @@ export function AnswerSheetDesigner({
     new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
   );
 
-  // Multi-Set Preview in Tab 3
+  // Multi-Set & Batch Pre-fill Print Mode in Tab 3
   const [previewAllSets, setPreviewAllSets] = useState(false);
+  const [printBatchMode, setPrintBatchMode] = useState<'master' | 'batch_prefill'>('master');
+  const [multiKeyEnabledQuestions, setMultiKeyEnabledQuestions] = useState<Record<number, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load templates on mount & open
@@ -321,22 +338,83 @@ export function AnswerSheetDesigner({
       totalQuestions: count,
       answerKeys: currentKeys,
       pointsPerQuestion: currentPoints,
-      layout: count <= 30 ? config.layout : 'single_full',
+      layout: count <= 60 ? config.layout : 'single_full',
     });
   };
 
   const handleAnswerKeySelect = (questionNumber: number, choice: string) => {
+    const isMultiMode = Boolean(
+      multiKeyEnabledQuestions[questionNumber] ||
+      (config.multiAnswerKeys?.[questionNumber] && config.multiAnswerKeys[questionNumber].length > 1)
+    );
+
+    if (isMultiMode) {
+      const prevMulti = config.multiAnswerKeys?.[questionNumber] || [config.answerKeys[questionNumber] || 'A'];
+      let nextMulti: string[];
+      if (prevMulti.includes(choice)) {
+        nextMulti = prevMulti.length > 1 ? prevMulti.filter((c) => c !== choice) : prevMulti;
+      } else {
+        nextMulti = [...prevMulti, choice].sort();
+      }
+      const nextKeys = { ...config.answerKeys, [questionNumber]: nextMulti[0] };
+      const nextExamSets = { ...(config.examSets || {}), [currentSet]: nextKeys };
+      updateConfig({
+        answerKeys: nextKeys,
+        examSets: nextExamSets,
+        multiAnswerKeys: {
+          ...(config.multiAnswerKeys || {}),
+          [questionNumber]: nextMulti,
+        },
+      });
+      return;
+    }
+
     const nextKeys = {
       ...config.answerKeys,
       [questionNumber]: choice,
     };
     const nextExamSets = { ...(config.examSets || {}) };
     nextExamSets[currentSet] = nextKeys;
+    const nextMultiMap = { ...(config.multiAnswerKeys || {}) };
+    delete nextMultiMap[questionNumber];
 
     updateConfig({
       answerKeys: nextKeys,
       examSets: nextExamSets,
+      multiAnswerKeys: nextMultiMap,
     });
+  };
+
+  const handleToggleBonusQuestion = (questionNumber: number) => {
+    const nextBonus = { ...(config.bonusQuestions || {}) };
+    nextBonus[questionNumber] = !nextBonus[questionNumber];
+    if (!nextBonus[questionNumber]) delete nextBonus[questionNumber];
+    updateConfig({ bonusQuestions: nextBonus });
+    showToast(
+      nextBonus[questionNumber]
+        ? `ตั้งข้อ ${questionNumber} เป็นข้อฟรี (นักเรียนทุกคนได้คะแนนเต็ม)`
+        : `ยกเลิกข้อฟรีข้อ ${questionNumber} แล้ว`
+    );
+  };
+
+  const handleToggleMultiKeyMode = (questionNumber: number) => {
+    const currentMulti = config.multiAnswerKeys?.[questionNumber] || [];
+    const currentlyActive = Boolean(multiKeyEnabledQuestions[questionNumber] || currentMulti.length > 1);
+    if (currentlyActive) {
+      setMultiKeyEnabledQuestions((prev) => ({ ...prev, [questionNumber]: false }));
+      const nextMultiMap = { ...(config.multiAnswerKeys || {}) };
+      delete nextMultiMap[questionNumber];
+      updateConfig({ multiAnswerKeys: nextMultiMap });
+    } else {
+      setMultiKeyEnabledQuestions((prev) => ({ ...prev, [questionNumber]: true }));
+      const baseChoice = config.answerKeys[questionNumber] || 'A';
+      updateConfig({
+        multiAnswerKeys: {
+          ...(config.multiAnswerKeys || {}),
+          [questionNumber]: [baseChoice],
+        },
+      });
+    }
   };
 
   const handlePointWeightChange = (questionNumber: number, point: number) => {
@@ -699,7 +777,7 @@ export function AnswerSheetDesigner({
       </div>
 
       {/* Subtab Navigation & Quick Action Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 rounded-3xl border-2 border-slate-200/90 bg-white p-3 sm:p-4 shadow-sm">
+      <div className="print:hidden omr-no-print flex flex-col lg:flex-row lg:items-center justify-between gap-3 rounded-3xl border-2 border-slate-200/90 bg-white p-3 sm:p-4 shadow-sm">
         {/* Left: Step Subtabs */}
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 px-1">
@@ -811,7 +889,7 @@ export function AnswerSheetDesigner({
 
       {/* Subtab 1: Settings Form */}
       {activeSubTab === 'settings' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="print:hidden omr-no-print grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-7 space-y-6">
             {/* Exam Information Card */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
@@ -1179,7 +1257,7 @@ export function AnswerSheetDesigner({
               </div>
 
               {/* Eco Half Page Layout Option */}
-              {config.totalQuestions <= 30 && (
+              {config.totalQuestions <= 60 && (
                 <div className="pt-2">
                   <label className="block text-xs font-bold text-slate-700 mb-2">
                     รูปแบบการจัดวางหน้าพิมพ์
@@ -1263,7 +1341,7 @@ export function AnswerSheetDesigner({
 
       {/* Subtab 2: Answer Key & Multi-Set Management */}
       {activeSubTab === 'answer_key' && (
-        <div className="space-y-6">
+        <div className="print:hidden omr-no-print space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
             {/* Auto-save Status Banner & Quick Help */}
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200/80 p-3.5 shadow-2xs">
@@ -1409,62 +1487,128 @@ export function AnswerSheetDesigner({
                   <RotateCcw size={12} className="text-slate-400" />
                   ข้อละ 1 คะแนน
                 </button>
+
+                {scannedResultsCount > 0 && onRegradeScanned && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRegradeScanned();
+                      showToast(`อัปเดตและตรวจซ้ำกระดาษคำตอบ ${scannedResultsCount} แผ่นตามเฉลยใหม่แล้ว`);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1 text-xs font-black text-white shadow-xs hover:bg-amber-600 transition"
+                  >
+                    <Zap size={12} />
+                    ตรวจซ้ำ {scannedResultsCount} แผ่นตามเฉลยใหม่ทันที
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Questions Grid with Interactive Answer Keys */}
+            {/* Questions Grid with Interactive Answer Keys, Bonus & Multi-Answer */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[580px] overflow-y-auto pr-1">
               {Array.from({ length: config.totalQuestions }).map((_, idx) => {
                 const qNum = idx + 1;
                 const selectedKey = config.answerKeys[qNum] || 'A';
                 const point = config.pointsPerQuestion[qNum] ?? 1;
+                const isBonus = Boolean(config.bonusQuestions?.[qNum]);
+                const multiChoices = config.multiAnswerKeys?.[qNum];
+                const isMultiActive = Boolean(
+                  multiKeyEnabledQuestions[qNum] || (multiChoices && multiChoices.length > 1)
+                );
+                const acceptedList =
+                  multiChoices && multiChoices.length > 0 ? multiChoices : [selectedKey];
 
                 return (
                   <div
                     key={qNum}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 transition hover:border-cyan-300 hover:bg-white"
+                    className={`flex flex-col gap-2 rounded-xl border p-2.5 transition ${
+                      isBonus
+                        ? 'border-sky-300 bg-sky-50/70'
+                        : isMultiActive
+                          ? 'border-teal-300 bg-teal-50/40'
+                          : 'border-slate-200 bg-slate-50/70 hover:border-cyan-300 hover:bg-white'
+                    }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900 text-xs font-mono font-black text-white">
-                        {qNum}
-                      </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900 text-xs font-mono font-black text-white">
+                          {qNum}
+                        </span>
 
-                      {/* Bubble choices */}
-                      <div className="flex gap-1">
-                        {choiceKeys.map((cKey, cIdx) => {
-                          const isSelected = selectedKey === cKey;
-                          const label = getChoiceLabel(cIdx, config.choiceLabelType);
-                          return (
-                            <button
-                              key={cKey}
-                              type="button"
-                              onClick={() => handleAnswerKeySelect(qNum, cKey)}
-                              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black transition ${
-                                isSelected
-                                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300 scale-105'
-                                  : 'border border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
+                        {/* Bubble choices */}
+                        <div className="flex gap-1">
+                          {choiceKeys.map((cKey, cIdx) => {
+                            const isSelected = acceptedList.includes(cKey);
+                            const label = getChoiceLabel(cIdx, config.choiceLabelType);
+                            return (
+                              <button
+                                key={cKey}
+                                type="button"
+                                disabled={isBonus}
+                                onClick={() => handleAnswerKeySelect(qNum, cKey)}
+                                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black transition ${
+                                  isBonus
+                                    ? 'border border-sky-200 bg-sky-100/70 text-sky-600 cursor-not-allowed'
+                                    : isSelected
+                                      ? isMultiActive
+                                        ? 'bg-teal-600 text-white shadow-xs ring-2 ring-teal-300 scale-105'
+                                        : 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300 scale-105'
+                                      : 'border border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Point input */}
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0.5"
+                          max="10"
+                          step="0.5"
+                          value={point}
+                          onChange={(e) => handlePointWeightChange(qNum, parseFloat(e.target.value) || 1)}
+                          className="w-11 rounded-lg border border-slate-200 bg-white px-1 py-1 text-center text-xs font-bold text-slate-800 outline-none focus:border-cyan-500"
+                          title="คะแนนเต็มของข้อนี้"
+                        />
+                        <span className="text-[10px] text-slate-500">ค.</span>
                       </div>
                     </div>
 
-                    {/* Point input */}
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min="0.5"
-                        max="10"
-                        step="0.5"
-                        value={point}
-                        onChange={(e) => handlePointWeightChange(qNum, parseFloat(e.target.value) || 1)}
-                        className="w-12 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-center text-xs font-bold text-slate-800 outline-none focus:border-cyan-500"
-                        title="คะแนนเต็มของข้อนี้"
-                      />
-                      <span className="text-[10px] text-slate-500">คะแนน</span>
+                    {/* Bonus & Multi-Key Toggle Row */}
+                    <div className="flex items-center justify-between gap-1.5 border-t border-slate-200/70 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleBonusQuestion(qNum)}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-black transition ${
+                          isBonus
+                            ? 'bg-sky-600 text-white shadow-2xs'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:border-sky-300 hover:text-sky-700'
+                        }`}
+                        title="ให้คะแนนเต็มทุกคนสำหรับข้อนี้ (ข้อแจกฟรี / โจทย์ผิด)"
+                      >
+                        <Gift size={10} />
+                        {isBonus ? 'ข้อฟรี (ทุกคนถูก)' : 'ให้ฟรี'}
+                      </button>
+
+                      {!isBonus && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleMultiKeyMode(qNum)}
+                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition ${
+                            isMultiActive
+                              ? 'bg-teal-600 text-white shadow-2xs'
+                              : 'bg-white border border-slate-200 text-slate-500 hover:border-teal-300 hover:text-teal-700'
+                          }`}
+                          title="อนุญาตให้ข้อนี้มีคำตอบที่ถูกต้องได้มากกว่า 1 ตัวเลือก"
+                        >
+                          {isMultiActive ? `ถูกได้ ${acceptedList.length} ข้อ` : '+หลายคำตอบ'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1474,15 +1618,59 @@ export function AnswerSheetDesigner({
         </div>
       )}
 
-      {/* Subtab 3: Printable High Resolution Preview & Multi-Set Print */}
+      {/* Subtab 3: Printable High Resolution Preview & Batch Pre-fill Print */}
       {activeSubTab === 'preview' ? (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-cyan-50 border border-cyan-200 p-3 text-xs text-cyan-900">
-            <div className="flex items-center gap-3">
+          <div className="print:hidden omr-no-print flex flex-wrap items-center justify-between gap-3 rounded-xl bg-cyan-50 border border-cyan-200 p-3 text-xs text-cyan-900">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div>
-                <span className="font-black">พร้อมพิมพ์:</span> ขนาด A4 พอดีหน้า 100% พร้อม QR Code ตรวจจับชุดอัตโนมัติ
+                <span className="font-black">พร้อมพิมพ์ A4 ตรงสัดส่วน 100%:</span> ระบบใช้ Vector SVG ตรงพิกัดกล้อง + QR Code
               </div>
-              {availableSets.length > 1 && (
+
+              {/* Master vs Pre-filled Classroom Batch Switch */}
+              <div className="inline-flex rounded-lg border border-cyan-300 bg-white p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPrintBatchMode('master')}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-black transition ${
+                    printBatchMode === 'master'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  แผ่นแม่แบบว่าง (Master)
+                </button>
+                <button
+                  type="button"
+                  disabled={studentsInActiveRoom.length === 0}
+                  onClick={() => {
+                    setPrintBatchMode('batch_prefill');
+                    setPreviewAllSets(false);
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-black transition disabled:opacity-45 ${
+                    printBatchMode === 'batch_prefill'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-700 hover:bg-emerald-50'
+                  }`}
+                  title="พิมพ์ชื่อนักเรียน รหัส QR ส่วนตัว และฝนรหัสประจำตัวล่วงหน้าทั้งห้อง"
+                >
+                  <Users size={12} />
+                  พิมพ์แจกรายคนทั้งห้อง ({studentsInActiveRoom.length} คน)
+                </button>
+              </div>
+
+              {printBatchMode === 'batch_prefill' && studentsInActiveRoom.length > 0 && (
+                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-800">
+                  {activeClassroomName ? `${activeClassroomName} • ` : ''}
+                  ใช้กระดาษ A4:{' '}
+                  {config.layout === 'eco_half'
+                    ? Math.ceil(studentsInActiveRoom.length / 2)
+                    : studentsInActiveRoom.length}{' '}
+                  แผ่น
+                </span>
+              )}
+
+              {availableSets.length > 1 && printBatchMode === 'master' && (
                 <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-lg border border-cyan-300">
                   <span className="font-bold text-slate-700">กำลังดู:</span>
                   <select
@@ -1501,7 +1689,7 @@ export function AnswerSheetDesigner({
             </div>
 
             <div className="flex items-center gap-2">
-              {availableSets.length > 1 && (
+              {availableSets.length > 1 && printBatchMode === 'master' && (
                 <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white px-2.5 py-1.5 rounded-lg border border-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1524,12 +1712,23 @@ export function AnswerSheetDesigner({
             </div>
           </div>
 
-          {/* Render One Set or All Sets */}
-          <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-slate-200 p-6 flex flex-col items-center gap-8">
-            {previewAllSets ? (
+          {/* Render Batch Student Sheets, One Set, or All Sets */}
+          <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-slate-200 p-6 flex flex-col items-center gap-8 print:overflow-visible print:border-0 print:bg-white print:p-0 print:block">
+            {printBatchMode === 'batch_prefill' && studentsInActiveRoom.length > 0 ? (
+              <PrintableAnswerSheet
+                config={config}
+                schoolName={workspaceName}
+                batchStudents={studentsInActiveRoom.map((s, idx) => ({
+                  ...s,
+                  rollNumber: idx + 1,
+                }))}
+              />
+            ) : previewAllSets ? (
               availableSets.map((s) => (
                 <div key={s} className="space-y-1">
-                  <div className="text-center font-bold text-xs text-slate-600">กระดาษคำตอบ ชุดที่ {s}</div>
+                  <div className="print:hidden text-center font-bold text-xs text-slate-600">
+                    กระดาษคำตอบ ชุดที่ {s}
+                  </div>
                   <PrintableAnswerSheet
                     config={{
                       ...config,
@@ -1548,9 +1747,18 @@ export function AnswerSheetDesigner({
       ) : (
         /* Hidden from screen, but available when user triggers print from top action bar */
         <div className="hidden print:block">
-          {previewAllSets ? (
+          {printBatchMode === 'batch_prefill' && studentsInActiveRoom.length > 0 ? (
+            <PrintableAnswerSheet
+              config={config}
+              schoolName={workspaceName}
+              batchStudents={studentsInActiveRoom.map((s, idx) => ({
+                ...s,
+                rollNumber: idx + 1,
+              }))}
+            />
+          ) : previewAllSets ? (
             availableSets.map((s) => (
-              <div key={s} className="break-after-page">
+              <div key={s}>
                 <PrintableAnswerSheet
                   config={{
                     ...config,

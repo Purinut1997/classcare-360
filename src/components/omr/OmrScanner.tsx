@@ -1,39 +1,46 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AlertCircle,
+  AlertTriangle,
   Camera,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Cloud,
   Compass,
   Eye,
   FileCheck,
+  FileText,
   FileUp,
   Flame,
+  FolderArchive,
+  Gift,
   HelpCircle,
   Image as ImageIcon,
   Layers,
   Maximize2,
   Megaphone,
+  Plus,
+  QrCode,
   RefreshCw,
   RotateCw,
+  Search,
+  Send,
   Sliders,
   Sparkles,
   Trash2,
   Upload,
   UserCheck,
   Users,
+  VideoOff,
   Volume2,
   VolumeX,
+  Wand2,
   X,
-  AlertTriangle,
   Zap,
-  VideoOff,
-  FileText,
-  FolderArchive,
-  Search,
-  QrCode,
 } from 'lucide-react';
+import type { AppSessionContext } from '../../types/core';
 import type {
   AnswerSheetConfig,
   ExamBankTemplate,
@@ -48,8 +55,14 @@ import {
   CHOICE_KEYS_ABCD,
   generateSyntheticFilledSheet,
   getChoiceLabel,
+  gradeSingleQuestion,
   omrAudio,
+  resolveEffectiveAnswerKeys,
 } from '../../lib/omrEngine';
+import { detectFiducialCorners, type QuadDetectionResult } from '../../lib/omrVision';
+import { getEffectiveAiConfig } from '../../lib/aiSettings';
+import { callGeminiVisionApi } from '../../lib/geminiClient';
+import { safeParseJson } from '../../lib/aiVisionService';
 
 interface StudentRosterItem {
   id: string;
@@ -65,13 +78,22 @@ interface ClassroomItem {
   grade_level?: string;
 }
 
+export interface OmrAssessmentOption {
+  id: string;
+  title: string;
+  subject_name: string;
+  max_score: number;
+  category?: string;
+}
+
 interface OmrScannerProps {
   config: AnswerSheetConfig;
+  session?: AppSessionContext | null;
   classrooms?: ClassroomItem[];
   activeClassroomId?: string | null;
   onSelectClassroom?: (classroomId: string) => void;
   studentsInActiveRoom?: StudentRosterItem[];
-  onCommitScoreEntry?: (studentId: string, score: number, assessmentId?: string) => Promise<void> | void;
+  onCommitScoreEntry?: (studentId: string, score: number, assessmentId?: string) => Promise<boolean | void> | void;
   onEditConfig?: () => void;
   workspaceName?: string;
   savedTemplates?: ExamBankTemplate[];
@@ -80,10 +102,19 @@ interface OmrScannerProps {
   isSyncingCloud?: boolean;
   onRefreshCloud?: () => Promise<void> | void;
   onOpenMobileHandoffQr?: () => void;
+  sessionResults?: ScannedExamResult[];
+  onResultsChange?: React.Dispatch<React.SetStateAction<ScannedExamResult[]>>;
+  assessments?: OmrAssessmentOption[];
+  selectedAssessmentId?: string | null;
+  onSelectAssessment?: (assessmentId: string | null) => void;
+  onCreateAssessment?: (params: { title: string; subjectName: string; maxScore: number }) => Promise<string | null>;
+  onBatchSyncToGradebook?: () => Promise<void>;
+  isBatchSyncing?: boolean;
 }
 
 export function OmrScanner({
   config,
+  session,
   classrooms = [],
   activeClassroomId,
   onSelectClassroom,
@@ -97,6 +128,14 @@ export function OmrScanner({
   isSyncingCloud = false,
   onRefreshCloud,
   onOpenMobileHandoffQr,
+  sessionResults: controlledResults,
+  onResultsChange,
+  assessments = [],
+  selectedAssessmentId = null,
+  onSelectAssessment,
+  onCreateAssessment,
+  onBatchSyncToGradebook,
+  isBatchSyncing = false,
 }: OmrScannerProps) {
   // Mode States
   const [studentMode, setStudentMode] = useState<OmrStudentMode>('classroom');
@@ -115,16 +154,31 @@ export function OmrScanner({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [scanOrientation, setScanOrientation] = useState<OmrScanOrientation>('auto');
+  const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
+  const [liveQuadDetected, setLiveQuadDetected] = useState(false);
+  const [liveStableTicks, setLiveStableTicks] = useState(0);
 
-  // Results & Review States
-  const [sessionResults, setSessionResults] = useState<ScannedExamResult[]>([]);
+  // Results & Review States (controlled when parent provides sessionResults/onResultsChange)
+  const [internalResults, setInternalResults] = useState<ScannedExamResult[]>([]);
+  const sessionResults = controlledResults ?? internalResults;
+  const setSessionResults = onResultsChange ?? setInternalResults;
+
   const [activeReviewResult, setActiveReviewResult] = useState<ScannedExamResult | null>(null);
   const [activeDisplayHud, setActiveDisplayHud] = useState<ScannedExamResult | null>(null);
   const [selectedStudentForReview, setSelectedStudentForReview] = useState<string>('');
   const [instantSuccessBanner, setInstantSuccessBanner] = useState<string | null>(null);
+  const [showMissingStudents, setShowMissingStudents] = useState(false);
+  const [isZoomingOverlay, setIsZoomingOverlay] = useState(false);
+  const [isAiFallbackRunning, setIsAiFallbackRunning] = useState(false);
+  const [aiFallbackMessage, setAiFallbackMessage] = useState<string | null>(null);
+  const [isCreatingAssessment, setIsCreatingAssessment] = useState(false);
 
   // Video & Canvas Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const prevQuadCornersRef = useRef<QuadDetectionResult['corners']>(null);
+  const stableCountRef = useRef(0);
+  const lastAutoCaptureAtRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const autoScanTimerRef = useRef<number | null>(null);
@@ -189,49 +243,98 @@ export function OmrScanner({
     };
   }, [scanMethod, isCameraStarted, startCamera, stopCamera]);
 
+  const activeAssessmentId = selectedAssessmentId ?? config.assessmentId ?? null;
+
+  const upsertScanResult = useCallback(
+    (incoming: ScannedExamResult) => {
+      setSessionResults((prev) => {
+        const filtered = prev.filter(
+          (r) =>
+            r.id !== incoming.id &&
+            !(incoming.studentId && r.studentId === incoming.studentId)
+        );
+        return [incoming, ...filtered];
+      });
+    },
+    [setSessionResults]
+  );
+
   // 2. Score Processing Logic
   const handleScanResultObtained = useCallback(
     async (result: ScannedExamResult) => {
+      const hasDuplicate = Boolean(
+        result.studentId &&
+        sessionResults.some((r) => r.id !== result.id && r.studentId === result.studentId)
+      );
+      const flaggedDuplicateResult: ScannedExamResult =
+        hasDuplicate && !result.flags.some((f) => f.includes('สแกนซ้ำ'))
+          ? {
+              ...result,
+              flags: [
+                ...result.flags,
+                'พบการสแกนซ้ำของนักเรียนคนเดิม (เมื่อกดยืนยันจะอัปเดตแทนคะแนนเดิม)',
+              ],
+            }
+          : result;
+
       if (recordingMode === 'display_only') {
         // Mode 3: Display score only, no DB save
         if (soundEnabled) omrAudio.playSuccess();
-        setActiveDisplayHud(result);
-        setSessionResults((prev) => [result, ...prev]);
+        setActiveDisplayHud(flaggedDuplicateResult);
+        upsertScanResult(flaggedDuplicateResult);
         return;
       }
 
-      if (recordingMode === 'instant_auto' && result.status !== 'pending_review') {
+      if (
+        recordingMode === 'instant_auto' &&
+        flaggedDuplicateResult.status !== 'flagged' &&
+        flaggedDuplicateResult.studentId
+      ) {
         // Mode 2: Instant Auto-Save (when confidence is high and no conflicting marks)
         if (soundEnabled) omrAudio.playSuccess();
-        result.isSavedToGradebook = true;
-        result.status = 'confirmed';
-
-        if (result.studentId && onCommitScoreEntry) {
-          await onCommitScoreEntry(result.studentId, result.totalScore, config.assessmentId || undefined);
+        let didSaveToDb = false;
+        if (onCommitScoreEntry) {
+          const outcome = await onCommitScoreEntry(
+            flaggedDuplicateResult.studentId,
+            flaggedDuplicateResult.totalScore,
+            activeAssessmentId || undefined
+          );
+          didSaveToDb = outcome !== false;
         }
 
-        setInstantSuccessBanner(
-          `บันทึกคะแนนอัตโนมัติสำเร็จ: ${result.studentName} ได้ ${result.totalScore}/${result.maxScore} คะแนน (${result.percentage}%)`
-        );
-        setTimeout(() => setInstantSuccessBanner(null), 3000);
+        const savedItem: ScannedExamResult = {
+          ...flaggedDuplicateResult,
+          status: 'confirmed',
+          isSavedToGradebook: didSaveToDb,
+          savedAssessmentId: didSaveToDb ? activeAssessmentId : null,
+        };
 
-        setSessionResults((prev) => [result, ...prev]);
+        setInstantSuccessBanner(
+          didSaveToDb
+            ? `บันทึกคะแนนลงสมุดคะแนนอัตโนมัติ: ${savedItem.studentName} ได้ ${savedItem.totalScore}/${savedItem.maxScore} คะแนน (${savedItem.percentage}%)`
+            : `ตรวจสำเร็จ: ${savedItem.studentName} ได้ ${savedItem.totalScore}/${savedItem.maxScore} คะแนน (ยังไม่ได้ผูกช่องคะแนน ปพ.5)`
+        );
+        setTimeout(() => setInstantSuccessBanner(null), 3200);
+
+        upsertScanResult(savedItem);
         return;
       }
 
       // Mode 1: Review & Verify first (Default & Recommended)
       if (soundEnabled) {
-        if (result.flags.length > 0) omrAudio.playWarning();
+        if (flaggedDuplicateResult.flags.length > 0) omrAudio.playWarning();
         else omrAudio.playClick();
       }
-      setSelectedStudentForReview(result.studentId || '');
-      setActiveReviewResult(result);
+      setAiFallbackMessage(null);
+      setIsZoomingOverlay(false);
+      setSelectedStudentForReview(flaggedDuplicateResult.studentId || '');
+      setActiveReviewResult(flaggedDuplicateResult);
     },
-    [recordingMode, soundEnabled, config.assessmentId, onCommitScoreEntry]
+    [recordingMode, soundEnabled, activeAssessmentId, onCommitScoreEntry, sessionResults, upsertScanResult]
   );
 
   // Capture current camera frame and analyze
-  const captureAndScanCurrentFrame = async () => {
+  const captureAndScanCurrentFrame = useCallback(async () => {
     if (!videoRef.current || isProcessing) return;
     setIsProcessing(true);
 
@@ -258,7 +361,119 @@ export function OmrScanner({
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [isProcessing, config, studentMode, recordingMode, studentsInActiveRoom, scanOrientation, handleScanResultObtained]);
+
+  // Live 4-Corner Fiducial Overlay & Stability Auto-Capture Loop
+  useEffect(() => {
+    if (scanMethod !== 'camera' || !isCameraActive) {
+      setLiveQuadDetected(false);
+      setLiveStableTicks(0);
+      stableCountRef.current = 0;
+      prevQuadCornersRef.current = null;
+      return;
+    }
+
+    const probeCanvas = document.createElement('canvas');
+    const timer = window.setInterval(() => {
+      const video = videoRef.current;
+      const overlay = overlayCanvasRef.current;
+      if (!video || !overlay || video.readyState < 2 || video.videoWidth === 0) return;
+
+      const displayW = overlay.clientWidth || 640;
+      const displayH = overlay.clientHeight || 480;
+      if (overlay.width !== displayW || overlay.height !== displayH) {
+        overlay.width = displayW;
+        overlay.height = displayH;
+      }
+
+      const ctx = overlay.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, displayW, displayH);
+
+      if (isProcessing || activeReviewResult) return;
+
+      const probeW = 480;
+      const probeH = Math.max(240, Math.round((video.videoHeight / video.videoWidth) * probeW));
+      probeCanvas.width = probeW;
+      probeCanvas.height = probeH;
+      const pCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
+      if (!pCtx) return;
+
+      pCtx.drawImage(video, 0, 0, probeW, probeH);
+      const quad = detectFiducialCorners(probeCanvas);
+
+      if (quad.detected && quad.corners) {
+        setLiveQuadDetected(true);
+        const scaleX = displayW / probeW;
+        const scaleY = displayH / probeH;
+        const mapped = quad.corners.map((pt) => ({ x: pt.x * scaleX, y: pt.y * scaleY }));
+
+        ctx.save();
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 3;
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+        ctx.beginPath();
+        ctx.moveTo(mapped[0].x, mapped[0].y);
+        ctx.lineTo(mapped[1].x, mapped[1].y);
+        ctx.lineTo(mapped[2].x, mapped[2].y);
+        ctx.lineTo(mapped[3].x, mapped[3].y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        mapped.forEach((pt) => {
+          ctx.fillStyle = '#34d399';
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.restore();
+
+        const prev = prevQuadCornersRef.current;
+        if (prev) {
+          const avgShift =
+            (Math.hypot(quad.corners[0].x - prev[0].x, quad.corners[0].y - prev[0].y) +
+              Math.hypot(quad.corners[1].x - prev[1].x, quad.corners[1].y - prev[1].y) +
+              Math.hypot(quad.corners[2].x - prev[2].x, quad.corners[2].y - prev[2].y) +
+              Math.hypot(quad.corners[3].x - prev[3].x, quad.corners[3].y - prev[3].y)) /
+            4;
+
+          if (avgShift < 14) {
+            stableCountRef.current += 1;
+            setLiveStableTicks(stableCountRef.current);
+            if (
+              autoCaptureEnabled &&
+              stableCountRef.current >= 3 &&
+              Date.now() - lastAutoCaptureAtRef.current > 2800
+            ) {
+              stableCountRef.current = 0;
+              setLiveStableTicks(0);
+              lastAutoCaptureAtRef.current = Date.now();
+              void captureAndScanCurrentFrame();
+            }
+          } else {
+            stableCountRef.current = 0;
+            setLiveStableTicks(0);
+          }
+        }
+        prevQuadCornersRef.current = quad.corners;
+      } else {
+        setLiveQuadDetected(false);
+        stableCountRef.current = 0;
+        setLiveStableTicks(0);
+        prevQuadCornersRef.current = null;
+      }
+    }, 240);
+
+    return () => window.clearInterval(timer);
+  }, [
+    scanMethod,
+    isCameraActive,
+    isProcessing,
+    activeReviewResult,
+    autoCaptureEnabled,
+    captureAndScanCurrentFrame,
+  ]);
 
   // 3. Upload File / Batch Images Processing
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -303,20 +518,43 @@ export function OmrScanner({
     }
   };
 
-  // 4. Quick Simulation for Instant Testing (Supports Omnidirectional Rotation Simulation)
-  const handleSimulateTestSheet = async (forcedRotation?: 0 | 90 | 180 | 270) => {
+  // 4. Quick Simulation for Instant Testing (Supports 360° Rotation + Skewed Perspective Distortion)
+  const handleSimulateTestSheet = async (
+    forcedRotation?: 0 | 90 | 180 | 270,
+    withSkewAndShadow = false
+  ) => {
     setIsProcessing(true);
     try {
-      // Pick random student from roster or random roll
-      const randomRoll = Math.floor(1 + Math.random() * (studentsInActiveRoom.length || 25));
-      const rotationToApply = forcedRotation !== undefined
-        ? forcedRotation
-        : (scanOrientation === 'auto' ? ([0, 90, 180, 270][Math.floor(Math.random() * 4)] as 0 | 90 | 180 | 270) : (scanOrientation as 0 | 90 | 180 | 270));
+      const scannedIds = new Set(sessionResults.map((r) => r.studentId).filter(Boolean));
+      const unscannedIdx = studentsInActiveRoom.findIndex((s) => !scannedIds.has(s.id));
+      const pickedIdx =
+        unscannedIdx >= 0
+          ? unscannedIdx
+          : Math.floor(Math.random() * Math.max(1, studentsInActiveRoom.length));
+      const pickedStudent = studentsInActiveRoom[pickedIdx];
+      const rollNum = pickedStudent ? pickedIdx + 1 : Math.floor(1 + Math.random() * 25);
+
+      const rotationToApply =
+        forcedRotation !== undefined
+          ? forcedRotation
+          : scanOrientation === 'auto'
+            ? ([0, 90, 180, 270][Math.floor(Math.random() * 4)] as 0 | 90 | 180 | 270)
+            : (scanOrientation as 0 | 90 | 180 | 270);
+
+      const tiltDeg = withSkewAndShadow ? Math.round((Math.random() * 32 - 16) * 10) / 10 : 0;
 
       const simulatedCanvas = generateSyntheticFilledSheet(config, {
-        rollNumber: randomRoll,
+        rollNumber: rollNum,
+        studentCode: pickedStudent?.student_code,
+        studentId: pickedStudent?.id,
+        studentName: pickedStudent
+          ? `${pickedStudent.first_name} ${pickedStudent.last_name}`.trim()
+          : undefined,
         accuracyRate: 0.85 + Math.random() * 0.12,
         rotation: rotationToApply,
+        tiltDeg,
+        perspectiveSkew: withSkewAndShadow ? 0.11 : 0,
+        shadowGradient: withSkewAndShadow,
       });
 
       const result = await analyzeAnswerSheetImage(simulatedCanvas, config, {
@@ -338,74 +576,184 @@ export function OmrScanner({
   const handleConfirmReview = async () => {
     if (!activeReviewResult) return;
 
-    const updatedResult: ScannedExamResult = {
-      ...activeReviewResult,
-      studentId: selectedStudentForReview || activeReviewResult.studentId,
-      status: 'confirmed',
-      isSavedToGradebook: true,
-    };
-
-    // If student was reassigned manually
+    const finalStudentId = selectedStudentForReview || activeReviewResult.studentId;
+    let resolvedStudentName = activeReviewResult.studentName;
     if (selectedStudentForReview) {
       const matched = studentsInActiveRoom.find((s) => s.id === selectedStudentForReview);
       if (matched) {
-        updatedResult.studentName = `${matched.first_name} ${matched.last_name} (${matched.student_code})`;
+        resolvedStudentName = `${matched.first_name} ${matched.last_name} (${matched.student_code})`;
       }
     }
 
-    if (updatedResult.studentId && onCommitScoreEntry) {
-      await onCommitScoreEntry(
-        updatedResult.studentId,
-        updatedResult.totalScore,
-        config.assessmentId || undefined
+    let didSaveToGradebook = false;
+    if (finalStudentId && onCommitScoreEntry) {
+      const outcome = await onCommitScoreEntry(
+        finalStudentId,
+        activeReviewResult.totalScore,
+        activeAssessmentId || undefined
       );
+      didSaveToGradebook = outcome !== false;
     }
+
+    const updatedResult: ScannedExamResult = {
+      ...activeReviewResult,
+      studentId: finalStudentId,
+      studentName: resolvedStudentName,
+      status: 'confirmed',
+      isSavedToGradebook: didSaveToGradebook,
+      savedAssessmentId: didSaveToGradebook ? activeAssessmentId : null,
+      flags: activeReviewResult.flags.filter((f) => !f.includes('สแกนซ้ำ')),
+    };
 
     if (soundEnabled) omrAudio.playSuccess();
 
-    setSessionResults((prev) => [updatedResult, ...prev.filter((r) => r.id !== updatedResult.id)]);
+    upsertScanResult(updatedResult);
     setActiveReviewResult(null);
   };
 
-  // Modify individual question in review drawer
+  // Modify individual question in review drawer (honoring Bonus + Multi-Key rules)
   const handleOverrideChoiceInReview = (questionNum: number, choiceKey: string) => {
     if (!activeReviewResult) return;
 
-    const currentDetail = activeReviewResult.answersDetail.find((a) => a.questionNumber === questionNum);
-    if (!currentDetail) return;
-
-    const isNowCorrect = choiceKey === currentDetail.correctChoice;
-    const scoreDiff = (isNowCorrect ? currentDetail.maxScore : 0) - currentDetail.scoreAwarded;
+    const effectiveKeys = resolveEffectiveAnswerKeys(
+      config,
+      activeReviewResult.detectedExamSet || config.examSet || '01'
+    );
 
     const updatedDetails: ScannedAnswerDetail[] = activeReviewResult.answersDetail.map((item) => {
       if (item.questionNumber === questionNum) {
-        return {
-          ...item,
-          detectedChoice: choiceKey,
-          isCorrect: isNowCorrect,
-          scoreAwarded: isNowCorrect ? item.maxScore : 0,
-          flag: 'ok',
-        };
+        return gradeSingleQuestion(
+          questionNum,
+          choiceKey,
+          item.fillRatios,
+          config,
+          effectiveKeys,
+          'ok'
+        );
       }
       return item;
     });
 
-    const newScore = activeReviewResult.totalScore + scoreDiff;
+    const newScore =
+      Math.round(updatedDetails.reduce((sum, d) => sum + d.scoreAwarded, 0) * 100) / 100;
     const newCorrect = updatedDetails.filter((d) => d.isCorrect).length;
-    const newPercent = Math.round((newScore / activeReviewResult.maxScore) * 100);
+    const newPercent =
+      activeReviewResult.maxScore > 0
+        ? Math.round((newScore / activeReviewResult.maxScore) * 1000) / 10
+        : 0;
 
     setActiveReviewResult({
       ...activeReviewResult,
       answersDetail: updatedDetails,
       totalScore: newScore,
       correctCount: newCorrect,
-      incorrectCount: activeReviewResult.answersDetail.length - newCorrect,
+      incorrectCount: updatedDetails.length - newCorrect,
       percentage: newPercent,
       detectedAnswers: {
         ...activeReviewResult.detectedAnswers,
         [questionNum]: choiceKey,
       },
     });
+  };
+
+  // Gemini AI Vision Fallback for torn / faint / ambiguous sheets
+  const handleRunAiVisionFallback = async () => {
+    if (!activeReviewResult) return;
+    const imageToInspect = activeReviewResult.annotatedOverlayUrl || activeReviewResult.previewImageUrl;
+    if (!imageToInspect) {
+      setAiFallbackMessage('ไม่พบรูปภาพกระดาษคำตอบสำหรับให้ AI ช่วยอ่านซ้ำ');
+      return;
+    }
+
+    setIsAiFallbackRunning(true);
+    setAiFallbackMessage(null);
+    try {
+      const aiCfg = await getEffectiveAiConfig(session);
+      if (!aiCfg.isVip || !aiCfg.apiKey) {
+        setAiFallbackMessage('ฟีเจอร์ AI Vision ต้องตั้งค่า Gemini API Key (VIP) ในตั้งค่าระบบก่อนใช้งาน');
+        return;
+      }
+
+      const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount).join(', ');
+      const prompt = [
+        `Inspect this OMR answer sheet image with ${config.totalQuestions} multiple-choice questions (${choiceKeys}).`,
+        `Read every filled/shaded dark bubble for questions 1 to ${config.totalQuestions}.`,
+        `Return ONLY valid JSON: { "rollNumber": number | null, "answers": { "1": "A" | "B" | ... | null } } using uppercase letters ${choiceKeys} or null if blank.`,
+      ].join(' ');
+
+      const raw = await callGeminiVisionApi({
+        apiKey: aiCfg.apiKey,
+        model: aiCfg.model,
+        imageBase64: imageToInspect,
+        prompt,
+        responseJson: true,
+        maxOutputTokens: 2048,
+      });
+
+      const parsed = safeParseJson<{
+        rollNumber?: number | null;
+        answers?: Record<string, string | null>;
+      }>(raw, {});
+
+      if (!parsed.answers || Object.keys(parsed.answers).length === 0) {
+        setAiFallbackMessage('AI Vision ไม่พบคำตอบที่ชัดเจนเพิ่มเติม กรุณาตรวจสอบด้วยตนเอง');
+        return;
+      }
+
+      const effectiveKeys = resolveEffectiveAnswerKeys(
+        config,
+        activeReviewResult.detectedExamSet || config.examSet || '01'
+      );
+      const validChoiceSet = new Set(CHOICE_KEYS_ABCD.slice(0, config.choicesCount));
+      const updatedDetected = { ...activeReviewResult.detectedAnswers };
+      const updatedDetails: ScannedAnswerDetail[] = activeReviewResult.answersDetail.map((item) => {
+        const aiRaw = parsed.answers?.[String(item.questionNumber)];
+        const normalized =
+          typeof aiRaw === 'string' && validChoiceSet.has(aiRaw.toUpperCase())
+            ? aiRaw.toUpperCase()
+            : aiRaw === null
+              ? null
+              : item.detectedChoice;
+        updatedDetected[item.questionNumber] = normalized;
+        return gradeSingleQuestion(
+          item.questionNumber,
+          normalized,
+          item.fillRatios,
+          config,
+          effectiveKeys,
+          normalized ? 'ok' : 'blank'
+        );
+      });
+
+      const newScore =
+        Math.round(updatedDetails.reduce((sum, d) => sum + d.scoreAwarded, 0) * 100) / 100;
+      const newCorrect = updatedDetails.filter((d) => d.isCorrect).length;
+      const newPercent =
+        activeReviewResult.maxScore > 0
+          ? Math.round((newScore / activeReviewResult.maxScore) * 1000) / 10
+          : 0;
+
+      setActiveReviewResult({
+        ...activeReviewResult,
+        answersDetail: updatedDetails,
+        detectedAnswers: updatedDetected,
+        totalScore: newScore,
+        correctCount: newCorrect,
+        incorrectCount: updatedDetails.length - newCorrect,
+        percentage: newPercent,
+        usedAiFallback: true,
+        flags: [
+          ...activeReviewResult.flags.filter((f) => !f.startsWith('อ่านซ้ำด้วย Gemini AI')),
+          'อ่านซ้ำด้วย Gemini AI Vision แล้ว',
+        ],
+      });
+      setAiFallbackMessage('อัปเดตผลจากการอ่านซ้ำด้วย Gemini AI Vision เรียบร้อยแล้ว');
+    } catch (err) {
+      console.error('AI Vision fallback error:', err);
+      setAiFallbackMessage('ไม่สามารถเรียก Gemini AI Vision ได้ชั่วคราว');
+    } finally {
+      setIsAiFallbackRunning(false);
+    }
   };
 
   const choiceKeys = CHOICE_KEYS_ABCD.slice(0, config.choicesCount);
@@ -510,6 +858,98 @@ export function OmrScanner({
           </button>
         </div>
       </div>
+
+      {/* Gradebook Assessment Linking & Batch Sync Bar */}
+      {recordingMode !== 'display_only' && (
+        <div
+          className={`rounded-2xl border p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
+            activeAssessmentId
+              ? 'border-emerald-200 bg-emerald-50/50'
+              : 'border-amber-200 bg-amber-50/70'
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-xl text-white shadow-2xs ${
+                  activeAssessmentId ? 'bg-emerald-600' : 'bg-amber-500'
+                }`}
+              >
+                <FileCheck size={16} />
+              </span>
+              <div>
+                <div className="text-xs font-black text-slate-900">
+                  เชื่อมสมุดคะแนน ปพ.5 (Scorebook Link)
+                </div>
+                <div className="text-[11px] font-medium text-slate-600">
+                  {activeAssessmentId
+                    ? 'สแกนเสร็จแล้วคะแนนจะลงสมุดคะแนนอัตโนมัติ หรือกดส่งย้อนหลังทั้งหมดได้ทันที'
+                    : 'ยังไม่ได้ผูกช่องคะแนน • คะแนนจะเก็บไว้ในประวัติการสแกนก่อน จนกว่าจะเลือกหรือสร้างช่องคะแนน'}
+                </div>
+              </div>
+            </div>
+
+            {onSelectAssessment && (
+              <select
+                value={activeAssessmentId || ''}
+                onChange={(e) => onSelectAssessment(e.target.value || null)}
+                className="min-w-[220px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
+              >
+                <option value="">-- ยังไม่ผูกช่องคะแนนในสมุดคะแนน --</option>
+                {assessments.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.title} ({a.subject_name} • เต็ม {a.max_score})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onCreateAssessment && (
+              <button
+                type="button"
+                disabled={isCreatingAssessment || !activeClassroomId}
+                onClick={async () => {
+                  setIsCreatingAssessment(true);
+                  try {
+                    await onCreateAssessment({
+                      title: config.title || `สอบ OMR ${config.subjectName || ''}`.trim(),
+                      subjectName: config.subjectName || 'วิชาทั่วไป',
+                      maxScore: config.totalScore || config.totalQuestions || 20,
+                    });
+                  } finally {
+                    setIsCreatingAssessment(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100/60 transition shadow-2xs disabled:opacity-50"
+              >
+                <Plus size={13} />
+                {isCreatingAssessment ? 'กำลังสร้าง...' : '+ สร้างช่องคะแนนใหม่จากข้อสอบนี้'}
+              </button>
+            )}
+
+            {onBatchSyncToGradebook && sessionResults.some((r) => Boolean(r.studentId)) && (
+              <button
+                type="button"
+                disabled={isBatchSyncing || !activeAssessmentId}
+                onClick={onBatchSyncToGradebook}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3.5 py-2 text-xs font-black text-white hover:bg-slate-800 transition shadow-xs disabled:opacity-45"
+                title={
+                  activeAssessmentId
+                    ? 'ส่งคะแนนนักเรียนที่ตรวจแล้วทุกคนลงในสมุดคะแนนทันที'
+                    : 'กรุณาเลือกหรือสร้างช่องคะแนนก่อนส่ง'
+                }
+              >
+                <Send size={13} className="text-emerald-400" />
+                {isBatchSyncing
+                  ? 'กำลังส่งคะแนน...'
+                  : `ส่งคะแนนทั้งหมดลงสมุดคะแนน (${sessionResults.filter((r) => Boolean(r.studentId)).length} คน)`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Control Console: 1. Student Mode & 2. Recording Mode */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -708,7 +1148,17 @@ export function OmrScanner({
                   title="จำลองกระดาษคำตอบที่ฝนแล้วเพื่อทดสอบตรวจทันที (สุ่มมุม 360°)"
                 >
                   <Sparkles size={13} className="text-amber-600" />
-                  ทดสอบด้วยตัวอย่างจำลอง
+                  ทดสอบตัวอย่าง 360°
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSimulateTestSheet(undefined, true)}
+                  disabled={isProcessing}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-900 hover:bg-indigo-100 transition shadow-2xs"
+                  title="จำลองภาพเอียง ±16° + มุมเปอร์สเปกทีฟ + เงาทาบบนโต๊ะ เพื่อทดสอบอัลกอริทึม Homography"
+                >
+                  <Compass size={13} className="text-indigo-600" />
+                  ทดสอบภาพเอียง/เงา
                 </button>
                 {onEditConfig && (
                   <button
@@ -827,12 +1277,44 @@ export function OmrScanner({
                       autoPlay
                       className="h-full w-full object-cover"
                     />
+                    <canvas
+                      ref={overlayCanvasRef}
+                      className="pointer-events-none absolute inset-0 h-full w-full"
+                    />
 
-                    {/* Top Status Bar with Turn Off Camera Button */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/80 px-3 py-1 backdrop-blur-xs text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        กล้องทำงาน • {scanOrientation === 'auto' ? 'ออโต้ 360°' : `ล็อค ${scanOrientation}°`}
+                    {/* Top Status Bar with Auto-Capture & Turn Off Camera Button */}
+                    <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div
+                          className={`inline-flex items-center gap-1.5 rounded-full bg-slate-950/80 px-3 py-1 backdrop-blur-xs text-[10px] font-bold border ${
+                            liveQuadDetected
+                              ? 'text-emerald-400 border-emerald-500/40'
+                              : 'text-amber-300 border-amber-400/30'
+                          }`}
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              liveQuadDetected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400 animate-pulse'
+                            }`}
+                          />
+                          {liveQuadDetected
+                            ? liveStableTicks >= 2 && autoCaptureEnabled
+                              ? 'ล็อค 4 มุมนิ่งแล้ว กำลังสแกน...'
+                              : 'จับ 4 มุมกระดาษได้แล้ว!'
+                            : `กำลังหาเป้า 4 มุม • ${scanOrientation === 'auto' ? '360° ออโต้' : `${scanOrientation}°`}`}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setAutoCaptureEnabled((v) => !v)}
+                          className={`rounded-full px-2.5 py-1 text-[10px] font-black backdrop-blur-xs border transition ${
+                            autoCaptureEnabled
+                              ? 'bg-emerald-500/90 text-white border-emerald-300'
+                              : 'bg-slate-900/80 text-slate-300 border-slate-600'
+                          }`}
+                        >
+                          {autoCaptureEnabled ? 'ถ่ายอัตโนมัติ: เปิด' : 'ถ่ายอัตโนมัติ: ปิด'}
+                        </button>
                       </div>
 
                       <button
@@ -949,7 +1431,7 @@ export function OmrScanner({
           </div>
         </div>
 
-        {/* Right Side: Session Scanned History & Score Stats */}
+        {/* Right Side: Session Scanned History, Missing Tracker & Score Stats */}
         <div className="lg:col-span-5 space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -969,12 +1451,55 @@ export function OmrScanner({
               )}
             </div>
 
+            {/* Missing Students Tracker */}
+            {studentMode === 'classroom' && studentsInActiveRoom.length > 0 && (() => {
+              const scannedIds = new Set(sessionResults.map((r) => r.studentId).filter(Boolean));
+              const missingStudents = studentsInActiveRoom
+                .map((s, idx) => ({ ...s, roll: idx + 1 }))
+                .filter((s) => !scannedIds.has(s.id));
+
+              return (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowMissingStudents((v) => !v)}
+                    className="flex w-full items-center justify-between text-left text-xs font-bold text-slate-700"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Users size={13} className={missingStudents.length === 0 ? 'text-emerald-600' : 'text-amber-600'} />
+                      {missingStudents.length === 0
+                        ? `ตรวจครบทั้งห้องแล้ว (${studentsInActiveRoom.length}/${studentsInActiveRoom.length} คน)`
+                        : `ยังไม่ได้ตรวจอีก ${missingStudents.length} คน (ตรวจแล้ว ${studentsInActiveRoom.length - missingStudents.length}/${studentsInActiveRoom.length})`}
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      className={`text-slate-400 transition-transform ${showMissingStudents ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {showMissingStudents && missingStudents.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5 border-t border-slate-200 pt-2 max-h-28 overflow-y-auto">
+                      {missingStudents.map((ms) => (
+                        <span
+                          key={ms.id}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-0.5 text-[10px] font-bold text-amber-900"
+                        >
+                          <span className="font-mono text-amber-700">{ms.roll}.</span>
+                          {ms.first_name} {ms.last_name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {sessionResults.length === 0 ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
                 <ImageIcon className="mx-auto text-slate-300" size={36} />
                 <p className="text-xs font-bold">ยังไม่มีกระดาษคำตอบที่สแกน</p>
                 <p className="text-[11px] text-slate-400">
-                  กดถ่ายภาพจากกล้อง หรือกดปุ่ม "ทดสอบด้วยตัวอย่างจำลอง" เพื่อดูผลการตรวจ
+                  กดถ่ายภาพจากกล้อง หรือกดปุ่ม "ทดสอบตัวอย่าง 360°" / "ทดสอบภาพเอียง/เงา" เพื่อดูผลการตรวจ
                 </p>
               </div>
             ) : (
@@ -984,32 +1509,51 @@ export function OmrScanner({
                     key={item.id}
                     className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-3 hover:bg-white hover:border-slate-300 transition"
                   >
-                    <div className="space-y-0.5 min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5">
+                    <div className="space-y-1 min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-mono text-[10px] font-bold text-slate-500">#{idx + 1}</span>
                         <span className="text-xs font-black text-slate-900 truncate">
                           {item.studentName}
                         </span>
+                        {item.isSavedToGradebook ? (
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-800">
+                            ลง ปพ.5 แล้ว
+                          </span>
+                        ) : item.studentId && recordingMode !== 'display_only' ? (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-800">
+                            รอส่ง ปพ.5
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
                         <span>ถูก {item.correctCount}</span>
                         <span>•</span>
                         <span>ผิด {item.incorrectCount}</span>
                         <span>•</span>
                         <span className="font-mono font-bold text-emerald-600">{item.percentage}%</span>
+                        {item.detectedExamSet && (
+                          <span className="rounded bg-indigo-50 px-1.5 py-0.2 text-[9px] font-bold text-indigo-700 border border-indigo-200">
+                            ชุด {item.detectedExamSet}
+                          </span>
+                        )}
+                        {item.perspectiveCorrected && (
+                          <span className="rounded bg-cyan-50 px-1.5 py-0.2 text-[9px] font-bold text-cyan-800 border border-cyan-200">
+                            แก้เอียง 4 มุม
+                          </span>
+                        )}
                         {item.detectedOrientation !== undefined && (
                           <span
                             className="inline-flex items-center gap-0.5 rounded bg-slate-200/80 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 font-mono"
                             title={`สแกนมุม ${item.detectedOrientation}° และหมุนตรงอัตโนมัติ`}
                           >
                             <RotateCw size={9} aria-hidden="true" />
-                            {item.detectedOrientation === 0 ? '0° ตั้ง' : `${item.detectedOrientation}°`}
+                            {item.detectedOrientation === 0 ? '0°' : `${item.detectedOrientation}°`}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
                         <span className="text-base font-black text-slate-950 font-mono">
                           {item.totalScore}
@@ -1020,11 +1564,13 @@ export function OmrScanner({
                       <button
                         type="button"
                         onClick={() => {
+                          setAiFallbackMessage(null);
+                          setIsZoomingOverlay(false);
                           setSelectedStudentForReview(item.studentId || '');
                           setActiveReviewResult(item);
                         }}
                         className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-                        title="ดูรายละเอียดข้อสอบ"
+                        title="ดูภาพวงตรวจและรายละเอียดข้อสอบ"
                       >
                         <Eye size={13} />
                       </button>
@@ -1122,6 +1668,68 @@ export function OmrScanner({
                 </div>
               </div>
 
+              {/* Header Action: AI Vision Fallback + Annotated Visual Overlay Sheet */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    disabled={isAiFallbackRunning || !(activeReviewResult.annotatedOverlayUrl || activeReviewResult.previewImageUrl)}
+                    onClick={handleRunAiVisionFallback}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-900 hover:bg-violet-100 transition disabled:opacity-50"
+                    title="ใช้ AI Vision (Gemini) อ่านวงกลมซ้ำในกรณีที่กระดาษยับหรือหมึกจางมาก"
+                  >
+                    <Wand2 size={13} className={isAiFallbackRunning ? 'animate-spin' : ''} />
+                    {isAiFallbackRunning ? 'AI กำลังอ่านกระดาษ...' : 'ให้ AI Vision (Gemini) อ่านช่วยตรวจซ้ำ'}
+                  </button>
+
+                  {activeReviewResult.detectedExamSet && (
+                    <span className="rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-[11px] font-black text-indigo-800">
+                      ตรวจตามเฉลยชุด {activeReviewResult.detectedExamSet}
+                    </span>
+                  )}
+
+                  {activeReviewResult.perspectiveCorrected && (
+                    <span className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-black text-emerald-800">
+                      ปรับแก้ภาพเอียง 4 มุมแล้ว
+                    </span>
+                  )}
+                </div>
+
+                {(activeReviewResult.annotatedOverlayUrl || activeReviewResult.previewImageUrl) && (
+                  <button
+                    type="button"
+                    onClick={() => setIsZoomingOverlay((z) => !z)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+                  >
+                    <Maximize2 size={12} />
+                    {isZoomingOverlay ? 'ย่อภาพใบตรวจ' : 'ดูภาพใบตรวจขนาดใหญ่'}
+                  </button>
+                )}
+              </div>
+
+              {aiFallbackMessage && (
+                <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-xs font-bold text-violet-900">
+                  <AlertCircle size={14} className="text-violet-600 shrink-0" />
+                  <span>{aiFallbackMessage}</span>
+                </div>
+              )}
+
+              {(activeReviewResult.annotatedOverlayUrl || activeReviewResult.previewImageUrl) && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-100 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold text-slate-600">
+                    <span>ภาพกระดาษที่ปรับแนวตรง + วงสีตรวจคำตอบ (เขียว=ถูก, แดง=ผิด, ประ=เฉลย, ฟ้า=รหัส)</span>
+                  </div>
+                  <div className={`overflow-auto rounded-xl border border-slate-200 bg-white ${isZoomingOverlay ? 'max-h-[460px]' : 'max-h-[210px]'}`}>
+                    <img
+                      src={activeReviewResult.annotatedOverlayUrl || activeReviewResult.previewImageUrl}
+                      alt="Annotated OMR Sheet Overlay"
+                      onClick={() => setIsZoomingOverlay((z) => !z)}
+                      className={`cursor-zoom-in mx-auto ${isZoomingOverlay ? 'w-full' : 'h-48 object-contain'}`}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Flags & Warnings if any */}
               {activeReviewResult.flags.length > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1">
@@ -1146,28 +1754,45 @@ export function OmrScanner({
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
                   {activeReviewResult.answersDetail.map((ans) => {
                     const isCorrect = ans.isCorrect;
+                    const isBonus = Boolean(ans.isBonus);
                     const isFlagged = ans.flag === 'faint' || ans.flag === 'multiple';
+                    const acceptedChoices =
+                      ans.acceptedChoices && ans.acceptedChoices.length > 0
+                        ? ans.acceptedChoices
+                        : [ans.correctChoice];
 
                     return (
                       <div
                         key={ans.questionNumber}
                         className={`flex items-center justify-between rounded-xl p-2 border transition ${
-                          isCorrect
-                            ? 'border-emerald-200 bg-emerald-50/40'
-                            : isFlagged
-                            ? 'border-amber-300 bg-amber-50/60'
-                            : 'border-rose-200 bg-rose-50/40'
+                          isBonus
+                            ? 'border-sky-200 bg-sky-50/60'
+                            : isCorrect
+                              ? 'border-emerald-200 bg-emerald-50/40'
+                              : isFlagged
+                                ? 'border-amber-300 bg-amber-50/60'
+                                : 'border-rose-200 bg-rose-50/40'
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono text-xs font-black text-slate-800">
                             {ans.questionNumber}.
                           </span>
-                          {isCorrect ? (
+                          {isBonus ? (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-sky-700">
+                              <Gift size={10} /> ฟรี
+                            </span>
+                          ) : isCorrect ? (
                             <span className="text-[10px] font-bold text-emerald-700">✓ ถูก</span>
                           ) : (
                             <span className="text-[10px] font-bold text-rose-600">
-                              เฉลย {ans.correctChoice}
+                              เฉลย{' '}
+                              {acceptedChoices
+                                .map((ak) => {
+                                  const aIdx = CHOICE_KEYS_ABCD.indexOf(ak);
+                                  return aIdx >= 0 ? getChoiceLabel(aIdx, config.choiceLabelType) : ak;
+                                })
+                                .join('/')}
                             </span>
                           )}
                         </div>
@@ -1176,7 +1801,7 @@ export function OmrScanner({
                         <div className="flex gap-1">
                           {choiceKeys.map((cKey, cIdx) => {
                             const isSelected = ans.detectedChoice === cKey;
-                            const isKey = ans.correctChoice === cKey;
+                            const isKey = acceptedChoices.includes(cKey);
                             const label = getChoiceLabel(cIdx, config.choiceLabelType);
 
                             return (
@@ -1186,10 +1811,14 @@ export function OmrScanner({
                                 onClick={() => handleOverrideChoiceInReview(ans.questionNumber, cKey)}
                                 className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black transition ${
                                   isSelected
-                                    ? isKey
-                                      ? 'bg-emerald-600 text-white shadow-2xs'
-                                      : 'bg-rose-500 text-white shadow-2xs'
-                                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-400'
+                                    ? isBonus
+                                      ? 'bg-sky-600 text-white shadow-2xs'
+                                      : isKey
+                                        ? 'bg-emerald-600 text-white shadow-2xs'
+                                        : 'bg-rose-500 text-white shadow-2xs'
+                                    : isKey && !isBonus
+                                      ? 'border-2 border-emerald-400 bg-emerald-50 text-emerald-800'
+                                      : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-400'
                                 }`}
                               >
                                 {label}
