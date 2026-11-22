@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   Award,
+  Bell,
   BookOpen,
   CalendarCheck2,
   Camera,
@@ -20,7 +21,9 @@ import {
   Printer,
   Send,
   Settings2,
+  ShieldAlert,
   Smile,
+  Sparkles,
   Thermometer,
   Undo2,
   UserCheck,
@@ -37,6 +40,12 @@ import { isDemoSession } from '../../lib/auth';
 import { sendTeacherReport } from '../../lib/teacherNotificationReports';
 import { writeAuditLog } from '../../lib/auditLog';
 import {
+  computeAttendanceStreaksAndRates,
+  detectActiveSchedulePeriod,
+  type StudentAttendanceSummary,
+} from '../../lib/studentIntelligence';
+import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
+import {
   buildSchedulePeriods,
   loadScheduleSettings,
   loadSchoolReportIdentity,
@@ -45,6 +54,7 @@ import {
   type ScheduleSettings,
 } from '../../lib/scheduleSettings';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
+import { enqueueOfflineMutation, isLikelyNetworkError } from '../../lib/offlineSyncQueue';
 import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
@@ -288,6 +298,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
   );
   const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [studentRiskMap, setStudentRiskMap] = useState<Map<string, StudentAttendanceSummary>>(new Map());
+  const [autoDetectedPeriodInfo, setAutoDetectedPeriodInfo] = useState<string | null>(null);
+  const [postSaveNotifyPrompt, setPostSaveNotifyPrompt] = useState<{ count: number; date: string } | null>(null);
+  const [pendingLeaveRequests, setPendingLeaveRequests] = useState<
+    Array<{
+      id: string;
+      student_id: string;
+      leave_type: 'sick' | 'personal' | 'other';
+      start_date: string;
+      end_date: string;
+      reason: string;
+    }>
+  >([]);
   const [cardDensity, setCardDensity] = useState<'compact' | 'spacious' | 'list'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('classcare_attendance_view_density');
@@ -462,6 +485,48 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const isHolidayBlocked = Boolean(calendarPolicy && !calendarPolicy.affects_attendance);
   const isToday = attendanceDate === getTodayDate();
   const attendanceReportPath = `/app/dashboard?view=reports&reportView=attendance&reportPeriod=month&reportMonth=${attendanceDate.slice(0, 7)}&classroomId=${encodeURIComponent(classroomId)}`;
+
+  const dateCalendarHint = useMemo(() => {
+    if (!attendanceDate) return null;
+    const parsedDate = new Date(`${attendanceDate}T12:00:00`);
+    const weekday = parsedDate.getDay();
+    const year = parsedDate.getFullYear();
+    const holidayMatch = getThaiPublicHolidays(year).find((h) => h.date === attendanceDate);
+    if (holidayMatch && !calendarPolicy) {
+      return {
+        tone: 'amber' as const,
+        text: `วันที่เลือกตรงกับ "${holidayMatch.title}" (หากโรงเรียนหยุดเรียน สามารถตั้งงดเช็กชื่อในปฏิทินโรงเรียนได้)`,
+      };
+    }
+    if (weekday === 0 || weekday === 6) {
+      return {
+        tone: 'sky' as const,
+        text: `วันที่เลือกตรงกับวัน${weekday === 0 ? 'อาทิตย์' : 'เสาร์'} (วันหยุดสุดสัปดาห์)`,
+      };
+    }
+    return null;
+  }, [attendanceDate, calendarPolicy]);
+
+  const atRiskStudents = useMemo(
+    () =>
+      classroomStudents
+        .map((student) => ({ risk: studentRiskMap.get(student.id), student }))
+        .filter((item): item is { risk: StudentAttendanceSummary; student: StudentRow } =>
+          Boolean(
+            item.risk &&
+              (item.risk.isBelowMs ||
+                item.risk.isNearMs ||
+                item.risk.consecutiveAbsentDays >= 2 ||
+                item.risk.lateDays >= 3),
+          ),
+        )
+        .sort(
+          (a, b) =>
+            b.risk.consecutiveAbsentDays - a.risk.consecutiveAbsentDays ||
+            a.risk.attendanceRate - b.risk.attendanceRate,
+        ),
+    [classroomStudents, studentRiskMap],
+  );
   const thaiDateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(
@@ -581,6 +646,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
   useEffect(() => {
     setUndoMarks(null);
     setSavedAttendanceUndo(null);
+    setPostSaveNotifyPrompt(null);
   }, [attendanceDraftKey]);
 
   useEffect(() => {
@@ -588,9 +654,103 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }, [session.workspace?.classroomName, session.workspace?.id]);
 
   useEffect(() => {
-    setSubjectName(modeCopy[mode].subject);
-    setPeriodLabel(mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
-  }, [mode]);
+    if (mode === 'homeroom') {
+      setSubjectName(modeCopy.homeroom.subject);
+      setPeriodLabel('เช้า');
+      setAutoDetectedPeriodInfo(null);
+      return;
+    }
+
+    const detected = isToday ? detectActiveSchedulePeriod(scheduleSettings) : null;
+    const roomMatches =
+      detected &&
+      (!detected.cell?.classroom?.trim() ||
+        !selectedClassroom?.name ||
+        detected.cell.classroom.trim() === selectedClassroom.name);
+
+    if (detected && roomMatches) {
+      const detectedSubject = detected.cell?.subject?.trim() || modeCopy.subject.subject;
+      setPeriodLabel(detected.period.label);
+      setSubjectName(detectedSubject);
+      setAutoDetectedPeriodInfo(
+        `ตรวจพบคาบปัจจุบัน: ${detected.period.label}${detected.cell?.subject?.trim() ? ` · ${detected.cell.subject.trim()}` : ''} (${detected.period.start}-${detected.period.end})`,
+      );
+      return;
+    }
+
+    setSubjectName(modeCopy.subject.subject);
+    setPeriodLabel('คาบ 1');
+    setAutoDetectedPeriodInfo(null);
+  }, [mode, isToday, scheduleSettings, selectedClassroom?.name]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadTrailingAttendanceRisk() {
+      if (!classroomId || classroomStudents.length === 0) {
+        if (active) setStudentRiskMap(new Map());
+        return;
+      }
+
+      const studentIds = classroomStudents.map((s) => s.id);
+
+      if (!supabase || !session.workspace || demoMode) {
+        if (records.length === 0) {
+          if (active) setStudentRiskMap(new Map());
+          return;
+        }
+        const computed = computeAttendanceStreaksAndRates(
+          [
+            {
+              id: attendanceSession?.id || 'demo-current-session',
+              attendance_date: attendanceDate,
+              subject_name: mode === 'subject' ? subjectName : null,
+            },
+          ],
+          records,
+          studentIds,
+        );
+        if (active) setStudentRiskMap(computed);
+        return;
+      }
+
+      const anchor = new Date(`${attendanceDate}T12:00:00`);
+      anchor.setDate(anchor.getDate() - 30);
+      const sinceDate = `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}-${String(anchor.getDate()).padStart(2, '0')}`;
+
+      const { data: recentSessions, error: sessErr } = await supabase
+        .from('attendance_sessions')
+        .select('id,attendance_date,subject_name')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', classroomId)
+        .gte('attendance_date', sinceDate)
+        .lte('attendance_date', attendanceDate)
+        .order('attendance_date', { ascending: false })
+        .limit(90);
+
+      if (!active || sessErr || !recentSessions || recentSessions.length === 0) {
+        if (active) setStudentRiskMap(new Map());
+        return;
+      }
+
+      const sessionIds = recentSessions.map((s) => s.id);
+      const { data: recentRecords, error: recErr } = await supabase
+        .from('attendance_records')
+        .select('session_id,student_id,status')
+        .eq('workspace_id', session.workspace.id)
+        .in('session_id', sessionIds);
+
+      if (!active || recErr) return;
+
+      const computed = computeAttendanceStreaksAndRates(recentSessions, recentRecords || [], studentIds);
+      setStudentRiskMap(computed);
+    }
+
+    void loadTrailingAttendanceRisk();
+    return () => {
+      active = false;
+    };
+  }, [attendanceDate, attendanceSession?.id, classroomId, classroomStudents, demoMode, mode, records, session.workspace, subjectName]);
 
   useEffect(() => {
     let isMounted = true;
@@ -682,6 +842,87 @@ export function AttendancePage({ session }: AttendancePageProps) {
     };
   }, [attendanceDate, demoMode, session.workspace?.id]);
 
+  // Load pending online guardian leave requests covering attendanceDate for the active classroom
+  useEffect(() => {
+    let active = true;
+
+    async function loadPendingLeaves() {
+      if (!supabase || !session.workspace?.id || !classroomId || !attendanceDate || demoMode) {
+        if (active) setPendingLeaveRequests([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('student_leave_requests')
+        .select('id,student_id,leave_type,start_date,end_date,reason')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', classroomId)
+        .eq('status', 'pending')
+        .lte('start_date', attendanceDate)
+        .gte('end_date', attendanceDate)
+        .limit(30);
+
+      if (!active) return;
+      if (error) {
+        // Ignore gracefully when migration 0096 has not yet been applied
+        setPendingLeaveRequests([]);
+        return;
+      }
+      setPendingLeaveRequests(
+        (data || []) as Array<{
+          id: string;
+          student_id: string;
+          leave_type: 'sick' | 'personal' | 'other';
+          start_date: string;
+          end_date: string;
+          reason: string;
+        }>,
+      );
+    }
+
+    void loadPendingLeaves();
+    return () => {
+      active = false;
+    };
+  }, [attendanceDate, classroomId, demoMode, session.workspace?.id]);
+
+  async function handleReviewLeaveRequest(
+    req: {
+      id: string;
+      student_id: string;
+      leave_type: 'sick' | 'personal' | 'other';
+      reason: string;
+    },
+    decision: 'approved' | 'rejected',
+  ) {
+    if (!supabase || !session.workspace?.id || demoMode) return;
+
+    const { error } = await supabase
+      .from('student_leave_requests')
+      .update({
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: session.profile.id,
+        status: decision,
+      })
+      .eq('id', req.id)
+      .eq('workspace_id', session.workspace.id);
+
+    if (error) {
+      setNotice(`อัปเดตสถานะใบลาไม่สำเร็จ: ${error.message}`);
+      return;
+    }
+
+    setPendingLeaveRequests((prev) => prev.filter((item) => item.id !== req.id));
+    if (decision === 'approved') {
+      const targetStatus: AttendanceStatus = req.leave_type === 'sick' ? 'sick' : 'leave';
+      updateMarks((prev) => ({ ...prev, [req.student_id]: targetStatus }));
+      setNotes((prev) => ({ ...prev, [req.student_id]: `[ใบลาออนไลน์] ${req.reason}` }));
+      setNotice('รับทราบใบลาและตั้งสถานะในตารางเช็กชื่อแล้ว (กด "บันทึกเช็คชื่อ" เพื่อยืนยันลงฐานข้อมูล)');
+    } else {
+      setNotice('ปฏิเสธคำขอลาออนไลน์แล้ว');
+    }
+  }
+
   async function loadSessionRecords(nextSession: AttendanceSessionRow) {
     if (!supabase || !session.workspace || isDemoSession(session)) return;
 
@@ -699,7 +940,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setRecords((data || []) as AttendanceRecordRow[]);
   }
 
-  async function ensureSession(): Promise<AttendanceSessionRow | null> {
+  async function ensureSession(onNetworkError?: () => void): Promise<AttendanceSessionRow | null> {
     if (attendanceSession) return attendanceSession;
 
     if (calendarPolicy && !calendarPolicy.affects_attendance) {
@@ -746,6 +987,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
       .single();
 
     if (error) {
+      if (isLikelyNetworkError(error)) {
+        onNetworkError?.();
+      }
       setNotice(getAttendanceErrorMessage(error.message));
       return null;
     }
@@ -824,8 +1068,71 @@ export function AttendancePage({ session }: AttendancePageProps) {
       message: `ตรวจสอบสถานะนักเรียน ${classroomStudents.length} คน และบันทึกลงระบบ`,
     });
 
-    const activeSession = await ensureSession();
+    const normalizedSubjectName = mode === 'subject' ? subjectName.trim() || 'ไม่ระบุวิชา' : null;
+    const normalizedPeriod = periodLabel.trim() || (mode === 'homeroom' ? 'เช้า' : 'คาบ 1');
+    const queueAttendanceOffline = (opId: number) => {
+      if (!session.workspace?.id) return;
+      const nowIso = new Date().toISOString();
+      const offlineRecords = classroomStudents.map((student) => ({
+        checked_at: nowIso,
+        checked_by: session.profile.id,
+        note: notes[student.id]?.trim() || null,
+        status: marks[student.id] || 'present',
+        student_id: student.id,
+      }));
+      enqueueOfflineMutation({
+        kind: 'attendance_batch',
+        label: `เช็กชื่อ ${selectedClassroom?.name || '-'} (${attendanceDate} · ${normalizedPeriod})`,
+        payload: {
+          attendanceDate,
+          classroomId,
+          createdBy: session.profile.id,
+          periodLabel: normalizedPeriod,
+          records: offlineRecords,
+          subjectName: normalizedSubjectName,
+        },
+        workspaceId: session.workspace.id,
+      });
+      const localSessId = attendanceSession?.id || `offline-attendance-${Date.now()}`;
+      setRecords(
+        offlineRecords.map((rec) => ({
+          id: `offline-rec-${rec.student_id}`,
+          note: rec.note,
+          session_id: localSessId,
+          status: rec.status as AttendanceStatus,
+          student_id: rec.student_id,
+        })),
+      );
+      try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
+      setUndoMarks(null);
+      setNotice('ไม่มีอินเทอร์เน็ต — บันทึกเช็กชื่อลงคิวออฟไลน์แล้ว ระบบจะซิงก์อัตโนมัติเมื่อเชื่อมต่อ');
+      feedback.endOperation(opId);
+      feedback.success({
+        title: 'พักข้อมูลเช็กชื่อแบบออฟไลน์แล้ว',
+        message: 'ไม่มีอินเทอร์เน็ตชั่วคราว — ข้อมูลถูกเก็บในเครื่องและจะซิงก์อัตโนมัติเมื่อเน็ตกลับมา',
+        details: [
+          { label: 'วันที่', value: attendanceDate },
+          { label: 'ห้องเรียน', value: selectedClassroom?.name || '-' },
+          { label: 'ช่วงเวลา', value: normalizedPeriod },
+        ],
+      });
+      setIsSubmitting(false);
+    };
+
+    if (supabase && session.workspace && !isDemoSession(session) && typeof navigator !== 'undefined' && !navigator.onLine) {
+      queueAttendanceOffline(operationId);
+      return;
+    }
+
+    let sessionNetworkFailed = false;
+    const activeSession = await ensureSession(() => {
+      sessionNetworkFailed = true;
+    });
     if (!activeSession) {
+      if (supabase && session.workspace && !isDemoSession(session) && !(isHolidayBlocked && calendarPolicy) && (sessionNetworkFailed || (typeof navigator !== 'undefined' && !navigator.onLine))) {
+        queueAttendanceOffline(operationId);
+        return;
+      }
       feedback.endOperation(operationId);
       feedback.error({
         title: 'บันทึกเช็คชื่อไม่สำเร็จ',
@@ -869,6 +1176,8 @@ export function AttendancePage({ session }: AttendancePageProps) {
         : null);
       try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
       setUndoMarks(null);
+      const demoAlertCount = payload.filter((r) => r.status === 'absent' || r.status === 'late' || r.status === 'leave' || r.status === 'sick').length;
+      setPostSaveNotifyPrompt(demoAlertCount > 0 ? { count: demoAlertCount, date: activeSession.attendance_date } : null);
       feedback.endOperation(operationId);
       feedback.success({
         title: 'บันทึกเช็คชื่อแล้ว',
@@ -885,6 +1194,10 @@ export function AttendancePage({ session }: AttendancePageProps) {
       .select('id,session_id,student_id,status,note');
 
     if (error) {
+      if (isLikelyNetworkError(error)) {
+        queueAttendanceOffline(operationId);
+        return;
+      }
       setNotice(getAttendanceErrorMessage(error.message));
       feedback.endOperation(operationId);
       feedback.error({
@@ -951,6 +1264,8 @@ export function AttendancePage({ session }: AttendancePageProps) {
       title: isSubjectCheck ? 'รายงานการมาเรียนรายวิชา' : 'รายงานการมาเรียนประจำวัน',
     });
     feedback.endOperation(operationId);
+    const savedAlertCount = payload.filter((r) => r.status === 'absent' || r.status === 'late' || r.status === 'leave' || r.status === 'sick').length;
+    setPostSaveNotifyPrompt(savedAlertCount > 0 ? { count: savedAlertCount, date: activeSession.attendance_date } : null);
     feedback.success({
       title: 'บันทึกเช็คชื่อแล้ว',
       message: `บันทึกสถานะนักเรียนครบ ${data?.length || 0} คน`,
@@ -1298,6 +1613,12 @@ export function AttendancePage({ session }: AttendancePageProps) {
               {scheduledLessons.length > 0 && (
                 <span className="text-xs font-semibold text-teal-700">คาบและวิชาจากตารางสอนวัน{getScheduleDay(attendanceDate)}ของห้องนี้</span>
               )}
+              {autoDetectedPeriodInfo && (
+                <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                  <Sparkles size={12} className="text-emerald-600" />
+                  {autoDetectedPeriodInfo}
+                </span>
+              )}
             </div>
           )}
           <Link
@@ -1315,6 +1636,136 @@ export function AttendancePage({ session }: AttendancePageProps) {
           <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-300 bg-rose-50 p-3 text-xs sm:text-sm text-rose-900 font-bold">
             <AlertTriangle size={16} className="text-rose-600 shrink-0" />
             <span>วันที่เลือกเป็นวันหยุดตามปฏิทิน: {calendarPolicy.title} (ระบบงดบันทึกเวลาเรียน)</span>
+          </div>
+        )}
+
+        {/* Thai Holiday / Weekend Hint */}
+        {!isHolidayBlocked && dateCalendarHint && (
+          <div
+            className={`mt-3 flex items-center gap-2 rounded-2xl border p-3 text-xs sm:text-sm font-bold ${
+              dateCalendarHint.tone === 'amber'
+                ? 'border-amber-200 bg-amber-50/80 text-amber-900'
+                : 'border-sky-200 bg-sky-50/80 text-sky-900'
+            }`}
+          >
+            <Clock size={15} className="shrink-0" />
+            <span>{dateCalendarHint.text}</span>
+          </div>
+        )}
+
+        {/* Post-Save 1-Click Guardian Notification Prompt */}
+        {postSaveNotifyPrompt && alertStudents.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-300 bg-emerald-50/90 px-3.5 py-2.5 text-xs sm:text-sm text-emerald-950">
+            <div className="flex items-center gap-2 font-bold">
+              <Bell size={16} className="text-emerald-700 shrink-0" />
+              <span>
+                บันทึกเช็คชื่อเรียบร้อย — พบนักเรียนขาด/สาย/ลา/ป่วย {postSaveNotifyPrompt.count} คน ส่งเข้าคิวแจ้งผู้ปกครองเลยไหม?
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void notifyGuardians()}
+                disabled={isNotifying}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-black text-white shadow-xs hover:bg-emerald-800 disabled:opacity-50"
+              >
+                <Send size={13} />
+                <span>ส่งเข้าคิวแจ้งผู้ปกครอง ({alertStudents.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPostSaveNotifyPrompt(null)}
+                className="rounded-lg p-1 text-emerald-800 hover:bg-emerald-100"
+                title="ซ่อนแถบแจ้งเตือน"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Smart Attendance Risk Alert Strip (30-day trailing streaks & 80% threshold) */}
+        {atRiskStudents.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50/70 px-3.5 py-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 font-black text-rose-900">
+                <ShieldAlert size={15} className="text-rose-600" />
+                <span>เฝ้าระวังเวลาเรียน 30 วันย้อนหลัง ({atRiskStudents.length} คน):</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {atRiskStudents.slice(0, 5).map(({ student, risk }) => (
+                  <Link
+                    key={student.id}
+                    to={`/app/dashboard?view=students&studentId=${encodeURIComponent(student.id)}`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition hover:brightness-95 ${
+                      risk.isBelowMs || risk.consecutiveAbsentDays >= 3
+                        ? 'border-rose-300 bg-rose-100 text-rose-900'
+                        : 'border-amber-300 bg-amber-100 text-amber-900'
+                    }`}
+                    title={`เวลาเรียน ${risk.attendanceRate.toFixed(0)}% · สาย ${risk.lateDays} ครั้ง · เปิดโปรไฟล์ 360°`}
+                  >
+                    <span>{student.first_name}</span>
+                    {risk.consecutiveAbsentDays >= 2 ? (
+                      <span>ขาดติด {risk.consecutiveAbsentDays} วัน</span>
+                    ) : risk.isBelowMs || risk.isNearMs ? (
+                      <span>มา {risk.attendanceRate.toFixed(0)}%</span>
+                    ) : (
+                      <span>สาย {risk.lateDays} ครั้ง</span>
+                    )}
+                  </Link>
+                ))}
+                {atRiskStudents.length > 5 && (
+                  <span className="text-[11px] font-bold text-rose-800">+{atRiskStudents.length - 5} คน</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Guardian Online Leave Requests for attendanceDate */}
+        {pendingLeaveRequests.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50/85 p-3.5 text-xs">
+            <div className="flex items-center gap-2 font-black text-sky-950">
+              <FileText size={15} className="text-sky-700" />
+              <span>คำขอลาออนไลน์จากผู้ปกครอง ({pendingLeaveRequests.length} รายการรอตรวจสอบ):</span>
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {pendingLeaveRequests.map((req) => {
+                const student = classroomStudents.find((s) => s.id === req.student_id);
+                const leaveLabel = req.leave_type === 'sick' ? 'ลาป่วย' : req.leave_type === 'personal' ? 'ลากิจ' : 'ลาอื่นๆ';
+                return (
+                  <div
+                    key={req.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-white p-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 truncate">
+                        {student ? `${student.first_name} ${student.last_name}` : 'นักเรียน'} · {leaveLabel}
+                      </p>
+                      <p className="text-[11px] font-semibold text-slate-600 truncate" title={req.reason}>
+                        {req.reason}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleReviewLeaveRequest(req, 'approved')}
+                        className="rounded-lg bg-sky-700 px-2.5 py-1 text-[11px] font-black text-white hover:bg-sky-800"
+                      >
+                        อนุมัติ &amp; ตั้งสถานะ{req.leave_type === 'sick' ? 'ป่วย' : 'ลา'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleReviewLeaveRequest(req, 'rejected')}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-800"
+                      >
+                        ปฏิเสธ
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -1486,6 +1937,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
                   rawNickname !== '-' &&
                   rawNickname.length > 0,
                 );
+                const listRisk = studentRiskMap.get(student.id);
 
                 return (
                   <div
@@ -1511,6 +1963,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
                           {hasNickname && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-200">
                               น้อง{rawNickname!.replace(/^น้อง/, '')}
+                            </span>
+                          )}
+                          {listRisk && (listRisk.consecutiveAbsentDays >= 2 || listRisk.isBelowMs || listRisk.isNearMs) && (
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
+                                listRisk.isBelowMs || listRisk.consecutiveAbsentDays >= 3
+                                  ? 'border-rose-300 bg-rose-100 text-rose-800'
+                                  : 'border-amber-300 bg-amber-100 text-amber-900'
+                              }`}
+                            >
+                              {listRisk.consecutiveAbsentDays >= 2
+                                ? `ขาดติด ${listRisk.consecutiveAbsentDays} วัน`
+                                : `เข้าเรียน ${listRisk.attendanceRate.toFixed(0)}%`}
                             </span>
                           )}
                         </div>
@@ -1598,6 +2063,13 @@ export function AttendancePage({ session }: AttendancePageProps) {
                 const primaryName = formattedNickname || student.first_name;
                 // Secondary Name: if nickname present, show First Name; otherwise show Last Name
                 const secondaryName = formattedNickname ? student.first_name : student.last_name;
+                const gridRisk = studentRiskMap.get(student.id);
+                const gridRiskBadge =
+                  gridRisk && (gridRisk.consecutiveAbsentDays >= 2 || gridRisk.isBelowMs || gridRisk.isNearMs)
+                    ? gridRisk.consecutiveAbsentDays >= 2
+                      ? `ขาดติด ${gridRisk.consecutiveAbsentDays}ว.`
+                      : `${gridRisk.attendanceRate.toFixed(0)}%`
+                    : null;
 
                 return (
                   <div
@@ -1673,6 +2145,18 @@ export function AttendancePage({ session }: AttendancePageProps) {
                           }`}
                         >
                           {secondaryName}
+                        </span>
+                      )}
+                      {gridRiskBadge && (
+                        <span
+                          className={`mt-1 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-black leading-none ${
+                            gridRisk?.isBelowMs || (gridRisk?.consecutiveAbsentDays ?? 0) >= 3
+                              ? 'border-rose-300 bg-rose-100/95 text-rose-800'
+                              : 'border-amber-300 bg-amber-100/95 text-amber-900'
+                          }`}
+                          title={`มาเรียน 30 วัน ${gridRisk?.attendanceRate.toFixed(0)}% · สาย ${gridRisk?.lateDays ?? 0} ครั้ง`}
+                        >
+                          {gridRiskBadge}
                         </span>
                       )}
                     </div>

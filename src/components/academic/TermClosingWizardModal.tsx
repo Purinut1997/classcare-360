@@ -60,6 +60,7 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimestamp, setLockTimestamp] = useState<string | null>(null);
   const [studentsStatus, setStudentsStatus] = useState<StudentPromotionStatus[]>([]);
+  const [readingPassedByStudent, setReadingPassedByStudent] = useState<Record<string, boolean>>({});
   const [auditIssues, setAuditIssues] = useState<AuditIssue[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'promoted' | 'retained' | 'graduated'>('all');
 
@@ -193,11 +194,13 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
         gradeLevel,
         currentClassroomName,
         academicYear,
-        schoolHeader
+        schoolHeader,
+        term === '1' || term === '2' ? term : 'yearly'
       );
 
       if (realData && realData.students.length > 0) {
         const issues: AuditIssue[] = [];
+        const readingMap: Record<string, boolean> = {};
         const calculated: StudentPromotionStatus[] = realData.students.map((st, idx) => {
           const summary = realData.classSummaryScores.find((cs) => cs.studentId === st.id);
           const report = realData.studentReports[st.id];
@@ -205,8 +208,10 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
           const attPct = summary ? summary.attendancePercent : 100;
           const gpaVal = summary ? summary.gpa : 0;
           const coreSubjects = (report?.subjects || []).filter((sub) => sub.category === 'core');
-          const failedCore = coreSubjects.filter((sub) => sub.isPassed === false);
+          const failedCore = coreSubjects.filter((sub) => typeof sub.grade === 'number' && sub.grade < 1.0);
           const passTrait = report ? report.evaluations.characteristicsOverall !== 'ไม่ผ่าน' : true;
+          const passRead = report ? report.evaluations.readingAnalysis !== 'ไม่ผ่าน' : true;
+          readingMap[st.id] = passRead;
           const passAct = report ? report.evaluations.activitiesOverall !== 'ไม่ผ่าน' : true;
 
           const evalRes = evaluatePromotionDecision({
@@ -278,6 +283,7 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
           };
         });
 
+        setReadingPassedByStudent(readingMap);
         setStudentsStatus(calculated);
         setAuditIssues(issues);
         setLoading(false);
@@ -399,7 +405,7 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
             attendance_rate: st.attendancePercentage,
             gpa: st.gpa || null,
             desirable_traits_result: st.hasPassedCharacteristics ? 'ผ่าน' : 'ไม่ผ่าน',
-            reading_writing_result: 'ผ่าน',
+            reading_writing_result: readingPassedByStudent[st.studentId] === false ? 'ไม่ผ่าน' : 'ผ่าน',
             activities_result: st.hasPassedActivities ? 'ผ่าน' : 'ไม่ผ่าน',
             remarks: st.notes || null,
             decided_by: session.profile?.id,
@@ -416,26 +422,34 @@ export const TermClosingWizardModal: React.FC<TermClosingWizardModalProps> = ({
           console.warn('Upsert student_promotions warning:', promErr);
         }
 
-        // 3. สั่งล็อก Period Lock ผ่าน RPC เพื่อป้องกันการแก้ไขคะแนนและเวลาเรียนย้อนหลัง
+        // 3. สั่งล็อก Period Lock ทุกเดือนในภาคเรียนผ่าน RPC เพื่อป้องกันการแก้ไขคะแนนและเวลาเรียนย้อนหลัง
         try {
+          const client = supabase;
           const yearNum = parseInt(academicYear, 10);
-          const cYear = yearNum > 2500 ? yearNum - 543 : 2025;
-          const sampleMonth = `${cYear}-${term === '1' ? '10' : '03'}-01`;
+          const cYear = yearNum > 2500 ? yearNum - 543 : Number.isFinite(yearNum) ? yearNum : new Date().getFullYear();
+          const lockMonths =
+            term === '1'
+              ? [`${cYear}-05-01`, `${cYear}-06-01`, `${cYear}-07-01`, `${cYear}-08-01`, `${cYear}-09-01`, `${cYear}-10-01`]
+              : [`${cYear}-11-01`, `${cYear}-12-01`, `${cYear + 1}-01-01`, `${cYear + 1}-02-01`, `${cYear + 1}-03-01`];
 
-          await supabase.rpc('set_period_lock', {
-            target_workspace_id: workspaceId,
-            target_classroom_id: currentClassroomId,
-            target_month: sampleMonth,
-            target_module: 'scores',
-            lock_reason: `ปิดภาคเรียนที่ ${term}/${academicYear} โดยงานวิชาการ`,
-          });
-          await supabase.rpc('set_period_lock', {
-            target_workspace_id: workspaceId,
-            target_classroom_id: currentClassroomId,
-            target_month: sampleMonth,
-            target_module: 'attendance',
-            lock_reason: `ปิดภาคเรียนที่ ${term}/${academicYear} โดยงานวิชาการ`,
-          });
+          await Promise.all(
+            lockMonths.flatMap((sampleMonth) => [
+              client.rpc('set_period_lock', {
+                target_workspace_id: workspaceId,
+                target_classroom_id: currentClassroomId,
+                target_month: sampleMonth,
+                target_module: 'scores',
+                lock_reason: `ปิดภาคเรียนที่ ${term}/${academicYear} โดยงานวิชาการ`,
+              }),
+              client.rpc('set_period_lock', {
+                target_workspace_id: workspaceId,
+                target_classroom_id: currentClassroomId,
+                target_month: sampleMonth,
+                target_module: 'attendance',
+                lock_reason: `ปิดภาคเรียนที่ ${term}/${academicYear} โดยงานวิชาการ`,
+              }),
+            ])
+          );
         } catch (lockRpcErr) {
           console.warn('Set period lock warning:', lockRpcErr);
         }

@@ -1,9 +1,10 @@
-import { Activity, Bell, Building2, Check, ChevronDown, Compass, Crown, Menu, Settings2, X } from 'lucide-react';
+import { Activity, Bell, Building2, Check, ChevronDown, CloudOff, Compass, Crown, Menu, RefreshCw, Settings2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { getVipBadgeInfo } from '../../lib/entitlements';
+import { flushOfflineQueue, getOfflineQueue, subscribeOfflineQueue } from '../../lib/offlineSyncQueue';
 import { supabase } from '../../lib/supabaseClient';
 import { roleLabels } from '../../lib/roles';
 import type { AppSessionContext } from '../../types/core';
@@ -29,12 +30,94 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isNotificationCollapsed, setIsNotificationCollapsed] = useState(false);
   const [notificationItems, setNotificationItems] = useState<Array<{ id: string; title: string; body: string; created_at: string; read_at: string | null; type: string }>>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationsLoading, setIsNotificationsLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
   const notificationPanelRef = useRef<HTMLDivElement>(null);
   const workspaceId = session?.workspace?.id || '';
   const notificationsPath = withDemoContext('/app/dashboard?view=notifications', location.search);
   const settingsPath = `${notificationsPath}${notificationsPath.includes('?') ? '&' : '?'}tab=settings`;
   const activityPath = `${notificationsPath}${notificationsPath.includes('?') ? '&' : '?'}tab=activity`;
+
+  const syncOfflineNow = async () => {
+    if (!supabase || !workspaceId || !session || isDemoSession(session) || isSyncingOffline) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    setIsSyncingOffline(true);
+    try {
+      const res = await flushOfflineQueue(supabase, workspaceId);
+      setPendingOfflineCount(res.remaining);
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  };
+
+  useEffect(() => {
+    const refreshQueue = () => {
+      setPendingOfflineCount(workspaceId ? getOfflineQueue(workspaceId).length : 0);
+    };
+    refreshQueue();
+    const unsubQueue = subscribeOfflineQueue(refreshQueue);
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (supabase && workspaceId && session && !isDemoSession(session)) {
+        setIsSyncingOffline(true);
+        void flushOfflineQueue(supabase, workspaceId)
+          .then((res) => setPendingOfflineCount(res.remaining))
+          .finally(() => setIsSyncingOffline(false));
+      }
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if (typeof navigator !== 'undefined' && navigator.onLine && workspaceId && getOfflineQueue(workspaceId).length > 0 && supabase && session && !isDemoSession(session)) {
+      setIsSyncingOffline(true);
+      void flushOfflineQueue(supabase, workspaceId)
+        .then((res) => setPendingOfflineCount(res.remaining))
+        .finally(() => setIsSyncingOffline(false));
+    }
+
+    return () => {
+      unsubQueue();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [session, workspaceId]);
+
+  // Proactively check unread notification count so red bell indicator lights up before clicking
+  useEffect(() => {
+    if (!session || !workspaceId || isDemoSession(session) || !supabase) {
+      setUnreadCount(0);
+      return;
+    }
+    const client = supabase;
+    let isCurrent = true;
+    const refreshUnreadCount = async () => {
+      try {
+        const { count, error } = await client
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', workspaceId)
+          .eq('profile_id', session.profile.id)
+          .is('read_at', null);
+        if (isCurrent && !error && typeof count === 'number') {
+          setUnreadCount(count);
+        }
+      } catch {
+        // non-blocking
+      }
+    };
+    void refreshUnreadCount();
+    const timer = window.setInterval(refreshUnreadCount, 60_000);
+    return () => {
+      isCurrent = false;
+      window.clearInterval(timer);
+    };
+  }, [session, workspaceId]);
 
   useEffect(() => {
     if (!isNotificationOpen || !session || !workspaceId) return;
@@ -52,7 +135,12 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
       .order('created_at', { ascending: false })
       .limit(6)
       .then(({ data }) => {
-        if (isCurrent) setNotificationItems((data || []) as typeof notificationItems);
+        if (isCurrent) {
+          const rows = (data || []) as typeof notificationItems;
+          setNotificationItems(rows);
+          const loadedUnread = rows.filter((item) => !item.read_at).length;
+          if (loadedUnread > unreadCount) setUnreadCount(loadedUnread);
+        }
       })
       .then(
         () => { if (isCurrent) setIsNotificationsLoading(false); },
@@ -130,6 +218,37 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
 
       <GlobalSearch navItems={navItems} session={session} />
 
+      {(!isOnline || pendingOfflineCount > 0) && (
+        <div
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-bold ${
+            !isOnline
+              ? 'border-rose-300 bg-rose-50 text-rose-800'
+              : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+          title={
+            !isOnline
+              ? 'ไม่มีอินเทอร์เน็ต — ระบบจะพักรายการเช็กชื่อและคะแนนไว้ในเครื่องอัตโนมัติ'
+              : `มี ${pendingOfflineCount} รายการที่รอซิงก์ขึ้นระบบ`
+          }
+        >
+          <CloudOff size={14} aria-hidden="true" />
+          <span className="hidden sm:inline">
+            {!isOnline ? 'ออฟไลน์' : `รอซิงก์ ${pendingOfflineCount}`}
+          </span>
+          {isOnline && pendingOfflineCount > 0 && (
+            <button
+              type="button"
+              disabled={isSyncingOffline}
+              onClick={() => void syncOfflineNow()}
+              className="inline-flex items-center gap-1 rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-black text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              <RefreshCw size={10} className={isSyncingOffline ? 'animate-spin' : ''} />
+              <span>{isSyncingOffline ? 'ซิงก์...' : 'ซิงก์ทันที'}</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {onOpenGuide && (
         <button
           type="button"
@@ -153,7 +272,7 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
           type="button"
         >
           <Bell size={19} aria-hidden="true" />
-          {notificationItems.some((item) => !item.read_at) && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#c25970] ring-2 ring-white" />}
+          {unreadCount > 0 && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#c25970] ring-2 ring-white" />}
         </button>
         {isNotificationOpen && (
           <section className={`topbar-notification-panel ${isNotificationCollapsed ? 'is-collapsed' : ''}`} role="dialog" aria-label="รายการแจ้งเตือน">
@@ -162,7 +281,7 @@ export function Topbar({ activeLabel, navItems, onMenuToggle, onOpenGuide, sessi
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#e6f4ec] text-[#1c573d]"><Bell size={19} aria-hidden="true" /></span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-[#1f2a22]">แจ้งเตือนของฉัน</p>
-                  <p className="text-xs font-semibold text-[#5b6a5f]">{notificationItems.filter((item) => !item.read_at).length} รายการที่ยังไม่ได้อ่าน</p>
+                  <p className="text-xs font-semibold text-[#5b6a5f]">{unreadCount} รายการที่ยังไม่ได้อ่าน</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">

@@ -397,18 +397,18 @@ export const UniversalPhorPhor5Viewer: React.FC<UniversalPhorPhor5ViewerProps> =
               <div className="grid grid-cols-3 gap-8 my-8 text-center text-xs">
                 <div>
                   <div className="h-8"></div>
-                  <p className="font-bold">({schoolHeader.homeroomTeacherName})</p>
+                  <p className="font-bold">({schoolHeader.homeroomTeacherName || '..........................................'})</p>
                   <p className="text-slate-600 mt-0.5">ครูประจำชั้น</p>
                 </div>
                 <div>
                   <div className="h-8"></div>
-                  <p className="font-bold">({schoolHeader.registrarName || 'นายภูริณัฐ กุลัพบุรี'})</p>
+                  <p className="font-bold">({schoolHeader.registrarName || '..........................................'})</p>
                   <p className="text-slate-600 mt-0.5">นายทะเบียนโรงเรียน</p>
                 </div>
                 <div>
                   <div className="h-8"></div>
-                  <p className="font-bold">({schoolHeader.directorName})</p>
-                  <p className="text-slate-600 mt-0.5">{schoolHeader.directorPosition}</p>
+                  <p className="font-bold">({schoolHeader.directorName || '..........................................'})</p>
+                  <p className="text-slate-600 mt-0.5">{schoolHeader.directorPosition || 'ผู้อำนวยการสถานศึกษา'}</p>
                 </div>
               </div>
             </div>

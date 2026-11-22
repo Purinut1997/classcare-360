@@ -80,6 +80,7 @@ const MOBILE_CATEGORIES: MobileCategoryConfig[] = [
     icon: Wrench,
     itemKeys: [
       'randomizer',
+      'math-games',
       'school-calendar',
     ],
     tone: 'amber',

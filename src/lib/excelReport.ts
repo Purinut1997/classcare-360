@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import type { Buffer as ExcelBuffer } from 'exceljs';
 import { formatThaiOfficialDate, formatThaiOfficialDateTime, type OfficialReportSignature } from './officialReport';
 
 export interface ExcelSheetConfig {
@@ -32,7 +32,8 @@ function parseBase64Image(dataUrl: string) {
   };
 }
 
-export async function generateExcelReportBuffer(config: ExcelReportConfig): Promise<ExcelJS.Buffer> {
+export async function generateExcelReportBuffer(config: ExcelReportConfig): Promise<ExcelBuffer> {
+  const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'ClassCare 360';
   workbook.created = new Date();
@@ -243,8 +244,8 @@ export async function generateExcelReportBuffer(config: ExcelReportConfig): Prom
   return await workbook.xlsx.writeBuffer();
 }
 
-export function downloadExcelBuffer(buffer: ExcelJS.Buffer, filename: string) {
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+export function downloadExcelBuffer(buffer: ExcelBuffer | ArrayBuffer | Uint8Array, filename: string) {
+  const blob = new Blob([buffer as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.style.display = 'none';

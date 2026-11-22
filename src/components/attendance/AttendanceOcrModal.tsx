@@ -144,6 +144,12 @@ export function AttendanceOcrModal({
     );
   };
 
+  const handleAcceptRemainingLowConfidence = () => {
+    setEditableStudents((prev) =>
+      prev.map((s) => (s.confidence === 'low' ? { ...s, status: 'present', confidence: 'high' } : s))
+    );
+  };
+
   const handleConfirm = () => {
     const recordsToApply: Record<string, { status: AttendanceStatus; note?: string | null }> = {};
     editableStudents.forEach((s) => {
@@ -340,15 +346,26 @@ export function AttendanceOcrModal({
 
               {/* Editable Attendance List */}
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 flex items-center justify-between text-xs font-black text-slate-600">
+                <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs font-black text-slate-600">
                   <span>ตรวจทานผลการเช็คชื่อ ({editableStudents.length} คน) • คลิกเปลี่ยนสถานะได้ทันที</span>
-                  <button
-                    className="inline-flex items-center gap-1 text-teal-700 hover:underline"
-                    onClick={() => setParsedResult(null)}
-                    type="button"
-                  >
-                    <RefreshCw size={12} /> สแกนใหม่
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {needsReviewCount > 0 && (
+                      <button
+                        className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-900 hover:bg-amber-200 transition"
+                        onClick={handleAcceptRemainingLowConfidence}
+                        type="button"
+                      >
+                        <CheckCircle2 size={12} /> ยืนยันที่รอตรวจ ({needsReviewCount}) เป็น &ldquo;มา&rdquo;
+                      </button>
+                    )}
+                    <button
+                      className="inline-flex items-center gap-1 text-teal-700 hover:underline"
+                      onClick={() => setParsedResult(null)}
+                      type="button"
+                    >
+                      <RefreshCw size={12} /> สแกนใหม่
+                    </button>
+                  </div>
                 </div>
 
                 <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
@@ -435,16 +452,28 @@ export function AttendanceOcrModal({
               )}
             </button>
           ) : (
-            <button
-              className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={handleConfirm}
-              disabled={needsReviewCount > 0}
-              title={needsReviewCount > 0 ? 'ตรวจรายการที่มีป้าย “ตรวจสอบ” ให้ครบก่อน' : undefined}
-              type="button"
-            >
-              <Check size={16} />
-              <span>ยืนยันและนำเข้าผลการเช็คชื่อ</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {needsReviewCount > 0 && (
+                <button
+                  className="inline-flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-black text-amber-900 hover:bg-amber-100 transition"
+                  onClick={handleAcceptRemainingLowConfidence}
+                  type="button"
+                >
+                  <CheckCircle2 size={15} className="text-amber-700" />
+                  <span>ยืนยันที่เหลือเป็น &ldquo;มา&rdquo; ทั้งหมด ({needsReviewCount})</span>
+                </button>
+              )}
+              <button
+                className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleConfirm}
+                disabled={needsReviewCount > 0}
+                title={needsReviewCount > 0 ? 'ตรวจรายการที่มีป้าย “ตรวจสอบ” ให้ครบก่อน' : undefined}
+                type="button"
+              >
+                <Check size={16} />
+                <span>ยืนยันและนำเข้าผลการเช็คชื่อ</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

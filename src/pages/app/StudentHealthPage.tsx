@@ -23,6 +23,7 @@ import { isDemoSession } from '../../lib/auth';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getTeacherClassroomScope, getClassroomScopeBadge } from '../../lib/teacherClassrooms';
+import { evaluateThaiGrowth } from '../../lib/thaiGrowthStandards';
 import type { AppSessionContext } from '../../types/core';
 
 interface StudentHealthPageProps {
@@ -37,8 +38,10 @@ interface ClassroomRow {
 }
 
 interface StudentRow {
+  birth_date?: string | null;
   classroom_id: string | null;
   first_name: string;
+  gender?: 'male' | 'female' | 'other' | 'unspecified' | null;
   id: string;
   last_name: string;
   nickname: string | null;
@@ -231,7 +234,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       setIsLoading(true);
       const [{ data: classroomRows, error: classroomError }, { data: studentRows, error: studentError }] = await Promise.all([
         supabase.from('classrooms').select('id,name,academic_year,homeroom_teacher_profile_id').eq('workspace_id', session.workspace.id).eq('status', 'active').order('name'),
-        supabase.from('students').select('id,student_code,first_name,last_name,nickname,classroom_id').eq('workspace_id', session.workspace.id).eq('status', 'active').order('student_code'),
+        supabase.from('students').select('id,student_code,first_name,last_name,nickname,classroom_id,birth_date,gender').eq('workspace_id', session.workspace.id).eq('status', 'active').order('student_code'),
       ]);
       if (!mounted) return;
       if (classroomError || studentError) {
@@ -254,28 +257,71 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
     return () => { mounted = false; };
   }, [demoMode, requestedClassroomId, session.workspace]);
 
+  const [autoExcludedAbsentCount, setAutoExcludedAbsentCount] = useState(0);
+  const [absentStudentIdsToday, setAbsentStudentIdsToday] = useState<Set<string>>(() => new Set());
+
+  function handleMarkAllRoutineSmart() {
+    setRoutineMarks((current) => ({
+      ...current,
+      [mode]: Object.fromEntries(
+        classroomStudents.map((student) => [
+          student.id,
+          absentStudentIdsToday.has(student.id) ? ('exempt' as RoutineStatus) : ('completed' as RoutineStatus),
+        ]),
+      ),
+    }));
+  }
+
   useEffect(() => {
     const defaultRoutine = createRoutineState(classroomStudents);
     setRoutineMarks({ toothbrushing: defaultRoutine, milk: { ...defaultRoutine }, lunch: { ...defaultRoutine } });
     setGrowthValues({});
     setInspectionValues(createInspectionState(classroomStudents));
+    setAutoExcludedAbsentCount(0);
+    setAbsentStudentIdsToday(new Set());
 
     let mounted = true;
     async function loadRecords() {
       if (!supabase || !session.workspace || !classroomId || demoMode) return;
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('student_health_records')
-        .select('student_id,record_type,status,weight_kg,height_cm,bmi,inspection_results')
-        .eq('workspace_id', session.workspace.id)
-        .eq('classroom_id', classroomId)
-        .eq('record_date', recordDate);
+      const [{ data, error }, { data: attendanceSessions }] = await Promise.all([
+        supabase
+          .from('student_health_records')
+          .select('student_id,record_type,status,weight_kg,height_cm,bmi,inspection_results')
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', classroomId)
+          .eq('record_date', recordDate),
+        supabase
+          .from('attendance_sessions')
+          .select('id,subject_name')
+          .eq('workspace_id', session.workspace.id)
+          .eq('classroom_id', classroomId)
+          .eq('attendance_date', recordDate),
+      ]);
       if (!mounted) return;
       if (error) {
         setNotice(error.message.includes('student_health_records') ? 'ฐานข้อมูลยังไม่มีตารางสุขภาพ กรุณารัน migration 0038 ก่อน' : error.message);
         setIsLoading(false);
         return;
       }
+
+      const absentTodaySet = new Set<string>();
+      const attSessions = (attendanceSessions || []) as Array<{ id: string; subject_name: string | null }>;
+      if (attSessions.length > 0) {
+        const preferredSession =
+          attSessions.find((s) => !s.subject_name || s.subject_name === 'โฮมรูม') || attSessions[0];
+        const { data: attRecs } = await supabase
+          .from('attendance_records')
+          .select('student_id,status')
+          .eq('workspace_id', session.workspace.id)
+          .eq('session_id', preferredSession.id)
+          .in('status', ['absent', 'sick', 'leave']);
+        if (!mounted) return;
+        ((attRecs || []) as Array<{ student_id: string; status: string }>).forEach((rec) => {
+          absentTodaySet.add(rec.student_id);
+        });
+      }
+
       const nextRoutine: Record<RoutineMode, Record<string, RoutineStatus>> = {
         toothbrushing: createRoutineState(classroomStudents),
         milk: createRoutineState(classroomStudents),
@@ -283,15 +329,28 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
       };
       const nextGrowth: Record<string, { height: string; weight: string }> = {};
       const nextInspection = createInspectionState(classroomStudents);
+      const savedRoutineKeys = new Set<string>();
       for (const record of (data || []) as HealthRecordRow[]) {
         if (routineModes.includes(record.record_type as RoutineMode)) {
           nextRoutine[record.record_type as RoutineMode][record.student_id] = record.status as RoutineStatus;
+          savedRoutineKeys.add(`${record.record_type}:${record.student_id}`);
         } else if (record.record_type === 'growth') {
           nextGrowth[record.student_id] = { height: String(record.height_cm || ''), weight: String(record.weight_kg || '') };
         } else if (record.record_type === 'hygiene' && record.inspection_results) {
           nextInspection[record.student_id] = { ...nextInspection[record.student_id], ...record.inspection_results };
         }
       }
+
+      absentTodaySet.forEach((studentId) => {
+        routineModes.forEach((rMode) => {
+          if (!savedRoutineKeys.has(`${rMode}:${studentId}`) && studentId in nextRoutine[rMode]) {
+            nextRoutine[rMode][studentId] = 'exempt';
+          }
+        });
+      });
+
+      setAbsentStudentIdsToday(absentTodaySet);
+      setAutoExcludedAbsentCount(absentTodaySet.size);
       setRoutineMarks(nextRoutine);
       setGrowthValues(nextGrowth);
       setInspectionValues(nextInspection);
@@ -519,13 +578,18 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
           <div className="flex flex-wrap items-center gap-1.5">
             {routineModes.includes(mode as RoutineMode) && (
               <>
+                {autoExcludedAbsentCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800">
+                    ยกเว้นคนขาด/ลาวันนี้อัตโนมัติ {autoExcludedAbsentCount} คน
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => markAllRoutine('completed')}
+                  onClick={handleMarkAllRoutineSmart}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-lime-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs"
                 >
                   <Check size={14} className="stroke-[3]" />
-                  <span>เรียบร้อยทุกคน</span>
+                  <span>เรียบร้อยทุกคน{autoExcludedAbsentCount > 0 ? ' (ข้ามคนขาด/ลา)' : ''}</span>
                 </button>
                 <button
                   type="button"
@@ -587,7 +651,7 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                       }));
                     }}
                     className={`relative flex flex-col items-center justify-center rounded-xs sm:rounded-sm p-2 sm:p-2.5 min-h-[68px] sm:min-h-[76px] transition-all select-none active:scale-95 cursor-pointer ${tone.bg} ${tone.shadow} ${rotation} hover:scale-105 hover:z-10`}
-                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${routineLabels[status]}) — แตะเพื่อสลับสถานะ`}
+                    title={`เลขที่ ${rollNumber}. ${student.first_name} ${student.last_name} (${routineLabels[status]})${absentStudentIdsToday.has(student.id) ? ' — ขาด/ลาจากเช็กชื่อวันนี้' : ''} — แตะเพื่อสลับสถานะ`}
                   >
                     {/* Frosted Tape on top */}
                     <span className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 h-2.5 w-7 rounded-[1px] bg-white/70 shadow-2xs backdrop-blur-2xs" />
@@ -637,21 +701,47 @@ export function StudentHealthPage({ session }: StudentHealthPageProps) {
                         </div>
                       </div>
 
-                      {/* BMI Badge */}
-                      <div className="text-right">
-                        <span className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs sm:text-sm font-bold shadow-2xs ${
+                      {/* Pediatric Growth / BMI Badge */}
+                      {(() => {
+                        const wNum = Number(growthValues[student.id]?.weight || 0);
+                        const hNum = Number(growthValues[student.id]?.height || 0);
+                        const pediatric =
+                          wNum > 0 && hNum > 0
+                            ? evaluateThaiGrowth(student.gender, student.birth_date, wNum, hNum, recordDate)
+                            : null;
+                        const statusLabel = pediatric?.weightForHeight;
+                        const badgeTone =
                           bmi === null
                             ? 'bg-stone-100 text-stone-700 border border-stone-300'
-                            : bmi < 18.5
-                            ? 'bg-sky-100 text-sky-900 border border-sky-300'
-                            : bmi <= 22.9
-                            ? 'bg-lime-100 text-lime-900 border border-lime-300'
-                            : 'bg-amber-100 text-amber-950 border border-amber-300'
-                        }`}>
-                          <span>BMI:</span>
-                          <b>{bmi === null ? '—' : bmi.toFixed(1)}</b>
-                        </span>
-                      </div>
+                            : !statusLabel
+                              ? 'bg-sky-50 text-sky-900 border border-sky-200'
+                              : statusLabel === 'สมส่วน'
+                                ? 'bg-lime-100 text-lime-900 border border-lime-300'
+                                : statusLabel === 'ผอม' || statusLabel === 'ค่อนข้างผอม'
+                                  ? 'bg-sky-100 text-sky-900 border border-sky-300'
+                                  : 'bg-amber-100 text-amber-950 border border-amber-300';
+
+                        return (
+                          <div className="text-right">
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs sm:text-sm font-bold shadow-2xs ${badgeTone}`}
+                              title={
+                                pediatric
+                                  ? `อายุ ${pediatric.age.years} ปี ${pediatric.age.months} ด. • สูงตามเกณฑ์: ${pediatric.heightForAge} • น้ำหนักตามอายุ: ${pediatric.weightForAge}`
+                                  : 'ระบุวันเกิดนักเรียนในทะเบียนเพื่อประเมินตามเกณฑ์กรมอนามัย'
+                              }
+                            >
+                              <span>BMI:</span>
+                              <b>{bmi === null ? '—' : bmi.toFixed(1)}</b>
+                              {statusLabel ? (
+                                <span className="text-[11px]">({statusLabel})</span>
+                              ) : bmi !== null ? (
+                                <span className="text-[10px] font-normal">(ระบุวันเกิดเพื่อเทียบเกณฑ์เด็ก)</span>
+                              ) : null}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mt-2">

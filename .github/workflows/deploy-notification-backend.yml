@@ -59,14 +59,26 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_CONNECTION_ENCRYPTION_KEY: ${{ secrets.TELEGRAM_CONNECTION_ENCRYPTION_KEY }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
           supabase secrets set \
             SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
             TELEGRAM_CONNECTION_ENCRYPTION_KEY="$TELEGRAM_CONNECTION_ENCRYPTION_KEY" \
             --project-ref "$SUPABASE_PROJECT_REF"
+          if [ -n "${LINE_CHANNEL_ACCESS_TOKEN:-}" ]; then
+            supabase secrets set LINE_CHANNEL_ACCESS_TOKEN="$LINE_CHANNEL_ACCESS_TOKEN" --project-ref "$SUPABASE_PROJECT_REF"
+          fi
+          if [ -n "${CRON_SECRET:-}" ]; then
+            supabase secrets set CRON_SECRET="$CRON_SECRET" --project-ref "$SUPABASE_PROJECT_REF"
+          fi
+          if [ -n "${GEMINI_API_KEY:-}" ]; then
+            supabase secrets set GEMINI_API_KEY="$GEMINI_API_KEY" --project-ref "$SUPABASE_PROJECT_REF"
+          fi
 
-      - name: Deploy notification functions
+      - name: Deploy notification, automation cron, and AI proxy functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
@@ -74,3 +86,5 @@ jobs:
           set -euo pipefail
           supabase functions deploy manage-telegram-account --project-ref "$SUPABASE_PROJECT_REF"
           supabase functions deploy dispatch-notification --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy scheduled-automation-cron --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy ai-gemini-proxy --project-ref "$SUPABASE_PROJECT_REF"

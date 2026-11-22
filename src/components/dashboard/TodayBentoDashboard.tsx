@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   BarChart3,
   BookOpen,
   CalendarCheck2,
@@ -10,11 +11,13 @@ import {
   Download,
   HeartPulse,
   PiggyBank,
+  ShieldAlert,
   Sparkles,
   Users,
   X,
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
+import type { StudentRiskSignalItem } from '../../lib/studentIntelligence';
 import {
   buildSchedulePeriods,
   makeScheduleCellKey,
@@ -103,6 +106,7 @@ export interface TodayBentoDashboardProps {
     tone: string;
     path: string;
   }>;
+  earlyWarningStudents?: StudentRiskSignalItem[];
 }
 
 const WEEKDAY_KEYS = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'] as const;
@@ -189,6 +193,7 @@ export function TodayBentoDashboard({
   classroomProgressItems,
   onSelectClassroom,
   catchUpItems,
+  earlyWarningStudents = [],
 }: TodayBentoDashboardProps) {
   const [nowMinutes, setNowMinutes] = useState<number>(() => getBangkokNowMinutes());
   const [isAiExpanded, setIsAiExpanded] = useState<boolean>(false);
@@ -968,6 +973,81 @@ export function TodayBentoDashboard({
           )}
         </section>
       </div>
+
+      {/* ROW 3.5: STUDENT 360° EARLY-WARNING RISK CARD */}
+      {earlyWarningStudents.length > 0 && (
+        <section
+          aria-label="เฝ้าระวังนักเรียนเสี่ยง 360°"
+          className="bento-card p-4"
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#fdf0f3] text-[#be3a56]">
+                <ShieldAlert size={15} aria-hidden="true" />
+              </span>
+              <div>
+                <span className="text-[14px] font-bold text-[#1f2924]">
+                  เฝ้าระวังนักเรียนเสี่ยง 360°
+                </span>
+                <span className="ml-2 text-xs text-[#75827a]">
+                  ตรวจจับอัตโนมัติจากเวลาเรียน คะแนน พฤติกรรม และสุขภาพ ({classroomName})
+                </span>
+              </div>
+            </div>
+            <Link
+              to="/app/dashboard?view=automation"
+              className="inline-flex items-center gap-1 text-xs font-bold text-[#2f7d5b] hover:underline"
+            >
+              ศูนย์แจ้งเตือนเด็กเสี่ยง
+              <ChevronRight size={13} aria-hidden="true" />
+            </Link>
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {earlyWarningStudents.map((item) => (
+              <Link
+                key={item.studentId}
+                to={`/app/dashboard?view=students&studentView=roster&studentId=${encodeURIComponent(item.studentId)}`}
+                className="group flex items-start justify-between gap-2.5 rounded-2xl border border-[#eceee9] bg-[#fafbf9] p-3 transition hover:border-[#f0c7d0] hover:bg-white"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle
+                      size={13}
+                      className={item.riskLevel === 'high' ? 'text-[#be3a56]' : 'text-[#c77d19]'}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate text-[13px] font-bold text-[#1f2924] group-hover:text-[#1c573d]">
+                      {item.studentName}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {item.reasons.slice(0, 2).map((reason) => (
+                      <span
+                        key={reason}
+                        className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-medium text-[#5c6861] ring-1 ring-[#e6e9e3]"
+                      >
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold ${
+                    item.riskLevel === 'high'
+                      ? 'bg-[#fdf0f3] text-[#a3334c]'
+                      : item.riskLevel === 'medium'
+                        ? 'bg-[#fff4e5] text-[#b45309]'
+                        : 'bg-[#eef6ff] text-[#1d547c]'
+                  }`}
+                >
+                  {item.riskLevel === 'high' ? 'เสี่ยงสูง' : item.riskLevel === 'medium' ? 'ติดตาม' : 'เฝ้าระวัง'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ROW 4: SLIM SINGLE-ROW AI FEATURE SHOWCASE STRIP + EXPANDABLE FULL SHOWCASE */}
       <section aria-label="ผู้ช่วย AI ประจำห้องเรียน" className="space-y-3">

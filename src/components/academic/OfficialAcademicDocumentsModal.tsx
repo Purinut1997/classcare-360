@@ -74,7 +74,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
     const stored = loadSchoolReportIdentity(session.workspace?.id);
     return {
       ...stored,
-      schoolName: session.workspace?.schoolName || stored.schoolName || 'โรงเรียนบ้านหนองไฮ่ย',
+      schoolName: session.workspace?.schoolName || stored.schoolName || '',
     };
   });
   const [loading, setLoading] = useState(false);
@@ -111,18 +111,18 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
 
   // ข้อมูลหัวจดหมายโรงเรียนมาตรฐาน สพฐ.
   const schoolHeader: OBECSchoolHeader = useMemo(() => ({
-    schoolName: identity.schoolName || session.workspace?.schoolName || 'โรงเรียนบ้านหนองไฮ่ย',
-    district: identity.district || 'อ.ขุขันธ์',
-    province: identity.province || 'จ.ศรีสะเกษ',
-    jurisdiction: identity.jurisdiction || 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
-    directorName: identity.directorName || 'นางสาวนิตยาภรณ์ ตรีแก้ว',
+    schoolName: identity.schoolName || session.workspace?.schoolName || '',
+    district: identity.district || '',
+    province: identity.province || '',
+    jurisdiction: identity.jurisdiction || '',
+    directorName: identity.directorName || '',
     directorPosition: identity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
-    academicHeadName: identity.academicHeadName || 'นางมุณี ทองแท้',
-    registrarName: identity.registrarName || 'นายภูริณัฐ กุลัพบุรี',
-    homeroomTeacherName: identity.teacherName || 'นายภูริณัฐ กุลัพบุรี',
+    academicHeadName: identity.academicHeadName || '',
+    registrarName: identity.registrarName || '',
+    homeroomTeacherName: identity.teacherName || session.profile?.displayName || '',
     schoolLogoDataUrl: identity.useGarudaInsteadOfLogo ? '' : identity.schoolLogoDataUrl,
     useGarudaInsteadOfLogo: identity.useGarudaInsteadOfLogo,
-  }), [identity, session.workspace?.schoolName]);
+  }), [identity, session.workspace?.schoolName, session.profile?.displayName]);
 
   const loadWorkspaceData = async () => {
     try {
@@ -130,7 +130,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
       const stored = loadSchoolReportIdentity(workspaceId);
       let merged: SchoolReportIdentity = {
         ...stored,
-        schoolName: session.workspace?.schoolName || stored.schoolName || 'โรงเรียนบ้านหนองไฮ่ย',
+        schoolName: session.workspace?.schoolName || stored.schoolName || '',
       };
 
       // 2. หากเชื่อมต่อ Supabase สำเร็จ ให้ดึงการตั้งค่าจริงจากตาราง workspaces
@@ -153,9 +153,9 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
             registrarName: rep.registrarName ?? merged.registrarName,
             coAdvisorName: rep.coAdvisorName ?? merged.coAdvisorName,
             schoolLogoDataUrl: rep.schoolLogoDataUrl || merged.schoolLogoDataUrl || '',
-            district: rep.district || merged.district || 'อ.ขุขันธ์',
-            province: rep.province || merged.province || 'จ.ศรีสะเกษ',
-            jurisdiction: rep.jurisdiction || merged.jurisdiction || 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+            district: rep.district || merged.district || '',
+            province: rep.province || merged.province || '',
+            jurisdiction: rep.jurisdiction || merged.jurisdiction || '',
             useGarudaInsteadOfLogo: rep.useGarudaInsteadOfLogo ?? merged.useGarudaInsteadOfLogo ?? false,
           };
           saveSchoolReportIdentity(merged, workspaceId);
@@ -883,7 +883,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.schoolName || ''}
                           onChange={(e) => setIdentity({ ...identity, schoolName: e.target.value })}
-                          placeholder="เช่น โรงเรียนบ้านหนองไฮ่ย"
+                          placeholder="เช่น โรงเรียนตัวอย่างวิทยา"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -894,7 +894,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.jurisdiction || ''}
                           onChange={(e) => setIdentity({ ...identity, jurisdiction: e.target.value })}
-                          placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3"
+                          placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษา..."
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -905,7 +905,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.district || ''}
                           onChange={(e) => setIdentity({ ...identity, district: e.target.value })}
-                          placeholder="เช่น อ.ขุขันธ์"
+                          placeholder="เช่น อ.เมือง"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -916,7 +916,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.province || ''}
                           onChange={(e) => setIdentity({ ...identity, province: e.target.value })}
-                          placeholder="เช่น จ.ศรีสะเกษ"
+                          placeholder="เช่น จ.นนทบุรี"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -937,7 +937,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.directorName || ''}
                           onChange={(e) => setIdentity({ ...identity, directorName: e.target.value })}
-                          placeholder="เช่น นางสาวนิตยาภรณ์ ตรีแก้ว"
+                          placeholder="เช่น นางสาวสมใจ มั่นคง"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -959,7 +959,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.teacherName || ''}
                           onChange={(e) => setIdentity({ ...identity, teacherName: e.target.value })}
-                          placeholder="เช่น นายภูริณัฐ กุลัพบุรี"
+                          placeholder="เช่น นายสมชาย ใจดี"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -970,7 +970,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.academicHeadName || ''}
                           onChange={(e) => setIdentity({ ...identity, academicHeadName: e.target.value })}
-                          placeholder="เช่น นางมุณี ทองแท้"
+                          placeholder="เช่น นางสมหญิง รักเรียน"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -981,7 +981,7 @@ export const OfficialAcademicDocumentsModal: React.FC<OfficialAcademicDocumentsM
                           type="text"
                           value={identity.registrarName || ''}
                           onChange={(e) => setIdentity({ ...identity, registrarName: e.target.value })}
-                          placeholder="เช่น นายภูริณัฐ กุลัพบุรี"
+                          placeholder="เช่น นางสาวปรียา พากเพียร"
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                         />
                       </div>

@@ -3,6 +3,7 @@
  * ระบบประมวลผลข้อมูลวิชาการและทะเบียน มาตรฐาน สพฐ. รองรับทุกระดับชั้น (อ.1 - ม.6)
  * ถอดแบบโครงสร้างจากระเบียบกระทรวงศึกษาธิการและไฟล์แม่แบบ สพฐ. (ปพ.๕ และ ปพ.๖)
  */
+import { evaluateThaiGrowth } from './thaiGrowthStandards';
 
 export interface OBECSubject {
   id: string;
@@ -142,44 +143,107 @@ export interface OBECSchoolHeader {
   useGarudaInsteadOfLogo?: boolean;
 }
 
+function formatThaiMeasureDate(dateStr?: string | null): string {
+  const parsed = dateStr ? new Date(dateStr) : new Date();
+  const safeDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return safeDate.toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function matchesTermMonth(dateStr: string | null | undefined, termFilter: '1' | '2' | 'yearly'): boolean {
+  if (termFilter === 'yearly' || !dateStr) return true;
+  const monthNum = Number(String(dateStr).slice(5, 7));
+  if (!Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) return true;
+  if (termFilter === '1') return monthNum >= 5 && monthNum <= 10;
+  return monthNum >= 11 || monthNum <= 4;
+}
+
+function resolveEvaluationLevel(
+  rawSummary: unknown,
+  numericScores?: Array<number | null | undefined>
+): 'ดีเยี่ยม' | 'ดี' | 'ผ่าน' | 'ไม่ผ่าน' {
+  if (rawSummary === 'ดีเยี่ยม' || rawSummary === 'ดี' || rawSummary === 'ผ่าน' || rawSummary === 'ไม่ผ่าน') {
+    return rawSummary;
+  }
+  const mapScore = (val: number): 'ดีเยี่ยม' | 'ดี' | 'ผ่าน' | 'ไม่ผ่าน' => {
+    if (val >= 2.5) return 'ดีเยี่ยม';
+    if (val >= 1.5) return 'ดี';
+    if (val >= 1) return 'ผ่าน';
+    return 'ไม่ผ่าน';
+  };
+  if (typeof rawSummary === 'number' && Number.isFinite(rawSummary)) {
+    return mapScore(rawSummary);
+  }
+  const valid = (numericScores || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (valid.length > 0) {
+    if (valid.some((v) => v <= 0)) return 'ไม่ผ่าน';
+    const avg = valid.reduce((sum, v) => sum + v, 0) / valid.length;
+    return mapScore(avg);
+  }
+  return 'ผ่าน';
+}
+
 /**
- * คำนวณเกณฑ์ประเมินภาวะโภชนาการตามเกณฑ์กระทรวงสาธารณสุข
+ * คำนวณเกณฑ์ประเมินภาวะโภชนาการตามเกณฑ์กรมอนามัย / กระทรวงสาธารณสุข
  */
-export function evaluateNutrition(weightKg: number, heightCm: number, ageYears: number = 11): OBECStudentHealthSummary {
-  const w = weightKg || 35;
-  const h = heightCm || 140;
+export function evaluateNutrition(
+  weightKg: number,
+  heightCm: number,
+  ageYears: number = 11,
+  gender?: 'male' | 'female' | 'other' | 'unspecified' | null,
+  birthDate?: string | null,
+  measuredDateStr?: string | null
+): OBECStudentHealthSummary {
+  const w = weightKg > 0 ? weightKg : 35;
+  const h = heightCm > 0 ? heightCm : 140;
 
-  // คำนวณค่า BMI คร่าวๆ เพื่อเทียบเกณฑ์
-  const heightM = h / 100;
-  const bmi = heightM > 0 ? w / (heightM * heightM) : 18;
+  // ใช้มาตรฐานการเจริญเติบโตเด็กไทยจาก thaiGrowthStandards เมื่อมีวันเกิดจริง (หรือประมาณวันเกิดจาก ageYears)
+  const effectiveBirthDate =
+    birthDate ||
+    (() => {
+      const ref = new Date();
+      ref.setFullYear(ref.getFullYear() - Math.max(5, Math.min(19, Math.round(ageYears))));
+      return ref.toISOString().slice(0, 10);
+    })();
 
-  let weightForHeight: OBECStudentHealthSummary['weightForHeightStatus'] = 'สมส่วน';
-  if (bmi < 14) weightForHeight = 'ผอม';
-  else if (bmi < 15.5) weightForHeight = 'ค่อนข้างผอม';
-  else if (bmi <= 19.5) weightForHeight = 'สมส่วน';
-  else if (bmi <= 22) weightForHeight = 'ท้วม';
-  else if (bmi <= 25) weightForHeight = 'เริ่มอ้วน';
-  else weightForHeight = 'อ้วน';
+  const growth = evaluateThaiGrowth(gender || 'other', effectiveBirthDate, w, h, measuredDateStr || undefined);
+  const measuredDate = formatThaiMeasureDate(measuredDateStr);
 
-  let heightForAge: OBECStudentHealthSummary['heightForAgeStatus'] = 'ตามเกณฑ์';
-  if (h < 125) heightForAge = 'เตี้ย';
-  else if (h < 132) heightForAge = 'ค่อนข้างเตี้ย';
-  else if (h <= 150) heightForAge = 'ตามเกณฑ์';
-  else if (h <= 158) heightForAge = 'ค่อนข้างสูง';
-  else heightForAge = 'สูง';
+  if (growth) {
+    const weightForAge: OBECStudentHealthSummary['weightForAgeStatus'] =
+      growth.weightForAge === 'น้ำหนักน้อยกว่าเกณฑ์' || growth.weightForAge === 'ค่อนข้างน้อย'
+        ? 'ต่ำกว่าเกณฑ์'
+        : growth.weightForAge === 'ค่อนข้างมาก' || growth.weightForAge === 'เกินเกณฑ์'
+          ? 'สูงกว่าเกณฑ์'
+          : 'ตามเกณฑ์';
 
-  let weightForAge: OBECStudentHealthSummary['weightForAgeStatus'] = 'ตามเกณฑ์';
-  if (w < 26) weightForAge = 'ต่ำกว่าเกณฑ์';
-  else if (w <= 48) weightForAge = 'ตามเกณฑ์';
-  else weightForAge = 'สูงกว่าเกณฑ์';
+    const heightForAge: OBECStudentHealthSummary['heightForAgeStatus'] =
+      growth.heightForAge === 'สูงตามเกณฑ์'
+        ? 'ตามเกณฑ์'
+        : growth.heightForAge === 'สูงกว่าเกณฑ์'
+          ? 'สูง'
+          : growth.heightForAge;
+
+    return {
+      weight: w,
+      height: h,
+      measuredDate,
+      weightForAgeStatus: weightForAge,
+      heightForAgeStatus: heightForAge,
+      weightForHeightStatus: growth.weightForHeight,
+    };
+  }
 
   return {
     weight: w,
     height: h,
-    measuredDate: '10 มีนาคม 2568',
-    weightForAgeStatus: weightForAge,
-    heightForAgeStatus: heightForAge,
-    weightForHeightStatus: weightForHeight,
+    measuredDate,
+    weightForAgeStatus: 'ตามเกณฑ์',
+    heightForAgeStatus: 'ตามเกณฑ์',
+    weightForHeightStatus: 'สมส่วน',
   };
 }
 
@@ -366,7 +430,8 @@ export async function fetchRealAcademicDataForClassroom(
   gradeLevel: string,
   roomName: string,
   academicYear: string,
-  schoolHeader: OBECSchoolHeader
+  schoolHeader: OBECSchoolHeader,
+  termFilter: '1' | '2' | 'yearly' = 'yearly'
 ): Promise<RealClassroomAcademicPayload | null> {
   if (!supabaseClient || !workspaceId || !classroomId) return null;
 
@@ -425,15 +490,15 @@ export async function fetchRealAcademicDataForClassroom(
 
     // 2. ดึง Assessments, Attendance Sessions & Records, Health, Guardians และ Desirable records จริง
     const [
-      { data: assessmentsData },
-      { data: sessionsData },
+      { data: rawAssessmentsData },
+      { data: rawSessionsData },
       { data: healthData },
       { data: traitsData },
       { data: guardiansData },
     ] = await Promise.all([
       supabaseClient
         .from('score_assessments')
-        .select('id, subject_name, category, max_score, weight')
+        .select('id, subject_name, category, max_score, weight, assessment_date')
         .eq('classroom_id', classroomId)
         .eq('workspace_id', workspaceId),
       supabaseClient
@@ -460,7 +525,13 @@ export async function fetchRealAcademicDataForClassroom(
         .order('is_primary', { ascending: false }),
     ]);
 
-    const sessionById = new Map<string, any>((sessionsData || []).map((s: any) => [s.id, s]));
+    const assessmentsData = (rawAssessmentsData || []).filter((a: any) =>
+      matchesTermMonth(a.assessment_date, termFilter)
+    );
+    const sessionsData = (rawSessionsData || []).filter((s: any) =>
+      matchesTermMonth(s.attendance_date, termFilter)
+    );
+    const sessionById = new Map<string, any>(sessionsData.map((s: any) => [s.id, s]));
 
     // ดึง attendance_records โดยอ้างอิงผ่าน session_id
     const sessionIds = (sessionsData || []).map((s: any) => s.id);
@@ -537,7 +608,14 @@ export async function fetchRealAcademicDataForClassroom(
       const studentHealth = healthData?.find((h: any) => h.student_id === sid && (h.weight_kg !== null || h.height_cm !== null));
       const weight = Number(studentHealth?.weight_kg ?? healthFlags.weight_kg ?? student.weight ?? 35);
       const height = Number(studentHealth?.height_cm ?? healthFlags.height_cm ?? student.height ?? 140);
-      const nutrition = evaluateNutrition(weight, height);
+      const nutrition = evaluateNutrition(
+        weight,
+        height,
+        11,
+        student.gender,
+        student.birth_date || null,
+        studentHealth?.record_date || null
+      );
 
       // ข. ข้อมูลเวลาเรียนจริงจาก attendance_records (กรองซ้ำรายวันเพื่อให้ 1 วัน = 1 สถานะหลัก)
       const studentAtts = attendanceData?.filter((a: any) => a.student_id === sid) || [];
@@ -612,17 +690,29 @@ export async function fetchRealAcademicDataForClassroom(
         if (matchedAssessments.length > 0) {
           let totalEarned = 0;
           let totalMax = 0;
+          let earnedWeighted = 0;
+          let totalWeight = 0;
           matchedAssessments.forEach((asm: any) => {
             const entry = scoreEntries.find((e: any) => e.assessment_id === asm.id && e.student_id === sid);
             const numericScore = entry?.score !== null && entry?.score !== undefined ? Number(entry.score) : NaN;
             if (!Number.isNaN(numericScore)) {
+              const safeMax = Number(asm.max_score || 100);
+              const weightVal = Number(asm.weight || 0);
               totalEarned += numericScore;
-              totalMax += Number(asm.max_score || 100);
+              totalMax += safeMax;
+              if (weightVal > 0 && safeMax > 0) {
+                earnedWeighted += (numericScore / safeMax) * weightVal;
+                totalWeight += weightVal;
+              }
               hasRealScore = true;
             }
           });
-          if (hasRealScore && totalMax > 0) {
-            actualScore100 = Math.min(100, Math.round((totalEarned / totalMax) * 100));
+          if (hasRealScore) {
+            if (totalWeight > 0) {
+              actualScore100 = Math.min(100, Math.round((earnedWeighted / totalWeight) * 100));
+            } else if (totalMax > 0) {
+              actualScore100 = Math.min(100, Math.round((totalEarned / totalMax) * 100));
+            }
           }
         }
 
@@ -694,7 +784,12 @@ export async function fetchRealAcademicDataForClassroom(
         gradeLevel,
         roomName,
         academicYear,
-        semester: 'รวมตลอดปีการศึกษา',
+        semester:
+          termFilter === '1'
+            ? 'ภาคเรียนที่ 1'
+            : termFilter === '2'
+              ? 'ภาคเรียนที่ 2'
+              : 'รวมตลอดปีการศึกษา',
 
         subjects: computedSubjects,
         totalHours: computedSubjects.reduce((acc, s) => acc + (s.hoursPerYear || 0), 0),
@@ -708,26 +803,42 @@ export async function fetchRealAcademicDataForClassroom(
 
         health: nutrition,
 
-        evaluations: {
-          characteristics: traitItems,
-          characteristicsOverall: 'ดีเยี่ยม',
-          readingAnalysis: 'ดีเยี่ยม',
-          competencies: [
-            { id: 1, title: 'ความสามารถในการสื่อสาร', level: 'ดีเยี่ยม' },
-            { id: 2, title: 'ความสามารถในการคิด', level: 'ดี' },
-            { id: 3, title: 'ความสามารถในการแก้ปัญหา', level: 'ดี' },
-            { id: 4, title: 'ความสามารถในการใช้ทักษะชีวิต', level: 'ดีเยี่ยม' },
-            { id: 5, title: 'ความสามารถในการใช้เทคโนโลยี', level: 'ดี' },
-          ],
-          competenciesOverall: 'ดีเยี่ยม',
-          activities: [
-            { name: 'กิจกรรมแนะแนว', hours: 40, isPassed: true },
-            { name: 'กิจกรรมลูกเสือ - เนตรนารี', hours: 40, isPassed: true },
-            { name: 'กิจกรรมชุมนุม/ชมรม', hours: 30, isPassed: true },
-            { name: 'กิจกรรมเพื่อสังคมและสาธารณประโยชน์', hours: 10, isPassed: true },
-          ],
-          activitiesOverall: 'ผ่าน',
-        },
+        evaluations: (() => {
+          const traitScoresList = traitItems.map((t) => t.score);
+          const characteristicsOverall = resolveEvaluationLevel(studentTrait?.trait_summary, traitScoresList);
+          const readingAnalysis = resolveEvaluationLevel(studentTrait?.reading_summary, undefined);
+          const activitiesPassedByAtt = baseAttRate >= 80;
+          const passedAll =
+            gradedSubjects.length > 0 &&
+            !gradedSubjects.some((s) => Number(s.grade) < 1.0) &&
+            gpa >= 1.0 &&
+            activitiesPassedByAtt &&
+            characteristicsOverall !== 'ไม่ผ่าน' &&
+            readingAnalysis !== 'ไม่ผ่าน';
+
+          void passedAll;
+
+          return {
+            characteristics: traitItems,
+            characteristicsOverall,
+            readingAnalysis,
+            competencies: [
+              { id: 1, title: 'ความสามารถในการสื่อสาร', level: characteristicsOverall },
+              { id: 2, title: 'ความสามารถในการคิด', level: readingAnalysis },
+              { id: 3, title: 'ความสามารถในการแก้ปัญหา', level: readingAnalysis },
+              { id: 4, title: 'ความสามารถในการใช้ทักษะชีวิต', level: characteristicsOverall },
+              { id: 5, title: 'ความสามารถในการใช้เทคโนโลยี', level: characteristicsOverall },
+            ],
+            competenciesOverall: characteristicsOverall,
+            activities: [
+              { name: 'กิจกรรมแนะแนว', hours: 40, isPassed: activitiesPassedByAtt },
+              { name: 'กิจกรรมลูกเสือ - เนตรนารี', hours: 40, isPassed: activitiesPassedByAtt },
+              { name: 'กิจกรรมชุมนุม/ชมรม', hours: 30, isPassed: activitiesPassedByAtt },
+              { name: 'กิจกรรมเพื่อสังคมและสาธารณประโยชน์', hours: 10, isPassed: activitiesPassedByAtt },
+            ],
+            activitiesOverall: activitiesPassedByAtt ? 'ผ่าน' : 'ไม่ผ่าน',
+          };
+        })(),
 
         teacherComments: {
           responsibility: 'มีความรับผิดชอบต่องานที่ได้รับมอบหมายเป็นอย่างดี ส่งงานตรงเวลาและตั้งใจเรียนสม่ำเสมอ',
@@ -738,15 +849,27 @@ export async function fetchRealAcademicDataForClassroom(
           generalRemark: 'ควรได้รับการส่งเสริมทักษะด้านเทคโนโลยีและการสื่อสารสองภาษาอย่างต่อเนื่อง',
         },
 
-        promotionDecision: {
-          passedAllCriteria: gradedSubjects.length > 0 && gpa >= 1.0 && baseAttRate >= 80,
-          promotionText: gradedSubjects.length > 0
-            ? (gpa >= 1.0 && baseAttRate >= 80
-                ? `อนุมัติให้เลื่อนชั้นไปเรียนชั้น ${gradeLevel.includes('ม.') ? 'มัธยมศึกษาปีที่ถัดไป' : 'ประถมศึกษาปีที่ถัดไป'}`
-                : 'รอตัดสินผลการเรียน / ซ่อมเสริม')
-            : 'รอการบันทึกคะแนนประเมิน',
-          decisionDate: `31 มีนาคม ${academicYear || '2569'}`,
-        },
+        promotionDecision: (() => {
+          const traitOverall = resolveEvaluationLevel(studentTrait?.trait_summary, traitItems.map((t) => t.score));
+          const readOverall = resolveEvaluationLevel(studentTrait?.reading_summary, undefined);
+          const hasFailedSubject = gradedSubjects.some((s) => Number(s.grade) < 1.0);
+          const passed =
+            gradedSubjects.length > 0 &&
+            !hasFailedSubject &&
+            gpa >= 1.0 &&
+            baseAttRate >= 80 &&
+            traitOverall !== 'ไม่ผ่าน' &&
+            readOverall !== 'ไม่ผ่าน';
+          return {
+            passedAllCriteria: passed,
+            promotionText: gradedSubjects.length > 0
+              ? (passed
+                  ? `อนุมัติให้เลื่อนชั้นไปเรียนชั้น ${gradeLevel.includes('ม.') ? 'มัธยมศึกษาปีที่ถัดไป' : 'ประถมศึกษาปีที่ถัดไป'}`
+                  : 'รอตัดสินผลการเรียน / ซ่อมเสริม')
+              : 'รอการบันทึกคะแนนประเมิน',
+            decisionDate: `31 มีนาคม ${academicYear || '2569'}`,
+          };
+        })(),
       };
 
       studentReports[sid] = fullReport;
@@ -758,7 +881,7 @@ export async function fetchRealAcademicDataForClassroom(
         subjectScores: studentSubjectScores,
         gpa,
         attendancePercent: Number(baseAttRate.toFixed(1)),
-        isPassed: gradedSubjects.length > 0 && gpa >= 1.0 && baseAttRate >= 80,
+        isPassed: fullReport.promotionDecision.passedAllCriteria,
       });
     }
 

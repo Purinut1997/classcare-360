@@ -56,6 +56,7 @@ import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { translateDatabaseError } from '../../lib/errorTranslator';
 import { purgeStudentsPermanently } from '../../lib/studentOperations';
 import { getHiddenClassroomIds, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
+import { Student360SummaryPanel } from '../../components/students/Student360SummaryPanel';
 import type { AppSessionContext } from '../../types/core';
 import {
   DEMO_PRIMARY_CLASSROOMS,
@@ -5359,6 +5360,14 @@ export function StudentsPage({ session }: StudentsPageProps) {
                 </div>
               ))}
             </div>
+          ) : null}
+
+          {selectedStudent ? (
+            <Student360SummaryPanel
+              session={session}
+              student={selectedStudent}
+              classroomName={selectedClassroom?.name}
+            />
           ) : null}
 
           {selectedStudent ? (

@@ -190,6 +190,22 @@ const AI_FEATURES: AiFeatureItem[] = [
     iconGradient: 'from-emerald-600 to-teal-600',
     isNew: true,
   },
+  {
+    id: 'ai-secure-proxy-context',
+    category: 'assistant',
+    badge: 'ความปลอดภัย & ความเร็ว AI',
+    badgeTone: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    title: 'AI Proxy ฝั่งเซิร์ฟเวอร์ & แคชบริบทอัจฉริยะ 7 มิติ',
+    engTitle: 'Secure Gemini Edge Proxy & Context Cache',
+    painPoint: 'การคุยกับ AI ต่อเนื่องหลายคำถามเคยต้องคิวรีฐานข้อมูล 7 มิติซ้ำทุกรอบ และส่งคำขอ Gemini จากเบราว์เซอร์โดยตรง',
+    aiSolution: 'ประมวลผลผ่าน Supabase Edge Function (ai-gemini-proxy) พร้อมแคชข้อมูล 7 มิติเป็นเวลา 90 วินาทีต่อผู้ใช้และสิทธิ์ ช่วยให้ตอบไวขึ้น ลดภาระฐานข้อมูล และรองรับคีย์ฝั่งเซิร์ฟเวอร์อย่างปลอดภัย',
+    tags: ['Edge Function Proxy', 'แคชบริบท 90 วินาที', 'สลับโมเดล Gemini 2.5 อัตโนมัติ', 'ปลอดภัยระดับโรงเรียน'],
+    ctaLabel: 'เปิดศูนย์แจ้งเตือน & Automation',
+    targetPath: '/app/dashboard?view=notifications&tab=early-warning',
+    icon: ShieldCheck,
+    iconGradient: 'from-cyan-600 to-teal-600',
+    isNew: true,
+  },
 ];
 
 export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {
@@ -317,7 +333,7 @@ export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {
               }`}
             >
               <Camera size={13} aria-hidden="true" />
-              <span>Smart OCR สแกนเอกสารกระดาษ (3)</span>
+              <span>Smart OCR สแกนเอกสารกระดาษ ({AI_FEATURES.filter((f) => f.category === 'ocr').length})</span>
             </button>
             <button
               type="button"
@@ -329,7 +345,7 @@ export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {
               }`}
             >
               <FileCheck2 size={13} aria-hidden="true" />
-              <span>ออกแบบการสอน &amp; ข้อสอบ สพฐ. (2)</span>
+              <span>ออกแบบการสอน &amp; ข้อสอบ สพฐ. ({AI_FEATURES.filter((f) => f.category === 'teaching').length})</span>
             </button>
             <button
               type="button"
@@ -341,7 +357,7 @@ export function AiFeatureShowcase({ session }: AiFeatureShowcaseProps) {
               }`}
             >
               <Lightbulb size={13} aria-hidden="true" />
-              <span>ผู้ช่วยครู &amp; วิเคราะห์ข้อมูล (1)</span>
+              <span>ผู้ช่วยครู &amp; วิเคราะห์ข้อมูล ({AI_FEATURES.filter((f) => f.category === 'assistant').length})</span>
             </button>
           </div>
 

@@ -52,6 +52,7 @@ import {
   type SchoolReportIdentity,
 } from '../../lib/scheduleSettings';
 import { supabase } from '../../lib/supabaseClient';
+import { saveCloudReportIdentity } from '../../lib/workspaceCloudPrefs';
 import type { AppSessionContext } from '../../types/core';
 
 interface SchedulePageProps {
@@ -150,6 +151,8 @@ export function SchedulePage({ session }: SchedulePageProps) {
   const [workspaceClassrooms, setWorkspaceClassrooms] = useState<WorkspaceClassroomRow[]>([]);
   const [printLogoDataUrl, setPrintLogoDataUrl] = useState('');
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [filterClassroom, setFilterClassroom] = useState<string>('all');
+  const [filterTeacher, setFilterTeacher] = useState<string>('all');
   const [mobileDay, setMobileDay] = useState<DayName>(() => {
     const bangkokDays: DayName[] = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
     const todayIndex = new Date().getDay();
@@ -223,13 +226,15 @@ export function SchedulePage({ session }: SchedulePageProps) {
         .maybeSingle();
       if (!isMounted || error || !data) return;
       const workspaceSettings = (data.settings || {}) as { classroom_name?: string; report_identity?: Partial<SchoolReportIdentity> };
-      setIdentity((current) => ({
-        ...current,
+      const mergedIdentity = {
+        ...identity,
         ...(workspaceSettings.report_identity || {}),
         academicYear: data.academic_year || workspace.academicYear,
         classroomName: workspaceSettings.classroom_name || workspace.classroomName,
         schoolName: data.school_name || workspace.schoolName,
-      }));
+      };
+      setIdentity(mergedIdentity);
+      saveSchoolReportIdentity(mergedIdentity, workspace.id);
     }
     void loadWorkspaceIdentity();
     return () => { isMounted = false; };
@@ -366,6 +371,61 @@ export function SchedulePage({ session }: SchedulePageProps) {
     return Array.from(options.values());
   }, [cellDraft.classroom, settings.classroomOptions, workspaceClassrooms]);
 
+  const classroomFilterOptions = useMemo(() => {
+    const names = new Set<string>();
+    scheduleClassroomOptions.forEach((opt) => {
+      if (opt.value.trim()) names.add(opt.value.trim());
+    });
+    Object.values(settings.cells).forEach((cell) => {
+      if (cell.classroom?.trim()) names.add(cell.classroom.trim());
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [scheduleClassroomOptions, settings.cells]);
+
+  const teacherFilterOptions = useMemo(() => {
+    const names = new Set<string>();
+    if (identity.teacherName?.trim()) names.add(identity.teacherName.trim());
+    settings.subjects.forEach((s) => {
+      if (s.teacherName?.trim()) names.add(s.teacherName.trim());
+    });
+    Object.values(settings.cells).forEach((cell) => {
+      if (cell.teacherName?.trim()) names.add(cell.teacherName.trim());
+      if (cell.substituteTeacherName?.trim()) names.add(cell.substituteTeacherName.trim());
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [identity.teacherName, settings.cells, settings.subjects]);
+
+  const activeSubstituteCount = useMemo(
+    () => Object.values(settings.cells).filter((c) => Boolean(c.substituteTeacherName?.trim())).length,
+    [settings.cells],
+  );
+
+  const hasScheduleFilter = filterClassroom !== 'all' || filterTeacher !== 'all';
+
+  function matchesScheduleCellFilter(cell?: ScheduleCell | null): boolean {
+    if (!cell || !cell.subject?.trim()) return !hasScheduleFilter;
+    if (filterClassroom !== 'all') {
+      const room = cell.classroom?.trim() || '';
+      if (filterClassroom === '__shared__') {
+        if (room !== '') return false;
+      } else if (room !== filterClassroom) {
+        return false;
+      }
+    }
+    if (filterTeacher !== 'all') {
+      if (filterTeacher === '__substitute__') {
+        return Boolean(cell.substituteTeacherName?.trim());
+      }
+      const subjectTeacher = settings.subjects.find((s) => s.name === cell.subject)?.teacherName?.trim() || '';
+      const assignedTeacher = cell.teacherName?.trim() || subjectTeacher || identity.teacherName?.trim() || '';
+      const subTeacher = cell.substituteTeacherName?.trim() || '';
+      if (assignedTeacher !== filterTeacher && subTeacher !== filterTeacher) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function updateSettings(next: Partial<typeof settings>) {
     setSettings((current) => ({ ...current, ...next }));
   }
@@ -461,7 +521,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     if (result.teacherName?.trim()) {
       const nextIdentity = { ...identity, teacherName: result.teacherName.trim() };
       setIdentity(nextIdentity);
-      saveSchoolReportIdentity(nextIdentity, workspaceId);
+      void saveCloudReportIdentity(workspaceId || '', nextIdentity);
     }
 
     saveAll(nextSettings);
@@ -571,12 +631,14 @@ export function SchedulePage({ session }: SchedulePageProps) {
   function openCellEditor(day: DayName, periodIndex: number) {
     const key = makeScheduleCellKey(day, periodIndex);
     const current = settings.cells[key];
+    const matchedSubject = settings.subjects.find((s) => s.name === (current?.subject || selectedSubject));
     const fallbackCell: ScheduleCell = {
       classroom: selectedClassroom.trim() || identity.classroomName,
       subject: selectedSubject.trim() || 'ไม่ระบุวิชา',
       subjectCode: selectedSubjectCode.trim() || undefined,
+      teacherName: matchedSubject?.teacherName?.trim() || identity.teacherName || undefined,
     };
-    setCellDraft(current || fallbackCell);
+    setCellDraft(current ? { teacherName: matchedSubject?.teacherName?.trim() || identity.teacherName || '', ...current } : fallbackCell);
     setEditingCell({ day, periodIndex });
   }
 
@@ -594,6 +656,10 @@ export function SchedulePage({ session }: SchedulePageProps) {
       classroom: cellDraft.classroom.trim(),
       subject,
       subjectCode: cellDraft.subjectCode?.trim() || undefined,
+      teacherName: cellDraft.teacherName?.trim() || undefined,
+      substituteTeacherName: cellDraft.substituteTeacherName?.trim() || undefined,
+      substituteDate: cellDraft.substituteDate?.trim() || undefined,
+      substituteNote: cellDraft.substituteNote?.trim() || undefined,
     };
     const nextSettings = {
       ...settings,
@@ -1129,6 +1195,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
           const cell = settings.cells[key];
           const hasContent = Boolean(cell && cell.subject?.trim());
           const theme = hasContent ? getScheduleTheme(cell.subject, cell.classroom) : null;
+          const matchesFilter = matchesScheduleCellFilter(cell);
 
           if (hasContent && theme) {
             return (
@@ -1137,7 +1204,9 @@ export function SchedulePage({ session }: SchedulePageProps) {
                 onClick={() => openCellEditor(targetDay, period.index)}
                 role="button"
                 tabIndex={0}
-                className={`group relative flex items-center justify-between gap-3 rounded-2xl border p-3.5 text-left transition-all shadow-sm active:scale-[0.99] cursor-pointer ${theme.card}`}
+                className={`group relative flex items-center justify-between gap-3 rounded-2xl border p-3.5 text-left transition-all shadow-sm active:scale-[0.99] cursor-pointer ${theme.card} ${
+                  hasScheduleFilter && !matchesFilter ? 'opacity-25 scale-[0.98]' : ''
+                } ${cell.substituteTeacherName?.trim() ? 'ring-2 ring-amber-400' : ''}`}
               >
                 {/* Left: Period & Time info */}
                 <div className="flex flex-col items-center justify-center rounded-xl bg-black/20 px-2.5 py-1.5 min-w-[56px] text-center text-white shrink-0">
@@ -1162,12 +1231,20 @@ export function SchedulePage({ session }: SchedulePageProps) {
                         ทุกห้อง
                       </span>
                     )}
+                    {cell.substituteTeacherName?.trim() ? (
+                      <span className="rounded-full bg-amber-400 px-2 py-0.2 text-[10px] font-black text-amber-950">
+                        สอนแทน: {cell.substituteTeacherName.trim()}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1 flex items-center gap-1.5 text-sm font-black truncate">
                     <SubjectLucideIcon subject={cell.subject} size={15} className="shrink-0 opacity-90" />
                     <span className="truncate">{cell.subject}</span>
                   </p>
-                  <p className="text-[10.5px] opacity-80 truncate">{theme.categoryLabel}</p>
+                  <p className="text-[10.5px] opacity-80 truncate">
+                    {cell.teacherName?.trim() ? `ครู${cell.teacherName.trim()} · ` : ''}
+                    {theme.categoryLabel}
+                  </p>
                 </div>
 
                 {/* Right: Edit Button */}
@@ -1788,6 +1865,58 @@ export function SchedulePage({ session }: SchedulePageProps) {
               )}
             </div>
 
+            {/* Multi-Room / Per-Teacher / Substitute Filter Toolbar (shared Mobile & Desktop) */}
+            <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-2.5 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 font-black text-[#1C342B]">
+                  <Users size={14} className="text-[#2F7D5B]" />
+                  กรองตารางสอน:
+                </span>
+                <select
+                  aria-label="กรองตามห้องเรียน"
+                  value={filterClassroom}
+                  onChange={(e) => setFilterClassroom(e.target.value)}
+                  className="rounded-xl border border-[#DCE3D7] bg-white px-2.5 py-1.5 text-xs font-bold text-[#1C342B] outline-none focus:ring-2 focus:ring-[#2F7D5B]"
+                >
+                  <option value="all">ทุกห้องเรียน</option>
+                  {classroomFilterOptions.map((room) => (
+                    <option key={room} value={room}>ห้อง {room}</option>
+                  ))}
+                  <option value="__shared__">กิจกรรมรวม / ไม่ระบุห้อง</option>
+                </select>
+                <select
+                  aria-label="กรองตามครูผู้สอนหรือคาบสอนแทน"
+                  value={filterTeacher}
+                  onChange={(e) => setFilterTeacher(e.target.value)}
+                  className="rounded-xl border border-[#DCE3D7] bg-white px-2.5 py-1.5 text-xs font-bold text-[#1C342B] outline-none focus:ring-2 focus:ring-[#2F7D5B]"
+                >
+                  <option value="all">ครูผู้สอนทุกคน</option>
+                  {teacherFilterOptions.map((tName) => (
+                    <option key={tName} value={tName}>ครู{tName}</option>
+                  ))}
+                  <option value="__substitute__">เฉพาะคาบมีครูสอนแทน ({activeSubstituteCount})</option>
+                </select>
+                {hasScheduleFilter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterClassroom('all');
+                      setFilterTeacher('all');
+                    }}
+                    className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100"
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                )}
+              </div>
+              {activeSubstituteCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[11px] font-black text-amber-900">
+                  <UserRound size={12} />
+                  มีสอนแทน {activeSubstituteCount} คาบ
+                </span>
+              )}
+            </div>
+
             {/* 📱 Mobile Day View: Chronological Period Cards */}
             {mobileScheduleMode === 'day' && (
               <div className="lg:hidden space-y-2.5">
@@ -2018,6 +2147,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           const isDragOver = dragOverCellKey === key && draggedCellKey !== key;
                           const isMovingSource = movingCellKey === key;
                           const isMoveTargetMode = Boolean(movingCellKey && movingCellKey !== key);
+                          const matchesFilter = matchesScheduleCellFilter(cell);
 
                           return (
                             <div
@@ -2092,8 +2222,12 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                     ? 'hover:ring-4 hover:ring-amber-400 hover:scale-[1.02] cursor-pointer'
                                     : 'hover:ring-4 hover:ring-emerald-400 hover:bg-emerald-50 cursor-pointer'
                                   : hasContent && theme
-                                  ? `${theme.card} hover:-translate-y-1 hover:shadow-lg cursor-grab active:cursor-grabbing`
-                                  : 'border-dashed border-slate-300/80 bg-white/75 text-slate-400 hover:border-sky-400 hover:bg-sky-50/60 hover:text-sky-600 hover:shadow-sm cursor-pointer'
+                                  ? `${theme.card} hover:-translate-y-1 hover:shadow-lg cursor-grab active:cursor-grabbing ${
+                                      hasScheduleFilter && !matchesFilter ? 'opacity-20' : ''
+                                    } ${cell.substituteTeacherName?.trim() ? 'ring-2 ring-amber-400' : ''}`
+                                  : `border-dashed border-slate-300/80 bg-white/75 text-slate-400 hover:border-sky-400 hover:bg-sky-50/60 hover:text-sky-600 hover:shadow-sm cursor-pointer ${
+                                      hasScheduleFilter ? 'opacity-40' : ''
+                                    }`
                               }`}
                             >
                               {/* Drag over overlay indicators */}
@@ -2140,12 +2274,21 @@ export function SchedulePage({ session }: SchedulePageProps) {
                                     )}
                                   </div>
 
-                                  {/* Middle row: Subject name with category icon */}
+                                  {/* Middle row: Subject name with category icon + teacher / substitute badge */}
                                   <div className="my-1">
                                     <p className="flex items-start gap-1 text-[12px] font-black leading-tight line-clamp-2">
                                       <SubjectLucideIcon subject={cell.subject} size={13} className="mt-0.5 shrink-0 opacity-90" />
                                       <span>{cell.subject}</span>
                                     </p>
+                                    {cell.substituteTeacherName?.trim() ? (
+                                      <span className="mt-1 inline-flex max-w-full items-center truncate rounded-md bg-amber-400 px-1.5 py-0.5 text-[9.5px] font-black text-amber-950 shadow-2xs">
+                                        สอนแทน: {cell.substituteTeacherName.trim()}
+                                      </span>
+                                    ) : cell.teacherName?.trim() ? (
+                                      <p className="mt-0.5 truncate text-[10px] font-semibold opacity-80">
+                                        ครู{cell.teacherName.trim()}
+                                      </p>
+                                    ) : null}
                                   </div>
 
                                   {/* Bottom row: Category badge + Quick Actions (Move & Edit) */}
@@ -2349,6 +2492,65 @@ export function SchedulePage({ session }: SchedulePageProps) {
                           + เพิ่มห้องเรียน/ชั้นอื่นก่อนจัดตาราง
                         </Link>
                       </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid gap-2 text-sm font-black text-slate-700">
+                        ครูผู้สอนประจำคาบ (ถ้ามีหลายครูในตาราง)
+                        <input
+                          className="nexus-field h-11 px-3"
+                          list="schedule-teacher-suggestions"
+                          onChange={(event) => setCellDraft((current) => ({ ...current, teacherName: event.target.value }))}
+                          placeholder={identity.teacherName || 'เช่น ครูสมศรี'}
+                          value={cellDraft.teacherName || ''}
+                        />
+                        <datalist id="schedule-teacher-suggestions">
+                          {teacherFilterOptions.map((tName) => (
+                            <option key={tName} value={tName} />
+                          ))}
+                        </datalist>
+                      </label>
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-black text-amber-950">มอบหมายครูสอนแทน (ชั่วคราว)</span>
+                          {cellDraft.substituteTeacherName?.trim() ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCellDraft((current) => ({
+                                  ...current,
+                                  substituteTeacherName: '',
+                                  substituteDate: '',
+                                  substituteNote: '',
+                                }))
+                              }
+                              className="text-[11px] font-black text-rose-700 hover:underline"
+                            >
+                              ล้างสถานะสอนแทน
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <input
+                            className="nexus-field h-10 bg-white px-2.5 text-xs"
+                            onChange={(event) => setCellDraft((current) => ({ ...current, substituteTeacherName: event.target.value }))}
+                            placeholder="ชื่อครูสอนแทน"
+                            value={cellDraft.substituteTeacherName || ''}
+                          />
+                          <input
+                            type="date"
+                            className="nexus-field h-10 bg-white px-2.5 text-xs"
+                            onChange={(event) => setCellDraft((current) => ({ ...current, substituteDate: event.target.value }))}
+                            value={cellDraft.substituteDate || ''}
+                          />
+                        </div>
+                        <input
+                          className="nexus-field mt-2 h-9 w-full bg-white px-2.5 text-xs"
+                          onChange={(event) => setCellDraft((current) => ({ ...current, substituteNote: event.target.value }))}
+                          placeholder="หมายเหตุ เช่น ลาไปอบรม / แลกคาบ"
+                          value={cellDraft.substituteNote || ''}
+                        />
+                      </div>
                     </div>
 
                     <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">

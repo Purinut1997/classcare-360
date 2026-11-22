@@ -1,6 +1,8 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Award,
+  Check,
   Copy,
   Dice5,
   Download,
@@ -11,6 +13,7 @@ import {
   Save,
   Shuffle,
   Sparkles,
+  UserCheck,
   UsersRound,
 } from 'lucide-react';
 
@@ -18,6 +21,7 @@ import { BotanicalCardSprig, BotanicalCornerWatermark, BotanicalEmptyState } fro
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
+import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -176,6 +180,11 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSaving, setIsSaving] = useState(false);
   const [isProjectorMode, setIsProjectorMode] = useState(false);
+  const [excludeAbsentToday, setExcludeAbsentToday] = useState(true);
+  const [fairMode, setFairMode] = useState(true);
+  const [absentStudentIdsToday, setAbsentStudentIdsToday] = useState<Set<string>>(() => new Set());
+  const [bonusAwardedIds, setBonusAwardedIds] = useState<Record<string, boolean>>({});
+  const [awardingStudentId, setAwardingStudentId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration เพื่อบันทึกประวัติการสุ่มจริง',
   );
@@ -189,6 +198,21 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
     () => history.filter((item) => item.classroom_id === classroomId).sort((a, b) => b.created_at.localeCompare(a.created_at)),
     [classroomId, history],
   );
+
+  const eligibleStudents = useMemo(() => {
+    if (!excludeAbsentToday || absentStudentIdsToday.size === 0) return classroomStudents;
+    return classroomStudents.filter((student) => !absentStudentIdsToday.has(student.id));
+  }, [absentStudentIdsToday, classroomStudents, excludeAbsentToday]);
+
+  const pickCountByStudent = useMemo(() => {
+    const counts = new Map<string, number>();
+    activeHistory.forEach((entry) => {
+      entry.result?.picked?.forEach((p) => {
+        counts.set(p.id, (counts.get(p.id) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [activeHistory]);
 
   const resultText = currentResult ? formatResultText(currentResult) : '';
 
@@ -260,11 +284,58 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
     };
   }, [demoMode, session.workspace]);
 
+  // Sync today's attendance so absent/sick/leave students can be excluded automatically
+  useEffect(() => {
+    let active = true;
+
+    async function loadTodayAbsences() {
+      if (!supabase || !session.workspace || demoMode || !classroomId) {
+        if (active) setAbsentStudentIdsToday(new Set());
+        return;
+      }
+
+      const today = getBangkokDate();
+      const { data: sessionRows } = await supabase
+        .from('attendance_sessions')
+        .select('id,subject_name')
+        .eq('workspace_id', session.workspace.id)
+        .eq('classroom_id', classroomId)
+        .eq('attendance_date', today);
+
+      const sessions = (sessionRows || []) as Array<{ id: string; subject_name: string | null }>;
+      if (!active || sessions.length === 0) {
+        if (active) setAbsentStudentIdsToday(new Set());
+        return;
+      }
+
+      const targetSession = sessions.find((s) => !s.subject_name || s.subject_name === 'โฮมรูม') || sessions[0];
+      const { data: recRows } = await supabase
+        .from('attendance_records')
+        .select('student_id,status')
+        .eq('workspace_id', session.workspace.id)
+        .eq('session_id', targetSession.id)
+        .in('status', ['absent', 'sick', 'leave']);
+
+      if (!active) return;
+      const absentSet = new Set<string>();
+      ((recRows || []) as Array<{ student_id: string; status: string }>).forEach((r) => {
+        absentSet.add(r.student_id);
+      });
+      setAbsentStudentIdsToday(absentSet);
+    }
+
+    void loadTodayAbsences();
+    return () => {
+      active = false;
+    };
+  }, [classroomId, demoMode, session.workspace]);
+
   function createRandomResult() {
-    const shuffled = shuffleStudents(classroomStudents);
+    const pool = eligibleStudents;
     const seed = `${Date.now()}-${randomInt(999999)}`;
 
     if (mode === 'groups') {
+      const shuffled = shuffleStudents(pool);
       const size = Math.max(1, Number(groupSize) || 1);
       return {
         groups: chunkIntoGroups(shuffled.map(toRandomizedStudent), size),
@@ -273,15 +344,30 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
     }
 
     if (mode === 'order') {
+      const shuffled = shuffleStudents(pool);
       return {
         picked: shuffled.map(toRandomizedStudent),
         seed,
       };
     }
 
-    const count = Math.max(1, Math.min(Number(pickCount) || 1, shuffled.length));
+    let orderedPool = shuffleStudents(pool);
+    if (fairMode) {
+      const buckets = new Map<number, StudentRow[]>();
+      pool.forEach((student) => {
+        const picks = pickCountByStudent.get(student.id) ?? 0;
+        const list = buckets.get(picks) || [];
+        list.push(student);
+        buckets.set(picks, list);
+      });
+      orderedPool = Array.from(buckets.keys())
+        .sort((a, b) => a - b)
+        .flatMap((countKey) => shuffleStudents(buckets.get(countKey) || []));
+    }
+
+    const count = Math.max(1, Math.min(Number(pickCount) || 1, orderedPool.length));
     return {
-      picked: shuffled.slice(0, count).map(toRandomizedStudent),
+      picked: orderedPool.slice(0, count).map(toRandomizedStudent),
       seed,
     };
   }
@@ -295,8 +381,49 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
       return;
     }
 
+    if (eligibleStudents.length === 0) {
+      setNotice('นักเรียนทุกคนถูกตัดออกตามสถานะขาด/ลาวันนี้ ลองปิดตัวเลือก "ตัดคนขาด/ลาวันนี้"');
+      return;
+    }
+
     const result = createRandomResult();
+    setBonusAwardedIds({});
     setCurrentResult(result);
+  }
+
+  async function handleAwardParticipationPoint(student: RandomizedStudent) {
+    if (awardingStudentId || bonusAwardedIds[student.id]) return;
+    setAwardingStudentId(student.id);
+    setNotice(null);
+
+    if (!supabase || !session.workspace || isDemoSession(session)) {
+      setBonusAwardedIds((prev) => ({ ...prev, [student.id]: true }));
+      setNotice(`มอบ +1 แต้มมีส่วนร่วมให้ ${student.label} แล้ว [โหมดตัวอย่าง]`);
+      setAwardingStudentId(null);
+      return;
+    }
+
+    const { error } = await supabase.from('behavior_records').insert({
+      behavior_date: getBangkokDate(),
+      category: 'การมีส่วนร่วมในชั้นเรียน',
+      description: `สุ่มตอบคำถาม/ร่วมกิจกรรม: ${title.trim() || getModeLabel(mode)}`,
+      follow_up_status: 'none',
+      points: 1,
+      recorded_by: session.profile.id,
+      student_id: student.id,
+      tone: 'positive',
+      workspace_id: session.workspace.id,
+    });
+
+    if (error) {
+      setNotice(`เพิ่มแต้มมีส่วนร่วมไม่สำเร็จ: ${error.message}`);
+      setAwardingStudentId(null);
+      return;
+    }
+
+    setBonusAwardedIds((prev) => ({ ...prev, [student.id]: true }));
+    setNotice(`บันทึก +1 แต้มมีส่วนร่วมลงบอร์ดพฤติกรรมให้ ${student.label} แล้ว`);
+    setAwardingStudentId(null);
   }
 
   async function handleSaveHistory() {
@@ -425,7 +552,14 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#2F7D5B] px-5 text-sm font-bold text-white shadow-xs transition hover:bg-[#235F45]"
-                onClick={() => setCurrentResult(createRandomResult())}
+                onClick={() => {
+                  if (eligibleStudents.length === 0) {
+                    setNotice('นักเรียนทุกคนถูกตัดออกตามสถานะขาด/ลาวันนี้ ลองปิดตัวเลือก "ตัดคนขาด/ลาวันนี้"');
+                    return;
+                  }
+                  setBonusAwardedIds({});
+                  setCurrentResult(createRandomResult());
+                }}
                 type="button"
               >
                 <Sparkles size={17} aria-hidden="true" />
@@ -467,17 +601,35 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
 
             {currentResult.picked ? (
               <ol className="grid gap-4 sm:grid-cols-2">
-                {currentResult.picked.map((student, index) => (
-                  <li className="flex items-center gap-4 rounded-2xl border border-[#BFE0CD] bg-white p-5 shadow-xs" key={`${student.id}-proj-${index}`}>
-                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#2F7D5B] font-display text-2xl font-bold text-white shadow-xs">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-display text-2xl font-bold text-[#1F2A22] sm:text-3xl">{student.label}</p>
-                      <p className="mt-1 text-sm font-bold text-[#5B6A5F]">เลขประจำตัว / รหัส {student.studentCode || '-'}</p>
-                    </div>
-                  </li>
-                ))}
+                {currentResult.picked.map((student, index) => {
+                  const awarded = Boolean(bonusAwardedIds[student.id]);
+                  return (
+                    <li className="flex items-center justify-between gap-3 rounded-2xl border border-[#BFE0CD] bg-white p-5 shadow-xs" key={`${student.id}-proj-${index}`}>
+                      <div className="flex items-center gap-4 min-w-0">
+                        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#2F7D5B] font-display text-2xl font-bold text-white shadow-xs">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-display text-2xl font-bold text-[#1F2A22] sm:text-3xl truncate">{student.label}</p>
+                          <p className="mt-1 text-sm font-bold text-[#5B6A5F]">เลขประจำตัว / รหัส {student.studentCode || '-'}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={awarded || awardingStudentId === student.id}
+                        onClick={() => void handleAwardParticipationPoint(student)}
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-black transition ${
+                          awarded
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 active:scale-95'
+                        }`}
+                      >
+                        {awarded ? <Check size={14} /> : <Award size={14} />}
+                        <span>{awarded ? 'ให้แล้ว +1' : '+1 มีส่วนร่วม'}</span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ol>
             ) : null}
           </div>
@@ -532,6 +684,40 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
                   <input className="nexus-field mt-1.5" min="1" onChange={(event) => setGroupSize(event.target.value)} type="number" value={groupSize} />
                 </label>
               ) : null}
+              <div className="grid gap-2 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] p-3 text-xs">
+                <div className="flex items-center justify-between font-bold text-[#1C573D]">
+                  <span className="inline-flex items-center gap-1.5">
+                    <UserCheck size={14} />
+                    รายชื่อพร้อมสุ่มวันนี้
+                  </span>
+                  <span>
+                    {eligibleStudents.length} / {classroomStudents.length} คน
+                  </span>
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 font-semibold text-[#465549]">
+                  <input
+                    type="checkbox"
+                    checked={excludeAbsentToday}
+                    onChange={(e) => setExcludeAbsentToday(e.target.checked)}
+                    className="h-4 w-4 rounded border-stone-300 accent-[#2F7D5B]"
+                  />
+                  <span>
+                    ตัดคนขาด/ลา/ป่วยวันนี้อัตโนมัติ
+                    {absentStudentIdsToday.size > 0 ? ` (${absentStudentIdsToday.size} คน)` : ''}
+                  </span>
+                </label>
+                {mode === 'single' && (
+                  <label className="flex cursor-pointer items-center gap-2 font-semibold text-[#465549]">
+                    <input
+                      type="checkbox"
+                      checked={fairMode}
+                      onChange={(e) => setFairMode(e.target.checked)}
+                      className="h-4 w-4 rounded border-stone-300 accent-[#2F7D5B]"
+                    />
+                    <span>โหมดสุ่มยุติธรรม (เรียงคนที่ยังไม่ค่อยถูกเรียกก่อน)</span>
+                  </label>
+                )}
+              </div>
             </div>
             <button className="blue-action mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-300" disabled={isLoading} type="submit">
               <Sparkles size={17} aria-hidden="true" />
@@ -629,17 +815,36 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
 
               {currentResult?.picked ? (
                 <ol className="grid gap-3">
-                  {currentResult.picked.map((student, index) => (
-                    <li className="flex items-center gap-3 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4" key={`${student.id}-${index}`}>
-                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#2F7D5B] font-display text-sm font-bold text-white shadow-2xs">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-display font-bold text-[#1F2A22]">{student.label}</p>
-                        <p className="text-xs font-semibold text-[#5B6A5F]">รหัส {student.studentCode || '-'}</p>
-                      </div>
-                    </li>
-                  ))}
+                  {currentResult.picked.map((student, index) => {
+                    const awarded = Boolean(bonusAwardedIds[student.id]);
+                    return (
+                      <li className="flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3D7] bg-[#FAFBF8] p-4" key={`${student.id}-${index}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#2F7D5B] font-display text-sm font-bold text-white shadow-2xs">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-display font-bold text-[#1F2A22] truncate">{student.label}</p>
+                            <p className="text-xs font-semibold text-[#5B6A5F]">รหัส {student.studentCode || '-'}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={awarded || awardingStudentId === student.id}
+                          onClick={() => void handleAwardParticipationPoint(student)}
+                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                            awarded
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 active:scale-95'
+                          }`}
+                          title="บันทึก +1 แต้มความดี (การมีส่วนร่วม) ลงบอร์ดพฤติกรรมทันที"
+                        >
+                          {awarded ? <Check size={13} /> : <Award size={13} />}
+                          <span>{awarded ? 'ให้แล้ว +1 ✓' : '+1 แต้มมีส่วนร่วม'}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ol>
               ) : null}
 
@@ -659,12 +864,29 @@ export function RandomizerPage({ session }: RandomizerPageProps) {
               รายชื่อนักเรียนในชุดสุ่ม ({classroomStudents.length} คน)
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {classroomStudents.map((student) => (
-                <div className="rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] p-3" key={student.id}>
-                  <p className="font-bold text-[#1F2A22]">{getStudentLabel(student)}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#5B6A5F]">รหัส {student.student_code || '-'}</p>
-                </div>
-              ))}
+              {classroomStudents.map((student) => {
+                const isAbsent = absentStudentIdsToday.has(student.id);
+                return (
+                  <div
+                    className={`rounded-xl border p-3 ${
+                      isAbsent && excludeAbsentToday
+                        ? 'border-rose-200 bg-rose-50/50 opacity-65'
+                        : 'border-[#DCE3D7] bg-[#FAFBF8]'
+                    }`}
+                    key={student.id}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-bold text-[#1F2A22] truncate">{getStudentLabel(student)}</p>
+                      {isAbsent && (
+                        <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                          ขาด/ลาวันนี้
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-[#5B6A5F]">รหัส {student.student_code || '-'}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

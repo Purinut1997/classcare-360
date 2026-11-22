@@ -69,14 +69,115 @@ function normalizeChannels(channels: NotificationChannel[] | undefined): Notific
   return normalized.length > 0 ? normalized : ['in_app'];
 }
 
-async function skipUnlinkedChannel(channel: 'telegram' | 'line'): Promise<DispatchResult> {
-  // A destination must come from a verified, profile-scoped link on the server.
-  // Never send private school/student data to an ID supplied by a browser.
-  return {
-    channel,
-    errorMessage: `${channel} delivery requires a verified account link for this recipient`,
-    status: 'skipped',
-  };
+async function sendLinkedLineMessage(
+  serviceClient: ReturnType<typeof createClient>,
+  workspaceId: string,
+  profileId: string,
+  studentId: string | null | undefined,
+  title: string,
+  body: string,
+): Promise<DispatchResult> {
+  const accessToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')?.trim();
+  if (!accessToken) {
+    return {
+      channel: 'line',
+      errorMessage: 'LINE_CHANNEL_ACCESS_TOKEN is not configured on the server',
+      status: 'skipped',
+    };
+  }
+
+  let lineUserId: string | null = null;
+
+  // Prefer verified guardian link with explicit consent for this student/workspace
+  if (studentId) {
+    const { data: guardianRow } = await serviceClient
+      .from('student_guardians')
+      .select('line_user_id')
+      .eq('workspace_id', workspaceId)
+      .eq('student_id', studentId)
+      .eq('profile_id', profileId)
+      .eq('consent_status', 'granted')
+      .maybeSingle();
+
+    const gLine = typeof guardianRow?.line_user_id === 'string' ? guardianRow.line_user_id.trim() : '';
+    if (gLine) lineUserId = gLine;
+  }
+
+  if (!lineUserId) {
+    const { data: anyGuardianRow } = await serviceClient
+      .from('student_guardians')
+      .select('line_user_id')
+      .eq('workspace_id', workspaceId)
+      .eq('profile_id', profileId)
+      .eq('consent_status', 'granted')
+      .not('line_user_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    const gLine = typeof anyGuardianRow?.line_user_id === 'string' ? anyGuardianRow.line_user_id.trim() : '';
+    if (gLine) lineUserId = gLine;
+  }
+
+  if (!lineUserId) {
+    const { data: profileRow } = await serviceClient
+      .from('profiles')
+      .select('metadata')
+      .eq('id', profileId)
+      .maybeSingle();
+
+    const meta = (profileRow?.metadata as Record<string, unknown>) || {};
+    const pLine = typeof meta.line_user_id === 'string' ? meta.line_user_id.trim() : '';
+    if (pLine) lineUserId = pLine;
+  }
+
+  if (!lineUserId) {
+    return {
+      channel: 'line',
+      errorMessage: 'LINE delivery requires a verified line_user_id linked to this profile',
+      status: 'skipped',
+    };
+  }
+
+  try {
+    const response = await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: lineUserId,
+        messages: [
+          {
+            type: 'text',
+            text: `${title}\n\n${body}`.slice(0, 4800),
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      return {
+        channel: 'line',
+        errorMessage: `LINE HTTP ${response.status}${errText ? `: ${errText.slice(0, 180)}` : ''}`,
+        status: 'failed',
+      };
+    }
+
+    const requestId = response.headers.get('x-line-request-id') || undefined;
+    return {
+      channel: 'line',
+      providerMessageId: requestId,
+      status: 'sent',
+    };
+  } catch (error) {
+    return {
+      channel: 'line',
+      errorMessage: error instanceof Error ? error.message : 'LINE delivery failed',
+      status: 'failed',
+    };
+  }
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -430,7 +531,12 @@ Deno.serve(async (request) => {
       }
 
       if (channel === 'line') {
-        dispatchResults.push(await skipUnlinkedChannel('line'));
+        const targetStudentId =
+          queueItem?.student_id ||
+          (typeof payload.data?.student_id === 'string' ? payload.data.student_id : undefined);
+        dispatchResults.push(
+          await sendLinkedLineMessage(serviceClient, workspaceId, profileId, targetStudentId, title, body),
+        );
       }
     }
 

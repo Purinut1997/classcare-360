@@ -6,6 +6,10 @@ export interface ScheduleCell {
   classroom: string;
   subject: string;
   subjectCode?: string;
+  teacherName?: string;
+  substituteTeacherName?: string;
+  substituteDate?: string;
+  substituteNote?: string;
 }
 
 export interface SchedulePeriod {
@@ -121,9 +125,9 @@ export function getDefaultSchoolReportIdentity(): SchoolReportIdentity {
     schoolLogoDataUrl: '',
     schoolName: 'โรงเรียนตัวอย่าง ClassCare',
     teacherName: '',
-    district: 'อ.ขุขันธ์',
-    province: 'จ.ศรีสะเกษ',
-    jurisdiction: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
+    district: '',
+    province: '',
+    jurisdiction: '',
     useGarudaInsteadOfLogo: false,
   };
 }

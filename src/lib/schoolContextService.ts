@@ -8,14 +8,34 @@ import {
   type ScheduleSettings,
 } from './scheduleSettings';
 
+const SCHOOL_CONTEXT_CACHE_TTL_MS = 90_000;
+const schoolContextCache = new Map<string, { context: string; expiresAt: number }>();
+
+/**
+ * Invalidates cached live AI school context after edits (or for all workspaces if omitted).
+ */
+export function invalidateSchoolContextCache(workspaceId?: string) {
+  if (!workspaceId) {
+    schoolContextCache.clear();
+    return;
+  }
+  for (const key of schoolContextCache.keys()) {
+    if (key.startsWith(`${workspaceId}:`)) {
+      schoolContextCache.delete(key);
+    }
+  }
+}
+
 /**
  * Compiles comprehensive real-time school context directly from Supabase,
  * strictly scoped to the authenticated user's role, assigned classrooms,
  * and module capabilities so AI responses never leak unauthorized records.
+ * Uses a 90-second per-user/view TTL cache to eliminate redundant queries during chat turns.
  */
 export async function fetchLiveSchoolDataContext(
   session: AppSessionContext | null | undefined,
-  activeView: string = 'dashboard'
+  activeView: string = 'dashboard',
+  options?: { forceRefresh?: boolean },
 ): Promise<string> {
   if (!session?.workspace?.id || !isSupabaseReady || !supabase) {
     return `[บริบทปัจจุบัน: หน้า '${activeView}' ห้องเรียน: '${session?.workspace?.classroomName || 'ไม่ได้เลือก'}' ปีการศึกษา: '${session?.workspace?.academicYear || '2569'}']\n(หมายเหตุ: ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล)`;
@@ -32,6 +52,14 @@ export async function fetchLiveSchoolDataContext(
       `• ขอบเขตข้อมูล: เฉพาะข้อมูลพอร์ทัลส่วนตัวของผู้ใช้งานเท่านั้น (ห้ามเปิดเผยข้อมูลนักเรียนรายอื่นหรือข้อมูลภายในของโรงเรียน)`,
       `• หน้าปัจจุบัน: ${activeView}`,
     ].join('\n');
+  }
+
+  const cacheKey = `${session.workspace.id}:${session.profile.id}:${role}:${activeView}`;
+  if (!options?.forceRefresh) {
+    const cached = schoolContextCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.context;
+    }
   }
 
   const workspaceId = session.workspace.id;
@@ -854,6 +882,11 @@ export async function fetchLiveSchoolDataContext(
     context += `3. เมื่อคุณครูขอให้ช่วยบันทึกวันหยุด/วันสอบ/กิจกรรม (เช่น "ช่วยบันทึกวันหยุด 23 ต.ค. วันปิยมหาราช") ให้สรุปรายละเอียดและสร้างปุ่มยืนยันบันทึกในรูปแบบ:\n   [CALENDAR:YYYY-MM-DD:holiday:ชื่อวัน:บันทึกวันหยุดลงปฏิทินทันที]\n   และหากคุณครูขอให้บันทึกวันหยุดทั้งปี หรือวันหยุดราชการประจำปี 2569 ให้สรุปรายชื่อวันหยุดและสร้างปุ่มเดียวในรูปแบบ:\n   [CALENDAR_BATCH:2026:บันทึกวันหยุดราชการทั้งปี 2569 (20 วัน) ลงปฏิทินทันที]\n`;
     context += `4. รักษาความปลอดภัยของข้อมูล: ห้ามเปิดเผยข้อมูลที่ละเมิด PDPA เช่น ห้ามกุหรือสร้างเลขบัตรประชาชน\n`;
     context += `=== [สิ้นสุดข้อมูลจริง 7 มิติจากระบบ ClassCare 360] ===\n\n`;
+
+    schoolContextCache.set(cacheKey, {
+      context,
+      expiresAt: Date.now() + SCHOOL_CONTEXT_CACHE_TTL_MS,
+    });
 
     return context;
   } catch (error) {

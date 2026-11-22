@@ -1,0 +1,66 @@
+name: Scheduled 24/7 Early Warning & Daily Digest Cron
+
+on:
+  schedule:
+    # 06:00 Asia/Bangkok (23:00 UTC previous day) — Morning Digest & Early Warning scan
+    - cron: '0 23 * * *'
+    # 16:30 Asia/Bangkok (09:30 UTC) — Evening Digest & Early Warning scan
+    - cron: '30 9 * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Automation cron job to execute'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - early_warning
+          - morning_digest
+          - evening_digest
+
+permissions:
+  contents: read
+
+jobs:
+  run-cron:
+    name: Invoke scheduled-automation-cron Edge Function
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine scheduled job type
+        id: resolve_job
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 23 * * *" ]; then
+            echo "job=morning_digest" >> "$GITHUB_OUTPUT"
+          else
+            echo "job=evening_digest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run early warning & digest cron
+        env:
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_PROJECT_REF:?Add the SUPABASE_PROJECT_REF repository variable}"
+          : "${CRON_SECRET:?Add the CRON_SECRET repository secret}"
+
+          endpoint="https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/scheduled-automation-cron"
+          # First evaluate early warning rules across all active workspaces
+          curl --fail-with-body -sS -X POST "$endpoint" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -d '{"job":"early_warning"}'
+          echo ""
+
+          # Next run selected digest (or both on manual 'all')
+          selected_job="${{ steps.resolve_job.outputs.job }}"
+          if [ "$selected_job" != "early_warning" ]; then
+            curl --fail-with-body -sS -X POST "$endpoint" \
+              -H "Content-Type: application/json" \
+              -H "x-cron-secret: ${CRON_SECRET}" \
+              -d "{\"job\":\"${selected_job}\"}"
+            echo ""
+          fi

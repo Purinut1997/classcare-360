@@ -265,6 +265,30 @@ export function AutomationCenterPage({ embedded = false, session }: AutomationCe
     }
   }
 
+  async function toggleQueueChannel(item: QueueRow, channel: 'in_app' | 'line') {
+    if (!supabase || !(canApproveMessages || canPrepareMessages) || isDemoSession(session)) return;
+    if (item.status !== 'pending' && item.status !== 'approved') return;
+
+    const currentChannels = Array.isArray(item.channels) && item.channels.length > 0 ? item.channels : ['in_app'];
+    const hasChannel = currentChannels.includes(channel);
+    const nextChannels = hasChannel
+      ? currentChannels.filter((c) => c !== channel)
+      : [...currentChannels, channel];
+    const normalized = nextChannels.length > 0 ? nextChannels : ['in_app'];
+
+    const { error } = await supabase
+      .from('communication_approval_queue')
+      .update({ channels: normalized })
+      .eq('id', item.id)
+      .eq('workspace_id', workspaceId);
+
+    if (error) {
+      feedback.error({ title: 'เปลี่ยนช่องทางส่งไม่สำเร็จ', message: error.message });
+    } else {
+      setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, channels: normalized } : q)));
+    }
+  }
+
   async function sendApproved(item: QueueRow) {
     if (!supabase || !canPrepareMessages || isDemoSession(session)) return;
     if (!item.recipient_profile_id) {
@@ -292,7 +316,7 @@ export function AutomationCenterPage({ embedded = false, session }: AutomationCe
         <div className="automation-header-info">
           <div className="automation-status-badge">
             <span className="live-radar-dot"></span>
-            <span>ระบบเฝ้าระวังอัตโนมัติ (Early Warning Engine) • ตรวจจับ 24/7</span>
+            <span>ระบบเฝ้าระวังอัตโนมัติ (Early Warning Engine) • Cron 06:00 / 16:30 น. + LINE OA Push</span>
             <span className="automation-badge-sep">•</span>
             <span className="automation-school-tag">{session.workspace?.name ?? 'ClassCare 360'}</span>
           </div>
@@ -600,6 +624,20 @@ export function AutomationCenterPage({ embedded = false, session }: AutomationCe
                             <span key={ch} className="channel-tag">{ch.toUpperCase()}</span>
                           ))}
                         </div>
+                      ) : null}
+                      {(item.status === 'pending' || item.status === 'approved') && (canApproveMessages || canPrepareMessages) && !demoMode ? (
+                        <button
+                          type="button"
+                          onClick={() => void toggleQueueChannel(item, 'line')}
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold transition ${
+                            item.channels?.includes('line')
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-emerald-50/60'
+                          }`}
+                          title="เปิด/ปิด การส่งข้อความซ้ำทาง LINE OA เมื่อกดอนุมัติและส่ง"
+                        >
+                          {item.channels?.includes('line') ? 'LINE OA: เปิด ✓' : '+ ส่งผ่าน LINE OA'}
+                        </button>
                       ) : null}
                     </div>
                     <span className={`approval-status-tag ${item.status}`}>

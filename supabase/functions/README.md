@@ -138,7 +138,7 @@ supabase/functions/dispatch-notification/index.ts
 - รองรับ channel:
   - `in_app`: สร้าง notification และ log สถานะ `queued`
   - `telegram`: ส่งถึงบัญชี Telegram ที่ครูผู้รับเชื่อมและยืนยันไว้ โดยอ่าน token/ปลายทางจากตารางฝั่ง server และตรวจตัวเลือกของครู
-  - `line`: ปิดการส่งจริง และจะถูกบันทึกเป็น `skipped`; หน้าแจ้งเตือนไม่แสดง LINE ให้ตั้งค่า
+  - `line`: ส่งข้อความ Push ผ่าน LINE Messaging API (`LINE_CHANNEL_ACCESS_TOKEN`) ไปยัง `student_guardians.line_user_id` ที่ consent เป็น `granted` หรือ `profiles.metadata.line_user_id` (หากยังไม่ได้ตั้ง token หรือปลายทางยังไม่ผูก จะถูกบันทึกเป็น `skipped`)
 
 Environment ที่ต้องมีใน Supabase Functions:
 
@@ -193,3 +193,21 @@ Path: `supabase/functions/manage-telegram-account/index.ts`
 - ห้ามใส่ `TELEGRAM_BOT_TOKEN`, `LINE_CHANNEL_ACCESS_TOKEN` หรือ `SUPABASE_SERVICE_ROLE_KEY` ใน frontend
 - ห้ามส่งข้อความโดยรับ Telegram chat ID หรือ LINE user ID จาก payload ของ browser; ต้องอ่านปลายทางที่จับคู่และยืนยันกับ `workspace_id + profile_id` จากฝั่ง server เท่านั้น
 - ก่อนเปิด production ต้องทดสอบ log, audit, rate limit, retry และกรณี provider ตอบ error
+
+## ai-gemini-proxy
+
+Path: `supabase/functions/ai-gemini-proxy/index.ts`
+
+Proxy ฝั่งเซิร์ฟเวอร์สำหรับเรียก Google Gemini API (รองรับโหมด `chat`, `vision`, `prompt`) เพื่อลดการพึ่งพาเบราว์เซอร์โดยตรง:
+- ตรวจสอบ Bearer Token และสิทธิ์สมาชิก workspace (`teacher_owner`, `teacher_member`, `viewer`) หรือ `superadmin_profiles`
+- เลือกใช้ API Key ตามลำดับ: `profiles.personal_gemini_api_key` -> `workspaces.gemini_api_key` -> secret `GEMINI_API_KEY` -> fallback ใน payload
+- รองรับการสลับโมเดลจริง (`gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`, `gemini-2.5-pro`) อัตโนมัติ
+
+## scheduled-automation-cron
+
+Path: `supabase/functions/scheduled-automation-cron/index.ts`
+
+Endpoint สำหรับตั้งเวลาทำงานอัตโนมัติ 24/7 (เรียกผ่าน `.github/workflows/scheduled-automation-cron.yml` เวลา 06:00 น. และ 16:30 น. เวลาไทย):
+- ยืนยันตัวตนด้วย header `x-cron-secret` ตรงกับ secret `CRON_SECRET` (หรือ Bearer token ของ active superadmin)
+- โหมด `early_warning`: รัน RPC `evaluate_early_warning_signals` กับทุก workspace ที่เปิด `automation_rules`
+- โหมด `morning_digest` / `evening_digest`: ส่งสรุปรายวันไปยังครูที่เปิด Telegram และตั้งค่า digest ไว้ พร้อมบันทึก idempotency ลง `teacher_notification_delivery_log`

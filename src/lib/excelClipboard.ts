@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import { downloadExcelBuffer } from './excelReport';
 
 export interface CopyToExcelOptions {
@@ -141,6 +140,7 @@ export async function exportTableToXlsxFile({
   headers: string[];
   rows: (string | number | null | undefined)[][];
 }) {
+  const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'ClassCare 360';
   workbook.created = new Date();

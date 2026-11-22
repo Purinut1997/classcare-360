@@ -402,6 +402,7 @@ export function NotificationsPage({ initialTab, session }: NotificationsPageProp
 
   // Live Task States
   const [attendanceCheckedToday, setAttendanceCheckedToday] = useState<boolean>(true);
+  const [nonAttendanceDayReason, setNonAttendanceDayReason] = useState<string | null>(null);
   const [absentStudentsToday, setAbsentStudentsToday] = useState<number>(demoMode ? 2 : 0);
   const [lateStudentsToday, setLateStudentsToday] = useState<number>(demoMode ? 1 : 0);
   const [careCases, setCareCases] = useState<CareCaseItem[]>(demoMode ? demoCareCases : []);
@@ -915,13 +916,16 @@ export function NotificationsPage({ initialTab, session }: NotificationsPageProp
     setIsLoadingActivity(true);
     setNotice(null);
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getBangkokDate();
+    const bangkokDayOfWeek = new Date(`${todayStr}T12:00:00+07:00`).getUTCDay();
+    const isWeekendToday = bangkokDayOfWeek === 0 || bangkokDayOfWeek === 6;
     const activityFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     try {
       const [
         notifsRes,
         attendanceRes,
+        calendarRes,
         careCasesRes,
         signalsRes,
         homeVisitsRes,
@@ -940,6 +944,12 @@ export function NotificationsPage({ initialTab, session }: NotificationsPageProp
           .select('id,attendance_date,status,attendance_records(status, student_id)')
           .eq('workspace_id', workspaceId)
           .eq('attendance_date', todayStr),
+        supabase
+          .from('school_calendar_days')
+          .select('title,day_type,affects_attendance')
+          .eq('workspace_id', workspaceId)
+          .eq('calendar_date', todayStr)
+          .limit(1),
         supabase
           .from('student_care_cases')
           .select('id,student_id,case_type,risk_level,status,summary,next_action,opened_at,student:students(id,first_name,last_name,student_code)')
@@ -979,6 +989,15 @@ export function NotificationsPage({ initialTab, session }: NotificationsPageProp
 
       if (notifsRes.data) {
         setNotifications(notifsRes.data as NotificationRow[]);
+      }
+
+      const calDay = (calendarRes.data?.[0] || null) as { title?: string; day_type?: string; affects_attendance?: boolean } | null;
+      if (calDay && (calDay.affects_attendance === false || calDay.day_type === 'holiday' || calDay.day_type === 'closed')) {
+        setNonAttendanceDayReason(calDay.title || 'วันหยุดตามปฏิทินโรงเรียน');
+      } else if (isWeekendToday) {
+        setNonAttendanceDayReason(bangkokDayOfWeek === 0 ? 'วันอาทิตย์ (วันหยุดสุดสัปดาห์)' : 'วันเสาร์ (วันหยุดสุดสัปดาห์)');
+      } else {
+        setNonAttendanceDayReason(null);
       }
 
       // 1. Process Attendance Today
@@ -1443,7 +1462,21 @@ export function NotificationsPage({ initialTab, session }: NotificationsPageProp
               {/* Left 2 Columns: Action Item Cards */}
               <div className="space-y-4 lg:col-span-2">
                 {/* 1. Daily Attendance Action Card */}
-                {!attendanceCheckedToday ? (
+                {!attendanceCheckedToday && nonAttendanceDayReason ? (
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-slate-200 text-slate-700">
+                        <CalendarDays size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-slate-900">วันนี้เป็น{nonAttendanceDayReason}</h3>
+                        <p className="text-xs font-bold text-slate-500">
+                          วันที่ {formatDate(getBangkokDate())} ไม่ต้องบันทึกการมาเรียนตามปฏิทินโรงเรียน
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : !attendanceCheckedToday ? (
                   <div className="rounded-3xl border-2 border-rose-300 bg-rose-50/70 p-4 sm:p-5 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
@@ -1458,7 +1491,7 @@ export function NotificationsPage({ initialTab, session }: NotificationsPageProp
                             <h3 className="font-black text-slate-950">ยังไม่ได้บันทึกการมาเรียนวันนี้!</h3>
                           </div>
                           <p className="mt-1 text-xs font-bold leading-5 text-rose-900">
-                            ยังไม่มีการเปิดเซสชันเช็คชื่อสำหรับวันที่ {formatDate(new Date().toISOString())} กรุณาเริ่มบันทึกเพื่อให้ผู้ปกครองและโรงเรียนทราบสถานะ
+                            ยังไม่มีการเปิดเซสชันเช็คชื่อสำหรับวันที่ {formatDate(getBangkokDate())} กรุณาเริ่มบันทึกเพื่อให้ผู้ปกครองและโรงเรียนทราบสถานะ
                           </p>
                         </div>
                       </div>

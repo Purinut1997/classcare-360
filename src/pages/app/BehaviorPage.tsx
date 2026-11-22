@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Award,
   BadgeAlert,
+  Bell,
   Check,
   ChevronDown,
   Download,
@@ -13,6 +14,8 @@ import {
   Pencil,
   Save,
   Search,
+  Send,
+  ShieldAlert,
   ShieldCheck,
   SmilePlus,
   Sparkles,
@@ -186,6 +189,14 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
   const [toneFilter, setToneFilter] = useState<'all' | BehaviorTone>('all');
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEscalating, setIsEscalating] = useState(false);
+  const [escalationPrompt, setEscalationPrompt] = useState<{
+    recordId: string;
+    student: StudentRow;
+    followUpStatus: FollowUpStatus;
+    category: string;
+    description: string;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local และรัน migration เพื่อบันทึกพฤติกรรมจริง',
   );
@@ -271,6 +282,35 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
     const totalPoints = classroomRecords.reduce((sum, record) => sum + record.points, 0);
     return { concern, followUp, positive, totalPoints };
   }, [classroomStudents, records]);
+
+  // Scoped fetch per active classroom so large schools do not miss records past global limit
+  useEffect(() => {
+    let active = true;
+
+    async function loadClassroomScopedBehavior() {
+      if (!supabase || !session.workspace || demoMode || classroomStudents.length === 0) return;
+      const studentIdList = classroomStudents.map((s) => s.id);
+      const { data, error } = await supabase
+        .from('behavior_records')
+        .select('id,workspace_id,student_id,tone,category,description,points,follow_up_status,behavior_date,recorded_by,created_at')
+        .eq('workspace_id', session.workspace.id)
+        .in('student_id', studentIdList)
+        .order('created_at', { ascending: false })
+        .limit(600);
+
+      if (!active || error || !data) return;
+      const idSet = new Set(studentIdList);
+      setRecords((prev) => {
+        const otherRooms = prev.filter((item) => !idSet.has(item.student_id));
+        return [...(data as BehaviorRecordRow[]), ...otherRooms];
+      });
+    }
+
+    void loadClassroomScopedBehavior();
+    return () => {
+      active = false;
+    };
+  }, [classroomId, classroomStudents, demoMode, session.workspace]);
 
   useEffect(() => {
     let isMounted = true;
@@ -444,7 +484,153 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
     setRecords((current) => [record, ...current]);
     setForm((current) => ({ ...current, description: '' }));
     setNotice('บันทึกพฤติกรรมแล้ว');
+    if (record.follow_up_status === 'contact_guardian' || record.follow_up_status === 'referred') {
+      const targetStudent = classroomStudents.find((s) => s.id === record.student_id) || selectedStudent;
+      if (targetStudent) {
+        setEscalationPrompt({
+          recordId: record.id,
+          student: targetStudent,
+          followUpStatus: record.follow_up_status,
+          category: record.category,
+          description: record.description,
+        });
+      }
+    }
     setIsSubmitting(false);
+  }
+
+  async function handleOpenCareCase(target: {
+    recordId: string;
+    student: StudentRow;
+    followUpStatus: FollowUpStatus;
+    category: string;
+    description: string;
+  }) {
+    setIsEscalating(true);
+    setNotice(null);
+    const studentName = `${target.student.first_name} ${target.student.last_name}`.trim();
+
+    if (!supabase || !session.workspace || demoMode) {
+      setNotice(`เปิดเคสดูแลช่วยเหลือนักเรียนให้ ${studentName} แล้ว [โหมดตัวอย่าง]`);
+      setEscalationPrompt(null);
+      setIsEscalating(false);
+      return;
+    }
+
+    const { error } = await supabase.from('student_care_cases').insert({
+      assigned_to: session.profile.id,
+      case_type: 'behavior',
+      metadata: {
+        category: target.category,
+        follow_up_status: target.followUpStatus,
+        source_behavior_id: target.recordId,
+      },
+      next_action:
+        target.followUpStatus === 'referred'
+          ? 'นัดประสานงานส่งต่อและวางแผนดูแลเฉพาะราย'
+          : 'ติดตามพูดคุยกับนักเรียนและประสานผู้ปกครอง',
+      opened_by: session.profile.id,
+      risk_level: target.followUpStatus === 'referred' ? 'high' : 'medium',
+      status: 'open',
+      student_id: target.student.id,
+      summary: `[พฤติกรรม: ${target.category}] ${target.description}`,
+      workspace_id: session.workspace.id,
+    });
+
+    if (error) {
+      setNotice(`เปิดเคสดูแลไม่สำเร็จ: ${error.message}`);
+      setIsEscalating(false);
+      return;
+    }
+
+    await writeAuditLog(session, {
+      action: 'behavior.care_case.opened',
+      entityId: target.recordId,
+      entityTable: 'student_care_cases',
+      metadata: { category: target.category, student_id: target.student.id },
+      riskLevel: 'normal',
+      source: 'behavior_center',
+    });
+
+    setNotice(`เปิดเคสดูแลนักเรียนให้ ${studentName} เรียบร้อยแล้ว`);
+    setEscalationPrompt(null);
+    setIsEscalating(false);
+  }
+
+  async function handleQueueGuardianNotice(target: {
+    recordId: string;
+    student: StudentRow;
+    followUpStatus: FollowUpStatus;
+    category: string;
+    description: string;
+  }) {
+    setIsEscalating(true);
+    setNotice(null);
+    const studentName = `${target.student.first_name} ${target.student.last_name}`.trim();
+
+    if (!supabase || !session.workspace || demoMode) {
+      setNotice(`ส่งเรื่องแจ้งผู้ปกครองของ ${studentName} เข้าคิวรอตรวจสอบแล้ว [โหมดตัวอย่าง]`);
+      setEscalationPrompt(null);
+      setIsEscalating(false);
+      return;
+    }
+
+    const activeWorkspaceId = session.workspace.id;
+    const { data: guardians, error: guardianError } = await supabase
+      .from('student_guardians')
+      .select('student_id,profile_id,relation,display_name')
+      .eq('workspace_id', activeWorkspaceId)
+      .eq('consent_status', 'granted')
+      .eq('student_id', target.student.id);
+
+    if (guardianError) {
+      setNotice(`ดึงข้อมูลผู้ปกครองไม่สำเร็จ: ${guardianError.message}`);
+      setIsEscalating(false);
+      return;
+    }
+
+    const targets = ((guardians || []) as Array<{
+      student_id: string;
+      profile_id: string | null;
+      relation: string;
+      display_name: string;
+    }>).filter((g) => Boolean(g.profile_id));
+
+    if (targets.length === 0) {
+      setNotice(`ยังไม่มีผู้ปกครองของ ${studentName} ที่ผูกบัญชีและให้ความยินยอม (consent = granted)`);
+      setIsEscalating(false);
+      return;
+    }
+
+    const rows = targets.map((guardian) => ({
+      body: `${studentName} มีบันทึกพฤติกรรม (${target.category}): ${target.description}`,
+      channels: ['in_app'],
+      consent_snapshot: { consent_status: 'granted', relation: guardian.relation },
+      created_by: session.profile.id,
+      reason: `ส่งต่อจากบันทึกพฤติกรรม (${followUpLabels[target.followUpStatus]}) รอครูอนุมัติก่อนส่ง`,
+      recipient_name: guardian.display_name,
+      recipient_profile_id: guardian.profile_id,
+      source_id: target.recordId,
+      source_type: 'behavior_record',
+      status: 'pending',
+      student_id: target.student.id,
+      title: `แจ้งติดตามพฤติกรรม: ${studentName}`,
+      workspace_id: activeWorkspaceId,
+    }));
+
+    const { error: queueError } = await supabase
+      .from('communication_approval_queue')
+      .upsert(rows, { ignoreDuplicates: true });
+
+    if (queueError) {
+      setNotice(`ส่งเข้าคิวแจ้งผู้ปกครองไม่สำเร็จ: ${queueError.message}`);
+      setIsEscalating(false);
+      return;
+    }
+
+    setNotice(`เตรียมข้อความแจ้งผู้ปกครองของ ${studentName} เข้าคิวรออนุมัติแล้ว (${rows.length} ราย)`);
+    setEscalationPrompt(null);
+    setIsEscalating(false);
   }
 
   async function handleSaveDailyStars() {
@@ -547,6 +733,15 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
         setRecords((current) => [record, ...current]);
         setSheetStudent(null);
         setNotice(`บันทึกพฤติกรรมของน้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย [โหมดตัวอย่าง]`);
+        if (record.follow_up_status === 'contact_guardian' || record.follow_up_status === 'referred') {
+          setEscalationPrompt({
+            recordId: record.id,
+            student: sheetStudent,
+            followUpStatus: record.follow_up_status,
+            category: record.category,
+            description: record.description,
+          });
+        }
         return;
       }
 
@@ -571,6 +766,15 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
       setRecords((current) => [record, ...current]);
       setSheetStudent(null);
       setNotice(`บันทึกพฤติกรรมของน้อง${sheetStudent.nickname || sheetStudent.first_name}เรียบร้อย`);
+      if (record.follow_up_status === 'contact_guardian' || record.follow_up_status === 'referred') {
+        setEscalationPrompt({
+          recordId: record.id,
+          student: sheetStudent,
+          followUpStatus: record.follow_up_status,
+          category: record.category,
+          description: record.description,
+        });
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setNotice(`บันทึกไม่สำเร็จ: ${msg}`);
@@ -714,6 +918,51 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
             <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#57534e]" />
           </div>
         </div>
+
+        {/* 1-Click Behavior Escalation Prompt */}
+        {escalationPrompt && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-300 bg-rose-50/90 p-3.5 text-xs sm:text-sm text-rose-950 shadow-xs">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <ShieldAlert size={18} className="mt-0.5 shrink-0 text-rose-600" />
+              <div className="min-w-0">
+                <p className="font-black">
+                  ส่งต่อการติดตาม: {escalationPrompt.student.first_name} {escalationPrompt.student.last_name} ({followUpLabels[escalationPrompt.followUpStatus]})
+                </p>
+                <p className="text-xs font-medium text-rose-800 truncate">
+                  {escalationPrompt.category} — {escalationPrompt.description}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={isEscalating}
+                onClick={() => void handleOpenCareCase(escalationPrompt)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-700 px-3 py-1.5 text-xs font-black text-white shadow-xs hover:bg-rose-800 disabled:opacity-50"
+              >
+                <ShieldAlert size={13} />
+                <span>เปิดเคสดูแลนักเรียน</span>
+              </button>
+              <button
+                type="button"
+                disabled={isEscalating}
+                onClick={() => void handleQueueGuardianNotice(escalationPrompt)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-400 bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-950 hover:bg-amber-200 disabled:opacity-50"
+              >
+                <Send size={13} />
+                <span>ส่งเข้าคิวแจ้งผู้ปกครอง</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEscalationPrompt(null)}
+                className="rounded-lg p-1 text-rose-700 hover:bg-rose-100"
+                title="ปิดแถบส่งต่อ"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ======================================================== */}
         {/* POST-IT BOARD MODE                                       */}
@@ -1115,6 +1364,44 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
                               )}
                             </div>
                             <p className="mt-1.5 font-bold text-[#3f3a36]">{record.description}</p>
+                            {(record.follow_up_status === 'contact_guardian' || record.follow_up_status === 'referred') && selectedStudent && (
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={isEscalating}
+                                  onClick={() =>
+                                    void handleOpenCareCase({
+                                      recordId: record.id,
+                                      student: selectedStudent,
+                                      followUpStatus: record.follow_up_status,
+                                      category: record.category,
+                                      description: record.description,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                                >
+                                  <ShieldAlert size={11} />
+                                  เปิดเคสดูแล
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isEscalating}
+                                  onClick={() =>
+                                    void handleQueueGuardianNotice({
+                                      recordId: record.id,
+                                      student: selectedStudent,
+                                      followUpStatus: record.follow_up_status,
+                                      category: record.category,
+                                      description: record.description,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                                >
+                                  <Bell size={11} />
+                                  แจ้งผู้ปกครอง
+                                </button>
+                              </div>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
                             <span className={`text-base font-bold ${record.points >= 0 ? 'text-[#2F7D5B]' : 'text-[#C25970]'}`}>

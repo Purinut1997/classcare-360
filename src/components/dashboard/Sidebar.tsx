@@ -73,6 +73,7 @@ const sidebarSections: SidebarSectionConfig[] = [
       'daily-brief',
       'reports',
       'randomizer',
+      'math-games',
       'school-calendar',
     ],
   },

@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -43,17 +43,31 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
-import { ScoreOcrModal } from '../../components/scores/ScoreOcrModal';
-import { RubricAndQuizModal } from '../../components/scores/RubricAndQuizModal';
-import { AcademicSubjectsModal } from '../../components/academic/AcademicSubjectsModal';
-import { OfficialAcademicDocumentsModal } from '../../components/academic/OfficialAcademicDocumentsModal';
-import { TermClosingWizardModal } from '../../components/academic/TermClosingWizardModal';
+const ScoreOcrModal = lazy(() =>
+  import('../../components/scores/ScoreOcrModal').then((m) => ({ default: m.ScoreOcrModal })),
+);
+const RubricAndQuizModal = lazy(() =>
+  import('../../components/scores/RubricAndQuizModal').then((m) => ({ default: m.RubricAndQuizModal })),
+);
+const AcademicSubjectsModal = lazy(() =>
+  import('../../components/academic/AcademicSubjectsModal').then((m) => ({ default: m.AcademicSubjectsModal })),
+);
+const OfficialAcademicDocumentsModal = lazy(() =>
+  import('../../components/academic/OfficialAcademicDocumentsModal').then((m) => ({
+    default: m.OfficialAcademicDocumentsModal,
+  })),
+);
+const TermClosingWizardModal = lazy(() =>
+  import('../../components/academic/TermClosingWizardModal').then((m) => ({ default: m.TermClosingWizardModal })),
+);
 
 import { getBangkokDate } from '../../lib/date';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
+import { enqueueOfflineMutation, isLikelyNetworkError } from '../../lib/offlineSyncQueue';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
 import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
+import { getLocalScoreRatio, loadCloudScoreRatio, saveCloudScoreRatio } from '../../lib/workspaceCloudPrefs';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 
@@ -403,16 +417,28 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [isStickyRoster, setIsStickyRoster] = useState(true);
   const totalGuideSteps = 6;
 
-  // Configurable score ratio (Default: 50 / 20 / 30)
+  // Configurable score ratio synced to Supabase workspaces.settings (Default: 50 / 20 / 30)
   const [scoreRatio, setScoreRatio] = useState<{ coursework: number; midterm: number; final: number }>(() => {
-    try {
-      const saved = localStorage.getItem('classcare_score_ratio');
-      if (saved) return JSON.parse(saved) as { coursework: number; midterm: number; final: number };
-    } catch {
-      // ignore
-    }
-    return { coursework: 50, midterm: 20, final: 30 };
+    return getLocalScoreRatio(session.workspace?.id, undefined) || { coursework: 50, midterm: 20, final: 30 };
   });
+
+  useEffect(() => {
+    let active = true;
+    const wsId = session.workspace?.id;
+    const localCached = getLocalScoreRatio(wsId, subjectFilter);
+    if (localCached) {
+      setScoreRatio(localCached);
+    }
+    if (!wsId || demoMode) return;
+    void loadCloudScoreRatio(wsId, subjectFilter).then((cloudRatio) => {
+      if (active && cloudRatio) {
+        setScoreRatio(cloudRatio);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [demoMode, session.workspace?.id, subjectFilter]);
   const [isRatioModalOpen, setIsRatioModalOpen] = useState(false);
 
   // Edit Assessment state
@@ -903,19 +929,23 @@ export function ScoresPage({ session }: ScoresPageProps) {
             sum + (entriesByAssessment.get(assessment.id) || []).filter((entry) => entry.score !== null).length,
           0,
         );
+        const assessmentAverages = bandAssessments
+          .map((assessment) => {
+            const assessmentEntries = (entriesByAssessment.get(assessment.id) || []).filter(
+              (entry) => entry.score !== null,
+            );
+            if (assessmentEntries.length === 0) return null;
+            const safeMax = assessment.max_score > 0 ? assessment.max_score : 100;
+            return (
+              assessmentEntries.reduce((entrySum, entry) => entrySum + ((entry.score || 0) / safeMax) * 100, 0) /
+              assessmentEntries.length
+            );
+          })
+          .filter((val): val is number => val !== null);
+
         const averagePercent =
-          bandAssessments.length > 0
-            ? bandAssessments.reduce((sum, assessment) => {
-                const assessmentEntries = (entriesByAssessment.get(assessment.id) || []).filter(
-                  (entry) => entry.score !== null,
-                );
-                const safeMax = assessment.max_score > 0 ? assessment.max_score : 100;
-                return (
-                  sum +
-                  assessmentEntries.reduce((entrySum, entry) => entrySum + ((entry.score || 0) / safeMax) * 100, 0) /
-                    assessmentEntries.length
-                );
-              }, 0) / bandAssessments.length
+          assessmentAverages.length > 0
+            ? assessmentAverages.reduce((sum, val) => sum + val, 0) / assessmentAverages.length
             : 0;
 
         return {
@@ -1352,6 +1382,53 @@ export function ScoresPage({ session }: ScoresPageProps) {
     setNotice('ยกเลิกการแก้ไขที่ยังไม่ได้บันทึกแล้ว');
   }
 
+  function enqueueScoreEntriesOffline(
+    rows: Array<{
+      assessment_id: string;
+      note: string | null;
+      score: number | null;
+      student_id: string;
+      workspace_id: string;
+    }>,
+    label: string,
+  ) {
+    const wsId = session.workspace?.id || rows[0]?.workspace_id;
+    if (!wsId || rows.length === 0) return;
+
+    enqueueOfflineMutation({
+      kind: 'score_entries_batch',
+      label,
+      payload: {
+        entries: rows.map((row) => ({
+          assessment_id: row.assessment_id,
+          note: row.note,
+          score: row.score,
+          student_id: row.student_id,
+          workspace_id: wsId,
+        })),
+      },
+      workspaceId: wsId,
+    });
+
+    setEntries((current) => {
+      const updatedMap = new Map(current.map((item) => [`${item.student_id}::${item.assessment_id}`, item]));
+      rows.forEach((row) => {
+        const key = `${row.student_id}::${row.assessment_id}`;
+        const existing = updatedMap.get(key);
+        updatedMap.set(key, {
+          assessment_id: row.assessment_id,
+          id: existing?.id || `offline-score-${row.student_id}-${row.assessment_id}`,
+          note: row.note,
+          score: row.score,
+          student_id: row.student_id,
+        });
+      });
+      return Array.from(updatedMap.values());
+    });
+    setNotice(`ไม่มีอินเทอร์เน็ต — พัก ${rows.length} รายการคะแนนลงคิวออฟไลน์แล้ว ระบบจะซิงก์อัตโนมัติเมื่อเชื่อมต่อ`);
+    setIsSubmitting(false);
+  }
+
   async function handleSaveScores() {
     if (!selectedAssessment) return;
 
@@ -1405,12 +1482,21 @@ export function ScoresPage({ session }: ScoresPageProps) {
       return;
     }
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enqueueScoreEntriesOffline(payload, `บันทึกคะแนน: ${selectedAssessment.title}`);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('score_entries')
       .upsert(payload, { onConflict: 'assessment_id,student_id' })
       .select('id,assessment_id,student_id,score,note');
 
     if (error) {
+      if (isLikelyNetworkError(error)) {
+        enqueueScoreEntriesOffline(payload, `บันทึกคะแนน: ${selectedAssessment.title}`);
+        return;
+      }
       setNotice(error.message);
       setIsSubmitting(false);
       return;
@@ -1883,6 +1969,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
       return;
     }
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enqueueScoreEntriesOffline(payload, `ตารางคะแนนรวม ${subjectFilter || activeClassroom?.name || ''}`);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('score_entries')
       .upsert(
@@ -1898,6 +1989,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
       .select('id,assessment_id,student_id,score,note');
 
     if (error) {
+      if (isLikelyNetworkError(error)) {
+        enqueueScoreEntriesOffline(payload, `ตารางคะแนนรวม ${subjectFilter || activeClassroom?.name || ''}`);
+        return;
+      }
       setNotice(error.message);
       setIsSubmitting(false);
       return;
@@ -1991,6 +2086,55 @@ export function ScoresPage({ session }: ScoresPageProps) {
     const csv = [headers, ...rows].map((row) => row.map((val) => escapeCsv(val)).join(',')).join('\n');
     downloadTextFile(`gradebook-grid-${activeClassroom?.name || 'classroom'}-${subjectFilter || 'subject'}.csv`, `\uFEFF${csv}`, 'text/csv;charset=utf-8');
   }
+
+  const { remedialQueueRows, missingCountByStudent } = useMemo(() => {
+    const missingMap = new Map<string, number>();
+    if (contextAssessments.length === 0) {
+      return {
+        missingCountByStudent: missingMap,
+        remedialQueueRows: [] as Array<
+          (typeof studentGradebookRows)[number] & {
+            academicStatus: 'incomplete_r' | 'fail_0';
+            missingAssessments: ScoreAssessmentRow[];
+          }
+        >,
+      };
+    }
+
+    const queue: Array<
+      (typeof studentGradebookRows)[number] & {
+        academicStatus: 'incomplete_r' | 'fail_0';
+        missingAssessments: ScoreAssessmentRow[];
+      }
+    > = [];
+
+    studentGradebookRows.forEach((row) => {
+      const missingAssessments = contextAssessments.filter((assessment) => {
+        const entry = (entriesByAssessment.get(assessment.id) || []).find(
+          (item) => item.student_id === row.student.id,
+        );
+        return entry?.score === null || entry?.score === undefined;
+      });
+      missingMap.set(row.student.id, missingAssessments.length);
+
+      if (missingAssessments.length > 0) {
+        queue.push({ ...row, academicStatus: 'incomplete_r', missingAssessments });
+      } else if (row.plannedWeight > 0 && row.finalPercent < 50) {
+        queue.push({ ...row, academicStatus: 'fail_0', missingAssessments: [] });
+      }
+    });
+
+    return { missingCountByStudent: missingMap, remedialQueueRows: queue };
+  }, [contextAssessments, entriesByAssessment, studentGradebookRows]);
+
+  const incompleteRCount = useMemo(
+    () => remedialQueueRows.filter((row) => row.academicStatus === 'incomplete_r').length,
+    [remedialQueueRows],
+  );
+  const fail0Count = useMemo(
+    () => remedialQueueRows.filter((row) => row.academicStatus === 'fail_0').length,
+    [remedialQueueRows],
+  );
 
   return (
     <main className="app-page pb-24">
@@ -2390,9 +2534,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
           ) : null}
 
           <Link
-            to="/app/dashboard?view=omr-scanner"
+            to={`/app/dashboard?view=omr-scanner&classroomId=${encodeURIComponent(classroomId || '')}&subjectName=${encodeURIComponent(subjectFilter || '')}${selectedAssessment?.id ? `&assessmentId=${encodeURIComponent(selectedAssessment.id)}` : ''}`}
             className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-cyan-300 bg-gradient-to-r from-cyan-500/10 via-cyan-500/5 to-transparent px-3.5 text-xs font-black text-cyan-900 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50 transition shrink-0"
-            title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง"
+            title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง (ส่งต่อห้องและรายวิชาที่เลือก)"
           >
             <Camera size={15} className="text-cyan-600" />
             ตรวจด้วยกระดาษ OMR
@@ -3148,6 +3292,96 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </div>
           </div>
 
+          {/* Remedial / Incomplete Tracking Queue (ร / 0) */}
+          {contextAssessments.length > 0 && remedialQueueRows.length > 0 && (
+            <div className="rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50/90 via-rose-50/40 to-white p-4 sm:p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900">
+                      คิวติดตามงานค้าง / ซ่อมเสริม (เกณฑ์ ร / 0)
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-600">
+                      พบนักเรียนที่ยังมีช่องคะแนนว่างหรือคะแนนรวมต่ำกว่า 50% จำนวน {remedialQueueRows.length} คน — กดชื่อชิ้นงานเพื่อเข้าไปกรอกทันที
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {incompleteRCount > 0 && (
+                    <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-black text-amber-900">
+                      งานค้าง / เสี่ยง ร: {incompleteRCount} คน
+                    </span>
+                  )}
+                  {fail0Count > 0 && (
+                    <span className="rounded-full border border-rose-300 bg-rose-100 px-2.5 py-0.5 text-xs font-black text-rose-900">
+                      ไม่ผ่าน (&lt;50%) / เกรด 0: {fail0Count} คน
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                {remedialQueueRows.map((row) => (
+                  <div
+                    key={row.student.id}
+                    className={`rounded-2xl border p-3 text-xs ${
+                      row.academicStatus === 'fail_0'
+                        ? 'border-rose-200 bg-white'
+                        : 'border-amber-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-black text-slate-900 truncate">
+                        {row.student.student_code ? `${row.student.student_code} ` : ''}
+                        {row.student.first_name} {row.student.last_name}
+                      </p>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                          row.academicStatus === 'fail_0'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-900'
+                        }`}
+                      >
+                        {row.academicStatus === 'fail_0'
+                          ? `เกรด 0 (${row.finalPercent.toFixed(0)}%)`
+                          : `ขาด ${row.missingAssessments.length} ชิ้น`}
+                      </span>
+                    </div>
+                    {row.missingAssessments.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {row.missingAssessments.slice(0, 3).map((assessment) => (
+                          <button
+                            key={assessment.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAssessmentId(assessment.id);
+                              handleScoreViewChange('entry');
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition"
+                            title="คลิกเพื่อเปิดหน้ากรอกคะแนนชิ้นงานนี้"
+                          >
+                            <span>{assessment.title}</span>
+                            <ArrowRight size={10} />
+                          </button>
+                        ))}
+                        {row.missingAssessments.length > 3 && (
+                          <span className="text-[10px] font-bold text-slate-500 self-center">
+                            +{row.missingAssessments.length - 3} ชิ้น
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-1.5 text-[11px] font-semibold text-rose-700">
+                        กรอกคะแนนครบแล้ว — แนะนำจัดสอบ/งานซ่อมเสริมให้ถึง 50%
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Master Table */}
           <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
             <div className="overflow-x-auto">
@@ -3206,11 +3440,18 @@ export function ScoresPage({ session }: ScoresPageProps) {
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-center">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ring-1 ${gradeInfo.badgeClass}`}
-                          >
-                            เกรด {gradeInfo.grade} ({gradeInfo.label})
-                          </span>
+                          <div className="inline-flex flex-col items-center gap-1">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ring-1 ${gradeInfo.badgeClass}`}
+                            >
+                              เกรด {gradeInfo.grade} ({gradeInfo.label})
+                            </span>
+                            {(missingCountByStudent.get(row.student.id) || 0) > 0 && (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                                ค้าง {missingCountByStudent.get(row.student.id)} ช่อง (รอ ร)
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -4156,10 +4397,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     setNotice('สัดส่วนรวมต้องเท่ากับ 100 คะแนนพอดี (ปัจจุบัน: ' + total + ')');
                     return;
                   }
-                  localStorage.setItem('classcare_score_ratio', JSON.stringify(scoreRatio));
+                  void saveCloudScoreRatio(session.workspace?.id || '', subjectFilter, scoreRatio);
                   setIsRatioModalOpen(false);
                   setNotice(
-                    `บันทึกสัดส่วนเกณฑ์คะแนน (ระหว่างเรียน ${scoreRatio.coursework} : กลางภาค ${scoreRatio.midterm} : ปลายภาค ${scoreRatio.final}) เรียบร้อยแล้ว`,
+                    `บันทึกสัดส่วนเกณฑ์คะแนน (ระหว่างเรียน ${scoreRatio.coursework} : กลางภาค ${scoreRatio.midterm} : ปลายภาค ${scoreRatio.final}) และซิงก์ขึ้นระบบแล้ว`,
                   );
                 }}
                 className="h-10 rounded-2xl bg-cyan-600 px-5 text-xs font-black text-white shadow-sm hover:bg-cyan-700 transition"
@@ -5096,60 +5337,62 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </div>
       ) : null}
 
-      {selectedAssessment ? (
-        <ScoreOcrModal
-          assessmentTitle={selectedAssessment.title}
-          isOpen={isScoreOcrOpen}
-          maxScore={selectedAssessment.max_score}
-          onApplyScores={handleApplyScoreOcr}
-          onClose={() => setIsScoreOcrOpen(false)}
+      <Suspense fallback={null}>
+        {selectedAssessment ? (
+          <ScoreOcrModal
+            assessmentTitle={selectedAssessment.title}
+            isOpen={isScoreOcrOpen}
+            maxScore={selectedAssessment.max_score}
+            onApplyScores={handleApplyScoreOcr}
+            onClose={() => setIsScoreOcrOpen(false)}
+            session={session}
+            students={classroomStudents.map((s, idx) => ({
+              id: s.id,
+              student_code: s.student_code,
+              name: `${s.first_name} ${s.last_name}`,
+              number: idx + 1,
+            }))}
+          />
+        ) : null}
+
+        <RubricAndQuizModal
+          defaultGradeLevel={activeClassroom?.name?.split('/')[0] || 'ป.5'}
+          defaultSubject={subjectFilter || 'คณิตศาสตร์'}
+          isOpen={isRubricModalOpen}
+          onClose={() => setIsRubricModalOpen(false)}
           session={session}
-          students={classroomStudents.map((s, idx) => ({
-            id: s.id,
-            student_code: s.student_code,
-            name: `${s.first_name} ${s.last_name}`,
-            number: idx + 1,
-          }))}
         />
-      ) : null}
 
-      <RubricAndQuizModal
-        defaultGradeLevel={activeClassroom?.name?.split('/')[0] || 'ป.5'}
-        defaultSubject={subjectFilter || 'คณิตศาสตร์'}
-        isOpen={isRubricModalOpen}
-        onClose={() => setIsRubricModalOpen(false)}
-        session={session}
-      />
+        <AcademicSubjectsModal
+          academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
+          currentClassroomId={activeClassroom?.id}
+          currentClassroomName={activeClassroom?.name}
+          isOpen={isAcademicSubjectsOpen}
+          onClose={() => setIsAcademicSubjectsOpen(false)}
+          session={session}
+          term="1"
+        />
 
-      <AcademicSubjectsModal
-        academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
-        currentClassroomId={activeClassroom?.id}
-        currentClassroomName={activeClassroom?.name}
-        isOpen={isAcademicSubjectsOpen}
-        onClose={() => setIsAcademicSubjectsOpen(false)}
-        session={session}
-        term="1"
-      />
+        <OfficialAcademicDocumentsModal
+          academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
+          currentClassroomId={activeClassroom?.id}
+          currentClassroomName={activeClassroom?.name}
+          isOpen={isOfficialDocumentsOpen}
+          onClose={() => setIsOfficialDocumentsOpen(false)}
+          session={session}
+          term="1"
+        />
 
-      <OfficialAcademicDocumentsModal
-        academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
-        currentClassroomId={activeClassroom?.id}
-        currentClassroomName={activeClassroom?.name}
-        isOpen={isOfficialDocumentsOpen}
-        onClose={() => setIsOfficialDocumentsOpen(false)}
-        session={session}
-        term="1"
-      />
-
-      <TermClosingWizardModal
-        academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
-        currentClassroomId={activeClassroom?.id}
-        currentClassroomName={activeClassroom?.name}
-        isOpen={isTermClosingOpen}
-        onClose={() => setIsTermClosingOpen(false)}
-        session={session}
-        term="1"
-      />
+        <TermClosingWizardModal
+          academicYear={activeClassroom?.academic_year || session.workspace?.academicYear || '2569'}
+          currentClassroomId={activeClassroom?.id}
+          currentClassroomName={activeClassroom?.name}
+          isOpen={isTermClosingOpen}
+          onClose={() => setIsTermClosingOpen(false)}
+          session={session}
+          term="1"
+        />
+      </Suspense>
 
       <footer className="mt-8 text-center text-xs font-bold text-slate-400">
         Created by MIKPURINUT • ClassCare 360

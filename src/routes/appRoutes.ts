@@ -114,10 +114,17 @@ export const appNavItems: AppNavItem[] = [
   },
   {
     key: 'randomizer',
-    label: 'เกมคณิตศาสตร์ในห้องเรียน',
+    label: 'สุ่มชื่อ & แบ่งกลุ่ม',
     icon: Dice5,
     moduleKey: 'classroom_randomizer',
     path: '/app/dashboard?view=randomizer',
+  },
+  {
+    key: 'math-games',
+    label: 'เกมคณิตศาสตร์ในห้องเรียน',
+    icon: Sparkles,
+    moduleKey: 'classroom_randomizer',
+    path: '/app/dashboard?view=math-games',
     externalUrl: CLASSROOM_GAMES_URL,
   },
   {
@@ -278,6 +285,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'Classroom Randomizer',
     title: 'สุ่มรายชื่อ แบ่งกลุ่ม และจัดลำดับนำเสนอจากรายชื่อนักเรียนจริง',
     body: 'ใช้รายชื่อนักเรียนใน workspace เพื่อสุ่มกิจกรรมในห้องเรียน บันทึกประวัติ และ export ผลลัพธ์โดยไม่ต้องพึ่งบริการภายนอก',
+  },
+  'math-games': {
+    eyebrow: 'Math Game Library',
+    title: 'คลังเกมคณิตศาสตร์ในห้องเรียน',
+    body: 'เครื่องมือเสริมกิจกรรมเกมคณิตศาสตร์ภายนอกสำหรับการจัดกิจกรรมสนุก ๆ ร่วมกับนักเรียนในชั้นเรียน',
   },
   reports: {
     eyebrow: 'Report Center',

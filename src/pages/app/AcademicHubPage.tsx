@@ -182,14 +182,14 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
       const identity = loadSchoolReportIdentity(session.workspace?.id);
       const schoolHeader: OBECSchoolHeader = {
-        schoolName: identity.schoolName || session.workspace?.schoolName || session.workspace?.name || 'โรงเรียนวัดบ้านโคกสูง',
-        district: identity.district || 'ขุนหาญ',
-        province: identity.province || 'ศรีสะเกษ',
-        jurisdiction: identity.jurisdiction || 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา ศรีสะเกษ เขต 3',
-        directorName: identity.directorName || 'นายประสิทธิ์ มั่นคง',
+        schoolName: identity.schoolName || session.workspace?.schoolName || session.workspace?.name || '',
+        district: identity.district || '',
+        province: identity.province || '',
+        jurisdiction: identity.jurisdiction || '',
+        directorName: identity.directorName || '',
         directorPosition: identity.directorPosition || 'ผู้อำนวยการสถานศึกษา',
-        academicHeadName: identity.academicHeadName || 'นางสาวสมใจ นึกดี',
-        registrarName: identity.registrarName || 'นางกาญจนา ศรีสุข',
+        academicHeadName: identity.academicHeadName || '',
+        registrarName: identity.registrarName || '',
         homeroomTeacherName: identity.teacherName || session.profile?.displayName || 'ครูประจำชั้น',
         schoolLogoDataUrl: identity.useGarudaInsteadOfLogo ? '' : identity.schoolLogoDataUrl,
         useGarudaInsteadOfLogo: identity.useGarudaInsteadOfLogo,
@@ -202,7 +202,8 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
         roomName,
         roomName,
         selectedYear,
-        schoolHeader
+        schoolHeader,
+        selectedTerm === '1' || selectedTerm === '2' ? selectedTerm : 'yearly'
       );
 
       if (realData && realData.students.length > 0) {
@@ -287,7 +288,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
   useEffect(() => {
     loadClassroomStudents();
-  }, [selectedClassroomId, workspaceId, isDemo]);
+  }, [selectedClassroomId, selectedTerm, selectedYear, workspaceId, isDemo]);
 
   // 1-Click Sync from genuine master template for selected classroom
   const handleSyncGradeMaster = async () => {
@@ -559,7 +560,7 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                 <button
                   onClick={handleSyncGradeMaster}
                   disabled={isSyncing}
-                  title={`โหลดข้อมูลจริง ${selectedClassroom?.name || 'ป.5'} รร.บ้านโคกสูง (${getPrimaryMasterData(selectedClassroom?.name || 'ป.5').students.length} คน 10 วิชา)`}
+                  title={`โหลดข้อมูลตัวอย่าง ${selectedClassroom?.name || 'ป.5'} (${getPrimaryMasterData(selectedClassroom?.name || 'ป.5').students.length} คน 10 วิชา)`}
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-xs font-black text-white shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 self-end"
                 >
                   <Zap size={13} className={isSyncing ? 'animate-spin' : ''} />
@@ -875,9 +876,16 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
                           {st.gpa > 0 ? st.gpa.toFixed(2) : '-'}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                            <CheckCircle2 size={12} className="text-emerald-500" />
-                            ผ่าน (ดีเยี่ยม)
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-bold ${
+                              st.traits_passed ? 'text-emerald-700' : 'text-rose-600'
+                            }`}
+                          >
+                            <CheckCircle2
+                              size={12}
+                              className={st.traits_passed ? 'text-emerald-500' : 'text-rose-500'}
+                            />
+                            {st.traits_passed ? 'ผ่านเกณฑ์' : 'ไม่ผ่าน'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -934,9 +942,11 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
             <div>
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <span>โครงสร้าง 10 รายวิชา {selectedClassroom?.name || 'ประถมศึกษาปีที่ 5'}</span>
-                <span className="rounded-lg bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
-                  รร.บ้านโคกสูง
-                </span>
+                {session.workspace?.schoolName && (
+                  <span className="rounded-lg bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+                    {session.workspace.schoolName}
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-500 mt-1">
                 รายวิชาพื้นฐาน 9 วิชา และรายวิชาเพิ่มเติม 1 วิชา ตามหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พ.ศ. 2551
@@ -1135,26 +1145,38 @@ export function AcademicHubPage({ session }: AcademicHubPageProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <span className="text-xs font-bold text-slate-500">1. เวลาเรียน $\ge 80\%$</span>
+              <span className="text-xs font-bold text-slate-500">1. เวลาเรียน ≥ 80%</span>
               <p className="mt-2 text-xl font-black text-emerald-600">{stats.avgAttendance}%</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">ผ่านเกณฑ์สิทธิ์สอบเกือบทั้งห้อง</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">เกณฑ์สิทธิ์เข้าสอบตาม สพฐ.</p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <span className="text-xs font-bold text-slate-500">2. ผ่าน 10 รายวิชา</span>
+              <span className="text-xs font-bold text-slate-500">2. ผ่านรายวิชาพื้นฐาน</span>
               <p className="mt-2 text-xl font-black text-blue-600">{stats.ready} / {students.length}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">ไม่มีผลการเรียนติด 0</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">พร้อมตัดสินผลการเรียน</p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <span className="text-xs font-bold text-slate-500">3. คุณลักษณะอันพึงประสงค์</span>
-              <p className="mt-2 text-xl font-black text-purple-600">ผ่าน 100%</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">ระดับ ดี - ดีเยี่ยม</p>
+              <p className="mt-2 text-xl font-black text-purple-600">
+                ผ่าน{' '}
+                {students.length > 0
+                  ? Math.round((students.filter((s) => s.traits_passed).length / students.length) * 100)
+                  : 0}
+                %
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">ประเมินจริงรายบุคคล</p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <span className="text-xs font-bold text-slate-500">4. กิจกรรมพัฒนาผู้เรียน</span>
-              <p className="mt-2 text-xl font-black text-emerald-600">ผ่าน 100%</p>
+              <p className="mt-2 text-xl font-black text-emerald-600">
+                ผ่าน{' '}
+                {students.length > 0
+                  ? Math.round((students.filter((s) => s.activities_passed).length / students.length) * 100)
+                  : 0}
+                %
+              </p>
               <p className="text-[11px] text-slate-400 mt-0.5">แนะแนว, ลูกเสือ, ชุมนุม</p>
             </div>
           </div>

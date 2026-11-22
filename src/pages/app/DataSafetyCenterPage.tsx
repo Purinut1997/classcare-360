@@ -72,6 +72,11 @@ interface BackupPreview {
   students: Array<Record<string, unknown>>;
   savingsAccountsCount: number;
   savingsTxCount: number;
+  attendanceCount: number;
+  scoresCount: number;
+  behaviorCount: number;
+  healthCount: number;
+  desirableCount: number;
   templates: Array<Record<string, unknown>>;
   raw: Record<string, unknown>;
 }
@@ -507,7 +512,22 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     return { all: trashItems.length, student, classroom, other };
   }, [trashItems]);
 
-  // --- Action 1: REAL Full Workspace JSON Backup ---
+  // --- Action 1: REAL Full Workspace JSON Backup (v2 — all school modules scoped by workspace_id) ---
+  async function safeFetchWorkspaceTable(tableName: string, rowLimit = 5000): Promise<Array<Record<string, unknown>>> {
+    if (!supabase || !workspaceId) return [];
+    try {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .limit(rowLimit);
+      if (error) return [];
+      return (data || []) as Array<Record<string, unknown>>;
+    } catch {
+      return [];
+    }
+  }
+
   async function handleExportBackup() {
     if (!supabase || !workspaceId || demoMode) {
       setNotice({ tone: 'info', text: 'โหมดตัวอย่าง: พร้อมสำรองข้อมูลจริงเมื่อใช้งานกับ Workspace จริง' });
@@ -517,29 +537,74 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     setIsBackingUp(true);
     setNotice(null);
     try {
-      const [wsRes, clsRes, stuRes, guardRes, savAccRes, savTxRes, calRes, tplRes] = await Promise.all([
+      const [
+        wsRes,
+        clsRows,
+        stuRows,
+        guardRows,
+        savAccRows,
+        savTxRows,
+        calRows,
+        tplRows,
+        attSessionRows,
+        attRecordRows,
+        scoreAssessmentRows,
+        scoreEntryRows,
+        behaviorRows,
+        healthRows,
+        desirableRows,
+        careCaseRows,
+        homeVisitRows,
+        scheduleRows,
+        automationRuleRows,
+        leaveRequestRows,
+      ] = await Promise.all([
         supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(),
-        supabase.from('classrooms').select('*').eq('workspace_id', workspaceId),
-        supabase.from('students').select('*').eq('workspace_id', workspaceId).limit(2000),
-        supabase.from('student_guardians').select('*').eq('workspace_id', workspaceId).limit(4000),
-        supabase.from('savings_accounts').select('*').eq('workspace_id', workspaceId).limit(2000),
-        supabase.from('savings_transactions').select('*').eq('workspace_id', workspaceId).limit(5000),
-        supabase.from('school_calendar_days').select('*').eq('workspace_id', workspaceId).limit(500),
-        supabase.from('message_templates').select('*').eq('workspace_id', workspaceId).eq('is_active', true).limit(200),
+        safeFetchWorkspaceTable('classrooms', 500),
+        safeFetchWorkspaceTable('students', 2000),
+        safeFetchWorkspaceTable('student_guardians', 4000),
+        safeFetchWorkspaceTable('savings_accounts', 2000),
+        safeFetchWorkspaceTable('savings_transactions', 5000),
+        safeFetchWorkspaceTable('school_calendar_days', 500),
+        supabase.from('message_templates').select('*').eq('workspace_id', workspaceId).eq('is_active', true).limit(200).then((r) => (r.data || []) as Array<Record<string, unknown>>),
+        safeFetchWorkspaceTable('attendance_sessions', 2000),
+        safeFetchWorkspaceTable('attendance_records', 10000),
+        safeFetchWorkspaceTable('score_assessments', 1000),
+        safeFetchWorkspaceTable('score_entries', 10000),
+        safeFetchWorkspaceTable('behavior_records', 5000),
+        safeFetchWorkspaceTable('student_health_records', 5000),
+        safeFetchWorkspaceTable('student_desirable_records', 2000),
+        safeFetchWorkspaceTable('student_care_cases', 1000),
+        safeFetchWorkspaceTable('student_home_visits', 1000),
+        safeFetchWorkspaceTable('workspace_schedule_settings', 10),
+        safeFetchWorkspaceTable('automation_rules', 100),
+        safeFetchWorkspaceTable('student_leave_requests', 2000),
       ]);
 
       const snapshot = {
-        schema_version: 'classcare-360-workspace-backup-v1',
+        schema_version: 'classcare-360-workspace-backup-v2',
         exported_at: new Date().toISOString(),
         exported_by: session.profile.email,
         workspace: wsRes.data || null,
-        classrooms: clsRes.data || [],
-        students: stuRes.data || [],
-        student_guardians: guardRes.data || [],
-        savings_accounts: savAccRes.data || [],
-        savings_transactions: savTxRes.data || [],
-        school_calendar_days: calRes.data || [],
-        message_templates: tplRes.data || [],
+        classrooms: clsRows,
+        students: stuRows,
+        student_guardians: guardRows,
+        savings_accounts: savAccRows,
+        savings_transactions: savTxRows,
+        school_calendar_days: calRows,
+        message_templates: tplRows,
+        attendance_sessions: attSessionRows,
+        attendance_records: attRecordRows,
+        score_assessments: scoreAssessmentRows,
+        score_entries: scoreEntryRows,
+        behavior_records: behaviorRows,
+        student_health_records: healthRows,
+        student_desirable_records: desirableRows,
+        student_care_cases: careCaseRows,
+        student_home_visits: homeVisitRows,
+        workspace_schedule_settings: scheduleRows,
+        automation_rules: automationRuleRows,
+        student_leave_requests: leaveRequestRows,
       };
 
       const safeSchool = schoolName.replace(/[^a-zA-Z0-9ก-๙_-]+/g, '_').slice(0, 40);
@@ -555,16 +620,22 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         entity_id: workspaceId,
         risk_level: 'normal',
         metadata: {
+          schema_version: snapshot.schema_version,
           classroom_count: snapshot.classrooms.length,
           student_count: snapshot.students.length,
           savings_tx_count: snapshot.savings_transactions.length,
+          attendance_record_count: snapshot.attendance_records.length,
+          score_entry_count: snapshot.score_entries.length,
+          behavior_record_count: snapshot.behavior_records.length,
+          health_record_count: snapshot.student_health_records.length,
+          desirable_record_count: snapshot.student_desirable_records.length,
         },
       });
 
       setStats((prev) => ({ ...prev, lastBackupAt: new Date().toISOString() }));
       setNotice({
         tone: 'success',
-        text: `✓ สำรองข้อมูล "${schoolName}" (${snapshot.classrooms.length} ห้อง, ${snapshot.students.length} นักเรียน, ${snapshot.savings_transactions.length} รายการเงินออม) ลงเครื่องเรียบร้อยแล้ว`,
+        text: `✓ สำรองข้อมูลครบทุกโมดูลของ "${schoolName}" แล้ว (${snapshot.classrooms.length} ห้อง, ${snapshot.students.length} นักเรียน, ${snapshot.attendance_records.length} เช็กชื่อ, ${snapshot.score_entries.length} คะแนน, ${snapshot.savings_transactions.length} เงินออม)`,
       });
     } catch (err) {
       setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'สำรองข้อมูลไม่สำเร็จ' });
@@ -573,7 +644,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     }
   }
 
-  // --- Action 2: Inspect & Safely Restore Backup JSON ---
+  // --- Action 2: Inspect & Safely Restore Backup JSON (supports both v1 & v2 snapshots) ---
   async function handleSelectBackupFile(file: File | null) {
     setBackupPreview(null);
     setBackupFileError(null);
@@ -599,6 +670,11 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         students: Array.isArray(target.students) ? (target.students as Array<Record<string, unknown>>) : [],
         savingsAccountsCount: Array.isArray(target.savings_accounts) ? target.savings_accounts.length : 0,
         savingsTxCount: Array.isArray(target.savings_transactions) ? target.savings_transactions.length : 0,
+        attendanceCount: Array.isArray(target.attendance_records) ? target.attendance_records.length : 0,
+        scoresCount: Array.isArray(target.score_entries) ? target.score_entries.length : 0,
+        behaviorCount: Array.isArray(target.behavior_records) ? target.behavior_records.length : 0,
+        healthCount: Array.isArray(target.student_health_records) ? target.student_health_records.length : 0,
+        desirableCount: Array.isArray(target.student_desirable_records) ? target.student_desirable_records.length : 0,
         templates: Array.isArray(target.message_templates) ? (target.message_templates as Array<Record<string, unknown>>) : [],
         raw: target,
       });
@@ -607,11 +683,35 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     }
   }
 
+  async function restoreMissingTableRows(
+    tableName: string,
+    rawRows: unknown,
+    onConflict = 'id',
+    transform?: (row: Record<string, unknown>) => Record<string, unknown> | null,
+  ): Promise<number> {
+    if (!supabase || !workspaceId || !Array.isArray(rawRows) || rawRows.length === 0) return 0;
+    const prepared = rawRows
+      .filter((r): r is Record<string, unknown> => Boolean(r && typeof r === 'object'))
+      .map((row) => (transform ? transform(row) : { ...row, workspace_id: workspaceId }))
+      .filter((r): r is Record<string, unknown> => Boolean(r));
+    if (prepared.length === 0) return 0;
+
+    let restored = 0;
+    for (let idx = 0; idx < prepared.length; idx += 300) {
+      const chunk = prepared.slice(idx, idx + 300);
+      const { error } = await supabase.from(tableName).upsert(chunk, { onConflict, ignoreDuplicates: true });
+      if (!error) {
+        restored += chunk.length;
+      }
+    }
+    return restored;
+  }
+
   async function handleSafeRestoreFromBackup() {
     if (!supabase || !workspaceId || !backupPreview || !canManageSafety) return;
     if (
       !window.confirm(
-        `ยืนยันกู้คืนข้อมูลที่หายไปจากไฟล์ "${backupPreview.fileName}" เข้ามายัง "${schoolName}" หรือไม่?\n\nระบบจะกู้คืนห้องเรียน รายชื่อนักเรียน และข้อความสำเร็จรูปที่หายไป (ไม่ลบข้อมูลที่มีอยู่แล้ว)`,
+        `ยืนยันกู้คืนข้อมูลที่หายไปจากไฟล์ "${backupPreview.fileName}" เข้ามายัง "${schoolName}" หรือไม่?\n\nระบบจะกู้คืนห้องเรียน รายชื่อนักเรียน เวลาเรียน คะแนน พฤติกรรม สุขภาพ คุณลักษณะ ปฏิทิน ตารางสอน เงินออม และข้อความสำเร็จรูปที่หายไป (ไม่ลบหรือเขียนทับข้อมูลเดิมที่มีอยู่แล้ว)`,
       )
     ) {
       return;
@@ -682,9 +782,23 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         }
       }
 
+      const raw = backupPreview.raw;
+      await restoreMissingTableRows('student_guardians', raw.student_guardians, 'id');
+      await restoreMissingTableRows('school_calendar_days', raw.school_calendar_days, 'id');
+      await restoreMissingTableRows('workspace_schedule_settings', raw.workspace_schedule_settings, 'workspace_id');
+      await restoreMissingTableRows('attendance_sessions', raw.attendance_sessions, 'id');
+      const restoredAttendance = await restoreMissingTableRows('attendance_records', raw.attendance_records, 'id');
+      await restoreMissingTableRows('score_assessments', raw.score_assessments, 'id');
+      const restoredScores = await restoreMissingTableRows('score_entries', raw.score_entries, 'id');
+      const restoredBehavior = await restoreMissingTableRows('behavior_records', raw.behavior_records, 'id');
+      await restoreMissingTableRows('student_health_records', raw.student_health_records, 'id');
+      await restoreMissingTableRows('student_desirable_records', raw.student_desirable_records, 'id');
+      await restoreMissingTableRows('savings_accounts', raw.savings_accounts, 'id');
+      await restoreMissingTableRows('savings_transactions', raw.savings_transactions, 'id');
+
       setNotice({
         tone: 'success',
-        text: `✓ กู้คืนข้อมูลจากไฟล์สำรองเสร็จสิ้น (ตรวจนำเข้า ${restoredClassrooms} ห้องเรียน, ${restoredStudents} นักเรียน, ${restoredTemplates} แม่แบบข้อความ)`,
+        text: `✓ กู้คืนข้อมูลจากไฟล์สำรองเสร็จสิ้น (${restoredClassrooms} ห้อง, ${restoredStudents} นักเรียน, ${restoredAttendance} เช็กชื่อ, ${restoredScores} คะแนน, ${restoredBehavior} พฤติกรรม, ${restoredTemplates} แม่แบบ)`,
       });
       setBackupPreview(null);
       await loadLiveSafetyData();
@@ -739,7 +853,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     try {
       if (item.kind === 'student' && item.payload?.first_name) {
         const p = item.payload;
-        await supabase.from('students').upsert({
+        const { error: restoreStudentErr } = await supabase.from('students').upsert({
           id: String(p.id || item.id),
           workspace_id: workspaceId,
           classroom_id: (p.classroom_id as string | null) || primaryClassroomId || null,
@@ -748,8 +862,19 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           last_name: String(p.last_name || ''),
           nickname: (p.nickname as string | null) || null,
           gender: (p.gender as string | null) || 'other',
+          birth_date: (p.birth_date as string | null) || null,
+          metadata: (p.metadata as Record<string, unknown> | undefined) || undefined,
+          care_flags: (p.care_flags as Record<string, unknown> | undefined) || undefined,
+          health_flags: (p.health_flags as Record<string, unknown> | undefined) || undefined,
           status: 'active',
         });
+        if (restoreStudentErr) throw new Error(restoreStudentErr.message);
+      } else {
+        setNotice({
+          tone: 'error',
+          text: `ยังไม่รองรับการกู้คืนรายการประเภท "${item.kind}" อัตโนมัติ กรุณากู้คืนผ่านไฟล์ Backup เพื่อป้องกันข้อมูลไม่ครบ`,
+        });
+        return;
       }
       const { error } = await supabase
         .from('trash_items')
@@ -1155,8 +1280,10 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
                   <span className="text-[11px] font-bold text-cyan-700">{formatThaiDateTime(backupPreview.exportedAt)}</span>
                 </div>
                 <p className="font-semibold text-slate-700">
-                  ห้องเรียน: <strong>{backupPreview.classrooms.length}</strong> · นักเรียน: <strong>{backupPreview.students.length}</strong> · บัญชีเงินออม:{' '}
-                  <strong>{backupPreview.savingsAccountsCount}</strong> ({backupPreview.savingsTxCount} รายการ) · แม่แบบข้อความ:{' '}
+                  ห้องเรียน: <strong>{backupPreview.classrooms.length}</strong> · นักเรียน: <strong>{backupPreview.students.length}</strong> · เช็กชื่อ:{' '}
+                  <strong>{backupPreview.attendanceCount}</strong> · คะแนน: <strong>{backupPreview.scoresCount}</strong> · พฤติกรรม:{' '}
+                  <strong>{backupPreview.behaviorCount}</strong> · สุขภาพ: <strong>{backupPreview.healthCount}</strong> · คุณลักษณะ:{' '}
+                  <strong>{backupPreview.desirableCount}</strong> · เงินออม: <strong>{backupPreview.savingsTxCount}</strong> · แม่แบบ:{' '}
                   <strong>{backupPreview.templates.length}</strong>
                 </p>
                 <button

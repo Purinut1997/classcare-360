@@ -297,35 +297,14 @@ export function SavingsPage({ session }: SavingsPageProps) {
     );
   }, []);
 
-  const isErroneousStudent1Or2Tx = useCallback(
-    (studentId: string, tx: SavingsTransactionRow) => {
-      const student = students.find((s) => s.id === studentId);
-      if (!student) return false;
-      const isTarget =
-        student.student_code === '2428' ||
-        student.student_code === '2429' ||
-        Boolean(student.first_name?.includes('ณัฏฐชัย')) ||
-        Boolean(student.first_name?.includes('ณัฐพัฒน์'));
-      if (!isTarget) return false;
-      return (
-        tx.transaction_date.startsWith('2026-10') ||
-        tx.metadata?.correction_role === 'reversal' ||
-        (typeof tx.note === 'string' && tx.note.includes('ย้อนรายการเดิม')) ||
-        (tx.transaction_type === 'withdrawal' && Number(tx.amount) === 2983)
-      );
-    },
-    [students],
-  );
-
   const activeTransactions = useMemo(
     () =>
       transactions.filter(
         (transaction) =>
           transaction.metadata?.correction_role !== 'reversal' &&
-          (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)) &&
-          !isErroneousStudent1Or2Tx(transaction.student_id, transaction),
+          (!transaction.metadata?.correction_id || !transactions.some((t) => t.id === transaction.metadata?.correction_id)),
       ),
-    [isErroneousStudent1Or2Tx, transactions],
+    [transactions],
   );
 
   const getStudentOpening = useCallback(
@@ -341,8 +320,6 @@ export function SavingsPage({ session }: SavingsPageProps) {
         .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
       if (latestOpeningTx) return Number(latestOpeningTx.amount || 0);
-      if (student.student_code === '2428' || student.first_name?.includes('ณัฏฐชัย')) return 2896;
-      if (student.student_code === '2429' || student.first_name?.includes('ณัฐพัฒน์')) return 3013;
       return 0;
     },
     [accountByStudent, activeTransactions, isOpeningTx],
@@ -513,26 +490,12 @@ export function SavingsPage({ session }: SavingsPageProps) {
           const rawBal = Number(acc.balance || 0);
           if (!st || opening <= 0 || rawBal >= opening) return;
 
-          const isTarget1Or2 =
-            st.student_code === '2428' ||
-            st.student_code === '2429' ||
-            Boolean(st.first_name?.includes('ณัฏฐชัย')) ||
-            Boolean(st.first_name?.includes('ณัฐพัฒน์'));
-
           let regularNet = 0;
           let regularWithdrawals = 0;
           nextTransactions.forEach((tx) => {
             if (tx.student_id !== acc.student_id) return;
             if (tx.metadata?.correction_role === 'reversal') return;
             if (tx.metadata?.correction_id && txIdSet.has(String(tx.metadata.correction_id))) return;
-            if (
-              isTarget1Or2 &&
-              (tx.transaction_date.startsWith('2026-10') ||
-                (typeof tx.note === 'string' && tx.note.includes('ย้อนรายการเดิม')) ||
-                (tx.transaction_type === 'withdrawal' && Number(tx.amount) === 2983))
-            ) {
-              return;
-            }
             const isOp =
               tx.transaction_type === 'adjustment' ||
               Boolean(tx.metadata?.is_opening_balance) ||

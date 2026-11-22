@@ -21,9 +21,9 @@ export const AUTO_MODEL_OPTION: GeminiModelOption = {
   id: 'auto',
   name: 'Auto Model (สลับรุ่นอัตโนมัติ)',
   tag: 'แนะนำสูงสุด',
-  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 2.5 -> 3.5 -> 2.0) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่มีวันติดลิมิต',
+  description: 'ระบบตรวจจับและสลับโมเดลให้อัตโนมัติ (Gemini 2.5 -> 2.0 -> 2.5 Pro) เพื่อให้ได้คำตอบที่ดีที่สุดและไม่สะดุด',
   speed: 'เร็วมาก · อัจฉริยะ',
-  quota: 'ไม่มีวันหมด (สลับรุ่นอัตโนมัติ)',
+  quota: 'สลับรุ่นสำรองอัตโนมัติ',
   highlight: true,
 };
 
@@ -32,9 +32,9 @@ export const MANUAL_GEMINI_MODELS: GeminiModelOption[] = [
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
     tag: 'รุ่นหลักล่าสุด แนะนำ',
-    description: 'โมเดลรุ่นใหม่ล่าสุดของ Google AI Studio ประมวลผลรวดเร็ว ฉลาด แม่นยำ และโควตาว่าง',
+    description: 'โมเดลรุ่นหลักล่าสุดของ Google AI Studio ประมวลผลรวดเร็ว ฉลาด แม่นยำ',
     speed: 'เร็วมาก',
-    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
+    quota: 'Google AI Studio',
     highlight: true,
   },
   {
@@ -43,23 +43,7 @@ export const MANUAL_GEMINI_MODELS: GeminiModelOption[] = [
     tag: 'เร็วและประหยัด',
     description: 'โมเดลประมวลผลด่วนพิเศษ สำหรับงานตอบคำถามไวและสร้างข้อสอบ',
     speed: 'เร็วที่สุด',
-    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
-  },
-  {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    tag: 'ฉลาด ละเอียด',
-    description: 'โมเดลวิเคราะห์ข้อมูลลึก ตอบรายละเอียดได้ครบถ้วน',
-    speed: 'เร็ว',
-    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
-  },
-  {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    tag: 'รุ่นใหม่พรีวิว',
-    description: 'โมเดลความสามารถสูงรุ่นล่าสุดของ Google (หากติดลิมิต 20/20 ระบบจะสลับไปรุ่น 2.5 Flash ให้อัตโนมัติ)',
-    speed: 'เร็ว',
-    quota: 'โควตาอิสระ (20 ครั้ง/วัน)',
+    quota: 'Google AI Studio',
   },
   {
     id: 'gemini-2.0-flash',
@@ -85,23 +69,22 @@ export const AVAILABLE_GEMINI_MODELS: GeminiModelOption[] = [
 ];
 
 /**
- * Returns prioritized candidate models for API execution.
+ * Returns prioritized candidate models for API execution (only valid production Gemini endpoints).
  */
 export function getCandidateModels(preferredModel?: string): string[] {
-  const clean =
-    preferredModel &&
-    preferredModel !== 'auto' &&
-    (preferredModel as string) !== 'gemini-1.5-flash' &&
-    (preferredModel as string) !== 'gemini-1.5-pro'
-      ? preferredModel
-      : 'gemini-2.5-flash';
+  const legacyInvalidModels = new Set([
+    'auto',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+  ]);
+  const clean = preferredModel && !legacyInvalidModels.has(preferredModel) ? preferredModel : 'gemini-2.5-flash';
 
   return [
     clean,
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.6-flash',
     'gemini-2.0-flash',
     'gemini-2.5-pro',
   ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
@@ -127,6 +110,63 @@ import {
   loadScheduleSettings,
   makeScheduleCellKey,
 } from './scheduleSettings';
+import { isSupabaseReady, supabase } from './supabaseClient';
+
+async function tryInvokeGeminiProxy(payload: {
+  mode: 'chat' | 'vision' | 'prompt';
+  model?: GeminiModelId;
+  apiKey?: string;
+  systemInstruction?: string;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+  prompt?: string;
+  imageBase64?: string;
+  mimeType?: string;
+  responseJson?: boolean;
+  temperature?: number;
+  maxOutputTokens?: number;
+  allowFallback?: boolean;
+}): Promise<string | null> {
+  if (!isSupabaseReady || !supabase) return null;
+
+  try {
+    const { data: authData } = await supabase.auth.getSession();
+    if (!authData.session?.access_token) return null;
+
+    const { data, error } = await supabase.functions.invoke('ai-gemini-proxy', {
+      body: payload,
+    });
+
+    if (error) {
+      const status = (error as { context?: { status?: number } })?.context?.status;
+      if (
+        error.name === 'FunctionsFetchError' ||
+        error.name === 'FunctionsRelayError' ||
+        status === 404 ||
+        status === 502 ||
+        status === 503
+      ) {
+        return null;
+      }
+      throw new Error(`Gemini Proxy Error: ${error.message}`);
+    }
+
+    if (
+      data &&
+      typeof data === 'object' &&
+      'text' in data &&
+      typeof (data as { text?: unknown }).text === 'string'
+    ) {
+      return (data as { text: string }).text;
+    }
+
+    return null;
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Gemini Proxy Error:')) {
+      throw err;
+    }
+    return null;
+  }
+}
 
 const SYSTEM_INSTRUCTION = `
 คุณคือ "ClassCare AI" — ผู้ช่วยอัจฉริยะด้านบริหารจัดการห้องเรียนและงานวิชาการประจำระบบ "ClassCare 360" (มาตรฐาน สพฐ.)
@@ -185,8 +225,8 @@ export function sanitizeAssistantText(raw: string): string {
 }
 
 /**
- * Call Google Gemini REST API directly with the provided API key.
- * Includes automatic fallback to gemini-1.5-flash if the primary model returns 404.
+ * Call Google Gemini chat endpoint (via Supabase Edge Function proxy when signed in,
+ * with seamless fallback to direct Gemini REST API + valid 2.5/2.0 model cascade).
  */
 export async function callGeminiApi(
   apiKey: string,
@@ -222,18 +262,34 @@ export async function callGeminiApi(
       ? `\n\n[ข้อกำหนดคำลงท้าย]: ใช้ภาษาสุภาพระดับทางการ/กึ่งทางการสำหรับครูผู้หญิง ลงท้ายด้วย "ค่ะ" อย่างสม่ำเสมอทั้งในการตอบและในข้อความร่าง ห้ามใช้ "ครับ"`
       : `\n\n[ข้อกำหนดคำลงท้าย]: ใช้ภาษาไทยระดับทางการที่เป็นกลาง เหมาะสำหรับเอกสารและประกาศสถานศึกษา โดยไม่จำเป็นต้องลงท้ายด้วย ครับ หรือ ค่ะ`;
 
-  // Map messages to Gemini API format
-  const contents = messages
+  const windowedMessages = messages
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .slice(-10) // Keep last 10 messages for context
     .map((m, idx, arr) => {
       const isLastUserMsg = idx === arr.length - 1 && m.role === 'user';
-      const text = isLastUserMsg ? contextNote + m.content : m.content;
       return {
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text }],
+        role: m.role,
+        content: isLastUserMsg ? contextNote + m.content : m.content,
       };
     });
+
+  const proxiedText = await tryInvokeGeminiProxy({
+    mode: 'chat',
+    model,
+    apiKey,
+    systemInstruction: SYSTEM_INSTRUCTION + politeInstruction,
+    messages: windowedMessages,
+    allowFallback,
+  });
+  if (proxiedText !== null) {
+    return proxiedText;
+  }
+
+  // Map messages to Gemini API format
+  const contents = windowedMessages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
 
   const payload = {
     contents,
@@ -295,7 +351,7 @@ export async function callGeminiApi(
     const errData = await response.json().catch(() => ({}));
     let errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
     if (response.status === 429) {
-      errMsg = `โมเดล ${initialModel} โควตาการใช้งานเต็มแล้ว (429 Quota Exceeded) แนะนำให้เปลี่ยนเป็น "Auto Model" หรือ "Gemini 1.5 Flash" ที่มีโควตาสูง 1,500 ครั้ง/วัน หรือเปิดการสลับรุ่นสำรองอัตโนมัติ`;
+      errMsg = `โมเดล ${initialModel} โควตาการใช้งานเต็มแล้ว (429 Quota Exceeded) แนะนำให้เปลี่ยนเป็น "Auto Model" หรือ "Gemini 2.5 Flash" หรือเปิดการสลับรุ่นสำรองอัตโนมัติ`;
     }
     throw new Error(`Gemini API Error: ${errMsg}`);
   }
@@ -321,8 +377,8 @@ export interface GeminiVisionOptions {
 }
 
 /**
- * Call Google Gemini Multimodal Vision API directly with image data.
- * Supports automatic model fallback (gemini-1.5-flash, gemini-3.6-flash, etc.)
+ * Call Google Gemini Multimodal Vision API (via Edge Function proxy when authenticated,
+ * with direct Gemini REST API fallback across Gemini 2.5 / 2.0 models).
  */
 export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise<string> {
   const { apiKey, prompt, systemInstruction, responseJson, maxOutputTokens } = options;
@@ -337,6 +393,21 @@ export async function callGeminiVisionApi(options: GeminiVisionOptions): Promise
   if (dataUrlMatch) {
     mimeType = dataUrlMatch[1];
     cleanBase64 = dataUrlMatch[2];
+  }
+
+  const proxiedVisionText = await tryInvokeGeminiProxy({
+    mode: 'vision',
+    model: options.model,
+    apiKey: apiKey.trim(),
+    prompt,
+    imageBase64: cleanBase64,
+    mimeType,
+    systemInstruction,
+    responseJson,
+    maxOutputTokens,
+  });
+  if (proxiedVisionText !== null) {
+    return proxiedVisionText;
   }
 
   const candidateModels = getCandidateModels(options.model);
@@ -443,13 +514,27 @@ export interface GeminiPromptOptions {
 }
 
 /**
- * Call Google Gemini API directly with a text prompt and automatic fallback.
- * Solves HTTP 404 / 400 / 429 errors seamlessly by falling back to stable models (e.g. gemini-1.5-flash).
+ * Call Google Gemini API with a text prompt (via Edge Function proxy when authenticated,
+ * with direct Gemini REST API fallback across Gemini 2.5 / 2.0 models).
  */
 export async function callGeminiPrompt(options: GeminiPromptOptions): Promise<string> {
   const { apiKey, prompt, systemInstruction, responseJson, temperature = 0.4, maxOutputTokens } = options;
   if (!apiKey?.trim()) {
     throw new Error('กรุณาระบุ Gemini API Key ก่อนใช้งาน');
+  }
+
+  const proxiedPromptText = await tryInvokeGeminiProxy({
+    mode: 'prompt',
+    model: options.model,
+    apiKey: apiKey.trim(),
+    prompt,
+    systemInstruction,
+    responseJson,
+    temperature,
+    maxOutputTokens,
+  });
+  if (proxiedPromptText !== null) {
+    return proxiedPromptText;
   }
 
   const candidateModels = getCandidateModels(options.model);
@@ -637,8 +722,6 @@ export async function testGeminiApiKey(
       requested,
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite',
-      'gemini-3.5-flash',
-      'gemini-3.6-flash',
       'gemini-2.0-flash',
       'gemini-2.5-pro',
       ...supportedList,

@@ -29,7 +29,15 @@ import { SystemReportsDashboard } from '../../components/dashboard/SystemReports
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
 import { TodayBentoDashboard } from '../../components/dashboard/TodayBentoDashboard';
 import { getHiddenClassroomIds, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
+import { hydrateHiddenClassroomsFromCloud } from '../../lib/workspaceCloudPrefs';
 import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
+import {
+  computeAttendanceStreaksAndRates,
+  evaluateStudentRiskSignals,
+  type StudentRiskBehaviorStats,
+  type StudentRiskScoreStats,
+  type StudentRiskSignalItem,
+} from '../../lib/studentIntelligence';
 
 interface DashboardPageProps {
   activeLabel: string;
@@ -349,6 +357,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     totalAssessments: 0,
     averagePercent: 0,
   });
+  const [earlyWarningStudents, setEarlyWarningStudents] = useState<StudentRiskSignalItem[]>([]);
   const [currentTerm, setCurrentTerm] = useState<{
     termName: string | null;
     startDate: string | null;
@@ -438,6 +447,9 @@ export function DashboardPage({ session }: DashboardPageProps) {
 
       if (!isMounted) return;
       if (data && data.length > 0) {
+        if (session.profile?.id) {
+          await hydrateHiddenClassroomsFromCloud(session.profile.id, session.workspace.id);
+        }
         const hiddenIds = getHiddenClassroomIds(session.workspace.id);
         const filteredData = (data as ClassroomRow[]).filter((c) => {
           if (c.status === 'archived' || c.status === 'inactive') return false;
@@ -684,12 +696,39 @@ export function DashboardPage({ session }: DashboardPageProps) {
           totalAssessments: 12,
           averagePercent: 78,
         });
+        setEarlyWarningStudents([
+          {
+            studentId: 'demo-student-2',
+            studentName: 'พิมพ์ชนก แสงทอง',
+            studentCode: '002',
+            riskScore: 54,
+            riskLevel: 'high',
+            reasons: ['ขาดเรียนติดกัน 2 วัน', 'คะแนนเฉลี่ย 46% (<50%)'],
+            attendanceRate: 84,
+            consecutiveAbsentDays: 2,
+            averageScorePercent: 46,
+            behaviorNet: 1,
+          },
+          {
+            studentId: 'demo-student-3',
+            studentName: 'กิตติพงศ์ สุขใจ',
+            studentCode: '003',
+            riskScore: 30,
+            riskLevel: 'medium',
+            reasons: ['เวลาเรียน 79% (ต่ำกว่า 80%)'],
+            attendanceRate: 79,
+            consecutiveAbsentDays: 1,
+            averageScorePercent: 68,
+            behaviorNet: -1,
+          },
+        ]);
         return;
       }
 
       if (!supabase || !session.workspace || !selectedClassroomId) {
         setAnalyticsData(emptyAnalyticsData);
         setWatchlistStudents([]);
+        setEarlyWarningStudents([]);
         setActiveClassroomStudentIds([]);
         setTodayCheckedSessionCount(0);
         setSubjectAttendanceNamesToday([]);
@@ -713,76 +752,119 @@ export function DashboardPage({ session }: DashboardPageProps) {
       const trendDates = Array.from({ length: 7 }, (_, index) =>
         getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)),
       );
-      const minStartDate = currentWeekDates[0] < trendDates[0] ? currentWeekDates[0] : trendDates[0];
+      const riskWindowStart = getBangkokDate(new Date(Date.now() - 29 * 86_400_000));
+      const baseStartDate = currentWeekDates[0] < trendDates[0] ? currentWeekDates[0] : trendDates[0];
+      const minStartDate = riskWindowStart < baseStartDate ? riskWindowStart : baseStartDate;
 
-      const { data: attendanceSessionRows } = await supabase
-        .from('attendance_sessions')
-        .select('id, attendance_date, period_label, subject_name')
-        .eq('workspace_id', session.workspace.id)
-        .eq('classroom_id', selectedClassroomId)
-        .gte('attendance_date', minStartDate)
-        .lte('attendance_date', today)
-        .order('attendance_date', { ascending: true })
-        .order('period_label', { ascending: true });
+      const [{ data: studentRows }, { data: attendanceSessionRows }, { data: scoreAssessments }] =
+        await Promise.all([
+          supabase
+            .from('students')
+            .select('id, student_code, first_name, last_name')
+            .eq('workspace_id', session.workspace.id)
+            .eq('classroom_id', selectedClassroomId)
+            .eq('status', 'active'),
+          supabase
+            .from('attendance_sessions')
+            .select('id, attendance_date, period_label, subject_name')
+            .eq('workspace_id', session.workspace.id)
+            .eq('classroom_id', selectedClassroomId)
+            .gte('attendance_date', minStartDate)
+            .lte('attendance_date', today)
+            .order('attendance_date', { ascending: true })
+            .order('period_label', { ascending: true }),
+          supabase
+            .from('score_assessments')
+            .select('id, max_score')
+            .eq('workspace_id', session.workspace.id)
+            .eq('classroom_id', selectedClassroomId),
+        ]);
 
+      if (!isMounted) return;
+
+      const activeStudentRows = (studentRows || []) as Array<{
+        id: string;
+        student_code: string | null;
+        first_name: string;
+        last_name: string;
+      }>;
+      const studentIdList = activeStudentRows.map((s) => s.id);
       const allAttendanceSessionIds = ((attendanceSessionRows || []) as AttendanceSessionRow[]).map((item) => item.id);
-      const attendanceRecordsPromise =
+
+      const emptyPromise = <T,>(fallback: T) => Promise.resolve({ data: fallback });
+
+      const [
+        { data: attendanceRows },
+        { data: savingsAccountRows },
+        { data: savingsTxRows },
+        { data: scoreEntries },
+        { data: behaviorRows },
+        { data: homeVisitRows },
+        { data: careCaseRows },
+        { data: attentionHealthRows },
+      ] = await Promise.all([
         allAttendanceSessionIds.length > 0
           ? supabase
               .from('attendance_records')
               .select('session_id, student_id, status')
               .eq('workspace_id', session.workspace.id)
               .in('session_id', allAttendanceSessionIds)
-          : Promise.resolve({ data: [] as AttendanceRecordSummaryRow[] });
-
-      const [
-        { data: studentRows },
-        { data: attendanceRows },
-        { data: savingsAccountRows },
-        { data: savingsTxRows },
-        { data: scoreAssessments },
-        { data: scoreEntries },
-        { data: behaviorRows },
-        { data: homeVisitRows },
-        { data: careCaseRows },
-      ] = await Promise.all([
-        supabase
-          .from('students')
-          .select('id, student_code, first_name, last_name')
-          .eq('workspace_id', session.workspace.id)
-          .eq('classroom_id', selectedClassroomId)
-          .eq('status', 'active'),
-        attendanceRecordsPromise,
-        supabase
-          .from('savings_accounts')
-          .select('id, student_id, balance')
-          .eq('workspace_id', session.workspace.id),
-        supabase
-          .from('savings_transactions')
-          .select('student_id, amount, transaction_type, transaction_date')
-          .eq('workspace_id', session.workspace.id),
-        supabase
-          .from('score_assessments')
-          .select('id, max_score')
-          .eq('workspace_id', session.workspace.id),
-        supabase
-          .from('score_entries')
-          .select('student_id, score, assessment_id')
-          .eq('workspace_id', session.workspace.id),
-        supabase
-          .from('behavior_records')
-          .select('student_id, points, tone')
-          .eq('workspace_id', session.workspace.id),
-        supabase
-          .from('student_home_visits')
-          .select('student_id, status')
-          .eq('workspace_id', session.workspace.id)
-          .in('status', ['submitted', 'certified']),
-        supabase
-          .from('student_care_cases')
-          .select('id, student_id, summary, status, risk_level')
-          .eq('workspace_id', session.workspace.id)
-          .in('status', ['open', 'monitoring']),
+          : emptyPromise([] as AttendanceRecordSummaryRow[]),
+        studentIdList.length > 0
+          ? supabase
+              .from('savings_accounts')
+              .select('id, student_id, balance')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+          : emptyPromise([] as Array<{ id: string; student_id: string; balance: number | null }>),
+        studentIdList.length > 0
+          ? supabase
+              .from('savings_transactions')
+              .select('student_id, amount, transaction_type, transaction_date')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+              .order('transaction_date', { ascending: false })
+              .limit(1000)
+          : emptyPromise([] as SavingsTransactionSummaryRow[]),
+        studentIdList.length > 0
+          ? supabase
+              .from('score_entries')
+              .select('student_id, score, assessment_id')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+          : emptyPromise([] as Array<{ student_id: string; score: number | null; assessment_id: string }>),
+        studentIdList.length > 0
+          ? supabase
+              .from('behavior_records')
+              .select('student_id, points, tone, follow_up_status')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+          : emptyPromise([] as Array<{ student_id: string; points: number | null; tone: string; follow_up_status: string | null }>),
+        studentIdList.length > 0
+          ? supabase
+              .from('student_home_visits')
+              .select('student_id, status')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+              .in('status', ['submitted', 'certified'])
+          : emptyPromise([] as Array<{ student_id: string; status: string }>),
+        studentIdList.length > 0
+          ? supabase
+              .from('student_care_cases')
+              .select('id, student_id, summary, status, risk_level')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+              .in('status', ['open', 'monitoring'])
+          : emptyPromise([] as Array<{ id: string; student_id: string; summary: string | null; status: string; risk_level: string }>),
+        studentIdList.length > 0
+          ? supabase
+              .from('student_health_records')
+              .select('student_id')
+              .eq('workspace_id', session.workspace.id)
+              .in('student_id', studentIdList)
+              .eq('status', 'attention')
+              .gte('record_date', riskWindowStart)
+          : emptyPromise([] as Array<{ student_id: string }>),
       ]);
 
       if (!isMounted) return;
@@ -987,6 +1069,43 @@ export function DashboardPage({ session }: DashboardPageProps) {
       });
 
       const classroomCareCases = (careCaseRows || []).filter((cc) => studentIds.has(cc.student_id));
+
+      // Compute unified 360° risk signals across Attendance + Scores + Behavior + Health + Care Cases
+      const attMap360 = computeAttendanceStreaksAndRates(
+        attendanceSessions.map((s) => ({
+          id: s.id,
+          attendance_date: s.attendance_date,
+          subject_name: s.subject_name,
+        })),
+        (attendanceRows || []) as Array<{ session_id: string; student_id: string; status: string }>,
+        studentIdList,
+      );
+      const scoreStatsMap = new Map<string, StudentRiskScoreStats>();
+      studentScoresMap.forEach((pcts, sid) => {
+        const avg = pcts.length > 0 ? pcts.reduce((s, v) => s + v, 0) / pcts.length : null;
+        scoreStatsMap.set(sid, { averagePercent: avg, gradedCount: pcts.length });
+      });
+      const behaviorStatsMap = new Map<string, StudentRiskBehaviorStats>();
+      (behaviorRows || []).forEach((b) => {
+        if (!studentIds.has(b.student_id)) return;
+        const cur = behaviorStatsMap.get(b.student_id) || { netPoints: 0, urgentFollowUps: 0 };
+        const pts = Number(b.points || 0);
+        cur.netPoints += b.tone === 'negative' && pts > 0 ? -pts : pts;
+        if (b.follow_up_status === 'contact_guardian' || b.follow_up_status === 'referred') {
+          cur.urgentFollowUps += 1;
+        }
+        behaviorStatsMap.set(b.student_id, cur);
+      });
+      const riskSignals = evaluateStudentRiskSignals({
+        students: activeStudentRows,
+        attendanceMap: attMap360,
+        scoresByStudent: scoreStatsMap,
+        behaviorByStudent: behaviorStatsMap,
+        attentionHealthStudentIds: new Set((attentionHealthRows || []).map((r) => r.student_id)),
+        openCareCaseStudentIds: new Set(classroomCareCases.map((c) => c.student_id)),
+      });
+      setEarlyWarningStudents(riskSignals.slice(0, 6));
+
       const watchlistItems: WatchlistStudentItem[] = classroomCareCases.map((cc) => {
         const st = studentMap.get(cc.student_id);
         const name = st ? `${st.first_name} ${st.last_name}` : 'นักเรียนในห้อง';
@@ -1725,6 +1844,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           classroomProgressItems={classroomProgressItems}
           currentThaiDay={currentThaiDay}
           dailySavings={dailySavings}
+          earlyWarningStudents={earlyWarningStudents}
           healthRoutineSummary={healthRoutineSummary}
           isHomeroom={isSelectedClassroomHomeroom}
           nextUpcomingEvent={nextUpcomingEvent}

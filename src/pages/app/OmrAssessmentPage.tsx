@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
@@ -49,6 +49,10 @@ interface OmrAssessmentPageProps {
 export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = (searchParams.get('omrTab') as 'scanner' | 'designer' | 'analysis') || 'scanner';
+  const urlClassroomId = searchParams.get('classroomId') || '';
+  const urlSubjectName = searchParams.get('subjectName') || '';
+  const urlAssessmentId = searchParams.get('assessmentId') || '';
+  const appliedDeepLinkRef = useRef<string>('');
   const [designerSubTab, setDesignerSubTab] = useState<'settings' | 'answer_key' | 'preview'>('settings');
 
   // Classroom & Students Data
@@ -303,7 +307,11 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
 
           if (isMounted && clsData && clsData.length > 0) {
             setClassrooms(clsData);
-            setSelectedClassroomId(clsData[0].id);
+            const matchedRoomId =
+              urlClassroomId && clsData.some((c) => c.id === urlClassroomId)
+                ? urlClassroomId
+                : clsData[0].id;
+            setSelectedClassroomId(matchedRoomId);
 
             const { data: stuData } = await supabase
               .from('students')
@@ -324,7 +332,11 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       // Demo fallback only in demo session or when no workspace is selected
       if (isMounted && (!session?.workspace?.id || isDemoSession(session))) {
         setClassrooms(DEMO_PRIMARY_CLASSROOMS);
-        setSelectedClassroomId(DEMO_PRIMARY_CLASSROOMS[1].id); // ป.5
+        const demoRoomId =
+          urlClassroomId && DEMO_PRIMARY_CLASSROOMS.some((c) => c.id === urlClassroomId)
+            ? urlClassroomId
+            : DEMO_PRIMARY_CLASSROOMS[1].id; // ป.5
+        setSelectedClassroomId(demoRoomId);
         setStudents(DEMO_PRIMARY_STUDENTS);
       }
     }
@@ -333,7 +345,33 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [session]);
+  }, [session, urlClassroomId]);
+
+  // Apply deep-linked classroom/subject/assessment context passed from Score Center once per signature
+  useEffect(() => {
+    const deepLinkKey = `${urlClassroomId}|${urlSubjectName}|${urlAssessmentId}`;
+    if (!urlClassroomId && !urlSubjectName && !urlAssessmentId) return;
+    if (appliedDeepLinkRef.current === deepLinkKey) return;
+    if (urlClassroomId && classrooms.length === 0) return;
+
+    appliedDeepLinkRef.current = deepLinkKey;
+
+    const matchedRoom = classrooms.find((c) => c.id === urlClassroomId);
+    if (matchedRoom) {
+      setSelectedClassroomId(matchedRoom.id);
+    }
+
+    setConfig((prev) => ({
+      ...prev,
+      ...(urlSubjectName ? { subjectName: urlSubjectName } : {}),
+      ...(urlAssessmentId ? { assessmentId: urlAssessmentId } : {}),
+      ...(matchedRoom ? { classroomId: matchedRoom.id, roomName: matchedRoom.name } : {}),
+    }));
+
+    if (urlAssessmentId) {
+      setSelectedAssessmentId(urlAssessmentId);
+    }
+  }, [classrooms, urlAssessmentId, urlClassroomId, urlSubjectName]);
 
   // Fetch Gradebook Score Assessments for selected classroom (workspace_id filtered)
   useEffect(() => {

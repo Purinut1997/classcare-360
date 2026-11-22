@@ -243,9 +243,9 @@ function normalizeHeader(value: unknown) {
 }
 
 function normalizeGender(value: unknown): PreviewRow['gender'] {
-  const text = normalizeCell(value);
-  if (['ช', 'ชาย', 'เด็กชาย', 'นาย', 'male', 'm'].includes(text.toLowerCase())) return 'male';
-  if (['ญ', 'หญิง', 'เด็กหญิง', 'นางสาว', 'นาง', 'female', 'f'].includes(text.toLowerCase())) return 'female';
+  const text = normalizeCell(value).toLowerCase().replace(/\.$/, '');
+  if (['ช', 'ชาย', 'เด็กชาย', 'ด.ช', 'ดช', 'นาย', 'male', 'm'].includes(text)) return 'male';
+  if (['ญ', 'หญิง', 'เด็กหญิง', 'ด.ญ', 'ดญ', 'นางสาว', 'น.ส', 'นส', 'นาง', 'female', 'f'].includes(text)) return 'female';
   if (!text || text === '-') return 'unspecified';
   return 'other';
 }
@@ -391,18 +391,24 @@ function parseGeneralExcelRows(
       guardianPhone = guardianPhoneIndex >= 0 ? normalizeCell(row[guardianPhoneIndex]) : null;
 
       if (!firstName && fullNameIndex >= 0) {
-        const full = normalizeCell(row[fullNameIndex]);
-        const parts = full.split(/\s+/);
+        let full = normalizeCell(row[fullNameIndex]);
+        // Extract Thai prefix cleanly even when separated by spaces (e.g. "ด.ช. สมชาย ใจดี")
+        const fullPrefixMatch = full.match(/^(เด็กชาย|เด็กหญิง|ด\.ช\.?|ด\.ญ\.?|นาย|นางสาว|น\.ส\.?|นาง)\s*(.+)$/);
+        if (fullPrefixMatch) {
+          if (!rawPrefix) rawPrefix = fullPrefixMatch[1].trim();
+          full = fullPrefixMatch[2].trim();
+        }
+        const parts = full.split(/\s+/).filter(Boolean);
         firstName = parts[0] || '';
         lastName = parts.slice(1).join(' ') || '';
       }
     }
 
-    // Auto-detect prefix & gender from firstName if not provided
+    // Auto-detect prefix & gender from firstName if not provided (handling optional trailing space)
     if (!rawPrefix && firstName) {
-      const prefixMatch = firstName.match(/^(เด็กชาย|เด็กหญิง|ด\.ช\.|ด\.ญ\.|ด\.ช|ด\.ญ|นาย|นางสาว|น\.ส\.|น\.ส|นาง)(.+)$/);
+      const prefixMatch = firstName.match(/^(เด็กชาย|เด็กหญิง|ด\.ช\.?|ด\.ญ\.?|นาย|นางสาว|น\.ส\.?|นาง)\s*(.+)$/);
       if (prefixMatch) {
-        rawPrefix = prefixMatch[1];
+        rawPrefix = prefixMatch[1].trim();
         firstName = prefixMatch[2].trim();
       }
     }
@@ -3535,7 +3541,7 @@ export function ImportExportPage({ session }: ImportExportPageProps) {
                   type="button"
                 >
                   <Download size={17} aria-hidden="true" />
-                  Template นักเรียน CSV
+                  Template นักเรียน Excel (.xlsx)
                 </button>
                 <button
                   className="nexus-pill inline-flex h-11 items-center justify-center gap-2 px-4 text-sm font-black text-slate-700"

@@ -26,10 +26,10 @@ import {
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
+import { computeAttendanceStreaksAndRates, suggestDesirableTraitsForStudent } from '../../lib/studentIntelligence';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { getClassroomScopeBadge, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
 import { downloadExcelBuffer } from '../../lib/excelReport';
-import ExcelJS from 'exceljs';
 import type { AppSessionContext } from '../../types/core';
 
 interface DesirableCharacteristicsPageProps {
@@ -133,6 +133,8 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestionSummary, setSuggestionSummary] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const workspaceId = session.workspace?.id || 'demo-workspace';
@@ -419,6 +421,182 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
     showToast('ตั้งต้นทุกคนเป็นระดับ 3 (ดีเยี่ยม) เรียบร้อยแล้ว');
   };
 
+  const handleSmartSuggestTraits = async () => {
+    if (students.length === 0) {
+      showToast('ยังไม่มีนักเรียนในห้องนี้');
+      return;
+    }
+
+    setIsSuggesting(true);
+    try {
+      const studentIds = students.map((s) => s.id);
+      const attendanceMap = new Map<string, { rate: number; lateDays: number }>();
+      const behaviorStats = new Map<string, { net: number; positive: number }>();
+      const scoreStats = new Map<string, { earnedPctSum: number; completedCount: number; totalCount: number }>();
+      const savingsCount = new Map<string, number>();
+
+      if (isDemoSession(session) || !isSupabaseReady || !supabase || !session.workspace) {
+        students.forEach((student, idx) => {
+          attendanceMap.set(student.id, { rate: idx % 4 === 2 ? 78 : 96, lateDays: idx % 3 });
+          behaviorStats.set(student.id, { net: idx % 4 === 2 ? -2 : 4 + (idx % 3), positive: idx % 4 === 2 ? 0 : 2 });
+          scoreStats.set(student.id, { earnedPctSum: idx % 4 === 2 ? 120 : 240, completedCount: idx % 4 === 2 ? 2 : 3, totalCount: 3 });
+          savingsCount.set(student.id, idx % 2 === 0 ? 4 : 1);
+        });
+      } else {
+        const activeWorkspaceId = session.workspace.id;
+        const [
+          { data: sessionRows },
+          { data: behaviorRows },
+          { data: assessmentRows },
+          { data: scoreEntryRows },
+          { data: savingsRows },
+        ] = await Promise.all([
+          supabase
+            .from('attendance_sessions')
+            .select('id,attendance_date,subject_name')
+            .eq('workspace_id', activeWorkspaceId)
+            .eq('classroom_id', selectedClassroomId)
+            .order('attendance_date', { ascending: false })
+            .limit(120),
+          supabase
+            .from('behavior_records')
+            .select('student_id,points')
+            .eq('workspace_id', activeWorkspaceId)
+            .in('student_id', studentIds)
+            .limit(800),
+          supabase
+            .from('score_assessments')
+            .select('id,max_score')
+            .eq('workspace_id', activeWorkspaceId)
+            .eq('classroom_id', selectedClassroomId)
+            .neq('status', 'archived')
+            .limit(200),
+          supabase
+            .from('score_entries')
+            .select('assessment_id,student_id,score')
+            .eq('workspace_id', activeWorkspaceId)
+            .in('student_id', studentIds)
+            .limit(2000),
+          supabase
+            .from('savings_transactions')
+            .select('student_id')
+            .eq('workspace_id', activeWorkspaceId)
+            .in('student_id', studentIds)
+            .limit(1000),
+        ]);
+
+        const attSessions = (sessionRows || []) as Array<{ id: string; attendance_date: string; subject_name: string | null }>;
+        if (attSessions.length > 0) {
+          const { data: attRecordRows } = await supabase
+            .from('attendance_records')
+            .select('session_id,student_id,status')
+            .eq('workspace_id', activeWorkspaceId)
+            .in(
+              'session_id',
+              attSessions.map((s) => s.id),
+            )
+            .limit(3000);
+          const summaries = computeAttendanceStreaksAndRates(
+            attSessions,
+            (attRecordRows || []) as Array<{ session_id: string; student_id: string; status: string }>,
+            studentIds,
+          );
+          summaries.forEach((summary, studentId) => {
+            attendanceMap.set(studentId, { rate: summary.attendanceRate, lateDays: summary.lateDays });
+          });
+        }
+
+        ((behaviorRows || []) as Array<{ student_id: string; points: number }>).forEach((row) => {
+          const prev = behaviorStats.get(row.student_id) || { net: 0, positive: 0 };
+          behaviorStats.set(row.student_id, {
+            net: prev.net + Number(row.points || 0),
+            positive: prev.positive + (Number(row.points || 0) > 0 ? 1 : 0),
+          });
+        });
+
+        const assessmentMaxMap = new Map<string, number>();
+        ((assessmentRows || []) as Array<{ id: string; max_score: number }>).forEach((a) => {
+          assessmentMaxMap.set(a.id, Number(a.max_score || 0));
+        });
+        const totalAssessments = assessmentMaxMap.size;
+        ((scoreEntryRows || []) as Array<{ assessment_id: string; student_id: string; score: number | null }>).forEach((entry) => {
+          const maxScore = assessmentMaxMap.get(entry.assessment_id);
+          if (!maxScore || maxScore <= 0 || entry.score === null || entry.score === undefined) return;
+          const prev = scoreStats.get(entry.student_id) || { earnedPctSum: 0, completedCount: 0, totalCount: totalAssessments };
+          scoreStats.set(entry.student_id, {
+            earnedPctSum: prev.earnedPctSum + (Number(entry.score) / maxScore) * 100,
+            completedCount: prev.completedCount + 1,
+            totalCount: totalAssessments,
+          });
+        });
+
+        ((savingsRows || []) as Array<{ student_id: string }>).forEach((tx) => {
+          savingsCount.set(tx.student_id, (savingsCount.get(tx.student_id) || 0) + 1);
+        });
+      }
+
+      let attentionCount = 0;
+      setEvaluations((prev) => {
+        const next = { ...prev };
+        students.forEach((student) => {
+          const att = attendanceMap.get(student.id) || { rate: 100, lateDays: 0 };
+          const beh = behaviorStats.get(student.id) || { net: 0, positive: 0 };
+          const scr = scoreStats.get(student.id);
+          const completionPct =
+            scr && scr.totalCount > 0 ? Math.min(100, Math.round((scr.completedCount / scr.totalCount) * 100)) : 0;
+          const avgPct = scr && scr.completedCount > 0 ? scr.earnedPctSum / scr.completedCount : null;
+          const txCount = savingsCount.get(student.id) || 0;
+
+          const suggested = suggestDesirableTraitsForStudent({
+            attendanceRate: att.rate,
+            lateDays: att.lateDays,
+            behaviorNetPoints: beh.net,
+            positiveBehaviorCount: beh.positive,
+            scoreCompletionPercent: completionPct,
+            scoreAveragePercent: avgPct,
+            savingsTxCount: txCount,
+          });
+
+          const normalizedTraits: Record<number, EvaluationLevel> = {};
+          OBEC_TRAITS.forEach((trait) => {
+            const val = suggested.traits[trait.id];
+            normalizedTraits[trait.id] = val === 0 || val === 1 || val === 2 || val === 3 ? val : 3;
+          });
+          const traitSummary = calculateObecSummary(Object.values(normalizedTraits));
+          if (traitSummary < 2) attentionCount += 1;
+
+          const current = next[student.id];
+          const existingNote = current?.note?.trim() || '';
+          const cleanedNote = existingNote.replace(/^\[ข้อมูลจริง:.*?\]\s*/, '').trim();
+          const autoNote = suggested.rationale ? `[ข้อมูลจริง: ${suggested.rationale}]` : '';
+          const combinedNote = cleanedNote ? (autoNote ? `${cleanedNote} ${autoNote}` : cleanedNote) : autoNote;
+
+          next[student.id] = {
+            student_id: student.id,
+            traits: normalizedTraits,
+            trait_summary: traitSummary,
+            reading: current?.reading || { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+            reading_summary: current?.reading_summary ?? 3,
+            note: combinedNote,
+            isDirty: true,
+          };
+        });
+        return next;
+      });
+
+      setSuggestionSummary(
+        `เติมผลแนะนำ 8 คุณลักษณะจากสถิติเวลาเรียน พฤติกรรม คะแนน และการออมของ ${students.length} คนแล้ว${
+          attentionCount > 0 ? ` (พบ ${attentionCount} คนที่ควรดูแล/ปรับแก้เพิ่มเติม)` : ''
+        } กรุณาตรวจทานก่อนกดบันทึก`,
+      );
+      showToast('วิเคราะห์ข้อมูลจริงและเติมคำแนะนำ 8 คุณลักษณะแล้ว');
+    } catch (err) {
+      showToast(`ไม่สามารถวิเคราะห์ข้อมูลได้: ${(err as Error).message}`);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
   // Set Column to specific level
   const setColumnToLevel = (type: 'traits' | 'reading', itemId: number, level: EvaluationLevel) => {
     setEvaluations((prev) => {
@@ -517,7 +695,10 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
           .upsert(recordsToUpsert, { onConflict: 'workspace_id,classroom_id,student_id,academic_year,term' });
 
         if (error) {
-          console.warn('Could not save to Supabase directly (table may be pending migration), saved to local secure cache:', error.message);
+          console.error('Could not save student_desirable_records:', error.message);
+          showToast(`บันทึกลงระบบหลักไม่สำเร็จ: ${error.message} (สำรองข้อมูลไว้ในเครื่องชั่วคราวแล้ว)`);
+          setIsSaving(false);
+          return;
         }
       }
 
@@ -553,6 +734,7 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
 
   // Export to Excel (แบบ ปพ.5 มาตรฐาน สพฐ.)
   const handleExportExcel = async () => {
+    const { default: ExcelJS } = await import('exceljs');
     const classroomName = currentClassroom?.name || 'ห้องเรียน';
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'ClassCare 360';
@@ -910,7 +1092,17 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => void handleSmartSuggestTraits()}
+              disabled={isSuggesting || students.length === 0}
+              type="button"
+              className="inline-flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950 shadow-2xs active:scale-95 transition disabled:opacity-50"
+              title="คำนวณคำแนะนำ 8 คุณลักษณะจากสถิติเข้าเรียน พฤติกรรม คะแนน และออมทรัพย์"
+            >
+              <RefreshCw size={13} className={isSuggesting ? 'animate-spin' : ''} />
+              <span>{isSuggesting ? 'กำลังวิเคราะห์...' : 'แนะนำจากข้อมูลจริง (Smart)'}</span>
+            </button>
             <button
               onClick={setAllToExcellent}
               type="button"
@@ -929,6 +1121,23 @@ export function DesirableCharacteristicsPage({ session }: DesirableCharacteristi
             </button>
           </div>
         </div>
+
+        {suggestionSummary && (
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-3.5 py-2.5 text-xs font-bold text-emerald-900">
+            <div className="flex items-center gap-2">
+              <Sparkles size={15} className="shrink-0 text-emerald-600" />
+              <span>{suggestionSummary}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuggestionSummary(null)}
+              className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100"
+              title="ซ่อนแถบสรุป"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* ======================================================== */}
         {/* POST-IT BOARD MODE                                       */}
