@@ -7,9 +7,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Cloud,
+  FileEdit,
   FileText,
   GraduationCap,
   Layers,
+  MonitorPlay,
   Sparkles,
   Sliders,
   Smartphone,
@@ -29,8 +31,11 @@ import { CHOICE_KEYS_ABCD, regradeScannedResults } from '../../lib/omrEngine';
 import { writeAuditLog } from '../../lib/auditLog';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
+import type { OnlineExamMode } from '../../lib/hybridExamService';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
 import { AnswerSheetDesigner } from '../../components/omr/AnswerSheetDesigner';
+import { ExamAuthoringStudio } from '../../components/omr/ExamAuthoringStudio';
+import { LiveQuizHostPanel } from '../../components/omr/LiveQuizHostPanel';
 import { OmrScanner, type OmrAssessmentOption } from '../../components/omr/OmrScanner';
 import { OmrItemAnalysis } from '../../components/omr/OmrItemAnalysis';
 import {
@@ -46,14 +51,25 @@ interface OmrAssessmentPageProps {
   session: AppSessionContext | null;
 }
 
+type OmrTabKey = 'studio' | 'designer' | 'scanner' | 'live' | 'analysis';
+
 export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = (searchParams.get('omrTab') as 'scanner' | 'designer' | 'analysis') || 'scanner';
+  const rawOmrTab = searchParams.get('omrTab');
+  const currentTab: OmrTabKey =
+    rawOmrTab === 'studio' ||
+    rawOmrTab === 'designer' ||
+    rawOmrTab === 'scanner' ||
+    rawOmrTab === 'live' ||
+    rawOmrTab === 'analysis'
+      ? rawOmrTab
+      : 'scanner';
   const urlClassroomId = searchParams.get('classroomId') || '';
   const urlSubjectName = searchParams.get('subjectName') || '';
   const urlAssessmentId = searchParams.get('assessmentId') || '';
   const appliedDeepLinkRef = useRef<string>('');
   const [designerSubTab, setDesignerSubTab] = useState<'settings' | 'answer_key' | 'preview'>('settings');
+  const [livePreferredMode, setLivePreferredMode] = useState<OnlineExamMode>('mobile_exam');
 
   // Classroom & Students Data
   const [classrooms, setClassrooms] = useState<Array<{ id: string; name: string; grade_level?: string }>>([]);
@@ -284,7 +300,7 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     }
   }, [resultsStorageKey, sessionResults]);
 
-  const setOmrTab = (tab: 'scanner' | 'designer' | 'analysis') => {
+  const setOmrTab = (tab: OmrTabKey) => {
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('omrTab', tab);
@@ -678,6 +694,53 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
     }
   };
 
+  const handleBatchSaveDirectScores = async (
+    entries: Array<{ studentId: string; score: number; note: string }>,
+    assessmentId: string,
+  ): Promise<boolean> => {
+    if (!assessmentId || entries.length === 0) return false;
+    if (!session?.workspace?.id || !isSupabaseReady || !supabase || isDemoSession(session)) {
+      setToastMessage(`บันทึกคะแนนออนไลน์ ${entries.length} คนเรียบร้อย (โหมดตัวอย่าง)`);
+      setTimeout(() => setToastMessage(null), 3500);
+      return true;
+    }
+
+    const rows = entries.map((entry) => ({
+      workspace_id: session.workspace!.id,
+      assessment_id: assessmentId,
+      student_id: entry.studentId,
+      score: entry.score,
+      note: entry.note,
+      graded_by: session.profile?.id || null,
+    }));
+
+    const { error } = await supabase
+      .from('score_entries')
+      .upsert(rows, { onConflict: 'assessment_id,student_id' });
+
+    if (error) {
+      setToastMessage(`บันทึกคะแนนไม่สำเร็จ: ${error.message}`);
+      setTimeout(() => setToastMessage(null), 4000);
+      return false;
+    }
+
+    await writeAuditLog(session, {
+      action: 'score_entries.batch_saved',
+      entityId: assessmentId,
+      entityTable: 'score_entries',
+      metadata: {
+        count: rows.length,
+        source: 'hybrid_online_exam',
+      },
+      riskLevel: 'low',
+      source: 'omr_scanner',
+    });
+
+    setToastMessage(`นำคะแนนนักเรียน ${rows.length} คนลงสมุดคะแนนเรียบร้อยแล้ว!`);
+    setTimeout(() => setToastMessage(null), 4000);
+    return true;
+  };
+
   const handleRegradeAll = () => {
     setSessionResults((prev) => regradeScannedResults(prev, config));
     setToastMessage(`ตรวจคำนวณคะแนนซ้ำให้กระดาษคำตอบทั้งหมดเรียบร้อยแล้ว`);
@@ -790,163 +853,123 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
         />
       </div>
 
-      {/* Main Tabs Navigation (3-Step Hero Stepper Bar) */}
-      <div className="print:hidden omr-no-print rounded-3xl border-2 border-slate-200/90 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="mb-2.5 flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-              ขั้นตอนการทำงาน OMR (กดเลือกสลับเมนูได้ทันที):
-            </span>
-          </div>
-          <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-400">
-            ระบบบันทึกและซิงค์ข้อมูลอัตโนมัติ
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-          {/* Tab 1: Scanner */}
-          <button
-            type="button"
-            onClick={() => setOmrTab('scanner')}
-            className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 text-left transition-all duration-150 ${
-              currentTab === 'scanner'
-                ? 'border-2 border-cyan-500 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white shadow-md ring-2 ring-cyan-500/20'
-                : 'border-2 border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/30 hover:shadow-sm active:scale-[0.99]'
-            }`}
-          >
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm transition ${
-                currentTab === 'scanner'
-                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
-                  : 'border border-slate-200 bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800 group-hover:border-cyan-300'
-              }`}
-            >
-              <Camera size={20} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className={`text-[10px] font-black uppercase tracking-wider rounded-md px-1.5 py-0.5 ${
-                  currentTab === 'scanner' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  ขั้นตอนที่ 1
+      {/* Main Tabs Navigation (5-Step Hybrid Exam Workflow: Studio -> Paper OMR -> Scan -> Mobile/Live -> Analysis) */}
+      <div className="print:hidden omr-no-print rounded-3xl border border-[#DCE3D7] bg-white p-2.5 shadow-2xs sm:p-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            {
+              key: 'studio' as OmrTabKey,
+              step: '1',
+              label: 'เขียนข้อสอบ',
+              sub: 'ปรนัย/ตอบสั้น/AI',
+              icon: FileEdit,
+            },
+            {
+              key: 'designer' as OmrTabKey,
+              step: '2',
+              label: 'กระดาษ OMR',
+              sub: 'ออกแบบ & พิมพ์ A4',
+              icon: FileText,
+            },
+            {
+              key: 'scanner' as OmrTabKey,
+              step: '3',
+              label: 'ตรวจกระดาษ OMR',
+              sub: 'สแกนกล้อง & AI',
+              icon: Camera,
+            },
+            {
+              key: 'live' as OmrTabKey,
+              step: '4',
+              label: 'สอบมือถือ & ควิซสด',
+              sub: 'PIN 6 หลัก / QR',
+              icon: MonitorPlay,
+            },
+            {
+              key: 'analysis' as OmrTabKey,
+              step: '5',
+              label: 'วิเคราะห์ผล',
+              sub: 'ความยากง่ายรายข้อ',
+              icon: BarChart3,
+            },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = currentTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setOmrTab(tab.key)}
+                className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                  isActive
+                    ? 'border-[#1C342B] bg-[#1C342B] text-white shadow-sm'
+                    : 'border-[#E5E8E1] bg-[#FAFBF9] text-[#1F2924] hover:border-[#BFE0CD] hover:bg-[#E6F4EC]/50'
+                }`}
+              >
+                <span
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black ${
+                    isActive ? 'bg-[#2F7D5B] text-white' : 'bg-white border border-[#DCE3D7] text-[#1C573D]'
+                  }`}
+                >
+                  <Icon size={17} aria-hidden="true" />
                 </span>
-                {currentTab === 'scanner' && (
-                  <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1">
-                    ● เปิดใช้งาน
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-extrabold">
+                    {tab.step}. {tab.label}
                   </span>
-                )}
-              </div>
-              <p className="truncate text-xs sm:text-sm font-black mt-0.5">
-                สแกน & ตรวจข้อสอบ (OMR)
-              </p>
-              <p className={`text-[11px] font-medium truncate ${currentTab === 'scanner' ? 'text-slate-300' : 'text-slate-500'}`}>
-                ใช้กล้องมือถือ/เว็บแคม ตรวจคะแนนทันที
-              </p>
-            </div>
-            <ChevronRight
-              size={18}
-              className={`shrink-0 transition-transform ${
-                currentTab === 'scanner' ? 'text-cyan-400 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5'
-              }`}
-            />
-          </button>
-
-          {/* Tab 2: Designer & Answer Keys */}
-          <button
-            type="button"
-            onClick={() => setOmrTab('designer')}
-            className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 text-left transition-all duration-150 ${
-              currentTab === 'designer'
-                ? 'border-2 border-cyan-500 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white shadow-md ring-2 ring-cyan-500/20'
-                : 'border-2 border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/30 hover:shadow-sm active:scale-[0.99]'
-            }`}
-          >
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm transition ${
-                currentTab === 'designer'
-                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
-                  : 'border border-slate-200 bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800 group-hover:border-cyan-300'
-              }`}
-            >
-              <FileText size={20} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className={`text-[10px] font-black uppercase tracking-wider rounded-md px-1.5 py-0.5 ${
-                  currentTab === 'designer' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  ขั้นตอนที่ 2
+                  <span
+                    className={`block truncate text-[10px] font-semibold ${
+                      isActive ? 'text-emerald-100/80' : 'text-[#75827a]'
+                    }`}
+                  >
+                    {tab.sub}
+                  </span>
                 </span>
-                {currentTab === 'designer' && (
-                  <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1">
-                    ● เปิดใช้งาน
-                  </span>
-                )}
-              </div>
-              <p className="truncate text-xs sm:text-sm font-black mt-0.5">
-                ออกแบบกระดาษ & กำหนดเฉลย
-              </p>
-              <p className={`text-[11px] font-medium truncate ${currentTab === 'designer' ? 'text-slate-300' : 'text-slate-500'}`}>
-                สร้างกระดาษ A4, เฉลย ก ข ค ง, พิมพ์ข้อสอบ
-              </p>
-            </div>
-            <ChevronRight
-              size={18}
-              className={`shrink-0 transition-transform ${
-                currentTab === 'designer' ? 'text-cyan-400 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5'
-              }`}
-            />
-          </button>
-
-          {/* Tab 3: Analysis */}
-          <button
-            type="button"
-            onClick={() => setOmrTab('analysis')}
-            className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 text-left transition-all duration-150 ${
-              currentTab === 'analysis'
-                ? 'border-2 border-cyan-500 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 text-white shadow-md ring-2 ring-cyan-500/20'
-                : 'border-2 border-slate-200/90 bg-white text-slate-800 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/30 hover:shadow-sm active:scale-[0.99]'
-            }`}
-          >
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm transition ${
-                currentTab === 'analysis'
-                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
-                  : 'border border-slate-200 bg-slate-100 text-slate-700 group-hover:bg-cyan-100 group-hover:text-cyan-800 group-hover:border-cyan-300'
-              }`}
-            >
-              <BarChart3 size={20} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className={`text-[10px] font-black uppercase tracking-wider rounded-md px-1.5 py-0.5 ${
-                  currentTab === 'analysis' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  ขั้นตอนที่ 3
-                </span>
-                {sessionResults.length > 0 && (
-                  <span className="rounded-md bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
-                    {sessionResults.length} แผ่น
-                  </span>
-                )}
-              </div>
-              <p className="truncate text-xs sm:text-sm font-black mt-0.5">
-                ผลคะแนน & วิเคราะห์รายข้อ
-              </p>
-              <p className={`text-[11px] font-medium truncate ${currentTab === 'analysis' ? 'text-slate-300' : 'text-slate-500'}`}>
-                สถิติความยากง่าย อำนาจจำแนก ตัดเกรด
-              </p>
-            </div>
-            <ChevronRight
-              size={18}
-              className={`shrink-0 transition-transform ${
-                currentTab === 'analysis' ? 'text-cyan-400 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5'
-              }`}
-            />
-          </button>
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {/* Tab 0: Authoring Studio ("เขียนครั้งเดียว ใช้ได้ 3 ทาง") */}
+      {currentTab === 'studio' && (
+        <ExamAuthoringStudio
+          config={config}
+          onChangeConfig={(nextCfg) => setConfig(nextCfg)}
+          onPrintOmr={() => {
+            setDesignerSubTab('preview');
+            setOmrTab('designer');
+          }}
+          onLaunchMobileExam={() => {
+            setLivePreferredMode('mobile_exam');
+            setOmrTab('live');
+          }}
+          onLaunchLiveQuiz={() => {
+            setLivePreferredMode('live_quiz');
+            setOmrTab('live');
+          }}
+          session={session}
+        />
+      )}
+
+      {/* Tab 4: Mobile Exam & Live Quiz Host */}
+      {currentTab === 'live' && (
+        <LiveQuizHostPanel
+          config={config}
+          session={session}
+          classrooms={classrooms}
+          activeClassroomId={selectedClassroomId}
+          onSelectClassroom={(id) => setSelectedClassroomId(id)}
+          studentsInActiveRoom={activeStudents}
+          assessments={assessments}
+          selectedAssessmentId={selectedAssessmentId}
+          onSelectAssessment={handleSelectAssessment}
+          onCreateAssessment={handleCreateAssessmentFromExam}
+          onBatchSaveScores={handleBatchSaveDirectScores}
+          preferredMode={livePreferredMode}
+          onGoToStudio={() => setOmrTab('studio')}
+        />
+      )}
 
       {/* Tab 1: Scanner */}
       {currentTab === 'scanner' && (

@@ -51,6 +51,11 @@ const PublicSupportPage = lazy(() =>
     default: module.PublicSupportPage,
   })),
 );
+const StudentExamPortalPage = lazy(() =>
+  import('./pages/public/StudentExamPortalPage').then((module) => ({
+    default: module.StudentExamPortalPage,
+  })),
+);
 const AuditCenterPage = lazy(() =>
   import('./pages/app/AuditCenterPage').then((module) => ({
     default: module.AuditCenterPage,
@@ -69,6 +74,11 @@ const StudentHealthPage = lazy(() =>
 const DashboardPage = lazy(() =>
   import('./pages/app/DashboardPage').then((module) => ({
     default: module.DashboardPage,
+  })),
+);
+const SystemOverviewPage = lazy(() =>
+  import('./pages/app/SystemOverviewPage').then((module) => ({
+    default: module.SystemOverviewPage,
   })),
 );
 const DataSafetyCenterPage = lazy(() =>
@@ -246,6 +256,7 @@ function getAppShellNavItems(session: AppSessionContext | null, currentSearch = 
 }
 
 function getAllowedRolesForNavItem(key: string) {
+  if (key === 'system-overview') return reportViewerRoles;
   if (key === 'reports') return reportViewerRoles;
   if (key === 'daily-brief') return reportViewerRoles;
   if (key === 'help-center') return reportViewerRoles;
@@ -333,6 +344,16 @@ function AppDashboardRoute({ session }: { session: AppSessionContext | null }) {
   }
 
   const topbarBadges = ['Phase 2 Foundation', appEnv.timezone, roleLabels[session.profile.role], canManageCurrentWorkspace ? 'จัดการ workspace ได้' : 'ดูตามสิทธิ์'];
+
+  if (activeNavItem.key === 'system-overview') {
+    return (
+      <RequireRouteAccess allowedRoles={allowedRoles} featureName={activeNavItem.label} moduleKey={activeNavItem.moduleKey} session={session}>
+        <AppShell activeView={activeNavItem.key} navItems={shellNavItems} session={session}>
+          <SystemOverviewPage session={session} />
+        </AppShell>
+      </RequireRouteAccess>
+    );
+  }
 
   if (activeNavItem.key === 'students') {
     return (
@@ -643,7 +664,10 @@ function PortalInvitationsRoute({ session }: { session: AppSessionContext | null
 function AppRoutes() {
   const location = useLocation();
   const { error, retry, session, state } = useAppSession(location.search);
-  const isPublicRoute = ['/', '/login', '/pricing', '/public/report', '/support', '/report-lookup'].includes(location.pathname);
+  const isPublicRoute =
+    ['/', '/login', '/pricing', '/public/report', '/support', '/report-lookup'].includes(location.pathname) ||
+    location.pathname === '/exam' ||
+    location.pathname.startsWith('/exam/');
   const loginPath = `/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
   if (state === 'loading' && !isPublicRoute) {
@@ -679,6 +703,8 @@ function AppRoutes() {
       <Route element={<PricingPage />} path="/pricing" />
       <Route element={<PublicReportLookupPage />} path="/public/report" />
       <Route element={<PublicSupportPage />} path="/support" />
+      <Route element={<StudentExamPortalPage />} path="/exam" />
+      <Route element={<StudentExamPortalPage />} path="/exam/:pin" />
       <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />
       <Route element={<AppDashboardRoute session={session} />} path="/app/dashboard" />
       <Route element={<WorkspaceSetupRoute session={session} />} path="/app/select-workspace" />

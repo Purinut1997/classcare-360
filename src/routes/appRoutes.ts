@@ -1,4 +1,4 @@
-import { Archive, Award, Bell, BookOpen, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ScanLine, ServerCog, School, ShieldEllipsis, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
+import { Archive, Award, BarChart3, Bell, BookOpen, Building2, CalendarCheck, CalendarDays, CalendarRange, CircleHelp, ClipboardCheck, ClipboardList, DatabaseZap, Dice5, FileSpreadsheet, FileCheck2, GraduationCap, History, Heart, HeartPulse, KeyRound, Home, LockKeyhole, PiggyBank, ScanLine, ServerCog, School, ShieldCheck, Sparkles, Users, Workflow, type LucideIcon } from 'lucide-react';
 
 import type { ModuleKey } from '../types/core';
 
@@ -20,6 +20,13 @@ export const appNavItems: AppNavItem[] = [
     icon: Home,
     moduleKey: 'dashboard',
     path: '/app/dashboard',
+  },
+  {
+    key: 'system-overview',
+    label: 'ภาพรวม',
+    icon: BarChart3,
+    moduleKey: 'dashboard',
+    path: '/app/dashboard?view=system-overview',
   },
   {
     key: 'students',
@@ -240,6 +247,11 @@ export const appViewCopy: Record<string, { eyebrow: string; title: string; body:
     eyebrow: 'ระบบผู้ช่วยครูและดูแลนักเรียนครบวงจร',
     title: 'แดชบอร์ดสำหรับครูที่ต้องเห็นภาพทั้งห้องในหน้าเดียว',
     body: 'วางฐานสำหรับ Login, Student 360, งานครู, คะแนน, เงินออม, พฤติกรรม, เครื่องมือสุ่ม, รายงาน, แพ็กเกจ และ Superadmin โดยยึด RLS และ workspace isolation เป็นแกนหลัก',
+  },
+  'system-overview': {
+    eyebrow: 'ภาพรวมทั้งระบบ',
+    title: 'สรุปสถิติทั้งหมดของโรงเรียนและรายห้องในหน้าเดียว',
+    body: 'ติดตามอัตราการมาเรียนตลอดเทอม คะแนนและเกรด เงินออม สุขภาพ พฤติกรรม และนักเรียนที่ควรดูแลแบบภาพรวมทั้งโรงเรียนหรือแยกทีละห้อง',
   },
   students: {
     eyebrow: 'Student 360',

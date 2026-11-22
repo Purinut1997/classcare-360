@@ -28,6 +28,7 @@ import { AiFeatureShowcase } from '../../components/dashboard/AiFeatureShowcase'
 import { SystemReportsDashboard } from '../../components/dashboard/SystemReportsDashboard';
 import { EasyShortcutHub } from '../../components/dashboard/EasyShortcutHub';
 import { TodayBentoDashboard } from '../../components/dashboard/TodayBentoDashboard';
+import type { TermHeatmapDayItem } from '../../components/dashboard/TermAttendanceHeatmap';
 import { getHiddenClassroomIds, isObsoleteGhostClassroom } from '../../lib/teacherClassrooms';
 import { hydrateHiddenClassroomsFromCloud } from '../../lib/workspaceCloudPrefs';
 import { getThaiPublicHolidays } from '../../lib/thaiHolidays';
@@ -358,6 +359,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     averagePercent: 0,
   });
   const [earlyWarningStudents, setEarlyWarningStudents] = useState<StudentRiskSignalItem[]>([]);
+  const [termHeatmapDays, setTermHeatmapDays] = useState<TermHeatmapDayItem[]>([]);
   const [currentTerm, setCurrentTerm] = useState<{
     termName: string | null;
     startDate: string | null;
@@ -722,6 +724,18 @@ export function DashboardPage({ session }: DashboardPageProps) {
             behaviorNet: -1,
           },
         ]);
+        const demoHeatDays: TermHeatmapDayItem[] = [];
+        for (let offset = 75; offset >= 0; offset -= 1) {
+          const dStr = getBangkokDate(new Date(Date.now() - offset * 86_400_000));
+          const jsDay = new Date(`${dStr}T12:00:00+07:00`).getUTCDay();
+          if (jsDay === 0 || jsDay === 6) continue;
+          const absent = offset % 11 === 0 ? 3 : offset % 5 === 0 ? 1 : 0;
+          const late = offset % 3 === 0 ? 2 : 1;
+          const leave = offset % 7 === 0 ? 1 : 0;
+          const present = Math.max(0, 29 - absent - late - leave);
+          demoHeatDays.push({ date: dStr, present, absent, leave, late, total: 29 });
+        }
+        setTermHeatmapDays(demoHeatDays);
         return;
       }
 
@@ -729,6 +743,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
         setAnalyticsData(emptyAnalyticsData);
         setWatchlistStudents([]);
         setEarlyWarningStudents([]);
+        setTermHeatmapDays([]);
         setActiveClassroomStudentIds([]);
         setTodayCheckedSessionCount(0);
         setSubjectAttendanceNamesToday([]);
@@ -753,8 +768,10 @@ export function DashboardPage({ session }: DashboardPageProps) {
         getBangkokDate(new Date(Date.now() - (6 - index) * 86_400_000)),
       );
       const riskWindowStart = getBangkokDate(new Date(Date.now() - 29 * 86_400_000));
+      const heatmapWindowStart = getBangkokDate(new Date(Date.now() - 111 * 86_400_000));
       const baseStartDate = currentWeekDates[0] < trendDates[0] ? currentWeekDates[0] : trendDates[0];
-      const minStartDate = riskWindowStart < baseStartDate ? riskWindowStart : baseStartDate;
+      const earlierWindow = heatmapWindowStart < riskWindowStart ? heatmapWindowStart : riskWindowStart;
+      const minStartDate = earlierWindow < baseStartDate ? earlierWindow : baseStartDate;
 
       const [{ data: studentRows }, { data: attendanceSessionRows }, { data: scoreAssessments }] =
         await Promise.all([
@@ -1068,15 +1085,39 @@ export function DashboardPage({ session }: DashboardPageProps) {
         },
       });
 
+      const heatmapByDate = new Map<string, TermHeatmapDayItem>();
+      attendanceSessions.forEach((sess) => {
+        const dStr = String(sess.attendance_date || '').slice(0, 10);
+        if (!dStr) return;
+        const rows = (recordsBySession.get(sess.id) || []).filter((r) => studentIds.has(r.student_id));
+        if (rows.length === 0) return;
+        // Prefer homeroom or merge cleanly into daily counts, taking the primary session if multiple exist for same date
+        const existing = heatmapByDate.get(dStr);
+        if (!existing || sess.period_label === 'เช้า' || !sess.subject_name) {
+          const item: TermHeatmapDayItem = { date: dStr, present: 0, absent: 0, leave: 0, late: 0, total: 0 };
+          rows.forEach((r) => {
+            if (r.status === 'present' || r.status === 'activity') item.present += 1;
+            else if (r.status === 'late') item.late += 1;
+            else if (r.status === 'leave' || r.status === 'sick') item.leave += 1;
+            else if (r.status === 'absent') item.absent += 1;
+            item.total += 1;
+          });
+          heatmapByDate.set(dStr, item);
+        }
+      });
+      setTermHeatmapDays(Array.from(heatmapByDate.values()).sort((a, b) => a.date.localeCompare(b.date)));
+
       const classroomCareCases = (careCaseRows || []).filter((cc) => studentIds.has(cc.student_id));
 
-      // Compute unified 360° risk signals across Attendance + Scores + Behavior + Health + Care Cases
+      // Compute unified 360° risk signals across Attendance (30d window) + Scores + Behavior + Health + Care Cases
       const attMap360 = computeAttendanceStreaksAndRates(
-        attendanceSessions.map((s) => ({
-          id: s.id,
-          attendance_date: s.attendance_date,
-          subject_name: s.subject_name,
-        })),
+        attendanceSessions
+          .filter((s) => s.attendance_date >= riskWindowStart)
+          .map((s) => ({
+            id: s.id,
+            attendance_date: s.attendance_date,
+            subject_name: s.subject_name,
+          })),
         (attendanceRows || []) as Array<{ session_id: string; student_id: string; status: string }>,
         studentIdList,
       );
@@ -1869,10 +1910,23 @@ export function DashboardPage({ session }: DashboardPageProps) {
         <SystemReportsDashboard
           analyticsData={analyticsData}
           classroomName={activeClassroomName}
+          classrooms={classrooms}
+          earlyWarningStudents={earlyWarningStudents}
+          onSelectClassroom={setSelectedClassroomId}
+          onSwitchToToday={() => handleSetDashboardViewMode('today')}
           scheduleItems={upcomingEvents}
+          scoresSummary={scoresSummary}
+          selectedClassroomId={selectedClassroomId}
           selectedDate={todayDateStr}
           stats={stats}
           subjectAttendanceSummaries={subjectAttendanceSummaries}
+          termHeatmapDays={termHeatmapDays}
+          termSummary={{
+            termName: currentTerm.termName,
+            startDate: currentTerm.startDate,
+            endDate: currentTerm.endDate,
+            readinessPercent,
+          }}
           todayTasks={dynamicTodayTasks}
         />
       ) : (

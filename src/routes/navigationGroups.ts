@@ -12,6 +12,7 @@ export interface UnifiedNavGroupConfig {
 /** Everyday 1-click core menus shared consistently across Desktop Sidebar and Mobile Sheet. */
 export const DAILY_NAV_KEYS: string[] = [
   'overview',
+  'system-overview',
   'teacher-work',
   'students',
   'scores',

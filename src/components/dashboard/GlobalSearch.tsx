@@ -30,6 +30,7 @@ interface SearchClassroom {
 
 const MENU_SYNONYMS: Record<string, string> = {
   overview: 'วันนี้ หน้าแรก bento overview แดชบอร์ด',
+  'system-overview': 'ภาพรวม สถิติทั้งโรงเรียน รายงานรวม heatmap แดชบอร์ด analytics overview',
   'teacher-work': 'เช็กชื่อ มาเรียน ขาด ลา มาสาย คาบเรียน attendance',
   students: 'นักเรียน ทะเบียน ปพ เยี่ยมบ้าน student 360',
   scores: 'คะแนน เกรด สอบ สมุดคะแนน ปพ.5 score',

@@ -59,6 +59,7 @@ export const DEFAULT_PLAN_ACCESS_POLICIES: PlanAccessPolicyMap = {
 
 const CORE_ALWAYS_ALLOWED_VIEWS = new Set([
   'overview',
+  'system-overview',
   'workspace-settings',
   'help-center',
   'package',

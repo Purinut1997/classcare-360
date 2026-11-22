@@ -7,6 +7,23 @@ export type OmrScanOrientation = 'auto' | 0 | 90 | 180 | 270;
 
 export type AnswerSheetThemeColor = 'burgundy' | 'navy' | 'slate' | 'emerald';
 
+export type ExamQuestionType = 'single_choice' | 'multiple_choice' | 'short_answer' | 'essay';
+export type ShortAnswerStrictness = 'lenient' | 'normal' | 'strict';
+
+export interface ExamQuestionItem {
+  id: string;
+  number: number;
+  sectionIndex: 1 | 2 | 3 | 4;
+  type: ExamQuestionType;
+  prompt: string;
+  choices?: string[];
+  correctChoice?: string;
+  correctChoices?: string[];
+  acceptedTextAnswers?: string[];
+  points: number;
+  explanation?: string;
+}
+
 export interface AnswerSheetConfig {
   id: string;
   title: string;
@@ -36,6 +53,9 @@ export interface AnswerSheetConfig {
   teacherName?: string; // Display name of teacher
   bonusQuestions?: Record<number, boolean>; // Questions awarded full points to everyone
   multiAnswerKeys?: Record<number, string[]>; // Questions with multiple accepted choices
+  questions?: ExamQuestionItem[]; // Unified rich exam items for OMR + Mobile Exam + Live Quiz
+  shortAnswerStrictness?: ShortAnswerStrictness;
+  postSubmitMessage?: string;
 }
 
 export interface ExamBankTemplate {
@@ -64,6 +84,9 @@ export interface ExamBankTemplate {
   pointsPerQuestion: Record<number, number>;
   bonusQuestions?: Record<number, boolean>;
   multiAnswerKeys?: Record<number, string[]>;
+  questions?: ExamQuestionItem[];
+  shortAnswerStrictness?: ShortAnswerStrictness;
+  postSubmitMessage?: string;
   savedAt: string;
 }
 
