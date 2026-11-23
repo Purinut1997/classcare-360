@@ -22,7 +22,6 @@ import {
   HelpCircle,
   Info,
   Keyboard,
-  Layers,
   Lightbulb,
   Lock,
   Pin,
@@ -44,6 +43,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { SubjectCardsHub, type SubjectCardItem } from '../../components/scores/SubjectCardsHub';
 const ScoreOcrModal = lazy(() =>
   import('../../components/scores/ScoreOcrModal').then((m) => ({ default: m.ScoreOcrModal })),
 );
@@ -78,6 +78,7 @@ import {
   loadCloudScoreRatio,
   saveCloudScoreRatio,
 } from '../../lib/workspaceCloudPrefs';
+import { DEFAULT_PRIMARY_SUBJECTS_TEMPLATE, type SchoolSubject } from '../../types/academic';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 
@@ -88,10 +89,10 @@ interface ScoresPageProps {
 type AssessmentCategory = 'quiz' | 'assignment' | 'midterm' | 'final' | 'exam' | 'project' | 'reading' | 'other';
 type AssessmentStatus = 'draft' | 'published' | 'archived';
 type ScoreBand = 'coursework' | 'midterm' | 'final';
-type ScoreView = 'overview' | 'entry' | 'excel' | 'gradebook';
+type ScoreView = 'subjects' | 'overview' | 'entry' | 'excel' | 'gradebook';
 export type ScorePerspective = 'subject' | 'classroom';
 
-const scoreViewValues = ['overview', 'entry', 'excel', 'gradebook'] as const;
+const scoreViewValues = ['subjects', 'overview', 'entry', 'excel', 'gradebook'] as const;
 
 function isScoreView(value: string | null): value is ScoreView {
   return Boolean(value && scoreViewValues.includes(value as ScoreView));
@@ -102,6 +103,70 @@ function parseActiveAcademicTerm(termName?: string | null): '1' | '2' | 'yearly'
   if (/ตลอดปี|yearly/i.test(termName)) return 'yearly';
   const primarySegment = termName.split('/')[0] || termName;
   return primarySegment.includes('2') ? '2' : '1';
+}
+
+function adaptObecSubjectCode(baseCode: string, gradeLevel: string): string {
+  const cleanGrade = gradeLevel.replace(/\s+/g, '');
+  const pMatch = cleanGrade.match(/^(?:ป\.|ประถมศึกษาปีที่)?([1-6])$/);
+  const mMatch = cleanGrade.match(/^(?:ม\.|มัธยมศึกษาปีที่)([1-6])$/);
+  const codeMatch = baseCode.match(/^([^\d]+)\d{2}(\d{3})$/);
+  if (!codeMatch) return baseCode;
+  if (pMatch) return `${codeMatch[1]}1${pMatch[1]}${codeMatch[2]}`;
+  if (mMatch) return `${codeMatch[1]}2${mMatch[1]}${codeMatch[2]}`;
+  return baseCode;
+}
+
+function buildDemoSchoolSubjects(workspaceId: string, gradeLevel: string): SchoolSubject[] {
+  const nowIso = new Date().toISOString();
+  return DEFAULT_PRIMARY_SUBJECTS_TEMPLATE.map((tpl, index) => ({
+    id: `demo-sub-${index + 1}`,
+    workspace_id: workspaceId,
+    subject_code: adaptObecSubjectCode(tpl.code, gradeLevel),
+    subject_name: tpl.name,
+    learning_area: tpl.area,
+    subject_type: 'basic',
+    grade_level: gradeLevel,
+    hours_per_year: tpl.hours,
+    hours_per_week: Number((tpl.hours / 40).toFixed(1)),
+    credit: tpl.credit,
+    teacher_profile_id: 'demo-teacher',
+    is_active: true,
+    created_at: nowIso,
+    updated_at: nowIso,
+  }));
+}
+
+function readCachedSchoolSubjects(workspaceId: string, gradeHint?: string): SchoolSubject[] {
+  if (typeof window === 'undefined' || !workspaceId) return [];
+  const candidateGrades = [
+    ...(gradeHint ? [gradeHint] : []),
+    'ป.1',
+    'ป.2',
+    'ป.3',
+    'ป.4',
+    'ป.5',
+    'ป.6',
+    'ม.1',
+    'ม.2',
+    'ม.3',
+  ];
+  const merged = new Map<string, SchoolSubject>();
+  for (const grade of candidateGrades) {
+    try {
+      const raw = window.localStorage.getItem(`classcare_academic_subjects_${workspaceId}_${grade}`);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+      parsed.forEach((item: SchoolSubject) => {
+        if (item?.subject_code && item?.subject_name) {
+          merged.set(`${item.subject_code}::${item.grade_level}`, item);
+        }
+      });
+    } catch {
+      // Ignore localStorage read/parse failure.
+    }
+  }
+  return Array.from(merged.values());
 }
 
 export interface ThaiGradeInfo {
@@ -390,35 +455,25 @@ function getClassroomWithRoster(
 
 const SCORES_PERSPECTIVE_STORAGE_KEY = 'classcare_scores_perspective';
 
-const getDefaultScoreView = (): ScoreView =>
+const getDefaultEntryScoreView = (): 'entry' | 'excel' =>
   typeof window !== 'undefined' && window.innerWidth < 768 ? 'entry' : 'excel';
-
-function readStoredPerspective(): ScorePerspective | null {
-  try {
-    if (typeof window === 'undefined') return null;
-    const stored = window.localStorage.getItem(SCORES_PERSPECTIVE_STORAGE_KEY);
-    return stored === 'classroom' || stored === 'subject' ? stored : null;
-  } catch {
-    return null;
-  }
-}
 
 export function ScoresPage({ session }: ScoresPageProps) {
   const demoMode = isDemoSession(session);
   const location = useLocation();
   const navigate = useNavigate();
   const requestedScoreView = new URLSearchParams(location.search).get('scoreView');
-  const initialScoreView = isScoreView(requestedScoreView) ? requestedScoreView : getDefaultScoreView();
+  const initialScoreView: ScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'subjects';
   const requestedPerspective = new URLSearchParams(location.search).get('perspective');
-  const storedPerspective = readStoredPerspective();
-  const hasExplicitUrlPerspective = requestedPerspective === 'classroom' || requestedPerspective === 'subject';
-  const initialPerspective: ScorePerspective = hasExplicitUrlPerspective
-    ? requestedPerspective
-    : storedPerspective || 'subject';
-  const hasSavedOrUrlPerspectiveRef = useRef(Boolean(hasExplicitUrlPerspective || storedPerspective));
+  const initialPerspective: ScorePerspective = requestedPerspective === 'classroom' ? 'classroom' : 'subject';
 
   const [perspective, setPerspective] = useState<ScorePerspective>(initialPerspective);
   const [activeAcademicTerm, setActiveAcademicTerm] = useState<'1' | '2' | 'yearly'>('1');
+  const [hubClassroomFilter, setHubClassroomFilter] = useState<string>('all');
+  const [schoolSubjects, setSchoolSubjects] = useState<SchoolSubject[]>(
+    demoMode ? buildDemoSchoolSubjects(session.workspace?.id || 'demo-workspace', 'ป.5') : [],
+  );
+  const [isSubjectsBusy, setIsSubjectsBusy] = useState(false);
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -523,7 +578,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     }
     appliedCount = Object.values(scs).filter((val) => val !== null && val !== undefined).length;
     if (scoreView !== 'excel' && scoreView !== 'entry') {
-      handleScoreViewChange(getDefaultScoreView());
+      handleScoreViewChange(getDefaultEntryScoreView());
     }
     setNotice(
       `นำเข้าคะแนน "${selectedAssessment?.title || 'ชุดที่เลือก'}" จากภาพถ่ายสำเร็จ (${appliedCount} คน) กรุณาตรวจสอบและกดบันทึก`,
@@ -567,7 +622,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   );
 
   useEffect(() => {
-    const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : getDefaultScoreView();
+    const nextScoreView: ScoreView = isScoreView(requestedScoreView) ? requestedScoreView : 'subjects';
     setScoreView((current) => (current === nextScoreView ? current : nextScoreView));
   }, [requestedScoreView]);
 
@@ -661,9 +716,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
       .filter((a) => a.status !== 'archived')
       .map((a) => a.subject_name.trim())
       .filter(Boolean);
+    schoolSubjects.forEach((sub) => {
+      const name = sub.subject_name.trim();
+      if (name) list.push(name);
+    });
     if (form.subjectName.trim()) list.push(form.subjectName.trim());
     return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [assessments, form.subjectName]);
+  }, [assessments, form.subjectName, schoolSubjects]);
 
   const classroomsWithSubject = useMemo(() => {
     if (!subjectFilter) return classrooms;
@@ -682,28 +741,40 @@ export function ScoresPage({ session }: ScoresPageProps) {
   }, [classrooms, classroomsWithSubject]);
 
   const nextClassroom = useMemo(() => {
-    if (perspective !== 'subject') return null;
+    if (classroomsWithSubject.length <= 1) return null;
     const idx = classroomsWithSubject.findIndex((c) => c.id === classroomId);
     if (idx >= 0 && idx < classroomsWithSubject.length - 1) {
       return classroomsWithSubject[idx + 1];
     }
     return null;
-  }, [perspective, classroomsWithSubject, classroomId]);
+  }, [classroomsWithSubject, classroomId]);
 
-  const subjectOptions = useMemo(() => {
-    if (perspective === 'subject') {
-      return allWorkspaceSubjects.length > 0 ? allWorkspaceSubjects : [form.subjectName.trim() || 'คณิตศาสตร์'];
+  const subjectOptions = useMemo(
+    () => (allWorkspaceSubjects.length > 0 ? allWorkspaceSubjects : [form.subjectName.trim() || 'คณิตศาสตร์']),
+    [allWorkspaceSubjects, form.subjectName],
+  );
+
+  const activeSubjectMeta = useMemo(() => {
+    const norm = subjectFilter.trim().toLowerCase();
+    if (!norm) return null;
+    const roomGrade = activeClassroom?.name?.split('/')[0]?.trim();
+    const matches = schoolSubjects.filter(
+      (sub) => sub.subject_name.trim().toLowerCase() === norm,
+    );
+    if (matches.length === 0) return null;
+    if (roomGrade) {
+      const exact = matches.find((sub) => sub.grade_level.trim() === roomGrade);
+      if (exact) return exact;
     }
-    const subjects = classroomAssessments.map((assessment) => assessment.subject_name.trim()).filter(Boolean);
-    const currentSubject = form.subjectName.trim();
-    if (currentSubject) subjects.push(currentSubject);
-    return Array.from(new Set(subjects)).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [allWorkspaceSubjects, classroomAssessments, form.subjectName, perspective]);
+    return matches[0];
+  }, [activeClassroom?.name, schoolSubjects, subjectFilter]);
 
   const contextAssessments = useMemo(
     () =>
       classroomAssessments.filter(
-        (assessment) => !subjectFilter || assessment.subject_name.trim() === subjectFilter.trim(),
+        (assessment) =>
+          !subjectFilter ||
+          assessment.subject_name.trim().toLowerCase() === subjectFilter.trim().toLowerCase(),
       ),
     [classroomAssessments, subjectFilter],
   );
@@ -794,6 +865,192 @@ export function ScoresPage({ session }: ScoresPageProps) {
     });
     return entryMap;
   }, [entries]);
+
+  const subjectCards = useMemo<SubjectCardItem[]>(() => {
+    const scopedClassroom =
+      hubClassroomFilter !== 'all'
+        ? classrooms.find((c) => c.id === hubClassroomFilter) || null
+        : null;
+    const scopedGradeLevel = scopedClassroom?.name?.split('/')[0]?.trim() || null;
+    const preferredHubGrade =
+      scopedGradeLevel ||
+      teacherScope.homeroomClassrooms[0]?.name?.split('/')[0]?.trim() ||
+      activeClassroom?.name?.split('/')[0]?.trim() ||
+      null;
+
+    const cardMap = new Map<
+      string,
+      {
+        key: string;
+        subjectName: string;
+        subjectCode: string | null;
+        learningArea: string | null;
+        credit: number | null;
+        hoursPerYear: number | null;
+        gradeLevel: string | null;
+        classroomMap: Map<string, { id: string; name: string }>;
+        assessments: ScoreAssessmentRow[];
+        hasOfficialRecord: boolean;
+      }
+    >();
+
+    schoolSubjects.forEach((sub) => {
+      if (scopedGradeLevel && sub.grade_level.trim() !== scopedGradeLevel) {
+        return;
+      }
+      const key = sub.subject_name.trim().toLowerCase();
+      if (!key) return;
+      const existing = cardMap.get(key);
+      if (!existing) {
+        const roomMap = new Map<string, { id: string; name: string }>();
+        if (scopedClassroom) {
+          roomMap.set(scopedClassroom.id, { id: scopedClassroom.id, name: scopedClassroom.name });
+        }
+        cardMap.set(key, {
+          key,
+          subjectName: sub.subject_name.trim(),
+          subjectCode: sub.subject_code.trim() || null,
+          learningArea: sub.learning_area || null,
+          credit: typeof sub.credit === 'number' ? sub.credit : Number(sub.credit) || null,
+          hoursPerYear:
+            typeof sub.hours_per_year === 'number'
+              ? sub.hours_per_year
+              : Number(sub.hours_per_year) || null,
+          gradeLevel: sub.grade_level.trim() || null,
+          classroomMap: roomMap,
+          assessments: [],
+          hasOfficialRecord: true,
+        });
+      } else if (preferredHubGrade && sub.grade_level.trim() === preferredHubGrade) {
+        existing.subjectCode = sub.subject_code.trim() || existing.subjectCode;
+        existing.learningArea = sub.learning_area || existing.learningArea;
+        existing.credit = typeof sub.credit === 'number' ? sub.credit : Number(sub.credit) || existing.credit;
+        existing.hoursPerYear =
+          typeof sub.hours_per_year === 'number'
+            ? sub.hours_per_year
+            : Number(sub.hours_per_year) || existing.hoursPerYear;
+        existing.gradeLevel = sub.grade_level.trim() || existing.gradeLevel;
+      }
+    });
+
+    assessments
+      .filter(
+        (assessment) =>
+          assessment.status !== 'archived' &&
+          (hubClassroomFilter === 'all' || assessment.classroom_id === hubClassroomFilter),
+      )
+      .forEach((assessment) => {
+        const cleanName = assessment.subject_name.trim();
+        const key = cleanName.toLowerCase();
+        if (!key) return;
+        const room = classroomById.get(assessment.classroom_id);
+        let target = cardMap.get(key);
+
+        if (!target) {
+          const fallbackMeta = schoolSubjects.find(
+            (sub) => sub.subject_name.trim().toLowerCase() === key,
+          );
+          target = {
+            key,
+            subjectName: cleanName,
+            subjectCode: fallbackMeta?.subject_code?.trim() || null,
+            learningArea: fallbackMeta?.learning_area || null,
+            credit: fallbackMeta ? Number(fallbackMeta.credit) || null : null,
+            hoursPerYear: fallbackMeta ? Number(fallbackMeta.hours_per_year) || null : null,
+            gradeLevel: fallbackMeta?.grade_level?.trim() || room?.name?.split('/')[0]?.trim() || null,
+            classroomMap: new Map(),
+            assessments: [],
+            hasOfficialRecord: Boolean(fallbackMeta),
+          };
+          cardMap.set(key, target);
+        }
+
+        if (room) {
+          target.classroomMap.set(room.id, { id: room.id, name: room.name });
+        }
+        target.assessments.push(assessment);
+      });
+
+    const studentCountByRoom = new Map<string, number>();
+    students.forEach((student) => {
+      if (student.classroom_id) {
+        studentCountByRoom.set(student.classroom_id, (studentCountByRoom.get(student.classroom_id) || 0) + 1);
+      }
+    });
+
+    return Array.from(cardMap.values())
+      .map((item) => {
+        const roomList = Array.from(item.classroomMap.values()).sort((a, b) =>
+          a.name.localeCompare(b.name, 'th'),
+        );
+
+        const byRoom = new Map<string, ScoreAssessmentRow[]>();
+        item.assessments.forEach((a) => {
+          const list = byRoom.get(a.classroom_id) || [];
+          list.push(a);
+          byRoom.set(a.classroom_id, list);
+        });
+        let representativeAssessments: ScoreAssessmentRow[] = [];
+        byRoom.forEach((list) => {
+          if (list.length > representativeAssessments.length) {
+            representativeAssessments = list;
+          }
+        });
+
+        const plannedWeight = representativeAssessments.reduce((sum, a) => sum + a.weight, 0);
+
+        let expectedEntries = 0;
+        let filledEntries = 0;
+        item.assessments.forEach((assessment) => {
+          const roomStudents = studentCountByRoom.get(assessment.classroom_id) || 0;
+          expectedEntries += roomStudents;
+          filledEntries += (entriesByAssessment.get(assessment.id) || []).filter(
+            (entry) => entry.score !== null && entry.score !== undefined,
+          ).length;
+        });
+
+        const completionPercent =
+          expectedEntries > 0 ? Math.min(100, Math.round((filledEntries / expectedEntries) * 100)) : 0;
+
+        return {
+          assessmentCount: representativeAssessments.length,
+          classrooms: roomList,
+          completionPercent,
+          credit: item.credit,
+          gradeLevel: item.gradeLevel,
+          hasOfficialRecord: item.hasOfficialRecord,
+          hoursPerYear: item.hoursPerYear,
+          key: item.key,
+          learningArea: item.learningArea,
+          plannedWeight,
+          subjectCode: item.subjectCode,
+          subjectName: item.subjectName,
+        };
+      })
+      .sort((a, b) => {
+        if (a.assessmentCount > 0 && b.assessmentCount === 0) return -1;
+        if (a.assessmentCount === 0 && b.assessmentCount > 0) return 1;
+        if (a.subjectCode && b.subjectCode) {
+          const codeCmp = a.subjectCode.localeCompare(b.subjectCode, 'th');
+          if (codeCmp !== 0) return codeCmp;
+        } else if (a.subjectCode && !b.subjectCode) {
+          return -1;
+        } else if (!a.subjectCode && b.subjectCode) {
+          return 1;
+        }
+        return a.subjectName.localeCompare(b.subjectName, 'th');
+      });
+  }, [
+    activeClassroom?.name,
+    assessments,
+    classroomById,
+    classrooms,
+    entriesByAssessment,
+    hubClassroomFilter,
+    schoolSubjects,
+    students,
+    teacherScope.homeroomClassrooms,
+  ]);
 
   const scoreContexts = useMemo(() => {
     const contextMap = new Map<
@@ -1077,6 +1334,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         setStudents(demoStudents);
         setAssessments(demoAssessments);
         setEntries(demoEntries);
+        setSchoolSubjects(buildDemoSchoolSubjects(session.workspace?.id || 'demo-workspace', 'ป.5'));
         setClassroomId(demoClassrooms[0].id);
         setSubjectFilter(demoAssessments[0].subject_name);
         setSelectedAssessmentId(demoAssessments[0].id);
@@ -1094,6 +1352,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         { data: studentRows, error: studentError },
         { data: assessmentRows, error: assessmentError },
         { data: termRows },
+        subjectsRes,
       ] = await Promise.all([
         hydrateHiddenClassroomsFromCloud(session.profile.id, workspaceId),
         supabase
@@ -1119,6 +1378,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
           .eq('workspace_id', workspaceId)
           .order('is_current', { ascending: false })
           .limit(5),
+        supabase
+          .from('school_subjects')
+          .select(
+            'id,workspace_id,subject_code,subject_name,learning_area,subject_type,grade_level,hours_per_year,hours_per_week,credit,teacher_profile_id,is_active,created_at,updated_at',
+          )
+          .eq('workspace_id', workspaceId)
+          .eq('is_active', true)
+          .order('subject_code', { ascending: true }),
       ]);
 
       if (!isMounted) return;
@@ -1149,9 +1416,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
       const nextAssessmentIds = nextAssessments.map((assessment) => assessment.id);
       const initialScope = getTeacherClassroomScope(session, nextClassrooms);
       const preferredHomeroomId = initialScope.hasHomeroom ? initialScope.homeroomClassrooms[0].id : undefined;
-      if (!hasSavedOrUrlPerspectiveRef.current && initialScope.hasHomeroom && initialScope.homeroomClassrooms.length === 1) {
-        setPerspective('classroom');
-      }
       const nextClassroomId = getClassroomWithRoster(nextClassrooms, nextStudents, nextAssessments, preferredHomeroomId);
       const nextSelectedAssessmentId =
         nextAssessments.find((assessment) => assessment.classroom_id === nextClassroomId && assessment.status !== 'archived')?.id ||
@@ -1163,6 +1427,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
         (termRows || []).find((row) => row.status === 'open') ||
         termRows?.[0];
       setActiveAcademicTerm(parseActiveAcademicTerm(pickedTerm?.term_name));
+
+      const preferredGradeHint =
+        nextClassrooms.find((c) => c.id === nextClassroomId)?.name?.split('/')[0] ||
+        nextClassrooms[0]?.name?.split('/')[0];
+      const loadedSubjects: SchoolSubject[] =
+        !subjectsRes.error && subjectsRes.data && subjectsRes.data.length > 0
+          ? (subjectsRes.data as SchoolSubject[])
+          : readCachedSchoolSubjects(workspaceId, preferredGradeHint);
 
       let nextEntries: ScoreEntryRow[] = [];
       if (nextAssessmentIds.length > 0) {
@@ -1201,11 +1473,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
       setStudents(nextStudents);
       setAssessments(nextAssessments);
       setEntries(nextEntries);
+      setSchoolSubjects(loadedSubjects);
       setClassroomId(nextClassroomId);
-      setSubjectFilter(nextAssessments.find((assessment) => assessment.id === nextSelectedAssessmentId)?.subject_name || '');
+      setSubjectFilter(
+        nextAssessments.find((assessment) => assessment.id === nextSelectedAssessmentId)?.subject_name ||
+          loadedSubjects[0]?.subject_name ||
+          '',
+      );
       setSelectedAssessmentId(nextSelectedAssessmentId);
       setIsLoading(false);
-
     }
 
     void loadBaseData();
@@ -1214,6 +1490,276 @@ export function ScoresPage({ session }: ScoresPageProps) {
       isMounted = false;
     };
   }, [demoMode, session.profile.id, session.workspace?.id]);
+
+  async function reloadSchoolSubjects() {
+    if (!supabase || !session.workspace || demoMode) return;
+    const workspaceId = session.workspace.id;
+    const { data, error } = await supabase
+      .from('school_subjects')
+      .select(
+        'id,workspace_id,subject_code,subject_name,learning_area,subject_type,grade_level,hours_per_year,hours_per_week,credit,teacher_profile_id,is_active,created_at,updated_at',
+      )
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .order('subject_code', { ascending: true });
+
+    if (!error && data && data.length > 0) {
+      setSchoolSubjects(data as SchoolSubject[]);
+      return;
+    }
+
+    const cached = readCachedSchoolSubjects(workspaceId, activeClassroom?.name?.split('/')[0]);
+    if (cached.length > 0) {
+      setSchoolSubjects(cached);
+    }
+  }
+
+  async function handleQuickAddSubject(payload: {
+    subjectCode: string;
+    subjectName: string;
+    learningArea: string;
+    credit: number;
+    hoursPerYear: number;
+    gradeLevel: string;
+  }): Promise<boolean> {
+    const workspaceId = session.workspace?.id || 'demo-workspace';
+    const targetClassroomId =
+      hubClassroomFilter !== 'all'
+        ? hubClassroomFilter
+        : teacherScope.hasHomeroom
+          ? teacherScope.homeroomClassrooms[0].id
+          : classroomId || classrooms[0]?.id || '';
+
+    const hoursPerWeek = Number((payload.hoursPerYear / 40).toFixed(1));
+    const newSubjectRecord: SchoolSubject = {
+      id: `local-sub-${Date.now()}`,
+      workspace_id: workspaceId,
+      subject_code: payload.subjectCode,
+      subject_name: payload.subjectName,
+      learning_area: payload.learningArea,
+      subject_type: 'basic',
+      grade_level: payload.gradeLevel,
+      hours_per_year: payload.hoursPerYear,
+      hours_per_week: hoursPerWeek,
+      credit: payload.credit,
+      teacher_profile_id: session.profile.id,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const openCreatedSubject = (saved: SchoolSubject) => {
+      setSchoolSubjects((prev) => {
+        const withoutDup = prev.filter(
+          (item) =>
+            !(
+              item.subject_name.trim().toLowerCase() === saved.subject_name.trim().toLowerCase() &&
+              item.grade_level.trim() === saved.grade_level.trim()
+            ),
+        );
+        return [saved, ...withoutDup];
+      });
+      setSubjectFilter(saved.subject_name);
+      if (targetClassroomId) setClassroomId(targetClassroomId);
+      const existingAssessment = assessments.find(
+        (a) =>
+          a.classroom_id === targetClassroomId &&
+          a.status !== 'archived' &&
+          a.subject_name.trim().toLowerCase() === saved.subject_name.trim().toLowerCase(),
+      );
+      setSelectedAssessmentId(existingAssessment?.id || '');
+      handleScoreViewChange(getDefaultEntryScoreView());
+    };
+
+    if (!supabase || !session.workspace || demoMode) {
+      openCreatedSubject(newSubjectRecord);
+      setNotice(`เพิ่มรายวิชา "${payload.subjectName} (${payload.subjectCode})" แล้ว`);
+      return true;
+    }
+
+    setIsSubjectsBusy(true);
+    setNotice(null);
+    try {
+      const upsertPayload = {
+        workspace_id: workspaceId,
+        subject_code: payload.subjectCode,
+        subject_name: payload.subjectName,
+        learning_area: payload.learningArea,
+        subject_type: 'basic' as const,
+        grade_level: payload.gradeLevel,
+        hours_per_year: payload.hoursPerYear,
+        hours_per_week: hoursPerWeek,
+        credit: payload.credit,
+        teacher_profile_id: session.profile.id,
+        is_active: true,
+      };
+
+      const { data, error } = await supabase
+        .from('school_subjects')
+        .upsert(upsertPayload, { onConflict: 'workspace_id,subject_code,grade_level' })
+        .select(
+          'id,workspace_id,subject_code,subject_name,learning_area,subject_type,grade_level,hours_per_year,hours_per_week,credit,teacher_profile_id,is_active,created_at,updated_at',
+        )
+        .single();
+
+      if (error) {
+        if (error.message?.includes('Could not find the table')) {
+          try {
+            const key = `classcare_academic_subjects_${workspaceId}_${payload.gradeLevel}`;
+            const existing = readCachedSchoolSubjects(workspaceId, payload.gradeLevel);
+            window.localStorage.setItem(key, JSON.stringify([newSubjectRecord, ...existing]));
+          } catch {
+            // Ignore localStorage fallback failure.
+          }
+          openCreatedSubject(newSubjectRecord);
+          setNotice(`เพิ่มรายวิชา "${payload.subjectName} (${payload.subjectCode})" ลงคลังชั่วคราวแล้ว`);
+          return true;
+        }
+        setNotice(error.message || 'เพิ่มรายวิชาไม่สำเร็จ');
+        return false;
+      }
+
+      const savedSubject = data as SchoolSubject;
+      await writeAuditLog(session, {
+        action: 'academic.quick_add_subject',
+        entityId: savedSubject.id,
+        entityTable: 'school_subjects',
+        metadata: {
+          grade_level: savedSubject.grade_level,
+          subject_code: savedSubject.subject_code,
+          subject_name: savedSubject.subject_name,
+        },
+        riskLevel: 'low',
+        source: 'score_center',
+      });
+      openCreatedSubject(savedSubject);
+      setNotice(`เพิ่มรายวิชา "${savedSubject.subject_name} (${savedSubject.subject_code})" แล้ว`);
+      return true;
+    } finally {
+      setIsSubjectsBusy(false);
+    }
+  }
+
+  async function handleLoadObecDefaultSubjects() {
+    const workspaceId = session.workspace?.id || 'demo-workspace';
+    const scopedRoom =
+      hubClassroomFilter !== 'all'
+        ? classrooms.find((c) => c.id === hubClassroomFilter)
+        : teacherScope.hasHomeroom
+          ? teacherScope.homeroomClassrooms[0]
+          : activeClassroom;
+    const gradeLevel = scopedRoom?.name?.split('/')[0]?.trim() || 'ป.5';
+
+    const templateRows = DEFAULT_PRIMARY_SUBJECTS_TEMPLATE.map((tpl) => ({
+      workspace_id: workspaceId,
+      subject_code: adaptObecSubjectCode(tpl.code, gradeLevel),
+      subject_name: tpl.name,
+      learning_area: tpl.area,
+      subject_type: 'basic' as const,
+      grade_level: gradeLevel,
+      hours_per_year: tpl.hours,
+      hours_per_week: Number((tpl.hours / 40).toFixed(1)),
+      credit: tpl.credit,
+      teacher_profile_id: session.profile.id,
+      is_active: true,
+    }));
+
+    if (!supabase || !session.workspace || demoMode) {
+      setSchoolSubjects(
+        templateRows.map((row, idx) => ({
+          ...row,
+          id: `demo-sub-${Date.now()}-${idx}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })),
+      );
+      setNotice(`โหลด 9 รายวิชาครบ 8 กลุ่มสาระ สพฐ. (${gradeLevel}) แล้ว`);
+      return;
+    }
+
+    setIsSubjectsBusy(true);
+    setNotice(null);
+    try {
+      const { data, error } = await supabase
+        .from('school_subjects')
+        .upsert(templateRows, { onConflict: 'workspace_id,subject_code,grade_level' })
+        .select(
+          'id,workspace_id,subject_code,subject_name,learning_area,subject_type,grade_level,hours_per_year,hours_per_week,credit,teacher_profile_id,is_active,created_at,updated_at',
+        );
+
+      if (error) {
+        if (error.message?.includes('Could not find the table')) {
+          const fallbackList = templateRows.map((row, idx) => ({
+            ...row,
+            id: `local-sub-${Date.now()}-${idx}`,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })) as SchoolSubject[];
+          try {
+            window.localStorage.setItem(
+              `classcare_academic_subjects_${workspaceId}_${gradeLevel}`,
+              JSON.stringify(fallbackList),
+            );
+          } catch {
+            // Ignore localStorage failure.
+          }
+          setSchoolSubjects(fallbackList);
+          setNotice(`โหลดแม่แบบ 8 กลุ่มสาระ (${gradeLevel}) ลงคลังชั่วคราวแล้ว`);
+          return;
+        }
+        setNotice(error.message || 'โหลดรายวิชาพื้นฐาน สพฐ. ไม่สำเร็จ');
+        return;
+      }
+
+      const savedRows = (data || []) as SchoolSubject[];
+      setSchoolSubjects((prev) => {
+        const map = new Map(prev.map((item) => [`${item.subject_code}::${item.grade_level}`, item]));
+        savedRows.forEach((row) => map.set(`${row.subject_code}::${row.grade_level}`, row));
+        return Array.from(map.values()).sort((a, b) => a.subject_code.localeCompare(b.subject_code));
+      });
+      await writeAuditLog(session, {
+        action: 'academic.import_default_subjects_template',
+        entityId: workspaceId,
+        entityTable: 'school_subjects',
+        metadata: { count: savedRows.length, gradeLevel },
+        riskLevel: 'low',
+        source: 'score_center',
+      });
+      setNotice(`โหลด 9 รายวิชาครบ 8 กลุ่มสาระ สพฐ. (${gradeLevel}) พร้อมรหัสวิชาแล้ว`);
+    } finally {
+      setIsSubjectsBusy(false);
+    }
+  }
+
+  function handleOpenSubjectFromHub(card: SubjectCardItem) {
+    const targetRoomId =
+      hubClassroomFilter !== 'all'
+        ? hubClassroomFilter
+        : card.classrooms[0]?.id ||
+          (teacherScope.hasHomeroom ? teacherScope.homeroomClassrooms[0].id : classrooms[0]?.id || classroomId);
+
+    const matchingAssessment = assessments.find(
+      (a) =>
+        a.classroom_id === targetRoomId &&
+        a.status !== 'archived' &&
+        a.subject_name.trim().toLowerCase() === card.subjectName.trim().toLowerCase(),
+    );
+
+    setSubjectFilter(card.subjectName);
+    if (targetRoomId) setClassroomId(targetRoomId);
+    setSelectedAssessmentId(matchingAssessment?.id || '');
+    handleScoreViewChange(getDefaultEntryScoreView());
+  }
+
+  function openCreateAssessmentModal(overrideClassroomId?: string) {
+    const targetCid = overrideClassroomId || classroomId;
+    setForm((current) => ({
+      ...current,
+      subjectName: subjectFilter || current.subjectName,
+      targetClassroomIds: targetCid ? [targetCid] : [],
+    }));
+    setIsCreateModalOpen(true);
+  }
 
   useEffect(() => {
     if (subjectOptions.length > 0 && (!subjectFilter || !subjectOptions.includes(subjectFilter))) {
@@ -1286,7 +1832,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       setForm((current) => ({ ...current, targetClassroomIds: [], title: '' }));
       setIsCreateModalOpen(false);
       if (scoreView !== 'excel' && scoreView !== 'entry') {
-        handleScoreViewChange(getDefaultScoreView());
+        handleScoreViewChange(getDefaultEntryScoreView());
       }
       setNotice(`สร้างชุดคะแนนในโหมดตัวอย่างแล้ว (${newItems.length} ห้องเรียน)`);
       setIsSubmitting(false);
@@ -1362,7 +1908,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     setForm((current) => ({ ...current, targetClassroomIds: [], title: '' }));
     setIsCreateModalOpen(false);
     if (scoreView !== 'excel' && scoreView !== 'entry') {
-      handleScoreViewChange(getDefaultScoreView());
+      handleScoreViewChange(getDefaultEntryScoreView());
     }
     setNotice(`สร้างชุดคะแนนแล้ว (${createdList.length} ห้องเรียน)`);
     setIsSubmitting(false);
@@ -2305,514 +2851,503 @@ export function ScoresPage({ session }: ScoresPageProps) {
     [remedialQueueRows],
   );
 
+  const homeroomIdSet = useMemo(
+    () => new Set(teacherScope.homeroomClassrooms.map((room) => room.id)),
+    [teacherScope.homeroomClassrooms],
+  );
+  const defaultHubGradeLevel =
+    teacherScope.homeroomClassrooms[0]?.name?.split('/')[0]?.trim() ||
+    activeClassroom?.name?.split('/')[0]?.trim() ||
+    'ป.5';
+
   return (
     <main className="app-page pb-24">
-      {/* 1. Header with System Title & Primary Actions */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="nexus-kicker flex items-center gap-2 text-cyan-800">
-            <Award size={16} aria-hidden="true" />
-            ClassCare Score Center
-          </div>
-          <h1 className="mt-1.5 text-2xl font-black text-slate-950 sm:text-3xl">
-            ระบบบันทึกคะแนนและตัดเกรด
-          </h1>
-          <p className="mt-0.5 text-xs sm:text-sm font-bold text-slate-500">
-            กรอกคะแนนสะสม กลางภาค ปลายภาค พร้อมตัดเกรด 8 ระดับ (0 - 4) ตามเกณฑ์กระทรวงศึกษาธิการ
-          </p>
-        </div>
-
-        {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Link
-            to="/app/dashboard?view=desirable-characteristics"
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-3.5 text-xs font-black text-indigo-900 shadow-2xs transition hover:bg-indigo-100 hover:border-indigo-300"
-            title="ไปที่ระบบประเมินคุณลักษณะอันพึงประสงค์ 8 ประการ (สพฐ.) และอ่านคิดเขียน"
-          >
-            <Sparkles size={15} className="text-indigo-600" aria-hidden="true" />
-            <span>ประเมินคุณลักษณะ 8 ประการ ➜</span>
-          </Link>
-
-          <button
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-3.5 text-xs font-black text-amber-900 shadow-2xs transition hover:bg-amber-100 hover:border-amber-300"
-            onClick={() => setIsGuideOpen(true)}
-            title="เปิดดูคู่มือการใช้งานระบบคะแนนและตาราง Excel"
-            type="button"
-          >
-            <BookOpen size={15} className="text-amber-700" aria-hidden="true" />
-            คู่มือการใช้งาน
-          </button>
-
-          <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
-            onClick={() => {
-              setForm((current) => ({
-                ...current,
-                subjectName: subjectFilter || current.subjectName,
-                targetClassroomIds: perspective === 'subject' ? classroomsWithSubject.map((c) => c.id) : [classroomId],
-              }));
-              setIsCreateModalOpen(true);
-            }}
-            type="button"
-          >
-            <Plus size={16} aria-hidden="true" />
-            เพิ่มช่องคะแนน
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Unified Context & Teaching Scope Control Bar (แถบกำหนดวิชาและห้องเรียน) */}
-      <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="แถบกำหนดวิชาและห้องเรียน">
-        {/* Row 1: Teaching Mode Toggle & Helper Tools */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <span className="text-xs font-black text-slate-500 shrink-0">โหมดการทำงาน:</span>
-            <div className="inline-flex p-1 bg-slate-100 rounded-2xl w-full sm:w-auto">
+      {scoreView === 'subjects' ? (
+        <>
+          {notice ? (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs font-black text-cyan-900 shadow-sm animate-fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="shrink-0 text-cyan-700" size={16} aria-hidden="true" />
+                <p>{notice}</p>
+              </div>
               <button
-                className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-black transition whitespace-nowrap ${
-                  perspective === 'subject'
-                    ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                onClick={() => handlePerspectiveChange('subject')}
+                className="text-xs text-cyan-700 underline hover:text-cyan-950"
+                onClick={() => setNotice(null)}
                 type="button"
               >
-                <BookOpen size={14} className={perspective === 'subject' ? 'text-indigo-600' : 'text-slate-400'} aria-hidden="true" />
-                <span className="sm:hidden">สอนหลายห้อง (เลือกวิชา)</span>
-                <span className="hidden sm:inline">วิชาสอนหลายห้อง (เลือกวิชาเป็นหลัก)</span>
-              </button>
-              <button
-                className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-black transition whitespace-nowrap ${
-                  perspective === 'classroom'
-                    ? 'bg-white text-cyan-900 shadow-xs ring-1 ring-slate-200'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                onClick={() => handlePerspectiveChange('classroom')}
-                type="button"
-              >
-                <Users size={14} className={perspective === 'classroom' ? 'text-cyan-600' : 'text-slate-400'} aria-hidden="true" />
-                <span className="sm:hidden">ห้องเดียว / ประจำชั้น</span>
-                <span className="hidden sm:inline">วิชาสอนห้องเดียว / ครูประจำชั้น</span>
+                ปิด
               </button>
             </div>
-          </div>
+          ) : null}
 
-          {/* Compact Action Tools: 1 secondary action (OMR) + More Tools Dropdown */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to={`/app/dashboard?view=omr-scanner&classroomId=${encodeURIComponent(classroomId || '')}&subjectName=${encodeURIComponent(subjectFilter || '')}${selectedAssessment?.id ? `&assessmentId=${encodeURIComponent(selectedAssessment.id)}` : ''}`}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50/80 px-3 text-xs font-black text-cyan-900 shadow-2xs transition hover:border-cyan-400 hover:bg-cyan-100"
-              title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง"
-            >
-              <Camera size={14} className="text-cyan-700" aria-hidden="true" />
-              <span>ตรวจกระดาษ OMR</span>
-            </Link>
-
-            <div className="relative" ref={toolsMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsToolsMenuOpen((open) => !open)}
-                aria-expanded={isToolsMenuOpen}
-                aria-haspopup="menu"
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition ${
-                  isToolsMenuOpen
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <Settings2 size={14} aria-hidden="true" />
-                <span>เครื่องมือเพิ่มเติม</span>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform ${isToolsMenuOpen ? 'rotate-180' : ''}`}
-                  aria-hidden="true"
-                />
-              </button>
-
-              {isToolsMenuOpen ? (
-                <div
-                  role="menu"
-                  aria-label="เครื่องมือเพิ่มเติมระบบคะแนน"
-                  className="absolute right-0 top-[calc(100%+0.45rem)] z-40 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+          <SubjectCardsHub
+            cards={subjectCards}
+            classrooms={classrooms.map((room) => ({
+              academic_year: room.academic_year,
+              id: room.id,
+              isHomeroom: homeroomIdSet.has(room.id),
+              name: room.name,
+              studentCount: students.filter((s) => s.classroom_id === room.id).length,
+            }))}
+            defaultGradeLevel={defaultHubGradeLevel}
+            hasOfficialSubjects={schoolSubjects.length > 0}
+            isBusy={isSubjectsBusy || isSubmitting}
+            isLoadingSubjects={isLoading}
+            onLoadObecDefaults={handleLoadObecDefaultSubjects}
+            onOpenAcademicSubjectsModal={() => setIsAcademicSubjectsOpen(true)}
+            onOpenGuide={() => setIsGuideOpen(true)}
+            onOpenOfficialDocuments={() => setIsOfficialDocumentsOpen(true)}
+            onOpenRubricModal={() => setIsRubricModalOpen(true)}
+            onOpenSubject={handleOpenSubjectFromHub}
+            onOpenTermClosing={() => setIsTermClosingOpen(true)}
+            onQuickAddSubject={handleQuickAddSubject}
+            onSelectClassroomFilter={setHubClassroomFilter}
+            selectedClassroomId={hubClassroomFilter}
+          />
+        </>
+      ) : (
+        <>
+          {/* STAGE 2: Clean Subject Score Workspace Header */}
+          <section
+            aria-label="แถบข้อมูลรายวิชาและการสลับห้องเรียน"
+            className="rounded-3xl border border-[#E5E8E1] bg-white p-4 shadow-sm"
+          >
+            {/* Row 1: Back to Subjects + Subject Identity + Primary Actions */}
+            <div className="flex flex-col gap-3 border-b border-slate-100 pb-3.5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => handleScoreViewChange('subjects')}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] px-3 text-xs font-black text-[#1C342B] transition hover:border-[#2F7D5B] hover:bg-[#EAF5EF]"
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsToolsMenuOpen(false);
-                      setIsAcademicSubjectsOpen(true);
-                    }}
-                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
-                  >
-                    <BookOpen size={15} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-black text-slate-900">โครงสร้างวิชา & ตัดเกรด</span>
-                      <span className="block text-[11px] font-medium text-slate-500">กำหนด 8 กลุ่มสาระและเกณฑ์ 0–4</span>
-                    </span>
-                  </button>
+                  <ArrowLeft size={14} aria-hidden="true" />
+                  <span>กลับไปหน้ารายวิชา</span>
+                </button>
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsToolsMenuOpen(false);
-                      setIsOfficialDocumentsOpen(true);
-                    }}
-                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
-                  >
-                    <FileSpreadsheet size={15} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-black text-slate-900">พิมพ์ ปพ.๕ / ปพ.๖</span>
-                      <span className="block text-[11px] font-medium text-slate-500">ออกเอกสารทางการและใบรับรอง</span>
-                    </span>
-                  </button>
+                <span className="hidden h-6 w-px bg-slate-200 sm:inline-block" aria-hidden="true" />
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsToolsMenuOpen(false);
-                      setIsTermClosingOpen(true);
-                    }}
-                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
-                  >
-                    <Lock size={15} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-black text-slate-900">ปิดเทอม & เลื่อนชั้น</span>
-                      <span className="block text-[11px] font-medium text-slate-500">ตรวจความพร้อมและล็อกผลการเรียน</span>
-                    </span>
-                  </button>
-
-                  <div className="my-1.5 border-t border-slate-100" />
-
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsToolsMenuOpen(false);
-                      setIsRubricModalOpen(true);
-                    }}
-                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
-                  >
-                    <Sparkles size={15} className="mt-0.5 shrink-0 text-violet-600" aria-hidden="true" />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-black text-slate-900">สร้างข้อสอบ & รูบริก AI</span>
-                      <span className="block text-[11px] font-medium text-slate-500">ออกแบบข้อสอบและเกณฑ์ประเมิน</span>
-                    </span>
-                  </button>
-
-                  {selectedAssessment ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setIsToolsMenuOpen(false);
-                        setIsScoreOcrOpen(true);
-                      }}
-                      className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
-                    >
-                      <Camera size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
-                      <span className="min-w-0">
-                        <span className="block text-xs font-black text-slate-900">สแกนใบคะแนน AI</span>
-                        <span className="block text-[11px] font-medium text-slate-500">ถ่ายภาพใบคะแนนเพื่อกรอกอัตโนมัติ</span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="truncate font-display text-lg font-black text-[#1F2924] sm:text-2xl">
+                      {subjectFilter || 'เลือกรายวิชา'}
+                    </h1>
+                    {activeSubjectMeta?.subject_code ? (
+                      <span className="rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-0.5 font-mono text-xs font-black text-cyan-900">
+                        {activeSubjectMeta.subject_code}
                       </span>
-                    </button>
-                  ) : null}
-
-                  {perspective === 'subject' ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setIsToolsMenuOpen(false);
-                        setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
-                        const otherClassrooms = classrooms.filter(
-                          (c) => c.id !== (classroomsWithSubject[0]?.id || classroomId),
-                        );
-                        setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
-                        setIsCloneModalOpen(true);
-                      }}
-                      className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
-                    >
-                      <Copy size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
-                      <span className="min-w-0">
-                        <span className="block text-xs font-black text-slate-900">คัดลอกเกณฑ์ไปห้องอื่น</span>
-                        <span className="block text-[11px] font-medium text-slate-500">ใช้ชุดคะแนนเดียวกันในหลายห้อง</span>
+                    ) : null}
+                    {activeSubjectMeta?.credit ? (
+                      <span className="rounded-full bg-[#EFF3EC] px-2.5 py-0.5 text-[11px] font-bold text-[#4C5751]">
+                        {activeSubjectMeta.credit.toFixed(2)} หน่วยกิต
                       </span>
-                    </button>
+                    ) : null}
+                  </div>
+                  {activeSubjectMeta?.learning_area ? (
+                    <p className="mt-0.5 truncate text-[11px] font-semibold text-[#75827A]">
+                      กลุ่มสาระ: {activeSubjectMeta.learning_area}
+                    </p>
                   ) : null}
+                </div>
+              </div>
 
-                  {(scoreView === 'excel' && contextAssessments.length > 0) ||
-                  (scoreView === 'entry' && selectedAssessment) ? (
-                    <>
-                      <div className="my-1.5 border-t border-slate-100" />
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
+                  onClick={() => openCreateAssessmentModal()}
+                  type="button"
+                >
+                  <Plus size={15} aria-hidden="true" />
+                  <span>เพิ่มช่องคะแนน</span>
+                </button>
+
+                <Link
+                  to={`/app/dashboard?view=omr-scanner&classroomId=${encodeURIComponent(classroomId || '')}&subjectName=${encodeURIComponent(subjectFilter || '')}${selectedAssessment?.id ? `&assessmentId=${encodeURIComponent(selectedAssessment.id)}` : ''}`}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50/80 px-3 text-xs font-black text-cyan-900 shadow-2xs transition hover:border-cyan-400 hover:bg-cyan-100"
+                  title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง"
+                >
+                  <Camera size={14} className="text-cyan-700" aria-hidden="true" />
+                  <span>ตรวจ OMR</span>
+                </Link>
+
+                <div className="relative" ref={toolsMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsToolsMenuOpen((open) => !open)}
+                    aria-expanded={isToolsMenuOpen}
+                    aria-haspopup="menu"
+                    className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition ${
+                      isToolsMenuOpen
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Settings2 size={14} aria-hidden="true" />
+                    <span>เครื่องมือเพิ่มเติม</span>
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${isToolsMenuOpen ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  {isToolsMenuOpen ? (
+                    <div
+                      role="menu"
+                      aria-label="เครื่องมือเพิ่มเติมระบบคะแนน"
+                      className="absolute right-0 top-[calc(100%+0.45rem)] z-40 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+                    >
+                      {selectedAssessment ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsToolsMenuOpen(false);
+                            setIsScoreOcrOpen(true);
+                          }}
+                          className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                        >
+                          <Camera size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
+                          <span className="min-w-0">
+                            <span className="block text-xs font-black text-slate-900">สแกนใบคะแนน AI</span>
+                            <span className="block text-[11px] font-medium text-slate-500">ถ่ายภาพใบคะแนนเพื่อกรอกอัตโนมัติ</span>
+                          </span>
+                        </button>
+                      ) : null}
+
                       <button
                         type="button"
                         role="menuitem"
                         onClick={() => {
                           setIsToolsMenuOpen(false);
-                          if (scoreView === 'excel') exportGridCsv();
-                          else exportAssessmentCsv();
+                          setIsRubricModalOpen(true);
                         }}
                         className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
                       >
-                        <Download size={15} className="mt-0.5 shrink-0 text-slate-600" aria-hidden="true" />
+                        <Sparkles size={15} className="mt-0.5 shrink-0 text-violet-600" aria-hidden="true" />
                         <span className="min-w-0">
-                          <span className="block text-xs font-black text-slate-900">ดาวน์โหลดไฟล์ Excel / CSV</span>
-                          <span className="block text-[11px] font-medium text-slate-500">
-                            {scoreView === 'excel' ? 'ส่งออกตารางคะแนนรวมทั้งห้อง' : 'ส่งออกคะแนนช่องนี้'}
-                          </span>
+                          <span className="block text-xs font-black text-slate-900">สร้างข้อสอบ &amp; รูบริก AI</span>
+                          <span className="block text-[11px] font-medium text-slate-500">ออกแบบข้อสอบและเกณฑ์ประเมิน</span>
                         </span>
                       </button>
-                    </>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          setIsOfficialDocumentsOpen(true);
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <FileSpreadsheet size={15} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">พิมพ์ ปพ.๕ / ปพ.๖</span>
+                          <span className="block text-[11px] font-medium text-slate-500">ออกเอกสารทางการและใบรับรอง</span>
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          setIsTermClosingOpen(true);
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <Lock size={15} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">ปิดเทอม &amp; เลื่อนชั้น</span>
+                          <span className="block text-[11px] font-medium text-slate-500">ตรวจความพร้อมและล็อกผลการเรียน</span>
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          setIsAcademicSubjectsOpen(true);
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <BookOpen size={15} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">โครงสร้างวิชา &amp; ตัดเกรด</span>
+                          <span className="block text-[11px] font-medium text-slate-500">กำหนดรหัสวิชา 8 กลุ่มสาระและเกณฑ์ 0–4</span>
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
+                          const otherClassrooms = classrooms.filter(
+                            (c) => c.id !== (classroomsWithSubject[0]?.id || classroomId),
+                          );
+                          setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
+                          setIsCloneModalOpen(true);
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <Copy size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">คัดลอกเกณฑ์ไปห้องอื่น</span>
+                          <span className="block text-[11px] font-medium text-slate-500">ใช้ชุดคะแนนเดียวกันในหลายห้อง</span>
+                        </span>
+                      </button>
+
+                      {(scoreView === 'excel' && contextAssessments.length > 0) ||
+                      (scoreView === 'entry' && selectedAssessment) ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsToolsMenuOpen(false);
+                            if (scoreView === 'excel') exportGridCsv();
+                            else exportAssessmentCsv();
+                          }}
+                          className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                        >
+                          <Download size={15} className="mt-0.5 shrink-0 text-slate-600" aria-hidden="true" />
+                          <span className="min-w-0">
+                            <span className="block text-xs font-black text-slate-900">ดาวน์โหลดไฟล์ Excel / CSV</span>
+                            <span className="block text-[11px] font-medium text-slate-500">
+                              {scoreView === 'excel' ? 'ส่งออกตารางคะแนนรวมทั้งห้อง' : 'ส่งออกคะแนนช่องนี้'}
+                            </span>
+                          </span>
+                        </button>
+                      ) : null}
+
+                      <div className="my-1.5 border-t border-slate-100" />
+
+                      <Link
+                        role="menuitem"
+                        to="/app/dashboard?view=desirable-characteristics"
+                        onClick={() => setIsToolsMenuOpen(false)}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <GraduationCap size={15} className="mt-0.5 shrink-0 text-indigo-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">ประเมินคุณลักษณะ 8 ประการ</span>
+                          <span className="block text-[11px] font-medium text-slate-500">คุณลักษณะฯ และอ่าน คิดวิเคราะห์ เขียน</span>
+                        </span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsToolsMenuOpen(false);
+                          setIsGuideOpen(true);
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50"
+                      >
+                        <BookOpen size={15} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black text-slate-900">คู่มือการใช้งานระบบคะแนน</span>
+                          <span className="block text-[11px] font-medium text-slate-500">ดูวิธีใช้งานตารางคะแนนและการตัดเกรด</span>
+                        </span>
+                      </button>
+                    </div>
                   ) : null}
                 </div>
+              </div>
+            </div>
+
+            {/* Row 2: Simple Classroom Switcher Pills for this Subject */}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 flex items-center gap-1 text-xs font-black text-slate-500">
+                <Users size={13} aria-hidden="true" />
+                ห้องเรียน:
+              </span>
+              {classroomsWithSubject.map((c) => {
+                const count = students.filter((s) => s.classroom_id === c.id).length;
+                const isSelected = classroomId === c.id;
+                const isRoomHomeroom = homeroomIdSet.has(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition ${
+                      isSelected
+                        ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                    }`}
+                    onClick={() => {
+                      if (c.id !== classroomId && !confirmDiscardUnsavedChanges()) return;
+                      setClassroomId(c.id);
+                    }}
+                    type="button"
+                  >
+                    <span>
+                      {isRoomHomeroom ? '★ ' : ''}ห้อง {c.name}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        isSelected ? 'bg-white/20 text-white' : 'border border-slate-200 bg-white text-slate-600'
+                      }`}
+                    >
+                      {count} คน
+                    </span>
+                  </button>
+                );
+              })}
+
+              {availableClassroomsToAdd.length > 0 ? (
+                <select
+                  className="h-9 rounded-xl border border-dashed border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-600 outline-none hover:border-cyan-500 focus:border-cyan-600"
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    if (!cid) return;
+                    if (cid !== classroomId && !confirmDiscardUnsavedChanges()) return;
+                    setClassroomId(cid);
+                    openCreateAssessmentModal(cid);
+                  }}
+                  value=""
+                >
+                  <option value="">+ เพิ่มห้องที่สอนวิชานี้...</option>
+                  {availableClassroomsToAdd.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      + ห้อง {c.name}
+                    </option>
+                  ))}
+                </select>
               ) : null}
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* Row 2: Context Selectors & Classroom Switcher */}
-        <div className="mt-3.5 flex flex-wrap items-center gap-3">
-          {perspective === 'subject' ? (
-            <>
-              {/* Subject Select First */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-indigo-900 shrink-0">รายวิชา:</span>
-                <select
-                  className="h-10 rounded-2xl border border-indigo-200 bg-indigo-50/50 px-3 text-xs font-black text-indigo-950 outline-none transition focus:border-indigo-500 focus:bg-white"
-                  onChange={(event) => {
-                    const newSub = event.target.value;
-                    if (newSub !== subjectFilter && !confirmDiscardUnsavedChanges()) return;
-                    setSubjectFilter(newSub);
-                    const matchingClassrooms = classrooms.filter((c) =>
-                      assessments.some(
-                        (a) =>
-                          a.classroom_id === c.id &&
-                          a.status !== 'archived' &&
-                          a.subject_name.trim().toLowerCase() === newSub.trim().toLowerCase(),
-                      ),
-                    );
-                    if (matchingClassrooms.length > 0 && !matchingClassrooms.some((c) => c.id === classroomId)) {
-                      setClassroomId(matchingClassrooms[0].id);
-                    }
-                  }}
-                  value={subjectFilter}
-                >
-                  {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
-                  {subjectOptions.map((subject) => (
-                    <option key={subject} value={subject}>
-                      {subject}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Classroom Pills for this Subject */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-slate-400 mr-1 flex items-center gap-1">
-                  <Users size={13} />
-                  ห้องที่สอนวิชานี้:
-                </span>
-                {classroomsWithSubject.map((c) => {
-                  const count = students.filter((s) => s.classroom_id === c.id).length;
-                  const isSelected = classroomId === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition ${
-                        isSelected
-                          ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
-                      }`}
-                      onClick={() => {
-                        if (c.id !== classroomId && !confirmDiscardUnsavedChanges()) return;
-                        setClassroomId(c.id);
-                      }}
-                      type="button"
-                    >
-                      <span>ห้อง {c.name}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200'
-                        }`}
-                      >
-                        {count} คน
-                      </span>
-                    </button>
-                  );
-                })}
-
-                {availableClassroomsToAdd.length > 0 ? (
-                  <select
-                    className="h-9 rounded-xl border border-dashed border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-600 outline-none hover:border-indigo-400 focus:border-indigo-500"
-                    onChange={(e) => {
-                      const cid = e.target.value;
-                      if (!cid) return;
-                      if (cid !== classroomId && !confirmDiscardUnsavedChanges()) return;
-                      setClassroomId(cid);
-                      setForm((cur) => ({
-                        ...cur,
-                        subjectName: subjectFilter,
-                        targetClassroomIds: [cid],
-                      }));
-                      setIsCreateModalOpen(true);
-                    }}
-                    value=""
-                  >
-                    <option value="">+ เพิ่มห้องที่สอนวิชานี้...</option>
-                    {availableClassroomsToAdd.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        + ห้อง {c.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Classroom First */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-slate-500 shrink-0">ห้องเรียน:</span>
-                <select
-                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                  onChange={(event) => {
-                    const nextClassroomId = event.target.value;
-                    if (nextClassroomId !== classroomId && !confirmDiscardUnsavedChanges()) return;
-                    setClassroomId(nextClassroomId);
-                  }}
-                  value={classroomId}
-                >
-                  {teacherScope.hasHomeroom ? (
-                    <>
-                      <optgroup label="ห้องที่ปรึกษาของฉัน">
-                        {teacherScope.homeroomClassrooms.map((classroom) => (
-                          <option key={classroom.id} value={classroom.id}>
-                            {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                      {teacherScope.otherClassrooms.length > 0 && (
-                        <optgroup label="ห้องที่สอนวิชา / ห้องอื่น">
-                          {teacherScope.otherClassrooms.map((classroom) => (
-                            <option key={classroom.id} value={classroom.id}>
-                              {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </>
-                  ) : (
-                    classrooms.map((classroom) => (
-                      <option key={classroom.id} value={classroom.id}>
-                        {classroom.name} {classroom.academic_year ? `(${classroom.academic_year})` : ''}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              {/* Subject Second */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-slate-500 shrink-0">รายวิชา:</span>
-                <select
-                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                  onChange={(event) => {
-                    const nextSubject = event.target.value;
-                    if (nextSubject !== subjectFilter && !confirmDiscardUnsavedChanges()) return;
-                    setSubjectFilter(nextSubject);
-                  }}
-                  value={subjectFilter}
-                >
-                  {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
-                  {subjectOptions.map((subject) => (
-                    <option key={subject} value={subject}>
-                      {subject}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* 3. Main View Tabs (4 เมนูการทำงานหลัก เรียงตามลำดับความสำคัญ ไม่สับสน) */}
-      <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
-          {[
-            { icon: Table, label: '1. ตารางรวมทั้งหมด', value: 'excel' as ScoreView },
-            { icon: ClipboardList, label: '2. กรอกทีละช่องคะแนน', value: 'entry' as ScoreView },
-            { icon: FileSpreadsheet, label: '3. สรุปคะแนน & ตัดเกรด', value: 'gradebook' as ScoreView },
-            {
-              icon: perspective === 'subject' ? BarChart3 : Layers,
-              label:
-                perspective === 'subject'
-                  ? `4. เปรียบเทียบผลสัมฤทธิ์ (${classroomsWithSubject.length} ห้อง)`
-                  : '4. ภาพรวมทุกรายวิชา',
-              value: 'overview' as ScoreView,
-            },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = scoreView === item.value;
-            return (
+          {/* Streamlined 3-Step Workspace Tabs + Input Mode Sub-Toggle */}
+          <div className="mt-4 flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100 p-1">
               <button
                 className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                  isActive
+                  scoreView === 'excel' || scoreView === 'entry'
                     ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
                     : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
                 }`}
-                key={item.value}
-                onClick={() => handleScoreViewChange(item.value)}
+                onClick={() => handleScoreViewChange(getDefaultEntryScoreView())}
                 type="button"
               >
-                <Icon size={15} className={isActive ? 'text-cyan-400' : 'text-slate-400'} aria-hidden="true" />
-                {item.label}
+                <Table
+                  size={15}
+                  className={scoreView === 'excel' || scoreView === 'entry' ? 'text-cyan-400' : 'text-slate-400'}
+                  aria-hidden="true"
+                />
+                1. กรอกคะแนน
               </button>
-            );
-          })}
-        </div>
 
-        {/* Assessment Selector in Entry Mode */}
-        {scoreView === 'entry' && contextAssessments.length > 0 ? (
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
-            <select
-              className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
-              onChange={(event) => {
-                const nextId = event.target.value;
-                if (nextId !== selectedAssessment?.id && !confirmDiscardUnsavedChanges()) return;
-                setSelectedAssessmentId(nextId);
-              }}
-              value={selectedAssessment?.id || ''}
-            >
-              {contextAssessments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} (เต็ม {item.max_score} | {item.weight}%)
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-      </div>
+              <button
+                className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                  scoreView === 'gradebook'
+                    ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
+                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                }`}
+                onClick={() => handleScoreViewChange('gradebook')}
+                type="button"
+              >
+                <FileSpreadsheet
+                  size={15}
+                  className={scoreView === 'gradebook' ? 'text-cyan-400' : 'text-slate-400'}
+                  aria-hidden="true"
+                />
+                2. สรุปเกรด (0–4)
+              </button>
 
-      {/* Notice Banner */}
-      {notice ? (
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs font-black text-cyan-900 shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="shrink-0 text-cyan-700" size={16} aria-hidden="true" />
-            <p>{notice}</p>
+              {classrooms.length > 1 ? (
+                <button
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                    scoreView === 'overview'
+                      ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
+                      : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                  }`}
+                  onClick={() => handleScoreViewChange('overview')}
+                  type="button"
+                >
+                  <BarChart3
+                    size={15}
+                    className={scoreView === 'overview' ? 'text-cyan-400' : 'text-slate-400'}
+                    aria-hidden="true"
+                  />
+                  3. เปรียบเทียบห้อง ({classroomsWithSubject.length})
+                </button>
+              ) : null}
+            </div>
+
+            {/* Entry Style Sub-Toggle + Single-Assessment Picker */}
+            {scoreView === 'excel' || scoreView === 'entry' ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center rounded-xl bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => handleScoreViewChange('excel')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
+                      scoreView === 'excel'
+                        ? 'bg-white text-slate-950 shadow-2xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Table size={13} aria-hidden="true" />
+                    ตารางรวม (Excel)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScoreViewChange('entry')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
+                      scoreView === 'entry'
+                        ? 'bg-white text-slate-950 shadow-2xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <ClipboardList size={13} aria-hidden="true" />
+                    กรอกทีละช่อง
+                  </button>
+                </div>
+
+                {scoreView === 'entry' && contextAssessments.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 text-xs font-black text-slate-500">ชิ้นงาน:</span>
+                    <select
+                      className="h-9 max-w-[230px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
+                      onChange={(event) => {
+                        const nextId = event.target.value;
+                        if (nextId !== selectedAssessment?.id && !confirmDiscardUnsavedChanges()) return;
+                        setSelectedAssessmentId(nextId);
+                      }}
+                      value={selectedAssessment?.id || ''}
+                    >
+                      {contextAssessments.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title} (เต็ม {item.max_score} | {item.weight}%)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          <button
-            className="text-cyan-700 hover:text-cyan-950 text-xs underline"
-            onClick={() => setNotice(null)}
-            type="button"
-          >
-            ปิด
-          </button>
-        </div>
-      ) : null}
+
+          {/* Notice Banner */}
+          {notice ? (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs font-black text-cyan-900 shadow-sm animate-fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="shrink-0 text-cyan-700" size={16} aria-hidden="true" />
+                <p>{notice}</p>
+              </div>
+              <button
+                className="text-xs text-cyan-700 underline hover:text-cyan-950"
+                onClick={() => setNotice(null)}
+                type="button"
+              >
+                ปิด
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
 
       {/* 3A: EXCEL GRID VIEW (All assessments in one spreadsheet) */}
       {scoreView === 'excel' ? (
@@ -3122,7 +3657,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <p className="mt-1 text-xs text-slate-500">สร้างช่องคะแนนแรกเพื่อเริ่มกรอกในตารางรวม</p>
                 <button
                   className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-4 text-xs font-black text-white hover:bg-cyan-700 transition"
-                  onClick={() => setIsCreateModalOpen(true)}
+                  onClick={() => openCreateAssessmentModal()}
                   type="button"
                 >
                   <Plus size={14} aria-hidden="true" />
@@ -3537,7 +4072,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
               </p>
               <button
                 className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-5 text-xs font-black text-white shadow-sm hover:bg-cyan-700 transition"
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => openCreateAssessmentModal()}
                 type="button"
               >
                 <Plus size={16} aria-hidden="true" />
@@ -5415,7 +5950,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3 py-1.5 text-xs font-black text-white hover:bg-cyan-700 shadow-2xs"
                             onClick={() => {
                               setIsGuideOpen(false);
-                              setIsCreateModalOpen(true);
+                              openCreateAssessmentModal();
                             }}
                           >
                             <Plus size={13} />
@@ -5788,7 +6323,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
           currentClassroomId={activeClassroom?.id}
           currentClassroomName={activeClassroom?.name}
           isOpen={isAcademicSubjectsOpen}
-          onClose={() => setIsAcademicSubjectsOpen(false)}
+          onClose={() => {
+            setIsAcademicSubjectsOpen(false);
+            void reloadSchoolSubjects();
+          }}
           session={session}
           term={activeAcademicTerm}
         />
