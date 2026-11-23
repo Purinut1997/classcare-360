@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   CheckCircle2,
-  ChevronDown,
   Cloud,
   ExternalLink,
   FolderOpen,
@@ -47,7 +46,6 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
   const [isConnecting, setIsConnecting] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSavingSetting, setIsSavingSetting] = useState(false);
-  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [notice, setNotice] = useState<{ text: string; tone: 'error' | 'info' | 'success' } | null>(null);
 
   const handledOAuthCodeRef = useRef<string | null>(null);
@@ -157,7 +155,6 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
         text: err instanceof Error ? err.message : 'ไม่สามารถเริ่มเชื่อมต่อ Google Drive ได้',
         tone: 'error',
       });
-      setShowSetupGuide(true);
     }
   }
 
@@ -363,38 +360,18 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
       ) : null}
 
       {!isLoading && driveStatus?.bridgeUnavailable ? (
-        <div className="mt-3.5 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
-          <div className="flex items-start gap-2">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            <span>
-              ยังเชื่อมต่อบริการ <code className="rounded bg-white px-1 py-0.5 font-mono">google-drive-bridge</code> บน Supabase ไม่ได้ (ระหว่างนี้ไฟล์ที่อัปโหลดจะถูกเก็บในพื้นที่สำรอง Supabase อัตโนมัติ)
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowSetupGuide(true)}
-            className="shrink-0 underline hover:text-amber-950"
-          >
-            ดูวิธีตั้งค่า
-          </button>
+        <div className="mt-3.5 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>
+            บริการเชื่อมต่อ Google Drive ไม่พร้อมใช้งานชั่วคราว (ระหว่างนี้ระบบจะเก็บไฟล์ในพื้นที่สำรองให้อย่างปลอดภัยอัตโนมัติ)
+          </span>
         </div>
       ) : !isLoading && driveStatus && !driveStatus.oauthConfigured && !isConnected ? (
-        <div className="mt-3.5 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
-          <div className="flex items-start gap-2">
-            <Info size={15} className="mt-0.5 shrink-0 text-amber-700" />
-            <span>
-              ระบบฐานข้อมูลและ <code className="rounded bg-white px-1 py-0.5 font-mono">google-drive-bridge</code> พร้อมใช้งานแล้ว — เหลือเพียงตั้งค่า Secrets{' '}
-              <code className="rounded bg-white px-1 py-0.5 font-mono">GOOGLE_DRIVE_CLIENT_ID</code> และ{' '}
-              <code className="rounded bg-white px-1 py-0.5 font-mono">GOOGLE_DRIVE_CLIENT_SECRET</code> บน Supabase เพื่อเปิดให้เชื่อม Google Drive
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowSetupGuide(true)}
-            className="shrink-0 underline hover:text-amber-950"
-          >
-            ดูขั้นตอน
-          </button>
+        <div className="mt-3.5 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
+          <Info size={15} className="mt-0.5 shrink-0 text-amber-700" />
+          <span>
+            ระบบเชื่อมต่อ Google Drive อยู่ระหว่างการเตรียมพร้อมจากผู้ดูแลระบบ (ระหว่างนี้ไฟล์ที่อัปโหลดจะถูกเก็บในพื้นที่สำรองให้อย่างปลอดภัยอัตโนมัติ)
+          </span>
         </div>
       ) : driveStatus?.lastError && !notice ? (
         <div className="mt-3.5 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
@@ -524,51 +501,17 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
         </div>
       </div>
 
-      {/* Auto Folder Map + Collapsible Technical OAuth Setup Guide */}
-      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-        <div className="flex flex-wrap items-center gap-1.5 text-slate-500">
-          <ShieldCheck size={13} className="text-emerald-600 shrink-0" aria-hidden="true" />
-          <span className="font-bold">โครงสร้างโฟลเดอร์อัตโนมัติ:</span>
-          {FOLDER_PREVIEW_LIST.slice(0, 5).map((folder) => (
-            <span key={folder} className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-              {folder}
-            </span>
-          ))}
-          <span className="text-slate-400">+ อีก {FOLDER_PREVIEW_LIST.length - 5} หมวด</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowSetupGuide((prev) => !prev)}
-          className="inline-flex items-center gap-1 font-black text-cyan-800 hover:underline"
-        >
-          <Info size={12} aria-hidden="true" />
-          <span>{showSetupGuide ? 'ซ่อนคู่มือตั้งค่า Google OAuth' : 'คู่มือตั้งค่า Google Cloud OAuth & Secrets'}</span>
-          <ChevronDown size={12} className={`transition-transform ${showSetupGuide ? 'rotate-180' : ''}`} />
-        </button>
+      {/* Auto Folder Map */}
+      <div className="mt-3.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+        <ShieldCheck size={13} className="text-emerald-600 shrink-0" aria-hidden="true" />
+        <span className="font-bold">โครงสร้างโฟลเดอร์อัตโนมัติ:</span>
+        {FOLDER_PREVIEW_LIST.slice(0, 5).map((folder) => (
+          <span key={folder} className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+            {folder}
+          </span>
+        ))}
+        <span className="text-slate-400">+ อีก {FOLDER_PREVIEW_LIST.length - 5} หมวด</span>
       </div>
-
-      {showSetupGuide ? (
-        <div className="mt-3 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4 text-xs text-slate-700 space-y-2">
-          <p className="font-black text-cyan-950">ขั้นตอนเปิดใช้งานจริงบน Production (ทำครั้งเดียวทั้งแพลตฟอร์ม)</p>
-          <ol className="list-decimal pl-5 space-y-1.5 font-medium leading-5">
-            <li>
-              รัน SQL Migration <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px]">supabase/migrations/0098_google_drive_byos_and_student_avatars.sql</code>
-            </li>
-            <li>
-              สร้าง OAuth 2.0 Client ID (Web application) ใน Google Cloud Console → เปิด Google Drive API และเพิ่ม Authorized Redirect URI ด้านล่าง:
-              <div className="mt-1 rounded-xl border border-cyan-200 bg-white px-2.5 py-1.5 font-mono text-[11px] font-bold text-slate-900 select-all break-all">
-                {canonicalRedirectUri}
-              </div>
-            </li>
-            <li>
-              ตั้งค่า Supabase Edge Function Secrets: <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px]">GOOGLE_DRIVE_CLIENT_ID</code>,{' '}
-              <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px]">GOOGLE_DRIVE_CLIENT_SECRET</code> และ deploy{' '}
-              <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px]">google-drive-bridge</code>
-            </li>
-          </ol>
-        </div>
-      ) : null}
     </section>
   );
 }
