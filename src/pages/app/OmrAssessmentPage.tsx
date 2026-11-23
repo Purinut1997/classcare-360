@@ -31,7 +31,9 @@ import { CHOICE_KEYS_ABCD, regradeScannedResults } from '../../lib/omrEngine';
 import { writeAuditLog } from '../../lib/auditLog';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { isDemoSession, withDemoContext } from '../../lib/auth';
+import { IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
 import type { OnlineExamMode } from '../../lib/hybridExamService';
+import { EvidenceVaultSection } from '../../components/shared/EvidenceVaultSection';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS } from '../../data/p5MasterTemplate';
 import { AnswerSheetDesigner } from '../../components/omr/AnswerSheetDesigner';
 import { ExamAuthoringStudio } from '../../components/omr/ExamAuthoringStudio';
@@ -1025,6 +1027,20 @@ export function OmrAssessmentPage({ session }: OmrAssessmentPageProps) {
       {currentTab === 'analysis' && (
         <OmrItemAnalysis config={config} results={sessionResults} />
       )}
+
+      {session ? (
+        <div className="mt-5">
+          <EvidenceVaultSection
+            compact
+            entityId={selectedAssessmentId || config.id || null}
+            moduleKey="omr_score_scan"
+            optimizePreset={IMAGE_WEBP_PRESETS.document_scan}
+            session={session}
+            subtitle="บันทึกภาพกระดาษคำตอบ OMR หรือใบคะแนนที่ตรวจแล้ว (แปลง .webp เก็บลง Google Drive ไว้ยืนยันผลย้อนหลัง)"
+            title="คลังหลักฐานกระดาษคำตอบ OMR และใบคะแนน AI"
+          />
+        </div>
+      ) : null}
 
       {/* Modal: Mobile Scanner Handoff QR Code */}
       {showMobileHandoffModal && (

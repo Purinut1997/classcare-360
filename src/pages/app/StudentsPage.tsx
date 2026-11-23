@@ -41,7 +41,7 @@ import {
 
 import { getBangkokDate } from '../../lib/date';
 import { getEffectivePlanCode, getWorkspaceLimitErrorMessage, planLabels, planLimits } from '../../lib/entitlements';
-import { convertImageToWebp, IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
+import { formatFileBytes, IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
 import {
   buildOfficialDocumentCode,
   buildOfficialFooterHtml,
@@ -55,7 +55,10 @@ import { canManageWorkspace, canWriteStudentRoster } from '../../lib/roles';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { translateDatabaseError } from '../../lib/errorTranslator';
 import { purgeStudentsPermanently } from '../../lib/studentOperations';
+import { resolveAppFileUrl, uploadWorkspaceFile } from '../../lib/storageGateway';
 import { getHiddenClassroomIds, getTeacherClassroomScope } from '../../lib/teacherClassrooms';
+import { EvidenceVaultSection } from '../../components/shared/EvidenceVaultSection';
+import { StudentAvatar } from '../../components/shared/StudentAvatar';
 import { Student360SummaryPanel } from '../../components/students/Student360SummaryPanel';
 import type { AppSessionContext } from '../../types/core';
 import {
@@ -106,6 +109,7 @@ interface ClassroomRow {
 }
 
 interface StudentRow {
+  avatar_file_id?: string | null;
   birth_date?: string | null;
   care_flags: Record<string, unknown>;
   classroom_id: string | null;
@@ -118,6 +122,13 @@ interface StudentRow {
   nickname: string | null;
   status: StudentStatus;
   student_code: string | null;
+}
+
+function getStudentAvatarFileId(student: StudentRow | null | undefined): string | null {
+  if (!student) return null;
+  if (student.avatar_file_id) return student.avatar_file_id;
+  const metaId = student.metadata?.avatar_file_id;
+  return typeof metaId === 'string' && metaId.trim() ? metaId : null;
 }
 
 interface GuardianRow {
@@ -809,15 +820,10 @@ function getHomeVisitPhotoStatus(form: HomeVisitFormState): StudentHomeVisitRow[
   return 'pending';
 }
 
-function getHomeVisitStoragePath(workspaceId: string, studentId: string, photoKind: 'indoor' | 'outdoor', file: File) {
-  const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
-  return `${workspaceId}/home-visits/${studentId}/${photoKind}-${Date.now()}.${extension}`;
-}
-
 const HOME_VISIT_PHOTO_MAX_EDGE = IMAGE_WEBP_PRESETS.photo.maxEdge;
 
-async function optimizeHomeVisitPhoto(file: File) {
-  return convertImageToWebp(file, IMAGE_WEBP_PRESETS.photo);
+function getHomeVisitStoragePath(workspaceId: string, studentId: string, photoKind: 'indoor' | 'outdoor') {
+  return `${workspaceId}/home-visits/${studentId}/${photoKind}-${Date.now()}.webp`;
 }
 
 function escapeHtml(value: unknown) {
@@ -1173,6 +1179,10 @@ export function StudentsPage({ session }: StudentsPageProps) {
   );
   const [homeVisitOutdoorFile, setHomeVisitOutdoorFile] = useState<File | null>(null);
   const [homeVisitIndoorFile, setHomeVisitIndoorFile] = useState<File | null>(null);
+  const [homeVisitPreviewUrls, setHomeVisitPreviewUrls] = useState<{ indoor: string | null; outdoor: string | null }>({
+    indoor: null,
+    outdoor: null,
+  });
   const [isLoading, setIsLoading] = useState(Boolean(useRealBackend && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -1483,6 +1493,38 @@ export function StudentsPage({ session }: StudentsPageProps) {
   const autoRealignRef = useRef(false);
 
 
+  async function fetchWorkspaceStudentsSafe(workspaceId: string) {
+    if (!supabase) return { data: null as StudentRow[] | null, error: null as { message?: string } | null };
+    const baseCols =
+      'id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata';
+    const primaryRes = await supabase
+      .from('students')
+      .select(`${baseCols},avatar_file_id`)
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false });
+
+    const errMsg = (primaryRes.error?.message || '').toLowerCase();
+    if (
+      primaryRes.error &&
+      (primaryRes.error.code === '42703' || errMsg.includes('avatar_file_id') || errMsg.includes('does not exist'))
+    ) {
+      const fallbackRes = await supabase
+        .from('students')
+        .select(baseCols)
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false });
+      return {
+        data: (fallbackRes.data as StudentRow[] | null) || null,
+        error: fallbackRes.error,
+      };
+    }
+
+    return {
+      data: (primaryRes.data as StudentRow[] | null) || null,
+      error: primaryRes.error,
+    };
+  }
+
   async function handleAutoRealignStudents() {
     setIsRealigning(true);
     try {
@@ -1490,11 +1532,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
       setNotice(res.message);
       if (useRealBackend && supabase && session.workspace) {
         const [{ data: refreshedStudents }, { data: refreshedRooms }] = await Promise.all([
-          supabase
-            .from('students')
-            .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
-            .eq('workspace_id', session.workspace.id)
-            .order('created_at', { ascending: false }),
+          fetchWorkspaceStudentsSafe(session.workspace.id),
           supabase
             .from('classrooms')
             .select('id,name,grade_level,academic_year,status')
@@ -1622,11 +1660,7 @@ export function StudentsPage({ session }: StudentsPageProps) {
           .select('id,name,grade_level,academic_year,status')
           .eq('workspace_id', session.workspace.id)
           .order('name', { ascending: true }),
-        supabase
-          .from('students')
-          .select('id,student_code,first_name,last_name,nickname,status,care_flags,health_flags,gender,classroom_id,birth_date,metadata')
-          .eq('workspace_id', session.workspace.id)
-          .order('created_at', { ascending: false }),
+        fetchWorkspaceStudentsSafe(session.workspace.id),
         supabase
           .from('student_guardians')
           .select('id,student_id,relation,display_name,phone,is_primary,consent_status')
@@ -2994,46 +3028,127 @@ export function StudentsPage({ session }: StudentsPageProps) {
     );
   }
 
+  useEffect(() => {
+    let active = true;
+    const workspaceId = session.workspace?.id;
+    if (!useRealBackend || !workspaceId) {
+      setHomeVisitPreviewUrls({ indoor: null, outdoor: null });
+      return;
+    }
+
+    void Promise.all([
+      homeVisitForm.outdoorPhotoFileId
+        ? resolveAppFileUrl(workspaceId, homeVisitForm.outdoorPhotoFileId)
+        : Promise.resolve(null),
+      homeVisitForm.indoorPhotoFileId
+        ? resolveAppFileUrl(workspaceId, homeVisitForm.indoorPhotoFileId)
+        : Promise.resolve(null),
+    ]).then(([outdoorUrl, indoorUrl]) => {
+      if (active) setHomeVisitPreviewUrls({ indoor: indoorUrl, outdoor: outdoorUrl });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [homeVisitForm.indoorPhotoFileId, homeVisitForm.outdoorPhotoFileId, session.workspace?.id, useRealBackend]);
+
+  async function handleUploadStudentAvatar(student: StudentRow, file: File) {
+    if (!canWriteRoster) {
+      setNotice('บัญชีนี้ดูรายชื่อได้ แต่ไม่ได้รับสิทธิ์เปลี่ยนภาพประจำตัวนักเรียน');
+      return;
+    }
+    if (!useRealBackend || !supabase || !session.workspace) {
+      setNotice('โหมดตัวอย่าง: ภาพประจำตัวเด็ก (.webp 512×512) จะอัปโหลดลง Google Drive ของโรงเรียนเมื่อใช้งานจริง');
+      return;
+    }
+
+    try {
+      const workspaceId = session.workspace.id;
+      const uploaded = await uploadWorkspaceFile({
+        category: 'student_avatar',
+        fallbackBucket: 'student-avatars',
+        file,
+        metadata: {
+          purpose: 'student_avatar',
+          student_id: student.id,
+        },
+        optimizePreset: IMAGE_WEBP_PRESETS.student_avatar,
+        ownerProfileId: session.profile.id,
+        privacyLevel: 'sensitive',
+        storagePath: `${workspaceId}/avatars/${student.id}-${Date.now()}.webp`,
+        workspaceId,
+      });
+
+      const nextMetadata = {
+        ...(student.metadata || {}),
+        avatar_file_id: uploaded.fileId,
+      };
+
+      let updateRes = await supabase
+        .from('students')
+        .update({
+          avatar_file_id: uploaded.fileId,
+          metadata: nextMetadata,
+        })
+        .eq('id', student.id)
+        .eq('workspace_id', workspaceId);
+
+      if (
+        updateRes.error &&
+        (updateRes.error.code === '42703' || (updateRes.error.message || '').toLowerCase().includes('avatar_file_id'))
+      ) {
+        updateRes = await supabase
+          .from('students')
+          .update({ metadata: nextMetadata })
+          .eq('id', student.id)
+          .eq('workspace_id', workspaceId);
+      }
+
+      if (updateRes.error) throw updateRes.error;
+
+      setStudents((current) =>
+        current.map((item) =>
+          item.id === student.id ? { ...item, avatar_file_id: uploaded.fileId, metadata: nextMetadata } : item,
+        ),
+      );
+      setViewingStudent((current) =>
+        current && current.id === student.id
+          ? { ...current, avatar_file_id: uploaded.fileId, metadata: nextMetadata }
+          : current,
+      );
+
+      const destLabel = uploaded.storageProvider === 'google_drive' ? 'Google Drive' : 'พื้นที่สำรอง Supabase';
+      const savingText =
+        uploaded.savedPercent > 0
+          ? ` (แปลง .webp 512×512 ลดขนาด ${uploaded.savedPercent}% เหลือ ${formatFileBytes(uploaded.optimizedBytes)})`
+          : ` (${formatFileBytes(uploaded.sizeBytes)})`;
+      setNotice(`✓ อัปเดตภาพประจำตัว "${student.first_name}" ลง ${destLabel} แล้ว${savingText}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'อัปโหลดภาพประจำตัวไม่สำเร็จ');
+    }
+  }
+
   async function uploadHomeVisitPhoto(file: File, photoKind: 'indoor' | 'outdoor') {
     if (!useRealBackend || !supabase || !session.workspace || !selectedStudent) return null;
 
-    const optimizedFile = await optimizeHomeVisitPhoto(file);
-    const bucket = 'home-visit-photos';
-    const storagePath = getHomeVisitStoragePath(session.workspace.id, selectedStudent.id, photoKind, optimizedFile);
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, optimizedFile, {
-      contentType: optimizedFile.type || 'application/octet-stream',
-      upsert: false,
+    const storagePath = getHomeVisitStoragePath(session.workspace.id, selectedStudent.id, photoKind);
+    const uploaded = await uploadWorkspaceFile({
+      category: 'home_visit',
+      fallbackBucket: 'home-visit-photos',
+      file,
+      metadata: {
+        photo_kind: photoKind,
+        purpose: 'home_visit_photo',
+        student_id: selectedStudent.id,
+      },
+      optimizePreset: IMAGE_WEBP_PRESETS.photo,
+      ownerProfileId: session.profile.id,
+      privacyLevel: 'sensitive',
+      storagePath,
+      workspaceId: session.workspace.id,
     });
 
-    if (uploadError) throw uploadError;
-
-    const { data: fileRow, error: fileError } = await supabase
-      .from('app_files')
-      .insert({
-        bucket,
-        content_type: optimizedFile.type || 'image/webp',
-        metadata: {
-          optimized_content_type: optimizedFile.type || null,
-          optimized_filename: optimizedFile.name,
-          optimized_size_bytes: optimizedFile.size,
-          original_size_bytes: file.size,
-          photo_kind: photoKind,
-          purpose: 'home_visit_photo',
-          resized_for_storage: optimizedFile !== file,
-          student_id: selectedStudent.id,
-        },
-        original_filename: optimizedFile.name,
-        owner_profile_id: session.profile.id,
-        privacy_level: 'sensitive',
-        size_bytes: optimizedFile.size,
-        storage_path: storagePath,
-        workspace_id: session.workspace.id,
-      })
-      .select('id')
-      .single();
-
-    if (fileError) throw fileError;
-    return fileRow.id as string;
+    return uploaded.fileId;
   }
 
   async function handleHomeVisitSubmit(event: FormEvent<HTMLFormElement>) {
@@ -3746,14 +3861,27 @@ export function StudentsPage({ session }: StudentsPageProps) {
                   </>
                 ) : 'เลือกนักเรียน'}
               </div>
-              <h2 className="mt-3 truncate text-2xl font-black text-slate-950">
-                {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}
-              </h2>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                {selectedStudent
-                  ? `${selectedStudent.student_code || 'ไม่มีรหัส'} | ${selectedClassroom?.name || 'ยังไม่ระบุห้อง'} | ${statusLabels[selectedStudent.status]}`
-                  : 'เลือกนักเรียนจากช่องด้านขวาเพื่อทำงานในหน้านี้'}
-              </p>
+              <div className="mt-3 flex items-center gap-3">
+                {selectedStudent ? (
+                  <StudentAvatar
+                    avatarFileId={getStudentAvatarFileId(selectedStudent)}
+                    firstName={selectedStudent.first_name}
+                    lastName={selectedStudent.last_name}
+                    size="md"
+                    workspaceId={session.workspace?.id}
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <h2 className="truncate text-2xl font-black text-slate-950">
+                    {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'ยังไม่ได้เลือกนักเรียน'}
+                  </h2>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                    {selectedStudent
+                      ? `${selectedStudent.student_code || 'ไม่มีรหัส'} | ${selectedClassroom?.name || 'ยังไม่ระบุห้อง'} | ${statusLabels[selectedStudent.status]}`
+                      : 'เลือกนักเรียนจากช่องด้านขวาเพื่อทำงานในหน้านี้'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <label className="grid gap-2 text-sm font-black text-slate-700">
@@ -4255,17 +4383,27 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       onClick={() => setViewingStudent(student)}
                       className="flex items-center gap-3 text-left flex-1"
                     >
-                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-2xs border ${
-                        gender === 'female'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/60'
-                          : gender === 'male'
-                          ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/60'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                      }`}>
-                        <span className="text-xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
-                          {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
-                        </span>
-                      </div>
+                      {getStudentAvatarFileId(student) ? (
+                        <StudentAvatar
+                          avatarFileId={getStudentAvatarFileId(student)}
+                          firstName={student.first_name}
+                          lastName={student.last_name}
+                          size="sm"
+                          workspaceId={session.workspace?.id}
+                        />
+                      ) : (
+                        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-2xs border ${
+                          gender === 'female'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/60'
+                            : gender === 'male'
+                            ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/60'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                        }`}>
+                          <span className="text-xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
+                            {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
+                          </span>
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <h4 className="text-base font-black text-slate-900 leading-tight">
@@ -4438,17 +4576,27 @@ export function StudentsPage({ session }: StudentsPageProps) {
                       </td>
                       <td className="px-3.5 py-3">
                         <div className="flex items-center gap-3 text-left group-hover:translate-x-0.5 transition-transform">
-                          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-2xs border ${
-                            gender === 'female'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/60'
-                              : gender === 'male'
-                              ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/60'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                          }`}>
-                            <span className="text-xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
-                              {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
-                            </span>
-                          </div>
+                          {getStudentAvatarFileId(student) ? (
+                            <StudentAvatar
+                              avatarFileId={getStudentAvatarFileId(student)}
+                              firstName={student.first_name}
+                              lastName={student.last_name}
+                              size="sm"
+                              workspaceId={session.workspace?.id}
+                            />
+                          ) : (
+                            <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-2xs border ${
+                              gender === 'female'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200/80 ring-2 ring-rose-100/60'
+                                : gender === 'male'
+                                ? 'bg-sky-50 text-sky-700 border-sky-200/80 ring-2 ring-sky-100/60'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                            }`}>
+                              <span className="text-xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
+                                {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
+                              </span>
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="font-black text-slate-900 group-hover:text-emerald-800 transition">
@@ -5158,16 +5306,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 {
-                  description: 'กรุณาถ่ายให้เห็นหลังคาและฝาผนังของที่พักอาศัยทั้งหลัง',
+                  description: 'กรุณาถ่ายให้เห็นหลังคาและฝาผนังของที่พักอาศัยทั้งหลัง (แปลง .webp เก็บลง Drive อัตโนมัติ)',
                   file: homeVisitOutdoorFile,
                   label: 'รูปที่ 1 ภายนอกที่พักอาศัย',
+                  previewUrl: homeVisitPreviewUrls.outdoor,
                   savedLabel: homeVisitForm.outdoorPhotoLabel,
                   setFile: setHomeVisitOutdoorFile,
                 },
                 {
-                  description: 'กรุณาถ่ายให้เห็นพื้นและบริเวณภายในของที่พักอาศัย',
+                  description: 'กรุณาถ่ายให้เห็นพื้นและบริเวณภายในของที่พักอาศัย (แปลง .webp เก็บลง Drive อัตโนมัติ)',
                   file: homeVisitIndoorFile,
                   label: 'รูปที่ 2 ภายในที่พักอาศัย',
+                  previewUrl: homeVisitPreviewUrls.indoor,
                   savedLabel: homeVisitForm.indoorPhotoLabel,
                   setFile: setHomeVisitIndoorFile,
                 },
@@ -5186,6 +5336,14 @@ export function StudentsPage({ session }: StudentsPageProps) {
                     </span>
                   </span>
                   <span className="text-xs font-bold leading-5 text-slate-500">{item.description}</span>
+                  {item.previewUrl ? (
+                    <img
+                      src={item.previewUrl}
+                      alt={item.label}
+                      className="h-36 w-full rounded-2xl border border-sky-200/80 object-cover bg-white"
+                      loading="lazy"
+                    />
+                  ) : null}
                   <span className="rounded-2xl bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-100">
                     {item.file?.name || item.savedLabel || 'ยังไม่ได้เลือกไฟล์'}
                   </span>
@@ -5318,18 +5476,36 @@ export function StudentsPage({ session }: StudentsPageProps) {
       <section id="student-profile" className="mt-5 scroll-mt-24 grid gap-5">
         <div className="nexus-card p-4 sm:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-sm font-black text-sky-700">Student Profile</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                {selectedStudent
-                  ? `${selectedStudent.first_name} ${selectedStudent.last_name}`
-                  : 'เลือกนักเรียนเพื่อดูโปรไฟล์รายคน'}
-              </h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                {selectedStudent
-                  ? `${selectedStudent.student_code || 'ไม่มีรหัส'} | ${selectedClassroom?.name || 'ยังไม่ระบุห้องเรียน'}`
-                  : 'โปรไฟล์นี้รวมข้อมูลพื้นฐาน ผู้ปกครอง Portal และเคสดูแลไว้ในจุดเดียว'}
-              </p>
+            <div className="flex items-start gap-4">
+              {selectedStudent ? (
+                <StudentAvatar
+                  avatarFileId={getStudentAvatarFileId(selectedStudent)}
+                  editable={canWriteRoster}
+                  firstName={selectedStudent.first_name}
+                  lastName={selectedStudent.last_name}
+                  onUploadFile={(file) => handleUploadStudentAvatar(selectedStudent, file)}
+                  size="lg"
+                  workspaceId={session.workspace?.id}
+                />
+              ) : null}
+              <div>
+                <p className="text-sm font-black text-sky-700">Student Profile</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  {selectedStudent
+                    ? `${selectedStudent.first_name} ${selectedStudent.last_name}`
+                    : 'เลือกนักเรียนเพื่อดูโปรไฟล์รายคน'}
+                </h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                  {selectedStudent
+                    ? `${selectedStudent.student_code || 'ไม่มีรหัส'} | ${selectedClassroom?.name || 'ยังไม่ระบุห้องเรียน'}`
+                    : 'โปรไฟล์นี้รวมข้อมูลพื้นฐาน ผู้ปกครอง Portal และเคสดูแลไว้ในจุดเดียว'}
+                </p>
+                {selectedStudent && canWriteRoster ? (
+                  <p className="mt-0.5 text-[11px] font-bold text-emerald-700">
+                    แตะไอคอนกล้องที่มุมรูปเพื่ออัปโหลดภาพประจำตัวเด็ก (.webp 512×512 → Google Drive)
+                  </p>
+                ) : null}
+              </div>
             </div>
             {selectedStudent ? (
               <button
@@ -5540,6 +5716,18 @@ export function StudentsPage({ session }: StudentsPageProps) {
             </div>
           )}
         </div>
+
+        {selectedStudent ? (
+          <EvidenceVaultSection
+            compact
+            moduleKey="behavior_portfolio"
+            optimizePreset={IMAGE_WEBP_PRESETS.photo}
+            session={session}
+            studentId={selectedStudent.id}
+            subtitle="อัปโหลดเกียรติบัตร รูปกิจกรรม หรือเอกสารประจำตัวนักเรียน (บีบอัด .webp เก็บลง Google Drive อัตโนมัติ)"
+            title={`คลังเกียรติบัตร ผลงาน และเอกสารของ ${selectedStudent.first_name}`}
+          />
+        ) : null}
 
         <div className="nexus-card p-4 sm:p-5">
           <div className="nexus-kicker">
@@ -7024,17 +7212,29 @@ export function StudentsPage({ session }: StudentsPageProps) {
               <div className="relative border-b border-slate-100 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-sky-50/80 px-6 py-5 dark:border-slate-800 dark:from-slate-850 dark:to-slate-900">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3.5">
-                    <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl shadow-md border ${
-                      gender === 'female'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200 ring-4 ring-rose-100/60'
-                        : gender === 'male'
-                        ? 'bg-sky-50 text-sky-700 border-sky-200 ring-4 ring-sky-100/60'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-4 ring-emerald-100/60'
-                    }`}>
-                      <span className="text-3xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
-                        {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
-                      </span>
-                    </div>
+                    {getStudentAvatarFileId(student) || canWriteRoster ? (
+                      <StudentAvatar
+                        avatarFileId={getStudentAvatarFileId(student)}
+                        editable={canWriteRoster}
+                        firstName={student.first_name}
+                        lastName={student.last_name}
+                        onUploadFile={(file) => handleUploadStudentAvatar(student, file)}
+                        size="lg"
+                        workspaceId={session.workspace?.id}
+                      />
+                    ) : (
+                      <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl shadow-md border ${
+                        gender === 'female'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200 ring-4 ring-rose-100/60'
+                          : gender === 'male'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200 ring-4 ring-sky-100/60'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-4 ring-emerald-100/60'
+                      }`}>
+                        <span className="text-3xl select-none leading-none" role="img" aria-label={gender === 'female' ? 'นักเรียนหญิง' : gender === 'male' ? 'นักเรียนชาย' : 'นักเรียน'}>
+                          {gender === 'female' ? '👧' : gender === 'male' ? '👦' : '🧑'}
+                        </span>
+                      </div>
+                    )}
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-xl font-black text-slate-950 dark:text-white" id="student-detail-modal-title">

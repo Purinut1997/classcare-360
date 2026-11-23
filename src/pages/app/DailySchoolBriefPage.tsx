@@ -20,7 +20,8 @@ import {
   Users,
 } from "lucide-react";
 import { ThaiDatePicker } from "../../components/shared/ThaiDatePicker";
-import { convertImageToWebp, IMAGE_WEBP_PRESETS } from "../../lib/imageOptimizer";
+import { IMAGE_WEBP_PRESETS } from "../../lib/imageOptimizer";
+import { resolveAppFileUrl, uploadWorkspaceFile } from "../../lib/storageGateway";
 import { supabase } from "../../lib/supabaseClient";
 import { sendTeacherReport } from "../../lib/teacherNotificationReports";
 import { hasWorkspaceCapability } from "../../lib/roles";
@@ -51,6 +52,7 @@ type Log = {
 };
 type Attachment = {
   id: string;
+  file_id?: string | null;
   file_name: string;
   storage_path: string;
   signedUrl?: string;
@@ -323,13 +325,34 @@ export function DailySchoolBriefPage({
         .order("created_at", { ascending: false })
         .limit(12);
       setRevisions((rev.data || []) as typeof revisions);
-      const attachmentRows = await supabase
+      const primaryAttachmentsRes = await supabase
         .from("daily_brief_attachments")
-        .select("id,file_name,storage_path")
+        .select("id,file_name,storage_path,file_id")
         .eq("brief_id", b.id)
         .order("created_at");
+      let rawAttachmentRows: Attachment[] =
+        (primaryAttachmentsRes.data as Attachment[] | null) || [];
+      if (
+        primaryAttachmentsRes.error &&
+        (primaryAttachmentsRes.error.code === "42703" ||
+          (primaryAttachmentsRes.error.message || "")
+            .toLowerCase()
+            .includes("file_id"))
+      ) {
+        const fallbackAttachmentsRes = await supabase
+          .from("daily_brief_attachments")
+          .select("id,file_name,storage_path")
+          .eq("brief_id", b.id)
+          .order("created_at");
+        rawAttachmentRows =
+          (fallbackAttachmentsRes.data as Attachment[] | null) || [];
+      }
       const signedAttachments = await Promise.all(
-        ((attachmentRows.data || []) as Attachment[]).map(async (item) => {
+        rawAttachmentRows.map(async (item) => {
+          if (item.file_id && workspaceId) {
+            const url = await resolveAppFileUrl(workspaceId, item.file_id);
+            if (url) return { ...item, signedUrl: url };
+          }
           const signed = await supabase!.storage
             .from("daily-briefs")
             .createSignedUrl(item.storage_path, 60 * 30);
@@ -473,36 +496,72 @@ export function DailySchoolBriefPage({
       return;
     }
     setBusy(true);
-    const preparedFile =
-      file.type === "application/pdf"
-        ? file
-        : await convertImageToWebp(file, IMAGE_WEBP_PRESETS.photo);
-    const safeName = preparedFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-    const storagePath = `${workspaceId}/${brief.id}/${crypto.randomUUID()}-${safeName}`;
-    const uploaded = await supabase.storage
-      .from("daily-briefs")
-      .upload(storagePath, preparedFile, {
-        contentType: preparedFile.type || "image/webp",
-        upsert: false,
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const storagePath = `${workspaceId}/${brief.id}/${crypto.randomUUID()}-${safeName}`;
+      const uploaded = await uploadWorkspaceFile({
+        category: "daily_brief",
+        fallbackBucket: "daily-briefs",
+        file,
+        metadata: {
+          brief_id: brief.id,
+          purpose: "daily_brief_attachment",
+        },
+        optimizePreset:
+          file.type === "application/pdf" ? undefined : IMAGE_WEBP_PRESETS.photo,
+        ownerProfileId: session.profile.id,
+        privacyLevel: "private",
+        storagePath,
+        workspaceId,
       });
-    if (uploaded.error)
-      setNotice("อัปโหลดไฟล์ไม่สำเร็จ: " + uploaded.error.message);
-    else {
-      const saved = await supabase.from("daily_brief_attachments").insert({
+
+      const baseAttachment = {
         brief_id: brief.id,
-        workspace_id: workspaceId,
-        storage_path: storagePath,
-        file_name: preparedFile.name,
-        content_type: preparedFile.type || "image/webp",
-        size_bytes: preparedFile.size,
+        content_type: uploaded.contentType,
+        file_name: file.name,
+        size_bytes: uploaded.sizeBytes,
+        storage_path: uploaded.storagePath,
         uploaded_by: session.profile.id,
+        workspace_id: workspaceId,
+      };
+
+      let saved = await supabase.from("daily_brief_attachments").insert({
+        ...baseAttachment,
+        file_id: uploaded.fileId,
       });
+
+      if (
+        saved.error &&
+        (saved.error.code === "42703" ||
+          (saved.error.message || "").toLowerCase().includes("file_id"))
+      ) {
+        saved = await supabase
+          .from("daily_brief_attachments")
+          .insert(baseAttachment);
+      }
+
+      if (saved.error) {
+        setNotice("บันทึกข้อมูลไฟล์ไม่สำเร็จ");
+      } else {
+        const destLabel =
+          uploaded.storageProvider === "google_drive"
+            ? "Google Drive"
+            : "พื้นที่สำรอง Supabase";
+        setNotice(
+          uploaded.savedPercent > 0
+            ? `แนบไฟล์ลง ${destLabel} แล้ว (แปลง .webp ลดขนาด ${uploaded.savedPercent}%)`
+            : `แนบไฟล์ลง ${destLabel} แล้ว`,
+        );
+        await load();
+      }
+    } catch (err) {
       setNotice(
-        saved.error ? "บันทึกข้อมูลไฟล์ไม่สำเร็จ" : "แนบไฟล์ในรายงานแล้ว",
+        "อัปโหลดไฟล์ไม่สำเร็จ: " +
+          (err instanceof Error ? err.message : "ไม่ทราบสาเหตุ"),
       );
-      if (!saved.error) await load();
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
   function applyTemplate(type: ReportType) {
     const t = templates[type];

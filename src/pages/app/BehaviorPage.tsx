@@ -26,6 +26,8 @@ import { ContextLink as Link } from '../../components/navigation/ContextLink';
 
 import { writeAuditLog } from '../../lib/auditLog';
 import { isDemoSession } from '../../lib/auth';
+import { IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
+import { EvidenceVaultSection } from '../../components/shared/EvidenceVaultSection';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
@@ -1460,6 +1462,17 @@ export function BehaviorPage({ session }: BehaviorPageProps) {
           </button>
         </div>
       )}
+
+      <div className="mt-5">
+        <EvidenceVaultSection
+          compact
+          moduleKey="behavior_portfolio"
+          optimizePreset={IMAGE_WEBP_PRESETS.photo}
+          session={session}
+          subtitle="แนบภาพเกียรติบัตร ผลงานเด่น หรือหลักฐานเคสดูแลช่วยเหลือ (แปลง .webp เก็บลง Google Drive อัตโนมัติ)"
+          title="คลังหลักฐานพฤติกรรมและเกียรติบัตรห้องเรียน"
+        />
+      </div>
 
       {/* ======================================================== */}
       {/* SINGLE STUDENT QUICK BEHAVIOR MODAL                       */}

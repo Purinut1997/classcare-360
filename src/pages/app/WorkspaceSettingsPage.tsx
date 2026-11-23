@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, Bot, Building2, Download, Globe2, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, UserRound, Users } from 'lucide-react';
+import { AlertTriangle, Archive, Bot, Building2, Download, Globe2, HardDrive, ImagePlus, Plus, RotateCcw, Save, School, ShieldCheck, Trash2, UserPlus, UserRound, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 import { writeAuditLog } from '../../lib/auditLog';
@@ -9,6 +9,7 @@ import { compressImageFile, loadSchoolReportIdentity, saveSchoolReportIdentity, 
 import { requestAppSessionRefresh } from '../../lib/session';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext, WorkspaceRole } from '../../types/core';
+import { GoogleDriveStorageCard } from '../../components/workspace/GoogleDriveStorageCard';
 import { MemberAccessControl } from '../../components/workspace/MemberAccessControl';
 import { UserAccountSettingsPanel } from '../../components/workspace/UserAccountSettingsPanel';
 import { WorkspaceAiSettingsCard } from '../../components/workspace/WorkspaceAiSettingsCard';
@@ -187,11 +188,20 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     name: session.workspace?.classroomName || 'ป.5/2',
   });
 
-  type SettingsTabKey = 'account' | 'school' | 'classrooms' | 'members' | 'ai';
+  type SettingsTabKey = 'account' | 'school' | 'classrooms' | 'members' | 'ai' | 'storage';
   const rawTabParam = searchParams.get('tab');
+  const isDriveOAuthCallback = searchParams.get('drive_oauth') === 'callback';
   const resolveTab = (raw: string | null): SettingsTabKey => {
     if (!canManage) return 'account';
-    if (raw === 'account' || raw === 'school' || raw === 'classrooms' || raw === 'members' || raw === 'ai') {
+    if (isDriveOAuthCallback) return 'storage';
+    if (
+      raw === 'account' ||
+      raw === 'school' ||
+      raw === 'classrooms' ||
+      raw === 'members' ||
+      raw === 'ai' ||
+      raw === 'storage'
+    ) {
       return raw;
     }
     if (raw === 'profile') return 'school';
@@ -203,7 +213,7 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     const resolved = resolveTab(rawTabParam);
     setActiveSettingsTab(resolved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTabParam, canManage]);
+  }, [rawTabParam, isDriveOAuthCallback, canManage]);
 
   function selectSettingsTab(tab: SettingsTabKey) {
     const nextTab = !canManage ? 'account' : tab;
@@ -1198,6 +1208,18 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
               <Bot size={15} className={activeSettingsTab === 'ai' ? 'text-violet-300' : 'text-slate-400'} aria-hidden="true" />
               AI ผู้ช่วยครู (Gemini)
             </button>
+            <button
+              type="button"
+              onClick={() => selectSettingsTab('storage')}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black transition ${
+                activeSettingsTab === 'storage'
+                  ? 'bg-slate-950 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+              }`}
+            >
+              <HardDrive size={15} className={activeSettingsTab === 'storage' ? 'text-emerald-300' : 'text-slate-400'} aria-hidden="true" />
+              Google Drive &amp; พื้นที่เก็บไฟล์
+            </button>
           </>
         ) : null}
       </div>
@@ -1231,6 +1253,12 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
           {activeSettingsTab === 'ai' && (
             <div>
               <WorkspaceAiSettingsCard session={session} />
+            </div>
+          )}
+
+          {activeSettingsTab === 'storage' && (
+            <div>
+              <GoogleDriveStorageCard session={session} />
             </div>
           )}
 

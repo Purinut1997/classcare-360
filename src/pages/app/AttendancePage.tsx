@@ -34,8 +34,10 @@ import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { AttendanceOcrModal } from '../../components/attendance/AttendanceOcrModal';
 
 import { useSystemFeedback } from '../../components/system/SystemFeedback';
+import { EvidenceVaultSection } from '../../components/shared/EvidenceVaultSection';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
 import { getBangkokDate } from '../../lib/date';
+import { IMAGE_WEBP_PRESETS } from '../../lib/imageOptimizer';
 import { isDemoSession } from '../../lib/auth';
 import { sendTeacherReport } from '../../lib/teacherNotificationReports';
 import { writeAuditLog } from '../../lib/auditLog';
@@ -2241,6 +2243,18 @@ export function AttendancePage({ session }: AttendancePageProps) {
               </div>
             </div>
           )}
+
+          {/* Evidence Vault: Medical Certificates & Leave Slips (.webp -> Google Drive) */}
+          <div className="mt-4">
+            <EvidenceVaultSection
+              compact
+              moduleKey="attendance_leave"
+              optimizePreset={IMAGE_WEBP_PRESETS.document_scan}
+              session={session}
+              subtitle="แนบภาพใบลาหรือใบรับรองแพทย์ (บีบอัด .webp คมชัด 1600px เก็บลง Google Drive อัตโนมัติ)"
+              title="คลังใบลาและหลักฐานเวลาเรียน"
+            />
+          </div>
 
           {/* Generous bottom spacer so page can scroll comfortably past bottom dock */}
           <div className="h-32 sm:h-20 lg:h-10" aria-hidden="true" />

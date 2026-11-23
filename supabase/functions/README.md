@@ -211,3 +211,26 @@ Endpoint สำหรับตั้งเวลาทำงานอัตโ�
 - ยืนยันตัวตนด้วย header `x-cron-secret` ตรงกับ secret `CRON_SECRET` (หรือ Bearer token ของ active superadmin)
 - โหมด `early_warning`: รัน RPC `evaluate_early_warning_signals` กับทุก workspace ที่เปิด `automation_rules`
 - โหมด `morning_digest` / `evening_digest`: ส่งสรุปรายวันไปยังครูที่เปิด Telegram และตั้งค่า digest ไว้ พร้อมบันทึก idempotency ลง `teacher_notification_delivery_log`
+
+## google-drive-bridge (Workspace BYOS Google Drive + Cold Storage)
+
+Path: `supabase/functions/google-drive-bridge/index.ts`
+
+เชื่อมต่อ Google Drive ของครูเจ้าของพื้นที่โรงเรียน (1 โรงเรียน = 1 Google Drive กลาง) โดยขอสิทธิ์เฉพาะ `https://www.googleapis.com/auth/drive.file` + `userinfo.email` เพื่อความปลอดภัยและ PDPA:
+- เข้ารหัส Google Refresh Token ด้วย AES-256-GCM ก่อนเก็บใน `workspace_drive_tokens` (ตารางที่เปิด RLS แบบห้าม client อ่านโดยตรง)
+- สร้างโฟลเดอร์ `ClassCare 360 - [ชื่อโรงเรียน]` และโฟลเดอร์ย่อย 01–09 อัตโนมัติ (ภาพประจำตัวเด็ก, เยี่ยมบ้าน, ใบลา, พฤติกรรม, OMR, กิจกรรมรายวัน, สุขภาพ/เงินออม, ปพ.๕/ปพ.๖, สำรองข้อมูล)
+- อัปโหลด ดาวน์โหลดแบบตรวจสิทธิ์รายโรงเรียน (private stream proxy) และย้ายไฟล์เก่าจาก Supabase Storage → Google Drive (`migrate-batch`)
+
+Secrets ที่ต้องตั้งใน Supabase Edge Function Secrets:
+
+```text
+GOOGLE_DRIVE_CLIENT_ID
+GOOGLE_DRIVE_CLIENT_SECRET
+GOOGLE_DRIVE_ENCRYPTION_KEY   # Optional 32-byte base64 key (fallback derives from SUPABASE_SERVICE_ROLE_KEY)
+```
+
+Deploy:
+
+```bash
+supabase functions deploy google-drive-bridge
+```

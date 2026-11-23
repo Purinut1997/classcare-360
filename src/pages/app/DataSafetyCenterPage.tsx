@@ -7,8 +7,10 @@ import {
   Copy,
   DatabaseZap,
   Download,
+  ExternalLink,
   FileCheck2,
   FileUp,
+  HardDrive,
   MessageSquareText,
   Plus,
   RefreshCw,
@@ -21,8 +23,17 @@ import {
 } from 'lucide-react';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { NexusAuroraInline } from '../../components/system/NexusAuroraLoader';
+import { GoogleDriveStorageCard } from '../../components/workspace/GoogleDriveStorageCard';
 import { isDemoSession } from '../../lib/auth';
+import { formatFileBytes } from '../../lib/imageOptimizer';
 import { canManageWorkspace } from '../../lib/roles';
+import {
+  listDriveBackups,
+  resolveAppFileUrl,
+  uploadWorkspaceFile,
+  type DriveBackupItem,
+  type DriveConnectionStatus,
+} from '../../lib/storageGateway';
 import { supabase } from '../../lib/supabaseClient';
 import type { AppSessionContext } from '../../types/core';
 
@@ -182,9 +193,12 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
 
   // Backup / Restore states
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isBackingUpToDrive, setIsBackingUpToDrive] = useState(false);
   const [isRestoringFile, setIsRestoringFile] = useState(false);
   const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null);
   const [backupFileError, setBackupFileError] = useState<string | null>(null);
+  const [driveStatus, setDriveStatus] = useState<DriveConnectionStatus | null>(null);
+  const [driveBackups, setDriveBackups] = useState<DriveBackupItem[]>([]);
 
   // Action busy flags
   const [fixingIssueId, setFixingIssueId] = useState<string | null>(null);
@@ -528,6 +542,86 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     }
   }
 
+  async function buildWorkspaceBackupSnapshot() {
+    if (!supabase || !workspaceId) throw new Error('ยังไม่ได้เชื่อมต่อฐานข้อมูลโรงเรียน');
+
+    const [
+      wsRes,
+      clsRows,
+      stuRows,
+      guardRows,
+      savAccRows,
+      savTxRows,
+      calRows,
+      tplRows,
+      attSessionRows,
+      attRecordRows,
+      scoreAssessmentRows,
+      scoreEntryRows,
+      behaviorRows,
+      healthRows,
+      desirableRows,
+      careCaseRows,
+      homeVisitRows,
+      scheduleRows,
+      automationRuleRows,
+      leaveRequestRows,
+    ] = await Promise.all([
+      supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(),
+      safeFetchWorkspaceTable('classrooms', 500),
+      safeFetchWorkspaceTable('students', 2000),
+      safeFetchWorkspaceTable('student_guardians', 4000),
+      safeFetchWorkspaceTable('savings_accounts', 2000),
+      safeFetchWorkspaceTable('savings_transactions', 5000),
+      safeFetchWorkspaceTable('school_calendar_days', 500),
+      supabase.from('message_templates').select('*').eq('workspace_id', workspaceId).eq('is_active', true).limit(200).then((r) => (r.data || []) as Array<Record<string, unknown>>),
+      safeFetchWorkspaceTable('attendance_sessions', 2000),
+      safeFetchWorkspaceTable('attendance_records', 10000),
+      safeFetchWorkspaceTable('score_assessments', 1000),
+      safeFetchWorkspaceTable('score_entries', 10000),
+      safeFetchWorkspaceTable('behavior_records', 5000),
+      safeFetchWorkspaceTable('student_health_records', 5000),
+      safeFetchWorkspaceTable('student_desirable_records', 2000),
+      safeFetchWorkspaceTable('student_care_cases', 1000),
+      safeFetchWorkspaceTable('student_home_visits', 1000),
+      safeFetchWorkspaceTable('workspace_schedule_settings', 10),
+      safeFetchWorkspaceTable('automation_rules', 100),
+      safeFetchWorkspaceTable('student_leave_requests', 2000),
+    ]);
+
+    return {
+      schema_version: 'classcare-360-workspace-backup-v2',
+      exported_at: new Date().toISOString(),
+      exported_by: session.profile.email,
+      workspace: wsRes.data || null,
+      classrooms: clsRows,
+      students: stuRows,
+      student_guardians: guardRows,
+      savings_accounts: savAccRows,
+      savings_transactions: savTxRows,
+      school_calendar_days: calRows,
+      message_templates: tplRows,
+      attendance_sessions: attSessionRows,
+      attendance_records: attRecordRows,
+      score_assessments: scoreAssessmentRows,
+      score_entries: scoreEntryRows,
+      behavior_records: behaviorRows,
+      student_health_records: healthRows,
+      student_desirable_records: desirableRows,
+      student_care_cases: careCaseRows,
+      student_home_visits: homeVisitRows,
+      workspace_schedule_settings: scheduleRows,
+      automation_rules: automationRuleRows,
+      student_leave_requests: leaveRequestRows,
+    };
+  }
+
+  async function refreshDriveBackupHistory() {
+    if (!workspaceId || demoMode) return;
+    const rows = await listDriveBackups(workspaceId);
+    setDriveBackups(rows);
+  }
+
   async function handleExportBackup() {
     if (!supabase || !workspaceId || demoMode) {
       setNotice({ tone: 'info', text: 'โหมดตัวอย่าง: พร้อมสำรองข้อมูลจริงเมื่อใช้งานกับ Workspace จริง' });
@@ -537,75 +631,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     setIsBackingUp(true);
     setNotice(null);
     try {
-      const [
-        wsRes,
-        clsRows,
-        stuRows,
-        guardRows,
-        savAccRows,
-        savTxRows,
-        calRows,
-        tplRows,
-        attSessionRows,
-        attRecordRows,
-        scoreAssessmentRows,
-        scoreEntryRows,
-        behaviorRows,
-        healthRows,
-        desirableRows,
-        careCaseRows,
-        homeVisitRows,
-        scheduleRows,
-        automationRuleRows,
-        leaveRequestRows,
-      ] = await Promise.all([
-        supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(),
-        safeFetchWorkspaceTable('classrooms', 500),
-        safeFetchWorkspaceTable('students', 2000),
-        safeFetchWorkspaceTable('student_guardians', 4000),
-        safeFetchWorkspaceTable('savings_accounts', 2000),
-        safeFetchWorkspaceTable('savings_transactions', 5000),
-        safeFetchWorkspaceTable('school_calendar_days', 500),
-        supabase.from('message_templates').select('*').eq('workspace_id', workspaceId).eq('is_active', true).limit(200).then((r) => (r.data || []) as Array<Record<string, unknown>>),
-        safeFetchWorkspaceTable('attendance_sessions', 2000),
-        safeFetchWorkspaceTable('attendance_records', 10000),
-        safeFetchWorkspaceTable('score_assessments', 1000),
-        safeFetchWorkspaceTable('score_entries', 10000),
-        safeFetchWorkspaceTable('behavior_records', 5000),
-        safeFetchWorkspaceTable('student_health_records', 5000),
-        safeFetchWorkspaceTable('student_desirable_records', 2000),
-        safeFetchWorkspaceTable('student_care_cases', 1000),
-        safeFetchWorkspaceTable('student_home_visits', 1000),
-        safeFetchWorkspaceTable('workspace_schedule_settings', 10),
-        safeFetchWorkspaceTable('automation_rules', 100),
-        safeFetchWorkspaceTable('student_leave_requests', 2000),
-      ]);
-
-      const snapshot = {
-        schema_version: 'classcare-360-workspace-backup-v2',
-        exported_at: new Date().toISOString(),
-        exported_by: session.profile.email,
-        workspace: wsRes.data || null,
-        classrooms: clsRows,
-        students: stuRows,
-        student_guardians: guardRows,
-        savings_accounts: savAccRows,
-        savings_transactions: savTxRows,
-        school_calendar_days: calRows,
-        message_templates: tplRows,
-        attendance_sessions: attSessionRows,
-        attendance_records: attRecordRows,
-        score_assessments: scoreAssessmentRows,
-        score_entries: scoreEntryRows,
-        behavior_records: behaviorRows,
-        student_health_records: healthRows,
-        student_desirable_records: desirableRows,
-        student_care_cases: careCaseRows,
-        student_home_visits: homeVisitRows,
-        workspace_schedule_settings: scheduleRows,
-        automation_rules: automationRuleRows,
-        student_leave_requests: leaveRequestRows,
-      };
+      const snapshot = await buildWorkspaceBackupSnapshot();
 
       const safeSchool = schoolName.replace(/[^a-zA-Z0-9ก-๙_-]+/g, '_').slice(0, 40);
       const stamp = new Date().toISOString().slice(0, 10);
@@ -641,6 +667,91 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'สำรองข้อมูลไม่สำเร็จ' });
     } finally {
       setIsBackingUp(false);
+    }
+  }
+
+  async function handleBackupToDrive() {
+    if (!supabase || !workspaceId || demoMode) {
+      setNotice({ tone: 'info', text: 'โหมดตัวอย่าง: พร้อมสำรองลง Google Drive เมื่อใช้งานกับ Workspace จริง' });
+      return;
+    }
+    if (driveStatus?.status !== 'connected') {
+      setNotice({ tone: 'error', text: 'กรุณาเชื่อมต่อ Google Drive ในการ์ดด้านบนก่อนสำรองข้อมูลขึ้น Drive' });
+      return;
+    }
+
+    setIsBackingUpToDrive(true);
+    setNotice(null);
+    try {
+      const snapshot = await buildWorkspaceBackupSnapshot();
+      const safeSchool = schoolName.replace(/[^a-zA-Z0-9ก-๙_-]+/g, '_').slice(0, 40);
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+      const filename = `classcare-backup-${safeSchool}-${stamp}.json`;
+      const jsonBlob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+      const backupFile = new File([jsonBlob], filename, { type: 'application/json' });
+
+      const uploaded = await uploadWorkspaceFile({
+        category: 'workspace_backup',
+        fallbackBucket: 'evidence-files',
+        file: backupFile,
+        forceProvider: 'google_drive',
+        metadata: {
+          classroom_count: snapshot.classrooms.length,
+          schema_version: snapshot.schema_version,
+          student_count: snapshot.students.length,
+        },
+        ownerProfileId: session.profile.id,
+        privacyLevel: 'restricted',
+        storagePath: `${workspaceId}/workspace_backup/${filename}`,
+        workspaceId,
+      });
+
+      await supabase.from('audit_logs').insert({
+        workspace_id: workspaceId,
+        actor_profile_id: session.profile.id,
+        action: 'workspace_backup_exported',
+        entity_table: 'workspaces',
+        entity_id: workspaceId,
+        risk_level: 'normal',
+        metadata: {
+          destination: 'google_drive',
+          file_id: uploaded.fileId,
+          schema_version: snapshot.schema_version,
+          size_bytes: uploaded.sizeBytes,
+          student_count: snapshot.students.length,
+        },
+      });
+
+      setStats((prev) => ({ ...prev, lastBackupAt: new Date().toISOString() }));
+      await refreshDriveBackupHistory();
+      setNotice({
+        tone: 'success',
+        text: `✓ สำรองข้อมูลของ "${schoolName}" ลง Google Drive (${filename} · ${formatFileBytes(uploaded.sizeBytes)}) เรียบร้อยแล้ว`,
+      });
+    } catch (err) {
+      setNotice({
+        tone: 'error',
+        text: err instanceof Error ? err.message : 'สำรองข้อมูลลง Google Drive ไม่สำเร็จ',
+      });
+    } finally {
+      setIsBackingUpToDrive(false);
+    }
+  }
+
+  async function handleInspectDriveBackup(item: DriveBackupItem) {
+    if (!workspaceId) return;
+    setNotice({ tone: 'info', text: `กำลังดึงไฟล์ "${item.original_filename || 'backup.json'}" จาก Google Drive...` });
+    try {
+      const url = await resolveAppFileUrl(workspaceId, item.id);
+      if (!url) throw new Error('ไม่สามารถเปิดไฟล์สำรองจาก Google Drive ได้');
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('อ่านไฟล์สำรองไม่สำเร็จ');
+      const blob = await res.blob();
+      const restoredFile = new File([blob], item.original_filename || 'backup.json', { type: 'application/json' });
+      await handleSelectBackupFile(restoredFile);
+      setNotice({ tone: 'success', text: 'ดึงไฟล์สำรองจาก Drive มาตรวจสอบเรียบร้อย กดยืนยันเพื่อกู้คืนด้านขวา' });
+    } catch (err) {
+      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'เปิดไฟล์จาก Drive ไม่สำเร็จ' });
     }
   }
 
@@ -1207,18 +1318,29 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
         </div>
       ) : null}
 
-      {/* TAB 1: REAL BACKUP & RESTORE */}
+      {/* TAB 1: REAL BACKUP & RESTORE + GOOGLE DRIVE BYOS */}
       {!isLoading && activeTab === 'backup' ? (
-        <section className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div className="mt-5 grid gap-5">
+          <GoogleDriveStorageCard
+            session={session}
+            onStatusChange={(nextStatus) => {
+              setDriveStatus(nextStatus);
+              if (nextStatus.status === 'connected') {
+                void refreshDriveBackupHistory();
+              }
+            }}
+          />
+
+          <section className="grid gap-5 lg:grid-cols-2">
           {/* Backup Card */}
           <div className="nexus-card flex flex-col justify-between p-5 sm:p-6">
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">
-                <Download size={13} /> สำรองข้อมูลลงเครื่อง
+                <Download size={13} /> สำรองข้อมูลโรงเรียน
               </span>
-              <h2 className="mt-3 text-xl font-black text-slate-950">ดาวน์โหลดไฟล์สำรองของ “{schoolName}”</h2>
+              <h2 className="mt-3 text-xl font-black text-slate-950">สำรองข้อมูลของ “{schoolName}”</h2>
               <p className="mt-1.5 text-xs font-semibold leading-6 text-slate-600">
-                ดึงข้อมูลจริงทั้งหมดในพื้นที่ทำงานนี้ออกมาเป็นไฟล์ `.json` เพื่อเก็บไว้ในคอมพิวเตอร์, Flash Drive หรือ Google Drive เผื่อกรณีฉุกเฉิน
+                ดึงข้อมูลจริงทั้งหมดในพื้นที่ทำงานนี้ออกมาเป็นไฟล์ `.json` หรือส่งขึ้น Google Drive โฟลเดอร์ `09_สำรองข้อมูลอัตโนมัติ` ทันที
               </p>
 
               <div className="mt-4 grid grid-cols-2 gap-2.5 text-xs">
@@ -1236,15 +1358,73 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
               </div>
             </div>
 
-            <button
-              type="button"
-              disabled={isBackingUp || !workspaceId}
-              onClick={() => void handleExportBackup()}
-              className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50"
-            >
-              {isBackingUp ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
-              <span>{isBackingUp ? 'กำลังรวบรวมข้อมูล...' : 'ดาวน์โหลดไฟล์สำรองข้อมูล (.JSON)'}</span>
-            </button>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={isBackingUp || isBackingUpToDrive || !workspaceId}
+                onClick={() => void handleExportBackup()}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-black text-emerald-900 shadow-2xs transition hover:bg-emerald-100 disabled:opacity-50"
+              >
+                {isBackingUp ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
+                <span>{isBackingUp ? 'กำลังรวบรวม...' : 'ดาวน์โหลดลงเครื่อง (.JSON)'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isBackingUp || isBackingUpToDrive || !workspaceId || driveStatus?.status !== 'connected'}
+                onClick={() => void handleBackupToDrive()}
+                title={
+                  driveStatus?.status === 'connected'
+                    ? 'อัปโหลดไฟล์สำรองข้อมูลเข้า Google Drive ทันที'
+                    : 'เชื่อมต่อ Google Drive ด้านบนก่อนจึงจะกดสำรองขึ้น Drive ได้'
+                }
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#1C342B] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#2F7D5B] disabled:opacity-45"
+              >
+                {isBackingUpToDrive ? <RefreshCw size={15} className="animate-spin" /> : <HardDrive size={15} />}
+                <span>{isBackingUpToDrive ? 'กำลังส่งขึ้น Drive...' : 'สำรองลง Google Drive ทันที'}</span>
+              </button>
+            </div>
+
+            {driveBackups.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                <p className="text-[11px] font-black text-slate-700">ไฟล์สำรองล่าสุดบน Google Drive ({driveBackups.length})</p>
+                <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
+                  {driveBackups.slice(0, 6).map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white px-2.5 py-1.5 text-[11px]"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-800">{item.original_filename || 'backup.json'}</p>
+                        <p className="text-[10px] font-semibold text-slate-400">
+                          {formatThaiDateTime(item.created_at)} · {formatFileBytes(item.size_bytes)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void handleInspectDriveBackup(item)}
+                          className="rounded-lg bg-cyan-50 px-2 py-1 text-[10px] font-black text-cyan-800 hover:bg-cyan-100"
+                        >
+                          ตรวจ/กู้คืน
+                        </button>
+                        {item.external_web_view_link ? (
+                          <a
+                            href={item.external_web_view_link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg p-1 text-slate-400 hover:text-emerald-700"
+                            title="เปิดดูใน Google Drive"
+                          >
+                            <ExternalLink size={12} />
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {/* Restore Card */}
@@ -1298,7 +1478,8 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
               </div>
             ) : null}
           </div>
-        </section>
+          </section>
+        </div>
       ) : null}
 
       {/* TAB 2: LIVE DATA HEALTH SCANNER */}
