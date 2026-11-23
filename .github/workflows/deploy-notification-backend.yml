@@ -84,7 +84,7 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
-          supabase functions deploy manage-telegram-account --project-ref "$SUPABASE_PROJECT_REF"
-          supabase functions deploy dispatch-notification --project-ref "$SUPABASE_PROJECT_REF"
-          supabase functions deploy scheduled-automation-cron --project-ref "$SUPABASE_PROJECT_REF"
-          supabase functions deploy ai-gemini-proxy --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy manage-telegram-account --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          supabase functions deploy dispatch-notification --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          supabase functions deploy scheduled-automation-cron --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          supabase functions deploy ai-gemini-proxy --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt

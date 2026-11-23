@@ -701,6 +701,8 @@ export function LandingPage({ session }: LandingPageProps) {
             <Link to="/pricing" className="hover:text-[#1C342B] transition">แพ็กเกจ</Link>
             <Link to="/public/report" className="hover:text-[#1C342B] transition">พอร์ทัลตรวจผล</Link>
             <Link to="/support" className="hover:text-[#1C342B] transition">ศูนย์ช่วยเหลือ</Link>
+            <Link to="/privacy" className="hover:text-[#1C342B] transition">ความเป็นส่วนตัว</Link>
+            <Link to="/terms" className="hover:text-[#1C342B] transition">ข้อกำหนด</Link>
             <Link to="/login" className="hover:text-[#1C342B] transition">เข้าสู่ระบบ</Link>
           </div>
 

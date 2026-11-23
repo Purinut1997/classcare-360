@@ -52,6 +52,11 @@ const PublicSupportPage = lazy(() =>
     default: module.PublicSupportPage,
   })),
 );
+const LegalDocumentPage = lazy(() =>
+  import('./pages/public/LegalDocumentPage').then((module) => ({
+    default: module.LegalDocumentPage,
+  })),
+);
 const StudentExamPortalPage = lazy(() =>
   import('./pages/public/StudentExamPortalPage').then((module) => ({
     default: module.StudentExamPortalPage,
@@ -666,7 +671,7 @@ function AppRoutes() {
   const location = useLocation();
   const { error, retry, session, state } = useAppSession(location.search);
   const isPublicRoute =
-    ['/', '/login', '/pricing', '/public/report', '/support', '/report-lookup'].includes(location.pathname) ||
+    ['/', '/login', '/pricing', '/public/report', '/support', '/report-lookup', '/privacy', '/terms'].includes(location.pathname) ||
     location.pathname === '/exam' ||
     location.pathname.startsWith('/exam/');
   const loginPath = `/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
@@ -709,6 +714,8 @@ function AppRoutes() {
         <Route element={<PricingPage />} path="/pricing" />
         <Route element={<PublicReportLookupPage />} path="/public/report" />
         <Route element={<PublicSupportPage />} path="/support" />
+        <Route element={<LegalDocumentPage docType="privacy" />} path="/privacy" />
+        <Route element={<LegalDocumentPage docType="terms" />} path="/terms" />
         <Route element={<StudentExamPortalPage />} path="/exam" />
         <Route element={<StudentExamPortalPage />} path="/exam/:pin" />
         <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />

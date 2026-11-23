@@ -25,6 +25,7 @@ permissions:
 jobs:
   run-cron:
     name: Invoke scheduled-automation-cron Edge Function
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Determine scheduled job type

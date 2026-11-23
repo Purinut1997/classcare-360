@@ -456,16 +456,42 @@ export function SuperadminSupportInbox({
                       </div>
                     ))}
                 </dl>
-                {typeof selected.context?.page_url === "string" ? (
-                  <a
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-black text-cyan-700"
-                    href={String(selected.context.page_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    เปิดหน้าที่แจ้ง <ExternalLink size={12} />
-                  </a>
-                ) : null}
+                {typeof selected.context?.page_url === "string" && (() => {
+                  const rawUrl = String(selected.context.page_url).trim();
+                  if (/^\/(?![/\\])/.test(rawUrl)) {
+                    return (
+                      <a
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-black text-cyan-700"
+                        href={rawUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        เปิดหน้าที่แจ้ง <ExternalLink size={12} />
+                      </a>
+                    );
+                  }
+                  try {
+                    const parsed = new URL(rawUrl);
+                    const isSafeOrigin =
+                      (parsed.protocol === "https:" &&
+                        (parsed.hostname === "classcare-360.pages.dev" ||
+                          parsed.hostname.endsWith(".classcare-360.pages.dev"))) ||
+                      (typeof window !== "undefined" && parsed.origin === window.location.origin);
+                    if (!isSafeOrigin) return null;
+                    return (
+                      <a
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-black text-cyan-700"
+                        href={parsed.toString()}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        เปิดหน้าที่แจ้ง <ExternalLink size={12} />
+                      </a>
+                    );
+                  } catch {
+                    return null;
+                  }
+                })()}
               </div>
             </div>
           ) : null}

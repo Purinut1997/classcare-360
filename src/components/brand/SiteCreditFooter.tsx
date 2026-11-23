@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 interface SiteCreditFooterProps {
   className?: string;
   variant?: 'light' | 'dark';
@@ -28,6 +30,24 @@ export function SiteCreditFooter({
             MIKPURINUT
           </strong>
         </span>
+        <span className={isDark ? 'text-white/25' : 'text-[#5A6F64]/40'} aria-hidden="true">
+          ·
+        </span>
+        <Link
+          to="/privacy"
+          className={isDark ? 'hover:text-white hover:underline' : 'hover:text-[#1C342B] hover:underline'}
+        >
+          นโยบายความเป็นส่วนตัว
+        </Link>
+        <span className={isDark ? 'text-white/25' : 'text-[#5A6F64]/40'} aria-hidden="true">
+          ·
+        </span>
+        <Link
+          to="/terms"
+          className={isDark ? 'hover:text-white hover:underline' : 'hover:text-[#1C342B] hover:underline'}
+        >
+          ข้อกำหนดการใช้งาน
+        </Link>
       </div>
     </footer>
   );
