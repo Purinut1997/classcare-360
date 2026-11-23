@@ -35,15 +35,24 @@ export interface SubjectHubClassroom {
   studentCount: number;
 }
 
+export interface SubjectCardClassroomItem {
+  id: string;
+  name: string;
+  subjectCode?: string | null;
+  assessmentCount?: number;
+  completionPercent?: number;
+}
+
 export interface SubjectCardItem {
   key: string;
   subjectName: string;
   subjectCode: string | null;
+  subjectCodesByGrade?: string[];
   learningArea: string | null;
   credit: number | null;
   hoursPerYear: number | null;
   gradeLevel: string | null;
-  classrooms: Array<{ id: string; name: string }>;
+  classrooms: SubjectCardClassroomItem[];
   assessmentCount: number;
   plannedWeight: number;
   completionPercent: number;
@@ -55,7 +64,7 @@ export interface SubjectCardsHubProps {
   classrooms: SubjectHubClassroom[];
   selectedClassroomId: string;
   onSelectClassroomFilter: (classroomId: string) => void;
-  onOpenSubject: (card: SubjectCardItem) => void;
+  onOpenSubject: (card: SubjectCardItem, targetClassroomId?: string) => void;
   onDeleteSubject?: (card: SubjectCardItem) => Promise<boolean>;
   onQuickAddSubject: (payload: {
     subjectCode: string;
@@ -64,6 +73,7 @@ export interface SubjectCardsHubProps {
     credit: number;
     hoursPerYear: number;
     gradeLevel: string;
+    applyToAllGrades?: boolean;
   }) => Promise<boolean>;
   onLoadObecDefaults: () => Promise<void>;
   onOpenAcademicSubjectsModal: () => void;
@@ -223,7 +233,15 @@ export function SubjectCardsHub({
     gradeLevel: defaultGradeLevel || 'ป.5',
     credit: '1.0',
     hoursPerYear: '40',
+    applyToAllGrades: true,
   });
+
+  const distinctClassGrades = useMemo(() => {
+    const grades = classrooms
+      .map((room) => room.name.split('/')[0]?.trim())
+      .filter((g): g is string => Boolean(g));
+    return Array.from(new Set(grades));
+  }, [classrooms]);
 
   useEffect(() => {
     setQuickForm((prev) => ({
@@ -254,7 +272,7 @@ export function SubjectCardsHub({
     const q = searchQuery.trim().toLowerCase();
     if (!q) return cards;
     return cards.filter((card) =>
-      [card.subjectName, card.subjectCode, card.learningArea]
+      [card.subjectName, card.subjectCode, ...(card.subjectCodesByGrade || []), card.learningArea]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q)),
     );
@@ -279,6 +297,7 @@ export function SubjectCardsHub({
         gradeLevel: quickForm.gradeLevel.trim() || defaultGradeLevel || 'ป.5',
         credit: Math.max(0.5, Number(quickForm.credit) || 1.0),
         hoursPerYear: Math.max(10, Number(quickForm.hoursPerYear) || 40),
+        applyToAllGrades: quickForm.applyToAllGrades && distinctClassGrades.length > 1,
       });
       if (ok) {
         setIsQuickAddOpen(false);
@@ -289,6 +308,7 @@ export function SubjectCardsHub({
           gradeLevel: defaultGradeLevel || 'ป.5',
           credit: '1.0',
           hoursPerYear: '40',
+          applyToAllGrades: true,
         });
       }
     } finally {
@@ -595,7 +615,16 @@ export function SubjectCardsHub({
                         {card.subjectName}
                       </h2>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold">
-                        {card.subjectCode ? (
+                        {card.subjectCodesByGrade && card.subjectCodesByGrade.length > 1 ? (
+                          card.subjectCodesByGrade.map((code) => (
+                            <span
+                              key={code}
+                              className={`rounded-lg border px-2 py-0.5 font-mono text-[11px] font-black ${theme.codeBadgeClass}`}
+                            >
+                              {code}
+                            </span>
+                          ))
+                        ) : card.subjectCode ? (
                           <span
                             className={`rounded-lg border px-2 py-0.5 font-mono text-[11px] font-black ${theme.codeBadgeClass}`}
                           >
@@ -646,17 +675,39 @@ export function SubjectCardsHub({
                   <div className="flex flex-wrap items-center gap-1">
                     {card.classrooms.length > 0 ? (
                       <>
-                        {card.classrooms.slice(0, 3).map((room) => (
-                          <span
-                            key={room.id}
-                            className="rounded-lg bg-white/90 px-2 py-0.5 font-bold text-[#3B4740] ring-1 ring-black/5"
-                          >
-                            {room.name}
-                          </span>
-                        ))}
-                        {card.classrooms.length > 3 ? (
+                        {card.classrooms.slice(0, 6).map((room) => {
+                          const hasRoomCols = (room.assessmentCount || 0) > 0;
+                          return (
+                            <button
+                              key={room.id}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenSubject(card, room.id);
+                              }}
+                              title={
+                                hasRoomCols
+                                  ? `เปิดบันทึกคะแนนวิชา ${card.subjectName} ห้อง ${room.name} (${room.assessmentCount} ช่องคะแนน)`
+                                  : `เปิดวิชา ${card.subjectName} ห้อง ${room.name} เพื่อเริ่มสร้างช่องคะแนน`
+                              }
+                              className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 font-bold transition ${
+                                hasRoomCols
+                                  ? 'bg-[#1C342B] text-white shadow-2xs hover:bg-[#2F7D5B]'
+                                  : 'bg-white/90 text-[#3B4740] ring-1 ring-black/10 hover:bg-[#EAF5EF] hover:text-[#1C342B] hover:ring-[#2F7D5B]/40'
+                              }`}
+                            >
+                              <span>{room.name}</span>
+                              {hasRoomCols ? (
+                                <span className="rounded bg-white/20 px-1 text-[10px] font-black text-emerald-100">
+                                  {room.assessmentCount} ช่อง
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                        {card.classrooms.length > 6 ? (
                           <span className="rounded-lg bg-white/70 px-1.5 py-0.5 text-[10px] font-bold text-[#5C6861]">
-                            +{card.classrooms.length - 3}
+                            +{card.classrooms.length - 6}
                           </span>
                         ) : null}
                       </>
@@ -813,6 +864,30 @@ export function SubjectCardsHub({
                     />
                   </label>
                 </div>
+
+                {distinctClassGrades.length > 1 ? (
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-2xl border border-[#DCE3D7] bg-[#F4FAF6] p-3 text-xs font-bold text-[#1C342B]">
+                    <input
+                      type="checkbox"
+                      checked={quickForm.applyToAllGrades}
+                      onChange={(event) =>
+                        setQuickForm((prev) => ({
+                          ...prev,
+                          applyToAllGrades: event.target.checked,
+                        }))
+                      }
+                      className="mt-0.5 rounded text-[#2F7D5B] focus:ring-[#2F7D5B]"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-black text-[#1C342B]">
+                        สร้างให้ครบทุกชั้นที่สอน ({distinctClassGrades.join(', ')})
+                      </span>
+                      <span className="mt-0.5 block text-[11px] font-semibold text-[#4C5751]">
+                        ระบบจะปรับรหัสวิชา สพฐ. ให้ตรงตามชั้นเรียนอัตโนมัติ (เช่น ค14101, ค15101, ค16101)
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
 
                 <label className="block">
                   <span className="text-xs font-black text-slate-700">กลุ่มสาระการเรียนรู้</span>

@@ -77,6 +77,7 @@ import {
   loadCloudScoreRatio,
   saveCloudScoreRatio,
 } from '../../lib/workspaceCloudPrefs';
+import { loadScheduleSettings, type ScheduleSettings } from '../../lib/scheduleSettings';
 import { adaptObecSubjectCode, DEFAULT_PRIMARY_SUBJECTS_TEMPLATE, type SchoolSubject } from '../../types/academic';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
@@ -472,6 +473,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [schoolSubjects, setSchoolSubjects] = useState<SchoolSubject[]>(
     demoMode ? buildDemoSchoolSubjects(session.workspace?.id || 'demo-workspace', 'ป.5') : [],
   );
+  const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings | null>(() =>
+    typeof window !== 'undefined'
+      ? loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1', session.workspace?.id)
+      : null,
+  );
   const [isSubjectsBusy, setIsSubjectsBusy] = useState(false);
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -710,6 +716,59 @@ export function ScoresPage({ session }: ScoresPageProps) {
     [assessments, classroomId],
   );
 
+  const scheduleTeachingMap = useMemo(() => {
+    const NON_ACADEMIC_ACTIVITIES = new Set([
+      'โฮมรูม',
+      'พักกลางวัน',
+      'ประชุม',
+      'เคารพธงชาติ',
+      'สวดมนต์',
+      'ว่าง',
+      'กิจกรรมหน้าเสาธง',
+    ]);
+    const map = new Map<
+      string,
+      {
+        subjectName: string;
+        codes: Set<string>;
+        classroomIds: Set<string>;
+      }
+    >();
+    if (!scheduleSettings) return map;
+
+    const matchClassroomsByLabel = (label?: string) => {
+      const clean = (label || '').trim();
+      if (!clean) return [] as ClassroomRow[];
+      const exact = classrooms.filter((c) => c.name.trim() === clean);
+      if (exact.length > 0) return exact;
+      const gradePrefix = clean.split('/')[0]?.trim();
+      if (!gradePrefix) return [] as ClassroomRow[];
+      return classrooms.filter((c) => c.name.split('/')[0]?.trim() === gradePrefix);
+    };
+
+    Object.values(scheduleSettings.cells || {}).forEach((cell) => {
+      const subName = (cell?.subject || '').trim();
+      if (!subName || NON_ACADEMIC_ACTIVITIES.has(subName)) return;
+      const key = subName.toLowerCase();
+      let entry = map.get(key);
+      if (!entry) {
+        entry = {
+          subjectName: subName,
+          codes: new Set<string>(),
+          classroomIds: new Set<string>(),
+        };
+        map.set(key, entry);
+      }
+      const code = (cell?.subjectCode || '').trim();
+      if (code) entry.codes.add(code);
+      matchClassroomsByLabel(cell?.classroom).forEach((room) => {
+        entry.classroomIds.add(room.id);
+      });
+    });
+
+    return map;
+  }, [classrooms, scheduleSettings]);
+
   const allWorkspaceSubjects = useMemo(() => {
     const list = assessments
       .filter((a) => a.status !== 'archived')
@@ -719,20 +778,25 @@ export function ScoresPage({ session }: ScoresPageProps) {
       const name = sub.subject_name.trim();
       if (name) list.push(name);
     });
+    scheduleTeachingMap.forEach((item) => {
+      if (item.subjectName) list.push(item.subjectName);
+    });
     if (form.subjectName.trim()) list.push(form.subjectName.trim());
     return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [assessments, form.subjectName, schoolSubjects]);
+  }, [assessments, form.subjectName, scheduleTeachingMap, schoolSubjects]);
 
-  const classroomsWithSubject = useMemo(() => {
-    if (!subjectFilter) return classrooms;
-    const matchIds = new Set(
+  const classroomIdsWithSubjectAssessments = useMemo(() => {
+    if (!subjectFilter) return new Set<string>();
+    return new Set(
       assessments
         .filter((a) => a.status !== 'archived' && a.subject_name.trim().toLowerCase() === subjectFilter.trim().toLowerCase())
         .map((a) => a.classroom_id),
     );
-    const matched = classrooms.filter((c) => matchIds.has(c.id));
-    return matched.length > 0 ? matched : classrooms;
-  }, [assessments, classrooms, subjectFilter]);
+  }, [assessments, subjectFilter]);
+
+  const classroomsWithSubject = useMemo(() => {
+    return classrooms;
+  }, [classrooms]);
 
   const availableClassroomsToAdd = useMemo(() => {
     const currentIds = new Set(classroomsWithSubject.map((c) => c.id));
@@ -760,13 +824,42 @@ export function ScoresPage({ session }: ScoresPageProps) {
     const matches = schoolSubjects.filter(
       (sub) => sub.subject_name.trim().toLowerCase() === norm,
     );
-    if (matches.length === 0) return null;
-    if (roomGrade) {
-      const exact = matches.find((sub) => sub.grade_level.trim() === roomGrade);
-      if (exact) return exact;
+    if (matches.length > 0) {
+      if (roomGrade) {
+        const exact = matches.find((sub) => sub.grade_level.trim() === roomGrade);
+        if (exact) return exact;
+        const base = matches[0];
+        return {
+          ...base,
+          grade_level: roomGrade,
+          subject_code: base.subject_code ? adaptObecSubjectCode(base.subject_code, roomGrade) : base.subject_code,
+        };
+      }
+      return matches[0];
     }
-    return matches[0];
-  }, [activeClassroom?.name, schoolSubjects, subjectFilter]);
+    const schedMatch = scheduleTeachingMap.get(norm);
+    if (schedMatch && schedMatch.codes.size > 0) {
+      const firstCode = Array.from(schedMatch.codes)[0];
+      const adapted = roomGrade ? adaptObecSubjectCode(firstCode, roomGrade) : firstCode;
+      return {
+        id: `schedule-meta-${norm}`,
+        workspace_id: session.workspace?.id || 'demo-workspace',
+        subject_code: adapted,
+        subject_name: schedMatch.subjectName,
+        learning_area: '',
+        subject_type: 'basic' as const,
+        grade_level: roomGrade || 'ป.5',
+        hours_per_year: 0,
+        hours_per_week: 0,
+        credit: 0,
+        teacher_profile_id: session.profile.id,
+        is_active: true,
+        created_at: '',
+        updated_at: '',
+      };
+    }
+    return null;
+  }, [activeClassroom?.name, scheduleTeachingMap, schoolSubjects, session.profile.id, session.workspace?.id, subjectFilter]);
 
   const contextAssessments = useMemo(
     () =>
@@ -888,6 +981,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         key: string;
         subjectName: string;
         subjectCode: string | null;
+        codesSet: Set<string>;
         learningArea: string | null;
         credit: number | null;
         hoursPerYear: number | null;
@@ -899,41 +993,108 @@ export function ScoresPage({ session }: ScoresPageProps) {
     >();
 
     schoolSubjects.forEach((sub) => {
-      if (scopedGradeLevel && sub.grade_level.trim() !== scopedGradeLevel) {
-        return;
-      }
       const key = sub.subject_name.trim().toLowerCase();
       if (!key) return;
+      const rawCode = sub.subject_code.trim();
+      const effectiveCode =
+        rawCode && scopedGradeLevel ? adaptObecSubjectCode(rawCode, scopedGradeLevel) : rawCode;
       const existing = cardMap.get(key);
+
       if (!existing) {
         const roomMap = new Map<string, { id: string; name: string }>();
         if (scopedClassroom) {
           roomMap.set(scopedClassroom.id, { id: scopedClassroom.id, name: scopedClassroom.name });
+        } else {
+          classrooms.forEach((room) => {
+            roomMap.set(room.id, { id: room.id, name: room.name });
+          });
         }
+        const codesSet = new Set<string>();
+        if (effectiveCode) codesSet.add(effectiveCode);
         cardMap.set(key, {
           key,
           subjectName: sub.subject_name.trim(),
-          subjectCode: sub.subject_code.trim() || null,
+          subjectCode: effectiveCode || null,
+          codesSet,
           learningArea: sub.learning_area || null,
           credit: typeof sub.credit === 'number' ? sub.credit : Number(sub.credit) || null,
           hoursPerYear:
             typeof sub.hours_per_year === 'number'
               ? sub.hours_per_year
               : Number(sub.hours_per_year) || null,
-          gradeLevel: sub.grade_level.trim() || null,
+          gradeLevel: scopedGradeLevel || sub.grade_level.trim() || null,
           classroomMap: roomMap,
           assessments: [],
           hasOfficialRecord: true,
         });
-      } else if (preferredHubGrade && sub.grade_level.trim() === preferredHubGrade) {
-        existing.subjectCode = sub.subject_code.trim() || existing.subjectCode;
-        existing.learningArea = sub.learning_area || existing.learningArea;
-        existing.credit = typeof sub.credit === 'number' ? sub.credit : Number(sub.credit) || existing.credit;
-        existing.hoursPerYear =
-          typeof sub.hours_per_year === 'number'
-            ? sub.hours_per_year
-            : Number(sub.hours_per_year) || existing.hoursPerYear;
-        existing.gradeLevel = sub.grade_level.trim() || existing.gradeLevel;
+      } else {
+        if (effectiveCode) existing.codesSet.add(effectiveCode);
+        if (
+          (scopedGradeLevel && sub.grade_level.trim() === scopedGradeLevel) ||
+          (!scopedGradeLevel && preferredHubGrade && sub.grade_level.trim() === preferredHubGrade)
+        ) {
+          existing.subjectCode = effectiveCode || existing.subjectCode;
+          existing.learningArea = sub.learning_area || existing.learningArea;
+          existing.credit = typeof sub.credit === 'number' ? sub.credit : Number(sub.credit) || existing.credit;
+          existing.hoursPerYear =
+            typeof sub.hours_per_year === 'number'
+              ? sub.hours_per_year
+              : Number(sub.hours_per_year) || existing.hoursPerYear;
+          existing.gradeLevel = scopedGradeLevel || sub.grade_level.trim() || existing.gradeLevel;
+        }
+      }
+    });
+
+    scheduleTeachingMap.forEach((sched, key) => {
+      const firstCode = Array.from(sched.codes)[0] || '';
+      const effectiveCode =
+        firstCode && scopedGradeLevel ? adaptObecSubjectCode(firstCode, scopedGradeLevel) : firstCode;
+      let target = cardMap.get(key);
+      if (!target) {
+        const roomMap = new Map<string, { id: string; name: string }>();
+        if (scopedClassroom) {
+          roomMap.set(scopedClassroom.id, { id: scopedClassroom.id, name: scopedClassroom.name });
+        } else if (sched.classroomIds.size > 0) {
+          classrooms
+            .filter((c) => sched.classroomIds.has(c.id))
+            .forEach((c) => roomMap.set(c.id, { id: c.id, name: c.name }));
+        } else {
+          classrooms.forEach((c) => roomMap.set(c.id, { id: c.id, name: c.name }));
+        }
+        const codesSet = new Set<string>();
+        if ( scopedGradeLevel && effectiveCode ) {
+          codesSet.add(effectiveCode);
+        } else {
+          sched.codes.forEach((c) => codesSet.add(c));
+        }
+        target = {
+          key,
+          subjectName: sched.subjectName,
+          subjectCode: effectiveCode || null,
+          codesSet,
+          learningArea: null,
+          credit: null,
+          hoursPerYear: null,
+          gradeLevel: scopedGradeLevel || preferredHubGrade || null,
+          classroomMap: roomMap,
+          assessments: [],
+          hasOfficialRecord: false,
+        };
+        cardMap.set(key, target);
+      } else {
+        if (!target.subjectCode && effectiveCode) {
+          target.subjectCode = effectiveCode;
+        }
+        if (scopedGradeLevel && effectiveCode) {
+          target.codesSet.add(effectiveCode);
+        } else {
+          sched.codes.forEach((c) => target!.codesSet.add(c));
+        }
+        if (!scopedClassroom) {
+          classrooms
+            .filter((c) => sched.classroomIds.has(c.id))
+            .forEach((c) => target!.classroomMap.set(c.id, { id: c.id, name: c.name }));
+        }
       }
     });
 
@@ -954,15 +1115,33 @@ export function ScoresPage({ session }: ScoresPageProps) {
           const fallbackMeta = schoolSubjects.find(
             (sub) => sub.subject_name.trim().toLowerCase() === key,
           );
+          const rawFallbackCode = fallbackMeta?.subject_code?.trim() || '';
+          const effectiveCode =
+            rawFallbackCode && scopedGradeLevel
+              ? adaptObecSubjectCode(rawFallbackCode, scopedGradeLevel)
+              : rawFallbackCode;
+          const roomMap = new Map<string, { id: string; name: string }>();
+          if (scopedClassroom) {
+            roomMap.set(scopedClassroom.id, { id: scopedClassroom.id, name: scopedClassroom.name });
+          } else {
+            classrooms.forEach((c) => roomMap.set(c.id, { id: c.id, name: c.name }));
+          }
+          const codesSet = new Set<string>();
+          if (effectiveCode) codesSet.add(effectiveCode);
           target = {
             key,
             subjectName: cleanName,
-            subjectCode: fallbackMeta?.subject_code?.trim() || null,
+            subjectCode: effectiveCode || null,
+            codesSet,
             learningArea: fallbackMeta?.learning_area || null,
             credit: fallbackMeta ? Number(fallbackMeta.credit) || null : null,
             hoursPerYear: fallbackMeta ? Number(fallbackMeta.hours_per_year) || null : null,
-            gradeLevel: fallbackMeta?.grade_level?.trim() || room?.name?.split('/')[0]?.trim() || null,
-            classroomMap: new Map(),
+            gradeLevel:
+              scopedGradeLevel ||
+              fallbackMeta?.grade_level?.trim() ||
+              room?.name?.split('/')[0]?.trim() ||
+              null,
+            classroomMap: roomMap,
             assessments: [],
             hasOfficialRecord: Boolean(fallbackMeta),
           };
@@ -984,16 +1163,51 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
     return Array.from(cardMap.values())
       .map((item) => {
-        const roomList = Array.from(item.classroomMap.values()).sort((a, b) =>
-          a.name.localeCompare(b.name, 'th'),
-        );
-
         const byRoom = new Map<string, ScoreAssessmentRow[]>();
         item.assessments.forEach((a) => {
           const list = byRoom.get(a.classroom_id) || [];
           list.push(a);
           byRoom.set(a.classroom_id, list);
         });
+
+        const baseRooms =
+          item.classroomMap.size > 0
+            ? Array.from(item.classroomMap.values())
+            : scopedClassroom
+              ? [{ id: scopedClassroom.id, name: scopedClassroom.name }]
+              : classrooms.map((c) => ({ id: c.id, name: c.name }));
+
+        const roomList = baseRooms
+          .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+          .map((room) => {
+            const roomAssessments = byRoom.get(room.id) || [];
+            const roomStudents = studentCountByRoom.get(room.id) || 0;
+            let roomExpected = 0;
+            let roomFilled = 0;
+            roomAssessments.forEach((a) => {
+              roomExpected += roomStudents;
+              roomFilled += (entriesByAssessment.get(a.id) || []).filter(
+                (entry) => entry.score !== null && entry.score !== undefined,
+              ).length;
+            });
+            const roomGrade = room.name.split('/')[0]?.trim();
+            const roomAdaptedCode =
+              item.subjectCode && roomGrade
+                ? adaptObecSubjectCode(item.subjectCode, roomGrade)
+                : item.subjectCode;
+            if (!scopedGradeLevel && roomAdaptedCode) {
+              item.codesSet.add(roomAdaptedCode);
+            }
+            return {
+              id: room.id,
+              name: room.name,
+              subjectCode: roomAdaptedCode,
+              assessmentCount: roomAssessments.length,
+              completionPercent:
+                roomExpected > 0 ? Math.min(100, Math.round((roomFilled / roomExpected) * 100)) : 0,
+            };
+          });
+
         let representativeAssessments: ScoreAssessmentRow[] = [];
         byRoom.forEach((list) => {
           if (list.length > representativeAssessments.length) {
@@ -1016,6 +1230,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
         const completionPercent =
           expectedEntries > 0 ? Math.min(100, Math.round((filledEntries / expectedEntries) * 100)) : 0;
 
+        const subjectCodesByGrade = Array.from(item.codesSet).sort((a, b) =>
+          a.localeCompare(b, 'th'),
+        );
+
         return {
           assessmentCount: representativeAssessments.length,
           classrooms: roomList,
@@ -1028,6 +1246,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           learningArea: item.learningArea,
           plannedWeight,
           subjectCode: item.subjectCode,
+          subjectCodesByGrade,
           subjectName: item.subjectName,
         };
       })
@@ -1051,6 +1270,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     classrooms,
     entriesByAssessment,
     hubClassroomFilter,
+    scheduleTeachingMap,
     schoolSubjects,
     students,
     teacherScope.homeroomClassrooms,
@@ -1357,6 +1577,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         { data: assessmentRows, error: assessmentError },
         { data: termRows },
         subjectsRes,
+        scheduleRes,
       ] = await Promise.all([
         hydrateHiddenClassroomsFromCloud(session.profile.id, workspaceId),
         supabase
@@ -1390,9 +1611,22 @@ export function ScoresPage({ session }: ScoresPageProps) {
           .eq('workspace_id', workspaceId)
           .eq('is_active', true)
           .order('subject_code', { ascending: true }),
+        supabase
+          .from('workspace_schedule_settings')
+          .select('settings')
+          .eq('workspace_id', workspaceId)
+          .maybeSingle(),
       ]);
 
       if (!isMounted) return;
+
+      if (!scheduleRes.error && scheduleRes.data?.settings && typeof scheduleRes.data.settings === 'object') {
+        const localSched = loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1', workspaceId);
+        setScheduleSettings({
+          ...localSched,
+          ...(scheduleRes.data.settings as Partial<ScheduleSettings>),
+        });
+      }
 
       if (classroomError || studentError || assessmentError) {
         setNotice(classroomError?.message || studentError?.message || assessmentError?.message || 'โหลดข้อมูลคะแนนไม่สำเร็จ');
@@ -1525,6 +1759,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     credit: number;
     hoursPerYear: number;
     gradeLevel: string;
+    applyToAllGrades?: boolean;
   }): Promise<boolean> {
     const workspaceId = session.workspace?.id || 'demo-workspace';
     const targetClassroomId =
@@ -1534,15 +1769,27 @@ export function ScoresPage({ session }: ScoresPageProps) {
           ? teacherScope.homeroomClassrooms[0].id
           : classroomId || classrooms[0]?.id || '';
 
+    const distinctGrades = Array.from(
+      new Set(
+        classrooms
+          .map((room) => room.name.split('/')[0]?.trim())
+          .filter((g): g is string => Boolean(g)),
+      ),
+    );
+    const gradesToCreate =
+      payload.applyToAllGrades && distinctGrades.length > 0
+        ? Array.from(new Set([payload.gradeLevel, ...distinctGrades]))
+        : [payload.gradeLevel];
+
     const hoursPerWeek = Number((payload.hoursPerYear / 40).toFixed(1));
-    const newSubjectRecord: SchoolSubject = {
-      id: `local-sub-${Date.now()}`,
+    const newSubjectRecords: SchoolSubject[] = gradesToCreate.map((grade, idx) => ({
+      id: `local-sub-${Date.now()}-${idx}`,
       workspace_id: workspaceId,
-      subject_code: payload.subjectCode,
+      subject_code: adaptObecSubjectCode(payload.subjectCode, grade),
       subject_name: payload.subjectName,
       learning_area: payload.learningArea,
       subject_type: 'basic',
-      grade_level: payload.gradeLevel,
+      grade_level: grade,
       hours_per_year: payload.hoursPerYear,
       hours_per_week: hoursPerWeek,
       credit: payload.credit,
@@ -1550,94 +1797,102 @@ export function ScoresPage({ session }: ScoresPageProps) {
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    }));
 
-    const openCreatedSubject = (saved: SchoolSubject) => {
+    const openCreatedSubject = (savedList: SchoolSubject[]) => {
+      const primarySaved = savedList[0];
+      if (!primarySaved) return;
       setSchoolSubjects((prev) => {
+        const savedKeys = new Set(
+          savedList.map((s) => `${s.subject_name.trim().toLowerCase()}::${s.grade_level.trim()}`),
+        );
         const withoutDup = prev.filter(
           (item) =>
-            !(
-              item.subject_name.trim().toLowerCase() === saved.subject_name.trim().toLowerCase() &&
-              item.grade_level.trim() === saved.grade_level.trim()
-            ),
+            !savedKeys.has(`${item.subject_name.trim().toLowerCase()}::${item.grade_level.trim()}`),
         );
-        return [saved, ...withoutDup];
+        return [...savedList, ...withoutDup];
       });
-      setSubjectFilter(saved.subject_name);
+      setSubjectFilter(primarySaved.subject_name);
       if (targetClassroomId) setClassroomId(targetClassroomId);
       const existingAssessment = assessments.find(
         (a) =>
           a.classroom_id === targetClassroomId &&
           a.status !== 'archived' &&
-          a.subject_name.trim().toLowerCase() === saved.subject_name.trim().toLowerCase(),
+          a.subject_name.trim().toLowerCase() === primarySaved.subject_name.trim().toLowerCase(),
       );
       setSelectedAssessmentId(existingAssessment?.id || '');
       handleScoreViewChange(getDefaultEntryScoreView());
     };
 
     if (!supabase || !session.workspace || demoMode) {
-      openCreatedSubject(newSubjectRecord);
-      setNotice(`เพิ่มรายวิชา "${payload.subjectName} (${payload.subjectCode})" แล้ว`);
+      openCreatedSubject(newSubjectRecords);
+      setNotice(
+        `เพิ่มรายวิชา "${payload.subjectName}" (${gradesToCreate.join(', ')}) แล้ว`,
+      );
       return true;
     }
 
     setIsSubjectsBusy(true);
     setNotice(null);
     try {
-      const upsertPayload = {
+      const upsertRows = gradesToCreate.map((grade) => ({
         workspace_id: workspaceId,
-        subject_code: payload.subjectCode,
+        subject_code: adaptObecSubjectCode(payload.subjectCode, grade),
         subject_name: payload.subjectName,
         learning_area: payload.learningArea,
         subject_type: 'basic' as const,
-        grade_level: payload.gradeLevel,
+        grade_level: grade,
         hours_per_year: payload.hoursPerYear,
         hours_per_week: hoursPerWeek,
         credit: payload.credit,
         teacher_profile_id: session.profile.id,
         is_active: true,
-      };
+      }));
 
       const { data, error } = await supabase
         .from('school_subjects')
-        .upsert(upsertPayload, { onConflict: 'workspace_id,subject_code,grade_level' })
+        .upsert(upsertRows, { onConflict: 'workspace_id,subject_code,grade_level' })
         .select(
           'id,workspace_id,subject_code,subject_name,learning_area,subject_type,grade_level,hours_per_year,hours_per_week,credit,teacher_profile_id,is_active,created_at,updated_at',
-        )
-        .single();
+        );
 
       if (error) {
         if (error.message?.includes('Could not find the table')) {
           try {
-            const key = `classcare_academic_subjects_${workspaceId}_${payload.gradeLevel}`;
-            const existing = readCachedSchoolSubjects(workspaceId, payload.gradeLevel);
-            window.localStorage.setItem(key, JSON.stringify([newSubjectRecord, ...existing]));
+            newSubjectRecords.forEach((rec) => {
+              const key = `classcare_academic_subjects_${workspaceId}_${rec.grade_level}`;
+              const existing = readCachedSchoolSubjects(workspaceId, rec.grade_level);
+              window.localStorage.setItem(key, JSON.stringify([rec, ...existing]));
+            });
           } catch {
             // Ignore localStorage fallback failure.
           }
-          openCreatedSubject(newSubjectRecord);
-          setNotice(`เพิ่มรายวิชา "${payload.subjectName} (${payload.subjectCode})" ลงคลังชั่วคราวแล้ว`);
+          openCreatedSubject(newSubjectRecords);
+          setNotice(`เพิ่มรายวิชา "${payload.subjectName}" (${gradesToCreate.join(', ')}) ลงคลังชั่วคราวแล้ว`);
           return true;
         }
         setNotice(error.message || 'เพิ่มรายวิชาไม่สำเร็จ');
         return false;
       }
 
-      const savedSubject = data as SchoolSubject;
+      const savedSubjects = (data || []) as SchoolSubject[];
+      const primarySaved = savedSubjects[0] || newSubjectRecords[0];
       await writeAuditLog(session, {
         action: 'academic.quick_add_subject',
-        entityId: savedSubject.id,
+        entityId: primarySaved.id,
         entityTable: 'school_subjects',
         metadata: {
-          grade_level: savedSubject.grade_level,
-          subject_code: savedSubject.subject_code,
-          subject_name: savedSubject.subject_name,
+          grade_levels: gradesToCreate,
+          subject_code: primarySaved.subject_code,
+          subject_name: primarySaved.subject_name,
         },
         riskLevel: 'low',
         source: 'score_center',
       });
-      openCreatedSubject(savedSubject);
-      setNotice(`เพิ่มรายวิชา "${savedSubject.subject_name} (${savedSubject.subject_code})" แล้ว`);
+      openCreatedSubject(savedSubjects.length > 0 ? savedSubjects : newSubjectRecords);
+      setNotice(
+        `เพิ่มรายวิชา "${primarySaved.subject_name}" (${gradesToCreate.join(', ')}) แล้ว`,
+      );
       return true;
     } finally {
       setIsSubjectsBusy(false);
@@ -1649,24 +1904,40 @@ export function ScoresPage({ session }: ScoresPageProps) {
     const scopedRoom =
       hubClassroomFilter !== 'all'
         ? classrooms.find((c) => c.id === hubClassroomFilter)
-        : teacherScope.hasHomeroom
-          ? teacherScope.homeroomClassrooms[0]
-          : activeClassroom;
-    const gradeLevel = scopedRoom?.name?.split('/')[0]?.trim() || 'ป.5';
+        : null;
+    const distinctGrades = Array.from(
+      new Set(
+        classrooms
+          .map((room) => room.name.split('/')[0]?.trim())
+          .filter((g): g is string => Boolean(g)),
+      ),
+    );
+    const gradesToLoad = scopedRoom
+      ? [scopedRoom.name.split('/')[0]?.trim() || 'ป.5']
+      : distinctGrades.length > 0
+        ? distinctGrades
+        : [
+            (teacherScope.hasHomeroom ? teacherScope.homeroomClassrooms[0] : activeClassroom)?.name
+              ?.split('/')[0]
+              ?.trim() || 'ป.5',
+          ];
 
-    const templateRows = DEFAULT_PRIMARY_SUBJECTS_TEMPLATE.map((tpl) => ({
-      workspace_id: workspaceId,
-      subject_code: adaptObecSubjectCode(tpl.code, gradeLevel),
-      subject_name: tpl.name,
-      learning_area: tpl.area,
-      subject_type: 'basic' as const,
-      grade_level: gradeLevel,
-      hours_per_year: tpl.hours,
-      hours_per_week: Number((tpl.hours / 40).toFixed(1)),
-      credit: tpl.credit,
-      teacher_profile_id: session.profile.id,
-      is_active: true,
-    }));
+    const templateRows = gradesToLoad.flatMap((gradeLevel) =>
+      DEFAULT_PRIMARY_SUBJECTS_TEMPLATE.map((tpl) => ({
+        workspace_id: workspaceId,
+        subject_code: adaptObecSubjectCode(tpl.code, gradeLevel),
+        subject_name: tpl.name,
+        learning_area: tpl.area,
+        subject_type: 'basic' as const,
+        grade_level: gradeLevel,
+        hours_per_year: tpl.hours,
+        hours_per_week: Number((tpl.hours / 40).toFixed(1)),
+        credit: tpl.credit,
+        teacher_profile_id: session.profile.id,
+        is_active: true,
+      })),
+    );
+    const gradesLabel = gradesToLoad.join(', ');
 
     if (!supabase || !session.workspace || demoMode) {
       setSchoolSubjects(
@@ -1677,7 +1948,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           updated_at: new Date().toISOString(),
         })),
       );
-      setNotice(`โหลด 9 รายวิชาครบ 8 กลุ่มสาระ สพฐ. (${gradeLevel}) แล้ว`);
+      setNotice(`โหลดรายวิชาครบ 8 กลุ่มสาระ สพฐ. (${gradesLabel}) แล้ว`);
       return;
     }
 
@@ -1700,15 +1971,17 @@ export function ScoresPage({ session }: ScoresPageProps) {
             updated_at: new Date().toISOString(),
           })) as SchoolSubject[];
           try {
-            window.localStorage.setItem(
-              `classcare_academic_subjects_${workspaceId}_${gradeLevel}`,
-              JSON.stringify(fallbackList),
-            );
+            gradesToLoad.forEach((gradeLevel) => {
+              window.localStorage.setItem(
+                `classcare_academic_subjects_${workspaceId}_${gradeLevel}`,
+                JSON.stringify(fallbackList.filter((item) => item.grade_level === gradeLevel)),
+              );
+            });
           } catch {
             // Ignore localStorage failure.
           }
           setSchoolSubjects(fallbackList);
-          setNotice(`โหลดแม่แบบ 8 กลุ่มสาระ (${gradeLevel}) ลงคลังชั่วคราวแล้ว`);
+          setNotice(`โหลดแม่แบบ 8 กลุ่มสาระ (${gradesLabel}) ลงคลังชั่วคราวแล้ว`);
           return;
         }
         setNotice(error.message || 'โหลดรายวิชาพื้นฐาน สพฐ. ไม่สำเร็จ');
@@ -1725,22 +1998,24 @@ export function ScoresPage({ session }: ScoresPageProps) {
         action: 'academic.import_default_subjects_template',
         entityId: workspaceId,
         entityTable: 'school_subjects',
-        metadata: { count: savedRows.length, gradeLevel },
+        metadata: { count: savedRows.length, grades: gradesToLoad },
         riskLevel: 'low',
         source: 'score_center',
       });
-      setNotice(`โหลด 9 รายวิชาครบ 8 กลุ่มสาระ สพฐ. (${gradeLevel}) พร้อมรหัสวิชาแล้ว`);
+      setNotice(`โหลดรายวิชาครบ 8 กลุ่มสาระ สพฐ. (${gradesLabel}) พร้อมรหัสวิชาแล้ว`);
     } finally {
       setIsSubjectsBusy(false);
     }
   }
 
-  function handleOpenSubjectFromHub(card: SubjectCardItem) {
+  function handleOpenSubjectFromHub(card: SubjectCardItem, overrideClassroomId?: string) {
+    const firstRoomWithAssessments = card.classrooms.find((room) => (room.assessmentCount || 0) > 0);
     const targetRoomId =
-      hubClassroomFilter !== 'all'
+      overrideClassroomId ||
+      (hubClassroomFilter !== 'all'
         ? hubClassroomFilter
-        : card.classrooms[0]?.id ||
-          (teacherScope.hasHomeroom ? teacherScope.homeroomClassrooms[0].id : classrooms[0]?.id || classroomId);
+        : firstRoomWithAssessments?.id ||
+          (teacherScope.hasHomeroom ? teacherScope.homeroomClassrooms[0].id : card.classrooms[0]?.id || classrooms[0]?.id || classroomId));
 
     const matchingAssessment = assessments.find(
       (a) =>
@@ -3074,13 +3349,16 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     const count = students.filter((s) => s.classroom_id === c.id).length;
                     const isSelected = classroomId === c.id;
                     const isRoomHomeroom = homeroomIdSet.has(c.id);
+                    const hasRoomAssessments = classroomIdsWithSubjectAssessments.has(c.id);
                     return (
                       <button
                         key={c.id}
                         className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black transition ${
                           isSelected
                             ? 'bg-slate-950 text-white shadow-2xs ring-1 ring-slate-900'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                            : hasRoomAssessments
+                              ? 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200 hover:bg-emerald-100/80'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
                         }`}
                         onClick={() => {
                           if (c.id !== classroomId && !confirmDiscardUnsavedChanges()) return;
@@ -3088,6 +3366,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         }}
                         type="button"
                       >
+                        {hasRoomAssessments ? (
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              isSelected ? 'bg-emerald-400' : 'bg-emerald-600'
+                            }`}
+                            aria-hidden="true"
+                          />
+                        ) : null}
                         <span>
                           {isRoomHomeroom ? '★ ' : ''}
                           {c.name}
@@ -3260,10 +3546,12 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         role="menuitem"
                         onClick={() => {
                           setIsToolsMenuOpen(false);
-                          setCloneSourceClassroomId(classroomsWithSubject[0]?.id || classroomId);
-                          const otherClassrooms = classrooms.filter(
-                            (c) => c.id !== (classroomsWithSubject[0]?.id || classroomId),
-                          );
+                          const preferredSource =
+                            Array.from(classroomIdsWithSubjectAssessments)[0] ||
+                            classroomsWithSubject[0]?.id ||
+                            classroomId;
+                          setCloneSourceClassroomId(preferredSource);
+                          const otherClassrooms = classrooms.filter((c) => c.id !== preferredSource);
                           setCloneTargetClassroomIds(otherClassrooms.map((c) => c.id));
                           setIsCloneModalOpen(true);
                         }}
@@ -3467,7 +3755,37 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
       {/* 3A: MODERN GRADEBOOK SHEET (All assessments in one compact OBEC spreadsheet) */}
       {scoreView === 'excel' ? (
-        <div className="mt-3">
+        <div className="mt-3 space-y-2.5">
+          {contextAssessments.length === 0 && classroomIdsWithSubjectAssessments.size > 0 ? (
+            <div className="flex flex-col gap-2.5 rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs font-bold text-indigo-950 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2.5">
+                <Copy size={16} className="shrink-0 text-indigo-600" aria-hidden="true" />
+                <span>
+                  ห้อง <strong>{activeClassroom?.name}</strong> ยังไม่มีช่องคะแนนในวิชา{' '}
+                  <strong>{subjectFilter}</strong> — คุณสามารถคัดลอกโครงสร้างช่องคะแนนจากห้องอื่นที่สร้างไว้แล้วมาใช้ได้ทันที
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const preferredSource =
+                    Array.from(classroomIdsWithSubjectAssessments)[0] || classroomId;
+                  setCloneSourceClassroomId(preferredSource);
+                  setCloneTargetClassroomIds(
+                    classroomId && classroomId !== preferredSource
+                      ? [classroomId]
+                      : classrooms.filter((c) => c.id !== preferredSource).map((c) => c.id),
+                  );
+                  setIsCloneModalOpen(true);
+                }}
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 text-xs font-black text-white shadow-2xs transition hover:bg-indigo-700"
+              >
+                <Copy size={13} aria-hidden="true" />
+                <span>คัดลอกช่องคะแนนจากห้องอื่น</span>
+              </button>
+            </div>
+          ) : null}
+
           <ModernGradebookSheet
             assessments={contextAssessments}
             classroomName={activeClassroom?.name}
