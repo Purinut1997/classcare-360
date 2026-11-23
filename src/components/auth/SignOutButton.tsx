@@ -7,6 +7,32 @@ interface SignOutButtonProps {
   className?: string;
 }
 
+function purgeSensitiveBrowserStorage() {
+  try {
+    if (typeof window === 'undefined') return;
+    const clearMatchingKeys = (store: Storage) => {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < store.length; i += 1) {
+        const key = store.key(i);
+        if (
+          key &&
+          (key.startsWith('classcare') ||
+            key.startsWith('cc360_') ||
+            key.startsWith('omr_') ||
+            key.includes('gemini'))
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => store.removeItem(key));
+    };
+    clearMatchingKeys(window.localStorage);
+    clearMatchingKeys(window.sessionStorage);
+  } catch {
+    // Ignore storage access errors in restricted contexts
+  }
+}
+
 export function SignOutButton({ className = '' }: SignOutButtonProps) {
   async function handleSignOut() {
     if (supabase) {
@@ -16,6 +42,7 @@ export function SignOutButton({ className = '' }: SignOutButtonProps) {
     } else {
       setStoredActiveWorkspaceId(null);
     }
+    purgeSensitiveBrowserStorage();
     window.location.assign('/login');
   }
 

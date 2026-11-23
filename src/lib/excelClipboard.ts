@@ -1,4 +1,5 @@
-import { downloadExcelBuffer } from './excelReport';
+import { downloadExcelBuffer, sanitizeSpreadsheetCell } from './excelReport';
+import { escapeOfficialHtml } from './officialReport';
 
 export interface CopyToExcelOptions {
   headers: string[];
@@ -19,7 +20,7 @@ export async function copyTableToExcelClipboard({
 }: CopyToExcelOptions): Promise<boolean> {
   const cleanCell = (val: unknown): string => {
     if (val === null || val === undefined) return '';
-    return String(val).replace(/\t|\r|\n/g, ' ').trim();
+    return String(sanitizeSpreadsheetCell(String(val).replace(/\t|\r|\n/g, ' ').trim()));
   };
 
   // 1. TSV Format (Standard for spreadsheet paste)
@@ -51,11 +52,11 @@ export async function copyTableToExcelClipboard({
       </style>
     </head>
     <body>
-      ${title ? `<h3 style="font-family:'TH Sarabun New', sans-serif; font-size:16pt; margin-bottom:8px;">${title}</h3>` : ''}
+      ${title ? `<h3 style="font-family:'TH Sarabun New', sans-serif; font-size:16pt; margin-bottom:8px;">${escapeOfficialHtml(title)}</h3>` : ''}
       <table border="1">
         <thead>
           <tr>
-            ${headers.map((h) => `<th>${h}</th>`).join('')}
+            ${headers.map((h) => `<th>${escapeOfficialHtml(cleanCell(h))}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -66,7 +67,7 @@ export async function copyTableToExcelClipboard({
               ${row
                 .map((cell) => {
                   const cleaned = cleanCell(cell);
-                  return `<td>${cleaned}</td>`;
+                  return `<td>${escapeOfficialHtml(cleaned)}</td>`;
                 })
                 .join('')}
             </tr>
@@ -182,7 +183,7 @@ export async function exportTableToXlsxFile({
 
   // Data Rows
   rows.forEach((r) => {
-    const row = ws.addRow(r);
+    const row = ws.addRow(r.map((val) => sanitizeSpreadsheetCell(val)));
     row.height = 22;
     row.eachCell((cell) => {
       cell.font = { name: 'TH Sarabun New', size: 13 };

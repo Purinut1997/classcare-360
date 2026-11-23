@@ -185,7 +185,12 @@ const demoStudents: StudentExportRow[] = [
 ];
 
 function escapeCsv(value: string | number | null) {
-  const text = String(value ?? '');
+  const raw = String(value ?? '');
+  const trimmed = raw.trimStart();
+  const text =
+    typeof value === 'string' && /^[=+\-@\t\r]/.test(trimmed) && !/^-?\d+(\.\d+)?$/.test(trimmed.trim())
+      ? `'${raw}`
+      : raw;
   if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
   return text;
 }

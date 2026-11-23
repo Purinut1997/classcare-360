@@ -53,15 +53,9 @@ function requireEnv(name: string): string {
 }
 
 function getOrderedModels(preferredModel?: string): string[] {
-  const legacyInvalid = new Set([
-    'auto',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
-    'gemini-3.5-flash',
-    'gemini-3.6-flash',
-  ]);
-  const first = preferredModel && !legacyInvalid.has(preferredModel)
-    ? preferredModel
+  const normalized = typeof preferredModel === 'string' ? preferredModel.trim() : '';
+  const first = VALID_GEMINI_MODELS.includes(normalized)
+    ? normalized
     : 'gemini-2.5-flash';
 
   return [first, ...VALID_GEMINI_MODELS].filter(
@@ -124,14 +118,14 @@ Deno.serve(async (request) => {
             .eq('workspace_id', workspaceId)
             .eq('profile_id', user.id)
             .eq('status', 'active')
-            .in('role', ['teacher_owner', 'teacher_member', 'viewer'])
+            .in('role', ['teacher_owner', 'teacher_member'])
             .maybeSingle()
         : serviceClient
             .from('workspace_memberships')
             .select('workspace_id,role,status')
             .eq('profile_id', user.id)
             .eq('status', 'active')
-            .in('role', ['teacher_owner', 'teacher_member', 'viewer'])
+            .in('role', ['teacher_owner', 'teacher_member'])
             .limit(1)
             .maybeSingle(),
     ]);
@@ -174,6 +168,7 @@ Deno.serve(async (request) => {
       }
     }
 
+    let workspaceAiDisabled = false;
     if (!resolvedKey && effectiveWorkspaceId) {
       const { data: wsRow } = await serviceClient
         .from('workspaces')
@@ -183,6 +178,7 @@ Deno.serve(async (request) => {
 
       const wsSettings = (wsRow?.settings as Record<string, unknown>) || {};
       const aiEnabled = wsRow?.is_ai_enabled !== false && wsSettings.is_ai_enabled !== false;
+      workspaceAiDisabled = !aiEnabled;
       const wsKeyFromCol = typeof wsRow?.gemini_api_key === 'string' ? wsRow.gemini_api_key.trim() : '';
       const wsKeyFromSettings = typeof wsSettings.gemini_api_key === 'string' ? wsSettings.gemini_api_key.trim() : '';
       const wsKey = wsKeyFromCol || wsKeyFromSettings;
@@ -195,6 +191,10 @@ Deno.serve(async (request) => {
             (wsSettings.ai_model as string | undefined);
         }
       }
+    }
+
+    if (workspaceAiDisabled && !superadmin && !resolvedKey) {
+      return jsonResponse({ error: 'ระบบ AI ของโรงเรียนถูกปิดใช้งานโดยผู้ดูแลระบบ' }, 403);
     }
 
     if (!resolvedKey) {
@@ -212,16 +212,20 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: 'Gemini API Key is not configured for this workspace or user' }, 400);
     }
 
+    const defaultMaxTokens = mode === 'chat' ? 2048 : 8192;
+    const requestedMaxTokens = Number(payload.maxOutputTokens) || defaultMaxTokens;
+    const safeMaxTokens = Math.min(Math.max(Math.floor(requestedMaxTokens), 64), 8192);
+
     // Build Gemini generateContent request body
     const generationConfig: Record<string, unknown> = {
       temperature: typeof payload.temperature === 'number'
-        ? payload.temperature
+        ? Math.min(Math.max(payload.temperature, 0), 2)
         : mode === 'vision'
           ? 0.2
           : mode === 'chat'
             ? 0.7
             : 0.4,
-      maxOutputTokens: payload.maxOutputTokens || (mode === 'chat' ? 2048 : 8192),
+      maxOutputTokens: safeMaxTokens,
       ...(mode === 'chat' ? { topP: 0.95 } : {}),
       ...(payload.responseJson ? { responseMimeType: 'application/json' } : {}),
     };

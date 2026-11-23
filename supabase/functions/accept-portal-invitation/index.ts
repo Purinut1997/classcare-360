@@ -123,9 +123,9 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: 'Unable to create user profile' }, 500);
     }
 
-    const userEmail = normalizeEmail(profile.email || user.email);
+    const userEmail = normalizeEmail(user.email);
     if (!userEmail) {
-      return jsonResponse({ error: 'User profile email is required before accepting invitation' }, 422);
+      return jsonResponse({ error: 'Verified account email is required before accepting invitation' }, 422);
     }
 
     const { data: invitation, error: invitationError } = await serviceClient

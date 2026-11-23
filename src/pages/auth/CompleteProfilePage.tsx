@@ -73,7 +73,7 @@ export function CompleteProfilePage() {
         requestAppSessionRefresh();
         setNotice('เซสชันเดิมหมดอายุหรือบัญชีนี้ถูกลบออกจากระบบแล้ว กำลังพากลับไปหน้าเข้าสู่ระบบใหม่...');
         setIsSubmitting(false);
-        window.setTimeout(() => navigate('/auth/login', { replace: true }), 1200);
+        window.setTimeout(() => navigate('/login', { replace: true }), 1200);
         return;
       }
       setNotice(msg || 'กรุณาเข้าสู่ระบบก่อนบันทึก profile');
@@ -233,7 +233,7 @@ export function CompleteProfilePage() {
                   await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
                 }
                 requestAppSessionRefresh();
-                navigate('/auth/login', { replace: true });
+                navigate('/login', { replace: true });
               }}
               type="button"
             >

@@ -57,11 +57,13 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
     async function loadConfig() {
       const config = await getEffectiveAiConfig(session);
       setAiConfig(config);
-      if (config.apiKey) setApiKeyInput(config.apiKey);
+      if (config.apiKey) {
+        setApiKeyInput(isOwnerOrAdmin ? config.apiKey : '••••••••••••••••••••••••••••');
+      }
       if (config.model) setSelectedModel(config.model);
     }
     loadConfig();
-  }, [session]);
+  }, [isOwnerOrAdmin, session]);
 
   const handleTestKey = async () => {
     if (!apiKeyInput.trim()) {
@@ -215,20 +217,22 @@ export function WorkspaceAiSettingsCard({ session }: WorkspaceAiSettingsCardProp
               </div>
               <div className="relative">
                 <input
-                  type={showKey ? 'text' : 'password'}
+                  type={isOwnerOrAdmin && showKey ? 'text' : 'password'}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                   placeholder="AIzaSy..."
                   disabled={!isOwnerOrAdmin}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm font-mono text-slate-800 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-medium"
-                >
-                  {showKey ? 'ซ่อน' : 'แสดง'}
-                </button>
+                {isOwnerOrAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-medium"
+                  >
+                    {showKey ? 'ซ่อน' : 'แสดง'}
+                  </button>
+                ) : null}
               </div>
               <p className="mt-1 text-[11px] text-slate-500">
                 เมื่อใส่ Key นี้ ครูทุกคนในโรงเรียนจะสามารถคุยกับ AI ได้ทันทีโดยไม่ต้องสมัคร Key เอง (ใช้โควต้าฟรี 1,500 ครั้ง/วัน)

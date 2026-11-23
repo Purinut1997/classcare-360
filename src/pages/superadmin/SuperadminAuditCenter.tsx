@@ -192,7 +192,11 @@ export function SuperadminAuditCenter({ isDevelopmentDemo }: SuperadminAuditCent
   );
 
   function exportCsv() {
-    const escapeCell = (val: string) => `"${val.replace(/"/g, '""')}"`;
+    const escapeCell = (val: string) => {
+      const trimmed = val.trimStart();
+      const safe = /^[=+\-@\t\r]/.test(trimmed) && !/^-?\d+(\.\d+)?$/.test(trimmed.trim()) ? `'${val}` : val;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const headers = ['เวลา', 'ระดับความเสี่ยง', 'การกระทำ', 'รหัส Action', 'ผู้ดำเนินการ', 'อีเมล', 'โรงเรียน/Workspace', 'ตาราง', 'รายละเอียด'];
     const rows = filtered.map((l) => [
       formatThaiDateTime(l.created_at),

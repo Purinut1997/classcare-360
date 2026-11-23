@@ -4,6 +4,8 @@
  * Isolates the target A4 sheet from dark modal containers, scrollbars, and web chrome.
  */
 
+import { escapeOfficialHtml } from './officialReport';
+
 export interface PrintDocumentOptions {
   title: string;
   orientation?: 'portrait' | 'landscape';
@@ -31,6 +33,7 @@ export function printHtmlStringAsDocument(html: string): Promise<boolean> {
         iframe.remove();
         const win = window.open('', '_blank');
         if (win) {
+          win.opener = null;
           win.document.open();
           win.document.write(html);
           win.document.close();
@@ -131,7 +134,7 @@ export function printElementAsDocument(
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${options.title}</title>
+          <title>${escapeOfficialHtml(options.title)}</title>
           ${styleTags}
           <style>
             @page {

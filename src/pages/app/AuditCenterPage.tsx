@@ -156,7 +156,10 @@ function getAuditSummary(log: AuditLogRow) {
 }
 
 function csvEscape(value: unknown) {
-  const text = String(value ?? '');
+  const raw = String(value ?? '');
+  const trimmed = raw.trimStart();
+  const text =
+    /^[=+\-@\t\r]/.test(trimmed) && !/^-?\d+(\.\d+)?$/.test(trimmed.trim()) ? `'${raw}` : raw;
   return `"${text.replace(/"/g, '""')}"`;
 }
 

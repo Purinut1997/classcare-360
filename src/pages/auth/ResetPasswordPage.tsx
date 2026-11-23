@@ -27,7 +27,7 @@ export function ResetPasswordPage() {
       return;
     }
 
-    await supabase.auth.signOut({ scope: 'local' });
+    await supabase.auth.signOut({ scope: 'global' });
     navigate('/login?reset=success', { replace: true });
   }
 

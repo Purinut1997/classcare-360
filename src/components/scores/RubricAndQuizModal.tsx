@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
 import { getEffectiveAiConfig } from '../../lib/aiSettings';
+import { escapeOfficialHtml } from '../../lib/officialReport';
 import {
   analyzeIndicatorsFromUnits,
   generateRemedialQuiz,
@@ -563,11 +564,13 @@ export function RubricAndQuizModal({
       alert('กรุณาอนุญาตป๊อปอัป (Pop-up) ของเบราว์เซอร์เพื่อพิมพ์ข้อสอบ');
       return;
     }
+    printWindow.opener = null;
+    const esc = (val: unknown) => escapeOfficialHtml(String(val ?? ''));
 
     const title =
       mode === 'student'
-        ? `${result.examTitle} - สำหรับแจกนักเรียน`
-        : `${result.examTitle} - ชุดเฉลยละเอียดและผังวิเคราะห์ (สำหรับครู)`;
+        ? `${esc(result.examTitle)} - สำหรับแจกนักเรียน`
+        : `${esc(result.examTitle)} - ชุดเฉลยละเอียดและผังวิเคราะห์ (สำหรับครู)`;
 
     const studentHtml = `
       <!DOCTYPE html>
@@ -639,9 +642,9 @@ export function RubricAndQuizModal({
       </head>
       <body>
         <div class="exam-header">
-          <div class="exam-title">${result.examTitle}</div>
-          <div class="exam-sub">กลุ่มสาระการเรียนรู้${result.subject} ชั้น${result.gradeLevel} ภาคเรียนที่ ${result.term} ปีการศึกษา ${result.academicYear}</div>
-          <div class="exam-meta">เวลาสอบ ${result.timeMinutes} นาที • คะแนนเต็ม ${result.totalScore} คะแนน</div>
+          <div class="exam-title">${esc(result.examTitle)}</div>
+          <div class="exam-sub">กลุ่มสาระการเรียนรู้${esc(result.subject)} ชั้น${esc(result.gradeLevel)} ภาคเรียนที่ ${esc(result.term)} ปีการศึกษา ${esc(result.academicYear)}</div>
+          <div class="exam-meta">เวลาสอบ ${esc(result.timeMinutes)} นาที • คะแนนเต็ม ${esc(result.totalScore)} คะแนน</div>
         </div>
 
         <div class="student-box">
@@ -650,18 +653,18 @@ export function RubricAndQuizModal({
         </div>
 
         <div class="instructions-box">
-          <strong>คำชี้แจงทั่วไป:</strong> ${result.instructions}
+          <strong>คำชี้แจงทั่วไป:</strong> ${esc(result.instructions)}
         </div>
 
-        <div class="part-title">${result.part1?.title || 'ตอนที่ 1 แบบเลือกตอบ'} (${result.part1?.itemCount || 0} ข้อ • ข้อละ ${result.part1?.scorePerItem || 1} คะแนน รวม ${result.part1?.totalScore || 0} คะแนน)</div>
+        <div class="part-title">${esc(result.part1?.title || 'ตอนที่ 1 แบบเลือกตอบ')} (${esc(result.part1?.itemCount || 0)} ข้อ • ข้อละ ${esc(result.part1?.scorePerItem || 1)} คะแนน รวม ${esc(result.part1?.totalScore || 0)} คะแนน)</div>
         <div class="questions-list">
           ${(result.part1?.questions || [])
             .map(
               (q) => `
             <div class="q-item">
-              <div class="q-text">${q.questionNumber}. ${q.questionText} ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${q.indicator}]</span>` : ''}</div>
+              <div class="q-text">${esc(q.questionNumber)}. ${esc(q.questionText)} ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${esc(q.indicator)}]</span>` : ''}</div>
               <div class="choices-grid">
-                ${(q.choices || []).map((c) => `<div><strong>${c.key}.</strong> ${c.text}</div>`).join('')}
+                ${(q.choices || []).map((c) => `<div><strong>${esc(c.key)}.</strong> ${esc(c.text)}</div>`).join('')}
               </div>
             </div>
           `
@@ -672,13 +675,13 @@ export function RubricAndQuizModal({
         ${
           result.part2 && result.part2.questions && result.part2.questions.length > 0
             ? `
-          <div class="part-title" style="margin-top: 20px;">${result.part2.title} (${result.part2.itemCount} ข้อ • รวม ${result.part2.totalScore} คะแนน)</div>
+          <div class="part-title" style="margin-top: 20px;">${esc(result.part2.title)} (${esc(result.part2.itemCount)} ข้อ • รวม ${esc(result.part2.totalScore)} คะแนน)</div>
           <div class="subjective-list">
             ${result.part2.questions
               .map(
                 (q) => `
               <div class="subjective-item">
-                <div class="q-text">ข้อที่ ${q.questionNumber}. ${q.questionText} <span style="font-weight: normal; color: #555;">(${q.maxScore} คะแนน)</span> ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${q.indicator}]</span>` : ''}</div>
+                <div class="q-text">ข้อที่ ${esc(q.questionNumber)}. ${esc(q.questionText)} <span style="font-weight: normal; color: #555;">(${esc(q.maxScore)} คะแนน)</span> ${showIndicatorInStudentPaper && q.indicator ? `<span style="font-weight: normal; font-size: 10pt; color: #495057; margin-left: 6px;">[ตัวชี้วัด ${esc(q.indicator)}]</span>` : ''}</div>
                 <div class="work-box">วิธีทำ / คำตอบ:</div>
               </div>
             `
@@ -728,7 +731,7 @@ export function RubricAndQuizModal({
       <body>
         <div class="exam-header">
           <div class="exam-title">[เอกสารสำหรับครู] เฉลยละเอียด & ผังวิเคราะห์ข้อสอบ (Test Blueprint)</div>
-          <div>${result.examTitle} • วิชา${result.subject} ชั้น${result.gradeLevel}</div>
+          <div>${esc(result.examTitle)} • วิชา${esc(result.subject)} ชั้น${esc(result.gradeLevel)}</div>
           <div class="badge-teacher">เฉพาะครูผู้สอน / กรรมการวัดผลและประเมินผลการเรียนรู้</div>
         </div>
 
@@ -748,11 +751,11 @@ export function RubricAndQuizModal({
               .map(
                 (q) => `
               <tr>
-                <td style="text-align: center; font-weight: bold;">${q.questionNumber}</td>
-                <td style="text-align: center;" class="correct-key">${q.correctAnswer}</td>
-                <td>${q.indicator || '-'}</td>
-                <td>${q.bloomLevel || '-'}</td>
-                <td>${q.explanation}</td>
+                <td style="text-align: center; font-weight: bold;">${esc(q.questionNumber)}</td>
+                <td style="text-align: center;" class="correct-key">${esc(q.correctAnswer)}</td>
+                <td>${esc(q.indicator || '-')}</td>
+                <td>${esc(q.bloomLevel || '-')}</td>
+                <td>${esc(q.explanation)}</td>
               </tr>
             `
               )
@@ -768,10 +771,10 @@ export function RubricAndQuizModal({
             .map(
               (q) => `
             <div class="subjective-card">
-              <div style="font-weight: bold;">ข้อที่ ${q.questionNumber}. ${q.questionText} (${q.maxScore} คะแนน)</div>
-              <div style="margin-top: 4px; color: #2b8a3e;"><strong>แนวคำตอบ / วิธีทำที่ถูกต้อง:</strong> ${q.sampleAnswer}</div>
+              <div style="font-weight: bold;">ข้อที่ ${esc(q.questionNumber)}. ${esc(q.questionText)} (${esc(q.maxScore)} คะแนน)</div>
+              <div style="margin-top: 4px; color: #2b8a3e;"><strong>แนวคำตอบ / วิธีทำที่ถูกต้อง:</strong> ${esc(q.sampleAnswer)}</div>
               <div style="margin-top: 6px; font-weight: bold; font-size: 9.5pt;">เกณฑ์การให้คะแนน:</div>
-              <div class="criteria-item">${q.scoringCriteria}</div>
+              <div class="criteria-item">${esc(q.scoringCriteria)}</div>
             </div>
           `
             )
@@ -797,12 +800,12 @@ export function RubricAndQuizModal({
               .map(
                 (bp) => `
               <tr>
-                <td style="font-weight: bold;">${bp.unitName}</td>
-                <td>${bp.indicator}</td>
-                <td style="text-align: center;">${bp.multipleChoiceCount} ข้อ</td>
-                <td style="text-align: center;">${bp.subjectiveCount} ข้อ</td>
-                <td style="text-align: center; font-weight: bold;">${bp.totalScore}</td>
-                <td>${bp.bloomDistribution}</td>
+                <td style="font-weight: bold;">${esc(bp.unitName)}</td>
+                <td>${esc(bp.indicator)}</td>
+                <td style="text-align: center;">${esc(bp.multipleChoiceCount)} ข้อ</td>
+                <td style="text-align: center;">${esc(bp.subjectiveCount)} ข้อ</td>
+                <td style="text-align: center; font-weight: bold;">${esc(bp.totalScore)}</td>
+                <td>${esc(bp.bloomDistribution)}</td>
               </tr>
             `
               )

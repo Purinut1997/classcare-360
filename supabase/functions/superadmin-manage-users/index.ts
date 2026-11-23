@@ -156,10 +156,35 @@ Deno.serve(async (request) => {
         return jsonResponse({ error: 'กรุณาระบุอีเมลผู้ใช้' }, 400);
       }
 
+      let safeRedirectTo: string | undefined;
+      if (payload.redirectTo) {
+        try {
+          const parsedRedirect = new URL(payload.redirectTo);
+          const isLocal =
+            parsedRedirect.protocol === 'http:' &&
+            (parsedRedirect.hostname === 'localhost' || parsedRedirect.hostname === '127.0.0.1');
+          const isProd =
+            parsedRedirect.protocol === 'https:' &&
+            (parsedRedirect.hostname === 'classcare-360.pages.dev' ||
+              parsedRedirect.hostname.endsWith('.classcare-360.pages.dev'));
+          const extraAllowed = (Deno.env.get('ALLOWED_OAUTH_ORIGINS') || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const isExtra = parsedRedirect.protocol === 'https:' && extraAllowed.includes(parsedRedirect.origin);
+          if (!isLocal && !isProd && !isExtra) {
+            return jsonResponse({ error: 'redirectTo ไม่อยู่ในโดเมนที่อนุญาต' }, 400);
+          }
+          safeRedirectTo = parsedRedirect.toString();
+        } catch {
+          return jsonResponse({ error: 'รูปแบบ redirectTo ไม่ถูกต้อง' }, 400);
+        }
+      }
+
       const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
         type: 'recovery',
         email,
-        options: payload.redirectTo ? { redirectTo: payload.redirectTo } : undefined,
+        options: safeRedirectTo ? { redirectTo: safeRedirectTo } : undefined,
       });
 
       if (linkErr || !linkData?.properties?.action_link) {

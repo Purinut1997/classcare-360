@@ -1,6 +1,15 @@
 import type { Buffer as ExcelBuffer } from 'exceljs';
 import { formatThaiOfficialDate, formatThaiOfficialDateTime, type OfficialReportSignature } from './officialReport';
 
+export function sanitizeSpreadsheetCell<T>(val: T): T | string {
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trimStart();
+  if (/^[=+\-@\t\r]/.test(trimmed) && !/^-?\d+(\.\d+)?$/.test(trimmed.trim())) {
+    return `'${val}`;
+  }
+  return val;
+}
+
 export interface ExcelSheetConfig {
   sheetName: string;
   title: string;
@@ -162,7 +171,7 @@ export async function generateExcelReportBuffer(config: ExcelReportConfig): Prom
       
       rowData.forEach((val, colIndex) => {
         const cell = row.getCell(colIndex + 1);
-        cell.value = val;
+        cell.value = sanitizeSpreadsheetCell(val);
         cell.font = { name: 'TH Sarabun New', size: 11 };
         cell.alignment = { vertical: 'top', wrapText: true };
         

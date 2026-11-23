@@ -122,7 +122,7 @@ Deno.serve(async (request) => {
     const reviewNote = payload.reviewNote?.trim() || null;
 
     if (action === 'reject') {
-      const { error: rejectError } = await serviceClient
+      const { data: rejectedRow, error: rejectError } = await serviceClient
         .from('payment_requests')
         .update({
           reviewed_at: reviewedAt.toISOString(),
@@ -130,9 +130,15 @@ Deno.serve(async (request) => {
           review_note: reviewNote || 'Rejected by approve-payment-request Edge Function.',
           status: 'rejected',
         })
-        .eq('id', paymentRequest.id);
+        .eq('id', paymentRequest.id)
+        .eq('status', 'pending_review')
+        .select('id')
+        .maybeSingle();
 
       if (rejectError) throw rejectError;
+      if (!rejectedRow) {
+        return jsonResponse({ error: 'Payment request was already processed concurrently' }, 409);
+      }
 
       await serviceClient.from('audit_logs').insert({
         action: 'payment_request.rejected',
@@ -159,7 +165,7 @@ Deno.serve(async (request) => {
     const startsAt = reviewedAt;
     const endsAt = addDays(startsAt, durationDays);
 
-    const { error: approveError } = await serviceClient
+    const { data: approvedRow, error: approveError } = await serviceClient
       .from('payment_requests')
       .update({
         reviewed_at: reviewedAt.toISOString(),
@@ -167,9 +173,15 @@ Deno.serve(async (request) => {
         review_note: reviewNote || 'Approved by approve-payment-request Edge Function.',
         status: 'approved',
       })
-      .eq('id', paymentRequest.id);
+      .eq('id', paymentRequest.id)
+      .eq('status', 'pending_review')
+      .select('id')
+      .maybeSingle();
 
     if (approveError) throw approveError;
+    if (!approvedRow) {
+      return jsonResponse({ error: 'Payment request was already processed concurrently' }, 409);
+    }
 
     const { error: closeSubscriptionError } = await serviceClient
       .from('subscriptions')

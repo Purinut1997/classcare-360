@@ -332,6 +332,52 @@ function concatUint8Arrays(parts: Uint8Array[]): Uint8Array {
   return combined;
 }
 
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  'image/webp',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'application/pdf',
+  'application/json',
+  'text/plain',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+const SAFE_INLINE_MIME_TYPES = new Set([
+  'image/webp',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'application/pdf',
+]);
+
+const BLOCKED_UPLOAD_EXTENSIONS = /\.(html?|xhtml|svg|svgz|m?js|cjs|ts|tsx|jsx|php|sh|bat|cmd|exe|dll|msi)$/i;
+
+function isAllowedRedirectUri(rawUri: string): boolean {
+  try {
+    const parsed = new URL(rawUri);
+    const isLocalhost =
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+    const isProdPages =
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'classcare-360.pages.dev' ||
+        parsed.hostname.endsWith('.classcare-360.pages.dev'));
+    const extraAllowed = (Deno.env.get('ALLOWED_OAUTH_ORIGINS') || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const isExtraAllowed = parsed.protocol === 'https:' && extraAllowed.includes(parsed.origin);
+
+    return isLocalhost || isProdPages || isExtraAllowed;
+  } catch {
+    return false;
+  }
+}
+
 async function uploadBinaryToDrive(
   accessToken: string,
   folderId: string,
@@ -341,15 +387,17 @@ async function uploadBinaryToDrive(
 ): Promise<{ id: string; size?: string; webViewLink?: string }> {
   const boundary = `classcare_drive_${crypto.randomUUID().replaceAll('-', '')}`;
   const encoder = new TextEncoder();
+  const safeFileName = (fileName || 'file.webp').replace(/[\r\n"]/g, '_');
+  const safeContentType = (contentType || 'application/octet-stream').replace(/[\r\n;]/g, '').trim() || 'application/octet-stream';
 
   const metadataPart = JSON.stringify({
-    name: fileName,
+    name: safeFileName,
     parents: [folderId],
   });
 
   const prefix = encoder.encode(
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n` +
-      `--${boundary}\r\nContent-Type: ${contentType || 'application/octet-stream'}\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: ${safeContentType}\r\n\r\n`,
   );
   const suffix = encoder.encode(`\r\n--${boundary}--`);
   const multipartBody = concatUint8Arrays([prefix, fileBytes, suffix]);
@@ -510,9 +558,9 @@ Deno.serve(async (request) => {
     const [{ data: superadminRow }, { data: membership, error: memberError }] = await Promise.all([
       serviceClient
         .from('superadmin_profiles')
-        .select('profile_id,status')
+        .select('profile_id,is_active')
         .eq('profile_id', user.id)
-        .eq('status', 'active')
+        .eq('is_active', true)
         .maybeSingle(),
       serviceClient
         .from('workspace_memberships')
@@ -623,8 +671,8 @@ Deno.serve(async (request) => {
       }
 
       const redirectUri = typeof body.redirectUri === 'string' ? body.redirectUri.trim() : '';
-      if (!redirectUri || !redirectUri.startsWith('http')) {
-        return respond({ error: 'Redirect URI ไม่ถูกต้อง' }, 400);
+      if (!redirectUri || !isAllowedRedirectUri(redirectUri)) {
+        return respond({ error: 'Redirect URI ไม่ถูกต้องหรือไม่อยู่ในโดเมนที่อนุญาต' }, 400);
       }
 
       const state = await signState({
@@ -807,6 +855,26 @@ Deno.serve(async (request) => {
     // ACTION: DISCONNECT
     // ------------------------------------------------------------------
     if (action === 'disconnect') {
+      try {
+        const { data: existingTokenRow } = await serviceClient
+          .from('workspace_drive_tokens')
+          .select('encrypted_refresh_token')
+          .eq('workspace_id', workspaceId)
+          .maybeSingle();
+        if (existingTokenRow?.encrypted_refresh_token) {
+          const refreshToken = await decryptSecret(existingTokenRow.encrypted_refresh_token);
+          if (refreshToken) {
+            await fetch('https://oauth2.googleapis.com/revoke', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ token: refreshToken }).toString(),
+            }).catch(() => null);
+          }
+        }
+      } catch {
+        // Best-effort revocation; proceed with local token purge regardless
+      }
+
       await serviceClient.from('workspace_drive_tokens').delete().eq('workspace_id', workspaceId);
       const { error } = await serviceClient
         .from('workspace_drive_connections')
@@ -835,13 +903,19 @@ Deno.serve(async (request) => {
     // ------------------------------------------------------------------
     if (action === 'upload') {
       const category = (typeof body.category === 'string' ? body.category : 'behavior_portfolio') as DriveFolderCategory;
-      const fileName = typeof body.fileName === 'string' && body.fileName.trim() ? body.fileName.trim() : `file-${Date.now()}.webp`;
-      const contentType = typeof body.contentType === 'string' && body.contentType.trim() ? body.contentType.trim() : 'application/octet-stream';
+      const rawFileName = typeof body.fileName === 'string' && body.fileName.trim() ? body.fileName.trim() : `file-${Date.now()}.webp`;
+      const fileName = rawFileName.replace(/[\r\n"]/g, '_');
+      const rawContentType = typeof body.contentType === 'string' && body.contentType.trim() ? body.contentType.trim() : 'image/webp';
+      const contentType = rawContentType.split(';')[0].trim().toLowerCase();
       const base64Data = typeof body.base64Data === 'string' ? body.base64Data : '';
       const fallbackBucket = typeof body.fallbackBucket === 'string' && body.fallbackBucket.trim() ? body.fallbackBucket.trim() : 'evidence-files';
-      const storagePath =
+      const rawStoragePath =
         typeof body.storagePath === 'string' && body.storagePath.trim()
           ? body.storagePath.trim()
+          : `${workspaceId}/${category}/${crypto.randomUUID()}-${fileName}`;
+      const storagePath =
+        !rawStoragePath.includes('..') && rawStoragePath.startsWith(`${workspaceId}/`)
+          ? rawStoragePath
           : `${workspaceId}/${category}/${crypto.randomUUID()}-${fileName}`;
       const privacyLevel =
         typeof body.privacyLevel === 'string' && ['public', 'private', 'restricted', 'sensitive'].includes(body.privacyLevel)
@@ -849,8 +923,16 @@ Deno.serve(async (request) => {
           : 'sensitive';
       const metadata = body.metadata && typeof body.metadata === 'object' ? (body.metadata as Record<string, unknown>) : {};
 
+      if (BLOCKED_UPLOAD_EXTENSIONS.test(fileName) || !ALLOWED_UPLOAD_MIME_TYPES.has(contentType)) {
+        return respond({ error: 'ไม่รองรับประเภทไฟล์นี้เพื่อความปลอดภัยของระบบ (อนุญาตเฉพาะรูปภาพ, PDF, JSON, CSV และเอกสารสำนักงาน)' }, 400);
+      }
+
       if (!base64Data) {
         return respond({ error: 'ไม่มีข้อมูลไฟล์สำหรับอัปโหลด' }, 400);
+      }
+
+      if (base64Data.length > Math.ceil((MAX_UPLOAD_BYTES * 4) / 3) + 1024) {
+        return respond({ error: `ขนาดไฟล์ต้องไม่เกิน ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB` }, 400);
       }
 
       const fileBytes = fromBase64(base64Data);
@@ -913,7 +995,7 @@ Deno.serve(async (request) => {
 
       const { data: fileRow, error: fileError } = await serviceClient
         .from('app_files')
-        .select('id,workspace_id,storage_provider,external_file_id,content_type,original_filename,deleted_at')
+        .select('id,workspace_id,owner_profile_id,folder_category,storage_provider,external_file_id,content_type,original_filename,deleted_at')
         .eq('id', fileId)
         .eq('workspace_id', workspaceId)
         .is('deleted_at', null)
@@ -922,6 +1004,64 @@ Deno.serve(async (request) => {
       if (fileError) throw fileError;
       if (!fileRow || fileRow.storage_provider !== 'google_drive' || !fileRow.external_file_id) {
         return respond({ error: 'ไม่พบไฟล์บน Google Drive ในพื้นที่โรงเรียนนี้' }, 404);
+      }
+
+      if (fileRow.folder_category === 'workspace_backup' && !isOwner) {
+        return respond({ error: 'เฉพาะเจ้าของพื้นที่โรงเรียนเท่านั้นที่เข้าถึงไฟล์สำรองข้อมูลได้' }, 403);
+      }
+
+      const isStaffOrViewer = isTeacher || role === 'viewer';
+      if (!isStaffOrViewer && fileRow.owner_profile_id !== user.id) {
+        const [{ data: avatarStudents }, { data: evidenceRows }] = await Promise.all([
+          serviceClient
+            .from('students')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .eq('avatar_file_id', fileRow.id)
+            .limit(5),
+          serviceClient
+            .from('student_evidence_files')
+            .select('student_id')
+            .eq('workspace_id', workspaceId)
+            .eq('file_id', fileRow.id)
+            .not('student_id', 'is', null)
+            .limit(5),
+        ]);
+
+        const candidateStudentIds = Array.from(
+          new Set([
+            ...(avatarStudents || []).map((s) => s.id),
+            ...(evidenceRows || []).map((e) => e.student_id).filter(Boolean),
+          ]),
+        ) as string[];
+
+        if (candidateStudentIds.length === 0) {
+          return respond({ error: 'ไม่มีสิทธิ์เข้าถึงไฟล์นี้' }, 403);
+        }
+
+        const [{ data: guardianLink }, { data: studentLink }] = await Promise.all([
+          serviceClient
+            .from('student_guardians')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .eq('guardian_profile_id', user.id)
+            .in('student_id', candidateStudentIds)
+            .limit(1)
+            .maybeSingle(),
+          serviceClient
+            .from('student_profile_links')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .eq('profile_id', user.id)
+            .eq('status', 'active')
+            .in('student_id', candidateStudentIds)
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+        if (!guardianLink && !studentLink) {
+          return respond({ error: 'ไม่มีสิทธิ์เข้าถึงไฟล์ของนักเรียนคนอื่น' }, 403);
+        }
       }
 
       const { accessToken } = await getValidWorkspaceDriveAccess(serviceClient, workspaceId);
@@ -938,14 +1078,18 @@ Deno.serve(async (request) => {
 
       const buffer = await driveRes.arrayBuffer();
       const safeName = (fileRow.original_filename || 'file').replace(/["\r\n]/g, '_');
+      const normalizedMime = (fileRow.content_type || '').split(';')[0].trim().toLowerCase();
+      const isSafeInline = SAFE_INLINE_MIME_TYPES.has(normalizedMime);
 
       return new Response(buffer, {
         status: 200,
         headers: {
           ...corsHeaders,
           'Cache-Control': 'private, max-age=1800',
-          'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(safeName)}`,
-          'Content-Type': fileRow.content_type || 'application/octet-stream',
+          'Content-Disposition': `${isSafeInline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+          'Content-Security-Policy': "default-src 'none'; sandbox",
+          'Content-Type': isSafeInline ? normalizedMime : 'application/octet-stream',
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }
@@ -997,6 +1141,11 @@ Deno.serve(async (request) => {
 
       for (const row of candidates) {
         try {
+          if (!row.storage_path || row.storage_path.includes('..') || !row.storage_path.startsWith(`${workspaceId}/`)) {
+            failed += 1;
+            continue;
+          }
+
           const { data: blob, error: dlError } = await serviceClient.storage
             .from(row.bucket)
             .download(row.storage_path);

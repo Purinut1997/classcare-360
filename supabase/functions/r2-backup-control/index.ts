@@ -86,8 +86,21 @@ Deno.serve(async (request) => {
   });
   const { data: userData, error: userError } = await userClient.auth.getUser(jwt);
   if (userError || !userData.user) return jsonResponse({ error: 'unauthorized' }, 401);
-  const { data: profile, error: profileError } = await userClient.from('profiles').select('role').eq('id', userData.user.id).maybeSingle();
-  if (profileError || profile?.role !== 'superadmin') return jsonResponse({ error: 'superadmin_only' }, 403);
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  const authCheckClient = serviceRoleKey
+    ? createClient(requiredEnv('SUPABASE_URL'), serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
+    : userClient;
+  const { data: superadminRow, error: superadminError } = await authCheckClient
+    .from('superadmin_profiles')
+    .select('profile_id,is_active,level')
+    .eq('profile_id', userData.user.id)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (superadminError || !superadminRow || superadminRow.level !== 'superadmin') {
+    return jsonResponse({ error: 'superadmin_only' }, 403);
+  }
 
   let body: Record<string, unknown>;
   try {

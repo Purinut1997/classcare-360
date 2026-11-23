@@ -605,7 +605,12 @@ export async function resolveAppFileUrl(
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) return null;
 
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      const normalizedType = (rawBlob.type || '').split(';')[0].trim().toLowerCase();
+      const safeInlineTypes = new Set(['image/webp', 'image/jpeg', 'image/png', 'image/gif', 'application/pdf']);
+      const blob = safeInlineTypes.has(normalizedType)
+        ? rawBlob
+        : new Blob([rawBlob], { type: 'application/octet-stream' });
       const objectUrl = URL.createObjectURL(blob);
       resolvedUrlCache.set(cacheKey, {
         expiresAt: Date.now() + 20 * 60_000,

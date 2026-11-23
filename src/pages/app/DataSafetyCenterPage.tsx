@@ -589,11 +589,23 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       safeFetchWorkspaceTable('student_leave_requests', 2000),
     ]);
 
+    let safeWorkspaceRow: Record<string, unknown> | null = null;
+    if (wsRes.data && typeof wsRes.data === 'object') {
+      const cloned = { ...(wsRes.data as Record<string, unknown>) };
+      delete cloned.gemini_api_key;
+      if (cloned.settings && typeof cloned.settings === 'object') {
+        const clonedSettings = { ...(cloned.settings as Record<string, unknown>) };
+        delete clonedSettings.gemini_api_key;
+        cloned.settings = clonedSettings;
+      }
+      safeWorkspaceRow = cloned;
+    }
+
     return {
       schema_version: 'classcare-360-workspace-backup-v2',
       exported_at: new Date().toISOString(),
       exported_by: session.profile.email,
-      workspace: wsRes.data || null,
+      workspace: safeWorkspaceRow,
       classrooms: clsRows,
       students: stuRows,
       student_guardians: guardRows,
@@ -623,6 +635,10 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
   }
 
   async function handleExportBackup() {
+    if (!canManageSafety) {
+      setNotice({ tone: 'error', text: 'เฉพาะผู้ดูแลหลักของโรงเรียน (Teacher Owner) เท่านั้นที่สามารถสำรองข้อมูลได้' });
+      return;
+    }
     if (!supabase || !workspaceId || demoMode) {
       setNotice({ tone: 'info', text: 'โหมดตัวอย่าง: พร้อมสำรองข้อมูลจริงเมื่อใช้งานกับ Workspace จริง' });
       return;
@@ -773,6 +789,10 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
       }
 
       const wsObj = (target.workspace as Record<string, unknown> | undefined) || {};
+      if (wsObj.id && workspaceId && String(wsObj.id) !== workspaceId) {
+        setBackupFileError('ไฟล์สำรองข้อมูลนี้เป็นของโรงเรียนอื่น ไม่สามารถนำมากู้คืนข้ามโรงเรียนได้เพื่อความปลอดภัยของข้อมูล');
+        return;
+      }
       setBackupPreview({
         fileName: file.name,
         exportedAt: (target.exported_at as string | null) || (parsed.exported_at as string | null) || null,
@@ -801,9 +821,21 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
     transform?: (row: Record<string, unknown>) => Record<string, unknown> | null,
   ): Promise<number> {
     if (!supabase || !workspaceId || !Array.isArray(rawRows) || rawRows.length === 0) return 0;
+    const sanitizeRecord = (row: Record<string, unknown>): Record<string, unknown> => {
+      const clean: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        clean[k] = v;
+      }
+      clean.workspace_id = workspaceId;
+      return clean;
+    };
     const prepared = rawRows
       .filter((r): r is Record<string, unknown> => Boolean(r && typeof r === 'object'))
-      .map((row) => (transform ? transform(row) : { ...row, workspace_id: workspaceId }))
+      .map((row) => {
+        const cleanRow = sanitizeRecord(row);
+        return transform ? transform(cleanRow) : cleanRow;
+      })
       .filter((r): r is Record<string, unknown> => Boolean(r));
     if (prepared.length === 0) return 0;
 
@@ -1215,7 +1247,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
           {activeTab !== 'backup' ? (
             <button
               type="button"
-              disabled={isBackingUp || !workspaceId}
+              disabled={isBackingUp || !workspaceId || !canManageSafety}
               onClick={() => void handleExportBackup()}
               className="blue-action inline-flex h-11 items-center gap-2 rounded-2xl px-5 text-xs font-black shadow-sm disabled:opacity-50"
             >
@@ -1361,7 +1393,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                disabled={isBackingUp || isBackingUpToDrive || !workspaceId}
+                disabled={isBackingUp || isBackingUpToDrive || !workspaceId || !canManageSafety}
                 onClick={() => void handleExportBackup()}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-black text-emerald-900 shadow-2xs transition hover:bg-emerald-100 disabled:opacity-50"
               >
@@ -1371,7 +1403,7 @@ export function DataSafetyCenterPage({ session }: DataSafetyCenterPageProps) {
 
               <button
                 type="button"
-                disabled={isBackingUp || isBackingUpToDrive || !workspaceId || driveStatus?.status !== 'connected'}
+                disabled={isBackingUp || isBackingUpToDrive || !workspaceId || !canManageSafety || driveStatus?.status !== 'connected'}
                 onClick={() => void handleBackupToDrive()}
                 title={
                   driveStatus?.status === 'connected'

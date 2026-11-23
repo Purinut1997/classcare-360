@@ -321,6 +321,11 @@ function buildPublicAndKeyPayloads(config: AnswerSheetConfig, questions: ExamQue
 }
 
 function generateSixDigitPin(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return String(100000 + (arr[0] % 900000));
+  }
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 

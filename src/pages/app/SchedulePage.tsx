@@ -744,16 +744,19 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
     const documentCode = buildOfficialDocumentCode('CC-SCH', getBangkokDate(), identity.classroomName);
     const thaiDate = formatThaiOfficialDate(getBangkokDate());
-    const logoHtml = printLogoDataUrl
-      ? `<img class="sch-logo" src="${printLogoDataUrl}" alt="โลโก้โรงเรียน" />`
+    const isSafeLogoUrl =
+      typeof printLogoDataUrl === 'string' &&
+      /^(data:image\/(png|jpeg|jpg|webp|gif);base64,|https:\/\/)/i.test(printLogoDataUrl.trim());
+    const logoHtml = isSafeLogoUrl
+      ? `<img class="sch-logo" src="${escapeOfficialHtml(printLogoDataUrl.trim())}" alt="โลโก้โรงเรียน" />`
       : '';
 
     // Header columns HTML for print window
     const headColumnsHtml = scheduleColumns.map((col) => {
       if (col.type === 'lunch') {
-        return `<th style="width: 14mm;">พักกลางวัน<span class="sch-period-time">${col.start}-${col.end} น.</span></th>`;
+        return `<th style="width: 14mm;">พักกลางวัน<span class="sch-period-time">${escapeOfficialHtml(col.start)}-${escapeOfficialHtml(col.end)} น.</span></th>`;
       }
-      return `<th>คาบที่ ${col.period.index}<span class="sch-period-time">${col.period.start}-${col.period.end} น.</span></th>`;
+      return `<th>คาบที่ ${escapeOfficialHtml(String(col.period.index))}<span class="sch-period-time">${escapeOfficialHtml(col.period.start)}-${escapeOfficialHtml(col.period.end)} น.</span></th>`;
     }).join('');
 
     const dayColorClasses: Record<string, string> = {
@@ -799,6 +802,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
     // 1. Try opening clean, dedicated standalone print window (eliminates all UI clutter)
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+      printWindow.opener = null;
       const html = `<!doctype html>
 <html lang="th">
 <head>
