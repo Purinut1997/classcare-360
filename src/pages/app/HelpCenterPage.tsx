@@ -186,7 +186,7 @@ const guideCards: GuideCard[] = [
     categoryLabel: 'คะแนน & รายงาน',
     body: 'สร้างชุดคะแนนตามสัดส่วน (กลางภาค/ปลายภาค/เก็บย่อย) บันทึกคะแนนแบบตาราง Excel-grid คัดลอก-วางได้ ตัดเกรด 0-4 และสรุปผลประเมินอัตโนมัติตามระเบียบวัดและประเมินผลของกระทรวงศึกษาธิการ',
     cta: 'เปิดสมุดบันทึกคะแนน',
-    href: '/app/dashboard?view=scores&scoreView=excel',
+    href: '/app/dashboard?view=scores',
     tags: ['score', 'assessment', 'คะแนน', 'ตัดเกรด', 'ปพ.5', 'excel'],
     allowedRoles: teacherRoles,
     moduleKey: 'scores',
@@ -356,7 +356,7 @@ const quickLinks: Array<HelpLinkAccess & { label: string; href: string; icon: ty
   { label: 'ออกข้อสอบ & รูบริก AI', href: '/app/dashboard?view=scores', icon: Sparkles, allowedRoles: teacherRoles, moduleKey: 'scores' },
   { label: 'ปฏิทินโรงเรียน', href: '/app/dashboard?view=calendar', icon: Calendar, allowedRoles: reportRoles, moduleKey: 'attendance' },
   { label: 'ตารางสอน', href: '/app/dashboard?view=schedule&scheduleView=settings', icon: ClipboardList, allowedRoles: teacherRoles, moduleKey: 'attendance' },
-  { label: 'กรอกคะแนน & ตัดเกรด', href: '/app/dashboard?view=scores&scoreView=excel', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
+  { label: 'กรอกคะแนน & ตัดเกรด', href: '/app/dashboard?view=scores', icon: GraduationCap, allowedRoles: teacherRoles, moduleKey: 'scores' },
   { label: 'นำเข้านักเรียน DMC', href: '/app/dashboard?view=import-export', icon: DatabaseZap, allowedRoles: ownerRoles, moduleKey: 'import_export' },
   { label: 'ออกรายงาน ปพ.5 / ปพ.6', href: '/app/dashboard?view=reports&reportView=attendance', icon: FileSpreadsheet, allowedRoles: reportRoles, moduleKey: 'reports' },
 ];

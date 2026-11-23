@@ -67,8 +67,17 @@ import { isDemoSession, withDemoContext } from '../../lib/auth';
 import { enqueueOfflineMutation, isLikelyNetworkError } from '../../lib/offlineSyncQueue';
 import { isSupabaseReady, supabase } from '../../lib/supabaseClient';
 import { writeAuditLog } from '../../lib/auditLog';
-import { getTeacherClassroomScope } from '../../lib/teacherClassrooms';
-import { getLocalScoreRatio, loadCloudScoreRatio, saveCloudScoreRatio } from '../../lib/workspaceCloudPrefs';
+import {
+  getHiddenClassroomIds,
+  getTeacherClassroomScope,
+  isObsoleteGhostClassroom,
+} from '../../lib/teacherClassrooms';
+import {
+  getLocalScoreRatio,
+  hydrateHiddenClassroomsFromCloud,
+  loadCloudScoreRatio,
+  saveCloudScoreRatio,
+} from '../../lib/workspaceCloudPrefs';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 
@@ -79,13 +88,20 @@ interface ScoresPageProps {
 type AssessmentCategory = 'quiz' | 'assignment' | 'midterm' | 'final' | 'exam' | 'project' | 'reading' | 'other';
 type AssessmentStatus = 'draft' | 'published' | 'archived';
 type ScoreBand = 'coursework' | 'midterm' | 'final';
-type ScoreView = 'overview' | 'setup' | 'entry' | 'excel' | 'gradebook';
+type ScoreView = 'overview' | 'entry' | 'excel' | 'gradebook';
 export type ScorePerspective = 'subject' | 'classroom';
 
-const scoreViewValues = ['overview', 'setup', 'entry', 'excel', 'gradebook'] as const;
+const scoreViewValues = ['overview', 'entry', 'excel', 'gradebook'] as const;
 
 function isScoreView(value: string | null): value is ScoreView {
   return Boolean(value && scoreViewValues.includes(value as ScoreView));
+}
+
+function parseActiveAcademicTerm(termName?: string | null): '1' | '2' | 'yearly' {
+  if (!termName) return '1';
+  if (/ตลอดปี|yearly/i.test(termName)) return 'yearly';
+  const primarySegment = termName.split('/')[0] || termName;
+  return primarySegment.includes('2') ? '2' : '1';
 }
 
 export interface ThaiGradeInfo {
@@ -113,6 +129,7 @@ interface ClassroomRow {
   homeroom_teacher_profile_id?: string | null;
   id: string;
   name: string;
+  status?: string | null;
 }
 
 interface StudentRow {
@@ -371,8 +388,20 @@ function getClassroomWithRoster(
   return classroomWithStudents?.id || classroomWithAssessment?.id || classrooms[0]?.id || '';
 }
 
+const SCORES_PERSPECTIVE_STORAGE_KEY = 'classcare_scores_perspective';
+
 const getDefaultScoreView = (): ScoreView =>
   typeof window !== 'undefined' && window.innerWidth < 768 ? 'entry' : 'excel';
+
+function readStoredPerspective(): ScorePerspective | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const stored = window.localStorage.getItem(SCORES_PERSPECTIVE_STORAGE_KEY);
+    return stored === 'classroom' || stored === 'subject' ? stored : null;
+  } catch {
+    return null;
+  }
+}
 
 export function ScoresPage({ session }: ScoresPageProps) {
   const demoMode = isDemoSession(session);
@@ -381,9 +410,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const requestedScoreView = new URLSearchParams(location.search).get('scoreView');
   const initialScoreView = isScoreView(requestedScoreView) ? requestedScoreView : getDefaultScoreView();
   const requestedPerspective = new URLSearchParams(location.search).get('perspective');
-  const initialPerspective: ScorePerspective = requestedPerspective === 'classroom' ? 'classroom' : 'subject';
+  const storedPerspective = readStoredPerspective();
+  const hasExplicitUrlPerspective = requestedPerspective === 'classroom' || requestedPerspective === 'subject';
+  const initialPerspective: ScorePerspective = hasExplicitUrlPerspective
+    ? requestedPerspective
+    : storedPerspective || 'subject';
+  const hasSavedOrUrlPerspectiveRef = useRef(Boolean(hasExplicitUrlPerspective || storedPerspective));
 
   const [perspective, setPerspective] = useState<ScorePerspective>(initialPerspective);
+  const [activeAcademicTerm, setActiveAcademicTerm] = useState<'1' | '2' | 'yearly'>('1');
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -417,7 +452,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     weight: '10',
   });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isGuideOpen, setIsGuideOpen] = useState(true);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [guideStep, setGuideStep] = useState(1);
   const [guideTab, setGuideTab] = useState<'tour' | 'manual'>('tour');
   const [isStickyRoster, setIsStickyRoster] = useState(true);
@@ -465,6 +500,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [isTermClosingOpen, setIsTermClosingOpen] = useState(false);
 
   function handleApplyScoreOcr(scs: Record<string, number | null>) {
+    let appliedCount = 0;
     setScores((prev) => {
       const next = { ...prev };
       Object.entries(scs).forEach(([stdId, val]) => {
@@ -474,7 +510,24 @@ export function ScoresPage({ session }: ScoresPageProps) {
       });
       return next;
     });
-    setNotice(`นำเข้าคะแนนจากภาพถ่ายสำเร็จ (${Object.keys(scs).length} คน) กรุณาตรวจสอบและกด "บันทึกคะแนน"`);
+    if (selectedAssessment) {
+      setGridScores((prev) => {
+        const next = { ...prev };
+        Object.entries(scs).forEach(([stdId, val]) => {
+          if (val !== null && val !== undefined) {
+            next[`${stdId}::${selectedAssessment.id}`] = String(val);
+          }
+        });
+        return next;
+      });
+    }
+    appliedCount = Object.values(scs).filter((val) => val !== null && val !== undefined).length;
+    if (scoreView !== 'excel' && scoreView !== 'entry') {
+      handleScoreViewChange(getDefaultScoreView());
+    }
+    setNotice(
+      `นำเข้าคะแนน "${selectedAssessment?.title || 'ชุดที่เลือก'}" จากภาพถ่ายสำเร็จ (${appliedCount} คน) กรุณาตรวจสอบและกดบันทึก`,
+    );
   }
 
   const scoreBandConfigs = useMemo<
@@ -515,10 +568,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
   useEffect(() => {
     const nextScoreView = isScoreView(requestedScoreView) ? requestedScoreView : getDefaultScoreView();
-    if (nextScoreView !== scoreView) {
-      setScoreView(nextScoreView);
-    }
-  }, [requestedScoreView, scoreView]);
+    setScoreView((current) => (current === nextScoreView ? current : nextScoreView));
+  }, [requestedScoreView]);
 
   useEffect(() => {
     if (!isToolsMenuOpen) return;
@@ -537,21 +588,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isToolsMenuOpen]);
-
-  function handleScoreViewChange(nextScoreView: ScoreView) {
-    setScoreView(nextScoreView);
-    navigate(withDemoContext(`/app/dashboard?view=scores&scoreView=${nextScoreView}&perspective=${perspective}`, location.search), { replace: true });
-  }
-
-  function handlePerspectiveChange(nextPerspective: ScorePerspective) {
-    setPerspective(nextPerspective);
-    const params = new URLSearchParams(location.search);
-    params.set('perspective', nextPerspective);
-    if (!params.get('scoreView')) {
-      params.set('scoreView', scoreView);
-    }
-    navigate(withDemoContext(`/app/dashboard?${params.toString()}`, location.search), { replace: true });
-  }
 
   const classroomById = useMemo(() => new Map(classrooms.map((classroom) => [classroom.id, classroom])), [classrooms]);
 
@@ -1002,12 +1038,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
           ]),
         ) as Record<ScoreBand, { earnedWeight: number; enteredWeight: number; plannedWeight: number }>;
 
+        let scoredCount = 0;
         contextAssessments.forEach((assessment) => {
           const band = getScoreBand(assessment);
           const entry = (entriesByAssessment.get(assessment.id) || []).find((row) => row.student_id === student.id);
           bandScores[band].plannedWeight += assessment.weight;
 
           if (entry?.score !== null && entry?.score !== undefined) {
+            scoredCount += 1;
             bandScores[band].enteredWeight += assessment.weight;
             bandScores[band].earnedWeight += (entry.score / assessment.max_score) * assessment.weight;
           }
@@ -1022,6 +1060,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           completionPercent: plannedWeight > 0 ? Math.round((enteredWeight / plannedWeight) * 100) : 0,
           earnedTotal,
           finalPercent: plannedWeight > 0 ? (earnedTotal / plannedWeight) * 100 : 0,
+          hasAnyScore: enteredWeight > 0 || scoredCount > 0,
           plannedWeight,
           student,
         };
@@ -1045,31 +1084,41 @@ export function ScoresPage({ session }: ScoresPageProps) {
         return;
       }
 
+      const workspaceId = session.workspace.id;
       setIsLoading(true);
       setNotice(null);
 
       const [
+        ,
         { data: classroomRows, error: classroomError },
         { data: studentRows, error: studentError },
         { data: assessmentRows, error: assessmentError },
+        { data: termRows },
       ] = await Promise.all([
+        hydrateHiddenClassroomsFromCloud(session.profile.id, workspaceId),
         supabase
           .from('classrooms')
-          .select('id,name,academic_year,homeroom_teacher_profile_id')
-          .eq('workspace_id', session.workspace.id)
+          .select('id,name,academic_year,homeroom_teacher_profile_id,status')
+          .eq('workspace_id', workspaceId)
           .eq('status', 'active')
           .order('name', { ascending: true }),
         supabase
           .from('students')
           .select('id,student_code,first_name,last_name,nickname,classroom_id')
-          .eq('workspace_id', session.workspace.id)
+          .eq('workspace_id', workspaceId)
           .eq('status', 'active')
           .order('student_code', { ascending: true }),
         supabase
           .from('score_assessments')
-          .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by')
-          .eq('workspace_id', session.workspace.id)
+          .select('id,workspace_id,classroom_id,title,subject_name,category,max_score,weight,assessment_date,status,created_by,metadata')
+          .eq('workspace_id', workspaceId)
           .order('assessment_date', { ascending: false }),
+        supabase
+          .from('academic_terms')
+          .select('term_name,is_current,status')
+          .eq('workspace_id', workspaceId)
+          .order('is_current', { ascending: false })
+          .limit(5),
       ]);
 
       if (!isMounted) return;
@@ -1080,34 +1129,72 @@ export function ScoresPage({ session }: ScoresPageProps) {
         return;
       }
 
-      const nextClassrooms = (classroomRows || []) as ClassroomRow[];
+      const rawClassrooms = (classroomRows || []) as ClassroomRow[];
       const nextStudents = (studentRows || []) as StudentRow[];
+      const countsByClassroom = new Map<string, number>();
+      nextStudents.forEach((student) => {
+        if (student.classroom_id) {
+          countsByClassroom.set(student.classroom_id, (countsByClassroom.get(student.classroom_id) || 0) + 1);
+        }
+      });
+      const hiddenIds = getHiddenClassroomIds(workspaceId);
+      const filteredClassrooms = rawClassrooms.filter(
+        (c) =>
+          !hiddenIds.has(c.id) &&
+          !isObsoleteGhostClassroom(c, rawClassrooms, countsByClassroom, workspaceId),
+      );
+      const nextClassrooms = filteredClassrooms.length > 0 ? filteredClassrooms : rawClassrooms;
+
       const nextAssessments = (assessmentRows || []) as ScoreAssessmentRow[];
       const nextAssessmentIds = nextAssessments.map((assessment) => assessment.id);
       const initialScope = getTeacherClassroomScope(session, nextClassrooms);
       const preferredHomeroomId = initialScope.hasHomeroom ? initialScope.homeroomClassrooms[0].id : undefined;
+      if (!hasSavedOrUrlPerspectiveRef.current && initialScope.hasHomeroom && initialScope.homeroomClassrooms.length === 1) {
+        setPerspective('classroom');
+      }
       const nextClassroomId = getClassroomWithRoster(nextClassrooms, nextStudents, nextAssessments, preferredHomeroomId);
       const nextSelectedAssessmentId =
         nextAssessments.find((assessment) => assessment.classroom_id === nextClassroomId && assessment.status !== 'archived')?.id ||
         nextAssessments.find((assessment) => assessment.status !== 'archived')?.id ||
         '';
 
+      const pickedTerm =
+        (termRows || []).find((row) => row.is_current) ||
+        (termRows || []).find((row) => row.status === 'open') ||
+        termRows?.[0];
+      setActiveAcademicTerm(parseActiveAcademicTerm(pickedTerm?.term_name));
+
       let nextEntries: ScoreEntryRow[] = [];
       if (nextAssessmentIds.length > 0) {
-        const { data: entryRows, error: entryError } = await supabase
-          .from('score_entries')
-          .select('id,assessment_id,student_id,score,note')
-          .in('assessment_id', nextAssessmentIds);
+        const assessmentIdSet = new Set(nextAssessmentIds);
+        const PAGE_SIZE = 1000;
+        const MAX_PAGES = 25;
+        const collectedEntries: ScoreEntryRow[] = [];
 
-        if (!isMounted) return;
+        for (let page = 0; page < MAX_PAGES; page += 1) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+          const { data: entryRows, error: entryError } = await supabase
+            .from('score_entries')
+            .select('id,assessment_id,student_id,score,note')
+            .eq('workspace_id', workspaceId)
+            .order('id', { ascending: true })
+            .range(from, to);
 
-        if (entryError) {
-          setNotice(entryError.message);
-          setIsLoading(false);
-          return;
+          if (!isMounted) return;
+
+          if (entryError) {
+            setNotice(entryError.message);
+            setIsLoading(false);
+            return;
+          }
+
+          const batch = (entryRows || []) as ScoreEntryRow[];
+          collectedEntries.push(...batch);
+          if (batch.length < PAGE_SIZE) break;
         }
 
-        nextEntries = (entryRows || []) as ScoreEntryRow[];
+        nextEntries = collectedEntries.filter((row) => assessmentIdSet.has(row.assessment_id));
       }
 
       setClassrooms(nextClassrooms);
@@ -1192,12 +1279,15 @@ export function ScoresPage({ session }: ScoresPageProps) {
         workspace_id: session.workspace?.id || 'demo-workspace',
       }));
 
+      const targetCreated = newItems.find((item) => item.classroom_id === classroomId) || newItems[0];
       setAssessments((current) => [...newItems, ...current]);
       setSubjectFilter(subjectName);
-      setSelectedAssessmentId(newItems[0].id);
+      if (targetCreated) setSelectedAssessmentId(targetCreated.id);
       setForm((current) => ({ ...current, targetClassroomIds: [], title: '' }));
       setIsCreateModalOpen(false);
-      handleScoreViewChange('entry');
+      if (scoreView !== 'excel' && scoreView !== 'entry') {
+        handleScoreViewChange(getDefaultScoreView());
+      }
       setNotice(`สร้างชุดคะแนนในโหมดตัวอย่างแล้ว (${newItems.length} ห้องเรียน)`);
       setIsSubmitting(false);
       return;
@@ -1250,6 +1340,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     }
 
     const createdList = (insertResult.data || []) as ScoreAssessmentRow[];
+    const targetCreated = createdList.find((item) => item.classroom_id === classroomId) || createdList[0];
     await writeAuditLog(session, {
       action: 'score_assessment.batch_created',
       entityId: createdList[0]?.id || '',
@@ -1267,10 +1358,12 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
     setAssessments((current) => [...createdList, ...current]);
     setSubjectFilter(subjectName);
-    if (createdList[0]) setSelectedAssessmentId(createdList[0].id);
+    if (targetCreated) setSelectedAssessmentId(targetCreated.id);
     setForm((current) => ({ ...current, targetClassroomIds: [], title: '' }));
     setIsCreateModalOpen(false);
-    handleScoreViewChange('entry');
+    if (scoreView !== 'excel' && scoreView !== 'entry') {
+      handleScoreViewChange(getDefaultScoreView());
+    }
     setNotice(`สร้างชุดคะแนนแล้ว (${createdList.length} ห้องเรียน)`);
     setIsSubmitting(false);
   }
@@ -1453,8 +1546,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
     setIsSubmitting(false);
   }
 
-  async function handleSaveScores() {
-    if (!selectedAssessment) return;
+  async function handleSaveScores(): Promise<boolean> {
+    if (!selectedAssessment) return false;
 
     setIsSubmitting(true);
     setNotice(null);
@@ -1482,7 +1575,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     if (payload.length !== classroomStudents.length) {
       setNotice(`คะแนนต้องอยู่ระหว่าง 0 ถึง ${selectedAssessment.max_score}`);
       setIsSubmitting(false);
-      return;
+      return false;
     }
 
     if (!supabase || isDemoSession(session)) {
@@ -1503,12 +1596,12 @@ export function ScoresPage({ session }: ScoresPageProps) {
       ]);
       setNotice('บันทึกคะแนนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
-      return;
+      return true;
     }
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       enqueueScoreEntriesOffline(payload, `บันทึกคะแนน: ${selectedAssessment.title}`);
-      return;
+      return true;
     }
 
     const { data, error } = await supabase
@@ -1519,11 +1612,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
     if (error) {
       if (isLikelyNetworkError(error)) {
         enqueueScoreEntriesOffline(payload, `บันทึกคะแนน: ${selectedAssessment.title}`);
-        return;
+        return true;
       }
       setNotice(error.message);
       setIsSubmitting(false);
-      return;
+      return false;
     }
 
     const savedEntries = (data || []) as ScoreEntryRow[];
@@ -1549,6 +1642,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     ]);
     setNotice('บันทึกคะแนนแล้ว');
     setIsSubmitting(false);
+    return true;
   }
 
   async function handlePublishAssessment() {
@@ -1923,9 +2017,59 @@ export function ScoresPage({ session }: ScoresPageProps) {
     return count;
   }, [classroomStudents, contextAssessments, entriesByAssessment, gridScores]);
 
+  function confirmDiscardUnsavedChanges(): boolean {
+    const pending =
+      scoreView === 'excel'
+        ? unsavedGridCount
+        : scoreView === 'entry'
+          ? unsavedCount
+          : 0;
+    if (pending <= 0) return true;
+    return window.confirm(
+      `คุณมีคะแนนที่แก้ไขค้างอยู่ ${pending} รายการและยังไม่ได้กดบันทึก\nต้องการเปลี่ยนหน้าโดยไม่บันทึกใช่หรือไม่?`,
+    );
+  }
+
+  useEffect(() => {
+    const hasPending =
+      (scoreView === 'excel' && unsavedGridCount > 0) ||
+      (scoreView === 'entry' && unsavedCount > 0);
+    if (!hasPending) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [scoreView, unsavedCount, unsavedGridCount]);
+
+  function handleScoreViewChange(nextScoreView: ScoreView) {
+    if (nextScoreView === scoreView) return;
+    if (!confirmDiscardUnsavedChanges()) return;
+    setScoreView(nextScoreView);
+    navigate(withDemoContext(`/app/dashboard?view=scores&scoreView=${nextScoreView}&perspective=${perspective}`, location.search), { replace: true });
+  }
+
+  function handlePerspectiveChange(nextPerspective: ScorePerspective) {
+    if (nextPerspective === perspective) return;
+    if (!confirmDiscardUnsavedChanges()) return;
+    setPerspective(nextPerspective);
+    try {
+      window.localStorage.setItem(SCORES_PERSPECTIVE_STORAGE_KEY, nextPerspective);
+    } catch {
+      // Ignore storage write errors.
+    }
+    const params = new URLSearchParams(location.search);
+    params.set('perspective', nextPerspective);
+    if (!params.get('scoreView')) {
+      params.set('scoreView', scoreView);
+    }
+    navigate(withDemoContext(`/app/dashboard?${params.toString()}`, location.search), { replace: true });
+  }
+
   // Save all changes in Excel Grid across all assessments
-  async function handleSaveGridScores() {
-    if (contextAssessments.length === 0 || classroomStudents.length === 0) return;
+  async function handleSaveGridScores(): Promise<boolean> {
+    if (contextAssessments.length === 0 || classroomStudents.length === 0) return false;
     setIsSubmitting(true);
     setNotice(null);
 
@@ -1950,7 +2094,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         if (score !== null && (!Number.isFinite(score) || score < 0 || score > assessment.max_score)) {
           setNotice(`คะแนนในชุด "${assessment.title}" ต้องอยู่ระหว่าง 0 ถึง ${assessment.max_score}`);
           setIsSubmitting(false);
-          return;
+          return false;
         }
 
         if (rawScore !== originalScore) {
@@ -1969,7 +2113,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
     if (payload.length === 0) {
       setNotice('ไม่มีการเปลี่ยนแปลงคะแนนที่ต้องบันทึก');
       setIsSubmitting(false);
-      return;
+      return true;
     }
 
     if (!supabase || isDemoSession(session)) {
@@ -1990,12 +2134,12 @@ export function ScoresPage({ session }: ScoresPageProps) {
       });
       setNotice(`บันทึกคะแนนในตารางรวมเรียบร้อย (${payload.length} ช่อง) [โหมดตัวอย่าง]`);
       setIsSubmitting(false);
-      return;
+      return true;
     }
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       enqueueScoreEntriesOffline(payload, `ตารางคะแนนรวม ${subjectFilter || activeClassroom?.name || ''}`);
-      return;
+      return true;
     }
 
     const { data, error } = await supabase
@@ -2015,11 +2159,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
     if (error) {
       if (isLikelyNetworkError(error)) {
         enqueueScoreEntriesOffline(payload, `ตารางคะแนนรวม ${subjectFilter || activeClassroom?.name || ''}`);
-        return;
+        return true;
       }
       setNotice(error.message);
       setIsSubmitting(false);
-      return;
+      return false;
     }
 
     const savedEntries = (data || []) as ScoreEntryRow[];
@@ -2044,6 +2188,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
     setNotice(`บันทึกคะแนนในตารางรวมเรียบร้อย (${payload.length} ช่อง)`);
     setIsSubmitting(false);
+    return true;
   }
 
   function handleResetGridScores() {
@@ -2143,7 +2288,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
       if (missingAssessments.length > 0) {
         queue.push({ ...row, academicStatus: 'incomplete_r', missingAssessments });
-      } else if (row.plannedWeight > 0 && row.finalPercent < 50) {
+      } else if (row.hasAnyScore && row.plannedWeight > 0 && row.finalPercent < 50) {
         queue.push({ ...row, academicStatus: 'fail_0', missingAssessments: [] });
       }
     });
@@ -2438,6 +2583,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   className="h-10 rounded-2xl border border-indigo-200 bg-indigo-50/50 px-3 text-xs font-black text-indigo-950 outline-none transition focus:border-indigo-500 focus:bg-white"
                   onChange={(event) => {
                     const newSub = event.target.value;
+                    if (newSub !== subjectFilter && !confirmDiscardUnsavedChanges()) return;
                     setSubjectFilter(newSub);
                     const matchingClassrooms = classrooms.filter((c) =>
                       assessments.some(
@@ -2479,7 +2625,10 @@ export function ScoresPage({ session }: ScoresPageProps) {
                           ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
                       }`}
-                      onClick={() => setClassroomId(c.id)}
+                      onClick={() => {
+                        if (c.id !== classroomId && !confirmDiscardUnsavedChanges()) return;
+                        setClassroomId(c.id);
+                      }}
                       type="button"
                     >
                       <span>ห้อง {c.name}</span>
@@ -2500,6 +2649,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     onChange={(e) => {
                       const cid = e.target.value;
                       if (!cid) return;
+                      if (cid !== classroomId && !confirmDiscardUnsavedChanges()) return;
                       setClassroomId(cid);
                       setForm((cur) => ({
                         ...cur,
@@ -2527,7 +2677,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <span className="text-xs font-black text-slate-500 shrink-0">ห้องเรียน:</span>
                 <select
                   className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                  onChange={(event) => setClassroomId(event.target.value)}
+                  onChange={(event) => {
+                    const nextClassroomId = event.target.value;
+                    if (nextClassroomId !== classroomId && !confirmDiscardUnsavedChanges()) return;
+                    setClassroomId(nextClassroomId);
+                  }}
                   value={classroomId}
                 >
                   {teacherScope.hasHomeroom ? (
@@ -2564,7 +2718,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <span className="text-xs font-black text-slate-500 shrink-0">รายวิชา:</span>
                 <select
                   className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-800 outline-none transition focus:border-cyan-400 focus:bg-white"
-                  onChange={(event) => setSubjectFilter(event.target.value)}
+                  onChange={(event) => {
+                    const nextSubject = event.target.value;
+                    if (nextSubject !== subjectFilter && !confirmDiscardUnsavedChanges()) return;
+                    setSubjectFilter(nextSubject);
+                  }}
                   value={subjectFilter}
                 >
                   {subjectOptions.length === 0 ? <option value="">ยังไม่มีวิชา</option> : null}
@@ -2622,7 +2780,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
             <span className="text-xs font-black text-slate-500 shrink-0">เลือกชิ้นงาน:</span>
             <select
               className="h-10 max-w-[260px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
-              onChange={(event) => setSelectedAssessmentId(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                if (nextId !== selectedAssessment?.id && !confirmDiscardUnsavedChanges()) return;
+                setSelectedAssessmentId(nextId);
+              }}
               value={selectedAssessment?.id || ''}
             >
               {contextAssessments.map((item) => (
@@ -2673,25 +2835,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 <p className="mt-1 text-xs font-bold text-slate-500">
                   ห้อง {activeClassroom?.name} | เลื่อนช่องได้ด้วยปุ่มลูกศร (← ↑ → ↓) หรือ Tab | วางจาก Excel ได้โดยตรง | ตัดเกรดคำนวณสดทันที
                 </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 hover:bg-slate-100 transition"
-                  onClick={exportGridCsv}
-                  type="button"
-                >
-                  <Download size={14} aria-hidden="true" />
-                  ส่งออก Excel / CSV
-                </button>
-                <button
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-4 text-xs font-black text-white hover:bg-cyan-700 shadow-sm transition"
-                  onClick={() => setIsCreateModalOpen(true)}
-                  type="button"
-                >
-                  <Plus size={14} aria-hidden="true" />
-                  เพิ่มช่องคะแนนใหม่
-                </button>
               </div>
             </div>
 
@@ -2812,6 +2955,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     {filteredStudents.map((student, sIdx) => {
                       let earnedTotal = 0;
                       let plannedTotal = 0;
+                      let hasAnyScore = false;
 
                       // Pre-calculate live totals for this student row
                       contextAssessments.forEach((assessment) => {
@@ -2822,12 +2966,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
 
                         plannedTotal += assessment.weight;
                         if (num !== null && Number.isFinite(num)) {
+                          hasAnyScore = true;
                           earnedTotal += (num / assessment.max_score) * assessment.weight;
                         }
                       });
 
                       const finalPercent = plannedTotal > 0 ? (earnedTotal / plannedTotal) * 100 : 0;
-                      const gradeInfo = getThaiGrade(finalPercent);
+                      const gradeInfo = getThaiGrade(hasAnyScore ? finalPercent : null);
 
                       return (
                         <tr className="hover:bg-slate-50 transition group" key={student.id}>
@@ -2945,21 +3090,23 @@ export function ScoresPage({ session }: ScoresPageProps) {
                           <td className="px-3 py-2 text-center border-r border-slate-200">
                             <span
                               className={`rounded-full px-2 py-0.5 text-[11px] font-black ring-1 ${
-                                finalPercent < 50
-                                  ? 'bg-rose-50 text-rose-700 ring-rose-200'
-                                  : finalPercent < 70
-                                    ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                                    : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                                !hasAnyScore
+                                  ? 'bg-slate-100 text-slate-500 ring-slate-200'
+                                  : finalPercent < 50
+                                    ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                                    : finalPercent < 70
+                                      ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                                      : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
                               }`}
                             >
-                              {finalPercent.toFixed(1)}%
+                              {hasAnyScore ? `${finalPercent.toFixed(1)}%` : '-'}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center bg-cyan-50/40">
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-black ring-1 ${gradeInfo.badgeClass}`}
                             >
-                              เกรด {gradeInfo.grade}
+                              {hasAnyScore ? `เกรด ${gradeInfo.grade}` : 'รอคะแนน'}
                             </span>
                           </td>
                         </tr>
@@ -3580,9 +3727,91 @@ export function ScoresPage({ session }: ScoresPageProps) {
             </div>
           )}
 
-          {/* Master Table */}
+          {/* Master Table + Mobile Card List */}
           <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Mobile Card List (< md) — thumb-friendly, zero horizontal scrolling */}
+            <div className="space-y-2.5 md:hidden">
+              {studentGradebookRows.map((row) => {
+                const gradeInfo = getThaiGrade(row.hasAnyScore ? row.finalPercent : null);
+                const missingCount = missingCountByStudent.get(row.student.id) || 0;
+
+                return (
+                  <div
+                    key={row.student.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-[11px] font-bold text-slate-400">
+                          รหัส {row.student.student_code || '-'}
+                        </p>
+                        <p className="truncate text-sm font-black text-slate-900">
+                          {row.student.first_name} {row.student.last_name}
+                          {row.student.nickname ? (
+                            <span className="ml-1.5 text-xs font-bold text-slate-400">
+                              ({row.student.nickname})
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black ring-1 ${gradeInfo.badgeClass}`}
+                        >
+                          {row.hasAnyScore ? `เกรด ${gradeInfo.grade}` : 'รอคะแนน'}
+                        </span>
+                        {missingCount > 0 ? (
+                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                            ค้าง {missingCount} ช่อง
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
+                      {scoreBandConfigs.map((band) => {
+                        const score = row.bandScores[band.key];
+                        return (
+                          <div key={band.key} className="rounded-xl border border-slate-200/70 bg-white px-2 py-1.5">
+                            <p className="truncate text-[10px] font-bold text-slate-500">{band.label}</p>
+                            <p className="mt-0.5 font-mono text-xs font-black text-slate-900">
+                              {formatScore(score.earnedWeight)}
+                              <span className="font-normal text-slate-400">/{formatScore(score.plannedWeight)}</span>
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-2.5 flex items-center justify-between border-t border-slate-200/70 pt-2 text-xs font-bold">
+                      <span className="text-slate-600">
+                        รวม:{' '}
+                        <strong className="font-mono text-slate-900">
+                          {formatScore(row.earnedTotal)}
+                        </strong>{' '}
+                        <span className="font-normal text-slate-400">/ {formatScore(row.plannedWeight)}</span>
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-black ring-1 ${
+                          !row.hasAnyScore
+                            ? 'bg-slate-100 text-slate-500 ring-slate-200'
+                            : row.completionPercent < 100
+                              ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                              : row.finalPercent < 50
+                                ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                        }`}
+                      >
+                        {row.hasAnyScore ? `${row.finalPercent.toFixed(1)}%` : '-'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Master Table (md+) */}
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[850px] divide-y divide-slate-100 text-left">
                 <thead>
                   <tr className="bg-slate-50/80 text-[11px] font-black uppercase text-slate-500">
@@ -3598,7 +3827,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
                   {studentGradebookRows.map((row) => {
-                    const gradeInfo = getThaiGrade(row.finalPercent);
+                    const gradeInfo = getThaiGrade(row.hasAnyScore ? row.finalPercent : null);
 
                     return (
                       <tr className="hover:bg-slate-50/80 transition" key={row.student.id}>
@@ -3627,14 +3856,16 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         <td className="whitespace-nowrap px-3 py-3">
                           <span
                             className={`rounded-full px-2.5 py-1 text-xs font-black ring-1 ${
-                              row.completionPercent < 100
-                                ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                                : row.finalPercent < 50
-                                  ? 'bg-rose-50 text-rose-700 ring-rose-200'
-                                  : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                              !row.hasAnyScore
+                                ? 'bg-slate-100 text-slate-500 ring-slate-200'
+                                : row.completionPercent < 100
+                                  ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                                  : row.finalPercent < 50
+                                    ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                                    : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
                             }`}
                           >
-                            {row.finalPercent.toFixed(1)}%
+                            {row.hasAnyScore ? `${row.finalPercent.toFixed(1)}%` : '-'}
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-center">
@@ -3642,7 +3873,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ring-1 ${gradeInfo.badgeClass}`}
                             >
-                              เกรด {gradeInfo.grade} ({gradeInfo.label})
+                              {row.hasAnyScore ? `เกรด ${gradeInfo.grade} (${gradeInfo.label})` : 'รอคะแนน'}
                             </span>
                             {(missingCountByStudent.get(row.student.id) || 0) > 0 && (
                               <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900">
@@ -4035,8 +4266,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-md hover:bg-indigo-500 transition disabled:opacity-50"
                 disabled={isSubmitting}
                 onClick={async () => {
-                  await handleSaveGridScores();
-                  setClassroomId(nextClassroom.id);
+                  const ok = await handleSaveGridScores();
+                  if (ok) setClassroomId(nextClassroom.id);
                 }}
                 title={`บันทึกคะแนนห้องนี้แล้วสลับไปกรอกคะแนนห้อง ${nextClassroom.name} ทันที`}
                 type="button"
@@ -4084,8 +4315,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                 className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-black text-white shadow-md hover:bg-indigo-500 transition disabled:opacity-50"
                 disabled={isSubmitting}
                 onClick={async () => {
-                  await handleSaveScores();
-                  setClassroomId(nextClassroom.id);
+                  const ok = await handleSaveScores();
+                  if (ok) setClassroomId(nextClassroom.id);
                 }}
                 title={`บันทึกคะแนนห้องนี้แล้วสลับไปกรอกคะแนนห้อง ${nextClassroom.name} ทันที`}
                 type="button"
@@ -4103,11 +4334,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
         <div
           aria-labelledby="modal-create-assessment-title"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs"
           role="dialog"
         >
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-scale-up">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 pb-4 pt-5">
               <div className="flex items-center gap-2">
                 <div className="grid h-9 w-9 place-items-center rounded-xl bg-cyan-50 text-cyan-700">
                   <Plus size={18} aria-hidden="true" />
@@ -4130,284 +4361,275 @@ export function ScoresPage({ session }: ScoresPageProps) {
               </button>
             </div>
 
-            {/* Quick Presets */}
-            <div className="mt-4 rounded-2xl bg-slate-50 p-3 border border-slate-100">
-              <span className="text-[11px] font-black uppercase text-slate-500">เลือกโครงสร้างคะแนนด่วน:</span>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {[
-                  { category: 'assignment' as AssessmentCategory, maxScore: '10', title: 'คะแนนระหว่างเรียน', weight: '10' },
-                  { category: 'midterm' as AssessmentCategory, maxScore: String(scoreRatio.midterm || 20), title: 'สอบกลางภาค', weight: String(scoreRatio.midterm || 20) },
-                  { category: 'final' as AssessmentCategory, maxScore: String(scoreRatio.final || 30), title: 'สอบปลายภาค', weight: String(scoreRatio.final || 30) },
-                ].map((preset) => (
-                  <button
-                    className="rounded-xl border border-slate-200 bg-white p-2 text-center text-xs font-black text-slate-800 transition hover:border-cyan-400 hover:bg-cyan-50"
-                    key={preset.category}
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        category: preset.category,
-                        maxScore: preset.maxScore,
-                        title: preset.title,
-                        weight: preset.weight,
-                      }))
-                    }
-                    type="button"
-                  >
-                    <p className="truncate text-slate-900">{preset.title}</p>
-                    <p className="mt-0.5 text-[10px] font-bold text-cyan-700">{preset.maxScore} คะแนน ({preset.weight}%)</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Form */}
-            <form className="mt-4 grid gap-3" onSubmit={(event) => void handleCreateAssessment(event)}>
-              {/* Target Classrooms Selection */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
-                    <Users size={14} className="text-indigo-600" />
-                    ใช้กับห้องเรียนใดบ้าง:
+            {/* Scrollable Form Body + Fixed Footer */}
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(event) => void handleCreateAssessment(event)}
+            >
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
+                {/* 1-Click Quick Presets (Single Unified Bar) */}
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+                  <span className="mb-2 flex items-center gap-1.5 text-[11px] font-black text-sky-950">
+                    <Sparkles size={14} className="text-sky-600" aria-hidden="true" />
+                    เลือกแม่แบบชุดคะแนนด่วน (คลิกเดียวกรอกครบ):
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                     <button
                       type="button"
-                      className="text-[11px] font-bold text-indigo-700 hover:underline"
-                      onClick={() => setForm((c) => ({ ...c, targetClassroomIds: classrooms.map((cl) => cl.id) }))}
+                      onClick={() => {
+                        setForm((c) => ({
+                          ...c,
+                          title: 'แบบฝึกหัด/ใบงานย่อย',
+                          category: 'assignment',
+                          maxScore: '10',
+                          weight: '10',
+                        }));
+                      }}
+                      className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/50"
                     >
-                      เลือกทุกห้อง
+                      <p className="inline-flex items-center gap-1 font-black text-[#1C342B]">
+                        <ClipboardList size={13} className="text-[#2F7D5B]" aria-hidden="true" /> ใบงาน
+                      </p>
+                      <p className="text-[10px] text-[#5A6F64]">เต็ม 10 · น้ำหนัก 10</p>
                     </button>
-                    <span className="text-slate-300">|</span>
+
                     <button
                       type="button"
-                      className="text-[11px] font-bold text-slate-500 hover:underline"
-                      onClick={() => setForm((c) => ({ ...c, targetClassroomIds: [classroomId] }))}
+                      onClick={() => {
+                        setForm((c) => ({
+                          ...c,
+                          title: 'แบบทดสอบย่อยท้ายบท',
+                          category: 'quiz',
+                          maxScore: '20',
+                          weight: '10',
+                        }));
+                      }}
+                      className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 transition hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40"
                     >
-                      เฉพาะห้องปัจจุบัน
+                      <p className="inline-flex items-center gap-1 font-black text-[#1C342B]">
+                        <BarChart3 size={13} className="text-[#2D72A3]" aria-hidden="true" /> สอบย่อย
+                      </p>
+                      <p className="text-[10px] text-[#5A6F64]">เต็ม 20 · น้ำหนัก 10</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const midtermWeight = String(scoreRatio.midterm || 20);
+                        setForm((c) => ({
+                          ...c,
+                          title: 'สอบวัดผลกลางภาค',
+                          category: 'midterm',
+                          maxScore: midtermWeight,
+                          weight: midtermWeight,
+                        }));
+                      }}
+                      className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 transition hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40"
+                    >
+                      <p className="inline-flex items-center gap-1 font-black text-[#1C342B]">
+                        <Target size={13} className="text-[#D98B26]" aria-hidden="true" /> กลางภาค
+                      </p>
+                      <p className="text-[10px] text-[#5A6F64]">
+                        เต็ม {scoreRatio.midterm || 20} · {scoreRatio.midterm || 20}%
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const finalWeight = String(scoreRatio.final || 30);
+                        setForm((c) => ({
+                          ...c,
+                          title: 'สอบวัดผลปลายภาค',
+                          category: 'final',
+                          maxScore: finalWeight,
+                          weight: finalWeight,
+                        }));
+                      }}
+                      className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 transition hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40"
+                    >
+                      <p className="inline-flex items-center gap-1 font-black text-[#1C342B]">
+                        <Award size={13} className="text-[#C25970]" aria-hidden="true" /> ปลายภาค
+                      </p>
+                      <p className="text-[10px] text-[#5A6F64]">
+                        เต็ม {scoreRatio.final || 30} · {scoreRatio.final || 30}%
+                      </p>
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {classrooms.map((c) => {
-                    const isChecked =
-                      form.targetClassroomIds.length === 0
-                        ? c.id === classroomId
-                        : form.targetClassroomIds.includes(c.id);
-                    return (
-                      <label
-                        key={c.id}
-                        className={`flex items-center gap-2 rounded-xl p-2 text-xs font-bold border transition cursor-pointer ${
-                          isChecked
-                            ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-black ring-1 ring-indigo-200'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                        }`}
+                {/* Target Classrooms Selection */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-black text-slate-700">
+                      <Users size={14} className="text-indigo-600" aria-hidden="true" />
+                      ใช้กับห้องเรียนใดบ้าง:
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="text-[11px] font-bold text-indigo-700 hover:underline"
+                        onClick={() => setForm((c) => ({ ...c, targetClassroomIds: classrooms.map((cl) => cl.id) }))}
                       >
-                        <input
-                          type="checkbox"
-                          className="rounded text-indigo-600 focus:ring-indigo-500"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const currentList =
-                              form.targetClassroomIds.length === 0 ? [classroomId] : form.targetClassroomIds;
-                            if (e.target.checked) {
-                              setForm((cur) => ({ ...cur, targetClassroomIds: [...currentList, c.id] }));
-                            } else {
-                              setForm((cur) => ({
-                                ...cur,
-                                targetClassroomIds: currentList.filter((id) => id !== c.id),
-                              }));
-                            }
-                          }}
-                        />
-                        <span className="truncate">{c.name}</span>
-                      </label>
-                    );
-                  })}
+                        เลือกทุกห้อง
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        className="text-[11px] font-bold text-slate-500 hover:underline"
+                        onClick={() => setForm((c) => ({ ...c, targetClassroomIds: [classroomId] }))}
+                      >
+                        เฉพาะห้องปัจจุบัน
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {classrooms.map((c) => {
+                      const isChecked =
+                        form.targetClassroomIds.length === 0
+                          ? c.id === classroomId
+                          : form.targetClassroomIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2 text-xs font-bold transition ${
+                            isChecked
+                              ? 'border-indigo-300 bg-indigo-50 font-black text-indigo-950 ring-1 ring-indigo-200'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const currentList =
+                                form.targetClassroomIds.length === 0 ? [classroomId] : form.targetClassroomIds;
+                              if (e.target.checked) {
+                                setForm((cur) => ({ ...cur, targetClassroomIds: [...currentList, c.id] }));
+                              } else {
+                                setForm((cur) => ({
+                                  ...cur,
+                                  targetClassroomIds: currentList.filter((id) => id !== c.id),
+                                }));
+                              }
+                            }}
+                          />
+                          <span className="truncate">{c.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block">
+                    <span className="text-xs font-black text-slate-600">รายวิชา</span>
+                    <input
+                      className="nexus-field mt-1.5 h-10 w-full px-3 text-xs font-bold"
+                      list="score-subject-options-modal"
+                      onChange={(event) => {
+                        setForm((current) => ({ ...current, subjectName: event.target.value }));
+                      }}
+                      value={form.subjectName}
+                    />
+                    <datalist id="score-subject-options-modal">
+                      {subjectOptions.map((subject) => (
+                        <option key={subject} value={subject} />
+                      ))}
+                    </datalist>
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className="text-xs font-black text-slate-600">ชื่อชุดคะแนน</span>
+                  <input
+                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
+                    onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                    placeholder="เช่น แบบฝึกหัดบทที่ 2 / สอบกลางภาค"
+                    required
+                    value={form.title}
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-black text-slate-600">ประเภท</span>
+                    <select
+                      className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, category: event.target.value as AssessmentCategory }))
+                      }
+                      value={form.category}
+                    >
+                      {categoryOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-black text-slate-600">วันที่ประเมิน</span>
+                    <ThaiDatePicker
+                      className="mt-1.5 h-10 px-3 text-xs font-bold"
+                      onValueChange={(value) => setForm((current) => ({ ...current, assessmentDate: value }))}
+                      value={form.assessmentDate}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-black text-slate-600">คะแนนเต็ม</span>
+                    <input
+                      className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
+                      min="1"
+                      onChange={(event) => setForm((current) => ({ ...current, maxScore: event.target.value }))}
+                      type="number"
+                      value={form.maxScore}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-black text-slate-600">น้ำหนักคะแนน (%)</span>
+                    <input
+                      className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
+                      min="1"
+                      onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
+                      type="number"
+                      value={form.weight}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] p-2.5 text-[11px] font-bold text-[#5A6F64]">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Lightbulb size={13} className="shrink-0 text-[#D98B26]" aria-hidden="true" />
+                    ทิป: ถ้าทำได้ 10 ข้อ คิด 10 คะแนน ให้ใส่ตัวเลขเท่ากัน
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setForm((c) => ({ ...c, weight: c.maxScore }))}
+                    className="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-black text-cyan-800 hover:bg-slate-100"
+                  >
+                    กดให้เท่ากัน (1:1)
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="block">
-                  <span className="text-xs font-black text-slate-600">รายวิชา</span>
-                  <input
-                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold w-full"
-                    list="score-subject-options-modal"
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, subjectName: event.target.value }));
-                      setSubjectFilter(event.target.value);
-                    }}
-                    value={form.subjectName}
-                  />
-                  <datalist id="score-subject-options-modal">
-                    {subjectOptions.map((subject) => (
-                      <option key={subject} value={subject} />
-                    ))}
-                  </datalist>
-                </label>
-              </div>
-
-              {/* ⚡ 1-Click Quick Preset for Teachers */}
-              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
-                <span className="text-[11px] font-black text-sky-950 flex items-center gap-1.5 mb-2">
-                  <Sparkles size={14} className="text-sky-600" />
-                  เลือกแม่แบบชุดคะแนนด่วน (คลิกเดียวกรอกครบ):
-                </span>
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((c) => ({
-                        ...c,
-                        title: 'แบบฝึกหัด/ใบงานย่อย',
-                        category: 'assignment',
-                        maxScore: '10',
-                        weight: '10',
-                      }));
-                    }}
-                    className="rounded-xl border border-sky-200 bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-sky-400 hover:bg-sky-50/50 transition"
-                  >
-                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><ClipboardList size={13} className="text-[#2F7D5B]" aria-hidden="true" /> ใบงาน (10 คะแนน)</p>
-                    <p className="text-[10px] text-[#5A6F64]">เต็ม 10 · น้ำหนัก 10</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((c) => ({
-                        ...c,
-                        title: 'แบบทดสอบย่อยท้ายบท',
-                        category: 'quiz',
-                        maxScore: '20',
-                        weight: '10',
-                      }));
-                    }}
-                    className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 transition"
-                  >
-                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><BarChart3 size={13} className="text-[#2D72A3]" aria-hidden="true" /> สอบย่อย (20 ข้อ)</p>
-                    <p className="text-[10px] text-[#5A6F64]">เต็ม 20 · หารคิด 10</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((c) => ({
-                        ...c,
-                        title: 'สอบวัดผลกลางภาค',
-                        category: 'midterm',
-                        maxScore: '20',
-                        weight: '20',
-                      }));
-                    }}
-                    className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 transition"
-                  >
-                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><Target size={13} className="text-[#D98B26]" aria-hidden="true" /> กลางภาค (20 คะแนน)</p>
-                    <p className="text-[10px] text-[#5A6F64]">เต็ม 20 · น้ำหนัก 20</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((c) => ({
-                        ...c,
-                        title: 'สอบวัดผลปลายภาค',
-                        category: 'final',
-                        maxScore: '30',
-                        weight: '30',
-                      }));
-                    }}
-                    className="rounded-xl border border-[#DCE3D7] bg-white p-2 text-left text-xs font-bold text-slate-700 hover:border-[#2F7D5B] hover:bg-[#E9F0EA]/40 transition"
-                  >
-                    <p className="font-black text-[#1C342B] inline-flex items-center gap-1.5"><Award size={13} className="text-[#C25970]" aria-hidden="true" /> ปลายภาค (30 คะแนน)</p>
-                    <p className="text-[10px] text-[#5A6F64]">เต็ม 30 · น้ำหนัก 30</p>
-                  </button>
-                </div>
-              </div>
-
-              <label className="block">
-                <span className="text-xs font-black text-slate-600">ชื่อชุดคะแนน</span>
-                <input
-                  className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
-                  onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="เช่น แบบฝึกหัดบทที่ 2 / สอบกลางภาค"
-                  required
-                  value={form.title}
-                />
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black text-slate-600">ประเภท</span>
-                  <select
-                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, category: event.target.value as AssessmentCategory }))
-                    }
-                    value={form.category}
-                  >
-                    {categoryOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="text-xs font-black text-slate-600">วันที่ประเมิน</span>
-                  <ThaiDatePicker
-                    className="mt-1.5 h-10 px-3 text-xs font-bold"
-                    onValueChange={(value) => setForm((current) => ({ ...current, assessmentDate: value }))}
-                    value={form.assessmentDate}
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-black text-slate-600">คะแนนเต็ม</span>
-                  <input
-                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
-                    min="1"
-                    onChange={(event) => setForm((current) => ({ ...current, maxScore: event.target.value }))}
-                    type="number"
-                    value={form.maxScore}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-xs font-black text-slate-600">น้ำหนักคะแนน (%)</span>
-                  <input
-                    className="nexus-field mt-1.5 h-10 px-3 text-xs font-bold"
-                    min="1"
-                    onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))}
-                    type="number"
-                    value={form.weight}
-                  />
-                </label>
-              </div>
-
-              <div className="rounded-xl bg-[#FAFBF8] border border-[#DCE3D7] p-2.5 text-[11px] font-bold text-[#5A6F64] flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5"><Lightbulb size={13} className="text-[#D98B26] shrink-0" aria-hidden="true" /> ทิป: ถ้าทำได้ 10 ข้อ คิด 10 คะแนน ให้ใส่ตัวเลขเท่ากัน</span>
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4">
                 <button
-                  type="button"
-                  onClick={() => setForm((c) => ({ ...c, weight: c.maxScore }))}
-                  className="rounded-lg bg-white px-2 py-0.5 text-[11px] font-black text-cyan-800 border border-slate-200 hover:bg-slate-100"
-                >
-                  กดให้เท่ากัน (1:1)
-                </button>
-              </div>
-
-              <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 hover:bg-slate-50 transition"
+                  className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 transition hover:bg-slate-50"
                   onClick={() => setIsCreateModalOpen(false)}
                   type="button"
                 >
                   ยกเลิก
                 </button>
                 <button
-                  className="h-10 rounded-2xl bg-cyan-600 px-5 text-xs font-black text-white shadow-sm hover:bg-cyan-700 transition disabled:opacity-50"
+                  className="h-10 rounded-2xl bg-cyan-600 px-5 text-xs font-black text-white shadow-sm transition hover:bg-cyan-700 disabled:opacity-50"
                   disabled={isSubmitting || isLoading}
                   type="submit"
                 >
@@ -5568,7 +5790,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           isOpen={isAcademicSubjectsOpen}
           onClose={() => setIsAcademicSubjectsOpen(false)}
           session={session}
-          term="1"
+          term={activeAcademicTerm}
         />
 
         <OfficialAcademicDocumentsModal
@@ -5578,7 +5800,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           isOpen={isOfficialDocumentsOpen}
           onClose={() => setIsOfficialDocumentsOpen(false)}
           session={session}
-          term="1"
+          term={activeAcademicTerm}
         />
 
         <TermClosingWizardModal
@@ -5588,7 +5810,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
           isOpen={isTermClosingOpen}
           onClose={() => setIsTermClosingOpen(false)}
           session={session}
-          term="1"
+          term={activeAcademicTerm}
         />
       </Suspense>
 

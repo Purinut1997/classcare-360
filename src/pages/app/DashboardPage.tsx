@@ -1446,7 +1446,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
       detail: 'ตรวจรายการคะแนนที่บันทึกแล้วในระบบ',
       icon: ClipboardList,
       label: 'ตรวจและกรอกคะแนน',
-      path: '/app/dashboard?view=scores&scoreView=excel',
+      path: '/app/dashboard?view=scores',
       status: `${analyticsData.scores.assessmentCount} ชุดคะแนน`,
       tone: 'text-sky-700 bg-sky-50',
     },

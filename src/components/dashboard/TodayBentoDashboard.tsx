@@ -735,7 +735,7 @@ export function TodayBentoDashboard({
 
           {/* Card 2: คะแนน (Donut Progress) */}
           <Link
-            to="/app/dashboard?view=scores&scoreView=excel"
+            to="/app/dashboard?view=scores"
             className="bento-card bento-card-clickable flex min-h-[144px] flex-col justify-between p-4 text-left"
           >
             <div className="flex w-full items-center justify-between">
