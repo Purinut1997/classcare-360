@@ -156,20 +156,31 @@ async function getAuthHeaders(): Promise<Record<string, string> | null> {
   };
 }
 
-async function invokeBridgeJson<T>(payload: Record<string, unknown>): Promise<T> {
+async function invokeBridgeJson<T>(
+  payload: Record<string, unknown>,
+  options?: { silent?: boolean },
+): Promise<T> {
   const headers = await getAuthHeaders();
   if (!headers) {
     throw new Error('ยังไม่ได้เข้าสู่ระบบ Supabase');
   }
 
-  const response = await fetch(getBridgeEndpoint(), {
-    body: JSON.stringify(payload),
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json',
-    },
-    method: 'POST',
-  });
+  let response: Response;
+  try {
+    response = await fetch(getBridgeEndpoint(), {
+      body: JSON.stringify(payload),
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+        ...(options?.silent ? { 'x-silent': 'true' } : {}),
+      },
+      method: 'POST',
+    });
+  } catch {
+    throw new Error(
+      'ไม่สามารถเชื่อมต่อบริการ google-drive-bridge ได้ในขณะนี้ (ระบบยังใช้งานพื้นที่สำรอง Supabase ได้ตามปกติ)',
+    );
+  }
 
   const data = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) {
@@ -227,10 +238,13 @@ export async function getDriveConnectionStatus(
   }
 
   try {
-    const result = await invokeBridgeJson<DriveConnectionStatus>({
-      action: 'status',
-      workspaceId,
-    });
+    const result = await invokeBridgeJson<DriveConnectionStatus>(
+      {
+        action: 'status',
+        workspaceId,
+      },
+      { silent: true },
+    );
     const normalized: DriveConnectionStatus = {
       ...DEFAULT_STATUS,
       ...result,
@@ -337,10 +351,13 @@ export async function runColdStorageMigration(workspaceId: string, limit = 10) {
 
 export async function listDriveBackups(workspaceId: string): Promise<DriveBackupItem[]> {
   try {
-    const result = await invokeBridgeJson<{ backups: DriveBackupItem[] }>({
-      action: 'list-backups',
-      workspaceId,
-    });
+    const result = await invokeBridgeJson<{ backups: DriveBackupItem[] }>(
+      {
+        action: 'list-backups',
+        workspaceId,
+      },
+      { silent: true },
+    );
     return result.backups || [];
   } catch {
     if (!isSupabaseReady || !supabase) return [];
@@ -579,6 +596,7 @@ export async function resolveAppFileUrl(
         headers: {
           ...headers,
           'Content-Type': 'application/json',
+          'x-silent': 'true',
         },
         method: 'POST',
       });

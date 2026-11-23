@@ -287,7 +287,8 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
           </h2>
           <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600">
             บีบอัดรูปภาพทุกใบเป็น <span className="font-mono font-black text-emerald-700">.webp</span> คมชัดระดับตาเปล่า (ลดขนาดไฟล์ 70–95%)
-            แล้วบันทึกลง Google Drive ของคุณโดยตรงด้วยสิทธิ์ปลอดภัย <span className="font-mono">drive.file</span> (แอปเข้าถึงได้เฉพาะโฟลเดอร์ ClassCare 360 เท่านั้น)
+            แล้วบันทึกลง <strong className="text-slate-800">Google Drive บัญชีใดก็ได้ที่เลือก</strong> (เช่น Gmail โรงเรียน หรือบัญชีส่วนตัวของคุณ) ด้วยสิทธิ์ปลอดภัย{' '}
+            <span className="font-mono">drive.file</span>
           </p>
         </div>
 
@@ -361,7 +362,41 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
         </div>
       ) : null}
 
-      {driveStatus?.lastError && !notice ? (
+      {!isLoading && driveStatus?.bridgeUnavailable ? (
+        <div className="mt-3.5 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>
+              ยังเชื่อมต่อบริการ <code className="rounded bg-white px-1 py-0.5 font-mono">google-drive-bridge</code> บน Supabase ไม่ได้ (ระหว่างนี้ไฟล์ที่อัปโหลดจะถูกเก็บในพื้นที่สำรอง Supabase อัตโนมัติ)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSetupGuide(true)}
+            className="shrink-0 underline hover:text-amber-950"
+          >
+            ดูวิธีตั้งค่า
+          </button>
+        </div>
+      ) : !isLoading && driveStatus && !driveStatus.oauthConfigured && !isConnected ? (
+        <div className="mt-3.5 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
+          <div className="flex items-start gap-2">
+            <Info size={15} className="mt-0.5 shrink-0 text-amber-700" />
+            <span>
+              ระบบฐานข้อมูลและ <code className="rounded bg-white px-1 py-0.5 font-mono">google-drive-bridge</code> พร้อมใช้งานแล้ว — เหลือเพียงตั้งค่า Secrets{' '}
+              <code className="rounded bg-white px-1 py-0.5 font-mono">GOOGLE_DRIVE_CLIENT_ID</code> และ{' '}
+              <code className="rounded bg-white px-1 py-0.5 font-mono">GOOGLE_DRIVE_CLIENT_SECRET</code> บน Supabase เพื่อเปิดให้เชื่อม Google Drive
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSetupGuide(true)}
+            className="shrink-0 underline hover:text-amber-950"
+          >
+            ดูขั้นตอน
+          </button>
+        </div>
+      ) : driveStatus?.lastError && !notice ? (
         <div className="mt-3.5 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span>หมายเหตุล่าสุด: {driveStatus.lastError}</span>

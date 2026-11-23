@@ -49,7 +49,7 @@ const MIGRATABLE_BUCKETS = new Set([
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 const corsHeaders = {
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-silent',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Origin': '*',
 };
@@ -639,7 +639,7 @@ Deno.serve(async (request) => {
       authUrl.searchParams.set('access_type', 'offline');
       authUrl.searchParams.set('client_id', oauthCreds.clientId);
       authUrl.searchParams.set('include_granted_scopes', 'true');
-      authUrl.searchParams.set('prompt', 'consent');
+      authUrl.searchParams.set('prompt', 'select_account consent');
       authUrl.searchParams.set('redirect_uri', redirectUri);
       authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('scope', DRIVE_SCOPE);

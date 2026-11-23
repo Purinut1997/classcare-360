@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Push database migrations and deploy superadmin-manage-users
+    name: Push database migrations and deploy backend edge functions
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -48,6 +48,33 @@ jobs:
           PY
           )"
           supabase db push --db-url "$database_url" --yes
+
+      - name: Sync optional Google Drive OAuth secrets when configured
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_ENCRYPTION_KEY: ${{ secrets.GOOGLE_DRIVE_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GOOGLE_DRIVE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_DRIVE_CLIENT_SECRET:-}" ]; then
+            supabase secrets set \
+              GOOGLE_DRIVE_CLIENT_ID="$GOOGLE_DRIVE_CLIENT_ID" \
+              GOOGLE_DRIVE_CLIENT_SECRET="$GOOGLE_DRIVE_CLIENT_SECRET" \
+              --project-ref "$SUPABASE_PROJECT_REF"
+          fi
+          if [ -n "${GOOGLE_DRIVE_ENCRYPTION_KEY:-}" ]; then
+            supabase secrets set GOOGLE_DRIVE_ENCRYPTION_KEY="$GOOGLE_DRIVE_ENCRYPTION_KEY" --project-ref "$SUPABASE_PROJECT_REF"
+          fi
+
+      - name: Deploy google-drive-bridge edge function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy google-drive-bridge --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
 
       - name: Deploy superadmin-manage-users edge function (optional)
         continue-on-error: true
