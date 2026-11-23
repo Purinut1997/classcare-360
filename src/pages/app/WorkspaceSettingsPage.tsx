@@ -219,6 +219,9 @@ export function WorkspaceSettingsPage({ session }: WorkspaceSettingsPageProps) {
     const nextTab = !canManage ? 'account' : tab;
     setActiveSettingsTab(nextTab);
     const nextParams = new URLSearchParams(searchParams);
+    ['drive_oauth', 'code', 'state', 'scope', 'authuser', 'prompt', 'error'].forEach((key) =>
+      nextParams.delete(key),
+    );
     nextParams.set('tab', nextTab);
     setSearchParams(nextParams, { replace: true });
   }

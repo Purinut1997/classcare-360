@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -36,10 +37,34 @@ interface GoogleDriveStorageCardProps {
 }
 
 const FOLDER_PREVIEW_LIST = Array.from(new Set(Object.values(DRIVE_FOLDER_LABELS)));
+const OAUTH_CALLBACK_QUERY_KEYS = ['drive_oauth', 'code', 'state', 'scope', 'authuser', 'prompt', 'error'] as const;
+const HANDLED_OAUTH_STORAGE_KEY = 'cc360_drive_oauth_handled_code';
+const handledOAuthCodes = new Set<string>();
+
+function hasHandledOAuthCode(code: string): boolean {
+  if (handledOAuthCodes.has(code)) return true;
+  try {
+    return typeof window !== 'undefined' && window.sessionStorage.getItem(HANDLED_OAUTH_STORAGE_KEY) === code;
+  } catch {
+    return false;
+  }
+}
+
+function markHandledOAuthCode(code: string): void {
+  handledOAuthCodes.add(code);
+  try {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(HANDLED_OAUTH_STORAGE_KEY, code);
+    }
+  } catch {
+    // Ignore storage access errors in restricted contexts
+  }
+}
 
 export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveStorageCardProps) {
   const workspaceId = session.workspace?.id || null;
   const isOwner = canManageWorkspace(session.profile.role);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [driveStatus, setDriveStatus] = useState<DriveConnectionStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,8 +72,6 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSavingSetting, setIsSavingSetting] = useState(false);
   const [notice, setNotice] = useState<{ text: string; tone: 'error' | 'info' | 'success' } | null>(null);
-
-  const handledOAuthCodeRef = useRef<string | null>(null);
 
   const canonicalRedirectUri = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -84,24 +107,18 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
 
   // Handle Google OAuth callback when redirected back with ?drive_oauth=callback&code=...&state=...
   useEffect(() => {
-    if (!workspaceId || typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('drive_oauth') !== 'callback') return;
+    if (!workspaceId || searchParams.get('drive_oauth') !== 'callback') return;
 
-    const oauthError = params.get('error');
-    const code = params.get('code');
-    const state = params.get('state');
+    const oauthError = searchParams.get('error');
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
 
-    const cleanParams = new URLSearchParams(window.location.search);
-    cleanParams.delete('drive_oauth');
-    cleanParams.delete('code');
-    cleanParams.delete('state');
-    cleanParams.delete('scope');
-    cleanParams.delete('authuser');
-    cleanParams.delete('prompt');
-    cleanParams.delete('error');
-    const cleanQuery = cleanParams.toString();
-    window.history.replaceState({}, '', `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ''}`);
+    const cleanParams = new URLSearchParams(searchParams);
+    OAUTH_CALLBACK_QUERY_KEYS.forEach((key) => cleanParams.delete(key));
+    if (cleanParams.get('view') === 'workspace-settings') {
+      cleanParams.set('tab', 'storage');
+    }
+    setSearchParams(cleanParams, { replace: true });
 
     if (oauthError) {
       setNotice({ text: `ยกเลิกหรือเชื่อมต่อ Google Drive ไม่สำเร็จ (${oauthError})`, tone: 'error' });
@@ -109,12 +126,12 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
       return;
     }
 
-    if (!code || !state || handledOAuthCodeRef.current === code) {
+    if (!code || !state || hasHandledOAuthCode(code)) {
       void loadStatus(true);
       return;
     }
 
-    handledOAuthCodeRef.current = code;
+    markHandledOAuthCode(code);
     setIsConnecting(true);
     setNotice({ text: 'กำลังเชื่อมต่อ Google Drive และสร้างโฟลเดอร์โรงเรียนให้อัตโนมัติ...', tone: 'info' });
 
@@ -127,8 +144,14 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
         return loadStatus(true);
       })
       .catch((err) => {
+        const rawMessage = err instanceof Error ? err.message : '';
+        const normalized = rawMessage.trim().toLowerCase();
+        const friendlyMessage =
+          normalized === 'bad request' || normalized.includes('invalid_grant')
+            ? 'รหัสยืนยัน Google OAuth หมดอายุหรือถูกใช้งานไปแล้ว กรุณากดเชื่อมต่อใหม่อีกครั้ง'
+            : rawMessage || 'แลกสิทธิ์เชื่อมต่อ Google Drive ไม่สำเร็จ';
         setNotice({
-          text: err instanceof Error ? err.message : 'แลกสิทธิ์เชื่อมต่อ Google Drive ไม่สำเร็จ',
+          text: friendlyMessage,
           tone: 'error',
         });
         return loadStatus(true);
@@ -136,7 +159,7 @@ export function GoogleDriveStorageCard({ onStatusChange, session }: GoogleDriveS
       .finally(() => {
         setIsConnecting(false);
       });
-  }, [loadStatus, workspaceId]);
+  }, [loadStatus, searchParams, setSearchParams, workspaceId]);
 
   useEffect(() => {
     void loadStatus(false);
