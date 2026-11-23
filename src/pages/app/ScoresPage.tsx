@@ -77,7 +77,7 @@ import {
   loadCloudScoreRatio,
   saveCloudScoreRatio,
 } from '../../lib/workspaceCloudPrefs';
-import { DEFAULT_PRIMARY_SUBJECTS_TEMPLATE, type SchoolSubject } from '../../types/academic';
+import { adaptObecSubjectCode, DEFAULT_PRIMARY_SUBJECTS_TEMPLATE, type SchoolSubject } from '../../types/academic';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
 
@@ -102,17 +102,6 @@ function parseActiveAcademicTerm(termName?: string | null): '1' | '2' | 'yearly'
   if (/ตลอดปี|yearly/i.test(termName)) return 'yearly';
   const primarySegment = termName.split('/')[0] || termName;
   return primarySegment.includes('2') ? '2' : '1';
-}
-
-function adaptObecSubjectCode(baseCode: string, gradeLevel: string): string {
-  const cleanGrade = gradeLevel.replace(/\s+/g, '');
-  const pMatch = cleanGrade.match(/^(?:ป\.|ประถมศึกษาปีที่)?([1-6])$/);
-  const mMatch = cleanGrade.match(/^(?:ม\.|มัธยมศึกษาปีที่)([1-6])$/);
-  const codeMatch = baseCode.match(/^([^\d]+)\d{2}(\d{3})$/);
-  if (!codeMatch) return baseCode;
-  if (pMatch) return `${codeMatch[1]}1${pMatch[1]}${codeMatch[2]}`;
-  if (mMatch) return `${codeMatch[1]}2${mMatch[1]}${codeMatch[2]}`;
-  return baseCode;
 }
 
 function buildDemoSchoolSubjects(workspaceId: string, gradeLevel: string): SchoolSubject[] {
