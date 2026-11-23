@@ -153,6 +153,58 @@ export interface ObecSubjectCatalogItem {
   gradeLevel: string;
 }
 
+export const REMEDIAL_LEARNING_AREA = 'หมวดวิชาซ่อมเสริม';
+export const REMEDIAL_NO_CODE_PREFIX = 'NO_CODE::';
+
+export function buildRemedialNoCodeSentinel(subjectName: string, gradeLevel: string): string {
+  return `${REMEDIAL_NO_CODE_PREFIX}${subjectName.trim()}::${gradeLevel.trim()}`;
+}
+
+export function isNoSubjectCode(code?: string | null): boolean {
+  if (!code) return true;
+  const clean = code.trim();
+  return !clean || clean === '-' || clean.startsWith(REMEDIAL_NO_CODE_PREFIX);
+}
+
+export function formatDisplaySubjectCode(code?: string | null): string | null {
+  if (isNoSubjectCode(code)) return null;
+  return code!.trim();
+}
+
+export function isRemedialSubjectRecord(subject: {
+  subject_name?: string | null;
+  learning_area?: string | null;
+  subject_type?: string | null;
+  subject_code?: string | null;
+}): boolean {
+  const name = (subject.subject_name || '').trim().toLowerCase();
+  const area = (subject.learning_area || '').trim().toLowerCase();
+  const code = (subject.subject_code || '').trim();
+  return (
+    name.includes('ซ่อมเสริม') ||
+    area.includes('ซ่อมเสริม') ||
+    code.startsWith(REMEDIAL_NO_CODE_PREFIX)
+  );
+}
+
+export function generateRemedialAdditionalCode(
+  learningAreaOrName: string,
+  gradeLevel: string,
+  seq = '01',
+): string {
+  const text = (learningAreaOrName || '').trim();
+  let prefix = 'ก';
+  if (text.includes('คณิต')) prefix = 'ค';
+  else if (text.includes('ไทย')) prefix = 'ท';
+  else if (text.includes('วิทย') || text.includes('เทคโน') || text.includes('คอม')) prefix = 'ว';
+  else if (text.includes('สังคม') || text.includes('ประวัติ') || text.includes('หน้าที่')) prefix = 'ส';
+  else if (text.includes('สุข') || text.includes('พล')) prefix = 'พ';
+  else if (text.includes('ศิลป') || text.includes('ดนตรี')) prefix = 'ศ';
+  else if (text.includes('การงาน') || text.includes('อาชีพ')) prefix = 'ง';
+  else if (text.includes('อังกฤษ') || text.includes('ต่างประเทศ') || text.includes('จีน')) prefix = 'อ';
+  return adaptObecSubjectCode(`${prefix}112${seq}`, gradeLevel);
+}
+
 /**
  * Converts a base OBEC code (e.g. ท11101 or ว11201) to the official 6-character OBEC code
  * for the target grade level:
@@ -161,6 +213,9 @@ export interface ObecSubjectCatalogItem {
  * - ม.4–ม.6 -> level digit '3', year digit '1'..'3' (e.g. ม.4 -> ท31101)
  */
 export function adaptObecSubjectCode(baseCode: string, gradeLevel: string): string {
+  if (isNoSubjectCode(baseCode)) {
+    return baseCode;
+  }
   const cleanGrade = (gradeLevel || '').replace(/\s+/g, '');
   const pMatch = cleanGrade.match(/^(?:ป\.|ประถมศึกษาปีที่)?([1-6])$/);
   const mMatch = cleanGrade.match(/^(?:ม\.|มัธยมศึกษาปีที่)([1-6])$/);
