@@ -102,7 +102,7 @@ using (
 
 create or replace function public.list_my_workspace_teacher_invitations()
 returns table (
-  id uuid,
+  invitation_id uuid,
   workspace_id uuid,
   workspace_name text,
   school_name text,
