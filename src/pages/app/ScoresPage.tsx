@@ -24,7 +24,6 @@ import {
   Keyboard,
   Lightbulb,
   Lock,
-  Pin,
   Plus,
   RotateCcw,
   Save,
@@ -36,13 +35,13 @@ import {
   Table,
   Target,
   Trash2,
-  Unlock,
   Users,
   X,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ContextLink as Link } from '../../components/navigation/ContextLink';
 import { ThaiDatePicker } from '../../components/shared/ThaiDatePicker';
+import { ModernGradebookSheet } from '../../components/scores/ModernGradebookSheet';
 import { SubjectCardsHub, type SubjectCardItem } from '../../components/scores/SubjectCardsHub';
 const ScoreOcrModal = lazy(() =>
   import('../../components/scores/ScoreOcrModal').then((m) => ({ default: m.ScoreOcrModal })),
@@ -382,6 +381,12 @@ function getAssessmentCategoryLabel(assessment: {
 
 function formatScore(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function buildQuickScorePresets(maxScore: number): number[] {
+  if (!Number.isFinite(maxScore) || maxScore <= 0) return [];
+  const candidates = [maxScore, Math.round(maxScore * 0.8), Math.round(maxScore * 0.5)];
+  return Array.from(new Set(candidates.filter((value) => value > 0 && value <= maxScore)));
 }
 
 function getTodayDate() {
@@ -804,6 +809,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
         .some((value) => String(value).toLowerCase().includes(keyword)),
     );
   }, [classroomStudents, searchTerm]);
+
+  const studentSeatNumberMap = useMemo(
+    () => new Map(classroomStudents.map((student, index) => [student.id, index + 1])),
+    [classroomStudents],
+  );
 
   const scoreStats = useMemo(() => {
     if (!selectedAssessment) {
@@ -2907,66 +2917,119 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </>
       ) : (
         <>
-          {/* STAGE 2: Clean Subject Score Workspace Header */}
+          {/* STAGE 2: Compact 2-Bar Subject Score Workspace Header */}
           <section
             aria-label="แถบข้อมูลรายวิชาและการสลับห้องเรียน"
-            className="rounded-3xl border border-[#E5E8E1] bg-white p-4 shadow-sm"
+            className="rounded-2xl border border-[#E5E8E1] bg-white px-3.5 py-2.5 shadow-sm"
           >
-            {/* Row 1: Back to Subjects + Subject Identity + Primary Actions */}
-            <div className="flex flex-col gap-3 border-b border-slate-100 pb-3.5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+            {/* Bar 1: Back + Subject Identity + Classroom Switcher + Primary Actions */}
+            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => handleScoreViewChange('subjects')}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] px-3 text-xs font-black text-[#1C342B] transition hover:border-[#2F7D5B] hover:bg-[#EAF5EF]"
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-[#DCE3D7] bg-[#FAFBF8] px-2.5 text-xs font-black text-[#1C342B] transition hover:border-[#2F7D5B] hover:bg-[#EAF5EF]"
                 >
                   <ArrowLeft size={14} aria-hidden="true" />
-                  <span>กลับไปหน้ารายวิชา</span>
+                  <span>รายวิชา</span>
                 </button>
 
-                <span className="hidden h-6 w-px bg-slate-200 sm:inline-block" aria-hidden="true" />
+                <span className="hidden h-5 w-px bg-slate-200 sm:inline-block" aria-hidden="true" />
 
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate font-display text-lg font-black text-[#1F2924] sm:text-2xl">
-                      {subjectFilter || 'เลือกรายวิชา'}
-                    </h1>
-                    {activeSubjectMeta?.subject_code ? (
-                      <span className="rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-0.5 font-mono text-xs font-black text-cyan-900">
-                        {activeSubjectMeta.subject_code}
-                      </span>
-                    ) : null}
-                    {activeSubjectMeta?.credit ? (
-                      <span className="rounded-full bg-[#EFF3EC] px-2.5 py-0.5 text-[11px] font-bold text-[#4C5751]">
-                        {activeSubjectMeta.credit.toFixed(2)} หน่วยกิต
-                      </span>
-                    ) : null}
-                  </div>
-                  {activeSubjectMeta?.learning_area ? (
-                    <p className="mt-0.5 truncate text-[11px] font-semibold text-[#75827A]">
-                      กลุ่มสาระ: {activeSubjectMeta.learning_area}
-                    </p>
+                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                  <h1 className="truncate font-display text-base font-black text-[#1F2924] sm:text-lg">
+                    {subjectFilter || 'เลือกรายวิชา'}
+                  </h1>
+                  {activeSubjectMeta?.subject_code ? (
+                    <span className="rounded-md border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 font-mono text-[11px] font-black text-cyan-900">
+                      {activeSubjectMeta.subject_code}
+                    </span>
+                  ) : null}
+                  {activeSubjectMeta?.credit ? (
+                    <span className="rounded-full bg-[#EFF3EC] px-2 py-0.5 text-[11px] font-bold text-[#4C5751]">
+                      {activeSubjectMeta.credit.toFixed(2)} นก.
+                    </span>
+                  ) : null}
+                </div>
+
+                <span className="hidden h-5 w-px bg-slate-200 md:inline-block" aria-hidden="true" />
+
+                {/* Inline Classroom Switcher Pills */}
+                <div className="flex flex-wrap items-center gap-1">
+                  <Users size={13} className="mr-0.5 text-slate-400 shrink-0" aria-hidden="true" />
+                  {classroomsWithSubject.map((c) => {
+                    const count = students.filter((s) => s.classroom_id === c.id).length;
+                    const isSelected = classroomId === c.id;
+                    const isRoomHomeroom = homeroomIdSet.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black transition ${
+                          isSelected
+                            ? 'bg-slate-950 text-white shadow-2xs ring-1 ring-slate-900'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                        }`}
+                        onClick={() => {
+                          if (c.id !== classroomId && !confirmDiscardUnsavedChanges()) return;
+                          setClassroomId(c.id);
+                        }}
+                        type="button"
+                      >
+                        <span>
+                          {isRoomHomeroom ? '★ ' : ''}
+                          {c.name}
+                        </span>
+                        <span
+                          className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-500'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {availableClassroomsToAdd.length > 0 ? (
+                    <select
+                      className="h-7 rounded-lg border border-dashed border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-600 outline-none hover:border-cyan-500 focus:border-cyan-600"
+                      onChange={(e) => {
+                        const cid = e.target.value;
+                        if (!cid) return;
+                        if (cid !== classroomId && !confirmDiscardUnsavedChanges()) return;
+                        setClassroomId(cid);
+                        openCreateAssessmentModal(cid);
+                      }}
+                      value=""
+                    >
+                      <option value="">+ เพิ่มห้อง</option>
+                      {availableClassroomsToAdd.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          + ห้อง {c.name}
+                        </option>
+                      ))}
+                    </select>
                   ) : null}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 <button
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-3 text-xs font-black text-white shadow-2xs transition hover:bg-cyan-700"
                   onClick={() => openCreateAssessmentModal()}
                   type="button"
                 >
-                  <Plus size={15} aria-hidden="true" />
+                  <Plus size={14} aria-hidden="true" />
                   <span>เพิ่มช่องคะแนน</span>
                 </button>
 
                 <Link
                   to={`/app/dashboard?view=omr-scanner&classroomId=${encodeURIComponent(classroomId || '')}&subjectName=${encodeURIComponent(subjectFilter || '')}${selectedAssessment?.id ? `&assessmentId=${encodeURIComponent(selectedAssessment.id)}` : ''}`}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50/80 px-3 text-xs font-black text-cyan-900 shadow-2xs transition hover:border-cyan-400 hover:bg-cyan-100"
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50/80 px-2.5 text-xs font-black text-cyan-900 shadow-2xs transition hover:border-cyan-400 hover:bg-cyan-100"
                   title="เปิดระบบออกแบบและตรวจกระดาษคำตอบ OMR ด้วยกล้อง"
                 >
-                  <Camera size={14} className="text-cyan-700" aria-hidden="true" />
+                  <Camera size={13} className="text-cyan-700" aria-hidden="true" />
                   <span>ตรวจ OMR</span>
                 </Link>
 
@@ -2976,16 +3039,16 @@ export function ScoresPage({ session }: ScoresPageProps) {
                     onClick={() => setIsToolsMenuOpen((open) => !open)}
                     aria-expanded={isToolsMenuOpen}
                     aria-haspopup="menu"
-                    className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition ${
+                    className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-black transition ${
                       isToolsMenuOpen
                         ? 'border-slate-900 bg-slate-900 text-white'
                         : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    <Settings2 size={14} aria-hidden="true" />
-                    <span>เครื่องมือเพิ่มเติม</span>
+                    <Settings2 size={13} aria-hidden="true" />
+                    <span>เครื่องมือ</span>
                     <ChevronDown
-                      size={14}
+                      size={13}
                       className={`transition-transform ${isToolsMenuOpen ? 'rotate-180' : ''}`}
                       aria-hidden="true"
                     />
@@ -3158,181 +3221,121 @@ export function ScoresPage({ session }: ScoresPageProps) {
               </div>
             </div>
 
-            {/* Row 2: Simple Classroom Switcher Pills for this Subject */}
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 flex items-center gap-1 text-xs font-black text-slate-500">
-                <Users size={13} aria-hidden="true" />
-                ห้องเรียน:
-              </span>
-              {classroomsWithSubject.map((c) => {
-                const count = students.filter((s) => s.classroom_id === c.id).length;
-                const isSelected = classroomId === c.id;
-                const isRoomHomeroom = homeroomIdSet.has(c.id);
-                return (
+            {/* Bar 2: Streamlined 3-Step Workspace Tabs + Entry Mode Sub-Toggle */}
+            <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-0.5">
+                <button
+                  className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
+                    scoreView === 'excel' || scoreView === 'entry'
+                      ? 'bg-slate-950 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                  }`}
+                  onClick={() => handleScoreViewChange(getDefaultEntryScoreView())}
+                  type="button"
+                >
+                  <Table
+                    size={13}
+                    className={scoreView === 'excel' || scoreView === 'entry' ? 'text-cyan-400' : 'text-slate-400'}
+                    aria-hidden="true"
+                  />
+                  1. กรอกคะแนน
+                </button>
+
+                <button
+                  className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
+                    scoreView === 'gradebook'
+                      ? 'bg-slate-950 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                  }`}
+                  onClick={() => handleScoreViewChange('gradebook')}
+                  type="button"
+                >
+                  <FileSpreadsheet
+                    size={13}
+                    className={scoreView === 'gradebook' ? 'text-cyan-400' : 'text-slate-400'}
+                    aria-hidden="true"
+                  />
+                  2. สรุปเกรด (0–4)
+                </button>
+
+                {classrooms.length > 1 ? (
                   <button
-                    key={c.id}
-                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition ${
-                      isSelected
-                        ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                    className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
+                      scoreView === 'overview'
+                        ? 'bg-slate-950 text-white shadow-2xs'
+                        : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
                     }`}
-                    onClick={() => {
-                      if (c.id !== classroomId && !confirmDiscardUnsavedChanges()) return;
-                      setClassroomId(c.id);
-                    }}
+                    onClick={() => handleScoreViewChange('overview')}
                     type="button"
                   >
-                    <span>
-                      {isRoomHomeroom ? '★ ' : ''}ห้อง {c.name}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        isSelected ? 'bg-white/20 text-white' : 'border border-slate-200 bg-white text-slate-600'
+                    <BarChart3
+                      size={13}
+                      className={scoreView === 'overview' ? 'text-cyan-400' : 'text-slate-400'}
+                      aria-hidden="true"
+                    />
+                    3. เปรียบเทียบห้อง ({classroomsWithSubject.length})
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Entry Mode Segmented Switch + Single-Assessment Picker */}
+              {scoreView === 'excel' || scoreView === 'entry' ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleScoreViewChange('excel')}
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-xs font-black transition ${
+                        scoreView === 'excel'
+                          ? 'bg-white text-slate-950 shadow-2xs ring-1 ring-slate-200'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      {count} คน
-                    </span>
-                  </button>
-                );
-              })}
+                      <Table size={12} aria-hidden="true" />
+                      ตารางรวม
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleScoreViewChange('entry')}
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-xs font-black transition ${
+                        scoreView === 'entry'
+                          ? 'bg-white text-slate-950 shadow-2xs ring-1 ring-slate-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <ClipboardList size={12} aria-hidden="true" />
+                      ทีละช่อง
+                    </button>
+                  </div>
 
-              {availableClassroomsToAdd.length > 0 ? (
-                <select
-                  className="h-9 rounded-xl border border-dashed border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-600 outline-none hover:border-cyan-500 focus:border-cyan-600"
-                  onChange={(e) => {
-                    const cid = e.target.value;
-                    if (!cid) return;
-                    if (cid !== classroomId && !confirmDiscardUnsavedChanges()) return;
-                    setClassroomId(cid);
-                    openCreateAssessmentModal(cid);
-                  }}
-                  value=""
-                >
-                  <option value="">+ เพิ่มห้องที่สอนวิชานี้...</option>
-                  {availableClassroomsToAdd.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      + ห้อง {c.name}
-                    </option>
-                  ))}
-                </select>
+                  {scoreView === 'entry' && contextAssessments.length > 0 ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="shrink-0 text-[11px] font-black text-slate-500">ชิ้นงาน:</span>
+                      <select
+                        className="h-8 max-w-[220px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-2.5 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
+                        onChange={(event) => {
+                          const nextId = event.target.value;
+                          if (nextId !== selectedAssessment?.id && !confirmDiscardUnsavedChanges()) return;
+                          setSelectedAssessmentId(nextId);
+                        }}
+                        value={selectedAssessment?.id || ''}
+                      >
+                        {contextAssessments.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title} (เต็ม {item.max_score} | {item.weight}%)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </section>
 
-          {/* Streamlined 3-Step Workspace Tabs + Input Mode Sub-Toggle */}
-          <div className="mt-4 flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100 p-1">
-              <button
-                className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                  scoreView === 'excel' || scoreView === 'entry'
-                    ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
-                }`}
-                onClick={() => handleScoreViewChange(getDefaultEntryScoreView())}
-                type="button"
-              >
-                <Table
-                  size={15}
-                  className={scoreView === 'excel' || scoreView === 'entry' ? 'text-cyan-400' : 'text-slate-400'}
-                  aria-hidden="true"
-                />
-                1. กรอกคะแนน
-              </button>
-
-              <button
-                className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                  scoreView === 'gradebook'
-                    ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
-                }`}
-                onClick={() => handleScoreViewChange('gradebook')}
-                type="button"
-              >
-                <FileSpreadsheet
-                  size={15}
-                  className={scoreView === 'gradebook' ? 'text-cyan-400' : 'text-slate-400'}
-                  aria-hidden="true"
-                />
-                2. สรุปเกรด (0–4)
-              </button>
-
-              {classrooms.length > 1 ? (
-                <button
-                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black transition ${
-                    scoreView === 'overview'
-                      ? 'bg-slate-950 text-white shadow-sm ring-1 ring-slate-900'
-                      : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
-                  }`}
-                  onClick={() => handleScoreViewChange('overview')}
-                  type="button"
-                >
-                  <BarChart3
-                    size={15}
-                    className={scoreView === 'overview' ? 'text-cyan-400' : 'text-slate-400'}
-                    aria-hidden="true"
-                  />
-                  3. เปรียบเทียบห้อง ({classroomsWithSubject.length})
-                </button>
-              ) : null}
-            </div>
-
-            {/* Entry Style Sub-Toggle + Single-Assessment Picker */}
-            {scoreView === 'excel' || scoreView === 'entry' ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center rounded-xl bg-slate-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => handleScoreViewChange('excel')}
-                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
-                      scoreView === 'excel'
-                        ? 'bg-white text-slate-950 shadow-2xs ring-1 ring-slate-200'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Table size={13} aria-hidden="true" />
-                    ตารางรวม (Excel)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreViewChange('entry')}
-                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${
-                      scoreView === 'entry'
-                        ? 'bg-white text-slate-950 shadow-2xs ring-1 ring-slate-200'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <ClipboardList size={13} aria-hidden="true" />
-                    กรอกทีละช่อง
-                  </button>
-                </div>
-
-                {scoreView === 'entry' && contextAssessments.length > 0 ? (
-                  <div className="flex items-center gap-2">
-                    <span className="shrink-0 text-xs font-black text-slate-500">ชิ้นงาน:</span>
-                    <select
-                      className="h-9 max-w-[230px] truncate rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 text-xs font-black text-cyan-900 outline-none transition focus:border-cyan-400 focus:bg-white"
-                      onChange={(event) => {
-                        const nextId = event.target.value;
-                        if (nextId !== selectedAssessment?.id && !confirmDiscardUnsavedChanges()) return;
-                        setSelectedAssessmentId(nextId);
-                      }}
-                      value={selectedAssessment?.id || ''}
-                    >
-                      {contextAssessments.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.title} (เต็ม {item.max_score} | {item.weight}%)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
           {/* Notice Banner */}
           {notice ? (
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs font-black text-cyan-900 shadow-sm animate-fade-in">
+            <div className="mt-2.5 flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-xs font-black text-cyan-900 shadow-sm animate-fade-in">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="shrink-0 text-cyan-700" size={16} aria-hidden="true" />
                 <p>{notice}</p>
@@ -3349,323 +3352,41 @@ export function ScoresPage({ session }: ScoresPageProps) {
         </>
       )}
 
-      {/* 3A: EXCEL GRID VIEW (All assessments in one spreadsheet) */}
+      {/* 3A: MODERN GRADEBOOK SHEET (All assessments in one compact OBEC spreadsheet) */}
       {scoreView === 'excel' ? (
-        <div className="mt-4 grid gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-black text-emerald-800">
-                    <Table size={13} aria-hidden="true" />
-                    โหมดตารางรวมสเปรดชีต (Excel Grid)
-                  </span>
-                  <span className="text-xs font-bold text-slate-500">
-                    {contextAssessments.length} ช่องคะแนน | {classroomStudents.length} นักเรียน
-                  </span>
-                </div>
-                <h2 className="mt-2 text-xl font-black text-slate-950 sm:text-2xl">
-                  ตารางบันทึกคะแนนรวมรายวิชา {subjectFilter}
-                </h2>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  ห้อง {activeClassroom?.name} | เลื่อนช่องได้ด้วยปุ่มลูกศร (← ↑ → ↓) หรือ Tab | วางจาก Excel ได้โดยตรง | ตัดเกรดคำนวณสดทันที
-                </p>
-              </div>
-            </div>
-
-            {/* Excel Grid Helper Banner & Controls */}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-50 p-3 border border-slate-200/80 text-xs font-bold text-slate-600">
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-2xs border border-slate-200">Tab</span>
-                <span>เลื่อนไปช่องถัดไป</span>
-                <span className="text-slate-300">|</span>
-                <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-2xs border border-slate-200">Enter / ↓</span>
-                <span>เลื่อนลงคนถัดไป</span>
-                <span className="text-slate-300">|</span>
-                <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-black text-slate-800 shadow-2xs border border-slate-200">Ctrl + V</span>
-                <span>วางคะแนนจาก Excel ได้ทั้งแถบ</span>
-              </div>
-              <div className="flex items-center justify-between w-full sm:w-auto gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500">น้ำหนักแผนรวม:</span>
-                  <span className={`font-black ${plannedTotalWeight === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {plannedTotalWeight} / 100 คะแนน
-                  </span>
-                </div>
-                {/* Mobile & Desktop Sticky Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsStickyRoster((prev) => !prev)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black transition border ${
-                    isStickyRoster
-                      ? 'bg-cyan-50 border-cyan-300 text-cyan-800 shadow-2xs'
-                      : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
-                  }`}
-                  title="เปิด/ปิดการตรึงคอลัมน์ชื่อนักเรียนเพื่อเพิ่มพื้นที่เลื่อนกรอกคะแนน"
-                >
-                  {isStickyRoster ? <Pin size={12} aria-hidden="true" /> : <Unlock size={12} aria-hidden="true" />}
-                  <span>{isStickyRoster ? 'ตรึงชื่อนักเรียน' : 'ปลดตรึงชื่อนักเรียน'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Full Spreadsheet Grid Table */}
-            {contextAssessments.length > 0 ? (
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full min-w-[700px] sm:min-w-[900px] border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-black">
-                      {/* Fixed Left Columns: Roster */}
-                      <th
-                        className={`${
-                          isStickyRoster ? 'sticky left-0 z-20 shadow-xs sm:shadow-none' : 'static'
-                        } bg-slate-100 px-1 sm:px-3 py-3 w-10 sm:w-16 border-b border-r border-slate-200 text-center text-[11px] sm:text-xs whitespace-nowrap`}
-                      >
-                        เลขที่
-                      </th>
-                      <th
-                        className={`${
-                          isStickyRoster ? 'sticky left-10 sm:left-16 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]' : 'static'
-                        } bg-slate-100 px-2 sm:px-3 py-3 w-28 sm:w-48 max-w-[115px] sm:max-w-none border-b border-r border-slate-200 text-[11px] sm:text-xs whitespace-nowrap`}
-                      >
-                        ชื่อ - นามสกุล
-                      </th>
-
-                      {/* Dynamic Assessment Columns */}
-                      {contextAssessments.map((assessment, aIdx) => (
-                        <th
-                          className="px-3 py-3 text-center border-b border-r border-slate-200 min-w-[130px] max-w-[170px]"
-                          key={assessment.id}
-                        >
-                          <div className="flex flex-col items-center">
-                            <span className="truncate w-full font-black text-slate-900" title={assessment.title}>
-                              {aIdx + 1}. {assessment.title}
-                            </span>
-                            <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                              <span className="rounded bg-white px-1.5 py-0.2 border border-slate-200 text-cyan-800">
-                                เต็ม {assessment.max_score}
-                              </span>
-                              <span>({assessment.weight}%)</span>
-                            </div>
-                            <div className="mt-1 flex items-center justify-center gap-1.5">
-                              <button
-                                className="text-[9px] font-bold text-cyan-700 hover:underline"
-                                onClick={() => {
-                                  setSelectedAssessmentId(assessment.id);
-                                  handleScoreViewChange('entry');
-                                }}
-                                title="ดูรายละเอียดหรือจัดการเฉพาะชุดนี้"
-                                type="button"
-                              >
-                                ตรวจแยกชุด →
-                              </button>
-                              <span className="text-slate-300">|</span>
-                              <button
-                                className="inline-flex items-center gap-0.5 text-[9px] font-bold text-slate-500 hover:text-[#2F7D5B]"
-                                onClick={() => openEditModal(assessment)}
-                                title="แก้ไขชื่อ คะแนนเต็ม หรือน้ำหนักคะแนน (%)"
-                                type="button"
-                              >
-                                <Edit3 size={10} aria-hidden="true" />
-                                แก้ไข
-                              </button>
-                            </div>
-                          </div>
-                        </th>
-                      ))}
-
-                      {/* Fixed Right Columns: Calculated Total & Grade */}
-                      <th className="px-3 py-3 text-center border-b border-r border-slate-200 min-w-[110px] bg-slate-100 font-black text-slate-900">
-                        รวมถ่วงน้ำหนัก
-                      </th>
-                      <th className="px-3 py-3 text-center border-b border-r border-slate-200 min-w-[90px] bg-slate-100 font-black text-slate-900">
-                        ร้อยละ
-                      </th>
-                      <th className="px-3 py-3 text-center border-b border-slate-200 min-w-[110px] bg-cyan-50 font-black text-cyan-900">
-                        เกรด 0-4
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredStudents.map((student, sIdx) => {
-                      let earnedTotal = 0;
-                      let plannedTotal = 0;
-                      let hasAnyScore = false;
-
-                      // Pre-calculate live totals for this student row
-                      contextAssessments.forEach((assessment) => {
-                        const cellKey = `${student.id}::${assessment.id}`;
-                        const entry = (entriesByAssessment.get(assessment.id) || []).find((row) => row.student_id === student.id);
-                        const rawScore = gridScores[cellKey] ?? (entry?.score === null || entry?.score === undefined ? '' : String(entry.score));
-                        const num = rawScore === '' ? null : Number(rawScore);
-
-                        plannedTotal += assessment.weight;
-                        if (num !== null && Number.isFinite(num)) {
-                          hasAnyScore = true;
-                          earnedTotal += (num / assessment.max_score) * assessment.weight;
-                        }
-                      });
-
-                      const finalPercent = plannedTotal > 0 ? (earnedTotal / plannedTotal) * 100 : 0;
-                      const gradeInfo = getThaiGrade(hasAnyScore ? finalPercent : null);
-
-                      return (
-                        <tr className="hover:bg-slate-50 transition group" key={student.id}>
-                          {/* Sticky Roster Cells */}
-                          <td
-                            className={`${
-                              isStickyRoster ? 'sticky left-0 z-10' : 'static'
-                            } bg-white group-hover:bg-slate-50 px-1 sm:px-3 py-2 text-slate-600 font-mono text-center border-r border-slate-200 text-xs`}
-                          >
-                            {student.student_code || sIdx + 1}
-                          </td>
-                          <td
-                            className={`${
-                              isStickyRoster ? 'sticky left-10 sm:left-16 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]' : 'static'
-                            } bg-white group-hover:bg-slate-50 px-2 sm:px-3 py-2 border-r border-slate-200 font-bold w-28 sm:w-48 max-w-[115px] sm:max-w-none`}
-                          >
-                            <p className="truncate font-black text-slate-900 text-xs" title={`${student.first_name} ${student.last_name}`}>
-                              <span>{student.first_name}</span>
-                              <span className="hidden sm:inline"> {student.last_name}</span>
-                            </p>
-                            {student.nickname ? (
-                              <p className="text-[10px] text-slate-400 font-normal truncate">({student.nickname})</p>
-                            ) : null}
-                          </td>
-
-                          {/* Editable Cells for Each Assessment */}
-                          {contextAssessments.map((assessment, aIdx) => {
-                            const cellKey = `${student.id}::${assessment.id}`;
-                            const entry = (entriesByAssessment.get(assessment.id) || []).find((row) => row.student_id === student.id);
-                            const origScore = entry?.score === null || entry?.score === undefined ? '' : String(entry.score);
-                            const currentVal = gridScores[cellKey] ?? origScore;
-                            const isModified = currentVal !== origScore;
-                            const numVal = currentVal === '' ? null : Number(currentVal);
-                            const isInvalid = numVal !== null && (!Number.isFinite(numVal) || numVal < 0 || numVal > assessment.max_score);
-
-                            return (
-                              <td
-                                className={`px-2 py-1.5 text-center border-r border-slate-200 ${
-                                  isModified ? 'bg-amber-50/70' : ''
-                                }`}
-                                key={assessment.id}
-                              >
-                                <input
-                                  className={`h-9 w-20 rounded-lg border text-center font-mono text-xs font-black outline-none transition ${
-                                    isInvalid
-                                      ? 'border-rose-400 bg-rose-50 text-rose-700'
-                                      : isModified
-                                        ? 'border-amber-400 bg-white text-slate-900 shadow-2xs focus:ring-2 focus:ring-amber-200'
-                                        : 'border-slate-200 bg-white text-slate-800 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100'
-                                  }`}
-                                  data-grid-row={sIdx}
-                                  data-grid-col={aIdx}
-                                  max={assessment.max_score}
-                                  min="0"
-                                  onChange={(event) => {
-                                    const val = event.target.value;
-                                    setGridScores((current) => ({ ...current, [cellKey]: val }));
-                                  }}
-                                  onKeyDown={(event) => {
-                                    // Excel arrow key navigation
-                                    if (event.key === 'ArrowDown' || event.key === 'Enter') {
-                                      event.preventDefault();
-                                      document.querySelector<HTMLInputElement>(`[data-grid-row="${sIdx + 1}"][data-grid-col="${aIdx}"]`)?.focus();
-                                    } else if (event.key === 'ArrowUp') {
-                                      event.preventDefault();
-                                      document.querySelector<HTMLInputElement>(`[data-grid-row="${sIdx - 1}"][data-grid-col="${aIdx}"]`)?.focus();
-                                    } else if (event.key === 'ArrowRight' && (event.target as HTMLInputElement).selectionStart === (event.target as HTMLInputElement).value.length) {
-                                      document.querySelector<HTMLInputElement>(`[data-grid-row="${sIdx}"][data-grid-col="${aIdx + 1}"]`)?.focus();
-                                    } else if (event.key === 'ArrowLeft' && (event.target as HTMLInputElement).selectionStart === 0) {
-                                      document.querySelector<HTMLInputElement>(`[data-grid-row="${sIdx}"][data-grid-col="${aIdx - 1}"]`)?.focus();
-                                    }
-                                  }}
-                                  onPaste={(event) => {
-                                    // 2D Matrix paste from Excel
-                                    const clipText = event.clipboardData.getData('text');
-                                    const rows = clipText.split(/\r?\n/).filter((r) => r.length > 0);
-                                    if (rows.length === 1 && !rows[0].includes('\t')) return; // Single cell paste normal behavior
-
-                                    event.preventDefault();
-                                    const nextUpdates: Record<string, string> = {};
-                                    let pasteCount = 0;
-
-                                    rows.forEach((rowStr, rOffset) => {
-                                      const targetStudent = filteredStudents[sIdx + rOffset];
-                                      if (!targetStudent) return;
-                                      const cols = rowStr.split('\t');
-                                      cols.forEach((colVal, cOffset) => {
-                                        const targetAssessment = contextAssessments[aIdx + cOffset];
-                                        if (!targetAssessment) return;
-                                        const trimmed = colVal.trim();
-                                        const nVal = Number(trimmed);
-                                        if (trimmed === '' || (Number.isFinite(nVal) && nVal >= 0 && nVal <= targetAssessment.max_score)) {
-                                          nextUpdates[`${targetStudent.id}::${targetAssessment.id}`] = trimmed;
-                                          pasteCount += 1;
-                                        }
-                                      });
-                                    });
-
-                                    setGridScores((current) => ({ ...current, ...nextUpdates }));
-                                    setNotice(`วางข้อมูลจาก Excel ลงตารางสำเร็จ (${pasteCount} เซลล์) อย่าลืมกดบันทึก`);
-                                  }}
-                                  placeholder="-"
-                                  step="any"
-                                  type="number"
-                                  value={currentVal}
-                                />
-                              </td>
-                            );
-                          })}
-
-                          {/* Calculated Columns */}
-                          <td className="px-3 py-2 text-center font-mono font-black text-slate-800 border-r border-slate-200 bg-slate-50/50">
-                            {formatScore(earnedTotal)} <span className="text-slate-400 font-normal">/ {formatScore(plannedTotal)}</span>
-                          </td>
-                          <td className="px-3 py-2 text-center border-r border-slate-200">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-black ring-1 ${
-                                !hasAnyScore
-                                  ? 'bg-slate-100 text-slate-500 ring-slate-200'
-                                  : finalPercent < 50
-                                    ? 'bg-rose-50 text-rose-700 ring-rose-200'
-                                    : finalPercent < 70
-                                      ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                                      : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                              }`}
-                            >
-                              {hasAnyScore ? `${finalPercent.toFixed(1)}%` : '-'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-center bg-cyan-50/40">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-black ring-1 ${gradeInfo.badgeClass}`}
-                            >
-                              {hasAnyScore ? `เกรด ${gradeInfo.grade}` : 'รอคะแนน'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="py-12 text-center border border-dashed border-slate-200 rounded-2xl mt-4">
-                <Table className="mx-auto text-slate-300" size={36} aria-hidden="true" />
-                <h3 className="mt-2 text-sm font-black text-slate-800">ยังไม่มีช่องคะแนนในวิชานี้</h3>
-                <p className="mt-1 text-xs text-slate-500">สร้างช่องคะแนนแรกเพื่อเริ่มกรอกในตารางรวม</p>
-                <button
-                  className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-cyan-600 px-4 text-xs font-black text-white hover:bg-cyan-700 transition"
-                  onClick={() => openCreateAssessmentModal()}
-                  type="button"
-                >
-                  <Plus size={14} aria-hidden="true" />
-                  เพิ่มช่องคะแนน
-                </button>
-              </div>
-            )}
-          </div>
+        <div className="mt-3">
+          <ModernGradebookSheet
+            assessments={contextAssessments}
+            classroomName={activeClassroom?.name}
+            entriesByAssessment={entriesByAssessment}
+            formatScore={formatScore}
+            getScoreBand={getScoreBand}
+            getThaiGrade={getThaiGrade}
+            gridScores={gridScores}
+            isStickyRoster={isStickyRoster}
+            onAddAssessment={() => openCreateAssessmentModal()}
+            onChangeGridScores={setGridScores}
+            onDeleteAssessment={(assessment) => void handleDeleteAssessment(assessment)}
+            onEditAssessment={openEditModal}
+            onNotice={(message) => setNotice(message)}
+            onOpenAssessmentEntry={(assessmentId) => {
+              setSelectedAssessmentId(assessmentId);
+              handleScoreViewChange('entry');
+            }}
+            onOpenAssessmentOcr={(assessmentId) => {
+              setSelectedAssessmentId(assessmentId);
+              setIsScoreOcrOpen(true);
+            }}
+            onOpenRatioModal={() => setIsRatioModalOpen(true)}
+            onSearchTermChange={setSearchTerm}
+            onToggleStickyRoster={() => setIsStickyRoster((prev) => !prev)}
+            plannedTotalWeight={plannedTotalWeight}
+            scoreBandSummaries={scoreBandSummaries}
+            searchTerm={searchTerm}
+            studentSeatNumberMap={studentSeatNumberMap}
+            students={filteredStudents}
+            totalStudentsCount={classroomStudents.length}
+          />
         </div>
       ) : null}
 
@@ -3801,9 +3522,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   </div>
                 </div>
 
-                {/* Mobile Card List (< md) — thumb-friendly, zero horizontal scrolling */}
+                {/* Mobile Card List (< md) — thumb-friendly Speed Grader with zero horizontal scrolling */}
                 <div className="mt-4 space-y-2.5 md:hidden">
-                  {filteredStudents.map((student) => {
+                  {filteredStudents.map((student, idx) => {
                     const entry = selectedEntryByStudent.get(student.id);
                     const scoreValue =
                       scores[student.id] ??
@@ -3814,6 +3535,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
                         ? Math.round((scoreNumber / selectedAssessment.max_score) * 10000) / 100
                         : null;
                     const gradeInfo = getThaiGrade(percent);
+                    const seatNumber = studentSeatNumberMap.get(student.id) ?? idx + 1;
+                    const quickPresets = buildQuickScorePresets(selectedAssessment.max_score);
 
                     return (
                       <div
@@ -3822,8 +3545,11 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-400 font-mono">
-                              รหัส {student.student_code || '-'}
+                            <p className="text-[11px] font-bold text-slate-400">
+                              <span className="font-mono font-black text-slate-600">เลขที่ {seatNumber}</span>
+                              {student.student_code ? (
+                                <span className="ml-2 font-mono">รหัส {student.student_code}</span>
+                              ) : null}
                             </p>
                             <p className="truncate text-sm font-black text-slate-900">
                               {student.first_name} {student.last_name}
@@ -3849,7 +3575,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                               {percent === null ? '-' : `${percent}%`}
                             </span>
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ring-1 ${gradeInfo.badgeClass}`}>
-                              {gradeInfo.grade}
+                              {percent === null ? 'รอคะแนน' : `เกรด ${gradeInfo.grade}`}
                             </span>
                             <button
                               className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
@@ -3862,38 +3588,66 @@ export function ScoresPage({ session }: ScoresPageProps) {
                           </div>
                         </div>
 
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-3 flex items-center justify-between gap-2">
                           <label className="text-xs font-bold text-slate-500 shrink-0">
                             คะแนน (เต็ม {selectedAssessment.max_score})
                           </label>
-                          <div className="ml-auto flex items-center gap-1.5">
-                            <input
-                              className="h-11 w-24 rounded-xl border border-slate-300 bg-white px-3 text-center text-base font-black text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                              inputMode="decimal"
-                              max={selectedAssessment.max_score}
-                              min="0"
-                              onChange={(event) =>
-                                setScores((current) => ({ ...current, [student.id]: event.target.value }))
-                              }
-                              placeholder="-"
-                              step="any"
-                              type="number"
-                              value={scoreValue}
-                            />
+                          <input
+                            className="h-11 w-24 rounded-xl border border-slate-300 bg-white px-3 text-center text-base font-black text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                            inputMode="decimal"
+                            max={selectedAssessment.max_score}
+                            min="0"
+                            onChange={(event) =>
+                              setScores((current) => ({ ...current, [student.id]: event.target.value }))
+                            }
+                            placeholder="-"
+                            step="any"
+                            type="number"
+                            value={scoreValue}
+                          />
+                        </div>
+
+                        {/* Tap-friendly Quick-Score Presets */}
+                        {quickPresets.length > 0 ? (
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-black text-slate-400">แตะเลือกด่วน:</span>
+                            {quickPresets.map((preset) => {
+                              const isActive = scoreValue === String(preset);
+                              const isFull = preset === selectedAssessment.max_score;
+                              return (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() =>
+                                    setScores((current) => ({ ...current, [student.id]: String(preset) }))
+                                  }
+                                  className={`h-8 rounded-xl border px-2.5 font-mono text-xs font-black active:scale-95 transition ${
+                                    isActive
+                                      ? 'border-cyan-600 bg-cyan-600 text-white shadow-2xs'
+                                      : isFull
+                                        ? 'border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-cyan-300 hover:bg-cyan-50/40'
+                                  }`}
+                                >
+                                  {isFull ? `เต็ม ${formatScore(preset)}` : formatScore(preset)}
+                                </button>
+                              );
+                            })}
                             <button
-                              className="h-11 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 active:scale-95 transition"
-                              onClick={() =>
-                                setScores((current) => ({
-                                  ...current,
-                                  [student.id]: String(selectedAssessment.max_score),
-                                }))
-                              }
                               type="button"
+                              onClick={() =>
+                                setScores((current) => ({ ...current, [student.id]: '0' }))
+                              }
+                              className={`h-8 rounded-xl border px-2.5 font-mono text-xs font-black active:scale-95 transition ${
+                                scoreValue === '0'
+                                  ? 'border-rose-500 bg-rose-600 text-white'
+                                  : 'border-slate-200 bg-white text-slate-500 hover:bg-rose-50 hover:text-rose-700'
+                              }`}
                             >
-                              เต็ม
+                              0
                             </button>
                           </div>
-                        </div>
+                        ) : null}
 
                         <input
                           className="mt-2.5 h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-cyan-400"
@@ -3913,9 +3667,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
                   <table className="w-full min-w-[760px] divide-y divide-slate-100 text-left">
                     <thead>
                       <tr className="bg-slate-50/80 text-[11px] font-black uppercase text-slate-500">
-                        <th className="px-3 py-2.5">รหัส</th>
+                        <th className="w-14 px-3 py-2.5 text-center">เลขที่</th>
                         <th className="px-3 py-2.5">ชื่อ-นามสกุล</th>
-                        <th className="px-3 py-2.5 w-44">
+                        <th className="px-3 py-2.5 min-w-[230px]">
                           คะแนน (เต็ม {selectedAssessment.max_score})
                         </th>
                         <th className="px-3 py-2.5">ร้อยละ</th>
@@ -3925,7 +3679,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                      {filteredStudents.map((student) => {
+                      {filteredStudents.map((student, idx) => {
                         const entry = selectedEntryByStudent.get(student.id);
                         const scoreValue = scores[student.id] ?? (entry?.score === null || entry?.score === undefined ? '' : String(entry.score));
                         const scoreNumber = scoreValue === '' ? null : Number(scoreValue);
@@ -3934,24 +3688,30 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             ? Math.round((scoreNumber / selectedAssessment.max_score) * 10000) / 100
                             : null;
                         const gradeInfo = getThaiGrade(percent);
+                        const seatNumber = studentSeatNumberMap.get(student.id) ?? idx + 1;
+                        const quickPresets = buildQuickScorePresets(selectedAssessment.max_score);
 
                         return (
                           <tr className="hover:bg-slate-50/80 transition" key={student.id}>
-                            <td className="whitespace-nowrap px-3 py-3 text-slate-500 font-mono">
-                              {student.student_code || '-'}
+                            <td className="whitespace-nowrap px-3 py-2.5 text-center font-mono font-black text-slate-500">
+                              {seatNumber}
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="px-3 py-2.5">
                               <p className="font-black text-slate-900">
                                 {student.first_name} {student.last_name}
                               </p>
-                              {student.nickname ? (
-                                <p className="text-[11px] font-bold text-slate-400">({student.nickname})</p>
+                              {student.student_code || student.nickname ? (
+                                <p className="text-[11px] font-semibold text-slate-400">
+                                  {student.student_code ? <span className="font-mono">#{student.student_code}</span> : null}
+                                  {student.student_code && student.nickname ? ' · ' : null}
+                                  {student.nickname ? `(${student.nickname})` : null}
+                                </p>
                               ) : null}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3">
+                            <td className="whitespace-nowrap px-3 py-2.5">
                               <div className="flex items-center gap-1.5">
                                 <input
-                                  className="h-10 w-20 rounded-xl border border-slate-200 bg-white px-2.5 text-center text-sm font-black text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                                  className="h-9 w-20 rounded-xl border border-slate-200 bg-white px-2.5 text-center font-mono text-sm font-black text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                                   data-score-student={student.id}
                                   max={selectedAssessment.max_score}
                                   min="0"
@@ -3992,19 +3752,32 @@ export function ScoresPage({ session }: ScoresPageProps) {
                                   type="number"
                                   value={scoreValue}
                                 />
-                                <button
-                                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] font-black text-slate-600 hover:bg-cyan-50 hover:text-cyan-700 hover:border-cyan-200 transition"
-                                  onClick={() =>
-                                    setScores((current) => ({ ...current, [student.id]: String(selectedAssessment.max_score) }))
-                                  }
-                                  title="ให้คะแนนเต็มสำหรับคนนี้"
-                                  type="button"
-                                >
-                                  เต็ม
-                                </button>
+                                {quickPresets.map((preset) => {
+                                  const isFull = preset === selectedAssessment.max_score;
+                                  const isActive = scoreValue === String(preset);
+                                  return (
+                                    <button
+                                      key={preset}
+                                      className={`rounded-lg border px-2 py-1.5 text-[10px] font-black transition ${
+                                        isActive
+                                          ? 'border-cyan-600 bg-cyan-600 text-white'
+                                          : isFull
+                                            ? 'border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-800'
+                                      }`}
+                                      onClick={() =>
+                                        setScores((current) => ({ ...current, [student.id]: String(preset) }))
+                                      }
+                                      title={isFull ? 'ให้คะแนนเต็มสำหรับคนนี้' : `ใส่ ${formatScore(preset)} คะแนน`}
+                                      type="button"
+                                    >
+                                      {isFull ? 'เต็ม' : formatScore(preset)}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3">
+                            <td className="whitespace-nowrap px-3 py-2.5">
                               <span
                                 className={`rounded-full px-2.5 py-1 text-xs font-black ring-1 ${
                                   percent === null
@@ -4019,12 +3792,12 @@ export function ScoresPage({ session }: ScoresPageProps) {
                                 {percent === null ? '-' : `${percent}%`}
                               </span>
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3">
+                            <td className="whitespace-nowrap px-3 py-2.5">
                               <span
                                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black ring-1 ${gradeInfo.badgeClass}`}
                                 title={gradeInfo.label}
                               >
-                                เกรด {gradeInfo.grade}
+                                {percent === null ? 'รอคะแนน' : `เกรด ${gradeInfo.grade}`}
                               </span>
                             </td>
                             <td className="px-3 py-3">
