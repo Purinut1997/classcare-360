@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BookOpen,
   Briefcase,
   Calculator,
@@ -18,6 +19,7 @@ import {
   Search,
   Settings2,
   Sparkles,
+  Trash2,
   Users,
   X,
   type LucideIcon,
@@ -54,6 +56,7 @@ export interface SubjectCardsHubProps {
   selectedClassroomId: string;
   onSelectClassroomFilter: (classroomId: string) => void;
   onOpenSubject: (card: SubjectCardItem) => void;
+  onDeleteSubject?: (card: SubjectCardItem) => Promise<boolean>;
   onQuickAddSubject: (payload: {
     subjectCode: string;
     subjectName: string;
@@ -190,6 +193,7 @@ export function SubjectCardsHub({
   selectedClassroomId,
   onSelectClassroomFilter,
   onOpenSubject,
+  onDeleteSubject,
   onQuickAddSubject,
   onLoadObecDefaults,
   onOpenAcademicSubjectsModal,
@@ -205,6 +209,9 @@ export function SubjectCardsHub({
   const [searchQuery, setSearchQuery] = useState('');
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  const [pendingDeleteCard, setPendingDeleteCard] = useState<SubjectCardItem | null>(null);
+  const [isDeletingSubject, setIsDeletingSubject] = useState(false);
 
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isSavingQuickAdd, setIsSavingQuickAdd] = useState(false);
@@ -562,11 +569,18 @@ export function SubjectCardsHub({
             const Icon = theme.icon;
 
             return (
-              <button
+              <div
                 key={card.key}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => onOpenSubject(card)}
-                className={`group flex w-full flex-col justify-between gap-3 rounded-3xl border bg-gradient-to-br p-4 text-left shadow-2xs transition hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${theme.gradientClass} ${theme.borderClass}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onOpenSubject(card);
+                  }
+                }}
+                className={`group flex w-full cursor-pointer flex-col justify-between gap-3 rounded-3xl border bg-gradient-to-br p-4 text-left shadow-2xs transition hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F7D5B] ${theme.gradientClass} ${theme.borderClass}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
@@ -606,9 +620,25 @@ export function SubjectCardsHub({
                     </div>
                   </div>
 
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/85 text-[#5C6861] ring-1 ring-black/5 transition group-hover:bg-[#2F7D5B] group-hover:text-white">
-                    <ChevronRight size={16} aria-hidden="true" />
-                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {onDeleteSubject ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPendingDeleteCard(card);
+                        }}
+                        title={`ลบรายวิชา ${card.subjectName}`}
+                        aria-label={`ลบรายวิชา ${card.subjectName}`}
+                        className="grid h-8 w-8 place-items-center rounded-full bg-white/85 text-slate-400 ring-1 ring-black/5 transition hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200"
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                    <span className="grid h-8 w-8 place-items-center rounded-full bg-white/85 text-[#5C6861] ring-1 ring-black/5 transition group-hover:bg-[#2F7D5B] group-hover:text-white">
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </span>
+                  </div>
                 </div>
 
                 {/* Bottom Status Strip */}
@@ -656,7 +686,7 @@ export function SubjectCardsHub({
                     </span>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -850,6 +880,115 @@ export function SubjectCardsHub({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Delete Subject Confirmation Modal */}
+      {pendingDeleteCard && onDeleteSubject ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-confirm-delete-subject-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs"
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-6 pb-4 pt-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-600">
+                  <Trash2 size={19} aria-hidden="true" />
+                </span>
+                <div>
+                  <h3 id="modal-confirm-delete-subject-title" className="text-base font-black text-slate-900">
+                    ยืนยันการลบรายวิชา
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-500">
+                    กรุณาตรวจสอบรายละเอียดก่อนยืนยันการลบ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isDeletingSubject}
+                onClick={() => setPendingDeleteCard(null)}
+                className="grid h-8 w-8 place-items-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="ปิดหน้าต่าง"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 px-6 py-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-black text-slate-900">{pendingDeleteCard.subjectName}</span>
+                  {pendingDeleteCard.subjectCode ? (
+                    <span className="rounded-lg bg-slate-900 px-2 py-0.5 font-mono text-[11px] font-bold text-white">
+                      {pendingDeleteCard.subjectCode}
+                    </span>
+                  ) : (
+                    <span className="rounded-lg border border-dashed border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                      ยังไม่ระบุรหัสวิชา
+                    </span>
+                  )}
+                </div>
+                {pendingDeleteCard.learningArea || pendingDeleteCard.credit ? (
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {pendingDeleteCard.learningArea || 'ไม่ระบุกลุ่มสาระ'}
+                    {pendingDeleteCard.credit !== null ? ` · ${pendingDeleteCard.credit.toFixed(2)} หน่วยกิต` : ''}
+                    {pendingDeleteCard.hoursPerYear !== null ? ` · ${pendingDeleteCard.hoursPerYear} ชม./ปี` : ''}
+                  </p>
+                ) : null}
+              </div>
+
+              {pendingDeleteCard.assessmentCount > 0 ? (
+                <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs font-bold leading-5 text-rose-800">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-rose-600" aria-hidden="true" />
+                  <div>
+                    <p className="font-black text-rose-900">
+                      วิชานี้มีช่องคะแนนอยู่ {pendingDeleteCard.assessmentCount} ช่อง (น้ำหนักรวม {pendingDeleteCard.plannedWeight} คะแนน)
+                    </p>
+                    <p className="mt-0.5 font-semibold text-rose-700">
+                      เมื่อยืนยันลบรายวิชา ช่องคะแนนและคะแนนที่กรอกไว้ในวิชานี้จะถูกลบออกไปด้วย
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs font-bold text-emerald-800">
+                  วิชานี้ยังไม่มีช่องคะแนนที่บันทึกไว้ สามารถลบออกจากรายการรายวิชาได้อย่างปลอดภัย
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4">
+              <button
+                type="button"
+                disabled={isDeletingSubject}
+                onClick={() => setPendingDeleteCard(null)}
+                className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingSubject || isBusy}
+                onClick={async () => {
+                  setIsDeletingSubject(true);
+                  try {
+                    const ok = await onDeleteSubject(pendingDeleteCard);
+                    if (ok) {
+                      setPendingDeleteCard(null);
+                    }
+                  } finally {
+                    setIsDeletingSubject(false);
+                  }
+                }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-2xl bg-rose-600 px-5 text-xs font-black text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                <span>{isDeletingSubject ? 'กำลังลบรายวิชา...' : 'ยืนยันลบรายวิชา'}</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -1755,6 +1755,124 @@ export function ScoresPage({ session }: ScoresPageProps) {
     handleScoreViewChange(getDefaultEntryScoreView());
   }
 
+  async function handleDeleteSubjectFromHub(card: SubjectCardItem): Promise<boolean> {
+    const workspaceId = session.workspace?.id || 'demo-workspace';
+    const targetKey = card.subjectName.trim().toLowerCase();
+    const scopedClassroom =
+      hubClassroomFilter !== 'all'
+        ? classrooms.find((c) => c.id === hubClassroomFilter) || null
+        : null;
+    const scopedGradeLevel = scopedClassroom?.name?.split('/')[0]?.trim() || null;
+
+    const matchingSubjects = schoolSubjects.filter((sub) => {
+      const sameName = sub.subject_name.trim().toLowerCase() === targetKey;
+      const sameCode =
+        Boolean(card.subjectCode) &&
+        sub.subject_code.trim().toLowerCase() === (card.subjectCode || '').trim().toLowerCase();
+      if (!sameName && !sameCode) return false;
+      if (scopedGradeLevel && sub.grade_level.trim() && sub.grade_level.trim() !== scopedGradeLevel) {
+        return false;
+      }
+      return true;
+    });
+
+    const matchingAssessments = assessments.filter((a) => {
+      if (a.status === 'archived') return false;
+      if (a.subject_name.trim().toLowerCase() !== targetKey) return false;
+      if (hubClassroomFilter !== 'all' && a.classroom_id !== hubClassroomFilter) return false;
+      return true;
+    });
+
+    const matchingSubjectIds = new Set(matchingSubjects.map((s) => s.id));
+    const matchingAssessmentIds = new Set(matchingAssessments.map((a) => a.id));
+
+    const removeLocalState = () => {
+      setSchoolSubjects((prev) => {
+        const next = prev.filter((sub) => {
+          if (matchingSubjectIds.has(sub.id)) return false;
+          if (! scopedGradeLevel && sub.subject_name.trim().toLowerCase() === targetKey) return false;
+          return true;
+        });
+        try {
+          const gradeKey = scopedGradeLevel || defaultHubGradeLevel || 'ป.5';
+          window.localStorage.setItem(
+            `classcare_academic_subjects_${workspaceId}_${gradeKey}`,
+            JSON.stringify(next),
+          );
+        } catch {
+          // Ignore storage fallback error.
+        }
+        return next;
+      });
+      if (matchingAssessmentIds.size > 0) {
+        setAssessments((prev) => prev.filter((item) => !matchingAssessmentIds.has(item.id)));
+        setEntries((prev) => prev.filter((entry) => !matchingAssessmentIds.has(entry.assessment_id)));
+      }
+      if (subjectFilter.trim().toLowerCase() === targetKey) {
+        setSubjectFilter('');
+      }
+    };
+
+    if (!supabase || !session.workspace || demoMode) {
+      removeLocalState();
+      setNotice(`ลบรายวิชา "${card.subjectName}" เรียบร้อยแล้ว`);
+      return true;
+    }
+
+    setIsSubjectsBusy(true);
+    setNotice(null);
+    try {
+      if (matchingSubjects.length > 0) {
+        const realIds = matchingSubjects
+          .map((s) => s.id)
+          .filter((id) => !id.startsWith('demo-') && !id.startsWith('local-'));
+        if (realIds.length > 0) {
+          const { error: subDelErr } = await supabase
+            .from('school_subjects')
+            .delete()
+            .in('id', realIds);
+          if (subDelErr && !subDelErr.message?.includes('Could not find the table')) {
+            setNotice(`ลบรายวิชาไม่สำเร็จ: ${subDelErr.message}`);
+            return false;
+          }
+        }
+      }
+
+      for (const assessment of matchingAssessments) {
+        const rpcRes = await supabase.rpc('delete_score_assessment_safely', {
+          target_assessment_id: assessment.id,
+        });
+        if (rpcRes.error) {
+          await supabase
+            .from('score_assessments')
+            .delete()
+            .eq('id', assessment.id)
+            .eq('workspace_id', workspaceId);
+        }
+      }
+
+      await writeAuditLog(session, {
+        action: 'academic.delete_subject_from_hub',
+        entityId: matchingSubjects[0]?.id || workspaceId,
+        entityTable: 'school_subjects',
+        metadata: {
+          deleted_assessments: matchingAssessments.length,
+          deleted_subject_rows: matchingSubjects.length,
+          subject_code: card.subjectCode,
+          subject_name: card.subjectName,
+        },
+        riskLevel: matchingAssessments.length > 0 ? 'high' : 'normal',
+        source: 'score_center',
+      });
+
+      removeLocalState();
+      setNotice(`ลบรายวิชา "${card.subjectName}"${card.subjectCode ? ` (${card.subjectCode})` : ''} เรียบร้อยแล้ว`);
+      return true;
+    } finally {
+      setIsSubjectsBusy(false);
+    }
+  }
+
   function openCreateAssessmentModal(overrideClassroomId?: string) {
     const targetCid = overrideClassroomId || classroomId;
     setForm((current) => ({
@@ -2903,6 +3021,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
             onOpenOfficialDocuments={() => setIsOfficialDocumentsOpen(true)}
             onOpenRubricModal={() => setIsRubricModalOpen(true)}
             onOpenSubject={handleOpenSubjectFromHub}
+            onDeleteSubject={handleDeleteSubjectFromHub}
             onOpenTermClosing={() => setIsTermClosingOpen(true)}
             onQuickAddSubject={handleQuickAddSubject}
             onSelectClassroomFilter={setHubClassroomFilter}
