@@ -77,7 +77,6 @@ import {
   loadCloudScoreRatio,
   saveCloudScoreRatio,
 } from '../../lib/workspaceCloudPrefs';
-import { loadScheduleSettings, type ScheduleSettings } from '../../lib/scheduleSettings';
 import { adaptObecSubjectCode, DEFAULT_PRIMARY_SUBJECTS_TEMPLATE, type SchoolSubject } from '../../types/academic';
 import type { AppSessionContext } from '../../types/core';
 import { DEMO_PRIMARY_CLASSROOMS, DEMO_PRIMARY_STUDENTS, getPrimaryMasterData, autoRealignAllStudentsToCorrectRooms } from '../../data/p5MasterTemplate';
@@ -473,11 +472,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [schoolSubjects, setSchoolSubjects] = useState<SchoolSubject[]>(
     demoMode ? buildDemoSchoolSubjects(session.workspace?.id || 'demo-workspace', 'ป.5') : [],
   );
-  const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings | null>(() =>
-    typeof window !== 'undefined'
-      ? loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1', session.workspace?.id)
-      : null,
-  );
   const [isSubjectsBusy, setIsSubjectsBusy] = useState(false);
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -716,59 +710,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
     [assessments, classroomId],
   );
 
-  const scheduleTeachingMap = useMemo(() => {
-    const NON_ACADEMIC_ACTIVITIES = new Set([
-      'โฮมรูม',
-      'พักกลางวัน',
-      'ประชุม',
-      'เคารพธงชาติ',
-      'สวดมนต์',
-      'ว่าง',
-      'กิจกรรมหน้าเสาธง',
-    ]);
-    const map = new Map<
-      string,
-      {
-        subjectName: string;
-        codes: Set<string>;
-        classroomIds: Set<string>;
-      }
-    >();
-    if (!scheduleSettings) return map;
-
-    const matchClassroomsByLabel = (label?: string) => {
-      const clean = (label || '').trim();
-      if (!clean) return [] as ClassroomRow[];
-      const exact = classrooms.filter((c) => c.name.trim() === clean);
-      if (exact.length > 0) return exact;
-      const gradePrefix = clean.split('/')[0]?.trim();
-      if (!gradePrefix) return [] as ClassroomRow[];
-      return classrooms.filter((c) => c.name.split('/')[0]?.trim() === gradePrefix);
-    };
-
-    Object.values(scheduleSettings.cells || {}).forEach((cell) => {
-      const subName = (cell?.subject || '').trim();
-      if (!subName || NON_ACADEMIC_ACTIVITIES.has(subName)) return;
-      const key = subName.toLowerCase();
-      let entry = map.get(key);
-      if (!entry) {
-        entry = {
-          subjectName: subName,
-          codes: new Set<string>(),
-          classroomIds: new Set<string>(),
-        };
-        map.set(key, entry);
-      }
-      const code = (cell?.subjectCode || '').trim();
-      if (code) entry.codes.add(code);
-      matchClassroomsByLabel(cell?.classroom).forEach((room) => {
-        entry.classroomIds.add(room.id);
-      });
-    });
-
-    return map;
-  }, [classrooms, scheduleSettings]);
-
   const allWorkspaceSubjects = useMemo(() => {
     const list = assessments
       .filter((a) => a.status !== 'archived')
@@ -778,12 +719,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
       const name = sub.subject_name.trim();
       if (name) list.push(name);
     });
-    scheduleTeachingMap.forEach((item) => {
-      if (item.subjectName) list.push(item.subjectName);
-    });
     if (form.subjectName.trim()) list.push(form.subjectName.trim());
     return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [assessments, form.subjectName, scheduleTeachingMap, schoolSubjects]);
+  }, [assessments, form.subjectName, schoolSubjects]);
 
   const classroomIdsWithSubjectAssessments = useMemo(() => {
     if (!subjectFilter) return new Set<string>();
@@ -837,29 +775,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
       }
       return matches[0];
     }
-    const schedMatch = scheduleTeachingMap.get(norm);
-    if (schedMatch && schedMatch.codes.size > 0) {
-      const firstCode = Array.from(schedMatch.codes)[0];
-      const adapted = roomGrade ? adaptObecSubjectCode(firstCode, roomGrade) : firstCode;
-      return {
-        id: `schedule-meta-${norm}`,
-        workspace_id: session.workspace?.id || 'demo-workspace',
-        subject_code: adapted,
-        subject_name: schedMatch.subjectName,
-        learning_area: '',
-        subject_type: 'basic' as const,
-        grade_level: roomGrade || 'ป.5',
-        hours_per_year: 0,
-        hours_per_week: 0,
-        credit: 0,
-        teacher_profile_id: session.profile.id,
-        is_active: true,
-        created_at: '',
-        updated_at: '',
-      };
-    }
     return null;
-  }, [activeClassroom?.name, scheduleTeachingMap, schoolSubjects, session.profile.id, session.workspace?.id, subjectFilter]);
+  }, [activeClassroom?.name, schoolSubjects, subjectFilter]);
 
   const contextAssessments = useMemo(
     () =>
@@ -1045,59 +962,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
       }
     });
 
-    scheduleTeachingMap.forEach((sched, key) => {
-      const firstCode = Array.from(sched.codes)[0] || '';
-      const effectiveCode =
-        firstCode && scopedGradeLevel ? adaptObecSubjectCode(firstCode, scopedGradeLevel) : firstCode;
-      let target = cardMap.get(key);
-      if (!target) {
-        const roomMap = new Map<string, { id: string; name: string }>();
-        if (scopedClassroom) {
-          roomMap.set(scopedClassroom.id, { id: scopedClassroom.id, name: scopedClassroom.name });
-        } else if (sched.classroomIds.size > 0) {
-          classrooms
-            .filter((c) => sched.classroomIds.has(c.id))
-            .forEach((c) => roomMap.set(c.id, { id: c.id, name: c.name }));
-        } else {
-          classrooms.forEach((c) => roomMap.set(c.id, { id: c.id, name: c.name }));
-        }
-        const codesSet = new Set<string>();
-        if ( scopedGradeLevel && effectiveCode ) {
-          codesSet.add(effectiveCode);
-        } else {
-          sched.codes.forEach((c) => codesSet.add(c));
-        }
-        target = {
-          key,
-          subjectName: sched.subjectName,
-          subjectCode: effectiveCode || null,
-          codesSet,
-          learningArea: null,
-          credit: null,
-          hoursPerYear: null,
-          gradeLevel: scopedGradeLevel || preferredHubGrade || null,
-          classroomMap: roomMap,
-          assessments: [],
-          hasOfficialRecord: false,
-        };
-        cardMap.set(key, target);
-      } else {
-        if (!target.subjectCode && effectiveCode) {
-          target.subjectCode = effectiveCode;
-        }
-        if (scopedGradeLevel && effectiveCode) {
-          target.codesSet.add(effectiveCode);
-        } else {
-          sched.codes.forEach((c) => target!.codesSet.add(c));
-        }
-        if (!scopedClassroom) {
-          classrooms
-            .filter((c) => sched.classroomIds.has(c.id))
-            .forEach((c) => target!.classroomMap.set(c.id, { id: c.id, name: c.name }));
-        }
-      }
-    });
-
     assessments
       .filter(
         (assessment) =>
@@ -1270,7 +1134,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
     classrooms,
     entriesByAssessment,
     hubClassroomFilter,
-    scheduleTeachingMap,
     schoolSubjects,
     students,
     teacherScope.homeroomClassrooms,
@@ -1577,7 +1440,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
         { data: assessmentRows, error: assessmentError },
         { data: termRows },
         subjectsRes,
-        scheduleRes,
       ] = await Promise.all([
         hydrateHiddenClassroomsFromCloud(session.profile.id, workspaceId),
         supabase
@@ -1611,22 +1473,9 @@ export function ScoresPage({ session }: ScoresPageProps) {
           .eq('workspace_id', workspaceId)
           .eq('is_active', true)
           .order('subject_code', { ascending: true }),
-        supabase
-          .from('workspace_schedule_settings')
-          .select('settings')
-          .eq('workspace_id', workspaceId)
-          .maybeSingle(),
       ]);
 
       if (!isMounted) return;
-
-      if (!scheduleRes.error && scheduleRes.data?.settings && typeof scheduleRes.data.settings === 'object') {
-        const localSched = loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1', workspaceId);
-        setScheduleSettings({
-          ...localSched,
-          ...(scheduleRes.data.settings as Partial<ScheduleSettings>),
-        });
-      }
 
       if (classroomError || studentError || assessmentError) {
         setNotice(classroomError?.message || studentError?.message || assessmentError?.message || 'โหลดข้อมูลคะแนนไม่สำเร็จ');
@@ -2033,26 +1882,19 @@ export function ScoresPage({ session }: ScoresPageProps) {
   async function handleDeleteSubjectFromHub(card: SubjectCardItem): Promise<boolean> {
     const workspaceId = session.workspace?.id || 'demo-workspace';
     const targetKey = card.subjectName.trim().toLowerCase();
-    const scopedClassroom =
-      hubClassroomFilter !== 'all'
-        ? classrooms.find((c) => c.id === hubClassroomFilter) || null
-        : null;
-    const scopedGradeLevel = scopedClassroom?.name?.split('/')[0]?.trim() || null;
+    const cardCodeSet = new Set(
+      [card.subjectCode, ...(card.subjectCodesByGrade || [])]
+        .filter((c): c is string => Boolean(c))
+        .map((c) => c.trim().toLowerCase()),
+    );
 
     const matchingSubjects = schoolSubjects.filter((sub) => {
       const sameName = sub.subject_name.trim().toLowerCase() === targetKey;
-      const sameCode =
-        Boolean(card.subjectCode) &&
-        sub.subject_code.trim().toLowerCase() === (card.subjectCode || '').trim().toLowerCase();
-      if (!sameName && !sameCode) return false;
-      if (scopedGradeLevel && sub.grade_level.trim() && sub.grade_level.trim() !== scopedGradeLevel) {
-        return false;
-      }
-      return true;
+      const sameCode = cardCodeSet.has(sub.subject_code.trim().toLowerCase());
+      return sameName || sameCode;
     });
 
     const matchingAssessments = assessments.filter((a) => {
-      if (a.status === 'archived') return false;
       if (a.subject_name.trim().toLowerCase() !== targetKey) return false;
       if (hubClassroomFilter !== 'all' && a.classroom_id !== hubClassroomFilter) return false;
       return true;
@@ -2065,15 +1907,36 @@ export function ScoresPage({ session }: ScoresPageProps) {
       setSchoolSubjects((prev) => {
         const next = prev.filter((sub) => {
           if (matchingSubjectIds.has(sub.id)) return false;
-          if (! scopedGradeLevel && sub.subject_name.trim().toLowerCase() === targetKey) return false;
+          if (sub.subject_name.trim().toLowerCase() === targetKey) return false;
+          if (cardCodeSet.has(sub.subject_code.trim().toLowerCase())) return false;
           return true;
         });
         try {
-          const gradeKey = scopedGradeLevel || defaultHubGradeLevel || 'ป.5';
-          window.localStorage.setItem(
-            `classcare_academic_subjects_${workspaceId}_${gradeKey}`,
-            JSON.stringify(next),
-          );
+          const allGradeKeys = new Set([
+            defaultHubGradeLevel || 'ป.5',
+            ...classrooms.map((c) => c.name.split('/')[0]?.trim()).filter(Boolean),
+            'ป.1',
+            'ป.2',
+            'ป.3',
+            'ป.4',
+            'ป.5',
+            'ป.6',
+          ]);
+          allGradeKeys.forEach((gKey) => {
+            const storageKey = `classcare_academic_subjects_${workspaceId}_${gKey}`;
+            const raw = window.localStorage.getItem(storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw) as SchoolSubject[];
+              if (Array.isArray(parsed)) {
+                const filtered = parsed.filter(
+                  (item) =>
+                    item.subject_name?.trim().toLowerCase() !== targetKey &&
+                    !cardCodeSet.has((item.subject_code || '').trim().toLowerCase()),
+                );
+                window.localStorage.setItem(storageKey, JSON.stringify(filtered));
+              }
+            }
+          });
         } catch {
           // Ignore storage fallback error.
         }
@@ -2097,21 +1960,26 @@ export function ScoresPage({ session }: ScoresPageProps) {
     setIsSubjectsBusy(true);
     setNotice(null);
     try {
-      if (matchingSubjects.length > 0) {
-        const realIds = matchingSubjects
-          .map((s) => s.id)
-          .filter((id) => !id.startsWith('demo-') && !id.startsWith('local-'));
-        if (realIds.length > 0) {
-          const { error: subDelErr } = await supabase
-            .from('school_subjects')
-            .delete()
-            .in('id', realIds);
-          if (subDelErr && !subDelErr.message?.includes('Could not find the table')) {
-            setNotice(`ลบรายวิชาไม่สำเร็จ: ${subDelErr.message}`);
-            return false;
-          }
+      const realIds = matchingSubjects
+        .map((s) => s.id)
+        .filter((id) => !id.startsWith('demo-') && !id.startsWith('local-'));
+      if (realIds.length > 0) {
+        const { error: subDelErr } = await supabase
+          .from('school_subjects')
+          .delete()
+          .in('id', realIds);
+        if (subDelErr && !subDelErr.message?.includes('Could not find the table')) {
+          setNotice(`ลบรายวิชาไม่สำเร็จ: ${subDelErr.message}`);
+          return false;
         }
       }
+
+      // Also delete by workspace_id + subject_name directly in case any grade rows were not in local state
+      await supabase
+        .from('school_subjects')
+        .delete()
+        .eq('workspace_id', workspaceId)
+        .eq('subject_name', card.subjectName.trim());
 
       for (const assessment of matchingAssessments) {
         const rpcRes = await supabase.rpc('delete_score_assessment_safely', {
