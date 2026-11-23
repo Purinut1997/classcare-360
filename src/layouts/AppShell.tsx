@@ -8,6 +8,7 @@ import { Sidebar } from '../components/dashboard/Sidebar';
 import { Topbar } from '../components/dashboard/Topbar';
 import { GlobalBroadcastBanner } from '../components/system/GlobalBroadcastBanner';
 import { NetworkStatusBanner } from '../components/system/NetworkStatusBanner';
+import { SiteCreditFooter } from '../components/brand/SiteCreditFooter';
 import { SetupGuideModal } from '../components/guide/SetupGuideModal';
 import { SupportChat } from '../components/support/SupportChat';
 import { recordMenuUsageFromNavigation } from '../lib/menuUsage';
@@ -214,6 +215,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
         ) : (
           children
         )}
+        <SiteCreditFooter className="mx-4 mt-8 pb-24 lg:mx-6 lg:pb-6" />
       </div>
       <div className="no-print print:hidden">
         <MobileNav

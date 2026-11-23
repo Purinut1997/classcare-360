@@ -3289,10 +3289,6 @@ export function SuperadminDashboard({ embedded = false }: SuperadminDashboardPro
           }}
           onUpdated={() => void loadSuperadminData()}
         />
-
-        <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-          Created by MIKPURINUT
-        </footer>
       </section>
     </main>
   );

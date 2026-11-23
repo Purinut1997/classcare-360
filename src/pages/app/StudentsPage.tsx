@@ -7608,10 +7608,6 @@ export function StudentsPage({ session }: StudentsPageProps) {
           </div>
         );
       })() : null}
-
-      <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-        Created by MIKPURINUT
-      </footer>
     </main>
   );
 }

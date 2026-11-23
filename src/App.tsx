@@ -9,6 +9,7 @@ import { canManageWorkspace, hasWorkspaceCapability, roleLabels, type WorkspaceC
 import { getSessionLoadErrorMessage, useAppSession } from './lib/session';
 import { isSupabaseReady } from './lib/supabaseClient';
 import { NexusAuroraLoader } from './components/system/NexusAuroraLoader';
+import { SiteCreditFooter } from './components/brand/SiteCreditFooter';
 import { AppShell } from './layouts/AppShell';
 import { appNavItems, appViewCopy, superadminNavItem } from './routes/appRoutes';
 import { RequireRouteAccess } from './routes/RouteGuards';
@@ -694,27 +695,36 @@ function AppRoutes() {
     return <Navigate replace to={withDemoContext(getPostAuthRouteForSession(session, redirectTo), location.search)} />;
   }
 
+  const showStandaloneFooter =
+    location.pathname !== '/' && location.pathname !== '/app/dashboard';
+  const isDarkFooterRoute = location.pathname === '/login';
+
   return (
-    <Routes>
-      <Route element={<LandingPage session={session} />} path="/" />
-      <Route element={<LoginPage session={session} sessionWarning={state === 'error' ? getSessionLoadErrorMessage(error) : null} />} path="/login" />
-      <Route element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />} path="/auth/complete-profile" />
-      <Route element={session ? <ResetPasswordPage /> : <Navigate replace to="/login?mode=forgot" />} path="/auth/reset-password" />
-      <Route element={<PricingPage />} path="/pricing" />
-      <Route element={<PublicReportLookupPage />} path="/public/report" />
-      <Route element={<PublicSupportPage />} path="/support" />
-      <Route element={<StudentExamPortalPage />} path="/exam" />
-      <Route element={<StudentExamPortalPage />} path="/exam/:pin" />
-      <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />
-      <Route element={<AppDashboardRoute session={session} />} path="/app/dashboard" />
-      <Route element={<WorkspaceSetupRoute session={session} />} path="/app/select-workspace" />
-      <Route element={<PackageRoute session={session} />} path="/app/package" />
-      <Route element={<SuperadminRoute session={session} />} path="/superadmin/dashboard" />
-      <Route element={<PortalInvitationsRoute session={session} />} path="/portal/invitations" />
-      <Route element={<PortalRoute moduleKey="parent_portal" role="parent" session={session} />} path="/portal/parent" />
-      <Route element={<PortalRoute moduleKey="student_portal" role="student" session={session} />} path="/portal/student" />
-      <Route element={<NotFoundPage />} path="*" />
-    </Routes>
+    <>
+      <Routes>
+        <Route element={<LandingPage session={session} />} path="/" />
+        <Route element={<LoginPage session={session} sessionWarning={state === 'error' ? getSessionLoadErrorMessage(error) : null} />} path="/login" />
+        <Route element={session ? <CompleteProfilePage /> : <Navigate replace to="/login" />} path="/auth/complete-profile" />
+        <Route element={session ? <ResetPasswordPage /> : <Navigate replace to="/login?mode=forgot" />} path="/auth/reset-password" />
+        <Route element={<PricingPage />} path="/pricing" />
+        <Route element={<PublicReportLookupPage />} path="/public/report" />
+        <Route element={<PublicSupportPage />} path="/support" />
+        <Route element={<StudentExamPortalPage />} path="/exam" />
+        <Route element={<StudentExamPortalPage />} path="/exam/:pin" />
+        <Route element={<Navigate replace to="/public/report" />} path="/report-lookup" />
+        <Route element={<AppDashboardRoute session={session} />} path="/app/dashboard" />
+        <Route element={<WorkspaceSetupRoute session={session} />} path="/app/select-workspace" />
+        <Route element={<PackageRoute session={session} />} path="/app/package" />
+        <Route element={<SuperadminRoute session={session} />} path="/superadmin/dashboard" />
+        <Route element={<PortalInvitationsRoute session={session} />} path="/portal/invitations" />
+        <Route element={<PortalRoute moduleKey="parent_portal" role="parent" session={session} />} path="/portal/parent" />
+        <Route element={<PortalRoute moduleKey="student_portal" role="student" session={session} />} path="/portal/student" />
+        <Route element={<NotFoundPage />} path="*" />
+      </Routes>
+      {showStandaloneFooter ? (
+        <SiteCreditFooter variant={isDarkFooterRoute ? 'dark' : 'light'} />
+      ) : null}
+    </>
   );
 }
 

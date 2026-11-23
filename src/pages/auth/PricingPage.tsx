@@ -422,10 +422,6 @@ export function PricingPage() {
           </div>
         </section>
       </main>
-
-      <footer className="border-t border-[#e1e8e2] py-6 text-center text-xs font-bold text-[#617469]">
-        ClassCare 360 · Created by MIKPURINUT
-      </footer>
     </div>
   );
 }

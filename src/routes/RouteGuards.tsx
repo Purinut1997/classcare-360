@@ -237,7 +237,7 @@ export function RouteGuardNotice({
       </section>
 
       <footer className="mt-6 text-center text-xs font-bold text-slate-500">
-        Created by MIKPURINUT
+        Crafted with care by MIKPURINUT
       </footer>
     </main>
   );

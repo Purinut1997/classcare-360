@@ -6124,10 +6124,6 @@ export function ScoresPage({ session }: ScoresPageProps) {
           term={activeAcademicTerm}
         />
       </Suspense>
-
-      <footer className="mt-8 text-center text-xs font-bold text-slate-400">
-        Created by MIKPURINUT • ClassCare 360
-      </footer>
     </main>
   );
 }
