@@ -73,14 +73,23 @@ function makeStartNonce() {
   return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+const TELEGRAM_BOT_TOKEN_REGEX = /^\d{5,20}:[A-Za-z0-9_-]{20,120}$/;
+
+function redactTelegramTokens(text: string): string {
+  return text.replace(/bot\d{5,20}:[A-Za-z0-9_-]+/gi, 'bot[REDACTED]');
+}
+
 async function telegramRequest<T>(token: string, method: string, payload?: Record<string, unknown>): Promise<T> {
+  if (!TELEGRAM_BOT_TOKEN_REGEX.test(token)) {
+    throw new Error('รูปแบบ Telegram Bot Token ไม่ถูกต้อง');
+  }
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: payload ? 'POST' : 'GET',
     headers: payload ? { 'Content-Type': 'application/json' } : undefined,
     body: payload ? JSON.stringify(payload) : undefined,
   });
   const result = await response.json().catch(() => ({})) as { ok?: boolean; result?: T; description?: string };
-  if (!response.ok || result.ok !== true) throw new Error(result.description || `Telegram could not complete ${method}`);
+  if (!response.ok || result.ok !== true) throw new Error(redactTelegramTokens(result.description || `Telegram could not complete ${method}`));
   return result.result as T;
 }
 
@@ -173,7 +182,7 @@ Deno.serve(async (request) => {
     if (action === 'connect') {
       const token = payload.token?.trim();
       const chatId = payload.chatId?.trim();
-      if (!token || token.length > 256) return respond({ error: 'กรุณากรอก Bot Token ให้ครบ' }, 400);
+      if (!token || !TELEGRAM_BOT_TOKEN_REGEX.test(token)) return respond({ error: 'กรุณากรอก Bot Token ให้ถูกต้องตามรูปแบบของ BotFather' }, 400);
       if (!chatId || !/^-?\d{1,20}$/.test(chatId)) return respond({ error: 'กรุณากรอก Chat ID ที่เป็นตัวเลข' }, 400);
 
       const bot = await telegramRequest<{ id: number; username?: string }>(token, 'getMe');
@@ -210,7 +219,7 @@ Deno.serve(async (request) => {
 
     if (action === 'start') {
       const token = payload.token?.trim();
-      if (!token || token.length > 256) return respond({ error: 'กรุณากรอก Bot Token ให้ครบ' }, 400);
+      if (!token || !TELEGRAM_BOT_TOKEN_REGEX.test(token)) return respond({ error: 'กรุณากรอก Bot Token ให้ถูกต้องตามรูปแบบของ BotFather' }, 400);
       const bot = await telegramRequest<{ id: number; username?: string; first_name?: string }>(token, 'getMe');
       if (!bot.username) return respond({ error: 'บอตนี้ไม่มีชื่อผู้ใช้ Telegram ที่ใช้เชื่อมบัญชี' }, 422);
 
@@ -336,8 +345,9 @@ Deno.serve(async (request) => {
 
     return respond({ error: 'คำสั่งไม่รองรับ' }, 400);
   } catch (error) {
-    console.error('manage-telegram-account failed:', error);
-    const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเชื่อม Telegram';
+    const rawMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเชื่อม Telegram';
+    const message = redactTelegramTokens(rawMessage);
+    console.error('manage-telegram-account failed:', message);
     return respond({ error: message }, 500);
   }
 });

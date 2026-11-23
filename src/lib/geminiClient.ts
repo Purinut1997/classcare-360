@@ -285,6 +285,10 @@ export async function callGeminiApi(
     return proxiedText;
   }
 
+  if (apiKey === 'SERVER_MANAGED_WORKSPACE_KEY' || apiKey.startsWith('••••')) {
+    throw new Error('ไม่สามารถเชื่อมต่อบริการ AI Proxy ของโรงเรียนได้ในขณะนี้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง');
+  }
+
   // Map messages to Gemini API format
   const contents = windowedMessages.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',

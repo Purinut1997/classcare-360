@@ -83,6 +83,6 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
-          for fn in superadmin-manage-users accept-portal-invitation ai-gemini-proxy approve-payment-request r2-backup-control system-backup-control; do
+          for fn in superadmin-manage-users accept-portal-invitation ai-gemini-proxy approve-payment-request r2-backup-control system-backup-control manage-telegram-account dispatch-notification; do
             supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           done

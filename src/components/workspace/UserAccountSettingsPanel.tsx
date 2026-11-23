@@ -138,8 +138,8 @@ export function UserAccountSettingsPanel({
     event.preventDefault();
     setPasswordNotice(null);
 
-    if (newPassword.length < 6) {
-      setPasswordNotice({ tone: 'error', text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' });
+    if (newPassword.length < 8) {
+      setPasswordNotice({ tone: 'error', text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร' });
       return;
     }
     if (newPassword !== confirmPassword) {

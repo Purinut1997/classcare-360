@@ -119,21 +119,9 @@ async function sendLinkedLineMessage(
   }
 
   if (!lineUserId) {
-    const { data: profileRow } = await serviceClient
-      .from('profiles')
-      .select('metadata')
-      .eq('id', profileId)
-      .maybeSingle();
-
-    const meta = (profileRow?.metadata as Record<string, unknown>) || {};
-    const pLine = typeof meta.line_user_id === 'string' ? meta.line_user_id.trim() : '';
-    if (pLine) lineUserId = pLine;
-  }
-
-  if (!lineUserId) {
     return {
       channel: 'line',
-      errorMessage: 'LINE delivery requires a verified line_user_id linked to this profile',
+      errorMessage: 'LINE delivery requires a verified line_user_id with granted consent in student_guardians',
       status: 'skipped',
     };
   }

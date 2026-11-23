@@ -67,8 +67,15 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
     return result;
   }
 
-  // 2. Check Workspace Key from local cache
-  const cachedWorkspaceKey = workspaceId ? localStorage.getItem(`classcare_workspace_ai_key_${workspaceId}`) : null;
+  // 2. Check Workspace Key from local cache (only owners/superadmins cache raw workspace key locally)
+  const canHoldRawWorkspaceKey = isSuperadmin || isWorkspaceOwner;
+  if (!canHoldRawWorkspaceKey && workspaceId) {
+    localStorage.removeItem(`classcare_workspace_ai_key_${workspaceId}`);
+  }
+  const cachedWorkspaceKey =
+    canHoldRawWorkspaceKey && workspaceId
+      ? localStorage.getItem(`classcare_workspace_ai_key_${workspaceId}`)
+      : null;
   const cachedWorkspaceModel = workspaceId ? (localStorage.getItem(`classcare_workspace_ai_model_${workspaceId}`) as GeminiModelId | null) : null;
 
   if (cachedWorkspaceKey && cachedWorkspaceKey.trim().length > 10) {
@@ -76,7 +83,7 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
     result.model = normalizeStoredModel(cachedWorkspaceModel);
     result.source = 'workspace';
 
-    // Proactively sync local workspace key to cloud workspace settings in background
+    // Proactively sync local workspace key to cloud workspace vault in background
     if (isSupabaseReady && supabase && workspaceId) {
       void syncWorkspaceKeyToCloud(workspaceId, cachedWorkspaceKey.trim(), result.model);
     }
@@ -129,8 +136,41 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
         }
       }
 
-      // 3.2 Check Workspace Key in Supabase (from workspaces.settings which is always available)
+      // 3.2 Check Workspace Key in Supabase via server-side vault RPC (with legacy fallback)
       if (workspaceId) {
+        try {
+          const { data: vaultStatus, error: vaultError } = await supabase.rpc(
+            'get_workspace_ai_config_status',
+            { target_workspace_id: workspaceId },
+          );
+          if (!vaultError && vaultStatus && typeof vaultStatus === 'object') {
+            const statusObj = vaultStatus as {
+              ai_model?: string | null;
+              api_key?: string | null;
+              has_key?: boolean;
+              is_ai_enabled?: boolean;
+            };
+            if (statusObj.has_key && statusObj.is_ai_enabled !== false) {
+              const resolvedWsModel = normalizeStoredModel(statusObj.ai_model);
+              result.model = resolvedWsModel;
+              result.source = 'workspace';
+              if (typeof statusObj.api_key === 'string' && statusObj.api_key.trim().length > 10) {
+                result.apiKey = statusObj.api_key.trim();
+                if (canHoldRawWorkspaceKey) {
+                  localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, result.apiKey);
+                }
+              } else {
+                // Non-owner teachers receive opaque proxy token; ai-gemini-proxy resolves the secret server-side
+                result.apiKey = 'SERVER_MANAGED_WORKSPACE_KEY';
+              }
+              localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, resolvedWsModel);
+              return result;
+            }
+          }
+        } catch {
+          // Fallback to legacy workspaces.settings if migration 0100 is not applied yet
+        }
+
         const { data: wsData } = await supabase
           .from('workspaces')
           .select('settings')
@@ -139,35 +179,18 @@ export async function getEffectiveAiConfig(session: AppSessionContext | null | u
 
         const wsSettings = (wsData?.settings as Record<string, unknown>) || {};
         const wsKey = typeof wsSettings.gemini_api_key === 'string' ? wsSettings.gemini_api_key.trim() : null;
+        const hasVaultFlag = wsSettings.has_workspace_ai_key === true;
         const wsModel = normalizeStoredModel(wsSettings.ai_model as string);
 
-        if (wsKey && wsKey.length > 10 && wsSettings.is_ai_enabled !== false) {
-          result.apiKey = wsKey;
+        if ((wsKey && wsKey.length > 10 || hasVaultFlag) && wsSettings.is_ai_enabled !== false) {
+          result.apiKey = canHoldRawWorkspaceKey && wsKey ? wsKey : 'SERVER_MANAGED_WORKSPACE_KEY';
           result.model = wsModel;
           result.source = 'workspace';
-          localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, wsKey);
+          if (canHoldRawWorkspaceKey && wsKey) {
+            localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, wsKey);
+          }
           localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, wsModel);
           return result;
-        }
-
-        // Also check if dedicated column gemini_api_key exists
-        try {
-          const { data: directWs } = await supabase
-            .from('workspaces')
-            .select('gemini_api_key, ai_model, is_ai_enabled')
-            .eq('id', workspaceId)
-            .maybeSingle();
-
-          if (directWs?.gemini_api_key && directWs.is_ai_enabled !== false) {
-            result.apiKey = directWs.gemini_api_key;
-            result.model = normalizeStoredModel(directWs.ai_model);
-            result.source = 'workspace';
-            localStorage.setItem(`classcare_workspace_ai_key_${workspaceId}`, directWs.gemini_api_key);
-            localStorage.setItem(`classcare_workspace_ai_model_${workspaceId}`, result.model);
-            return result;
-          }
-        } catch {
-          // Dedicated column might not exist
         }
       }
     } catch (err) {
@@ -207,23 +230,13 @@ async function syncPersonalKeyToCloud(profileId: string, apiKey: string, model: 
  * Background helper to sync local workspace key into workspace settings in Supabase
  */
 async function syncWorkspaceKeyToCloud(workspaceId: string, apiKey: string, model: GeminiModelId): Promise<void> {
-  if (!isSupabaseReady || !supabase) return;
+  if (!isSupabaseReady || !supabase || !apiKey || apiKey === 'SERVER_MANAGED_WORKSPACE_KEY' || apiKey.startsWith('••••')) return;
   try {
-    const { data: ws } = await supabase.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle();
-    const currentSettings = (ws?.settings as Record<string, unknown>) || {};
-    if (currentSettings.gemini_api_key !== apiKey || currentSettings.ai_model !== model) {
-      await supabase
-        .from('workspaces')
-        .update({
-          settings: {
-            ...currentSettings,
-            gemini_api_key: apiKey.trim(),
-            ai_model: model,
-            is_ai_enabled: true,
-          },
-        })
-        .eq('id', workspaceId);
-    }
+    await supabase.rpc('set_workspace_ai_key', {
+      target_workspace_id: workspaceId,
+      new_api_key: apiKey.trim(),
+      new_model: model,
+    });
   } catch {
     // Non-blocking background sync
   }
@@ -319,40 +332,35 @@ export async function saveWorkspaceAiConfig(
     localStorage.removeItem(`classcare_workspace_ai_model_${workspaceId}`);
   }
 
-  // 2. Permanent cloud sync to workspaces.settings
+  // 2. Permanent cloud sync to server-side workspace_ai_secrets vault via set_workspace_ai_key RPC
   if (isSupabaseReady && supabase) {
     try {
-      const { data: ws } = await supabase
-        .from('workspaces')
-        .select('settings')
-        .eq('id', workspaceId)
-        .maybeSingle();
+      const { error: rpcError } = await supabase.rpc('set_workspace_ai_key', {
+        target_workspace_id: workspaceId,
+        new_api_key: cleanKey.length > 5 ? cleanKey : '',
+        new_model: model,
+      });
 
-      const existingSettings = (ws?.settings as Record<string, unknown>) || {};
-      const updatedSettings = {
-        ...existingSettings,
-        gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
-        ai_model: model,
-        is_ai_enabled: cleanKey.length > 5,
-      };
+      if (rpcError) {
+        // Fallback if RPC not yet available
+        const { data: ws } = await supabase
+          .from('workspaces')
+          .select('settings')
+          .eq('id', workspaceId)
+          .maybeSingle();
 
-      await supabase
-        .from('workspaces')
-        .update({ settings: updatedSettings })
-        .eq('id', workspaceId);
+        const existingSettings = (ws?.settings as Record<string, unknown>) || {};
+        const updatedSettings = {
+          ...existingSettings,
+          gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
+          ai_model: model,
+          is_ai_enabled: cleanKey.length > 5,
+        };
 
-      // Also attempt update on direct column if migrated
-      try {
         await supabase
           .from('workspaces')
-          .update({
-            gemini_api_key: cleanKey.length > 5 ? cleanKey : null,
-            ai_model: model,
-            is_ai_enabled: cleanKey.length > 5,
-          })
+          .update({ settings: updatedSettings })
           .eq('id', workspaceId);
-      } catch {
-        // Safe to ignore if direct column is not in DB schema yet
       }
     } catch (e) {
       console.warn('Could not update workspace AI key in database:', e);
@@ -388,25 +396,6 @@ export async function superadminGrantWorkspaceAiKey(
 
   if (isSupabaseReady && supabase) {
     try {
-      const { data: ws } = await supabase
-        .from('workspaces')
-        .select('settings')
-        .eq('id', targetWorkspaceId)
-        .maybeSingle();
-
-      const existingSettings = (ws?.settings as Record<string, unknown>) || {};
-      await supabase
-        .from('workspaces')
-        .update({
-          settings: {
-            ...existingSettings,
-            gemini_api_key: cleanKey,
-            ai_model: model,
-            is_ai_enabled: true,
-          },
-        })
-        .eq('id', targetWorkspaceId);
-
       await supabase.rpc('set_workspace_ai_key', {
         target_workspace_id: targetWorkspaceId,
         new_api_key: cleanKey,

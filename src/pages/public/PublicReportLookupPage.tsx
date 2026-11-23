@@ -93,6 +93,7 @@ const initialSchools = isSupabaseReady ? [] : demoSchools;
 const reasonCopy: Record<string, string> = {
   invalid_identity: 'กรุณากรอกเลขบัตรประชาชน 13 หลัก และวันเกิดให้ถูกต้อง',
   public_report_disabled: 'โรงเรียนนี้ยังไม่ได้เปิดระบบดูรายงานหน้าแรก',
+  rate_limited: 'มีการตรวจสอบข้อมูลผิดพลาดเกินจำนวนครั้งที่กำหนด กรุณารอ 15 นาทีแล้วลองใหม่อีกครั้ง',
   student_not_found: 'ไม่พบข้อมูลนักเรียนที่ตรงกับเลขบัตรและวันเกิดนี้',
   workspace_not_found: 'ไม่พบโรงเรียนที่เลือก หรือโรงเรียนยังไม่เปิดเผยรายงาน',
 };

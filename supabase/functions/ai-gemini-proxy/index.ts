@@ -170,23 +170,35 @@ Deno.serve(async (request) => {
 
     let workspaceAiDisabled = false;
     if (!resolvedKey && effectiveWorkspaceId) {
-      const { data: wsRow } = await serviceClient
-        .from('workspaces')
-        .select('settings,gemini_api_key,ai_model,is_ai_enabled')
-        .eq('id', effectiveWorkspaceId)
-        .maybeSingle();
+      const [{ data: secretRow }, { data: wsRow }] = await Promise.all([
+        serviceClient
+          .from('workspace_ai_secrets')
+          .select('gemini_api_key,ai_model,is_ai_enabled')
+          .eq('workspace_id', effectiveWorkspaceId)
+          .maybeSingle(),
+        serviceClient
+          .from('workspaces')
+          .select('settings,gemini_api_key,ai_model,is_ai_enabled')
+          .eq('id', effectiveWorkspaceId)
+          .maybeSingle(),
+      ]);
 
       const wsSettings = (wsRow?.settings as Record<string, unknown>) || {};
-      const aiEnabled = wsRow?.is_ai_enabled !== false && wsSettings.is_ai_enabled !== false;
+      const aiEnabled =
+        secretRow?.is_ai_enabled !== false &&
+        wsRow?.is_ai_enabled !== false &&
+        wsSettings.is_ai_enabled !== false;
       workspaceAiDisabled = !aiEnabled;
+      const secretKey = typeof secretRow?.gemini_api_key === 'string' ? secretRow.gemini_api_key.trim() : '';
       const wsKeyFromCol = typeof wsRow?.gemini_api_key === 'string' ? wsRow.gemini_api_key.trim() : '';
       const wsKeyFromSettings = typeof wsSettings.gemini_api_key === 'string' ? wsSettings.gemini_api_key.trim() : '';
-      const wsKey = wsKeyFromCol || wsKeyFromSettings;
+      const wsKey = secretKey || wsKeyFromCol || wsKeyFromSettings;
 
       if (aiEnabled && wsKey.length > 10) {
         resolvedKey = wsKey;
         if (!resolvedModel || resolvedModel === 'auto') {
           resolvedModel =
+            (secretRow?.ai_model as string | undefined) ||
             (wsRow?.ai_model as string | undefined) ||
             (wsSettings.ai_model as string | undefined);
         }
@@ -204,7 +216,13 @@ Deno.serve(async (request) => {
       }
     }
 
-    if (!resolvedKey && payload.apiKey && payload.apiKey.trim().length > 10) {
+    if (
+      !resolvedKey &&
+      payload.apiKey &&
+      payload.apiKey.trim().length > 10 &&
+      payload.apiKey.trim() !== 'SERVER_MANAGED_WORKSPACE_KEY' &&
+      !payload.apiKey.trim().startsWith('••••')
+    ) {
       resolvedKey = payload.apiKey.trim();
     }
 
