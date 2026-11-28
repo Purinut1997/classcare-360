@@ -1,3 +1,4 @@
+import { lessonAttendancePath, nextLessonDate } from '../../lib/lessonAttendance';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CalendarDays, CheckCircle2, Clock3, Coffee, PlayCircle, School, Sun, Sunset } from 'lucide-react';
 import { ContextLink as Link } from '../navigation/ContextLink';
@@ -261,6 +262,7 @@ export function TeacherSchedulePreview({
           </div>
         </div>
 
+        {lesson.classroom && <Link to={lessonAttendancePath(selectedDay, lesson.classroom, lesson.subject, lesson.label)} className="relative z-10 mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-3 py-2 text-sm font-bold text-white focus-visible:ring-2 focus-visible:ring-sky-600" aria-label={`เช็คชื่อ ${lesson.subject} ${lesson.classroom} ${lesson.label} วันที่ ${nextLessonDate(selectedDay)}`}>เช็คชื่อคาบนี้ <ArrowRight size={15} aria-hidden="true" /></Link>}
         {/* Distinct Classroom Footer */}
         <div className="relative z-10 mt-3.5 flex items-center justify-between gap-2 border-t border-dashed border-[#E4EAE0] pt-2.5">
           <span className={`inline-flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${roomTone}`}>

@@ -1,3 +1,4 @@
+import { AccessibilitySettings } from '../components/shared/AccessibilitySettings';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Home, RefreshCw, ShieldCheck, Wrench } from 'lucide-react';
 
@@ -121,6 +122,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
       className={`app-shell theme-light ${isSidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}
       onClickCapture={(event) => recordMenuUsageFromNavigation(event.nativeEvent, session, navItems)}
     >
+      <a href="#classcare-main-content" className="cc-skip-link">ข้ามไปยังเนื้อหา</a>
       <div className="app-ambient-background no-print print:hidden" aria-hidden="true">
         <span className="app-ambient-orb app-ambient-orb-one" />
         <span className="app-ambient-orb app-ambient-orb-two" />
@@ -148,6 +150,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
             session={session}
           />
           <ContextNav activeView={activeView} />
+          <AccessibilitySettings accountKey={`${session?.workspace?.id || 'demo'}:${session?.profile?.id || 'guest'}`} />
         </div>
         {activeModuleMaintenance && isSuperadmin ? (
           <div className="no-print mx-4 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-black text-amber-950 shadow-xs print:hidden">
@@ -213,7 +216,7 @@ export function AppShell({ activeView, children, navItems, session }: AppShellPr
             </div>
           </main>
         ) : (
-          children
+          <div id="classcare-main-content" tabIndex={-1}>{children}</div>
         )}
         <SiteCreditFooter className="mx-4 mt-8 pb-24 lg:mx-6 lg:pb-6" />
       </div>

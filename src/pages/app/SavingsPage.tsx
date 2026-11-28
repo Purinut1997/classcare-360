@@ -1,3 +1,5 @@
+import { useLocalDraft } from '../../hooks/useLocalDraft';
+import { DraftRecoveryNotice } from '../../components/shared/DraftRecoveryNotice';
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -276,6 +278,18 @@ export function SavingsPage({ session }: SavingsPageProps) {
     () => students.filter((student) => student.classroom_id === classroomId),
     [classroomId, students],
   );
+
+  const savingsDraft = useLocalDraft(`classcare:savings-draft:${session.workspace?.id || 'demo'}:${session.profile.id}:${classroomId}:${getTodayDate()}`, { form, draftDeposits, selectedStudentId, transactionSnapshot: Object.fromEntries(transactions.map((transaction) => [transaction.id, { studentId: transaction.student_id, signature: JSON.stringify(transaction) }])) }, (draft) => {
+    const allowed = new Set(classroomStudents.map((student) => student.id));
+    const savedTransactions = draft.transactionSnapshot || {};
+    const currentTransactions = new Map(transactions.map((transaction) => [transaction.id, transaction]));
+    const changedStudents = new Set(transactions.filter((transaction) => savedTransactions[transaction.id]?.signature !== JSON.stringify(transaction)).map((transaction) => transaction.student_id));
+    Object.entries(savedTransactions).forEach(([id, saved]) => { if (!currentTransactions.has(id)) changedStudents.add(saved.studentId); });
+    if (draft.form && allowed.has(draft.selectedStudentId) && ['deposit', 'withdrawal', 'adjustment'].includes(draft.form.transactionType) && typeof draft.form.amount === 'string' && typeof draft.form.note === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(draft.form.transactionDate)) setForm({ ...draft.form, amount: changedStudents.has(draft.selectedStudentId) ? '0' : draft.form.amount });
+    if (changedStudents.size) setNotice('พบบัญชีที่มีรายการเปลี่ยนหลังเก็บร่าง ระบบไม่นำยอดร่างของบัญชีเหล่านั้นกลับมา กรุณาตรวจประวัติก่อนกรอกใหม่');
+    setDraftDeposits(Object.fromEntries(Object.entries(draft.draftDeposits || {}).filter(([id, amount]) => allowed.has(id) && !changedStudents.has(id) && Number.isFinite(amount) && amount > 0)));
+    if (allowed.has(draft.selectedStudentId)) setSelectedStudentId(draft.selectedStudentId);
+  }, !isLoading && Boolean(classroomId));
 
   const accountByStudent = useMemo(() => new Map(accounts.map((account) => [account.student_id, account])), [accounts]);
 
@@ -623,6 +637,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
         );
       });
       setTransactions((current) => [transaction, ...current]);
+      savingsDraft.clear();
       setNotice('บันทึกเงินออมในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return;
@@ -690,6 +705,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
       source: 'savings_center',
     });
     setTransactions((current) => [transaction, ...current]);
+    savingsDraft.clear();
     setNotice('บันทึกเงินออมแล้ว');
     setIsSubmitting(false);
   }
@@ -878,6 +894,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
         setTransactions((current) => [...newTransactions, ...current]);
         setDraftDeposits({});
+        savingsDraft.clear();
         setNotice(`บันทึกเงินออมประจำวันเรียบร้อยแล้ว (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿) [โหมดตัวอย่าง]`);
         setIsSubmitting(false);
         return;
@@ -943,6 +960,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
 
       setTransactions((current) => [...newTransactions, ...current]);
       setDraftDeposits({});
+        savingsDraft.clear();
       setNotice(`บันทึกเงินออมประจำวันสำเร็จ (${studentIdsToSave.length} คน รวม ${formatBaht(totalDeposited)} ฿)`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1408,7 +1426,8 @@ export function SavingsPage({ session }: SavingsPageProps) {
   }, [batchOpeningAmounts, classroomStudents]);
 
   return (
-    <main className="app-page min-h-screen pb-64 lg:pb-32">
+    <main onChangeCapture={savingsDraft.markChanged} className="app-page min-h-screen pb-64 lg:pb-32">
+      <DraftRecoveryNotice draft={savingsDraft} />
       {/* Morning Sage Classroom Savings Container */}
       <div className="rounded-3xl border border-[#DCE3D7] bg-[#FAFBF8] p-4 shadow-xs sm:p-7">
         
@@ -1562,6 +1581,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                     classroomStudents.forEach((s) => {
                       next[s.id] = selectedPresetAmount;
                     });
+                    savingsDraft.markChanged();
                     setDraftDeposits(next);
                   }}
                   className="inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border border-lime-400 bg-white text-xs font-bold text-[#1b3e04] hover:bg-lime-50 active:scale-95 transition shadow-2xs disabled:cursor-not-allowed disabled:opacity-50"
@@ -1626,6 +1646,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                     tabIndex={0}
                     onClick={() => {
                       if (selectedPresetAmount <= 0) return;
+                      savingsDraft.markChanged();
                       setDraftDeposits((prev) => {
                         const cur = prev[student.id] || 0;
                         if (cur === 0) return { ...prev, [student.id]: selectedPresetAmount };
@@ -1639,6 +1660,7 @@ export function SavingsPage({ session }: SavingsPageProps) {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         if (selectedPresetAmount <= 0) return;
+                        savingsDraft.markChanged();
                         setDraftDeposits((prev) => {
                           const cur = prev[student.id] || 0;
                           if (cur === 0) return { ...prev, [student.id]: selectedPresetAmount };

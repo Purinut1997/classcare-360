@@ -1,3 +1,8 @@
+import { useLocation } from 'react-router-dom';
+import { useSchoolDay } from '../../hooks/useSchoolDay';
+import { SchoolDayNotice } from '../../components/shared/SchoolDayNotice';
+import { useLocalDraft } from '../../hooks/useLocalDraft';
+import { DraftRecoveryNotice } from '../../components/shared/DraftRecoveryNotice';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -270,8 +275,11 @@ function getClassroomWithStudents(classrooms: ClassroomRow[], students: StudentR
 
 export function AttendancePage({ session }: AttendancePageProps) {
   const demoMode = isDemoSession(session);
+  const location = useLocation();
+  const lessonRequest = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [appliedLessonLink, setAppliedLessonLink] = useState('');
   const feedback = useSystemFeedback();
-  const [mode, setMode] = useState<AttendanceMode>('homeroom');
+  const [mode, setMode] = useState<AttendanceMode>(() => new URLSearchParams(location.search).get('checkMode') === 'subject' ? 'subject' : 'homeroom');
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>(demoMode ? demoClassrooms : []);
   const [students, setStudents] = useState<StudentRow[]>(demoMode ? demoStudents : []);
   const [attendanceSession, setAttendanceSession] = useState<AttendanceSessionRow | null>(null);
@@ -288,17 +296,19 @@ export function AttendancePage({ session }: AttendancePageProps) {
   const [marks, setMarks] = useState<Record<string, AttendanceStatus | undefined>>(() => createDefaultMarks(demoMode ? demoStudents : []));
   const [undoMarks, setUndoMarks] = useState<Record<string, AttendanceStatus | undefined> | null>(null);
   const attendanceDraftKey = useMemo(
-    () => `classcare:attendance-draft:${session.workspace?.id || 'demo'}:${classroomId}:${attendanceDate}:${mode}:${periodLabel}:${subjectName}`,
-    [attendanceDate, classroomId, mode, periodLabel, session.workspace?.id, subjectName],
+    () => `classcare:attendance-draft:${session.workspace?.id || 'demo'}:${session.profile.id}:${classroomId}:${attendanceDate}:${mode}:${periodLabel}:${subjectName}`,
+    [attendanceDate, classroomId, mode, periodLabel, session.workspace?.id, session.profile.id, subjectName],
   );
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(Boolean(supabase && session.workspace));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isNotifying, setIsNotifying] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     isSupabaseReady ? null : 'โหมดตัวอย่าง: ตั้งค่า .env.local เพื่อบันทึกเวลาเรียนลง Supabase จริง',
   );
-  const [calendarPolicy, setCalendarPolicy] = useState<CalendarAttendancePolicy | null>(null);
+  const sharedCalendar = useSchoolDay(session.workspace?.id, attendanceDate, demoMode);
+  const calendarPolicy: CalendarAttendancePolicy | null = sharedCalendar.day?.blocked ? sharedCalendar.day.events.find((event) => ['holiday', 'closed'].includes(event.day_type) && !event.affects_attendance) || null : null;
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
   const [studentRiskMap, setStudentRiskMap] = useState<Map<string, StudentAttendanceSummary>>(new Map());
   const [autoDetectedPeriodInfo, setAutoDetectedPeriodInfo] = useState<string | null>(null);
@@ -331,31 +341,40 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }, [cardDensity]);
 
   function updateMarks(updater: (previous: Record<string, AttendanceStatus | undefined>) => Record<string, AttendanceStatus | undefined>) {
+    attendanceDraft.markChanged();
     setUndoMarks(marks);
-    setMarks((previous) => {
-      const next = updater(previous);
-      try {
-        const safeMarks = Object.fromEntries(Object.entries(next).filter((entry): entry is [string, AttendanceStatus] =>
-          ['present', 'absent', 'late', 'leave', 'sick', 'activity'].includes(entry[1] || ''),
-        ));
-        window.sessionStorage.setItem(attendanceDraftKey, JSON.stringify({ savedAt: Date.now(), marks: safeMarks }));
-      } catch { /* Storage may be unavailable; attendance remains editable in memory. */ }
-      return next;
-    });
+    setMarks(updater);
   }
 
   function undoLastMarkChange() {
     if (!undoMarks) return;
+    attendanceDraft.markChanged();
     setMarks(undoMarks);
-    try {
-      const safeMarks = Object.fromEntries(Object.entries(undoMarks).filter((entry): entry is [string, AttendanceStatus] =>
-        ['present', 'absent', 'late', 'leave', 'sick', 'activity'].includes(entry[1] || ''),
-      ));
-      window.sessionStorage.setItem(attendanceDraftKey, JSON.stringify({ savedAt: Date.now(), marks: safeMarks }));
-    } catch { /* Keep the in-memory undo even if storage is unavailable. */ }
     setUndoMarks(null);
     setNotice('ย้อนการแก้ไขล่าสุดแล้ว ยังไม่ได้บันทึกลงระบบ');
   }
+
+  const attendanceDraft = useLocalDraft(attendanceDraftKey, { marks, notes }, (draft) => {
+    const allowed = new Set(students.filter((student) => student.classroom_id === classroomId).map((student) => student.id));
+    setMarks(Object.fromEntries(Object.entries(draft.marks || {}).filter(([id, status]) => allowed.has(id) && ['present', 'absent', 'late', 'leave', 'sick', 'activity'].includes(status || ''))));
+    setNotes(Object.fromEntries(Object.entries(draft.notes || {}).filter(([id, note]) => allowed.has(id) && typeof note === 'string')));
+  }, !isLoading && !isLoadingSession && Boolean(classroomId));
+
+  useEffect(() => {
+    if (appliedLessonLink === location.search || lessonRequest.get('checkMode') !== 'subject' || classrooms.length === 0) return;
+    const name = lessonRequest.get('classroomName') || '';
+    const exact = classrooms.filter((room) => room.name === name);
+    const matches = exact.length ? exact : classrooms.filter((room) => room.name.split('/')[0] === name);
+    const date = lessonRequest.get('attendanceDate') || '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) === date) setAttendanceDate(date);
+    setMode('subject');
+    setSubjectName(lessonRequest.get('subjectName') || 'ไม่ระบุวิชา');
+    setPeriodLabel(lessonRequest.get('periodLabel') || 'คาบ 1');
+    if (matches.length !== 1) { setClassroomId(''); setNotice('กรุณาเลือกห้องเรียนให้ตรงกับคาบสอนก่อนเช็คชื่อ'); setAppliedLessonLink(location.search); return; }
+    setClassroomId(matches[0].id);
+    setAppliedLessonLink(location.search);
+    setNotice('เปิดเช็คชื่อจากคาบสอนแล้ว กรุณาตรวจห้อง วิชา วันที่ และคาบก่อนบันทึก');
+  }, [classrooms, lessonRequest, location.search, appliedLessonLink]);
 
   const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId);
 
@@ -624,23 +643,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
       nextMarks[record.student_id] = record.status;
     }
 
-    if (records.length === 0) {
-      try {
-        const rawDraft = window.sessionStorage.getItem(attendanceDraftKey);
-        const draft = rawDraft ? JSON.parse(rawDraft) as { savedAt?: number; marks?: Record<string, AttendanceStatus> } : null;
-        const validStatuses = new Set<AttendanceStatus>(['present', 'absent', 'late', 'leave', 'sick', 'activity']);
-        const draftIsFresh = draft?.savedAt && Date.now() - draft.savedAt < 8 * 60 * 60 * 1000;
-        if (draftIsFresh && draft?.marks) {
-          const studentIds = new Set(nextStudents.map((student) => student.id));
-          Object.entries(draft.marks).forEach(([studentId, status]) => {
-            if (studentIds.has(studentId) && validStatuses.has(status)) nextMarks[studentId] = status;
-          });
-          setNotice('กู้คืนร่างเช็กชื่อจากแท็บนี้แล้ว ตรวจรายชื่อและกดบันทึกเมื่อพร้อม');
-        } else if (rawDraft) {
-          window.sessionStorage.removeItem(attendanceDraftKey);
-        }
-      } catch { /* Ignore invalid or unavailable local draft data. */ }
-    }
 
     setMarks(nextMarks);
     setNotes(Object.fromEntries(records.map((record) => [record.student_id, record.note || ''])));
@@ -664,6 +666,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       return;
     }
 
+    if (lessonRequest.get('checkMode') === 'subject' && lessonRequest.get('subjectName')) return;
     const detected = isToday ? detectActiveSchedulePeriod(scheduleSettings) : null;
     const roomMatches =
       detected &&
@@ -684,7 +687,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setSubjectName(modeCopy.subject.subject);
     setPeriodLabel('คาบ 1');
     setAutoDetectedPeriodInfo(null);
-  }, [mode, isToday, scheduleSettings, selectedClassroom?.name]);
+  }, [mode, isToday, scheduleSettings, selectedClassroom?.name, lessonRequest]);
 
   useEffect(() => {
     let active = true;
@@ -777,22 +780,26 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }, [demoMode, session.workspace]);
 
   useEffect(() => {
+    if (lessonRequest.get('checkMode') === 'subject') return;
     if (mode !== 'subject' || scheduledSubjectOptions.length === 0) return;
     if (!scheduledSubjectOptions.includes(subjectName)) setSubjectName(scheduledSubjectOptions[0]);
-  }, [mode, scheduledSubjectOptions, subjectName]);
+  }, [mode, scheduledSubjectOptions, subjectName, lessonRequest]);
 
   useEffect(() => {
+    if (lessonRequest.get('checkMode') === 'subject') return;
     if (mode !== 'subject' || attendancePeriodOptions.length === 0) return;
     if (!attendancePeriodOptions.some((period) => period.label === periodLabel)) setPeriodLabel(attendancePeriodOptions[0].label);
-  }, [attendancePeriodOptions, mode, periodLabel]);
+  }, [attendancePeriodOptions, mode, periodLabel, lessonRequest]);
 
   useEffect(() => {
     let isMounted = true;
     async function checkExistingSession() {
-      if (!classroomId || !attendanceDate) return;
+      setIsLoadingSession(true);
+      if (!classroomId || !attendanceDate) { setIsLoadingSession(false); return; }
       if (!supabase || !session.workspace || demoMode) {
         setAttendanceSession(null);
         setRecords([]);
+        setIsLoadingSession(false);
         return;
       }
       const normalizedPeriod = periodLabel;
@@ -815,6 +822,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
         setAttendanceSession(null);
         setRecords([]);
       }
+      if (isMounted) setIsLoadingSession(false);
     }
     void checkExistingSession();
     return () => {
@@ -822,28 +830,6 @@ export function AttendancePage({ session }: AttendancePageProps) {
     };
   }, [attendanceDate, classroomId, demoMode, mode, periodLabel, session.workspace]);
 
-  useEffect(() => {
-    let active = true;
-    async function loadCalendarPolicy() {
-      if (!supabase || !session.workspace?.id || demoMode) {
-        setCalendarPolicy(null);
-        return;
-      }
-      const { data } = await supabase
-        .from('school_calendar_days')
-        .select('title,day_type,affects_attendance')
-        .eq('workspace_id', session.workspace.id)
-        .eq('calendar_date', attendanceDate)
-        .in('day_type', ['holiday', 'closed'])
-        .limit(1)
-        .maybeSingle();
-      if (active) setCalendarPolicy((data as CalendarAttendancePolicy | null) || null);
-    }
-    void loadCalendarPolicy();
-    return () => {
-      active = false;
-    };
-  }, [attendanceDate, demoMode, session.workspace?.id]);
 
   // Load pending online guardian leave requests covering attendanceDate for the active classroom
   useEffect(() => {
@@ -944,13 +930,15 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   async function ensureSession(onNetworkError?: () => void): Promise<AttendanceSessionRow | null> {
-    if (attendanceSession) return attendanceSession;
+    if (sharedCalendar.loading) { setNotice('กำลังตรวจปฏิทินโรงเรียน กรุณารอสักครู่'); return null; }
+    if (sharedCalendar.error && navigator.onLine) { setNotice(sharedCalendar.error); return null; }
 
     if (calendarPolicy && !calendarPolicy.affects_attendance) {
       setNotice(`วันที่เลือกเป็น ${calendarPolicy.title} ระบบจึงไม่บันทึกเช็คชื่อตามปฏิทินโรงเรียน`);
       return null;
     }
 
+    if (attendanceSession) return attendanceSession;
     if (!classroomId) {
       setNotice('กรุณาเลือกห้องเรียนก่อน');
       return null;
@@ -1106,7 +1094,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
           student_id: rec.student_id,
         })),
       );
-      try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
+      attendanceDraft.clear();
       setUndoMarks(null);
       setNotice('ไม่มีอินเทอร์เน็ต — บันทึกเช็กชื่อลงคิวออฟไลน์แล้ว ระบบจะซิงก์อัตโนมัติเมื่อเชื่อมต่อ');
       feedback.endOperation(opId);
@@ -1177,7 +1165,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
       setSavedAttendanceUndo(hasCompleteAttendanceSnapshot(records, classroomStudents, activeSession.id)
         ? { records: [...records], sessionId: activeSession.id }
         : null);
-      try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
+      attendanceDraft.clear();
       setUndoMarks(null);
       const demoAlertCount = payload.filter((r) => r.status === 'absent' || r.status === 'late' || r.status === 'leave' || r.status === 'sick').length;
       setPostSaveNotifyPrompt(demoAlertCount > 0 ? { count: demoAlertCount, date: activeSession.attendance_date } : null);
@@ -1220,7 +1208,7 @@ export function AttendancePage({ session }: AttendancePageProps) {
     setSavedAttendanceUndo(hasCompleteAttendanceSnapshot(records, classroomStudents, activeSession.id)
       ? { records: [...records], sessionId: activeSession.id }
       : null);
-    try { window.sessionStorage.removeItem(attendanceDraftKey); } catch { /* no-op */ }
+    attendanceDraft.clear();
     setUndoMarks(null);
     await writeAuditLog(session, {
       action: 'attendance.records.saved',
@@ -1491,7 +1479,9 @@ export function AttendancePage({ session }: AttendancePageProps) {
   }
 
   return (
-    <main className="app-page min-h-screen pb-64 lg:pb-32">
+    <main onChangeCapture={attendanceDraft.markChanged} className="app-page min-h-screen pb-64 lg:pb-32">
+      <DraftRecoveryNotice draft={attendanceDraft} />
+      <SchoolDayNotice calendar={sharedCalendar} />
       {/* ======================================================== */}
       {/* SOFT 3D LINEN CONTAINER                                  */}
       {/* ======================================================== */}

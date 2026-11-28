@@ -136,6 +136,7 @@ export async function loadSchoolCalendarDigest({
 
   const collected: SchoolCalendarDigestEvent[] = [];
   const seen = new Set<string>();
+  const schoolOverrideDates = new Set<string>();
 
   const pushUnique = (event: SchoolCalendarDigestEvent) => {
     const key = `${event.date}|${event.title}`;
@@ -153,13 +154,14 @@ export async function loadSchoolCalendarDigest({
         .eq('workspace_id', workspaceId)
         .gte('calendar_date', pastStr)
         .lte('calendar_date', futureStr)
-        .neq('day_type', 'school_day')
         .order('calendar_date', { ascending: true })
-        .limit(100);
+        .limit(1000);
 
       if (!error && data) {
         data.forEach((row) => {
           const date = String(row.calendar_date).slice(0, 10);
+          schoolOverrideDates.add(date);
+          if (row.day_type === 'school_day') return;
           pushUnique({
             id: String(row.id),
             date,
@@ -174,7 +176,7 @@ export async function loadSchoolCalendarDigest({
   }
 
   try {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && (demoMode || !supabase || !workspaceId)) {
       const storageKey = `classcare:data-safety:${workspaceId || profileId || ''}`;
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
@@ -199,7 +201,7 @@ export async function loadSchoolCalendarDigest({
 
   const presets = [...getThaiPublicHolidays(targetYear), ...getThaiPublicHolidays(targetYear + 1)];
   presets.forEach((preset, idx) => {
-    if (preset.date >= pastStr && preset.date <= futureStr) {
+    if (preset.date >= pastStr && preset.date <= futureStr && !schoolOverrideDates.has(preset.date)) {
       pushUnique({
         id: `preset-${preset.date}-${idx}`,
         date: preset.date,

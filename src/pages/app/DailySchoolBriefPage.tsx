@@ -1,3 +1,5 @@
+import { useLocalDraft } from '../../hooks/useLocalDraft';
+import { DraftRecoveryNotice } from '../../components/shared/DraftRecoveryNotice';
 import {
   type FormEvent,
   useCallback,
@@ -162,6 +164,7 @@ export function DailySchoolBriefPage({
     reviewerId: "",
   });
   const workspaceId = session.workspace?.id;
+  const briefDraft = useLocalDraft(`classcare:brief-draft:${workspaceId || 'demo'}:${session.profile.id}:${classroomId}:${date}:${form.reportType}`, form, (draft) => setForm((current) => ({ ...current, ...draft })), !busy && Boolean(workspaceId));
   const canWriteBrief = hasWorkspaceCapability(session, "daily_brief.write");
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) return;
@@ -442,6 +445,7 @@ export function DailySchoolBriefPage({
           : "บันทึกไม่สำเร็จ: " + result.error.message,
       );
     } else {
+      briefDraft.clear();
       const saved = result.data as Brief;
       await supabase.from("daily_brief_revisions").insert({
         brief_id: saved.id,
@@ -577,7 +581,8 @@ export function DailySchoolBriefPage({
     window.print();
   }
   return (
-    <main className="app-page daily-brief-page">
+    <main onChangeCapture={briefDraft.markChanged} className="app-page daily-brief-page">
+      <DraftRecoveryNotice draft={briefDraft} />
       <header className="daily-brief-header">
         <div>
           <div className="flex items-center gap-2 text-sm font-black text-cyan-700">

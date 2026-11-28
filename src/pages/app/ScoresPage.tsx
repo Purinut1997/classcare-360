@@ -1,3 +1,5 @@
+import { useLocalDraft } from '../../hooks/useLocalDraft';
+import { DraftRecoveryNotice } from '../../components/shared/DraftRecoveryNotice';
 import { type FormEvent, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -564,6 +566,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   const [isTermClosingOpen, setIsTermClosingOpen] = useState(false);
 
   function handleApplyScoreOcr(scs: Record<string, number | null>) {
+    scoreDraft.markChanged();
     let appliedCount = 0;
     setScores((prev) => {
       const next = { ...prev };
@@ -2616,6 +2619,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   }
 
   function handleFillAllMaxScore() {
+    scoreDraft.markChanged();
     if (!selectedAssessment) return;
     const maxStr = String(selectedAssessment.max_score);
     const nextScores: Record<string, string> = {};
@@ -2627,6 +2631,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
   }
 
   function handleResetUnsaved() {
+    scoreDraft.clear();
     if (!selectedAssessment) return;
     const originalScores: Record<string, string> = {};
     const originalNotes: Record<string, string> = {};
@@ -2734,6 +2739,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         ...current.filter((entry) => entry.assessment_id !== selectedAssessment.id),
         ...nextEntries,
       ]);
+      scoreDraft.clear();
       setNotice('บันทึกคะแนนในโหมดตัวอย่างแล้ว');
       setIsSubmitting(false);
       return true;
@@ -2780,6 +2786,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
       ...current.filter((entry) => entry.assessment_id !== selectedAssessment.id),
       ...savedEntries,
     ]);
+    scoreDraft.clear();
     setNotice('บันทึกคะแนนแล้ว');
     setIsSubmitting(false);
     return true;
@@ -3127,6 +3134,13 @@ export function ScoresPage({ session }: ScoresPageProps) {
   // Excel Grid state: key is `${studentId}::${assessmentId}`, value is string
   const [gridScores, setGridScores] = useState<Record<string, string>>({});
 
+  const scoreDraft = useLocalDraft(`classcare:score-draft:${session.workspace?.id || 'demo'}:${session.profile.id}:${classroomId}:${selectedAssessmentId}`, { scores, notes, gridScores }, (draft) => {
+    const allowed = new Set(classroomStudents.map((student) => student.id));
+    setScores(Object.fromEntries(Object.entries(draft.scores || {}).filter(([id, value]) => allowed.has(id) && typeof value === 'string')));
+    setNotes(Object.fromEntries(Object.entries(draft.notes || {}).filter(([id, value]) => allowed.has(id) && typeof value === 'string')));
+    setGridScores(Object.fromEntries(Object.entries(draft.gridScores || {}).filter(([key, value]) => allowed.has(key.split('::')[0]) && typeof value === 'string')));
+  }, !isLoading && Boolean(classroomId));
+
   // Initialize or synchronize gridScores when entries change
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -3272,6 +3286,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
         });
         return Array.from(updatedMap.values());
       });
+      scoreDraft.clear();
       setNotice(`บันทึกคะแนนในตารางรวมเรียบร้อย (${payload.length} ช่อง) [โหมดตัวอย่าง]`);
       setIsSubmitting(false);
       return true;
@@ -3326,12 +3341,14 @@ export function ScoresPage({ session }: ScoresPageProps) {
       source: 'score_center',
     });
 
+    scoreDraft.clear();
     setNotice(`บันทึกคะแนนในตารางรวมเรียบร้อย (${payload.length} ช่อง)`);
     setIsSubmitting(false);
     return true;
   }
 
   function handleResetGridScores() {
+    scoreDraft.clear();
     const next: Record<string, string> = {};
     contextAssessments.forEach((assessment) => {
       classroomStudents.forEach((student) => {
@@ -3455,7 +3472,8 @@ export function ScoresPage({ session }: ScoresPageProps) {
     'ป.5';
 
   return (
-    <main className="app-page pb-24">
+    <main onChangeCapture={scoreDraft.markChanged} className="app-page pb-24">
+      <DraftRecoveryNotice draft={scoreDraft} />
       {scoreView === 'subjects' ? (
         <>
           {notice ? (
@@ -4247,9 +4265,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                                 <button
                                   key={preset}
                                   type="button"
-                                  onClick={() =>
-                                    setScores((current) => ({ ...current, [student.id]: String(preset) }))
-                                  }
+                                  onClick={() => { scoreDraft.markChanged(); setScores((current) => ({ ...current, [student.id]: String(preset) })); }}
                                   className={`h-8 rounded-xl border px-2.5 font-mono text-xs font-black active:scale-95 transition ${
                                     isActive
                                       ? 'border-cyan-600 bg-cyan-600 text-white shadow-2xs'
@@ -4264,9 +4280,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                             })}
                             <button
                               type="button"
-                              onClick={() =>
-                                setScores((current) => ({ ...current, [student.id]: '0' }))
-                              }
+                              onClick={() => { scoreDraft.markChanged(); setScores((current) => ({ ...current, [student.id]: '0' })); }}
                               className={`h-8 rounded-xl border px-2.5 font-mono text-xs font-black active:scale-95 transition ${
                                 scoreValue === '0'
                                   ? 'border-rose-500 bg-rose-600 text-white'
@@ -4361,6 +4375,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                                       .filter(Boolean);
                                     if (values.length < 2) return;
                                     event.preventDefault();
+                                    scoreDraft.markChanged();
                                     const startIndex = filteredStudents.findIndex((item) => item.id === student.id);
                                     const maximum = selectedAssessment.max_score;
                                     setScores((current) => {
@@ -4394,9 +4409,7 @@ export function ScoresPage({ session }: ScoresPageProps) {
                                             ? 'border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
                                             : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-800'
                                       }`}
-                                      onClick={() =>
-                                        setScores((current) => ({ ...current, [student.id]: String(preset) }))
-                                      }
+                                      onClick={() => { scoreDraft.markChanged(); setScores((current) => ({ ...current, [student.id]: String(preset) })); }}
                                       title={isFull ? 'ให้คะแนนเต็มสำหรับคนนี้' : `ใส่ ${formatScore(preset)} คะแนน`}
                                       type="button"
                                     >

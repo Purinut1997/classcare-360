@@ -1,3 +1,7 @@
+import { lessonAttendancePath } from '../../lib/lessonAttendance';
+import { useSchoolDay } from '../../hooks/useSchoolDay';
+import { SchoolDayNotice } from '../../components/shared/SchoolDayNotice';
+import { isDemoSession } from '../../lib/auth';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeftRight,
@@ -114,6 +118,7 @@ async function makeDarkLogoBackgroundTransparent(source: string) {
 }
 
 export function SchedulePage({ session }: SchedulePageProps) {
+  const sharedCalendar = useSchoolDay(session.workspace?.id, getBangkokDate(), isDemoSession(session));
   const [searchParams, setSearchParams] = useSearchParams();
   const workspaceId = session.workspace?.id;
   const [settings, setSettings] = useState(() => loadScheduleSettings(session.workspace?.classroomName || 'ป.5/1', workspaceId));
@@ -1294,6 +1299,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
 
   return (
     <main className="app-page pb-32 sm:pb-12">
+      <SchoolDayNotice calendar={sharedCalendar} />
       <style>{`
         @font-face {
           font-family: 'TH Sarabun PSK';
@@ -2449,6 +2455,7 @@ export function SchedulePage({ session }: SchedulePageProps) {
                     </button>
                   </div>
 
+                  {settings.cells[makeScheduleCellKey(editingCell.day, editingCell.periodIndex)]?.subject && <Link className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-bold text-white" to={lessonAttendancePath(editingCell.day, settings.cells[makeScheduleCellKey(editingCell.day, editingCell.periodIndex)].classroom || '', settings.cells[makeScheduleCellKey(editingCell.day, editingCell.periodIndex)].subject, editingPeriod?.label || `คาบ ${editingCell.periodIndex}`)}>เช็คชื่อคาบนี้ <ArrowRight size={16} /></Link>}
                   <div className="mt-5 grid gap-4">
                     <label className="grid gap-2 text-sm font-black text-slate-700">
                       รายวิชา

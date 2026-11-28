@@ -1,3 +1,4 @@
+import { SCHOOL_CALENDAR_CHANGED } from '../../lib/schoolDay';
 import { BarChart3, Calendar, CalendarDays, CalendarRange, ClipboardList, Clock, FileCheck2, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Pencil, Pin, Plus, Printer, RefreshCw, Sparkles, Star, Trash2, Umbrella, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -428,6 +429,7 @@ export function SchoolCalendarPage({ session }: SchoolCalendarPageProps) {
       const mapped = (data || []).map(mapCalendarRow);
       // Only use Supabase data when connected - don't merge with local storage
       setEvents(mapped);
+      window.dispatchEvent(new Event(SCHOOL_CALENDAR_CHANGED));
       setSync({
         status: 'synced',
         message: mapped.length ? 'เชื่อมข้อมูลปฏิทิน Supabase แล้ว' : 'เชื่อม Supabase แล้ว แต่ยังไม่มีวันพิเศษในตาราง',

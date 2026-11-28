@@ -3006,3 +3006,14 @@ body {
     inset 0 2px 4px rgba(28, 52, 43, 0.08);
 }
 
+
+/* Reading preferences and keyboard access work throughout the signed-in app. */
+.cc-skip-link { position: fixed; left: 1rem; top: -8rem; z-index: 9999; padding: .8rem 1rem; background: #fff; color: #102a43; border: 2px solid #0e7490; border-radius: .7rem; }
+.cc-skip-link:focus { top: 1rem; }
+.app-shell :is(button,a,input,select,textarea,summary):focus-visible { outline: 3px solid #0369a1; outline-offset: 3px; }
+html[data-cc-contrast="true"] .app-shell { --cc-muted-ink: #334155; }
+html[data-cc-contrast="true"] .app-page :is(.text-slate-400,.text-slate-500,.text-stone-400,.text-stone-500,.text-gray-400,.text-gray-500) { color: #334155 !important; }
+html[data-cc-contrast="true"] .app-shell :is(input,select,textarea) { border-color: #475569; }
+html[data-cc-reduced-motion="true"] *, html[data-cc-reduced-motion="true"] *::before, html[data-cc-reduced-motion="true"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+@media (pointer: coarse) { .app-shell :is(button,input:not([type="checkbox"]):not([type="radio"]),select,summary) { min-height: 44px; } .app-shell input:is([type="checkbox"],[type="radio"]) { width: 20px; height: 20px; } }

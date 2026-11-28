@@ -35,5 +35,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Classroom workflow checks
+        run: npm run check:classroom-workflow
+
       - name: Production readiness
         run: npm run check:deploy
